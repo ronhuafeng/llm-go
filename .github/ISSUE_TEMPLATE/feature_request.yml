@@ -1,0 +1,24 @@
+name: Feature request
+description: Suggest a provider-neutral addition to llmkit-go.
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What provider-neutral problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Describe the smallest API or behavior change that would solve it.
+    validations:
+      required: true
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility impact
+      description: Note any public API, dependency, or SemVer implications.
