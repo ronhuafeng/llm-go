@@ -4,11 +4,12 @@ Provider-neutral Go primitives for typed LLM programming.
 
 `llmkit-go` is a small toolkit for code that wants structured LLM output
 without taking a dependency on a specific model provider SDK. It focuses on
-three stable boundaries:
+four stable boundaries:
 
 - `settle`: a bounded stable loop primitive.
 - `llmschema`: Go type to structured output JSON Schema projection and decode.
 - `llmadapter`: prompt plus typed output request/value helpers.
+- `llmstep`: one typed structured-output step with validation feedback retries.
 
 Concrete provider callers live in separate modules. This repository does not
 own provider transport, provider credentials, prompt libraries, tracing
@@ -27,6 +28,7 @@ library with a strict compatibility policy.
 | `github.com/ronhuafeng/llmkit-go/settle` | Run an operation until its validator accepts the output or a bounded iteration limit is reached. | Standard library only. |
 | `github.com/ronhuafeng/llmkit-go/llmschema` | Project Go output types to provider-neutral JSON Schema and decode structured JSON responses. | Uses `github.com/google/jsonschema-go`. |
 | `github.com/ronhuafeng/llmkit-go/llmadapter` | Build typed LLM requests and decode typed values behind a tiny `Caller` interface. | Depends on `llmschema`; no concrete provider SDK. |
+| `github.com/ronhuafeng/llmkit-go/llmstep` | Run one typed structured-output LLM step with deterministic validation and safe feedback retries. | Depends on `llmadapter` and `settle`; no concrete provider SDK. |
 
 The `internal/` tree contains repository tests and is not public API.
 
@@ -151,8 +153,25 @@ func main() {
 }
 ```
 
-For a retry/review loop, build an `llmadapter.Op` with `NewOp` and pass it to
-`settle.Run`.
+Use `llmadapter.Value` directly when one typed provider-neutral call is enough
+and there is no validation feedback loop.
+
+### llmstep
+
+Use `llmstep` when one typed structured-output call needs deterministic
+validation and bounded retries with sanitized validation feedback.
+
+```go
+result, err := llmstep.Run(ctx, llmstep.Step[ReviewInput, ReviewResult]{
+	Caller:   caller,
+	Render:   renderReviewPrompt,
+	Validate: validateReviewResult,
+	MaxIter:  3,
+}, input)
+```
+
+Use `settle.Run` directly when retry state already lives in your operation and
+you do not need validation feedback passed back into prompt rendering.
 
 ## API Compatibility
 
@@ -161,6 +180,7 @@ Public API is limited to exported identifiers in these packages:
 - `settle`
 - `llmschema`
 - `llmadapter`
+- `llmstep`
 
 Everything under `internal/` is private. README examples are illustrative and
 may change, but exported package behavior should be treated as compatibility

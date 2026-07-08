@@ -260,13 +260,17 @@ func TestRunDetailedExposesAttemptHistory(t *testing.T) {
 		{FinalResponse: `{"status":"draft"}`},
 		{FinalResponse: `{"status":"ok"}`},
 	}}
+	var prompts []string
 
 	got, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
 		Caller: caller,
 		Render: func(_ context.Context, _ stepInput, feedback []Feedback) (string, error) {
 			if len(feedback) > 0 {
-				return "retry " + feedback[0].Codes[0], nil
+				prompt := "retry " + feedback[0].Codes[0]
+				prompts = append(prompts, prompt)
+				return prompt, nil
 			}
+			prompts = append(prompts, "initial")
 			return "initial", nil
 		},
 		Validate: func(_ context.Context, _ stepInput, output stepOutput) (ValidationResult, error) {
@@ -286,8 +290,14 @@ func TestRunDetailedExposesAttemptHistory(t *testing.T) {
 	if len(got.Attempts) != 2 {
 		t.Fatalf("attempts = %d, want 2", len(got.Attempts))
 	}
-	if got.Attempts[0].Prompt != "initial" || got.Attempts[1].Prompt != "retry not_ok" {
-		t.Fatalf("attempt prompts = %#v", got.Attempts)
+	if strings.Join(prompts, "|") != "initial|retry not_ok" {
+		t.Fatalf("rendered prompts = %#v", prompts)
+	}
+	if got.Attempts[0].Feedback != nil {
+		t.Fatalf("first attempt feedback = %#v, want nil", got.Attempts[0].Feedback)
+	}
+	if len(got.Attempts[1].Feedback) != 1 || got.Attempts[1].Feedback[0].Codes[0] != "not_ok" {
+		t.Fatalf("second attempt feedback = %#v, want sanitized retry feedback", got.Attempts[1].Feedback)
 	}
 	if len(got.Attempts[0].Validation.Feedback) != 1 ||
 		got.Attempts[0].Validation.Feedback[0].Iteration != 1 {

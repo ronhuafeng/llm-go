@@ -1,6 +1,6 @@
 # Typed LLM Step DSL Design
 
-Status: proposed
+Status: implemented
 
 ## Summary
 
@@ -102,7 +102,6 @@ type Step[I any, O any] struct {
 
 type Attempt struct {
     Iteration  int
-    Prompt     string
     Feedback   []Feedback
     Validation ValidationResult
 }
@@ -118,7 +117,8 @@ func StrictFeedbackSanitizer(feedback []Feedback) ([]Feedback, error)
 ```
 
 `Run` is the normal KISS path. `RunDetailed` is for tests, debugging, and audit
-surfaces that need attempt history.
+surfaces that need attempt history. It deliberately does not retain rendered
+prompts; callers that need prompt capture should wrap their renderer.
 
 ## Behavior
 

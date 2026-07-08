@@ -42,11 +42,9 @@ type Step[I any, O any] struct {
 	Sanitizer FeedbackSanitizer
 }
 
-// Attempt records one rendered prompt, the feedback used to render it, and the
-// validation result for the typed output.
+// Attempt records one run attempt without retaining the rendered prompt.
 type Attempt struct {
 	Iteration  int
-	Prompt     string
 	Feedback   []Feedback
 	Validation ValidationResult
 }
@@ -114,7 +112,6 @@ func RunDetailed[I any, O any](ctx context.Context, step Step[I, O], input I) (R
 
 		attempt := Attempt{
 			Iteration:  iter,
-			Prompt:     prompt,
 			Feedback:   renderFeedback,
 			Validation: copyValidationResult(validation),
 		}
