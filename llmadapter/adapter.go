@@ -40,13 +40,24 @@ type Caller interface {
 }
 
 type Request struct {
-	Prompt       string
+	// Prompt is copied as a Go string value.
+	Prompt string
+	// OutputSchema is cloned before Caller.Call is invoked. A caller may mutate
+	// its copy during the call but must not retain mutable toolkit-owned request
+	// state and mutate it after returning.
 	OutputSchema json.RawMessage
 }
 
 type Response struct {
-	FinalResponse   string
-	Execution       ExecutionEvidence
+	// FinalResponse is copied as a Go string value and is retained on call and
+	// decode errors when available.
+	FinalResponse string
+	// Execution is provider-neutral evidence. ValueDetailed clones Usage before
+	// publishing the response.
+	Execution ExecutionEvidence
+	// ProviderDetails is adapter-owned. Adapters must return an isolated typed
+	// value that does not alias mutable runtime state. Typed nil is invalid, and
+	// ProviderName must agree with Execution.ProviderName.
 	ProviderDetails ProviderDetails
 }
 
@@ -78,7 +89,10 @@ func (e *ValueError) Unwrap() error {
 }
 
 type ValueResult[T any] struct {
-	Value    T
+	// Value follows ordinary Go value semantics. ValueDetailed does not
+	// generically deep-clone maps, slices, pointers, or other reference fields.
+	Value T
+	// Response preserves available call evidence on call and decode failures.
 	Response Response
 }
 

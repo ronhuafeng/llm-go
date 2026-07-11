@@ -258,3 +258,25 @@ func TestRunProjectsDetailedOutputOnError(t *testing.T) {
 		t.Fatalf("Run output = %q, err = %v; want candidate plus error", got, err)
 	}
 }
+
+type mapOutputOp struct{}
+
+func (mapOutputOp) Run(context.Context, struct{}) (map[string]string, error) {
+	return map[string]string{"status": "draft"}, nil
+}
+
+func (mapOutputOp) Validate(context.Context, struct{}, map[string]string) (bool, error) {
+	return true, nil
+}
+
+func TestRunDetailedGenericOutputsUseOrdinaryGoSemantics(t *testing.T) {
+	result, err := RunDetailed(context.Background(), mapOutputOp{}, struct{}{}, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result.Output["status"] = "final"
+	if result.Attempts[0].Output["status"] != "final" {
+		t.Fatal("generic attempt output unexpectedly behaved as a deep clone")
+	}
+}

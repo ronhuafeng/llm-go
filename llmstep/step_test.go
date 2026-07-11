@@ -311,6 +311,30 @@ func TestRunDetailedExposesAttemptHistory(t *testing.T) {
 	}
 }
 
+func TestRunDetailedPublishesIsolatedFeedbackSlices(t *testing.T) {
+	caller := &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"draft"}`}}}
+	source := []Feedback{{Summary: "not ready", Codes: []string{"not_ready"}, Locations: []string{"status"}}}
+	result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
+		Caller: caller,
+		Render: func(context.Context, stepInput, []Feedback) (string, error) { return "prompt", nil },
+		Validate: func(context.Context, stepInput, stepOutput) (ValidationResult, error) {
+			return ValidationResult{Feedback: source}, nil
+		},
+		MaxIter: 1,
+	}, stepInput{})
+	if !errors.Is(err, settle.ErrUnsettled) {
+		t.Fatalf("error = %v, want ErrUnsettled", err)
+	}
+
+	source[0].Summary = "mutated"
+	source[0].Codes[0] = "mutated"
+	source[0].Locations[0] = "mutated"
+	got := result.Attempts[0].Validation.Feedback[0]
+	if got.Summary != "not ready" || got.Codes[0] != "not_ready" || got.Locations[0] != "status" {
+		t.Fatalf("published feedback changed with validator source: %#v", got)
+	}
+}
+
 func TestRunDetailedRecordsRenderFailure(t *testing.T) {
 	renderErr := errors.New("render")
 	result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{

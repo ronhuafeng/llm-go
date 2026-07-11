@@ -158,6 +158,52 @@ path and also returns the complete provider-neutral response on success or
 failure. Provider-specific exact facts remain available through typed
 `ProviderDetails` implementations supplied by adapters.
 
+## Ownership and snapshots
+
+Detailed APIs publish owned, isolated snapshots of toolkit-owned state. This is
+an aliasing guarantee for state whose representation the toolkit owns, not a
+promise that every returned Go value is deeply immutable.
+
+- `llmadapter.Request.OutputSchema` is cloned before caller invocation. Callers
+  may use or mutate their copy during `Call`, but must not retain and later
+  mutate toolkit-owned request state in a way that affects another call.
+- `llmadapter.ValueDetailed` preserves available response evidence on call and
+  decode errors and clones `Execution.Usage` before publication.
+- Provider adapters own `ProviderDetails` cloning. When details are provided,
+  they must be an isolated, non-nil typed value whose provider identity matches
+  neutral execution evidence; they must not alias mutable transport or SDK
+  state.
+- `ValueResult.Value`, `settle.Result.Output`, attempt candidates, and
+  `llmstep.Result.Output` follow ordinary Go value semantics. Maps, slices,
+  pointers, and custom mutable fields are not generically deep-copied.
+- `settle` attempt slices and `llmstep` attempt, validation, feedback, code, and
+  location slices are copied before publication.
+
+An adapter should copy provider-owned reference fields while constructing its
+details value. For example, `details{Headers: maps.Clone(response.Headers)}` is
+safe; `details{Headers: response.Headers}` is unsafe if the transport may later
+mutate that map. Applications requiring deeply immutable generic outputs should
+use immutable domain types or explicitly clone their values.
+
+Detailed field ownership is summarized below. Scalar strings, booleans,
+integers, stages, and errors are copied by normal Go assignment.
+
+| Published field | Ownership and aliasing contract |
+| --- | --- |
+| `Request.Prompt` | Go string value. |
+| `Request.OutputSchema` | Toolkit-owned bytes cloned before `Caller.Call`. |
+| `Response.FinalResponse` | Go string value, preserved when available on call/decode failure. |
+| `Response.Execution` | Provider-neutral value; its `Usage` pointer is cloned by `ValueDetailed`. |
+| `Response.ProviderDetails` | Adapter-owned isolated typed value; the adapter must remove mutable runtime aliases. |
+| `ValueResult.Value` | Generic value with ordinary Go semantics; reference fields may alias. |
+| `ValueResult.Response` | Available response evidence preserved on call/decode errors with the ownership rules above. |
+| `settle.Result.Output` and `Attempt.Output` | Generic values with ordinary Go semantics; the latest result and recorded candidate may share reference fields. |
+| `settle.Result.Attempts` | Toolkit-owned slice snapshot; scalar attempt fields and errors use normal Go assignment. |
+| `llmstep.Result.Output` and `Attempt.Call.Value` | Generic values with ordinary Go semantics; reference fields may alias. |
+| `llmstep.Result.Attempts` | Toolkit-owned slice snapshot. |
+| `llmstep.Attempt.Feedback` and `Validation.Feedback` | Toolkit-owned snapshots including nested `Codes` and `Locations` slices. |
+| `llmstep.Attempt.Call.Response` | Response evidence following the `llmadapter.Response` rules above. |
+
 ### llmstep
 
 Use `llmstep` when one typed structured-output call needs deterministic

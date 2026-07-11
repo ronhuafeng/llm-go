@@ -136,6 +136,49 @@ func TestValueDetailedPublishesUsageSnapshot(t *testing.T) {
 	}
 }
 
+func TestValueDetailedProvidesIsolatedRequestSchemaPerCall(t *testing.T) {
+	var firstSchema json.RawMessage
+	calls := 0
+	caller := callerFunc(func(_ context.Context, request Request) (Response, error) {
+		calls++
+		if calls == 1 {
+			firstSchema = request.OutputSchema
+			request.OutputSchema[0] = '!'
+		} else if request.OutputSchema[0] == '!' {
+			t.Fatal("second call reused caller-mutated schema bytes")
+		}
+		return Response{FinalResponse: `true`}, nil
+	})
+
+	if _, err := ValueDetailed[bool](context.Background(), caller, "first"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ValueDetailed[bool](context.Background(), caller, "second"); err != nil {
+		t.Fatal(err)
+	}
+	if len(firstSchema) == 0 || firstSchema[0] != '!' {
+		t.Fatal("caller did not receive mutable schema copy")
+	}
+}
+
+func TestValueDetailedGenericValueUsesOrdinaryGoSemantics(t *testing.T) {
+	type output struct {
+		Labels map[string]string `json:"labels"`
+	}
+	result, err := ValueDetailed[output](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
+		return Response{FinalResponse: `{"labels":{"status":"draft"}}`}, nil
+	}), "prompt")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	valueCopy := result.Value
+	valueCopy.Labels["status"] = "final"
+	if result.Value.Labels["status"] != "final" {
+		t.Fatal("generic value unexpectedly behaved as a deep clone")
+	}
+}
+
 func TestValueProjectsSchemaCallsBackendAndDecodes(t *testing.T) {
 	caller := &fakeCaller{responses: []Response{{FinalResponse: `true`}}}
 

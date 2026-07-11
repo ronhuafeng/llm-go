@@ -27,6 +27,7 @@ const (
 
 type Attempt[O any] struct {
 	Iteration int
+	// Output follows ordinary Go value semantics and is not generically cloned.
 	Output    O
 	HasOutput bool
 	Settled   bool
@@ -35,9 +36,13 @@ type Attempt[O any] struct {
 }
 
 type Result[O any] struct {
+	// Output follows ordinary Go value semantics and may share reference fields
+	// with the output recorded in Attempts.
 	Output    O
 	HasOutput bool
-	Attempts  []Attempt[O]
+	// Attempts is an owned slice snapshot. Generic Output values inside attempts
+	// are not deep-cloned.
+	Attempts []Attempt[O]
 }
 
 func Run[I any, O any](ctx context.Context, op Op[I, O], input I, maxIter int) (O, error) {

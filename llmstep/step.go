@@ -77,18 +77,24 @@ func (e *StepError) Unwrap() error {
 
 // Attempt records one run attempt without retaining the rendered prompt.
 type Attempt[O any] struct {
-	Iteration  int
-	Feedback   []Feedback
-	Call       llmadapter.ValueResult[O]
+	Iteration int
+	// Feedback is an owned snapshot, including its Codes and Locations slices.
+	Feedback []Feedback
+	Call     llmadapter.ValueResult[O]
+	// Validation is an owned snapshot of validation feedback. Generic values in
+	// Call retain ordinary Go value semantics.
 	Validation ValidationResult
 	Err        error
 }
 
 // Result is the typed output plus attempt history from RunDetailed.
 type Result[O any] struct {
+	// Output follows ordinary Go value semantics and is not generically cloned.
 	Output    O
 	HasOutput bool
-	Attempts  []Attempt[O]
+	// Attempts is an owned snapshot. Its feedback slices are isolated, while
+	// generic outputs retain ordinary Go value semantics.
+	Attempts []Attempt[O]
 }
 
 // Run executes a step and returns only the settled typed output.
