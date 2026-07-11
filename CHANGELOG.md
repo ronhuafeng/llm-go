@@ -7,6 +7,10 @@ changes may occur in minor releases, but they must be documented here.
 
 ## [Unreleased]
 
+No changes yet.
+
+## [0.2.0] - 2026-07-11
+
 ### Added
 
 - Detailed provider-neutral call results with execution evidence, typed
