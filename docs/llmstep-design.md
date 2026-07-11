@@ -187,9 +187,9 @@ identifier vocabulary. For example, a journal validator can allow only `T###`,
 
 This is additive. Existing packages and APIs remain valid.
 
-`llmadapter.Op` can remain for direct `settle.Run` users. The new `llmstep`
-package is the recommended path when a typed LLM call needs validation
-feedback across retries.
+`llmadapter.Op` was retained and deprecated during v0.2, then removed in v0.3.
+`llmstep` is the path when a typed LLM call needs validation feedback across
+retries; generic stabilization uses an application-owned `settle.Op` directly.
 
 ## Test Plan
 
@@ -213,7 +213,8 @@ Tests should use a fake `llmadapter.Caller` and small synthetic typed structs.
 - `go test ./...` passes.
 - `go vet ./...` passes.
 - No new concrete provider dependency is added to `llmkit-go`.
-- Existing `llmschema`, `llmadapter`, and `settle` public APIs keep working.
+- The v0.2 implementation was additive; the deprecated compatibility helpers
+  were subsequently removed for v0.3 as documented in `v0.3-migration.md`.
 - README documents when to use `llmstep` versus `llmadapter.Value` and
   `settle.Run`.
 - The implementation contains no journal, Codex, or application-specific

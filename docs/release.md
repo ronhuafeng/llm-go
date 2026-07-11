@@ -69,11 +69,11 @@ At and after v1.0.0:
    ./scripts/ci/verify-clean-consumer.sh local "$PWD"
    ```
 
-7. Create and push an annotated release tag. Replace `v0.2.0` with the next
+7. Create and push an annotated release tag. Replace `v0.3.0` with the next
    intended version:
 
    ```sh
-   VERSION=v0.2.0
+   VERSION=v0.3.0
    git tag -a "$VERSION" -m "llmkit-go $VERSION"
    git push origin "$VERSION"
    ```
@@ -99,6 +99,12 @@ Require these `CI` jobs on `main` pull requests:
 
 The tag-only `Tag clean consumer` job is a release gate and is not a pull
 request branch-protection check.
+
+For v0.3, also verify that the migration table, changelog, README, package
+documentation, and handwritten API allowlist list the same removed surface.
+The caller removal canary must use a real published caller v0.2.1 tag with
+`GOWORK=off` and no `replace`; if that tag does not exist, record the canary as
+pending rather than substituting a local checkout or synthetic tag.
 
 ## Supply-chain hygiene
 

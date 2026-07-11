@@ -7,7 +7,16 @@ changes may occur in minor releases, but they must be documented here.
 
 ## [Unreleased]
 
-No changes yet.
+### Removed
+
+- Removed the v0.2-deprecated `llmschema.DecodeString`,
+  `llmadapter.Options`, `llmadapter.Op`, `llmadapter.NewOp`, `settle.Bind`, and
+  `settle.Runner` helper surface for v0.3.
+- Removed `llmadapter.ErrNilRender`, which was used only by the removed legacy
+  adapter operation. `llmstep.ErrNilRender` remains available for `llmstep`.
+
+See [Migrating to v0.3](docs/v0.3-migration.md) for replacements. These are
+intentional pre-v1 breaking changes.
 
 ## [0.2.0] - 2026-07-11
 

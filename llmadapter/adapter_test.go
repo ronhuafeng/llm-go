@@ -6,8 +6,6 @@ import (
 	"errors"
 	"strings"
 	"testing"
-
-	"github.com/ronhuafeng/llmkit-go/settle"
 )
 
 type fakeCaller struct {
@@ -234,39 +232,6 @@ func TestValueSupportsStructOutput(t *testing.T) {
 	if !strings.Contains(string(caller.requests[0].OutputSchema), `"status"`) ||
 		!strings.Contains(string(caller.requests[0].OutputSchema), `"passed"`) {
 		t.Fatalf("schema should include struct fields: %s", caller.requests[0].OutputSchema)
-	}
-}
-
-func TestOpCanRunInsideSettle(t *testing.T) {
-	type input struct {
-		Question string
-	}
-	type answer struct {
-		Passed bool `json:"passed"`
-	}
-	caller := &fakeCaller{responses: []Response{
-		{FinalResponse: `{"passed":false}`},
-		{FinalResponse: `{"passed":true}`},
-	}}
-	op := NewOp[input, answer](Options[input, answer]{
-		Caller: caller,
-		Render: func(_ context.Context, in input) (string, error) {
-			return in.Question, nil
-		},
-		Validate: func(_ context.Context, _ input, out answer) (bool, error) {
-			return out.Passed, nil
-		},
-	})
-
-	got, err := settle.Run(context.Background(), op, input{Question: "done?"}, 2)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !got.Passed {
-		t.Fatalf("settled output = %#v", got)
-	}
-	if len(caller.requests) != 2 {
-		t.Fatalf("requests = %d, want 2", len(caller.requests))
 	}
 }
 

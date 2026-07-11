@@ -13,7 +13,6 @@ import (
 
 var (
 	ErrNilCaller                = errors.New("llmadapter: caller is nil")
-	ErrNilRender                = errors.New("llmadapter: render is nil")
 	ErrEmptyResponse            = errors.New("llmadapter: final response is empty")
 	ErrProviderIdentityMismatch = errors.New("llmadapter: provider identity mismatch")
 )
@@ -132,55 +131,6 @@ func ValueDetailed[T any](ctx context.Context, caller Caller, prompt string) (Va
 		return result, valueError(ValueStageDecode, err)
 	}
 	return result, nil
-}
-
-// Options configures the legacy settle-compatible adapter operation.
-//
-// Deprecated: use llmstep.Step or implement settle.Op directly.
-type Options[I any, O any] struct {
-	Caller   Caller
-	Render   func(ctx context.Context, input I) (string, error)
-	Validate func(ctx context.Context, input I, output O) (bool, error)
-}
-
-// Op is the legacy settle-compatible adapter operation.
-//
-// Deprecated: use llmstep.Step or implement settle.Op directly.
-type Op[I any, O any] struct {
-	caller   Caller
-	render   func(context.Context, I) (string, error)
-	validate func(context.Context, I, O) (bool, error)
-}
-
-// Deprecated: use llmstep.Run or settle.Run.
-func NewOp[I any, O any](options Options[I, O]) Op[I, O] {
-	return Op[I, O]{
-		caller:   options.Caller,
-		render:   options.Render,
-		validate: options.Validate,
-	}
-}
-
-func (op Op[I, O]) Run(ctx context.Context, input I) (O, error) {
-	var zero O
-	if op.caller == nil {
-		return zero, ErrNilCaller
-	}
-	if op.render == nil {
-		return zero, ErrNilRender
-	}
-	prompt, err := op.render(ctx, input)
-	if err != nil {
-		return zero, err
-	}
-	return Value[O](ctx, op.caller, prompt)
-}
-
-func (op Op[I, O]) Validate(ctx context.Context, input I, output O) (bool, error) {
-	if op.validate == nil {
-		return true, nil
-	}
-	return op.validate(ctx, input, output)
 }
 
 func decodeFinalResponse[T any](raw string) (T, error) {

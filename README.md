@@ -243,13 +243,16 @@ patch releases should be bug fixes only, minor releases may add API, and any
 known breaking API change must be called out in `CHANGELOG.md` and the release
 notes. After v1.0.0, breaking public API changes require a new major version.
 
+Version 0.3 removes the helpers deprecated in v0.2. See
+[Migrating to v0.3](docs/v0.3-migration.md) for the complete symbol mapping.
+
 ## Versioning
 
 Releases should be tagged as standard Go module tags. For a future release,
 replace the version below with the next intended version:
 
 ```sh
-VERSION=v0.2.0
+VERSION=v0.3.0
 git tag -a "$VERSION" -m "llmkit-go $VERSION"
 git push origin "$VERSION"
 ```

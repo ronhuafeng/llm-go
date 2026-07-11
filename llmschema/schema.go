@@ -66,13 +66,6 @@ func Decode[T any](data []byte) (T, error) {
 	return value, nil
 }
 
-// DecodeString validates and unmarshals provider structured output text.
-//
-// Deprecated: use Decode.
-func DecodeString[T any](text string) (T, error) {
-	return Decode[T]([]byte(text))
-}
-
 func decodeJSON(data []byte) (any, error) {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.UseNumber()

@@ -189,36 +189,6 @@ func TestRunReturnsValidateError(t *testing.T) {
 	}
 }
 
-func TestBindRunMatchesRun(t *testing.T) {
-	directOp := &recordingOp{
-		results:      []string{"draft", "final"},
-		settledAfter: 2,
-	}
-	boundOp := &recordingOp{
-		results:      []string{"draft", "final"},
-		settledAfter: 2,
-	}
-
-	directResult, directErr := Run(context.Background(), directOp, "input", 2)
-	boundResult, boundErr := Bind[string, string](boundOp).Run(context.Background(), "input", 2)
-
-	if directErr != nil {
-		t.Fatalf("direct Run returned error: %v", directErr)
-	}
-	if boundErr != nil {
-		t.Fatalf("bound Run returned error: %v", boundErr)
-	}
-	if boundResult != directResult {
-		t.Fatalf("bound result = %q, want %q", boundResult, directResult)
-	}
-	if boundOp.runCalls != directOp.runCalls {
-		t.Fatalf("bound Run calls = %d, want %d", boundOp.runCalls, directOp.runCalls)
-	}
-	if boundOp.validateCalls != directOp.validateCalls {
-		t.Fatalf("bound Validate calls = %d, want %d", boundOp.validateCalls, directOp.validateCalls)
-	}
-}
-
 func TestRunDetailedPreservesAttemptHistoryAndLatestOutput(t *testing.T) {
 	op := &recordingOp{results: []string{"draft-1", "draft-2"}, settledAfter: 3}
 	result, err := RunDetailed(context.Background(), op, "input", 2)

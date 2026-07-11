@@ -91,23 +91,9 @@ func RunDetailed[I any, O any](ctx context.Context, op Op[I, O], input I, maxIte
 	return snapshot(result), fmt.Errorf("%w: maxIter=%d", ErrUnsettled, maxIter)
 }
 
-// Deprecated: call Run or RunDetailed directly.
-type Runner[I any, O any] struct {
-	op Op[I, O]
-}
-
-// Deprecated: call Run or RunDetailed directly.
-func Bind[I any, O any](op Op[I, O]) Runner[I, O] {
-	return Runner[I, O]{op: op}
-}
-
 func snapshot[O any](result Result[O]) Result[O] {
 	result.Attempts = append([]Attempt[O](nil), result.Attempts...)
 	return result
-}
-
-func (r Runner[I, O]) Run(ctx context.Context, input I, maxIter int) (O, error) {
-	return Run(ctx, r.op, input, maxIter)
 }
 
 func isNilOp[I any, O any](op Op[I, O]) bool {
