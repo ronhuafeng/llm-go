@@ -10,6 +10,12 @@ The public API is the set of exported identifiers in these packages:
 - `github.com/ronhuafeng/llmkit-go/settle`
 - `github.com/ronhuafeng/llmkit-go/llmschema`
 - `github.com/ronhuafeng/llmkit-go/llmadapter`
+- `github.com/ronhuafeng/llmkit-go/llmstep`
+
+The canonical declaration and method allowlist is stored in
+`internal/architecture/testdata/handwritten-api.txt`. Any update must first be
+reflected in the normative local refactor plan and then reviewed as API design,
+not accepted as incidental test churn.
 
 The following are not public API:
 
@@ -54,8 +60,7 @@ At and after v1.0.0:
 
    ```sh
    gofmt -w $(find . -name '*.go' -not -path './vendor/*')
-   go vet ./...
-   go test ./...
+   GOWORK=off go vet ./...
    GOWORK=off go test ./...
    ```
 

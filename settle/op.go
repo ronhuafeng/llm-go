@@ -18,44 +18,87 @@ type Op[I any, O any] interface {
 	Validate(ctx context.Context, input I, result O) (bool, error)
 }
 
+type Stage string
+
+const (
+	StageRun      Stage = "run"
+	StageValidate Stage = "validate"
+)
+
+type Attempt[O any] struct {
+	Iteration int
+	Output    O
+	HasOutput bool
+	Settled   bool
+	Stage     Stage
+	Err       error
+}
+
+type Result[O any] struct {
+	Output    O
+	HasOutput bool
+	Attempts  []Attempt[O]
+}
+
 func Run[I any, O any](ctx context.Context, op Op[I, O], input I, maxIter int) (O, error) {
-	var zero O
+	result, err := RunDetailed(ctx, op, input, maxIter)
+	return result.Output, err
+}
+
+func RunDetailed[I any, O any](ctx context.Context, op Op[I, O], input I, maxIter int) (Result[O], error) {
+	var result Result[O]
 
 	if maxIter < 1 {
-		return zero, ErrInvalidMaxIter
+		return result, ErrInvalidMaxIter
 	}
 	if isNilOp(op) {
-		return zero, ErrNilOp
+		return result, ErrNilOp
 	}
 
 	for iter := 1; iter <= maxIter; iter++ {
 		if err := ctx.Err(); err != nil {
-			return zero, err
+			return result, err
 		}
 
-		result, err := op.Run(ctx, input)
+		output, err := op.Run(ctx, input)
 		if err != nil {
-			return zero, err
+			result.Attempts = append(result.Attempts, Attempt[O]{Iteration: iter, Stage: StageRun, Err: err})
+			return snapshot(result), err
 		}
+		attempt := Attempt[O]{Iteration: iter, Output: output, HasOutput: true}
+		result.Output = output
+		result.HasOutput = true
 
-		settled, err := op.Validate(ctx, input, result)
+		settled, err := op.Validate(ctx, input, output)
 		if err != nil {
-			return zero, err
+			attempt.Stage = StageValidate
+			attempt.Err = err
+			result.Attempts = append(result.Attempts, attempt)
+			return snapshot(result), err
 		}
+		attempt.Settled = settled
+		result.Attempts = append(result.Attempts, attempt)
 		if settled {
-			return result, nil
+			return snapshot(result), nil
 		}
 	}
 
-	return zero, fmt.Errorf("%w: maxIter=%d", ErrUnsettled, maxIter)
+	return snapshot(result), fmt.Errorf("%w: maxIter=%d", ErrUnsettled, maxIter)
 }
 
+// Deprecated: call Run or RunDetailed directly.
 type Runner[I any, O any] struct {
 	op Op[I, O]
 }
 
+// Deprecated: call Run or RunDetailed directly.
 func Bind[I any, O any](op Op[I, O]) Runner[I, O] {
 	return Runner[I, O]{op: op}
+}
+
+func snapshot[O any](result Result[O]) Result[O] {
+	result.Attempts = append([]Attempt[O](nil), result.Attempts...)
+	return result
 }
 
 func (r Runner[I, O]) Run(ctx context.Context, input I, maxIter int) (O, error) {

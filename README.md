@@ -6,10 +6,10 @@ Provider-neutral Go primitives for typed LLM programming.
 without taking a dependency on a specific model provider SDK. It focuses on
 four stable boundaries:
 
-- `settle`: a bounded stable loop primitive.
-- `llmschema`: Go type to structured output JSON Schema projection and decode.
-- `llmadapter`: prompt plus typed output request/value helpers.
-- `llmstep`: one typed structured-output step with validation feedback retries.
+- `settle`: bounded stabilization with complete attempt evidence.
+- `llmschema`: Go type to JSON Schema projection and schema-enforced decode.
+- `llmadapter`: one provider-neutral typed call with execution evidence.
+- `llmstep`: typed validation-feedback retries with stage-specific history.
 
 Concrete provider callers live in separate modules. This repository does not
 own provider transport, provider credentials, prompt libraries, tracing
@@ -25,10 +25,10 @@ library with a strict compatibility policy.
 
 | Package | Purpose | Provider dependencies |
 | --- | --- | --- |
-| `github.com/ronhuafeng/llmkit-go/settle` | Run an operation until its validator accepts the output or a bounded iteration limit is reached. | Standard library only. |
-| `github.com/ronhuafeng/llmkit-go/llmschema` | Project Go output types to provider-neutral JSON Schema and decode structured JSON responses. | Uses `github.com/google/jsonschema-go`. |
-| `github.com/ronhuafeng/llmkit-go/llmadapter` | Build typed LLM requests and decode typed values behind a tiny `Caller` interface. | Depends on `llmschema`; no concrete provider SDK. |
-| `github.com/ronhuafeng/llmkit-go/llmstep` | Run one typed structured-output LLM step with deterministic validation and safe feedback retries. | Depends on `llmadapter` and `settle`; no concrete provider SDK. |
+| `github.com/ronhuafeng/llmkit-go/settle` | Run and validate bounded candidates while preserving stage-specific attempt history. | Standard library only. |
+| `github.com/ronhuafeng/llmkit-go/llmschema` | Project Go output types to provider-neutral JSON Schema, validate responses, and decode typed values. | Uses JSON Schema projection and validation libraries. |
+| `github.com/ronhuafeng/llmkit-go/llmadapter` | Build one typed request, preserve provider-neutral execution evidence, and decode the final value. | Depends on `llmschema`; no concrete provider SDK. |
+| `github.com/ronhuafeng/llmkit-go/llmstep` | Run typed validation-feedback retries while preserving every request/call/decode/validation stage. | Depends on `llmadapter` and `settle`; no concrete provider SDK. |
 
 The `internal/` tree contains repository tests and is not public API.
 
@@ -109,7 +109,7 @@ func main() {
 	}
 	fmt.Println(string(schema))
 
-	value, err := llmschema.DecodeString[Verdict](`{"status":"pass","score":2}`)
+	value, err := llmschema.Decode[Verdict]([]byte(`{"status":"pass","score":2}`))
 	if err != nil {
 		panic(err)
 	}
@@ -145,16 +145,18 @@ type Answer struct {
 }
 
 func main() {
-	answer, err := llmadapter.Value[Answer](context.Background(), staticCaller{}, "Return yes.")
+	result, err := llmadapter.ValueDetailed[Answer](context.Background(), staticCaller{}, "Return yes.")
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(answer.Answer)
+	fmt.Println(result.Value.Answer)
 }
 ```
 
-Use `llmadapter.Value` directly when one typed provider-neutral call is enough
-and there is no validation feedback loop.
+Use `Value` when only the typed value is needed. `ValueDetailed` is the core
+path and also returns the complete provider-neutral response on success or
+failure. Provider-specific exact facts remain available through typed
+`ProviderDetails` implementations supplied by adapters.
 
 ### llmstep
 
@@ -173,6 +175,10 @@ result, err := llmstep.Run(ctx, llmstep.Step[ReviewInput, ReviewResult]{
 Use `settle.Run` directly when retry state already lives in your operation and
 you do not need validation feedback passed back into prompt rendering.
 
+Use `settle.RunDetailed` and `llmstep.RunDetailed` when callers need candidates,
+attempt errors, validation feedback, provider response evidence, or the latest
+partial output after a failure or exhausted retry bound.
+
 ## API Compatibility
 
 Public API is limited to exported identifiers in these packages:
@@ -183,8 +189,8 @@ Public API is limited to exported identifiers in these packages:
 - `llmstep`
 
 Everything under `internal/` is private. README examples are illustrative and
-may change, but exported package behavior should be treated as compatibility
-surface.
+may change, but they are compiled in tests where practical. Exported package
+behavior and the canonical handwritten API allowlist are compatibility surface.
 
 Before v1.0.0, this project follows SemVer with a conservative pre-v1 policy:
 patch releases should be bug fixes only, minor releases may add API, and any

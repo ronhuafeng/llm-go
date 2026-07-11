@@ -218,3 +218,43 @@ func TestBindRunMatchesRun(t *testing.T) {
 		t.Fatalf("bound Validate calls = %d, want %d", boundOp.validateCalls, directOp.validateCalls)
 	}
 }
+
+func TestRunDetailedPreservesAttemptHistoryAndLatestOutput(t *testing.T) {
+	op := &recordingOp{results: []string{"draft-1", "draft-2"}, settledAfter: 3}
+	result, err := RunDetailed(context.Background(), op, "input", 2)
+	if !errors.Is(err, ErrUnsettled) {
+		t.Fatalf("error = %v, want ErrUnsettled", err)
+	}
+	if !result.HasOutput || result.Output != "draft-2" || len(result.Attempts) != 2 {
+		t.Fatalf("result = %#v", result)
+	}
+	if result.Attempts[0].Output != "draft-1" || result.Attempts[0].Settled || result.Attempts[0].Stage != "" {
+		t.Fatalf("first attempt = %#v", result.Attempts[0])
+	}
+}
+
+func TestRunDetailedDistinguishesRunAndValidationFailure(t *testing.T) {
+	runErr := errors.New("run")
+	runResult, err := RunDetailed(context.Background(), &recordingOp{runErr: runErr}, "input", 1)
+	if !errors.Is(err, runErr) || len(runResult.Attempts) != 1 || runResult.Attempts[0].Stage != StageRun || runResult.Attempts[0].HasOutput {
+		t.Fatalf("run failure result = %#v, err = %v", runResult, err)
+	}
+
+	validateErr := errors.New("validate")
+	validationResult, err := RunDetailed(context.Background(), &recordingOp{results: []string{"candidate"}, validateErr: validateErr}, "input", 1)
+	if !errors.Is(err, validateErr) || !validationResult.HasOutput || validationResult.Output != "candidate" {
+		t.Fatalf("validation failure result = %#v, err = %v", validationResult, err)
+	}
+	attempt := validationResult.Attempts[0]
+	if attempt.Stage != StageValidate || !attempt.HasOutput || attempt.Output != "candidate" {
+		t.Fatalf("validation attempt = %#v", attempt)
+	}
+}
+
+func TestRunProjectsDetailedOutputOnError(t *testing.T) {
+	direct := &recordingOp{results: []string{"candidate"}, validateErr: errors.New("validate")}
+	got, err := Run(context.Background(), direct, "input", 1)
+	if err == nil || got != "candidate" {
+		t.Fatalf("Run output = %q, err = %v; want candidate plus error", got, err)
+	}
+}

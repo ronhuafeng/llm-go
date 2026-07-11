@@ -16,6 +16,12 @@ type fakeCaller struct {
 	requests  []llmadapter.Request
 }
 
+type stepCallerFunc func(context.Context, llmadapter.Request) (llmadapter.Response, error)
+
+func (f stepCallerFunc) Call(ctx context.Context, request llmadapter.Request) (llmadapter.Response, error) {
+	return f(ctx, request)
+}
+
 func (caller *fakeCaller) Call(ctx context.Context, request llmadapter.Request) (llmadapter.Response, error) {
 	if err := ctx.Err(); err != nil {
 		return llmadapter.Response{}, err
@@ -160,7 +166,7 @@ func TestRunFailsFastOnInvalidConfiguration(t *testing.T) {
 		{
 			name: "nil render",
 			step: Step[stepInput, stepOutput]{Caller: caller, MaxIter: 1},
-			want: llmadapter.ErrNilRender,
+			want: ErrNilRender,
 		},
 	}
 
@@ -302,5 +308,103 @@ func TestRunDetailedExposesAttemptHistory(t *testing.T) {
 	if len(got.Attempts[0].Validation.Feedback) != 1 ||
 		got.Attempts[0].Validation.Feedback[0].Iteration != 1 {
 		t.Fatalf("attempt validation feedback = %#v, want sanitized history", got.Attempts[0].Validation.Feedback)
+	}
+}
+
+func TestRunDetailedRecordsRenderFailure(t *testing.T) {
+	renderErr := errors.New("render")
+	result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
+		Caller:  &fakeCaller{},
+		Render:  func(context.Context, stepInput, []Feedback) (string, error) { return "", renderErr },
+		MaxIter: 1,
+	}, stepInput{})
+	assertStepFailure(t, result, err, StageRender, renderErr, false)
+}
+
+func TestRunDetailedRecordsRequestFailure(t *testing.T) {
+	called := false
+	result, err := RunDetailed(context.Background(), Step[stepInput, chan int]{
+		Caller: stepCallerFunc(func(context.Context, llmadapter.Request) (llmadapter.Response, error) {
+			called = true
+			return llmadapter.Response{}, nil
+		}),
+		Render:  func(context.Context, stepInput, []Feedback) (string, error) { return "prompt", nil },
+		MaxIter: 1,
+	}, stepInput{})
+	var stepErr *StepError
+	if !errors.As(err, &stepErr) || stepErr.Stage != StageRequest || len(result.Attempts) != 1 {
+		t.Fatalf("result = %#v, err = %v; want request failure", result, err)
+	}
+	if called {
+		t.Fatal("caller invoked after request failure")
+	}
+}
+
+func TestRunDetailedRecordsPartialCallAndDecodeFailures(t *testing.T) {
+	providerErr := errors.New("provider")
+	callResponse := llmadapter.Response{FinalResponse: `{"status":"partial"}`}
+	callResult, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
+		Caller: stepCallerFunc(func(context.Context, llmadapter.Request) (llmadapter.Response, error) {
+			return callResponse, providerErr
+		}),
+		Render:  func(context.Context, stepInput, []Feedback) (string, error) { return "prompt", nil },
+		MaxIter: 1,
+	}, stepInput{})
+	assertStepFailure(t, callResult, err, StageCall, providerErr, false)
+	if callResult.Attempts[0].Call.Response.FinalResponse != callResponse.FinalResponse {
+		t.Fatalf("partial call response = %#v", callResult.Attempts[0].Call.Response)
+	}
+
+	decodeResponse := llmadapter.Response{FinalResponse: `{"status":3}`}
+	decodeResult, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
+		Caller: stepCallerFunc(func(context.Context, llmadapter.Request) (llmadapter.Response, error) {
+			return decodeResponse, nil
+		}),
+		Render:  func(context.Context, stepInput, []Feedback) (string, error) { return "prompt", nil },
+		MaxIter: 1,
+	}, stepInput{})
+	assertStepFailure(t, decodeResult, err, StageDecode, nil, false)
+	if decodeResult.Attempts[0].Call.Response.FinalResponse != decodeResponse.FinalResponse {
+		t.Fatalf("decode response = %#v", decodeResult.Attempts[0].Call.Response)
+	}
+}
+
+func TestRunDetailedPreservesOutputOnValidationAndSanitizeFailures(t *testing.T) {
+	validationErr := errors.New("validate")
+	validationResult, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
+		Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"draft"}`}}},
+		Render: func(context.Context, stepInput, []Feedback) (string, error) { return "prompt", nil },
+		Validate: func(context.Context, stepInput, stepOutput) (ValidationResult, error) {
+			return ValidationResult{Feedback: []Feedback{{Codes: []string{"invalid"}}}}, validationErr
+		},
+		MaxIter: 1,
+	}, stepInput{})
+	assertStepFailure(t, validationResult, err, StageValidate, validationErr, true)
+
+	sanitizeResult, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
+		Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"draft"}`}}},
+		Render: func(context.Context, stepInput, []Feedback) (string, error) { return "prompt", nil },
+		Validate: func(context.Context, stepInput, stepOutput) (ValidationResult, error) {
+			return ValidationResult{Feedback: []Feedback{{Summary: "https://unsafe.example"}}}, nil
+		},
+		MaxIter: 1,
+	}, stepInput{})
+	assertStepFailure(t, sanitizeResult, err, StageSanitize, ErrUnsafeFeedback, true)
+}
+
+func assertStepFailure[O any](t *testing.T, result Result[O], err error, stage Stage, cause error, hasOutput bool) {
+	t.Helper()
+	var stepErr *StepError
+	if !errors.As(err, &stepErr) || stepErr.Stage != stage || stepErr.Iteration != 1 {
+		t.Fatalf("error = %v, want iteration 1 stage %s", err, stage)
+	}
+	if cause != nil && !errors.Is(err, cause) {
+		t.Fatalf("error = %v, want cause %v", err, cause)
+	}
+	if result.HasOutput != hasOutput || len(result.Attempts) != 1 || result.Attempts[0].Err == nil {
+		t.Fatalf("result = %#v, want one failed attempt with HasOutput=%v", result, hasOutput)
+	}
+	if !errors.Is(result.Attempts[0].Err, stepErr.Err) {
+		t.Fatalf("attempt error = %v, returned error = %v", result.Attempts[0].Err, err)
 	}
 }

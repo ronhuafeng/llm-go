@@ -7,7 +7,29 @@ changes may occur in minor releases, but they must be documented here.
 
 ## [Unreleased]
 
-No changes yet.
+### Added
+
+- Detailed provider-neutral call results with execution evidence, typed
+  provider details, explicit request/call/decode errors, and partial response
+  preservation.
+- Schema-enforced structured-output decoding with stable typed violations.
+- Detailed `settle` and `llmstep` results that preserve candidate and failure
+  history through validation errors and retry exhaustion.
+- A canonical `go/types` allowlist for the handwritten public API.
+
+### Changed
+
+- `Value`, `settle.Run`, and `llmstep.Run` are projections of their detailed
+  counterparts and return the same error while retaining available output.
+- `llmstep` records request, call, decode, validation, and sanitizer failures
+  without retaining rendered prompts or raw model output in validation errors.
+
+### Deprecated
+
+- `llmschema.DecodeString`; use `Decode`.
+- `llmadapter.Options`, `Op`, and `NewOp`; use `llmstep` or implement
+  `settle.Op` directly.
+- `settle.Bind` and `Runner`; call `Run` or `RunDetailed` directly.
 
 ## [0.1.0] - 2026-06-11
 

@@ -16,6 +16,16 @@ type fakeCaller struct {
 	err       error
 }
 
+type details struct{ name string }
+
+func (d details) ProviderName() string { return d.name }
+
+type callerFunc func(context.Context, Request) (Response, error)
+
+func (f callerFunc) Call(ctx context.Context, request Request) (Response, error) {
+	return f(ctx, request)
+}
+
 func (caller *fakeCaller) Call(ctx context.Context, request Request) (Response, error) {
 	if err := ctx.Err(); err != nil {
 		return Response{}, err
@@ -33,6 +43,97 @@ func (caller *fakeCaller) Call(ctx context.Context, request Request) (Response, 
 	response := caller.responses[0]
 	caller.responses = caller.responses[1:]
 	return response, nil
+}
+
+func TestValueDetailedPreservesCallAndDecodeEvidence(t *testing.T) {
+	providerErr := errors.New("provider failed")
+	partial := Response{
+		FinalResponse: `{"status":"partial"}`,
+		Execution: ExecutionEvidence{
+			ProviderName: "test",
+			Usage:        &TokenUsage{InputTokens: 4},
+		},
+		ProviderDetails: details{name: "test"},
+	}
+	result, err := ValueDetailed[map[string]string](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
+		return partial, providerErr
+	}), "prompt")
+	var valueErr *ValueError
+	if !errors.As(err, &valueErr) || valueErr.Stage != ValueStageCall || !errors.Is(err, providerErr) {
+		t.Fatalf("call error = %v, want ValueStageCall retaining provider error", err)
+	}
+	if result.Response.FinalResponse != partial.FinalResponse || result.Response.Execution.Usage.InputTokens != 4 {
+		t.Fatalf("partial response = %#v, want %#v", result.Response, partial)
+	}
+
+	decodeResponse := partial
+	decodeResponse.FinalResponse = `{"status":7}`
+	result, err = ValueDetailed[map[string]string](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
+		return decodeResponse, nil
+	}), "prompt")
+	if !errors.As(err, &valueErr) || valueErr.Stage != ValueStageDecode {
+		t.Fatalf("decode error = %v, want ValueStageDecode", err)
+	}
+	if result.Response.FinalResponse != decodeResponse.FinalResponse {
+		t.Fatalf("decode response was not preserved: %#v", result.Response)
+	}
+}
+
+func TestValueDetailedChecksProviderIdentityWithoutReplacingCallError(t *testing.T) {
+	providerErr := errors.New("provider failed")
+	response := Response{
+		Execution:       ExecutionEvidence{ProviderName: "one"},
+		ProviderDetails: details{name: "two"},
+	}
+	_, err := ValueDetailed[bool](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
+		return response, providerErr
+	}), "prompt")
+	if !errors.Is(err, providerErr) || !errors.Is(err, ErrProviderIdentityMismatch) {
+		t.Fatalf("error = %v, want provider and identity causes", err)
+	}
+}
+
+func TestValueDetailedRejectsTypedNilProviderDetails(t *testing.T) {
+	var typedNil *testPointerDetails
+	_, err := ValueDetailed[bool](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
+		return Response{FinalResponse: `true`, Execution: ExecutionEvidence{ProviderName: "test"}, ProviderDetails: typedNil}, nil
+	}), "prompt")
+	if !errors.Is(err, ErrProviderIdentityMismatch) {
+		t.Fatalf("error = %v, want typed nil identity failure", err)
+	}
+}
+
+type testPointerDetails struct{}
+
+func (*testPointerDetails) ProviderName() string { return "test" }
+
+func TestValueDetailedReturnsRequestStageForSchemaProjectionFailure(t *testing.T) {
+	called := false
+	_, err := ValueDetailed[chan int](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
+		called = true
+		return Response{}, nil
+	}), "prompt")
+	var valueErr *ValueError
+	if !errors.As(err, &valueErr) || valueErr.Stage != ValueStageRequest {
+		t.Fatalf("error = %v, want ValueStageRequest", err)
+	}
+	if called {
+		t.Fatal("caller invoked after request projection failure")
+	}
+}
+
+func TestValueDetailedPublishesUsageSnapshot(t *testing.T) {
+	usage := &TokenUsage{InputTokens: 3}
+	result, err := ValueDetailed[bool](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
+		return Response{FinalResponse: `true`, Execution: ExecutionEvidence{Usage: usage}}, nil
+	}), "prompt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	usage.InputTokens = 99
+	if result.Response.Execution.Usage.InputTokens != 3 {
+		t.Fatalf("published usage changed to %d", result.Response.Execution.Usage.InputTokens)
+	}
 }
 
 func TestValueProjectsSchemaCallsBackendAndDecodes(t *testing.T) {

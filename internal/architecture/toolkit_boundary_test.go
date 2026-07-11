@@ -1,14 +1,143 @@
 package architecture
 
 import (
+	"encoding/json"
+	"fmt"
+	"go/ast"
+	"go/importer"
 	"go/parser"
 	"go/token"
+	"go/types"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
 )
+
+func TestHandwrittenPublicAPI(t *testing.T) {
+	root := repoRoot(t)
+	loader := &sourceImporter{
+		root:  root,
+		fset:  token.NewFileSet(),
+		cache: make(map[string]*types.Package),
+	}
+	var declarations []string
+	for _, name := range []string{"llmschema", "llmadapter", "settle", "llmstep"} {
+		path := "github.com/ronhuafeng/llmkit-go/" + name
+		pkg, err := loader.Import(path)
+		if err != nil {
+			t.Fatalf("load %s: %v", path, err)
+		}
+		declarations = append(declarations, exportedDeclarations(pkg)...)
+	}
+	sort.Strings(declarations)
+	actual := strings.Join(declarations, "\n") + "\n"
+	allowlistPath := filepath.Join(root, "internal", "architecture", "testdata", "handwritten-api.txt")
+	if os.Getenv("UPDATE_HANDWRITTEN_API") == "1" {
+		if err := os.WriteFile(allowlistPath, []byte(actual), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	want, err := os.ReadFile(allowlistPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if actual != string(want) {
+		t.Fatalf("handwritten public API changed; update the normative plan first, then review this canonical allowlist:\n%s", actual)
+	}
+}
+
+type sourceImporter struct {
+	root     string
+	fset     *token.FileSet
+	cache    map[string]*types.Package
+	compiled types.Importer
+}
+
+func (i *sourceImporter) Import(path string) (*types.Package, error) {
+	if pkg := i.cache[path]; pkg != nil {
+		return pkg, nil
+	}
+	const module = "github.com/ronhuafeng/llmkit-go/"
+	if !strings.HasPrefix(path, module) {
+		if i.compiled == nil {
+			i.compiled = importer.ForCompiler(i.fset, "gc", i.openExport)
+		}
+		return i.compiled.Import(path)
+	}
+	dir := filepath.Join(i.root, strings.TrimPrefix(path, module))
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	var files []*ast.File
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".go" || strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(i.fset, filepath.Join(dir, entry.Name()), nil, parser.SkipObjectResolution)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, file)
+	}
+	config := types.Config{Importer: i}
+	pkg, err := config.Check(path, i.fset, files, nil)
+	if err != nil {
+		return nil, err
+	}
+	i.cache[path] = pkg
+	return pkg, nil
+}
+
+func (i *sourceImporter) openExport(path string) (io.ReadCloser, error) {
+	command := exec.Command("go", "list", "-export", "-json", path)
+	command.Env = append(os.Environ(), "GOWORK=off")
+	output, err := command.Output()
+	if err != nil {
+		return nil, fmt.Errorf("go list %s: %w", path, err)
+	}
+	var listed struct {
+		Export string
+	}
+	if err := json.Unmarshal(output, &listed); err != nil {
+		return nil, fmt.Errorf("decode go list %s: %w", path, err)
+	}
+	return os.Open(listed.Export)
+}
+
+func exportedDeclarations(pkg *types.Package) []string {
+	qualifier := func(other *types.Package) string { return other.Path() }
+	var declarations []string
+	for _, name := range pkg.Scope().Names() {
+		object := pkg.Scope().Lookup(name)
+		if !object.Exported() {
+			continue
+		}
+		declarations = append(declarations, types.ObjectString(object, qualifier))
+		typeName, ok := object.(*types.TypeName)
+		if !ok {
+			continue
+		}
+		named, ok := typeName.Type().(*types.Named)
+		if !ok {
+			continue
+		}
+		methods := types.NewMethodSet(types.NewPointer(named))
+		for methodIndex := 0; methodIndex < methods.Len(); methodIndex++ {
+			method := methods.At(methodIndex).Obj()
+			if method.Exported() {
+				declarations = append(declarations, fmt.Sprintf("method %s.%s.%s%s", pkg.Path(), named.Obj().Name(), method.Name(), types.TypeString(method.Type(), qualifier)))
+			}
+		}
+	}
+	return declarations
+}
 
 func TestLLMKitImportBoundaries(t *testing.T) {
 	root := repoRoot(t)

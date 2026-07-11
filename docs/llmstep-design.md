@@ -11,7 +11,7 @@ LLM step:
 
 ```text
 render prompt
--> call llmadapter.Value[O]
+-> call llmadapter.ValueDetailed[O]
 -> validate typed output
 -> sanitize validation feedback
 -> retry up to MaxIter
@@ -64,8 +64,8 @@ Keep the current package responsibilities:
 - `settle`: general-purpose operation retry loop.
 - new `llmstep`: typed structured-output retry with feedback.
 
-Do not put `llmstep` into `llmadapter`. `llmadapter.Value[T]` should stay a
-single-call primitive.
+Do not put `llmstep` into `llmadapter`. `llmadapter.ValueDetailed[T]` remains
+the one-call evidence-preserving core, while `Value[T]` is its simple projection.
 
 ## Proposed API
 
@@ -100,15 +100,35 @@ type Step[I any, O any] struct {
     Sanitizer FeedbackSanitizer
 }
 
-type Attempt struct {
+type Stage string
+
+const (
+    StageRender   Stage = "render"
+    StageRequest  Stage = "request"
+    StageCall     Stage = "call"
+    StageDecode   Stage = "decode"
+    StageValidate Stage = "validate"
+    StageSanitize Stage = "sanitize"
+)
+
+type StepError struct {
+    Stage     Stage
+    Iteration int
+    Err       error
+}
+
+type Attempt[O any] struct {
     Iteration  int
     Feedback   []Feedback
+    Call       llmadapter.ValueResult[O]
     Validation ValidationResult
+    Err        error
 }
 
 type Result[O any] struct {
-    Output   O
-    Attempts []Attempt
+    Output    O
+    HasOutput bool
+    Attempts  []Attempt[O]
 }
 
 func Run[I any, O any](ctx context.Context, step Step[I, O], input I) (O, error)
@@ -116,16 +136,17 @@ func RunDetailed[I any, O any](ctx context.Context, step Step[I, O], input I) (R
 func StrictFeedbackSanitizer(feedback []Feedback) ([]Feedback, error)
 ```
 
-`Run` is the normal KISS path. `RunDetailed` is for tests, debugging, and audit
-surfaces that need attempt history. It deliberately does not retain rendered
-prompts; callers that need prompt capture should wrap their renderer.
+`Run` is the simple projection. `RunDetailed` is the implementation core for
+tests, debugging, and audit surfaces that need provider responses, partial
+outputs, stage errors, and attempt history. It deliberately does not retain
+rendered prompts; callers that need prompt capture should wrap their renderer.
 
 ## Behavior
 
 1. Fail fast when `MaxIter < 1`, `Caller == nil`, or `Render == nil`.
 2. Render with an empty feedback slice on the first attempt.
-3. Call `llmadapter.Value[O]`, so schema generation and decode remain owned by
-   `llmadapter` and `llmschema`.
+3. Call `llmadapter.ValueDetailed[O]`, so schema generation, provider response
+   evidence, and decode remain owned by `llmadapter` and `llmschema`.
 4. If `Validate` is nil, treat the output as settled.
 5. If validation returns `Settled: true`, return the typed output.
 6. If validation returns `Settled: false`, sanitize feedback before the next

@@ -15,6 +15,8 @@ import (
 // ErrUnsafeFeedback reports validation feedback rejected by a sanitizer.
 var ErrUnsafeFeedback = errors.New("llmstep: unsafe feedback")
 
+var ErrNilRender = errors.New("llmstep: render is nil")
+
 // Feedback is sanitized validation information that may be sent to the model on
 // a retry.
 type Feedback struct {
@@ -42,27 +44,57 @@ type Step[I any, O any] struct {
 	Sanitizer FeedbackSanitizer
 }
 
+type Stage string
+
+const (
+	StageRender   Stage = "render"
+	StageRequest  Stage = "request"
+	StageCall     Stage = "call"
+	StageDecode   Stage = "decode"
+	StageValidate Stage = "validate"
+	StageSanitize Stage = "sanitize"
+)
+
+type StepError struct {
+	Stage     Stage
+	Iteration int
+	Err       error
+}
+
+func (e *StepError) Error() string {
+	if e == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("llmstep: iteration %d %s stage: %v", e.Iteration, e.Stage, e.Err)
+}
+
+func (e *StepError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
 // Attempt records one run attempt without retaining the rendered prompt.
-type Attempt struct {
+type Attempt[O any] struct {
 	Iteration  int
 	Feedback   []Feedback
+	Call       llmadapter.ValueResult[O]
 	Validation ValidationResult
+	Err        error
 }
 
 // Result is the typed output plus attempt history from RunDetailed.
 type Result[O any] struct {
-	Output   O
-	Attempts []Attempt
+	Output    O
+	HasOutput bool
+	Attempts  []Attempt[O]
 }
 
 // Run executes a step and returns only the settled typed output.
 func Run[I any, O any](ctx context.Context, step Step[I, O], input I) (O, error) {
 	result, err := RunDetailed(ctx, step, input)
-	if err != nil {
-		var zero O
-		return zero, err
-	}
-	return result.Output, nil
+	return result.Output, err
 }
 
 // RunDetailed executes a step and returns the settled output with attempt
@@ -77,7 +109,7 @@ func RunDetailed[I any, O any](ctx context.Context, step Step[I, O], input I) (R
 		return result, llmadapter.ErrNilCaller
 	}
 	if step.Render == nil {
-		return result, llmadapter.ErrNilRender
+		return result, ErrNilRender
 	}
 
 	sanitize := step.Sanitizer
@@ -87,50 +119,82 @@ func RunDetailed[I any, O any](ctx context.Context, step Step[I, O], input I) (R
 
 	var feedback []Feedback
 	for iter := 1; iter <= step.MaxIter; iter++ {
+		attempt := Attempt[O]{Iteration: iter, Feedback: copyFeedback(feedback)}
 		if err := ctx.Err(); err != nil {
-			return result, err
+			return fail(result, attempt, StageRender, err)
 		}
 
-		renderFeedback := copyFeedback(feedback)
+		renderFeedback := copyFeedback(attempt.Feedback)
 		prompt, err := step.Render(ctx, input, renderFeedback)
 		if err != nil {
-			return result, err
+			return fail(result, attempt, StageRender, err)
 		}
 
-		output, err := llmadapter.Value[O](ctx, step.Caller, prompt)
+		call, err := llmadapter.ValueDetailed[O](ctx, step.Caller, prompt)
+		attempt.Call = call
 		if err != nil {
-			return result, err
+			stage := valueStage(err)
+			return fail(result, attempt, stage, err)
 		}
+		result.Output = call.Value
+		result.HasOutput = true
 
 		validation := ValidationResult{Settled: true}
 		if step.Validate != nil {
-			validation, err = step.Validate(ctx, input, output)
+			validation, err = step.Validate(ctx, input, call.Value)
 			if err != nil {
-				return result, err
+				attempt.Validation = copyValidationResult(validation)
+				return fail(result, attempt, StageValidate, err)
 			}
 		}
 
-		attempt := Attempt{
-			Iteration:  iter,
-			Feedback:   renderFeedback,
-			Validation: copyValidationResult(validation),
-		}
+		attempt.Validation = copyValidationResult(validation)
 		if validation.Settled {
-			result.Output = output
 			result.Attempts = append(result.Attempts, attempt)
-			return result, nil
+			return snapshotResult(result), nil
 		}
 
 		feedback, err = sanitize(validation.Feedback)
 		if err != nil {
-			return result, err
+			return fail(result, attempt, StageSanitize, err)
 		}
 		stampMissingIterations(feedback, iter)
 		attempt.Validation.Feedback = copyFeedback(feedback)
 		result.Attempts = append(result.Attempts, attempt)
 	}
 
-	return result, fmt.Errorf("%w: maxIter=%d", settle.ErrUnsettled, step.MaxIter)
+	return snapshotResult(result), fmt.Errorf("%w: maxIter=%d", settle.ErrUnsettled, step.MaxIter)
+}
+
+func valueStage(err error) Stage {
+	var valueErr *llmadapter.ValueError
+	if errors.As(err, &valueErr) {
+		switch valueErr.Stage {
+		case llmadapter.ValueStageRequest:
+			return StageRequest
+		case llmadapter.ValueStageCall:
+			return StageCall
+		case llmadapter.ValueStageDecode:
+			return StageDecode
+		}
+	}
+	return StageCall
+}
+
+func fail[O any](result Result[O], attempt Attempt[O], stage Stage, err error) (Result[O], error) {
+	stepErr := &StepError{Stage: stage, Iteration: attempt.Iteration, Err: err}
+	attempt.Err = stepErr
+	result.Attempts = append(result.Attempts, attempt)
+	return snapshotResult(result), stepErr
+}
+
+func snapshotResult[O any](result Result[O]) Result[O] {
+	result.Attempts = append([]Attempt[O](nil), result.Attempts...)
+	for i := range result.Attempts {
+		result.Attempts[i].Feedback = copyFeedback(result.Attempts[i].Feedback)
+		result.Attempts[i].Validation = copyValidationResult(result.Attempts[i].Validation)
+	}
+	return result
 }
 
 // StrictFeedbackSanitizer accepts short, identifier-oriented feedback and
