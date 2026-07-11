@@ -1,0 +1,43 @@
+name: Tag verification
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  clean-consumer:
+    name: Tag clean consumer
+    runs-on: ubuntu-latest
+    env:
+      GOWORK: "off"
+      GOPROXY: https://proxy.golang.org,direct
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: true
+      - name: Resolve tag and run synthetic detailed-result scenarios
+        run: ./scripts/ci/verify-clean-consumer.sh version "${{ github.ref_name }}" "$RUNNER_TEMP/tag-verification"
+      - name: Record resolved module, sums, and tag commit
+        run: |
+          cp "$RUNNER_TEMP/tag-verification/module.json" module.json
+          cp "$RUNNER_TEMP/tag-verification/go.sum" consumer-go.sum
+          printf '%s\n' "${{ github.sha }}" > tag-commit.txt
+          {
+            echo '### Tag verification'
+            echo '- Tag: `${{ github.ref_name }}`'
+            echo '- Commit: `${{ github.sha }}`'
+            echo '- Module metadata and sums are attached as the `tag-verification` artifact.'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tag-verification
+          path: |
+            module.json
+            consumer-go.sum
+            tag-commit.txt

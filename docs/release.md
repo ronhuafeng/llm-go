@@ -60,8 +60,13 @@ At and after v1.0.0:
 
    ```sh
    gofmt -w $(find . -name '*.go' -not -path './vendor/*')
+   GOWORK=off go mod download
+   ./scripts/ci/verify-module-hygiene.sh
    GOWORK=off go vet ./...
    GOWORK=off go test ./...
+   GOWORK=off go test -race ./...
+   GOWORK=off go test ./internal/architecture
+   ./scripts/ci/verify-clean-consumer.sh local "$PWD"
    ```
 
 7. Create and push an annotated release tag. Replace `v0.2.0` with the next
@@ -75,6 +80,25 @@ At and after v1.0.0:
 
 8. Create a GitHub release from the tag and paste the relevant `CHANGELOG.md`
    entry.
+
+Pushing a `v*` tag starts the `Tag verification` workflow. It resolves the tag
+from a fresh external module through normal module resolution, runs synthetic
+`ValueDetailed`, `settle.RunDetailed`, and `llmstep.RunDetailed` scenarios, and
+records the resolved module metadata, module sums, and exact tag commit as a
+workflow artifact. The workflow must pass before publishing the GitHub release.
+
+## Required branch protection checks
+
+Require these `CI` jobs on `main` pull requests:
+
+- `Minimum Go (1.23.0)`
+- `Stable Go (ordinary)`
+- `Race`
+- `Module hygiene`
+- `API and clean consumer`
+
+The tag-only `Tag clean consumer` job is a release gate and is not a pull
+request branch-protection check.
 
 ## Supply-chain hygiene
 
