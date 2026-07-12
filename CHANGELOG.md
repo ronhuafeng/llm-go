@@ -7,6 +7,10 @@ changes may occur in minor releases, but they must be documented here.
 
 ## [Unreleased]
 
+No changes yet.
+
+## [0.3.0-rc.1] - 2026-07-12
+
 ### Removed
 
 - Removed the v0.2-deprecated `llmschema.DecodeString`,

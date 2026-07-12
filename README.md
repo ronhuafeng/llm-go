@@ -17,9 +17,10 @@ backends, or business validation rules.
 
 ## Status
 
-This project is usable but still pre-v1. The public API is intentionally small;
-see [API compatibility](#api-compatibility) before depending on it from a
-library with a strict compatibility policy.
+The v0.3 API is available as the `v0.3.0-rc.1` release candidate. This project
+is still pre-v1, and the public API is intentionally small; see
+[API compatibility](#api-compatibility) before depending on it from a library
+with a strict compatibility policy.
 
 ## Packages
 
@@ -37,7 +38,7 @@ The `internal/` tree contains repository tests and is not public API.
 Requires Go 1.23 or newer.
 
 ```sh
-go get github.com/ronhuafeng/llmkit-go@latest
+go get github.com/ronhuafeng/llmkit-go@v0.3.0-rc.1
 ```
 
 ## Quick Start
@@ -248,11 +249,11 @@ Version 0.3 removes the helpers deprecated in v0.2. See
 
 ## Versioning
 
-Releases should be tagged as standard Go module tags. For a future release,
-replace the version below with the next intended version:
+Releases are tagged as standard Go module tags. The current release candidate
+is:
 
 ```sh
-VERSION=v0.3.0
+VERSION=v0.3.0-rc.1
 git tag -a "$VERSION" -m "llmkit-go $VERSION"
 git push origin "$VERSION"
 ```
