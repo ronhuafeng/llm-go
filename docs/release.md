@@ -102,9 +102,10 @@ request branch-protection check.
 
 For v0.3, also verify that the migration table, changelog, README, package
 documentation, and handwritten API allowlist list the same removed surface.
-The caller removal canary must use a real published caller v0.2.1 tag with
-`GOWORK=off` and no `replace`; if that tag does not exist, record the canary as
-pending rather than substituting a local checkout or synthetic tag.
+Before merging the removal, verify a clean export of caller `main` against the
+candidate source with `GOWORK=off` and no committed `replace` or `go.work`.
+Validate real module-tag compatibility during the v0.3 RC and stable release
+gates.
 
 ## Supply-chain hygiene
 
