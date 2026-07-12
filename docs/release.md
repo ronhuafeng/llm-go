@@ -72,7 +72,7 @@ At and after v1.0.0:
 7. Create and push the annotated release tag for the intended version:
 
    ```sh
-   VERSION=v0.3.0-rc.1
+   VERSION=v0.3.0
    git tag -a "$VERSION" -m "llmkit-go $VERSION"
    git push origin "$VERSION"
    ```

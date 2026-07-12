@@ -9,7 +9,7 @@ changes may occur in minor releases, but they must be documented here.
 
 No changes yet.
 
-## [0.3.0-rc.1] - 2026-07-12
+## [0.3.0] - 2026-07-13
 
 ### Removed
 
