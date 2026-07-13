@@ -17,7 +17,7 @@ backends, or business validation rules.
 
 ## Status
 
-The v0.3 API is available as the stable `v0.3.0` release. This project
+The v0.4 API is available as the stable `v0.4.0` release. This project
 is still pre-v1, and the public API is intentionally small; see
 [API compatibility](#api-compatibility) before depending on it from a library
 with a strict compatibility policy.
@@ -38,7 +38,7 @@ The `internal/` tree contains repository tests and is not public API.
 Requires Go 1.23 or newer.
 
 ```sh
-go get github.com/ronhuafeng/llmkit-go@v0.3.0
+go get github.com/ronhuafeng/llmkit-go@v0.4.0
 ```
 
 ## Quick Start
@@ -268,12 +268,16 @@ notes. After v1.0.0, breaking public API changes require a new major version.
 Version 0.3 removes the helpers deprecated in v0.2. See
 [Migrating to v0.3](docs/v0.3-migration.md) for the complete symbol mapping.
 
+Version 0.4 separates exact validator decisions from sanitized model-facing
+retry feedback. See [Migrating to v0.4](docs/v0.4-migration.md) for the field
+semantics and sensitive-feedback boundary.
+
 ## Versioning
 
 Releases are tagged as standard Go module tags. The current stable release is:
 
 ```sh
-VERSION=v0.3.0
+VERSION=v0.4.0
 git tag -a "$VERSION" -m "llmkit-go $VERSION"
 git push origin "$VERSION"
 ```
