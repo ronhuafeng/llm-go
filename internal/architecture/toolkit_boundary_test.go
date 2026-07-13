@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -48,8 +49,93 @@ func TestHandwrittenPublicAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 	if actual != string(want) {
-		t.Fatalf("handwritten public API changed; update the normative plan first, then review this canonical allowlist:\n%s", actual)
+		t.Fatalf("handwritten public API changed; review the exported diff and its additive, breaking, or metadata-only compatibility impact; update the changelog and migration guidance as required; verify public behavior tests and the clean consumer before updating the canonical allowlist:\n%s", actual)
 	}
+}
+
+func TestExportedDeclarationsIgnorePrivateImplementationDetails(t *testing.T) {
+	before := exportedDeclarations(fixturePackage(t, `package fixture
+type Public struct {
+	Exported string
+	private int
+}
+`))
+	afterPrivateChange := exportedDeclarations(fixturePackage(t, `package fixture
+type Public struct {
+	Exported string
+	renamedPrivate bool
+}
+func privateHelper() {}
+`))
+	if !reflect.DeepEqual(before, afterPrivateChange) {
+		t.Fatalf("private implementation changed API inventory:\nbefore: %v\nafter:  %v", before, afterPrivateChange)
+	}
+	afterExportedChange := exportedDeclarations(fixturePackage(t, `package fixture
+type Public struct {
+	Exported string
+	Added bool
+	private int
+}
+`))
+	if reflect.DeepEqual(before, afterExportedChange) {
+		t.Fatalf("exported field did not change API inventory: %v", before)
+	}
+}
+
+func TestActiveGatesDoNotReferenceHistoricalRefactorPlan(t *testing.T) {
+	root := repoRoot(t)
+	paths := []string{filepath.Join(root, "docs", "release.md")}
+	for _, pattern := range []string{
+		filepath.Join(root, ".github", "workflows", "*.yml"),
+		filepath.Join(root, ".github", "workflows", "*.yaml"),
+		filepath.Join(root, "internal", "architecture", "*.go"),
+	} {
+		matches, err := filepath.Glob(pattern)
+		if err != nil {
+			t.Fatal(err)
+		}
+		paths = append(paths, matches...)
+	}
+	if err := filepath.WalkDir(filepath.Join(root, "scripts"), func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry != nil && !entry.IsDir() {
+			paths = append(paths, path)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range paths {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, forbidden := range []string{
+			"v0.2-" + "refactor-plan.md",
+			"normative local " + "refactor plan",
+			"update the normative " + "plan",
+		} {
+			if strings.Contains(string(data), forbidden) {
+				t.Errorf("active gate %s references historical proposal through %q", relPath(root, path), forbidden)
+			}
+		}
+	}
+}
+
+func fixturePackage(t *testing.T, source string) *types.Package {
+	t.Helper()
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "fixture.go", source, parser.SkipObjectResolution)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pkg, err := (&types.Config{}).Check("example.com/fixture", fset, []*ast.File{file}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return pkg
 }
 
 type sourceImporter struct {
@@ -119,7 +205,7 @@ func exportedDeclarations(pkg *types.Package) []string {
 		if !object.Exported() {
 			continue
 		}
-		declarations = append(declarations, types.ObjectString(object, qualifier))
+		declarations = append(declarations, publicObjectString(object, qualifier))
 		typeName, ok := object.(*types.TypeName)
 		if !ok {
 			continue
@@ -137,6 +223,50 @@ func exportedDeclarations(pkg *types.Package) []string {
 		}
 	}
 	return declarations
+}
+
+func publicObjectString(object types.Object, qualifier types.Qualifier) string {
+	typeName, ok := object.(*types.TypeName)
+	if !ok || typeName.IsAlias() {
+		return types.ObjectString(object, qualifier)
+	}
+	named, ok := typeName.Type().(*types.Named)
+	if !ok {
+		return types.ObjectString(object, qualifier)
+	}
+	structure, ok := named.Underlying().(*types.Struct)
+	if !ok {
+		return types.ObjectString(object, qualifier)
+	}
+	var fields []string
+	for index := 0; index < structure.NumFields(); index++ {
+		field := structure.Field(index)
+		if !field.Exported() {
+			continue
+		}
+		declaration := types.TypeString(field.Type(), qualifier)
+		if !field.Embedded() {
+			declaration = field.Name() + " " + declaration
+		}
+		if tag := structure.Tag(index); tag != "" {
+			declaration += " `" + tag + "`"
+		}
+		fields = append(fields, declaration)
+	}
+	return fmt.Sprintf("type %s.%s%s struct{%s}", qualifier(typeName.Pkg()), typeName.Name(), publicTypeParameters(named, qualifier), strings.Join(fields, "; "))
+}
+
+func publicTypeParameters(named *types.Named, qualifier types.Qualifier) string {
+	parameters := named.TypeParams()
+	if parameters == nil || parameters.Len() == 0 {
+		return ""
+	}
+	declarations := make([]string, 0, parameters.Len())
+	for index := 0; index < parameters.Len(); index++ {
+		parameter := parameters.At(index)
+		declarations = append(declarations, parameter.Obj().Name()+" "+types.TypeString(parameter.Constraint(), qualifier))
+	}
+	return "[" + strings.Join(declarations, ", ") + "]"
 }
 
 func TestLLMKitImportBoundaries(t *testing.T) {

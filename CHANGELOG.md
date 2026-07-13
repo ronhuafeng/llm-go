@@ -7,6 +7,15 @@ changes may occur in minor releases, but they must be documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- Marked the implemented v0.2 refactor proposal as historical and
+  non-normative. Current API and release governance now rely on the mechanical
+  API inventory, public behavior and architecture tests, clean consumer,
+  SemVer policy, changelog, and migration guidance.
+- Changed the API inventory to ignore private struct fields while continuing
+  to reject unrecorded exported declarations, fields, and methods.
+
 ## [0.4.0] - 2026-07-13
 
 ### Changed

@@ -13,9 +13,20 @@ The public API is the set of exported identifiers in these packages:
 - `github.com/ronhuafeng/llmkit-go/llmstep`
 
 The canonical declaration and method allowlist is stored in
-`internal/architecture/testdata/handwritten-api.txt`. Any update must first be
-reflected in the normative local refactor plan and then reviewed as API design,
-not accepted as incidental test churn.
+`internal/architecture/testdata/handwritten-api.txt`. Treat any allowlist diff
+as an API-design review, not incidental test churn:
+
+- An additive diff introduces exported surface and requires compatibility and
+  necessity review plus public behavior coverage.
+- A breaking diff removes or changes exported surface and requires an allowed
+  SemVer release, a changelog entry, and migration guidance.
+- A metadata-only diff changes recorded metadata without a consumer source or
+  behavior obligation and must explain why it is non-additive and non-breaking.
+
+Before updating the allowlist, review the exported diff and its compatibility
+impact, update the changelog, add migration guidance for breaking changes, run
+public behavior and architecture tests, and compile/run the clean consumer.
+User-visible additive behavior should also update README or package docs.
 
 The following are not public API:
 
