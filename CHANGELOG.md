@@ -7,6 +7,8 @@ changes may occur in minor releases, but they must be documented here.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-07-13
+
 ### Changed
 
 - Marked the implemented v0.2 refactor proposal as historical and
