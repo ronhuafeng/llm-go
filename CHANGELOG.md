@@ -7,7 +7,14 @@ changes may occur in minor releases, but they must be documented here.
 
 ## [Unreleased]
 
-No changes yet.
+### Changed
+
+- `llmstep.Attempt` now records validator-owned `Validation` separately from
+  sanitizer-owned, iteration-stamped `RetryFeedback`. Only retry feedback is
+  supplied to the next render; sanitizer output no longer overwrites detailed
+  validator evidence. The safety contract now requires applications to redact,
+  omit, or deliberately pseudonymize sensitive validator facts before returning
+  them.
 
 ## [0.3.0] - 2026-07-13
 

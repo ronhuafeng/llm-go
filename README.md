@@ -202,13 +202,34 @@ integers, stages, and errors are copied by normal Go assignment.
 | `settle.Result.Attempts` | Toolkit-owned slice snapshot; scalar attempt fields and errors use normal Go assignment. |
 | `llmstep.Result.Output` and `Attempt.Call.Value` | Generic values with ordinary Go semantics; reference fields may alias. |
 | `llmstep.Result.Attempts` | Toolkit-owned slice snapshot. |
-| `llmstep.Attempt.Feedback` and `Validation.Feedback` | Toolkit-owned snapshots including nested `Codes` and `Locations` slices. |
+| `llmstep.Attempt.Feedback` | Toolkit-owned snapshot of the prior retry feedback supplied to this attempt's `Render`. |
+| `llmstep.Attempt.Validation` | Validator decision exactly as returned, including nil-versus-empty slice shape, published as a toolkit-owned isolated snapshot including nested feedback slices. |
+| `llmstep.Attempt.RetryFeedback` | Sanitizer-owned, iteration-stamped model-facing feedback published as a toolkit-owned isolated snapshot. |
 | `llmstep.Attempt.Call.Response` | Response evidence following the `llmadapter.Response` rules above. |
 
 ### llmstep
 
 Use `llmstep` when one typed structured-output call needs deterministic
 validation and bounded retries with sanitized validation feedback.
+
+`RunDetailed` records the validator's exact decision in `Attempt.Validation`
+and records sanitized, stamped feedback separately in `Attempt.RetryFeedback`.
+Only `RetryFeedback` is eligible for the next `Render`; sanitization never
+rewrites the validation record.
+
+Validator decisions are detailed evidence and may be retained, logged, or
+serialized by applications. A validator must not return raw credentials,
+private content, or other secrets unless that retention is explicitly intended.
+When sensitive source material is involved, the application should return an
+already-redacted decision (for example, a classification code and abstract
+location), or omit the sensitive value. If correlation is required, the
+application may substitute a threat-model-reviewed keyed, domain-separated
+pseudonymous fingerprint, such as an HMAC whose key is kept outside validator
+evidence. A plain hash of a low-entropy or guessable value is not redaction.
+Fingerprints remain potentially sensitive and linkable. `llmstep` treats them
+as opaque: it does not compute, key, verify, or promise their security. The
+sanitizer independently determines whether a redacted or fingerprinted fact may
+be sent to the model.
 
 ```go
 result, err := llmstep.Run(ctx, llmstep.Step[ReviewInput, ReviewResult]{

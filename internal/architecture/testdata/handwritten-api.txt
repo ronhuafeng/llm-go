@@ -35,7 +35,7 @@ type github.com/ronhuafeng/llmkit-go/llmadapter.ValueResult[T any] struct{Value 
 type github.com/ronhuafeng/llmkit-go/llmadapter.ValueStage string
 type github.com/ronhuafeng/llmkit-go/llmschema.SchemaValidationError struct{Violations []github.com/ronhuafeng/llmkit-go/llmschema.Violation}
 type github.com/ronhuafeng/llmkit-go/llmschema.Violation struct{Path string; Keyword string; Message string}
-type github.com/ronhuafeng/llmkit-go/llmstep.Attempt[O any] struct{Iteration int; Feedback []github.com/ronhuafeng/llmkit-go/llmstep.Feedback; Call github.com/ronhuafeng/llmkit-go/llmadapter.ValueResult[O]; Validation github.com/ronhuafeng/llmkit-go/llmstep.ValidationResult; Err error}
+type github.com/ronhuafeng/llmkit-go/llmstep.Attempt[O any] struct{Iteration int; Feedback []github.com/ronhuafeng/llmkit-go/llmstep.Feedback; Call github.com/ronhuafeng/llmkit-go/llmadapter.ValueResult[O]; Validation github.com/ronhuafeng/llmkit-go/llmstep.ValidationResult; RetryFeedback []github.com/ronhuafeng/llmkit-go/llmstep.Feedback; Err error}
 type github.com/ronhuafeng/llmkit-go/llmstep.Feedback struct{Iteration int "json:\"iteration,omitempty\""; Summary string "json:\"summary,omitempty\""; Codes []string "json:\"codes,omitempty\""; Locations []string "json:\"locations,omitempty\""}
 type github.com/ronhuafeng/llmkit-go/llmstep.FeedbackSanitizer func([]github.com/ronhuafeng/llmkit-go/llmstep.Feedback) ([]github.com/ronhuafeng/llmkit-go/llmstep.Feedback, error)
 type github.com/ronhuafeng/llmkit-go/llmstep.Result[O any] struct{Output O; HasOutput bool; Attempts []github.com/ronhuafeng/llmkit-go/llmstep.Attempt[O]}

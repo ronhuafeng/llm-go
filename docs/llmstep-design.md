@@ -45,9 +45,13 @@ structured-output tasks.
 : One LLM operation with typed input `I`, typed output `O`, a prompt renderer,
   a validator, and a bounded retry policy.
 
-**Feedback**
-: Sanitized validation information that may be sent back to the model on a
-  retry. It is not raw verifier output.
+**Validation Decision**
+: The validator result exactly as returned, retained as detailed evidence. It
+  is not implicitly safe for model input or logging.
+
+**Retry Feedback**
+: Sanitized, iteration-stamped validation information that may be sent back to
+  the model on a retry. It is distinct from the validation decision.
 
 **Settled Output**
 : A typed output accepted by the validator.
@@ -118,11 +122,12 @@ type StepError struct {
 }
 
 type Attempt[O any] struct {
-    Iteration  int
-    Feedback   []Feedback
-    Call       llmadapter.ValueResult[O]
-    Validation ValidationResult
-    Err        error
+    Iteration     int
+    Feedback      []Feedback
+    Call          llmadapter.ValueResult[O]
+    Validation    ValidationResult
+    RetryFeedback []Feedback
+    Err           error
 }
 
 type Result[O any] struct {
@@ -149,8 +154,9 @@ rendered prompts; callers that need prompt capture should wrap their renderer.
    evidence, and decode remain owned by `llmadapter` and `llmschema`.
 4. If `Validate` is nil, treat the output as settled.
 5. If validation returns `Settled: true`, return the typed output.
-6. If validation returns `Settled: false`, sanitize feedback before the next
-   render.
+6. Preserve the validation result exactly as returned, including observable
+   nil-versus-empty slice shape. If it is unsettled, sanitize an isolated copy
+   of its feedback into `RetryFeedback` before the next render.
 7. If the sanitizer rejects feedback, stop with a typed error.
 8. If all attempts fail validation, return an error wrapping
    `settle.ErrUnsettled`.
@@ -171,6 +177,18 @@ The default sanitizer should be conservative:
 Applications may pass their own sanitizer when they have a narrower safe
 identifier vocabulary. For example, a journal validator can allow only `T###`,
 `U###`, `M#####`, known section names, and UUID session ids.
+
+The sanitizer controls only model-facing `RetryFeedback`; it never rewrites or
+redacts `Validation`. Applications must decide before returning from `Validate`
+whether detailed validator evidence may contain sensitive source material. The
+supported contract is to omit it, replace it with an already-redacted category
+or abstract location, or deliberately substitute an application-owned,
+threat-model-reviewed keyed and domain-separated pseudonymous fingerprint. A
+plain hash of low-entropy or guessable sensitive data is not redaction, and a
+fingerprint can remain sensitive and linkable. Fingerprints are opaque values
+to `llmstep`: the toolkit does not compute, key, verify, or guarantee them. A
+sanitizer must still admit the chosen redacted/fingerprinted representation
+before it can reach `Render`.
 
 ## Non-Goals
 
@@ -203,7 +221,8 @@ Add focused tests for externally visible behavior:
 - invalid JSON or decode failure stops without retrying as validation;
 - unsafe feedback is rejected before it reaches the renderer;
 - custom sanitizer can replace default sanitizer behavior;
-- `RunDetailed` exposes attempt count and sanitized feedback history.
+- `RunDetailed` exposes distinct original validation decisions and sanitized
+  retry feedback history.
 
 Tests should use a fake `llmadapter.Caller` and small synthetic typed structs.
 

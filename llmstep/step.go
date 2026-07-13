@@ -17,8 +17,9 @@ var ErrUnsafeFeedback = errors.New("llmstep: unsafe feedback")
 
 var ErrNilRender = errors.New("llmstep: render is nil")
 
-// Feedback is sanitized validation information that may be sent to the model on
-// a retry.
+// Feedback is the shared value shape used by validator decisions and retry
+// feedback. Its containing field determines ownership and whether it is safe
+// for model input.
 type Feedback struct {
 	Iteration int      `json:"iteration,omitempty"`
 	Summary   string   `json:"summary,omitempty"`
@@ -78,13 +79,18 @@ func (e *StepError) Unwrap() error {
 // Attempt records one run attempt without retaining the rendered prompt.
 type Attempt[O any] struct {
 	Iteration int
-	// Feedback is an owned snapshot, including its Codes and Locations slices.
+	// Feedback is the owned retry feedback snapshot supplied to this attempt's
+	// Render call, including its Codes and Locations slices.
 	Feedback []Feedback
 	Call     llmadapter.ValueResult[O]
-	// Validation is an owned snapshot of validation feedback. Generic values in
-	// Call retain ordinary Go value semantics.
+	// Validation is the validator-owned decision exactly as returned, including
+	// nil-versus-empty slice shape, published as an isolated snapshot. Generic
+	// values in Call retain ordinary Go value semantics.
 	Validation ValidationResult
-	Err        error
+	// RetryFeedback is the sanitizer-owned, iteration-stamped feedback eligible
+	// for the next Render call, published as an isolated snapshot.
+	RetryFeedback []Feedback
+	Err           error
 }
 
 // Result is the typed output plus attempt history from RunDetailed.
@@ -160,12 +166,14 @@ func RunDetailed[I any, O any](ctx context.Context, step Step[I, O], input I) (R
 			return snapshotResult(result), nil
 		}
 
-		feedback, err = sanitize(validation.Feedback)
+		retryFeedback, err := sanitize(copyFeedback(validation.Feedback))
 		if err != nil {
 			return fail(result, attempt, StageSanitize, err)
 		}
-		stampMissingIterations(feedback, iter)
-		attempt.Validation.Feedback = copyFeedback(feedback)
+		retryFeedback = copyFeedback(retryFeedback)
+		stampMissingIterations(retryFeedback, iter)
+		attempt.RetryFeedback = copyFeedback(retryFeedback)
+		feedback = copyFeedback(retryFeedback)
 		result.Attempts = append(result.Attempts, attempt)
 	}
 
@@ -199,6 +207,7 @@ func snapshotResult[O any](result Result[O]) Result[O] {
 	for i := range result.Attempts {
 		result.Attempts[i].Feedback = copyFeedback(result.Attempts[i].Feedback)
 		result.Attempts[i].Validation = copyValidationResult(result.Attempts[i].Validation)
+		result.Attempts[i].RetryFeedback = copyFeedback(result.Attempts[i].RetryFeedback)
 	}
 	return result
 }
@@ -247,7 +256,7 @@ func copyValidationResult(result ValidationResult) ValidationResult {
 }
 
 func copyFeedback(feedback []Feedback) []Feedback {
-	if len(feedback) == 0 {
+	if feedback == nil {
 		return nil
 	}
 	copied := make([]Feedback, len(feedback))
@@ -255,11 +264,18 @@ func copyFeedback(feedback []Feedback) []Feedback {
 		copied[i] = Feedback{
 			Iteration: item.Iteration,
 			Summary:   item.Summary,
-			Codes:     append([]string(nil), item.Codes...),
-			Locations: append([]string(nil), item.Locations...),
+			Codes:     copyStrings(item.Codes),
+			Locations: copyStrings(item.Locations),
 		}
 	}
 	return copied
+}
+
+func copyStrings(values []string) []string {
+	if values == nil {
+		return nil
+	}
+	return append(make([]string, 0, len(values)), values...)
 }
 
 func sanitizeStrings(values []string) []string {

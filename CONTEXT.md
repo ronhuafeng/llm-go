@@ -15,3 +15,13 @@ _Avoid_: Metadata bag, raw metadata
 **Generic typed output**:
 A caller-selected Go value decoded or produced by an operation and returned with ordinary Go value semantics, including any reference fields.
 _Avoid_: Deep-copied value, immutable output
+
+**Validation decision**:
+The validator result exactly as returned to `llmstep`, published as an isolated
+snapshot. It is not made model-safe by the feedback sanitizer.
+_Avoid_: Sanitized feedback
+
+**Retry feedback**:
+The sanitizer-owned, iteration-stamped feedback eligible for the next prompt
+render, published separately from the validation decision.
+_Avoid_: Validator output
