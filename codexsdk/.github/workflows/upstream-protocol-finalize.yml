@@ -1,0 +1,504 @@
+name: Codex Upstream Protocol Finalize
+run-name: "Protocol finalize ${{ inputs.pr_number || inputs.landed_ref || github.event.repository.default_branch }}"
+
+on:
+  pull_request:
+    types:
+      - closed
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Merged sync PR number. Preferred because the PR body carries sync metadata."
+        required: false
+        type: string
+      landed_ref:
+        description: "Optional landing branch that contains the sync commit. Only the repository default branch is accepted."
+        required: false
+        type: string
+      landed_commit:
+        description: "Expected landed commit. Defaults to the merged PR commit or current landing branch head."
+        required: false
+        type: string
+      upstream_ref:
+        description: "Expected upstream target ref. Defaults to PR metadata or landed baseline metadata."
+        required: false
+        type: string
+      upstream_ref_kind:
+        description: "Expected upstream target kind. Defaults to PR metadata or landed baseline metadata."
+        required: false
+        type: string
+      upstream_sha:
+        description: "Expected upstream target commit. Defaults to PR metadata or landed baseline metadata."
+        required: false
+        type: string
+      drift_sha:
+        description: "Optional drift fingerprint from the detect/fix phase for audit metadata."
+        required: false
+        type: string
+      dispatch_drift_check:
+        description: "Dispatch drift workflow with force_compare=true and wait for it before finalizing."
+        required: false
+        type: boolean
+        default: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CODEXSDK_SCHEMA_BASELINE: codexsdk/internal/protocolschema/appserver/v2
+  CODEXSDK_SYNC_TAG_JSON: /tmp/codexsdk-sync-tag.json
+
+concurrency:
+  group: codex-upstream-protocol-finalize
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    name: Finalize landed sync
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: read
+
+    steps:
+      - name: Guard control-plane ref
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_PR_BASE_REF: ${{ github.event.pull_request.base.ref || '' }}
+          EVENT_PR_MERGED: ${{ github.event.pull_request.merged || false }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${EVENT_NAME}" == "pull_request" ]]; then
+            if [[ "${EVENT_PR_MERGED}" != "true" ]]; then
+              echo "Closed PR was not merged; finalize will no-op." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            if [[ "${EVENT_PR_BASE_REF}" != "${DEFAULT_BRANCH}" ]]; then
+              echo "Merged PR base ${EVENT_PR_BASE_REF} is not ${DEFAULT_BRANCH}; finalize will no-op." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            exit 0
+          fi
+
+          if [[ "${GITHUB_REF_NAME}" != "${DEFAULT_BRANCH}" ]]; then
+            echo "Refusing to run finalize control plane from ${GITHUB_REF_NAME}; use ${DEFAULT_BRANCH}." >&2
+            exit 1
+          fi
+
+      - name: Check out control-plane ref
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      - name: Resolve finalize candidate
+        id: candidate
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_PR_BASE_REF: ${{ github.event.pull_request.base.ref || '' }}
+          EVENT_PR_MERGED: ${{ github.event.pull_request.merged || false }}
+          EVENT_PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_DISPATCH_DRIFT_CHECK: ${{ inputs.dispatch_drift_check }}
+          INPUT_DRIFT_SHA: ${{ inputs.drift_sha || '' }}
+          INPUT_LANDED_COMMIT: ${{ inputs.landed_commit || '' }}
+          INPUT_LANDED_REF: ${{ inputs.landed_ref || '' }}
+          INPUT_PR_NUMBER: ${{ inputs.pr_number || '' }}
+          INPUT_UPSTREAM_REF: ${{ inputs.upstream_ref || '' }}
+          INPUT_UPSTREAM_REF_KIND: ${{ inputs.upstream_ref_kind || '' }}
+          INPUT_UPSTREAM_SHA: ${{ inputs.upstream_sha || '' }}
+        run: |
+          set -euo pipefail
+
+          dispatch_drift_check="${INPUT_DISPATCH_DRIFT_CHECK:-true}"
+          echo "dispatch_drift_check=${dispatch_drift_check}" >> "$GITHUB_OUTPUT"
+
+          explicit_target=false
+          for value in \
+            "${INPUT_DRIFT_SHA}" \
+            "${INPUT_LANDED_COMMIT}" \
+            "${INPUT_LANDED_REF}" \
+            "${INPUT_PR_NUMBER}" \
+            "${INPUT_UPSTREAM_REF}" \
+            "${INPUT_UPSTREAM_REF_KIND}" \
+            "${INPUT_UPSTREAM_SHA}"
+          do
+            if [[ -n "${value}" ]]; then
+              explicit_target=true
+              break
+            fi
+          done
+
+          if [[ "${explicit_target}" == "true" ]]; then
+            {
+              echo "dispatch=true"
+              echo "drift_sha=${INPUT_DRIFT_SHA}"
+              echo "landed_commit=${INPUT_LANDED_COMMIT}"
+              echo "landed_ref=${INPUT_LANDED_REF}"
+              echo "pr_number=${INPUT_PR_NUMBER}"
+              echo "upstream_ref=${INPUT_UPSTREAM_REF}"
+              echo "upstream_ref_kind=${INPUT_UPSTREAM_REF_KIND}"
+              echo "upstream_sha=${INPUT_UPSTREAM_SHA}"
+            } >> "$GITHUB_OUTPUT"
+            echo "Using explicit finalize inputs." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          if [[ "${EVENT_NAME}" == "pull_request" ]]; then
+            if [[ "${EVENT_PR_MERGED}" != "true" ]]; then
+              echo "dispatch=false" >> "$GITHUB_OUTPUT"
+              echo "Closed PR #${EVENT_PR_NUMBER:-unknown} was not merged; no finalize needed." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            if [[ "${EVENT_PR_BASE_REF}" != "${DEFAULT_BRANCH}" ]]; then
+              echo "dispatch=false" >> "$GITHUB_OUTPUT"
+              echo "Merged PR #${EVENT_PR_NUMBER:-unknown} targeted ${EVENT_PR_BASE_REF}; expected ${DEFAULT_BRANCH}." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            if [[ -z "${EVENT_PR_NUMBER}" ]]; then
+              echo "pull_request.closed event did not include a PR number." >&2
+              exit 1
+            fi
+
+            default_head="$(
+              gh api "repos/${GITHUB_REPOSITORY}/branches/${DEFAULT_BRANCH}" \
+                --jq '.commit.sha'
+            )"
+            echo "Default branch ${DEFAULT_BRANCH} head: ${default_head}" >> "$GITHUB_STEP_SUMMARY"
+
+            printf '[]\n' > /tmp/codexsdk-active-finalize-runs.json
+            gh pr view "${EVENT_PR_NUMBER}" \
+              --json number,body,mergeCommit,url \
+              --jq '[.]' \
+              > /tmp/codexsdk-merged-prs.json
+
+            python3 scripts/codexsdk_finalize_sweep.py \
+              --active-runs-json /tmp/codexsdk-active-finalize-runs.json \
+              --default-branch "${DEFAULT_BRANCH}" \
+              --default-head "${default_head}" \
+              --merged-prs-json /tmp/codexsdk-merged-prs.json
+            exit 0
+          fi
+
+          default_head="$(
+            gh api "repos/${GITHUB_REPOSITORY}/branches/${DEFAULT_BRANCH}" \
+              --jq '.commit.sha'
+          )"
+          echo "Default branch ${DEFAULT_BRANCH} head: ${default_head}" >> "$GITHUB_STEP_SUMMARY"
+
+          printf '[]\n' > /tmp/codexsdk-active-finalize-runs.json
+          gh pr list \
+            --state merged \
+            --base "${DEFAULT_BRANCH}" \
+            --limit 50 \
+            --json number,body,mergeCommit,url \
+            > /tmp/codexsdk-merged-prs.json
+
+          python3 scripts/codexsdk_finalize_sweep.py \
+            --active-runs-json /tmp/codexsdk-active-finalize-runs.json \
+            --default-branch "${DEFAULT_BRANCH}" \
+            --default-head "${default_head}" \
+            --merged-prs-json /tmp/codexsdk-merged-prs.json
+
+      - name: Resolve finalize metadata
+        id: metadata
+        if: steps.candidate.outputs.dispatch == 'true'
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_DRIFT_SHA: ${{ steps.candidate.outputs.drift_sha || '' }}
+          INPUT_LANDED_COMMIT: ${{ steps.candidate.outputs.landed_commit || '' }}
+          INPUT_LANDED_REF: ${{ steps.candidate.outputs.landed_ref || '' }}
+          INPUT_PR_NUMBER: ${{ steps.candidate.outputs.pr_number || '' }}
+          INPUT_UPSTREAM_REF: ${{ steps.candidate.outputs.upstream_ref || '' }}
+          INPUT_UPSTREAM_REF_KIND: ${{ steps.candidate.outputs.upstream_ref_kind || '' }}
+          INPUT_UPSTREAM_SHA: ${{ steps.candidate.outputs.upstream_sha || '' }}
+        run: |
+          set -euo pipefail
+
+          if [[ -n "${INPUT_PR_NUMBER}" ]]; then
+            gh pr view "${INPUT_PR_NUMBER}" \
+              --json number,state,mergedAt,baseRefName,mergeCommit,body,url \
+              --jq '.' > /tmp/codexsdk-sync-pr.json
+          else
+            printf '{}\n' > /tmp/codexsdk-sync-pr.json
+          fi
+
+          python3 scripts/codexsdk_finalize_sweep.py \
+            --default-branch "${DEFAULT_BRANCH}" \
+            --sync-pr-json /tmp/codexsdk-sync-pr.json \
+            --input-drift-sha "${INPUT_DRIFT_SHA}" \
+            --input-landed-commit "${INPUT_LANDED_COMMIT}" \
+            --input-landed-ref "${INPUT_LANDED_REF}" \
+            --input-pr-number "${INPUT_PR_NUMBER}" \
+            --input-upstream-ref "${INPUT_UPSTREAM_REF}" \
+            --input-upstream-ref-kind "${INPUT_UPSTREAM_REF_KIND}" \
+            --input-upstream-sha "${INPUT_UPSTREAM_SHA}"
+
+      - name: Verify landing ref policy
+        id: landing
+        if: steps.candidate.outputs.dispatch == 'true'
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          LANDED_REF: ${{ steps.metadata.outputs.landed_ref }}
+        run: |
+          set -euo pipefail
+
+          landed_ref="${LANDED_REF:-${DEFAULT_BRANCH}}"
+          landed_ref="${landed_ref#refs/heads/}"
+          if [[ "${landed_ref}" != "${DEFAULT_BRANCH}" ]]; then
+            echo "Refusing to finalize landing ref ${landed_ref}; upstream protocol finalization may target only ${DEFAULT_BRANCH}." >&2
+            exit 1
+          fi
+          echo "landed_ref=${landed_ref}" >> "$GITHUB_OUTPUT"
+
+      - name: Check out exact landed commit
+        id: landed
+        if: steps.candidate.outputs.dispatch == 'true'
+        env:
+          LANDED_COMMIT: ${{ steps.metadata.outputs.landed_commit }}
+          LANDED_REF: ${{ steps.landing.outputs.landed_ref }}
+        run: |
+          set -euo pipefail
+
+          git fetch origin "refs/heads/${LANDED_REF}:refs/remotes/origin/${LANDED_REF}" --tags
+          landing_head="$(git rev-parse "refs/remotes/origin/${LANDED_REF}")"
+          if [[ -z "${LANDED_COMMIT}" ]]; then
+            LANDED_COMMIT="${landing_head}"
+          fi
+          if [[ "${LANDED_COMMIT}" != "${landing_head}" ]]; then
+            echo "Refusing to finalize ${LANDED_COMMIT}; ${LANDED_REF} currently points at ${landing_head}." >&2
+            echo "Rerun finalize for the current landed head so tag and drift verification describe the same commit." >&2
+            exit 1
+          fi
+
+          git checkout --detach "${LANDED_COMMIT}"
+          echo "landed_commit=${LANDED_COMMIT}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify landed baseline metadata
+        id: baseline
+        if: steps.candidate.outputs.dispatch == 'true'
+        env:
+          EXPECTED_UPSTREAM_REF: ${{ steps.metadata.outputs.upstream_ref }}
+          EXPECTED_UPSTREAM_REF_KIND: ${{ steps.metadata.outputs.upstream_ref_kind }}
+          EXPECTED_UPSTREAM_SHA: ${{ steps.metadata.outputs.upstream_sha }}
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          metadata = json.loads(Path(os.environ["CODEXSDK_SCHEMA_BASELINE"], "baseline_metadata.json").read_text())
+          checks = (
+              ("source_ref_name", os.environ["EXPECTED_UPSTREAM_REF"]),
+              ("source_ref_kind", os.environ["EXPECTED_UPSTREAM_REF_KIND"]),
+              ("source_commit", os.environ["EXPECTED_UPSTREAM_SHA"]),
+          )
+          for key, expected in checks:
+              if expected and metadata.get(key) != expected:
+                  print(f"landed baseline {key}={metadata.get(key)!r}, expected {expected!r}", file=sys.stderr)
+                  raise SystemExit(1)
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"upstream_ref={metadata.get('source_ref_name', '')}\n")
+              output.write(f"upstream_ref_kind={metadata.get('source_ref_kind', '')}\n")
+              output.write(f"upstream_sha={metadata.get('source_commit', '')}\n")
+          PY
+
+      - name: Dispatch drift verification
+        id: verification
+        if: steps.candidate.outputs.dispatch == 'true' && steps.candidate.outputs.dispatch_drift_check == 'true'
+        continue-on-error: true
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LANDED_COMMIT: ${{ steps.landed.outputs.landed_commit }}
+          LANDED_REF: ${{ steps.landing.outputs.landed_ref }}
+          UPSTREAM_REF: ${{ steps.baseline.outputs.upstream_ref }}
+        run: |
+          set -euo pipefail
+
+          dispatch_started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          gh workflow run upstream-protocol-sync.yml \
+            --ref "${DEFAULT_BRANCH}" \
+            -f "upstream_ref=${UPSTREAM_REF}" \
+            -f "force_compare=true"
+
+          run_id=""
+          for _ in $(seq 1 24); do
+            run_id="$(
+              gh run list \
+                --workflow upstream-protocol-sync.yml \
+                --branch "${DEFAULT_BRANCH}" \
+                --limit 20 \
+                --json databaseId,createdAt,event,headSha \
+                --jq ".[] | select(.headSha == \"${LANDED_COMMIT}\" and .event == \"workflow_dispatch\" and .createdAt >= \"${dispatch_started}\") | .databaseId" |
+                head -n 1
+            )"
+            if [[ -n "${run_id}" ]]; then
+              break
+            fi
+            sleep 5
+          done
+          if [[ -z "${run_id}" ]]; then
+            echo "Unable to find dispatched drift workflow run for ${LANDED_REF}@${LANDED_COMMIT}." >&2
+            exit 1
+          fi
+
+          run_url="$(gh run view "${run_id}" --json url --jq '.url')"
+          echo "run_id=${run_id}" >> "$GITHUB_OUTPUT"
+          echo "run_url=${run_url}" >> "$GITHUB_OUTPUT"
+          echo "Dispatched drift verification run: ${run_url}" >> "$GITHUB_STEP_SUMMARY"
+
+          set +e
+          gh run watch "${run_id}" --exit-status
+          watch_status=$?
+          set -e
+          if [[ "${watch_status}" -eq 0 ]]; then
+            echo "verification_status=passed" >> "$GITHUB_OUTPUT"
+          else
+            echo "verification_status=failed" >> "$GITHUB_OUTPUT"
+          fi
+          exit "${watch_status}"
+
+      - name: Prepare drift verification failure explanation prompt
+        if: steps.candidate.outputs.dispatch == 'true' && steps.candidate.outputs.dispatch_drift_check == 'true' && steps.verification.outcome != 'success'
+        env:
+          LANDED_COMMIT: ${{ steps.landed.outputs.landed_commit }}
+          LANDED_REF: ${{ steps.landing.outputs.landed_ref }}
+          RUN_URL: ${{ steps.verification.outputs.run_url }}
+          UPSTREAM_REF: ${{ steps.baseline.outputs.upstream_ref }}
+          UPSTREAM_SHA: ${{ steps.baseline.outputs.upstream_sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p .cache/codexsdk-finalize
+          cat > .cache/codexsdk-finalize/explain-failure-prompt.md <<EOF
+          Create .cache/codexsdk-finalize/failure-explanation.md.
+
+          Analyze this failed drift verification run:
+          ${RUN_URL}
+
+          Context:
+          - Landed ref: ${LANDED_REF}
+          - Landed commit: ${LANDED_COMMIT}
+          - Upstream ref: ${UPSTREAM_REF}
+          - Upstream sha: ${UPSTREAM_SHA}
+
+          Use GitHub CLI if available. Explain briefly:
+          - what failed
+          - whether it looks like drift, runner/infrastructure, or inconclusive
+          - the next recovery action
+
+          Do not mark finalize complete. Do not suggest bypassing checks,
+          branch protection, statuses, or tags.
+          EOF
+
+      - name: Explain drift verification failure
+        if: steps.candidate.outputs.dispatch == 'true' && steps.candidate.outputs.dispatch_drift_check == 'true' && steps.verification.outcome != 'success'
+        continue-on-error: true
+        uses: openai/codex-action@v1
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          openai-api-key: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          responses-api-endpoint: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
+          model: gpt-5.3-codex-spark
+          prompt-file: .cache/codexsdk-finalize/explain-failure-prompt.md
+          sandbox: workspace-write
+          safety-strategy: drop-sudo
+          allow-bots: "true"
+          codex-args: '["--ephemeral"]'
+
+      - name: Append drift verification failure explanation
+        if: steps.candidate.outputs.dispatch == 'true' && steps.candidate.outputs.dispatch_drift_check == 'true' && steps.verification.outcome != 'success'
+        env:
+          RUN_URL: ${{ steps.verification.outputs.run_url }}
+        run: |
+          {
+            echo
+            echo "## Drift verification failure explanation"
+            echo
+            if [[ -s .cache/codexsdk-finalize/failure-explanation.md ]]; then
+              cat .cache/codexsdk-finalize/failure-explanation.md
+            else
+              echo "Codex explanation was unavailable. Inspect the dispatched drift verification run: ${RUN_URL}"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail when drift verification failed
+        if: steps.candidate.outputs.dispatch == 'true' && steps.candidate.outputs.dispatch_drift_check == 'true' && steps.verification.outcome != 'success'
+        run: |
+          echo "Finalize stopped because drift verification did not pass. See the job summary for the generated explanation." >&2
+          exit 1
+
+      - name: Configure git identity
+        if: steps.candidate.outputs.dispatch == 'true'
+        run: |
+          git config user.name "codexsdk-sync-bot"
+          git config user.email "codexsdk-sync-bot@users.noreply.github.com"
+
+      - name: Create upstream sync tag
+        id: tag
+        if: steps.candidate.outputs.dispatch == 'true' && steps.baseline.outputs.upstream_ref_kind == 'stable_rust_tag'
+        run: |
+          set -euo pipefail
+
+          git fetch --tags origin
+          if python3 scripts/codexsdk_sync_tag.py --create --push origin --json > "${CODEXSDK_SYNC_TAG_JSON}"; then
+            :
+          else
+            python3 scripts/codexsdk_sync_tag.py --next-suffix --create --push origin --json > "${CODEXSDK_SYNC_TAG_JSON}"
+          fi
+          tag_name="$(jq -r '.tag_name' "${CODEXSDK_SYNC_TAG_JSON}")"
+          action="$(jq -r '.action' "${CODEXSDK_SYNC_TAG_JSON}")"
+          echo "tag_name=${tag_name}" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Upstream sync tag"
+            echo
+            echo "- Tag: \`${tag_name}\`"
+            echo "- Action: \`${action}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Report final sync outcome
+        if: steps.candidate.outputs.dispatch == 'true'
+        env:
+          LANDED_COMMIT: ${{ steps.landed.outputs.landed_commit }}
+          LANDED_REF: ${{ steps.landing.outputs.landed_ref }}
+          PR_URL: ${{ steps.metadata.outputs.pr_url }}
+          TAG_NAME: ${{ steps.tag.outputs.tag_name }}
+          UPSTREAM_REF: ${{ steps.baseline.outputs.upstream_ref }}
+          UPSTREAM_SHA: ${{ steps.baseline.outputs.upstream_sha }}
+          VERIFICATION_STATUS: ${{ steps.verification.outputs.verification_status || 'skipped' }}
+        run: |
+          {
+            echo
+            echo "## Sync finalize outcome"
+            echo
+            if [[ "${VERIFICATION_STATUS}" == "passed" ]]; then
+              echo "- Completion layer: \`landed sync finalized\`"
+            else
+              echo "- Completion layer: \`landed sync verified; drift verification ${VERIFICATION_STATUS}\`"
+            fi
+            echo "- Landing ref: \`${LANDED_REF}\`"
+            echo "- Landed commit: \`${LANDED_COMMIT}\`"
+            if [[ -n "${PR_URL}" ]]; then
+              echo "- Sync PR: ${PR_URL}"
+            fi
+            echo "- Upstream target: \`${UPSTREAM_REF}\`"
+            echo "- Upstream commit: \`${UPSTREAM_SHA}\`"
+            if [[ -n "${TAG_NAME}" ]]; then
+              echo "- Sync tag: \`${TAG_NAME}\`"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

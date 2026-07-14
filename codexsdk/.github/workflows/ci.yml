@@ -1,0 +1,145 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  merge_group:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  GOWORK: "off"
+
+jobs:
+  minimum-go:
+    name: Go minimum
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Set up minimum supported Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test standalone module
+        run: go test ./...
+
+  test:
+    name: Go
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: true
+
+      - name: Download modules
+        run: go mod download
+
+      - name: Check module metadata
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+      - name: Check formatting
+        run: test -z "$(git ls-files -z -- '*.go' ':!:vendor/**' | xargs -0 gofmt -l)"
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+      - name: Test scripts
+        run: python3 -m unittest discover -s scripts -p '*_test.py'
+
+      - name: Check generated protocol code
+        run: |
+          go run ./codexsdk/internal/cmd/protocolv2gen -stdout method-registry |
+            diff -u codexsdk/protocolv2/method_registry.gen.go -
+          go run ./codexsdk/internal/cmd/protocolv2gen -stdout protocol-types |
+            diff -u codexsdk/protocolv2/protocol_types.gen.go -
+          tmp="$(mktemp -d)/sdk_surface.gen.go"
+          python3 scripts/codexsdk_generate_sdk_surface.py --out "$tmp"
+          gofmt -w "$tmp"
+          diff -u codexsdk/sdk_surface.gen.go "$tmp"
+
+  race:
+    name: Go race
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Set up current stable Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: true
+
+      - name: Test with race detector
+        run: go test -race ./...
+
+  runtime-repeat:
+    name: Runtime repeat
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Set up current stable Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: true
+
+      - name: Repeat deterministic runtime concurrency contracts
+        run: >-
+          go test ./codexsdk
+          -run 'Test(ExactStreamWait|ExactRunAttach|ExactNotificationOverflow|ExactTerminalOverflow|ExactAttribution|ConcurrentAttribution|ThreadAttributionReachesEveryCurrentRunOnSameThread|RunEvidenceAppendPrecedesGlobalHandlerEnqueue|NotificationHandlerFailureCancelsStreamWithPartialEvidence|HandlerFailureDiscardsQueuedTerminalWithoutBlockingRun|ExactRunNilHandlerUnsafeRequestPreservesPartialEvidence|RequestArrivingDuringClose|CloseIdempotencyAndConcurrentRouting|CloseJoinsNotificationAndServerRequestHandlers|NormalCloseCancelsAndJoinsExactServerRequestHandler|FailureShutdown|ProtocolFailureFinishesActiveStreams)'
+          -count=50
+
+  public-api:
+    name: Public API
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Set up current stable Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: true
+
+      - name: Check handwritten API and generated facades
+        run: go test ./codexsdk -run 'Test(HandwrittenPublicAPI|GeneratedFacadeAccessorsReturnConcreteOpaqueValues)$'
+
+  clean-consumer:
+    name: Clean consumer
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Set up current stable Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: true
+
+      - name: Compile isolated consumer
+        env:
+          CODEXSDK_CONSUMER_REF: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: scripts/codexsdk_test_clean_consumer.sh

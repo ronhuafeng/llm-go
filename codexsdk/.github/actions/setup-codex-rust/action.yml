@@ -1,0 +1,50 @@
+name: Set up Codex Rust
+description: Install Rust, restore the Codex Rust build cache, and install native build dependencies.
+
+inputs:
+  cache:
+    description: Restore and save the Codex Rust build cache.
+    required: false
+    default: "true"
+  cache-key-suffix:
+    description: Stable cache-key suffix, usually the resolved upstream Codex short SHA.
+    required: false
+    default: ""
+  target-dir:
+    description: Cargo target directory to cache.
+    required: false
+    default: .cache/cargo-target/codex
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Rust
+      shell: bash
+      run: |
+        rustup default stable
+        rustup show
+
+    - name: Cache Codex Rust build
+      if: ${{ inputs.cache == 'true' && inputs.cache-key-suffix != '' }}
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/git/db
+          ~/.cargo/registry/cache
+          ~/.cargo/registry/index
+          ${{ inputs.target-dir }}
+        key: codex-rust-${{ runner.os }}-${{ inputs.cache-key-suffix }}
+        restore-keys: |
+          codex-rust-${{ runner.os }}-
+
+    - name: Install system build dependencies
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          clang \
+          cmake \
+          libasound2-dev \
+          libssl-dev \
+          pkg-config \
+          protobuf-compiler
