@@ -490,27 +490,25 @@ func TestPublishedEnvironmentDisablesWorkspaceVCSAndPrivateBypass(t *testing.T) 
 }
 
 func TestReleaseTracerScopesOnlyFirstToolkitAndSDKTags(t *testing.T) {
-	for _, moduleID := range []string{"llmkit", "codexsdk"} {
-		_, err := BuildReleasePlan(t.TempDir(), moduleID, "v0.6.0", "commit", "HEAD")
-		if err == nil || !strings.Contains(err.Error(), "release source identity") {
-			t.Fatalf("BuildReleasePlan(%s/v0.6.0) did not enter the authorized preflight: %v", moduleID, err)
-		}
-	}
 	for _, test := range []struct {
 		moduleID string
 		version  string
+		allowed  bool
 	}{
-		{moduleID: "codex-adapter", version: "v0.5.0"},
-		{moduleID: "llmkit", version: "v0.6.1"},
-		{moduleID: "codexsdk", version: "v0.6.1"},
+		{moduleID: "llmkit", version: "v0.6.0", allowed: true},
+		{moduleID: "codexsdk", version: "v0.6.0", allowed: true},
+		{moduleID: "codex-adapter", version: "v0.5.0", allowed: false},
+		{moduleID: "llmkit", version: "v0.6.1", allowed: false},
+		{moduleID: "codexsdk", version: "v0.6.1", allowed: false},
 	} {
-		if _, err := BuildReleasePlan(t.TempDir(), test.moduleID, test.version, "commit", "HEAD"); err == nil || !strings.Contains(err.Error(), "release tracer") {
-			t.Fatalf("BuildReleasePlan(%s/%s) error = %v", test.moduleID, test.version, err)
+		err := validateReleaseTracerScope(test.moduleID, test.version)
+		if (err == nil) != test.allowed {
+			t.Fatalf("validateReleaseTracerScope(%s, %s) = %v, allowed=%t", test.moduleID, test.version, err, test.allowed)
 		}
 	}
 }
 
-func TestCodexSDKPublishedConsumerRunsAgainstExactPublicSeams(t *testing.T) {
+func TestCodexSDKPublishedConsumerTemplateRunsAgainstCheckoutPublicSeams(t *testing.T) {
 	repositoryRoot, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
 	if err != nil {
 		t.Fatal(err)

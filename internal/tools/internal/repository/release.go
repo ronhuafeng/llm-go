@@ -100,18 +100,27 @@ type githubRelease struct {
 
 var ErrDraftReleaseNotFound = errors.New("matching Draft Release not found")
 
-// BuildReleasePlan verifies the source facts that authorize exactly one tag.
-func BuildReleasePlan(root, moduleID, targetVersion, requiredCommit, mainRef string) (ReleasePlan, error) {
+// validateReleaseTracerScope owns the exact module/version tuples whose
+// owner-specific preflight and public-consumer gates are complete.
+func validateReleaseTracerScope(moduleID, targetVersion string) error {
 	firstTracerVersions := map[string]string{
 		"llmkit":   "v0.6.0",
 		"codexsdk": "v0.6.0",
 	}
 	wantVersion, ok := firstTracerVersions[moduleID]
 	if !ok {
-		return ReleasePlan{}, fmt.Errorf("release tracer does not support module %s; its owner-specific gates are not authorized", moduleID)
+		return fmt.Errorf("release tracer does not support module %s; its owner-specific gates are not authorized", moduleID)
 	}
 	if targetVersion != wantVersion {
-		return ReleasePlan{}, fmt.Errorf("release tracer authorizes only %s/%s; later versions must add a new mechanical API-impact baseline", moduleID, wantVersion)
+		return fmt.Errorf("release tracer authorizes only %s/%s; later versions must add a new mechanical API-impact baseline", moduleID, wantVersion)
+	}
+	return nil
+}
+
+// BuildReleasePlan verifies the source facts that authorize exactly one tag.
+func BuildReleasePlan(root, moduleID, targetVersion, requiredCommit, mainRef string) (ReleasePlan, error) {
+	if err := validateReleaseTracerScope(moduleID, targetVersion); err != nil {
+		return ReleasePlan{}, err
 	}
 	root, err := filepath.Abs(root)
 	if err != nil {
