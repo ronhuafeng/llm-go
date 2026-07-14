@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-15
+
 ### Changed
 
 - **Breaking import-path change (pre-v1):** moved the exact Codex SDK from

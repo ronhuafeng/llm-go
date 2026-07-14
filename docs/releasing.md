@@ -1,12 +1,13 @@
 # Protected release operation
 
 Public module tags are created only by the manually dispatched
-`Release public module` GitHub Actions workflow. The first tracer deliberately
-supports only `llmkit`; SDK and adapter support must add their owner-specific
-API, generator, dependency, and composed-consumer gates before they become
-selectable inputs. It also authorizes only the first `llmkit/v0.6.0` release:
-later toolkit versions require a new mechanical API-impact baseline rather than
-silently treating the first migration inventory as an evergreen allowlist.
+`Release public module` GitHub Actions workflow. The tracer deliberately
+supports exactly the first `llmkit/v0.6.0` and `codexsdk/v0.6.0` releases. The
+SDK scope adds its owner-specific generated-facade, exact-lifecycle, API,
+archive, and clean-consumer gates. The adapter remains unauthorized until its
+dependency and composed-consumer gates are implemented. Later toolkit or SDK
+versions require a new mechanical API-impact baseline rather than silently
+treating either first-migration inventory as an evergreen allowlist.
 
 ## One-time GitHub configuration
 
@@ -126,7 +127,9 @@ in an issue, pull request, workflow artifact, command line, or log.
    retries. Every retry uses a disposable probe cache; artifact validation and
    the external typed consumer use separate fresh caches. Module caches are
    writable solely so teardown is reliable, and a cleanup failure fails the
-   evidence rather than silently leaving reusable state behind.
+   evidence rather than silently leaving reusable state behind. The SDK
+   consumer exercises a generated facade and the exact `ThreadRunner`
+   lifecycle through their public fail-closed zero-client contract.
 7. CI attaches the plan, release authorization, and published evidence before
    changing the GitHub Release from Draft to `verified`.
 

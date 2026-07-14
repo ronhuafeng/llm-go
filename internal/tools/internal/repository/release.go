@@ -102,11 +102,16 @@ var ErrDraftReleaseNotFound = errors.New("matching Draft Release not found")
 
 // BuildReleasePlan verifies the source facts that authorize exactly one tag.
 func BuildReleasePlan(root, moduleID, targetVersion, requiredCommit, mainRef string) (ReleasePlan, error) {
-	if moduleID != "llmkit" {
-		return ReleasePlan{}, fmt.Errorf("release tracer currently supports only llmkit; later module releases must add their owner-specific gates first")
+	firstTracerVersions := map[string]string{
+		"llmkit":   "v0.6.0",
+		"codexsdk": "v0.6.0",
 	}
-	if targetVersion != "v0.6.0" {
-		return ReleasePlan{}, fmt.Errorf("release tracer authorizes only llmkit/v0.6.0; later versions must add a new mechanical API-impact baseline")
+	wantVersion, ok := firstTracerVersions[moduleID]
+	if !ok {
+		return ReleasePlan{}, fmt.Errorf("release tracer does not support module %s; its owner-specific gates are not authorized", moduleID)
+	}
+	if targetVersion != wantVersion {
+		return ReleasePlan{}, fmt.Errorf("release tracer authorizes only %s/%s; later versions must add a new mechanical API-impact baseline", moduleID, wantVersion)
 	}
 	root, err := filepath.Abs(root)
 	if err != nil {

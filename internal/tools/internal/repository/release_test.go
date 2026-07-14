@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -178,6 +179,7 @@ func TestReleaseWorkflowWiringSmoke(t *testing.T) {
 	}
 	workflow := string(data)
 	for _, required := range []string{
+		"options: [llmkit, codexsdk]",
 		"options: [v0.6.0]",
 		"permissions:\n  contents: read",
 		"if: github.ref != 'refs/heads/main'",
@@ -195,6 +197,8 @@ func TestReleaseWorkflowWiringSmoke(t *testing.T) {
 		"finalize-release -plan",
 		".authorization_digest",
 		"release-authorization.json",
+		"module_dir=$(jq -r '.subject.module_dir' \"$RUNNER_TEMP/release-plan.json\")",
+		"go-version-file: ${{ steps.plan.outputs.module_dir }}/go.mod",
 		"git fetch --no-tags origin \"+refs/heads/main:refs/remotes/origin/main\"",
 		"git ls-remote origin refs/heads/main",
 		"git tag -a \"$TAG\" \"$COMMIT\"",
@@ -241,6 +245,9 @@ func TestReleaseWorkflowWiringSmoke(t *testing.T) {
 	}
 	if strings.Contains(workflow, "inputs.proxy") || strings.Contains(workflow, "inputs.sumdb") || strings.Contains(workflow, "proxy,direct") {
 		t.Error("release workflow exposes or weakens the exclusive public proxy policy")
+	}
+	if strings.Contains(workflow, "options: [llmkit, codexsdk, codex-adapter]") || strings.Contains(workflow, "go-version-file: llmkit/go.mod") {
+		t.Error("release workflow must authorize only the first toolkit and SDK tags and derive the selected module directory from the typed plan")
 	}
 	if strings.Contains(workflow, "/releases/tags/") {
 		t.Error("Draft lookup must use the authenticated releases list because get-by-tag hides Draft Releases")
@@ -482,12 +489,50 @@ func TestPublishedEnvironmentDisablesWorkspaceVCSAndPrivateBypass(t *testing.T) 
 	}
 }
 
-func TestReleaseTracerFailsClosedForOtherModules(t *testing.T) {
-	if _, err := BuildReleasePlan(t.TempDir(), "codexsdk", "v0.6.0", "commit", "HEAD"); err == nil || !strings.Contains(err.Error(), "only llmkit") {
-		t.Fatalf("BuildReleasePlan error = %v", err)
+func TestReleaseTracerScopesOnlyFirstToolkitAndSDKTags(t *testing.T) {
+	for _, moduleID := range []string{"llmkit", "codexsdk"} {
+		_, err := BuildReleasePlan(t.TempDir(), moduleID, "v0.6.0", "commit", "HEAD")
+		if err == nil || !strings.Contains(err.Error(), "release source identity") {
+			t.Fatalf("BuildReleasePlan(%s/v0.6.0) did not enter the authorized preflight: %v", moduleID, err)
+		}
 	}
-	if _, err := BuildReleasePlan(t.TempDir(), "llmkit", "v0.6.1", "commit", "HEAD"); err == nil || !strings.Contains(err.Error(), "only llmkit/v0.6.0") {
-		t.Fatalf("BuildReleasePlan later-version error = %v", err)
+	for _, test := range []struct {
+		moduleID string
+		version  string
+	}{
+		{moduleID: "codex-adapter", version: "v0.5.0"},
+		{moduleID: "llmkit", version: "v0.6.1"},
+		{moduleID: "codexsdk", version: "v0.6.1"},
+	} {
+		if _, err := BuildReleasePlan(t.TempDir(), test.moduleID, test.version, "commit", "HEAD"); err == nil || !strings.Contains(err.Error(), "release tracer") {
+			t.Fatalf("BuildReleasePlan(%s/%s) error = %v", test.moduleID, test.version, err)
+		}
+	}
+}
+
+func TestCodexSDKPublishedConsumerRunsAgainstExactPublicSeams(t *testing.T) {
+	repositoryRoot, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	modulePath := "github.com/ronhuafeng/llm-go/codexsdk"
+	source, err := publishedConsumerSource("codexsdk", modulePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	consumerRoot := t.TempDir()
+	goMod := "module example.test/codexsdk-release-consumer\n\ngo 1.23.0\n\nrequire " + modulePath + " v0.0.0\n\nreplace " + modulePath + " => " + filepath.ToSlash(filepath.Join(repositoryRoot, "codexsdk")) + "\n"
+	if err := os.WriteFile(filepath.Join(consumerRoot, "go.mod"), []byte(goMod), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(consumerRoot, "main.go"), []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command("go", "run", ".")
+	command.Dir = consumerRoot
+	command.Env = append(os.Environ(), "GOWORK=off", "GOFLAGS=-mod=mod", "GOTOOLCHAIN=local")
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("run Codex SDK release consumer: %v: %s", err, output)
 	}
 }
 

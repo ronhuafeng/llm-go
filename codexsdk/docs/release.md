@@ -81,6 +81,9 @@ CI and are never moved or reused.
 
 After tag creation, CI resolves the module from the public Go proxy with fresh
 caches, `GOWORK=off`, `GOVCS=*:off`, and the public checksum database. An
-isolated external consumer must compile and run before the GitHub Release is
-marked verified. If verification fails, the tag remains immutable and the
-release stays unverified; correction uses a new version.
+isolated external consumer must compile and run a generated facade and the
+exact `ThreadRunner` lifecycle before the GitHub Release is marked verified.
+The zero-value Client's stable `ErrClientClosed` behavior provides a typed,
+process-free public seam for this artifact check. If verification fails, the
+tag remains immutable and the release stays unverified; correction uses a new
+version.

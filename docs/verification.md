@@ -76,12 +76,15 @@ The manually dispatched release workflow uses three additional typed seams:
   `h1:` content sum, observed raw zip SHA-256, exact `go.mod` SHA-256, and an
   isolated typed consumer.
 
-The initial tracer is intentionally exact-scope: only `llmkit/v0.6.0` is
-currently authorized. First-tag API mapping is generic across migrated
-modules; while a first replacement tag is still absent, repository verification
-requires the current canonical inventory to equal its legacy inventory after
-the declared flattened import mapping. That migration baseline is not an
-allowlist for later versions. The workflow also validates any
+The release tracer is intentionally exact-scope: only `llmkit/v0.6.0` and
+`codexsdk/v0.6.0` are authorized. The SDK path additionally verifies its
+module-owned generated facts and runs a public-artifact consumer over both a
+generated facade and the exact lifecycle API. The adapter remains unauthorized.
+First-tag API mapping is generic across migrated modules; while a first
+replacement tag is still absent, repository verification requires the current
+canonical inventory to equal its legacy inventory after the declared flattened
+import mapping. That migration baseline is not an allowlist for later versions.
+The workflow also validates any
 pre-existing GitHub Release through the authenticated, paginated Releases list
 because GitHub's get-by-tag endpoint returns 404 for Drafts. Exactly one tag
 match must be an unverified Draft whose `target_commitish` equals the authorized

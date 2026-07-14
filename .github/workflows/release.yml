@@ -7,7 +7,7 @@ on:
         description: Registered public module ID
         required: true
         type: choice
-        options: [llmkit]
+        options: [llmkit, codexsdk]
       version:
         description: Exact first-tracer version
         required: true
@@ -64,10 +64,12 @@ jobs:
           "$RUNNER_TEMP/repoctl" release-plan -root . -module "$MODULE" -version "$VERSION" -commit "$COMMIT" -main origin/main -output "$RUNNER_TEMP/release-plan.json"
           "$RUNNER_TEMP/repoctl" release-notes -plan "$RUNNER_TEMP/release-plan.json" -output "$RUNNER_TEMP/release-notes.md"
           echo "tag=$(jq -r '.subject.tag' "$RUNNER_TEMP/release-plan.json")" >> "$GITHUB_OUTPUT"
+          module_dir=$(jq -r '.subject.module_dir' "$RUNNER_TEMP/release-plan.json")
+          echo "module_dir=$module_dir" >> "$GITHUB_OUTPUT"
       - name: Verify standalone module on minimum Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: llmkit/go.mod
+          go-version-file: ${{ steps.plan.outputs.module_dir }}/go.mod
           cache: false
       - name: Run minimum-Go evidence
         run: >-
