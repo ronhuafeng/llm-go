@@ -2,6 +2,12 @@
 
 Provider-neutral Go primitives for typed LLM programming.
 
+> **Important:** This legacy module is frozen at `v0.5.0`. Development has
+> moved to `github.com/ronhuafeng/llm-go/llmkit`, whose first release is
+> `llmkit/v0.6.0`. This repository receives no further feature or security
+> maintenance after the cutover. See the
+> [llm-go migration guide](docs/llm-go-migration.md).
+
 `llmkit-go` is a small toolkit for code that wants structured LLM output
 without taking a dependency on a specific model provider SDK. It focuses on
 four stable boundaries:
@@ -17,10 +23,11 @@ backends, or business validation rules.
 
 ## Status
 
-The v0.4 API is available as the stable `v0.4.1` release. This project
-is still pre-v1, and the public API is intentionally small; see
-[API compatibility](#api-compatibility) before depending on it from a library
-with a strict compatibility policy.
+`v0.5.0` is the final release from this legacy module path. New consumers
+should use `github.com/ronhuafeng/llm-go/llmkit@v0.6.0`. Existing consumers
+should follow the [llm-go migration guide](docs/llm-go-migration.md); the
+migration changes import paths but adds no forwarding or runtime compatibility
+layer.
 
 ## Packages
 
@@ -38,7 +45,7 @@ The `internal/` tree contains repository tests and is not public API.
 Requires Go 1.23 or newer.
 
 ```sh
-go get github.com/ronhuafeng/llmkit-go@v0.4.1
+go get github.com/ronhuafeng/llmkit-go@v0.5.0
 ```
 
 ## Quick Start
@@ -282,10 +289,10 @@ semantics.
 
 ## Versioning
 
-Releases are tagged as standard Go module tags. The current stable release is:
+Releases are tagged as standard Go module tags. The final legacy release is:
 
 ```sh
-VERSION=v0.4.1
+VERSION=v0.5.0
 git tag -a "$VERSION" -m "llmkit-go $VERSION"
 git push origin "$VERSION"
 ```
@@ -312,12 +319,12 @@ GOWORK=off go test ./...
 
 ## Security
 
-Do not report vulnerabilities by opening a public issue with exploit details.
-Use GitHub private vulnerability reporting:
-
-<https://github.com/ronhuafeng/llmkit-go/security/advisories/new>
-
-See [SECURITY.md](SECURITY.md) for supported versions and disclosure handling.
+This frozen repository receives no security maintenance after cutover. For
+sensitive reports, continue to use this repository's
+[private vulnerability reporting](https://github.com/ronhuafeng/llmkit-go/security/advisories/new)
+until the successor repository publishes its own confidential intake policy.
+This intake path does not make published legacy versions supported. See
+[SECURITY.md](SECURITY.md).
 
 ## License and Dependency Provenance
 
@@ -328,11 +335,14 @@ and should be reviewed before each release.
 
 ## Contributing
 
-Issues and pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md)
-and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) first.
+This repository is frozen. Migration, release-record, and archive corrections
+may still be considered, but feature and security work belongs in
+[`ronhuafeng/llm-go`](https://github.com/ronhuafeng/llm-go). See
+[CONTRIBUTING.md](CONTRIBUTING.md) for the narrow legacy scope.
 
 ## Related Modules
 
-This repository is intentionally provider-neutral. Provider-specific callers,
-SDK wrappers, application policy, and business validation should live in
-separate modules that depend on this one.
+The successor toolkit remains provider-neutral at
+`github.com/ronhuafeng/llm-go/llmkit`. Provider-specific callers, SDK wrappers,
+application policy, and business validation live in separate modules; see the
+[llm-go migration guide](docs/llm-go-migration.md) for exact paths.

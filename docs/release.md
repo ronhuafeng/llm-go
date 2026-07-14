@@ -3,6 +3,11 @@
 This document records the public API, SemVer policy, and release tag process
 for `llmkit-go`.
 
+`v0.5.0` is the final release from this legacy module path. After it is
+published and its source is imported into `github.com/ronhuafeng/llm-go`, this
+checklist remains a historical release record; no later feature or security
+release is planned here.
+
 ## Public API
 
 The public API is the set of exported identifiers in these packages:
@@ -83,7 +88,7 @@ At and after v1.0.0:
 7. Create and push the annotated release tag for the intended version:
 
    ```sh
-   VERSION=v0.4.1
+   VERSION=v0.5.0
    git tag -a "$VERSION" -m "llmkit-go $VERSION"
    git push origin "$VERSION"
    ```

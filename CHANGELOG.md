@@ -7,9 +7,23 @@ changes may occur in minor releases, but they must be documented here.
 
 ## [Unreleased]
 
+This legacy module is frozen. Development continues at
+`github.com/ronhuafeng/llm-go/llmkit`; no further feature or security releases
+are planned here.
+
+## [0.5.0] - 2026-07-14
+
+### Deprecated
+
+- Froze `github.com/ronhuafeng/llmkit-go` at its final legacy release. The
+  replacement module is `github.com/ronhuafeng/llm-go/llmkit`, beginning with
+  `llmkit/v0.6.0`. This repository receives no feature or security maintenance
+  after cutover; published versions remain available through the public Go
+  proxy. See [Migrating to llm-go](docs/llm-go-migration.md).
+
 ### Changed
 
-- **Breaking semantic change (planned for v0.5.0):** an unsettled final
+- **Breaking semantic change:** an unsettled final
   `llmstep` attempt now preserves its validator-owned `Validation`, leaves
   `RetryFeedback` unset, and returns `settle.ErrUnsettled` without invoking the
   feedback sanitizer. Sanitizer rejection remains a sanitize-stage error only

@@ -1,18 +1,26 @@
 # Contributing
 
-Thanks for helping improve `llmkit-go`.
+> **Repository frozen:** `v0.5.0` is the final release from this legacy module
+> path. Feature and security maintenance has moved to
+> [`ronhuafeng/llm-go`](https://github.com/ronhuafeng/llm-go), where the toolkit
+> module begins at `llmkit/v0.6.0`.
+
+Thanks for helping keep the `llmkit-go` migration record accurate.
 
 ## Project scope
 
-This repository provides provider-neutral Go primitives for typed LLM
-programming. Keep provider SDKs, credentials, business workflows, prompt
-catalogs, and product-specific policy in separate modules.
+This repository is limited to migration guidance, final-release records, and
+archive corrections. Do not open feature, dependency-upgrade, security-fix, or
+public API work here. Apply ongoing toolkit work to
+`github.com/ronhuafeng/llm-go/llmkit` and follow that repository's contribution
+policy.
 
 Public packages are:
 
 - `settle`
 - `llmschema`
 - `llmadapter`
+- `llmstep`
 
 The `internal/` tree is private implementation and repository test support.
 
@@ -33,7 +41,7 @@ checks with:
 GOWORK=off go test ./...
 ```
 
-## Before opening a pull request
+## Before opening a legacy correction
 
 Run:
 
@@ -43,32 +51,24 @@ go vet ./...
 go test ./...
 ```
 
-Please include tests for behavior changes. Documentation-only changes do not
-need tests unless they update examples that should compile.
+Runtime behavior changes are out of scope. Documentation-only corrections do
+not need tests unless they update examples that should compile.
 
-## API changes
+## API freeze
 
-Avoid unnecessary public API changes. For exported identifiers in public
-packages:
+Do not change the exported API at this legacy module path. The final public
+surface is the `v0.5.0` tag. See [Migrating to llm-go](docs/llm-go-migration.md)
+for exact replacement imports.
 
-- Additive changes should include tests and README or package documentation
-  updates when they affect user-facing behavior.
-- Breaking changes must update `CHANGELOG.md` and explain migration impact.
-- Do not add provider-specific SDK imports to public packages.
+## Dependency freeze
 
-See [docs/release.md](docs/release.md) for the compatibility and release
-policy.
-
-## Dependency changes
-
-Keep dependencies small and provider-neutral. When adding or upgrading a module:
-
-- Run `go mod tidy`.
-- Update `THIRD_PARTY_NOTICES.md` with license/provenance changes.
-- Confirm the dependency license is compatible with MIT-licensed distribution.
+Do not add or upgrade dependencies in this repository. Dependency maintenance
+belongs in the successor module.
 
 ## Security
 
 Do not include credentials, private prompts, customer data, or local absolute
-paths in code, tests, docs, fixtures, or examples. Report vulnerabilities using
-the process in [SECURITY.md](SECURITY.md).
+paths in code, tests, docs, fixtures, or examples. This frozen repository does
+not receive security fixes after cutover. Until the successor repository
+publishes its own confidential intake policy, use this repository's private
+vulnerability reporting for sensitive disclosures; see [SECURITY.md](SECURITY.md).

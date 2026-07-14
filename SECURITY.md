@@ -2,19 +2,17 @@
 
 ## Supported versions
 
-Security fixes are made on the latest released minor version when practical.
-Before v1.0.0, users should upgrade to the newest available release.
+No version of this frozen legacy module is supported after the `v0.5.0`
+cutover. Security maintenance continues only in
+`github.com/ronhuafeng/llm-go/llmkit`, beginning with `llmkit/v0.6.0`.
 
 ## Reporting a vulnerability
 
-Please do not open a public issue with exploit details.
-
-Use GitHub private vulnerability reporting:
-
-<https://github.com/ronhuafeng/llmkit-go/security/advisories/new>
-
-If private reporting is unavailable, open a public issue asking maintainers to
-enable a private reporting channel, but do not include sensitive details.
+Do not open a public issue with exploit details. Until the successor repository
+publishes its own confidential intake policy, use this repository's
+[private vulnerability reporting](https://github.com/ronhuafeng/llmkit-go/security/advisories/new).
+Maintainers may coordinate disclosure and migration guidance through that
+channel, but this does not create a commitment to patch legacy releases.
 
 ## What to include
 
@@ -27,7 +25,6 @@ Include:
 
 ## Handling
 
-Maintainers will acknowledge valid reports when they are available to triage,
-prepare a fix, and publish release notes that credit reporters when requested.
-Security fixes should avoid broad API changes unless the vulnerability requires
-one.
+The immutable legacy releases are retained as migration evidence but will not
+receive security fixes. Consumers should migrate to the successor module and
+apply supported releases there.
