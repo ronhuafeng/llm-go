@@ -241,7 +241,7 @@ fragments into module-local changelogs and release notes.
 
 ## History migration and cutover
 
-The final legacy documentation-only versions are:
+The final legacy migration versions are:
 
 ```text
 llmkit-go@v0.4.2
@@ -264,7 +264,9 @@ The execution order is:
 
 1. Bootstrap the new repository.
 2. Freeze the legacy repositories.
-3. Publish their documentation-only final patches.
+3. Publish their final migration patches; each migration-specific release
+   commit is documentation-only, while pre-freeze unreleased changes remain
+   visible in changelog and provenance evidence.
 4. Import each complete history through its pure relocation commit and merge
    node.
 5. Establish root governance, the workspace, registry, provenance, and
