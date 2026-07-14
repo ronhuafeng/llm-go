@@ -12,32 +12,35 @@ jobs:
   clean-consumer:
     name: Tag clean consumer
     runs-on: ubuntu-latest
-    env:
-      GOWORK: "off"
-      GOPROXY: https://proxy.golang.org,direct
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-go@v6
         with:
           go-version: stable
-          cache: true
-      - name: Resolve tag and run synthetic detailed-result scenarios
-        run: ./scripts/ci/verify-clean-consumer.sh version "${{ github.ref_name }}" "$RUNNER_TEMP/tag-verification"
-      - name: Record resolved module, sums, and tag commit
+          cache: false
+      - name: Resolve immutable tag through the public proxy
         run: |
-          cp "$RUNNER_TEMP/tag-verification/module.json" module.json
-          cp "$RUNNER_TEMP/tag-verification/go.sum" consumer-go.sum
-          printf '%s\n' "${{ github.sha }}" > tag-commit.txt
+          tag_commit="$(git rev-list -n 1 "${{ github.ref_name }}")"
+          ./scripts/ci/verify-tag-consumer.sh \
+            "${{ github.ref_name }}" \
+            "$tag_commit" \
+            "$RUNNER_TEMP/tag-verification"
           {
             echo '### Tag verification'
             echo '- Tag: `${{ github.ref_name }}`'
-            echo '- Commit: `${{ github.sha }}`'
-            echo '- Module metadata and sums are attached as the `tag-verification` artifact.'
+            echo "- Commit: \`$tag_commit\`"
+            echo '- Exact proxy resolution, sums, and origin are attached as the `tag-verification` artifact.'
+            echo '```json'
+            cat "$RUNNER_TEMP/tag-verification/tag-evidence.json"
+            echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: tag-verification
-          path: |
-            module.json
-            consumer-go.sum
-            tag-commit.txt
+          path: ${{ runner.temp }}/tag-verification/tag-evidence.json
+          if-no-files-found: error

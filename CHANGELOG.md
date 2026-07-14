@@ -15,6 +15,11 @@ changes may occur in minor releases, but they must be documented here.
   feedback sanitizer. Sanitizer rejection remains a sanitize-stage error only
   when another render would actually run.
 
+- Strengthened tag verification to resolve releases exclusively through the
+  public Go proxy with distinct probe and clean-consumer caches, bounded
+  propagation retry, exact version and integrity checks, and reviewable
+  immutable-tag evidence.
+
 See [Migrating to v0.5](docs/v0.5-migration.md) for the corrected terminal
 error and detailed-evidence semantics.
 
