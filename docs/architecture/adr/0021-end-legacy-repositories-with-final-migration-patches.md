@@ -2,10 +2,10 @@
 status: accepted
 ---
 
-# End legacy repositories with documentation-only patches
+# End legacy repositories with final migration patches
 
-Each legacy repository publishes one final documentation-only patch before its
-final commit is imported into `llm-go`:
+Each legacy repository publishes one final migration patch before its final
+commit is imported into `llm-go`:
 
 ```text
 github.com/ronhuafeng/llmkit-go             v0.4.2
@@ -22,8 +22,12 @@ These final versions:
 - state that existing immutable versions remain proxy-accessible but the legacy
   paths receive no further feature or security fixes.
 
-They do not add forwarding packages, re-exports, runtime compatibility layers,
-or code changes.
+The migration-specific change that prepares each version is documentation-only.
+The version may also contain unreleased changes that were already merged before
+the migration freeze. Those changes remain in the provenance baseline and must
+be listed truthfully in the changelog and release evidence. Migration work does
+not add new runtime changes, forwarding packages, re-exports, or compatibility
+layers.
 
 The cutover sequence is:
 
@@ -41,6 +45,7 @@ Archival cannot precede verified availability of all three replacement modules.
 - Existing consumers can discover the move through README, package
   documentation, changelog, and pkg.go.dev.
 - Imported histories include their own final migration notice.
+- Existing merged fixes are neither discarded nor mislabeled as documentation.
 - There is a bounded and explicit end to dual-repository maintenance.
 - Old versions remain reproducible without suggesting continuing support.
 - The new repository becomes the sole source only after its replacement
