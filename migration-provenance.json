@@ -24,6 +24,30 @@
         "first_parent": "e6bad5a4b23ce0df1eacaf77cc0c2074ce36f7e1",
         "second_parent": "1ec2aa6bc6801b5878da9a8f1b15188125e1dc32"
       }
+    },
+    {
+      "id": "codex-adapter",
+      "source": {
+        "repository": "https://github.com/ronhuafeng/llmcaller-codex-go",
+        "tag": "v0.4.2",
+        "commit": "1e9184763f19ff10482f78cf2f85c83d47be1809",
+        "tree": "5978ae9d3608a6ff3d1808a7073bd996fe426fb1"
+      },
+      "destination": {
+        "directory": "llmcaller/codex",
+        "module": "github.com/ronhuafeng/llm-go/llmcaller/codex",
+        "first_tag": "llmcaller/codex/v0.5.0"
+      },
+      "relocation": {
+        "commit": "3194ead08b80ad3ac358beabc667a48e4ab0a3f4",
+        "parent": "1e9184763f19ff10482f78cf2f85c83d47be1809",
+        "subtree": "5978ae9d3608a6ff3d1808a7073bd996fe426fb1"
+      },
+      "merge": {
+        "commit": "3d52194626915943f2ce2a3d53f53600872726e4",
+        "first_parent": "c6623cdd377d4901d10c7251a962f2f2062a76a0",
+        "second_parent": "3194ead08b80ad3ac358beabc667a48e4ab0a3f4"
+      }
     }
   ]
 }

@@ -1,0 +1,149 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+    inputs:
+      full_canary:
+        description: Run the full three-layer release canary
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    name: Go
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: true
+      - run: go mod download
+      - name: Formatting
+        run: test -z "$(gofmt -l $(git ls-files '*.go'))"
+      - run: go vet ./...
+      - run: go test ./...
+
+  minimum-go:
+    name: Minimum Go
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.23.x"
+          cache: true
+      - run: GOTOOLCHAIN=local GOWORK=off go test ./...
+
+  race:
+    name: Race
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: GOWORK=off go test -race ./...
+
+  module-hygiene:
+    name: Module hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: |
+          GOWORK=off go mod tidy
+          git diff --exit-code -- go.mod go.sum
+          ! grep -Eq '^(replace|exclude) ' go.mod
+          test ! -e go.work
+
+  contracts:
+    name: Published contracts and API
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: GOWORK=off go test ./internal/architecture
+
+  fresh-consumer:
+    name: Fresh consumer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install exact head and compile outside checkout
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          module="github.com/ronhuafeng/llmcaller-codex-go"
+          version="$(go list -m -f '{{.Version}}' "$module@${HEAD_SHA}")"
+          test -n "$version"
+          cd "$(mktemp -d)"
+          go mod init example.test/fresh-consumer
+          go get "$module@$version"
+          printf 'package consumer\nimport _ "github.com/ronhuafeng/llmcaller-codex-go/llmcaller/codex"\n' > consumer.go
+          go mod tidy
+          GOWORK=off go test ./...
+
+  fast-canary:
+    name: Fast canary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: GOWORK=off go test ./llmcaller/codex -run '^TestThreeLayerCanaryFast$' -count=1 -v
+
+  full-canary:
+    if: github.event_name == 'workflow_dispatch' && inputs.full_canary
+    name: Full canary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: true
+      - name: Verify released modules and all invariant groups
+        env:
+          LLMCALLER_FULL_CANARY: "1"
+        run: |
+          go mod verify
+          GOWORK=off go test ./llmcaller/codex -run '^TestThreeLayerCanaryFull/backpressure_closes_with_stable_typed_cause$' -count=100
+          GOWORK=off go test ./llmcaller/codex -run '^TestThreeLayerCanary' -count=1 -v
