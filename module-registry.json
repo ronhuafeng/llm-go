@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "modules": [
+    {"id": "llmkit", "dir": "llmkit", "published": true},
+    {"id": "codexsdk", "dir": "codexsdk", "published": true},
+    {"id": "codex-adapter", "dir": "llmcaller/codex", "published": true},
+    {"id": "repo-tools", "dir": "internal/tools", "published": false}
+  ]
+}

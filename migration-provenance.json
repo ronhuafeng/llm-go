@@ -1,11 +1,13 @@
 {
-  "format_version": 1,
+  "format_version": 2,
   "imports": [
     {
       "id": "codexsdk",
       "source": {
         "repository": "https://github.com/ronhuafeng/codexsdk-go",
         "tag": "v0.5.1",
+        "tag_object": "a09991fa68c76d5a85c533e916c324c18b1852dc",
+        "tag_evidence": "docs/migration/tag-objects/codexsdk-v0.5.1.tag",
         "commit": "304bb12cfef109b0fd30353a6f26a2c4cc71d8c7",
         "tree": "b7044cb15a15a7f093b716feeedfb56794ddbff9"
       },
@@ -30,6 +32,8 @@
       "source": {
         "repository": "https://github.com/ronhuafeng/llmcaller-codex-go",
         "tag": "v0.4.2",
+        "tag_object": "300114a76d985fc0eee64d1deffdcd4fa484369f",
+        "tag_evidence": "docs/migration/tag-objects/codex-adapter-v0.4.2.tag",
         "commit": "1e9184763f19ff10482f78cf2f85c83d47be1809",
         "tree": "5978ae9d3608a6ff3d1808a7073bd996fe426fb1"
       },
@@ -54,6 +58,8 @@
       "source": {
         "repository": "https://github.com/ronhuafeng/llmkit-go",
         "tag": "v0.5.0",
+        "tag_object": "f30e5c52e0f894ca7341d1bc325d2aef1581f926",
+        "tag_evidence": "docs/migration/tag-objects/llmkit-v0.5.0.tag",
         "commit": "fed06dc602a3933127ee81fbad13154a224c3223",
         "tree": "34c85b133d115e75215e1785aa61fa76e3b6504f"
       },
