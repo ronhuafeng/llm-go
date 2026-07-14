@@ -203,35 +203,32 @@ jobs:
           REPOCTL: ${{ runner.temp }}/release-preflight/repoctl
         run: |
           chmod +x "$REPOCTL"
-          encoded_tag=$(jq -rn --arg value "$TAG" '$value | @uri')
-          endpoint="repos/$GITHUB_REPOSITORY/releases/tags/$encoded_tag"
-          response="$RUNNER_TEMP/release-response.txt"
-          release_json="$RUNNER_TEMP/release.json"
+          releases_json="$RUNNER_TEMP/releases.json"
           tag_refs="$RUNNER_TEMP/tag-refs.txt"
 
           git ls-remote origin "refs/tags/$TAG" "refs/tags/$TAG^{}" > "$tag_refs"
           "$REPOCTL" validate-tag-ref -input "$tag_refs" -tag "$TAG" -commit "$COMMIT"
 
-          set +e
-          gh api --include "$endpoint" > "$response" 2> "$RUNNER_TEMP/release-error.txt"
-          api_exit=$?
-          set -e
-          http_status=$(awk '/^HTTP\// {status=$2} END {print status}' "$response")
+          list_releases() {
+            gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" > "$releases_json"
+          }
 
-          case "$http_status:$api_exit" in
-            200:0)
-              sed -n '/^{/,$p' "$response" > "$release_json"
-              "$REPOCTL" validate-draft-release -input "$release_json" -tag "$TAG"
+          list_releases
+          set +e
+          "$REPOCTL" select-draft-release -input "$releases_json" -tag "$TAG" -target "$COMMIT"
+          lookup_exit=$?
+          set -e
+
+          case "$lookup_exit" in
+            0)
               ;;
-            404:*)
+            3)
               gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --target "$COMMIT" --draft --title "$TAG (verification pending)" --notes-file "$NOTES"
-              gh api "$endpoint" > "$release_json"
-              "$REPOCTL" validate-draft-release -input "$release_json" -tag "$TAG"
+              list_releases
+              "$REPOCTL" select-draft-release -input "$releases_json" -tag "$TAG" -target "$COMMIT"
               ;;
             *)
-              cat "$RUNNER_TEMP/release-error.txt" >&2
-              echo "unexpected GitHub Release lookup status: HTTP $http_status (exit $api_exit)" >&2
-              exit 1
+              exit "$lookup_exit"
               ;;
           esac
 

@@ -114,12 +114,14 @@ in an issue, pull request, workflow artifact, command line, or log.
 5. CI creates the one authorized annotated path-prefixed tag through the
    creation-only bypass. The bypass-free immutability ruleset prevents that key
    from moving or deleting the tag. CI then creates a Draft GitHub Release. A
-   rerun reuses an existing Release only when it is still
-   Draft and its tag matches exactly; 404 creates it, while a published or
-   mismatched Release fails closed. The Release API's `target_commitish` is not
-   commit evidence for an existing tag, so CI independently requires the
-   remote annotated tag's peeled ref to equal the authorized commit before and
-   after Draft lookup or creation.
+   rerun discovers releases through the authenticated, fully paginated
+   Releases list because GitHub's get-by-tag endpoint returns 404 for Draft
+   Releases. Zero exact tag matches permits creation; one is reusable only when
+   it is Draft, not a prerelease, and its `target_commitish` equals the
+   authorized commit. Duplicate matches, a published release, or a mismatched
+   target fail closed. After creation CI lists and validates again. The remote
+   annotated tag's peeled ref remains the independent immutable commit evidence
+   and is checked before and after Draft lookup or creation.
 6. Post-tag verification waits for public-proxy propagation with bounded
    retries. Every retry uses a disposable probe cache; artifact validation and
    the external typed consumer use separate fresh caches. Module caches are
@@ -161,5 +163,51 @@ with a new patch or minor version. The failed version remains visibly
 unverified; it is never made to point at the correction.
 
 If Draft creation succeeds but its client loses the response, rerun the failed
-Draft job. The exact-match validation reuses that Draft; it never attempts a
-second release or turns an already published Release back into mutable state.
+Draft job. Paginated exact-tag discovery finds and validates that Draft even
+though GitHub's get-by-tag endpoint hides it; it never attempts a second
+release or turns an already published Release back into mutable state.
+
+### Exact recovery for the first tracer
+
+Run `29342863026` used the earlier get-by-tag lookup and failed after it had
+already created immutable tag `llmkit/v0.6.0` and Draft Release `353873922`.
+GitHub reruns use the workflow definition captured by the original run, so
+rerunning that failed job would repeat the same 404. A new production release
+dispatch is also invalid because the tag already exists.
+
+Use only the manually dispatched `Recover llmkit v0.6.0 release` workflow from
+`main`, with its sole source-run option `29342863026`. This is an exact,
+forward-only recovery transaction, not a second release authorization. Its
+read-only verification job:
+
+- downloads original artifact `8314814782` from that failed run;
+- validates the original plan, authorization, and all four preflight evidence
+  hashes without rebuilding any of them;
+- binds the failed workflow run, artifact, annotated tag and authorization
+  message, peeled commit `14f28b0dd4727f079c02ba3139c326ed249bb86a`, and
+  Draft Release `353873922` with its exact target;
+- builds `repoctl` from the authorized commit and reruns the same public Proxy,
+  checksum, origin, and typed-consumer verification; and
+- uploads diagnostics even when verification fails.
+
+Only after that job succeeds does a separate job receive `contents: write`. It
+revalidates the same Release by ID and reconciles exactly three assets: the
+original release plan, release authorization, and new published evidence.
+Expected assets already present are downloaded by asset ID and must have the
+same SHA-256 as this run's evidence; only missing assets are uploaded. An
+unexpected name, duplicate, incomplete upload, or hash mismatch fails closed,
+and no asset is deleted or overwritten. After upload, all three are listed,
+downloaded, and verified again before publishing that same Draft. The publish
+job uploads its own `if: always()` diagnostic artifact, distinct from verify
+diagnostics, so partial reconciliation, upload responses, pre-PATCH state, and
+typed PATCH validation remain inspectable on failure.
+
+If the publish PATCH succeeds but its response is lost, a rerun accepts only
+the exact already-published terminal state: the same release ID, tag, target,
+non-prerelease status, verified title, and three content-matching assets. It
+then succeeds without another PATCH. A published Release with a missing or
+mismatched asset fails closed; recovery never repairs assets after publication.
+The recovery workflow has no Deploy Key,
+tag-write step, release-plan construction, or tag authorization. It must never
+create, move, or delete a tag, replace the Draft, delete an asset, or use local
+proxy evidence as completion proof.

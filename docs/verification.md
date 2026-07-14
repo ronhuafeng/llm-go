@@ -79,9 +79,11 @@ The manually dispatched release workflow uses three additional typed seams:
 The first tracer is intentionally exact-scope: only `llmkit/v0.6.0` is
 authorized. Its legacy-mapped inventory is the baseline for that migration,
 not an allowlist for later toolkit versions. The workflow also validates any
-pre-existing GitHub Release as the exact matching unverified Draft before
-reusing it, and independently validates the remote annotated tag's peeled
-commit because GitHub ignores `target_commitish` when the tag already exists.
+pre-existing GitHub Release through the authenticated, paginated Releases list
+because GitHub's get-by-tag endpoint returns 404 for Drafts. Exactly one tag
+match must be an unverified Draft whose `target_commitish` equals the authorized
+commit; duplicate, published, prerelease, or wrong-target matches fail closed.
+The remote annotated tag's peeled commit is still validated independently.
 This makes lost-response reruns forward-only and idempotent.
 
 Only the protected tag job can read the Environment-scoped
@@ -108,3 +110,18 @@ Probe, artifact-validation, and consumer caches are distinct and freshly
 created. Every public Go command runs with `GOWORK=off`, `GOVCS=*:off`, an
 exclusive `https://proxy.golang.org`, and `sum.golang.org`. A GitHub Release
 remains Draft until the post-tag JSON evidence has been uploaded successfully.
+
+The one-time `llmkit/v0.6.0` recovery workflow consumes the immutable preflight
+artifact from failed source run `29342863026`; it does not rebuild release
+authorization or receive the release Deploy Key. Typed recovery validation
+binds artifact `8314814782`, the annotated tag message and peeled commit, Draft
+Release `353873922`, and the original authorization digest before the
+authorized-commit `repoctl verify-tag` reruns public-proxy and typed-consumer
+checks. Diagnostics upload with `if: always()`. Only a dependent publish job
+has `contents: write`. It reconciles the exact three expected assets by name
+and downloaded SHA-256 without deletion or overwrite, then publishes the same
+Draft by ID after a second validation. A rerun after a lost PATCH response
+accepts only the exact verified published terminal state with all three assets
+already complete and becomes a no-op; it never uploads to a published Release.
+The publish job independently uploads its reconciliation and PATCH diagnostics
+with `if: always()`.

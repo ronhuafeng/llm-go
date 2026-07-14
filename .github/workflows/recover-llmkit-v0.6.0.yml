@@ -1,0 +1,312 @@
+name: Recover llmkit v0.6.0 release
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: Exact failed release run containing the authorized preflight
+        required: true
+        type: choice
+        options: ['29342863026']
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: recover-llmkit-v0.6.0
+  cancel-in-progress: false
+
+env:
+  SOURCE_ARTIFACT_ID: '8314814782'
+  TAG: llmkit/v0.6.0
+  COMMIT: 14f28b0dd4727f079c02ba3139c326ed249bb86a
+  DRAFT_ID: '353873922'
+  AUTHORIZATION_DIGEST: sha256:9b3a05c02f5b464b2e3bb53789368c6254873b982c3012f2c60075ffadaae0cb
+
+jobs:
+  verify:
+    name: Verify immutable release recovery
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Require the exact main-only recovery dispatch
+        env:
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/recovery-evidence/preflight"
+          test "$GITHUB_REF" = refs/heads/main
+          test "$SOURCE_RUN_ID" = 29342863026
+
+      - name: Check out current recovery tooling
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up current Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: false
+
+      - name: Build typed recovery validator
+        working-directory: internal/tools
+        env:
+          GOWORK: 'off'
+        run: go build -o "$RUNNER_TEMP/repoctl-recovery" ./cmd/repoctl
+
+      - name: Capture exact hosted recovery facts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID" > "$RUNNER_TEMP/recovery-evidence/source-run.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/artifacts?per_page=100" > "$RUNNER_TEMP/recovery-evidence/source-artifacts.json"
+          gh api "repos/$GITHUB_REPOSITORY/releases/$DRAFT_ID" > "$RUNNER_TEMP/recovery-evidence/draft-release.json"
+
+      - name: Download the exact original authorized preflight artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/release-preflight"
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$SOURCE_ARTIFACT_ID/zip" > "$RUNNER_TEMP/release-preflight.zip"
+          unzip -q "$RUNNER_TEMP/release-preflight.zip" -d "$RUNNER_TEMP/release-preflight"
+
+      - name: Preserve authorized JSON evidence for diagnostics and publish
+        run: |
+          cp "$RUNNER_TEMP/release-preflight/release-plan.json" "$RUNNER_TEMP/recovery-evidence/preflight/"
+          cp "$RUNNER_TEMP/release-preflight/release-authorization.json" "$RUNNER_TEMP/recovery-evidence/preflight/"
+          cp "$RUNNER_TEMP/release-preflight/evidence-minimum.json" "$RUNNER_TEMP/recovery-evidence/preflight/"
+          cp "$RUNNER_TEMP/release-preflight/evidence-current.json" "$RUNNER_TEMP/recovery-evidence/preflight/"
+          cp "$RUNNER_TEMP/release-preflight/evidence-race.json" "$RUNNER_TEMP/recovery-evidence/preflight/"
+          cp "$RUNNER_TEMP/release-preflight/evidence-checkout.json" "$RUNNER_TEMP/recovery-evidence/preflight/"
+
+      - name: Check out the authorized release commit
+        uses: actions/checkout@v7
+        with:
+          ref: 14f28b0dd4727f079c02ba3139c326ed249bb86a
+          fetch-depth: 0
+          path: authorized-source
+
+      - name: Capture and validate the immutable annotated tag
+        env:
+          AUTHORIZED_SOURCE: ${{ github.workspace }}/authorized-source
+        run: |
+          git -C "$AUTHORIZED_SOURCE" fetch origin "refs/tags/$TAG:refs/tags/$TAG"
+          git -C "$AUTHORIZED_SOURCE" ls-remote origin "refs/tags/$TAG" "refs/tags/$TAG^{}" > "$RUNNER_TEMP/recovery-evidence/tag-refs.txt"
+          git -C "$AUTHORIZED_SOURCE" cat-file tag "$TAG" > "$RUNNER_TEMP/recovery-evidence/tag-object.txt"
+          "$RUNNER_TEMP/repoctl-recovery" validate-tag-ref -input "$RUNNER_TEMP/recovery-evidence/tag-refs.txt" -tag "$TAG" -commit "$COMMIT"
+
+      - name: Validate the exact forward-only recovery contract
+        run: >-
+          "$RUNNER_TEMP/repoctl-recovery" validate-release-recovery
+          -run "$RUNNER_TEMP/recovery-evidence/source-run.json"
+          -artifacts "$RUNNER_TEMP/recovery-evidence/source-artifacts.json"
+          -draft "$RUNNER_TEMP/recovery-evidence/draft-release.json"
+          -tag-object "$RUNNER_TEMP/recovery-evidence/tag-object.txt"
+          -plan "$RUNNER_TEMP/recovery-evidence/preflight/release-plan.json"
+          -authorization "$RUNNER_TEMP/recovery-evidence/preflight/release-authorization.json"
+          -evidence-dir "$RUNNER_TEMP/recovery-evidence/preflight"
+          -output "$RUNNER_TEMP/recovery-evidence/recovery-disposition.json"
+          -allow-published
+
+      - name: Build release verifier from the authorized commit
+        working-directory: authorized-source/internal/tools
+        env:
+          GOWORK: 'off'
+        run: go build -o "$RUNNER_TEMP/repoctl-authorized" ./cmd/repoctl
+
+      - name: Re-run public proxy and typed consumer verification
+        env:
+          AUTHORIZED_SOURCE: ${{ github.workspace }}/authorized-source
+          GOWORK: 'off'
+        run: >-
+          "$RUNNER_TEMP/repoctl-authorized" verify-tag
+          -root "$AUTHORIZED_SOURCE"
+          -plan "$RUNNER_TEMP/recovery-evidence/preflight/release-plan.json"
+          -authorization "$RUNNER_TEMP/recovery-evidence/preflight/release-authorization.json"
+          -evidence-dir "$RUNNER_TEMP/recovery-evidence/preflight"
+          -digest "$AUTHORIZATION_DIGEST"
+          -evidence "$RUNNER_TEMP/recovery-evidence/published-evidence.json"
+          -timeout 10m -retry 15s -command-timeout 2m
+
+      - name: Upload recovery diagnostics and verified evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: llmkit-v0.6.0-release-recovery
+          if-no-files-found: error
+          retention-days: 90
+          path: ${{ runner.temp }}/recovery-evidence
+
+  publish:
+    name: Publish the exact recovered Draft
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Prepare publish diagnostics
+        run: mkdir -p "$RUNNER_TEMP/recovery-evidence"
+
+      - name: Download verified recovery evidence
+        uses: actions/download-artifact@v8
+        with:
+          name: llmkit-v0.6.0-release-recovery
+          path: ${{ runner.temp }}/recovery-evidence
+
+      - name: Check out current recovery tooling
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: false
+
+      - name: Build typed recovery validator
+        working-directory: internal/tools
+        env:
+          GOWORK: 'off'
+        run: go build -o "$RUNNER_TEMP/repoctl-recovery" ./cmd/repoctl
+
+      - name: Revalidate the same Draft immediately before mutation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/releases/$DRAFT_ID" > "$RUNNER_TEMP/recovery-evidence/draft-current.json"
+          "$RUNNER_TEMP/repoctl-recovery" validate-release-recovery \
+            -run "$RUNNER_TEMP/recovery-evidence/source-run.json" \
+            -artifacts "$RUNNER_TEMP/recovery-evidence/source-artifacts.json" \
+            -draft "$RUNNER_TEMP/recovery-evidence/draft-current.json" \
+            -tag-object "$RUNNER_TEMP/recovery-evidence/tag-object.txt" \
+            -plan "$RUNNER_TEMP/recovery-evidence/preflight/release-plan.json" \
+            -authorization "$RUNNER_TEMP/recovery-evidence/preflight/release-authorization.json" \
+            -evidence-dir "$RUNNER_TEMP/recovery-evidence/preflight" \
+            -output "$RUNNER_TEMP/recovery-evidence/draft-current-disposition.json" \
+            -allow-published
+          test -s "$RUNNER_TEMP/recovery-evidence/published-evidence.json"
+
+      - name: Reconcile exactly three content-bound assets by Draft ID
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          plan_assets() {
+            input=$1
+            output=$2
+            complete=$3
+            args=(
+              -input "$input"
+              -release-plan "$RUNNER_TEMP/recovery-evidence/preflight/release-plan.json"
+              -release-authorization "$RUNNER_TEMP/recovery-evidence/preflight/release-authorization.json"
+              -published-evidence "$RUNNER_TEMP/recovery-evidence/published-evidence.json"
+              -output "$output"
+            )
+            if [ "$complete" = true ]; then
+              args+=(-require-complete)
+            fi
+            "$RUNNER_TEMP/repoctl-recovery" plan-release-assets "${args[@]}"
+          }
+
+          download_and_verify_assets() {
+            plan=$1
+            directory=$2
+            rm -rf "$directory"
+            mkdir -p "$directory"
+            jq -r '.assets[] | select(.state == "existing") | [.asset_id, .name] | @tsv' "$plan" > "$RUNNER_TEMP/existing-assets.tsv"
+            while IFS=$'\t' read -r asset_id name; do
+              test -n "$asset_id"
+              gh api -H 'Accept: application/octet-stream' \
+                "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" \
+                > "$directory/$name"
+            done < "$RUNNER_TEMP/existing-assets.tsv"
+            "$RUNNER_TEMP/repoctl-recovery" verify-release-assets -plan "$plan" -downloads "$directory"
+          }
+
+          if jq -e '.state == "published_verified" and .allow_missing_assets == false and .publish == false' "$RUNNER_TEMP/recovery-evidence/draft-current-disposition.json" > /dev/null; then
+            gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases/$DRAFT_ID/assets?per_page=100" > "$RUNNER_TEMP/recovery-evidence/assets-published.json"
+            plan_assets "$RUNNER_TEMP/recovery-evidence/assets-published.json" "$RUNNER_TEMP/recovery-evidence/asset-plan-published.json" true
+            download_and_verify_assets "$RUNNER_TEMP/recovery-evidence/asset-plan-published.json" "$RUNNER_TEMP/recovery-evidence/assets-published"
+            exit 0
+          fi
+
+          gh api "repos/$GITHUB_REPOSITORY/releases/$DRAFT_ID" > "$RUNNER_TEMP/recovery-evidence/draft-before-assets.json"
+          "$RUNNER_TEMP/repoctl-recovery" validate-release-recovery \
+            -run "$RUNNER_TEMP/recovery-evidence/source-run.json" \
+            -artifacts "$RUNNER_TEMP/recovery-evidence/source-artifacts.json" \
+            -draft "$RUNNER_TEMP/recovery-evidence/draft-before-assets.json" \
+            -tag-object "$RUNNER_TEMP/recovery-evidence/tag-object.txt" \
+            -plan "$RUNNER_TEMP/recovery-evidence/preflight/release-plan.json" \
+            -authorization "$RUNNER_TEMP/recovery-evidence/preflight/release-authorization.json" \
+            -evidence-dir "$RUNNER_TEMP/recovery-evidence/preflight" \
+            -output "$RUNNER_TEMP/recovery-evidence/draft-before-assets-disposition.json"
+
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases/$DRAFT_ID/assets?per_page=100" > "$RUNNER_TEMP/recovery-evidence/assets-before.json"
+          plan_assets "$RUNNER_TEMP/recovery-evidence/assets-before.json" "$RUNNER_TEMP/recovery-evidence/asset-plan-before.json" false
+          download_and_verify_assets "$RUNNER_TEMP/recovery-evidence/asset-plan-before.json" "$RUNNER_TEMP/recovery-evidence/assets-before"
+
+          jq -r '.assets[] | select(.state == "missing") | [.name, .source_path] | @tsv' "$RUNNER_TEMP/recovery-evidence/asset-plan-before.json" > "$RUNNER_TEMP/missing-assets.tsv"
+          while IFS=$'\t' read -r name path; do
+            gh api --method POST --hostname uploads.github.com \
+              -H 'Content-Type: application/octet-stream' \
+              "repos/$GITHUB_REPOSITORY/releases/$DRAFT_ID/assets?name=$name" \
+              --input "$path" > "$RUNNER_TEMP/recovery-evidence/upload-$name.json"
+          done < "$RUNNER_TEMP/missing-assets.tsv"
+
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases/$DRAFT_ID/assets?per_page=100" > "$RUNNER_TEMP/recovery-evidence/assets-after.json"
+          plan_assets "$RUNNER_TEMP/recovery-evidence/assets-after.json" "$RUNNER_TEMP/recovery-evidence/asset-plan-complete.json" true
+          download_and_verify_assets "$RUNNER_TEMP/recovery-evidence/asset-plan-complete.json" "$RUNNER_TEMP/recovery-evidence/assets-complete"
+
+      - name: Publish the exact Draft by ID
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/releases/$DRAFT_ID" > "$RUNNER_TEMP/recovery-evidence/draft-before-publish.json"
+          "$RUNNER_TEMP/repoctl-recovery" validate-release-recovery \
+            -run "$RUNNER_TEMP/recovery-evidence/source-run.json" \
+            -artifacts "$RUNNER_TEMP/recovery-evidence/source-artifacts.json" \
+            -draft "$RUNNER_TEMP/recovery-evidence/draft-before-publish.json" \
+            -tag-object "$RUNNER_TEMP/recovery-evidence/tag-object.txt" \
+            -plan "$RUNNER_TEMP/recovery-evidence/preflight/release-plan.json" \
+            -authorization "$RUNNER_TEMP/recovery-evidence/preflight/release-authorization.json" \
+            -evidence-dir "$RUNNER_TEMP/recovery-evidence/preflight" \
+            -output "$RUNNER_TEMP/recovery-evidence/draft-before-publish-disposition.json" \
+            -allow-published
+          if jq -e '.state == "published_verified" and .allow_missing_assets == false and .publish == false' "$RUNNER_TEMP/recovery-evidence/draft-before-publish-disposition.json" > /dev/null; then
+            echo "exact verified Release is already published"
+            exit 0
+          fi
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$DRAFT_ID" \
+            -F draft=false -f make_latest=false -f name="$TAG (verified)" \
+            > "$RUNNER_TEMP/recovery-evidence/published-release.json"
+          "$RUNNER_TEMP/repoctl-recovery" validate-release-recovery \
+            -run "$RUNNER_TEMP/recovery-evidence/source-run.json" \
+            -artifacts "$RUNNER_TEMP/recovery-evidence/source-artifacts.json" \
+            -draft "$RUNNER_TEMP/recovery-evidence/published-release.json" \
+            -tag-object "$RUNNER_TEMP/recovery-evidence/tag-object.txt" \
+            -plan "$RUNNER_TEMP/recovery-evidence/preflight/release-plan.json" \
+            -authorization "$RUNNER_TEMP/recovery-evidence/preflight/release-authorization.json" \
+            -evidence-dir "$RUNNER_TEMP/recovery-evidence/preflight" \
+            -output "$RUNNER_TEMP/recovery-evidence/published-disposition.json" \
+            -allow-published
+          jq -e '.state == "published_verified" and .allow_missing_assets == false and .publish == false' \
+            "$RUNNER_TEMP/recovery-evidence/published-disposition.json" > /dev/null
+
+      - name: Upload publish diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: llmkit-v0.6.0-release-publish-diagnostics
+          if-no-files-found: error
+          retention-days: 90
+          path: ${{ runner.temp }}/recovery-evidence
