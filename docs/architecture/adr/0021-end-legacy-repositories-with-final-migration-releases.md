@@ -2,13 +2,13 @@
 status: accepted
 ---
 
-# End legacy repositories with final migration patches
+# End legacy repositories with final migration releases
 
-Each legacy repository publishes one final migration patch before its final
+Each legacy repository publishes one final migration release before its final
 commit is imported into `llm-go`:
 
 ```text
-github.com/ronhuafeng/llmkit-go             v0.4.2
+github.com/ronhuafeng/llmkit-go             v0.5.0
 github.com/ronhuafeng/codexsdk-go            v0.5.1
 github.com/ronhuafeng/llmcaller-codex-go     v0.4.2
 ```
@@ -32,7 +32,7 @@ layers.
 The cutover sequence is:
 
 1. Freeze all three legacy repositories.
-2. Merge the migration guidance and publish the final patch tags.
+2. Merge the migration guidance and publish the final tags.
 3. Use those final commits and tags as the relocation and provenance baselines.
 4. Publish and verify the new modules in dependency order.
 5. After all new paths pass proxy and clean-consumer verification, archive the

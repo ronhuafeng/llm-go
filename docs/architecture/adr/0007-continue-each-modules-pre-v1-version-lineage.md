@@ -9,7 +9,7 @@ lineage of the corresponding old repository and advance one minor version:
 
 ```text
 github.com/ronhuafeng/llm-go/llmkit
-    tag: llmkit/v0.5.0
+    tag: llmkit/v0.6.0
 
 github.com/ronhuafeng/llm-go/codexsdk
     tag: codexsdk/v0.6.0
@@ -18,8 +18,11 @@ github.com/ronhuafeng/llm-go/llmcaller/codex
     tag: llmcaller/codex/v0.5.0
 ```
 
-The baselines verified before this decision were `llmkit-go@v0.4.1`,
-`codexsdk-go@v0.5.0`, and `llmcaller-codex-go@v0.4.1`.
+The final legacy releases are `llmkit-go@v0.5.0`,
+`codexsdk-go@v0.5.1`, and `llmcaller-codex-go@v0.4.2`. The toolkit final
+release uses a minor version because its frozen source already contains the
+documented pre-v1 retry-feedback semantic change planned for `v0.5.0`; the
+migration-specific commit itself remains documentation-only.
 
 These versions identify the repository and import-path migration. They do not
 imply lockstep versioning. After the first release, each module advances only
