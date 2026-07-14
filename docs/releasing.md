@@ -27,12 +27,26 @@ controls:
    personal repository has a single maintainer, so `prevent_self_review=false`
    is an explicitly accepted exception: the approval is an audit and intent
    boundary, not independent separation of duties.
-4. Add the `DeployKey` actor to the formal-tag ruleset bypass list. GitHub
-   represents this bypass with `actor_id: null`, so it applies to every Deploy
-   Key in the repository rather than selecting the dedicated key. The
-   exactly-one-key rule above is therefore part of the security boundary. Use
-   `bypass_mode: always`; a pull-request-only bypass cannot authorize tag
-   creation.
+4. Keep two active tag rulesets with identical formal-module tag targets:
+   - a **creation-only** ruleset containing only the tag-creation restriction.
+     Its bypass list contains exactly one entry: `DeployKey`, represented by
+     `actor_id: null`, with `bypass_mode: always`;
+   - an **immutability** ruleset containing tag deletion and
+     `non_fast_forward`, with an empty bypass list.
+
+The existing hosted ruleset `18924050` combines creation, deletion, and
+`non_fast_forward`. Migrate without weakening immutability: first create and
+activate the matching creation-only ruleset, then remove only the creation rule
+from `18924050` so it becomes the immutability owner. Never add a bypass actor
+to the immutability ruleset. Both rulesets must remain active and target the
+same formal tag prefixes.
+
+GitHub represents the `DeployKey` bypass with `actor_id: null`, so it applies
+to every Deploy Key in the repository rather than selecting the dedicated key.
+The exactly-one-key rule above is therefore part of the security boundary.
+Because the bypass exists only on the creation-only ruleset, the release key
+may create an absent formal tag but cannot update, force-move, or delete an
+existing one.
 
 GitHub rejected the GitHub Actions Integration (`actor_id: 15368`) for this
 personal-repository ruleset with HTTP 422: the Integration must be part of the
@@ -58,8 +72,9 @@ inspect all three secret scopes and ensure the name exists only on
 `production-release` before dispatch.
 
 Do not dispatch a production release until the Environment, sole Deploy Key,
-Environment secret, and ruleset bypass have all been inspected. A workflow
-file cannot prove or substitute for repository-hosted settings.
+Environment secret, creation-only bypass, and bypass-free immutability ruleset
+have all been inspected. A workflow file cannot prove or substitute for
+repository-hosted settings.
 
 ### Key rotation and revocation
 
@@ -71,8 +86,9 @@ unavailability over overlapping identities:
 3. generate a new key pair offline, add only its public key as the sole
    write-enabled Deploy Key, and replace the `production-release` Environment's
    `RELEASE_DEPLOY_KEY` secret with the matching private key;
-4. inspect the Environment scope and formal-tag ruleset again, then securely
-   destroy the retired private key.
+4. inspect the Environment scope and both formal-tag rulesets again, including
+   the immutability ruleset's empty bypass list, then securely destroy the
+   retired private key.
 
 On suspected compromise, immediately cancel active release jobs, delete the
 Deploy Key, and delete the Environment secret. Preserve audit logs and do not
@@ -95,8 +111,10 @@ in an issue, pull request, workflow artifact, command line, or log.
    approval. The job builds `repoctl` before this boundary, fetches `main`
    immediately before authorization, fetches it again afterwards, and checks
    the remote head once more immediately before pushing.
-5. CI creates the one authorized annotated path-prefixed tag and then a Draft
-   GitHub Release. A rerun reuses an existing Release only when it is still
+5. CI creates the one authorized annotated path-prefixed tag through the
+   creation-only bypass. The bypass-free immutability ruleset prevents that key
+   from moving or deleting the tag. CI then creates a Draft GitHub Release. A
+   rerun reuses an existing Release only when it is still
    Draft and its tag matches exactly; 404 creates it, while a published or
    mismatched Release fails closed. The Release API's `target_commitish` is not
    commit evidence for an existing tag, so CI independently requires the
