@@ -3,6 +3,8 @@ package repository
 import (
 	"archive/zip"
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"go/format"
 	"io/fs"
@@ -14,6 +16,7 @@ import (
 	"strings"
 
 	modmodule "golang.org/x/mod/module"
+	"golang.org/x/mod/sumdb/dirhash"
 	modzip "golang.org/x/mod/zip"
 )
 
@@ -168,45 +171,77 @@ func VerifyModule(root, moduleID, stage string) (Evidence, error) {
 }
 
 func verifyModuleArchive(moduleRoot string, candidate module, registered registry) error {
-	temporary, err := os.CreateTemp("", "llm-go-module-*.zip")
-	if err != nil {
-		return err
-	}
-	archivePath := temporary.Name()
-	defer os.Remove(archivePath)
-	version := modmodule.Version{Path: candidate.path, Version: "v0.0.0"}
-	if err := modzip.CreateFromDir(temporary, version, moduleRoot); err != nil {
-		temporary.Close()
-		return fmt.Errorf("create module archive: %w", err)
-	}
-	if err := temporary.Close(); err != nil {
-		return err
+	_, err := moduleArchiveDigest(moduleRoot, candidate, registered)
+	return err
+}
+
+func moduleArchiveDigest(moduleRoot string, candidate module, registered registry) (string, error) {
+	identity, err := moduleArchiveIdentityForVersion(moduleRoot, candidate, registered, "v0.0.0")
+	return identity.SHA256, err
+}
+
+func moduleArchiveDigestForVersion(moduleRoot string, candidate module, registered registry, versionValue string) (string, error) {
+	identity, err := moduleArchiveIdentityForVersion(moduleRoot, candidate, registered, versionValue)
+	return identity.SHA256, err
+}
+
+type moduleArchiveIdentity struct {
+	Sum    string
+	SHA256 string
+}
+
+func moduleArchiveIdentityForVersion(moduleRoot string, candidate module, registered registry, versionValue string) (identity moduleArchiveIdentity, err error) {
+	var contents bytes.Buffer
+	version := modmodule.Version{Path: candidate.path, Version: versionValue}
+	if err := modzip.CreateFromDir(&contents, version, moduleRoot); err != nil {
+		return moduleArchiveIdentity{}, fmt.Errorf("create module archive: %w", err)
 	}
 
-	archive, err := zip.OpenReader(archivePath)
+	archive, err := zip.NewReader(bytes.NewReader(contents.Bytes()), int64(contents.Len()))
 	if err != nil {
-		return err
+		return moduleArchiveIdentity{}, err
 	}
-	defer archive.Close()
-	prefix := candidate.path + "@v0.0.0/"
+	prefix := candidate.path + "@" + versionValue + "/"
 	for _, file := range archive.File {
 		if !strings.HasPrefix(file.Name, prefix) {
-			return fmt.Errorf("module archive entry %q has wrong prefix", file.Name)
+			return moduleArchiveIdentity{}, fmt.Errorf("module archive entry %q has wrong prefix", file.Name)
 		}
 		relative := strings.TrimPrefix(file.Name, prefix)
 		if relative == "go.work" || relative == "go.work.sum" || relative == registryFilename || strings.HasPrefix(relative, ".github/") || strings.HasPrefix(relative, "internal/tools/") {
-			return fmt.Errorf("module archive contains repository-only path %s", relative)
+			return moduleArchiveIdentity{}, fmt.Errorf("module archive contains repository-only path %s", relative)
 		}
 		for _, sibling := range registered.Modules {
 			if sibling.ID == candidate.ID || sibling.ID == "repo-tools" {
 				continue
 			}
 			if relative == sibling.Dir || strings.HasPrefix(relative, sibling.Dir+"/") {
-				return fmt.Errorf("module archive contains sibling module path %s", relative)
+				return moduleArchiveIdentity{}, fmt.Errorf("module archive contains sibling module path %s", relative)
 			}
 		}
 	}
-	return nil
+	digest := sha256.Sum256(contents.Bytes())
+	temporary, err := os.CreateTemp("", "llm-go-release-archive-*.zip")
+	if err != nil {
+		return moduleArchiveIdentity{}, err
+	}
+	path := temporary.Name()
+	defer func() {
+		if removeErr := os.Remove(path); removeErr != nil && err == nil {
+			err = fmt.Errorf("remove temporary module archive: %w", removeErr)
+		}
+	}()
+	if _, err := temporary.Write(contents.Bytes()); err != nil {
+		temporary.Close()
+		return moduleArchiveIdentity{}, err
+	}
+	if err := temporary.Close(); err != nil {
+		return moduleArchiveIdentity{}, err
+	}
+	contentSum, err := dirhash.HashZip(path, dirhash.Hash1)
+	if err != nil {
+		return moduleArchiveIdentity{}, fmt.Errorf("hash module archive content: %w", err)
+	}
+	return moduleArchiveIdentity{Sum: contentSum, SHA256: hex.EncodeToString(digest[:])}, nil
 }
 
 func VerifyCheckout(root string, plan AffectedPlan) (Evidence, error) {

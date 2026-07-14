@@ -40,4 +40,5 @@ module verification. Disable the workspace when checking a release unit:
 
 See the [accepted target design](docs/architecture/DESIGN.md),
 [context map](CONTEXT-MAP.md), and
-[migration status](docs/migration/README.md).
+[migration status](docs/migration/README.md). Production publication follows
+the [protected release operation](docs/releasing.md).

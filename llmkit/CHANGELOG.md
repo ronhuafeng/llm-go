@@ -7,6 +7,8 @@ changes may occur in minor releases, but they must be documented here.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-14
+
 ### Changed
 
 - **Breaking import-path change (pre-v1):** moved the provider-neutral toolkit

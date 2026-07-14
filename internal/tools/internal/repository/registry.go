@@ -18,14 +18,15 @@ type registry struct {
 }
 
 type module struct {
-	ID        string `json:"id"`
-	Dir       string `json:"dir"`
-	Published bool   `json:"published"`
-	path      string
-	goVersion string
-	requires  []string
-	replaces  []moduleReplacement
-	excludes  []string
+	ID              string `json:"id"`
+	Dir             string `json:"dir"`
+	Published       bool   `json:"published"`
+	path            string
+	goVersion       string
+	requires        []string
+	requireVersions map[string]string
+	replaces        []moduleReplacement
+	excludes        []string
 }
 
 type moduleReplacement struct {
