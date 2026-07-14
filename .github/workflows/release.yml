@@ -34,6 +34,11 @@ jobs:
       tag: ${{ steps.plan.outputs.tag }}
     timeout-minutes: 30
     steps:
+      - name: Require dispatch from main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "release dispatch must originate from refs/heads/main" >&2
+          exit 1
       - name: Check out the requested source identity
         uses: actions/checkout@v7
         with:
@@ -113,13 +118,28 @@ jobs:
     environment:
       name: production-release
     permissions:
-      contents: write
+      contents: read
     steps:
+      - name: Require the protected release Deploy Key
+        env:
+          RELEASE_DEPLOY_KEY: ${{ secrets.RELEASE_DEPLOY_KEY }}
+        run: |
+          test -n "$RELEASE_DEPLOY_KEY" || {
+            echo "production-release is missing RELEASE_DEPLOY_KEY" >&2
+            exit 1
+          }
       - name: Check out current main after approval
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: main
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
+          ssh-strict: true
+          persist-credentials: true
+      - name: Pin the release remote to SSH
+        run: |
+          git remote set-url origin "git@github.com:${GITHUB_REPOSITORY}.git"
+          test "$(git remote get-url origin)" = "git@github.com:${GITHUB_REPOSITORY}.git"
       - uses: actions/setup-go@v6
         with:
           go-version: stable

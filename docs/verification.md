@@ -84,6 +84,26 @@ reusing it, and independently validates the remote annotated tag's peeled
 commit because GitHub ignores `target_commitish` when the tag already exists.
 This makes lost-response reruns forward-only and idempotent.
 
+Only the protected tag job can read the Environment-scoped
+`RELEASE_DEPLOY_KEY`. It keeps `GITHUB_TOKEN` read-only, authenticates local Git
+through `actions/checkout`'s strict SSH configuration, pins `origin` to the SSH
+URL, and fails before tag creation when the key is absent or invalid. Draft and
+published GitHub Release mutation remains separately authorized through their
+job-scoped `contents: write` tokens.
+
+The workflow also rejects dispatches whose `github.ref` is not
+`refs/heads/main`. GitHub does not expose secret provenance to the job, so the
+Environment-only part of this contract additionally requires the hosted
+precondition that no repository or organization secret shares the
+`RELEASE_DEPLOY_KEY` name.
+
+Hosted tag protection uses two active rulesets over the same formal tag
+prefixes. Only the creation-only ruleset has the sole `DeployKey` bypass
+(`actor_id: null`, `bypass_mode: always`). The separate deletion and
+`non_fast_forward` immutability ruleset has an empty bypass list. The release
+identity can therefore create an absent authorized tag, while neither it nor
+any other bypass actor can move or delete that tag.
+
 Probe, artifact-validation, and consumer caches are distinct and freshly
 created. Every public Go command runs with `GOWORK=off`, `GOVCS=*:off`, an
 exclusive `https://proxy.golang.org`, and `sum.golang.org`. A GitHub Release

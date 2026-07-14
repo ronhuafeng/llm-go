@@ -34,9 +34,45 @@ plan and the exact SHA-256 of every minimum/current/race/checkout evidence
 file. The protected approval applies to this complete authorization envelope,
 not to the plan alone.
 
-The tag-creation job receives the minimum required write permission only after
-environment approval. It verifies that the approved authorization, current
-`main` commit, and tag operation still match before writing the tag.
+The tag-creation job receives its narrowly scoped release identity only after
+environment approval; its `GITHUB_TOKEN` remains read-only. It verifies that
+the approved authorization, current `main` commit, and tag operation still
+match before writing the tag.
+
+For this personal repository, production tag pushes use one dedicated,
+repository-scoped write Deploy Key whose private key exists only as the
+`production-release` Environment secret. The tag job's `GITHUB_TOKEN` remains
+read-only. GitHub does not permit the GitHub Actions Integration to be added as
+a bypass actor when that Integration is not part of the personal repository's
+ruleset source or an owner organization; the observed attempt with Integration
+`actor_id: 15368` returned HTTP 422. PAT/user bypasses and disabling the ruleset
+are rejected.
+
+GitHub's `DeployKey` ruleset bypass has no per-key actor ID and therefore
+applies to every Deploy Key attached to the repository. Consequently, the
+repository must have exactly one Deploy Key: the dedicated release key.
+
+Formal tag protection is split across two active rulesets with identical tag
+targets. The creation-only ruleset contains only the creation restriction and
+has exactly one bypass entry: `DeployKey`, `actor_id: null`,
+`bypass_mode: always`. The immutability ruleset contains deletion and
+`non_fast_forward` restrictions and has no bypass actors. The key can therefore
+create one absent formal tag but cannot update, force-move, or delete an
+existing tag. A ruleset combining creation and immutability with the Deploy Key
+bypass is prohibited because that same bypass would weaken every rule in the
+combined ruleset.
+
+Hosted ruleset `18924050` initially combines all three restrictions. The safe
+migration creates and activates the matching creation-only ruleset first, then
+removes only creation from `18924050`; the existing ruleset remains active as
+the bypass-free immutability owner.
+
+The Environment admits protected branches, while the workflow separately
+requires dispatch from `refs/heads/main`. Because the repository has only one
+maintainer, self-review is an accepted exception and records intent without
+claiming independent separation of duties. Environment-only secret scope is a
+hosted precondition: GitHub secret expressions do not reveal whether a missing
+Environment value fell back to a same-named repository or organization secret.
 
 Tag namespaces are protected against ordinary local creation, movement, and
 reuse. A post-tag failure marks the immutable tag unverified; recovery is a
@@ -58,6 +94,10 @@ succeeds.
 - Pull-request workflows remain read-only.
 - Local environments can reproduce preflight without holding publication
   authority.
+- Creation authority and immutability have separate ruleset owners; no release
+  credential can bypass deletion or non-fast-forward protection.
+- Deploy Key rotation revokes the old key before installing the replacement,
+  deliberately failing closed rather than overlapping bypass identities.
 - Emergency correction never mutates an existing public version.
 
 ## Considered options
@@ -71,3 +111,12 @@ the explicit transaction.
 
 Moving a failed tag was rejected because public module tags and proxy artifacts
 are immutable identities.
+
+Using a PAT or user bypass was rejected because it grants release authority to
+a reusable person-level credential instead of one repository-scoped release
+identity. Keeping unrelated Deploy Keys was rejected because GitHub cannot
+scope the ruleset bypass to only one of them.
+
+Putting creation, deletion, and non-fast-forward rules behind one Deploy Key
+bypass was rejected because the bypass applies to the whole ruleset, allowing
+the creation identity to bypass tag immutability as well.
