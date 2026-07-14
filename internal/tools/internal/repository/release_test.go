@@ -169,7 +169,15 @@ func TestReleaseWorkflowWiringSmoke(t *testing.T) {
 	for _, required := range []string{
 		"options: [v0.6.0]",
 		"permissions:\n  contents: read",
-		"environment:\n      name: production-release",
+		"if: github.ref != 'refs/heads/main'",
+		"release dispatch must originate from refs/heads/main",
+		"environment:\n      name: production-release\n    permissions:\n      contents: read",
+		"RELEASE_DEPLOY_KEY: ${{ secrets.RELEASE_DEPLOY_KEY }}",
+		"ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}",
+		"ssh-strict: true",
+		"persist-credentials: true",
+		"git remote set-url origin \"git@github.com:${GITHUB_REPOSITORY}.git\"",
+		"test \"$(git remote get-url origin)\" = \"git@github.com:${GITHUB_REPOSITORY}.git\"",
 		"\"$RUNNER_TEMP/repoctl\" authorize-tag",
 		"-authorization \"$AUTHORIZATION\" -evidence-dir \"$EVIDENCE_DIR\"",
 		"-digest \"$DIGEST\" -commit \"$COMMIT\" -tag \"$TAG\" -main refs/remotes/origin/main",
@@ -194,8 +202,8 @@ func TestReleaseWorkflowWiringSmoke(t *testing.T) {
 			t.Errorf("release workflow missing wiring %q", required)
 		}
 	}
-	if got := strings.Count(workflow, "contents: write"); got != 3 {
-		t.Errorf("contents: write occurrences = %d, want only tag, Draft Release, and verified Release jobs", got)
+	if got := strings.Count(workflow, "contents: write"); got != 2 {
+		t.Errorf("contents: write occurrences = %d, want only Draft Release and verified Release jobs", got)
 	}
 	if got := strings.Count(workflow, "timeout-minutes:"); got != 5 {
 		t.Errorf("release job timeouts = %d, want all five jobs bounded", got)
@@ -222,6 +230,21 @@ func TestReleaseWorkflowWiringSmoke(t *testing.T) {
 	}
 	if strings.Contains(workflow, "inputs.proxy") || strings.Contains(workflow, "inputs.sumdb") || strings.Contains(workflow, "proxy,direct") {
 		t.Error("release workflow exposes or weakens the exclusive public proxy policy")
+	}
+	if got := strings.Count(workflow, "secrets.RELEASE_DEPLOY_KEY"); got != 2 {
+		t.Errorf("release Deploy Key secret references = %d, want only presence validation and checkout SSH auth", got)
+	}
+	for _, forbidden := range []string{
+		"secrets.GH_PAT",
+		"secrets.PAT",
+		"personal_access_token",
+		"persist-credentials: false",
+		"ssh-strict: false",
+		"git remote set-url origin https://",
+	} {
+		if strings.Contains(workflow, forbidden) {
+			t.Errorf("release workflow contains forbidden release credential pattern %q", forbidden)
+		}
 	}
 }
 
