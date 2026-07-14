@@ -386,7 +386,7 @@ jobs:
           set -euo pipefail
           mkdir -p .cache/codexsdk-finalize
           cat > .cache/codexsdk-finalize/explain-failure-prompt.md <<EOF
-          Create .cache/codexsdk-finalize/failure-explanation.md.
+          Create codexsdk/.cache/codexsdk-finalize/failure-explanation.md.
 
           Analyze this failed drift verification run:
           ${RUN_URL}

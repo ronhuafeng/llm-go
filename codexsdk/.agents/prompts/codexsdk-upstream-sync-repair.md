@@ -1,4 +1,4 @@
-You are maintaining codexsdk-go.
+You are maintaining the `codexsdk` module in the `llm-go` repository.
 
 Task: Use codexsdk-sync-upstream command: repair-applied-candidate.
 
@@ -6,8 +6,8 @@ Current phase: `${PHASE}`.
 
 Read and follow:
 
-- .agents/skills/codexsdk-sync-upstream/SKILL.md
-- .agents/skills/codexsdk-sync-upstream/commands/repair-applied-candidate.md
+- codexsdk/.agents/skills/codexsdk-sync-upstream/SKILL.md
+- codexsdk/.agents/skills/codexsdk-sync-upstream/commands/repair-applied-candidate.md
 
 Current state: Detect and apply have already completed. The workflow resolved `${UPSTREAM_REF}` (`${UPSTREAM_REF_KIND}`) to `${UPSTREAM_SHA}`, generated the candidate, and applied it to `${LAND_REF}` with `codexsdk/scripts/codexsdk_apply_sync_candidate.py`.
 

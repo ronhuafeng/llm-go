@@ -329,7 +329,7 @@ jobs:
           mkdir -p "${CODEXSDK_AUTO_SYNC_DIR}"
           python3 scripts/codexsdk_write_sync_prompt.py \
             --out "${CODEXSDK_AUTO_SYNC_DIR}/prompt.md" \
-            --auto-sync-dir "${CODEXSDK_AUTO_SYNC_DIR}" \
+            --auto-sync-dir "codexsdk/${CODEXSDK_AUTO_SYNC_DIR}" \
             --candidate-dir "${CANDIDATE_DIR}" \
             --land-ref "${LAND_REF}" \
             --phase "fix" \
@@ -340,9 +340,9 @@ jobs:
       - name: Prepare Go validation cache for Codex repair
         if: steps.drift_action.outputs.decision == 'allow' && steps.drift.outputs.status == 'review-required' && !inputs.force_compare
         env:
-          GOCACHE: ${{ github.workspace }}/${{ env.CODEXSDK_GO_CACHE_DIR }}
-          GOMODCACHE: ${{ github.workspace }}/${{ env.CODEXSDK_GO_MOD_CACHE_DIR }}
-          GOPATH: ${{ github.workspace }}/${{ env.CODEXSDK_GO_PATH_DIR }}
+          GOCACHE: ${{ github.workspace }}/codexsdk/${{ env.CODEXSDK_GO_CACHE_DIR }}
+          GOMODCACHE: ${{ github.workspace }}/codexsdk/${{ env.CODEXSDK_GO_MOD_CACHE_DIR }}
+          GOPATH: ${{ github.workspace }}/codexsdk/${{ env.CODEXSDK_GO_PATH_DIR }}
         run: |
           set -euo pipefail
           mkdir -p "${GOCACHE}" "${GOMODCACHE}" "${GOPATH}"
@@ -352,10 +352,10 @@ jobs:
         if: steps.drift_action.outputs.decision == 'allow' && steps.drift.outputs.status == 'review-required' && !inputs.force_compare
         uses: openai/codex-action@v1
         env:
-          CARGO_TARGET_DIR: ${{ github.workspace }}/${{ env.CODEXSDK_RUST_TARGET_DIR }}
-          GOCACHE: ${{ github.workspace }}/${{ env.CODEXSDK_GO_CACHE_DIR }}
-          GOMODCACHE: ${{ github.workspace }}/${{ env.CODEXSDK_GO_MOD_CACHE_DIR }}
-          GOPATH: ${{ github.workspace }}/${{ env.CODEXSDK_GO_PATH_DIR }}
+          CARGO_TARGET_DIR: ${{ github.workspace }}/codexsdk/${{ env.CODEXSDK_RUST_TARGET_DIR }}
+          GOCACHE: ${{ github.workspace }}/codexsdk/${{ env.CODEXSDK_GO_CACHE_DIR }}
+          GOMODCACHE: ${{ github.workspace }}/codexsdk/${{ env.CODEXSDK_GO_MOD_CACHE_DIR }}
+          GOPATH: ${{ github.workspace }}/codexsdk/${{ env.CODEXSDK_GO_PATH_DIR }}
         with:
           openai-api-key: ${{ secrets.AZURE_OPENAI_API_KEY }}
           responses-api-endpoint: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
@@ -370,9 +370,9 @@ jobs:
         if: steps.drift_action.outputs.decision == 'allow' && steps.drift.outputs.status == 'review-required' && !inputs.force_compare
         env:
           CANDIDATE_DIR: ${{ env.CODEXSDK_DRIFT_ARTIFACT_DIR }}
-          GOCACHE: ${{ github.workspace }}/${{ env.CODEXSDK_GO_CACHE_DIR }}
-          GOMODCACHE: ${{ github.workspace }}/${{ env.CODEXSDK_GO_MOD_CACHE_DIR }}
-          GOPATH: ${{ github.workspace }}/${{ env.CODEXSDK_GO_PATH_DIR }}
+          GOCACHE: ${{ github.workspace }}/codexsdk/${{ env.CODEXSDK_GO_CACHE_DIR }}
+          GOMODCACHE: ${{ github.workspace }}/codexsdk/${{ env.CODEXSDK_GO_MOD_CACHE_DIR }}
+          GOPATH: ${{ github.workspace }}/codexsdk/${{ env.CODEXSDK_GO_PATH_DIR }}
           UPSTREAM_SHA: ${{ steps.refs.outputs.upstream_sha }}
         run: |
           set -euo pipefail
