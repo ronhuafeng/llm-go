@@ -56,6 +56,7 @@ func verifyRegisteredModules(root string, registered *registry) []string {
 			continue
 		}
 		candidate.path = metadata.path
+		candidate.goVersion = metadata.goVersion
 		candidate.requires = metadata.requires
 		candidate.replaces = metadata.replaces
 		candidate.excludes = metadata.excludes
@@ -212,10 +213,11 @@ func ownerForImport(importPath string, owners map[string]string) string {
 }
 
 type moduleMetadata struct {
-	path     string
-	requires []string
-	replaces []moduleReplacement
-	excludes []string
+	path      string
+	goVersion string
+	requires  []string
+	replaces  []moduleReplacement
+	excludes  []string
 }
 
 func parseGoMod(path string) (moduleMetadata, error) {
@@ -231,6 +233,10 @@ func parseGoMod(path string) (moduleMetadata, error) {
 		return moduleMetadata{}, fmt.Errorf("go.mod has no module directive")
 	}
 	metadata := moduleMetadata{path: parsed.Module.Mod.Path}
+	if parsed.Go == nil || parsed.Go.Version == "" {
+		return moduleMetadata{}, fmt.Errorf("go.mod has no go directive")
+	}
+	metadata.goVersion = parsed.Go.Version
 	for _, required := range parsed.Require {
 		metadata.requires = append(metadata.requires, required.Mod.Path)
 	}

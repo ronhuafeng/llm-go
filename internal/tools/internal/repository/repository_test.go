@@ -54,6 +54,13 @@ func TestArchitectureRejectsBoundaryViolations(t *testing.T) {
 			want: "module llmkit requires forbidden repository module codexsdk",
 		},
 		{
+			name: "module omits minimum Go version",
+			mutate: func(t *testing.T, root string) {
+				writeFile(t, root, "llmkit/go.mod", "module example.com/llmkit\n")
+			},
+			want: "module llmkit: go.mod has no go directive",
+		},
+		{
 			name: "local replacement",
 			mutate: func(t *testing.T, root string) {
 				writeFile(t, root, "llmkit/go.mod", "module example.com/llmkit\n\ngo 1.23.0\n\nrequire example.com/alias v0.0.0\nreplace example.com/alias => ../codexsdk\n")
