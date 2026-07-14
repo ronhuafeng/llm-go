@@ -1,0 +1,734 @@
+package repository
+
+import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
+
+	"golang.org/x/mod/modfile"
+	"golang.org/x/mod/semver"
+)
+
+const releasePlanFormatVersion = 1
+
+// ReleasePlan is the immutable authorization input for one public-module tag.
+// It intentionally contains only deterministic facts from one source commit.
+type ReleasePlan struct {
+	FormatVersion int                 `json:"format_version"`
+	Subject       ReleasePlanSubject  `json:"subject"`
+	Impact        ReleaseImpact       `json:"impact"`
+	Dependencies  []ReleaseDependency `json:"dependencies"`
+	Operations    []ReleaseOperation  `json:"operations"`
+	Inputs        []ReleaseInput      `json:"inputs"`
+	ArchiveSum    string              `json:"archive_sum"`
+	PlanDigest    string              `json:"plan_digest"`
+}
+
+type ReleasePlanSubject struct {
+	Commit          string `json:"commit"`
+	Tree            string `json:"tree"`
+	ModuleID        string `json:"module_id"`
+	ModuleDir       string `json:"module_dir"`
+	ModulePath      string `json:"module_path"`
+	RepositoryURL   string `json:"repository_url"`
+	PreviousVersion string `json:"previous_version"`
+	TargetVersion   string `json:"target_version"`
+	TagPrefix       string `json:"tag_prefix"`
+	Tag             string `json:"tag"`
+}
+
+type ReleaseImpact struct {
+	Declared           string            `json:"declared"`
+	Breaking           bool              `json:"breaking"`
+	APIInventoryPath   string            `json:"api_inventory_path"`
+	APIInventorySHA256 string            `json:"api_inventory_sha256"`
+	Baseline           string            `json:"baseline"`
+	Fragments          []ReleaseFragment `json:"fragments"`
+}
+
+type ReleaseFragment struct {
+	Path      string `json:"path"`
+	Impact    string `json:"impact"`
+	Breaking  bool   `json:"breaking"`
+	Summary   string `json:"summary"`
+	Issue     int    `json:"issue"`
+	Migration string `json:"migration"`
+}
+
+type ReleaseDependency struct {
+	Module  string `json:"module"`
+	Version string `json:"version"`
+}
+
+type ReleaseOperation struct {
+	Order    int    `json:"order"`
+	ModuleID string `json:"module_id"`
+	Tag      string `json:"tag"`
+}
+
+type ReleaseInput struct {
+	Path   string `json:"path"`
+	SHA256 string `json:"sha256"`
+}
+
+type changeFragment struct {
+	FormatVersion int    `json:"format_version"`
+	Module        string `json:"module"`
+	Impact        string `json:"impact"`
+	Breaking      bool   `json:"breaking"`
+	Summary       string `json:"summary"`
+	Issue         int    `json:"issue"`
+	Migration     string `json:"migration"`
+}
+
+type githubRelease struct {
+	ID         int64  `json:"id"`
+	TagName    string `json:"tag_name"`
+	Draft      bool   `json:"draft"`
+	Prerelease bool   `json:"prerelease"`
+}
+
+// BuildReleasePlan verifies the source facts that authorize exactly one tag.
+func BuildReleasePlan(root, moduleID, targetVersion, requiredCommit, mainRef string) (ReleasePlan, error) {
+	if moduleID != "llmkit" {
+		return ReleasePlan{}, fmt.Errorf("release tracer currently supports only llmkit; later module releases must add their owner-specific gates first")
+	}
+	if targetVersion != "v0.6.0" {
+		return ReleasePlan{}, fmt.Errorf("release tracer authorizes only llmkit/v0.6.0; later versions must add a new mechanical API-impact baseline")
+	}
+	root, err := filepath.Abs(root)
+	if err != nil {
+		return ReleasePlan{}, fmt.Errorf("resolve repository root: %w", err)
+	}
+	if err := verifySourceIdentity(root, nil); err != nil {
+		return ReleasePlan{}, fmt.Errorf("release source identity: %w", err)
+	}
+	if err := Verify(root); err != nil {
+		return ReleasePlan{}, err
+	}
+	registered, err := loadPopulatedRegistry(root)
+	if err != nil {
+		return ReleasePlan{}, err
+	}
+	candidate, ok := findModule(registered, moduleID)
+	if !ok || !candidate.Published {
+		return ReleasePlan{}, fmt.Errorf("module %q is not a registered public module", moduleID)
+	}
+	commit, err := resolveCommit(root, "HEAD")
+	if err != nil {
+		return ReleasePlan{}, err
+	}
+	if mainRef == "" {
+		return ReleasePlan{}, fmt.Errorf("main ref is required")
+	}
+	mainCommit, err := resolveCommit(root, mainRef)
+	if err != nil {
+		return ReleasePlan{}, fmt.Errorf("resolve main ref %s: %w", mainRef, err)
+	}
+	if err := validateReleaseCommit(commit, requiredCommit, mainRef, mainCommit); err != nil {
+		return ReleasePlan{}, err
+	}
+	tree, err := resolveTree(root, commit)
+	if err != nil {
+		return ReleasePlan{}, err
+	}
+	repositoryURL, err := gitOutput(root, "remote", "get-url", "origin")
+	if err != nil {
+		return ReleasePlan{}, fmt.Errorf("resolve origin URL: %w", err)
+	}
+	repositoryURL = canonicalRepositoryURL(strings.TrimSpace(repositoryURL))
+	if repositoryURL != "https://github.com/ronhuafeng/llm-go" {
+		return ReleasePlan{}, fmt.Errorf("release origin %q is not the canonical repository", repositoryURL)
+	}
+	previousVersion, firstTag, err := previousReleaseVersion(root, candidate)
+	if err != nil {
+		return ReleasePlan{}, err
+	}
+	tag := candidate.Dir + "/" + targetVersion
+	if err := validateTargetVersion(previousVersion, targetVersion); err != nil {
+		return ReleasePlan{}, err
+	}
+	if firstTag != "" && tag != firstTag {
+		return ReleasePlan{}, fmt.Errorf("first tag %s does not match migration provenance %s", tag, firstTag)
+	}
+	if output, err := gitOutput(root, "tag", "--list", tag); err != nil {
+		return ReleasePlan{}, err
+	} else if strings.TrimSpace(output) != "" {
+		return ReleasePlan{}, fmt.Errorf("tag %s already exists; published identities are immutable", tag)
+	}
+
+	fragments, fragmentInputs, declaredImpact, breaking, err := loadReleaseFragments(root, candidate, targetVersion)
+	if err != nil {
+		return ReleasePlan{}, err
+	}
+	if got := semverImpact(previousVersion, targetVersion); got != declaredImpact {
+		return ReleasePlan{}, fmt.Errorf("target %s is a %s release from %s, but archived fragments require %s", targetVersion, got, previousVersion, declaredImpact)
+	}
+	if want := nextVersion(previousVersion, declaredImpact); targetVersion != want {
+		return ReleasePlan{}, fmt.Errorf("target %s skips the next %s version %s after %s", targetVersion, declaredImpact, want, previousVersion)
+	}
+	if err := validateReleaseDocumentation(root, candidate, targetVersion, fragments); err != nil {
+		return ReleasePlan{}, err
+	}
+
+	inventoryPath, err := apiInventoryPath(candidate.ID)
+	if err != nil {
+		return ReleasePlan{}, err
+	}
+	moduleRoot := filepath.Join(root, filepath.FromSlash(candidate.Dir))
+	recorder := newEvidence(EvidenceSubject{Kind: "release_preflight", Commit: commit, Tree: tree, Module: moduleID})
+	runner := commandRunner{directory: moduleRoot, environment: map[string]string{"GOWORK": "off", "GOTOOLCHAIN": "local"}}
+	if err := verifyAPISurface(recorder, runner, candidate.ID); err != nil {
+		return ReleasePlan{}, fmt.Errorf("verify canonical API inventory: %w", err)
+	}
+	baseline := "canonical inventory verified against the current module source"
+	if firstTag != "" {
+		mappedDigest, err := validateFirstTagAPIInventory(root, candidate, inventoryPath)
+		if err != nil {
+			return ReleasePlan{}, err
+		}
+		baseline = "legacy mapped inventory sha256:" + mappedDigest + "; breaking impact is the declared import-path migration"
+	}
+	archiveIdentity, err := moduleArchiveIdentityForVersion(moduleRoot, candidate, registered, targetVersion)
+	if err != nil {
+		return ReleasePlan{}, fmt.Errorf("verify module archive: %w", err)
+	}
+
+	inputPaths := []string{
+		registryFilename,
+		migrationProvenancePath(),
+		filepath.ToSlash(filepath.Join(candidate.Dir, "go.mod")),
+		filepath.ToSlash(filepath.Join(candidate.Dir, "go.sum")),
+		filepath.ToSlash(filepath.Join(candidate.Dir, "CHANGELOG.md")),
+		filepath.ToSlash(filepath.Join(candidate.Dir, inventoryPath)),
+	}
+	inputPaths = append(inputPaths, fragmentInputs...)
+	for _, fragment := range fragments {
+		if fragment.Migration != "none" {
+			inputPaths = append(inputPaths, filepath.ToSlash(filepath.Join(candidate.Dir, fragment.Migration)))
+		}
+	}
+	inputs, err := digestInputs(root, inputPaths)
+	if err != nil {
+		return ReleasePlan{}, err
+	}
+	inventoryDigest := ""
+	for _, input := range inputs {
+		if input.Path == filepath.ToSlash(filepath.Join(candidate.Dir, inventoryPath)) {
+			inventoryDigest = input.SHA256
+		}
+	}
+	if inventoryDigest == "" {
+		return ReleasePlan{}, fmt.Errorf("canonical API inventory digest is missing")
+	}
+
+	dependencies := make([]ReleaseDependency, 0, len(candidate.requireVersions))
+	for path, version := range candidate.requireVersions {
+		if path == "" || version == "" {
+			return ReleasePlan{}, fmt.Errorf("module %s has incomplete dependency requirement", candidate.ID)
+		}
+		dependencies = append(dependencies, ReleaseDependency{Module: path, Version: version})
+	}
+	sort.Slice(dependencies, func(i, j int) bool { return dependencies[i].Module < dependencies[j].Module })
+
+	plan := ReleasePlan{
+		FormatVersion: releasePlanFormatVersion,
+		Subject: ReleasePlanSubject{
+			Commit: commit, Tree: tree, ModuleID: candidate.ID, ModuleDir: candidate.Dir,
+			ModulePath: candidate.path, RepositoryURL: repositoryURL, PreviousVersion: previousVersion, TargetVersion: targetVersion,
+			TagPrefix: candidate.Dir + "/", Tag: tag,
+		},
+		Impact: ReleaseImpact{
+			Declared: declaredImpact, Breaking: breaking, APIInventoryPath: filepath.ToSlash(filepath.Join(candidate.Dir, inventoryPath)),
+			APIInventorySHA256: inventoryDigest, Baseline: baseline, Fragments: fragments,
+		},
+		Dependencies: dependencies,
+		Operations:   []ReleaseOperation{{Order: 1, ModuleID: candidate.ID, Tag: tag}},
+		Inputs:       inputs,
+		ArchiveSum:   archiveIdentity.Sum,
+	}
+	plan.PlanDigest, err = releasePlanDigest(plan)
+	if err != nil {
+		return ReleasePlan{}, err
+	}
+	if err := plan.Validate(); err != nil {
+		return ReleasePlan{}, err
+	}
+	return plan, nil
+}
+
+func validateReleaseCommit(checkoutCommit, requiredCommit, mainRef, mainCommit string) error {
+	if requiredCommit == "" || checkoutCommit != requiredCommit {
+		return fmt.Errorf("checkout commit %s does not match required commit %s", checkoutCommit, requiredCommit)
+	}
+	if mainCommit != checkoutCommit {
+		return fmt.Errorf("required commit %s is no longer current %s at %s", checkoutCommit, mainRef, mainCommit)
+	}
+	return nil
+}
+
+func validateFirstTagAPIInventory(root string, candidate module, inventoryPath string) (string, error) {
+	if candidate.ID != "llmkit" {
+		return "", fmt.Errorf("first-tag API mapping is not implemented for module %s", candidate.ID)
+	}
+	provenance, err := loadProvenance(root)
+	if err != nil {
+		return "", err
+	}
+	sourceCommit := ""
+	for _, imported := range provenance.Imports {
+		if imported.ID == candidate.ID {
+			sourceCommit = imported.Source.Commit
+			break
+		}
+	}
+	if sourceCommit == "" {
+		return "", fmt.Errorf("module %s has no source commit for API baseline", candidate.ID)
+	}
+	legacy, err := gitBytes(root, "show", sourceCommit+":"+inventoryPath)
+	if err != nil {
+		return "", fmt.Errorf("read legacy API inventory: %w", err)
+	}
+	legacyGoMod, err := gitBytes(root, "show", sourceCommit+":go.mod")
+	if err != nil {
+		return "", fmt.Errorf("read legacy go.mod: %w", err)
+	}
+	parsed, err := modfile.Parse("legacy/go.mod", legacyGoMod, nil)
+	if err != nil {
+		return "", fmt.Errorf("parse legacy module identity: %w", err)
+	}
+	if parsed.Module == nil || parsed.Module.Mod.Path == "" {
+		return "", fmt.Errorf("legacy go.mod has no module identity")
+	}
+	current, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(candidate.Dir), filepath.FromSlash(inventoryPath)))
+	if err != nil {
+		return "", fmt.Errorf("read current API inventory: %w", err)
+	}
+	return mappedAPIInventoryDigest(legacy, current, parsed.Module.Mod.Path, candidate.path)
+}
+
+func mapAPIInventory(inventory []byte, oldModulePath, newModulePath string) []byte {
+	return bytes.ReplaceAll(inventory, []byte(oldModulePath), []byte(newModulePath))
+}
+
+func mappedAPIInventoryDigest(legacy, current []byte, oldModulePath, newModulePath string) (string, error) {
+	mapped := mapAPIInventory(legacy, oldModulePath, newModulePath)
+	if !bytes.Equal(mapped, current) {
+		return "", fmt.Errorf("current API inventory is not equivalent to the legacy inventory after the declared module-path mapping")
+	}
+	digest := sha256.Sum256(mapped)
+	return hex.EncodeToString(digest[:]), nil
+}
+
+func canonicalRepositoryURL(value string) string {
+	value = strings.TrimSuffix(value, ".git")
+	if value == "git@github.com:ronhuafeng/llm-go" || value == "ssh://git@github.com/ronhuafeng/llm-go" {
+		return "https://github.com/ronhuafeng/llm-go"
+	}
+	return value
+}
+
+func previousReleaseVersion(root string, candidate module) (string, string, error) {
+	output, err := gitOutput(root, "tag", "--list", candidate.Dir+"/v*", "--sort=-version:refname")
+	if err != nil {
+		return "", "", err
+	}
+	for _, tag := range strings.Fields(output) {
+		version := strings.TrimPrefix(tag, candidate.Dir+"/")
+		if isStableVersion(version) {
+			return version, "", nil
+		}
+	}
+	provenance, err := loadProvenance(root)
+	if err != nil {
+		return "", "", err
+	}
+	for _, imported := range provenance.Imports {
+		if imported.ID != candidate.ID {
+			continue
+		}
+		if imported.Destination.Directory != candidate.Dir || imported.Destination.Module != candidate.path {
+			return "", "", fmt.Errorf("migration provenance disagrees with module %s identity", candidate.ID)
+		}
+		if !isStableVersion(imported.Source.Tag) {
+			return "", "", fmt.Errorf("migration provenance source tag %q is not stable SemVer", imported.Source.Tag)
+		}
+		return imported.Source.Tag, imported.Destination.FirstTag, nil
+	}
+	return "", "", fmt.Errorf("module %s has no prior tag or migration provenance", candidate.ID)
+}
+
+func validateTargetVersion(previous, target string) error {
+	if !isStableVersion(previous) || !isStableVersion(target) {
+		return fmt.Errorf("release versions must be canonical stable SemVer: previous=%q target=%q", previous, target)
+	}
+	if semver.Compare(target, previous) <= 0 {
+		return fmt.Errorf("target version %s must be greater than %s", target, previous)
+	}
+	return nil
+}
+
+func isStableVersion(version string) bool {
+	return semver.IsValid(version) && semver.Canonical(version) == version && semver.Prerelease(version) == "" && semver.Build(version) == ""
+}
+
+func semverImpact(previous, target string) string {
+	previousParts := semverParts(previous)
+	targetParts := semverParts(target)
+	if targetParts[0] != previousParts[0] {
+		return "major"
+	}
+	if targetParts[1] != previousParts[1] {
+		return "minor"
+	}
+	return "patch"
+}
+
+func semverParts(version string) [3]int {
+	trimmed := strings.TrimPrefix(semver.Canonical(version), "v")
+	trimmed = strings.SplitN(trimmed, "-", 2)[0]
+	fields := strings.Split(trimmed, ".")
+	var result [3]int
+	for index := range result {
+		if index < len(fields) {
+			result[index], _ = strconv.Atoi(fields[index])
+		}
+	}
+	return result
+}
+
+func nextVersion(previous, impact string) string {
+	parts := semverParts(previous)
+	switch impact {
+	case "major":
+		parts[0]++
+		parts[1], parts[2] = 0, 0
+	case "minor":
+		parts[1]++
+		parts[2] = 0
+	case "patch":
+		parts[2]++
+	default:
+		return ""
+	}
+	return fmt.Sprintf("v%d.%d.%d", parts[0], parts[1], parts[2])
+}
+
+func loadReleaseFragments(root string, candidate module, targetVersion string) ([]ReleaseFragment, []string, string, bool, error) {
+	changesRoot := filepath.Join(root, filepath.FromSlash(candidate.Dir), ".changes")
+	loose, err := filepath.Glob(filepath.Join(changesRoot, "*.json"))
+	if err != nil {
+		return nil, nil, "", false, err
+	}
+	if len(loose) != 0 {
+		return nil, nil, "", false, fmt.Errorf("unconsumed change fragments remain in %s; archive them in the release commit", filepath.ToSlash(filepath.Join(candidate.Dir, ".changes")))
+	}
+	releaseRoot := filepath.Join(changesRoot, "releases", targetVersion)
+	paths, err := filepath.Glob(filepath.Join(releaseRoot, "*.json"))
+	if err != nil {
+		return nil, nil, "", false, err
+	}
+	sort.Strings(paths)
+	if len(paths) == 0 {
+		return nil, nil, "", false, fmt.Errorf("release %s has no archived change fragments", targetVersion)
+	}
+	impactRank := map[string]int{"patch": 1, "minor": 2, "major": 3}
+	declared := "patch"
+	breaking := false
+	fragments := make([]ReleaseFragment, 0, len(paths))
+	inputs := make([]string, 0, len(paths))
+	for _, path := range paths {
+		var fragment changeFragment
+		if err := readStrictJSON(path, &fragment); err != nil {
+			return nil, nil, "", false, fmt.Errorf("read change fragment %s: %w", filepath.Base(path), err)
+		}
+		if fragment.FormatVersion != 1 || fragment.Module != candidate.ID || impactRank[fragment.Impact] == 0 || strings.TrimSpace(fragment.Summary) == "" || fragment.Issue <= 0 {
+			return nil, nil, "", false, fmt.Errorf("change fragment %s is incomplete or invalid", filepath.Base(path))
+		}
+		if fragment.Breaking && (fragment.Migration == "" || fragment.Migration == "none") {
+			return nil, nil, "", false, fmt.Errorf("breaking change fragment %s must name module-local migration guidance", filepath.Base(path))
+		}
+		if fragment.Breaking && fragment.Impact == "patch" {
+			return nil, nil, "", false, fmt.Errorf("breaking pre-v1 change fragment %s must require at least a minor release", filepath.Base(path))
+		}
+		if impactRank[fragment.Impact] > impactRank[declared] {
+			declared = fragment.Impact
+		}
+		breaking = breaking || fragment.Breaking
+		relative, err := filepath.Rel(root, path)
+		if err != nil {
+			return nil, nil, "", false, err
+		}
+		relative = filepath.ToSlash(relative)
+		fragments = append(fragments, ReleaseFragment{
+			Path: relative, Impact: fragment.Impact, Breaking: fragment.Breaking, Summary: fragment.Summary,
+			Issue: fragment.Issue, Migration: fragment.Migration,
+		})
+		inputs = append(inputs, relative)
+	}
+	return fragments, inputs, declared, breaking, nil
+}
+
+func validateReleaseDocumentation(root string, candidate module, targetVersion string, fragments []ReleaseFragment) error {
+	changelogPath := filepath.Join(root, filepath.FromSlash(candidate.Dir), "CHANGELOG.md")
+	changelog, err := os.ReadFile(changelogPath)
+	if err != nil {
+		return fmt.Errorf("read changelog: %w", err)
+	}
+	if !bytes.Contains(changelog, []byte("## ["+strings.TrimPrefix(targetVersion, "v")+"]")) {
+		return fmt.Errorf("CHANGELOG.md has no release section for %s", targetVersion)
+	}
+	for _, fragment := range fragments {
+		if fragment.Migration == "none" {
+			continue
+		}
+		clean := filepath.ToSlash(filepath.Clean(fragment.Migration))
+		if clean != fragment.Migration || filepath.IsAbs(fragment.Migration) || clean == ".." || strings.HasPrefix(clean, "../") {
+			return fmt.Errorf("fragment %s has invalid migration path %q", fragment.Path, fragment.Migration)
+		}
+		path := filepath.Join(root, filepath.FromSlash(candidate.Dir), filepath.FromSlash(clean))
+		if info, err := os.Stat(path); err != nil || info.IsDir() {
+			return fmt.Errorf("fragment %s migration document %s is unavailable", fragment.Path, fragment.Migration)
+		}
+	}
+	return nil
+}
+
+func apiInventoryPath(moduleID string) (string, error) {
+	paths := map[string]string{
+		"llmkit":        "internal/architecture/testdata/handwritten-api.txt",
+		"codexsdk":      "codexsdk/internal/architecture/testdata/handwritten-api.txt",
+		"codex-adapter": "internal/architecture/testdata/handwritten-api.txt",
+	}
+	path, ok := paths[moduleID]
+	if !ok {
+		return "", fmt.Errorf("module %s has no canonical API inventory", moduleID)
+	}
+	return path, nil
+}
+
+func digestInputs(root string, paths []string) ([]ReleaseInput, error) {
+	unique := map[string]bool{}
+	for _, path := range paths {
+		path = filepath.ToSlash(filepath.Clean(path))
+		if path == "." || filepath.IsAbs(path) || path == ".." || strings.HasPrefix(path, "../") {
+			return nil, fmt.Errorf("invalid release input path %q", path)
+		}
+		unique[path] = true
+	}
+	paths = paths[:0]
+	for path := range unique {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	inputs := make([]ReleaseInput, 0, len(paths))
+	for _, path := range paths {
+		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
+		if err != nil {
+			return nil, fmt.Errorf("read release input %s: %w", path, err)
+		}
+		digest := sha256.Sum256(data)
+		inputs = append(inputs, ReleaseInput{Path: path, SHA256: hex.EncodeToString(digest[:])})
+	}
+	return inputs, nil
+}
+
+func migrationProvenancePath() string { return provenanceFilename }
+
+func releasePlanDigest(plan ReleasePlan) (string, error) {
+	plan.PlanDigest = ""
+	data, err := json.Marshal(plan)
+	if err != nil {
+		return "", err
+	}
+	digest := sha256.Sum256(data)
+	return "sha256:" + hex.EncodeToString(digest[:]), nil
+}
+
+func (plan ReleasePlan) Validate() error {
+	if plan.FormatVersion != releasePlanFormatVersion {
+		return fmt.Errorf("unsupported release plan format_version %d", plan.FormatVersion)
+	}
+	if plan.Subject.Commit == "" || plan.Subject.Tree == "" || plan.Subject.ModuleID == "" || plan.Subject.ModulePath == "" || plan.Subject.RepositoryURL == "" || plan.Subject.TargetVersion == "" || plan.Subject.Tag == "" {
+		return fmt.Errorf("release plan subject is incomplete")
+	}
+	if plan.Subject.TagPrefix != plan.Subject.ModuleDir+"/" || plan.Subject.Tag != plan.Subject.TagPrefix+plan.Subject.TargetVersion {
+		return fmt.Errorf("release plan tag does not match its module directory and target version")
+	}
+	if canonicalRepositoryURL(plan.Subject.RepositoryURL) != "https://github.com/ronhuafeng/llm-go" {
+		return fmt.Errorf("release plan repository URL is not canonical")
+	}
+	if !isStableVersion(plan.Subject.PreviousVersion) || !isStableVersion(plan.Subject.TargetVersion) {
+		return fmt.Errorf("release plan contains invalid versions")
+	}
+	if plan.Subject.TargetVersion != nextVersion(plan.Subject.PreviousVersion, plan.Impact.Declared) {
+		return fmt.Errorf("release plan target does not match its declared impact")
+	}
+	if plan.Impact.Breaking && plan.Impact.Declared == "patch" {
+		return fmt.Errorf("release plan declares a breaking patch release")
+	}
+	if len(plan.Impact.Fragments) == 0 || plan.Impact.Declared == "" || plan.Impact.APIInventorySHA256 == "" || plan.ArchiveSum == "" {
+		return fmt.Errorf("release plan impact or archive evidence is incomplete")
+	}
+	if !isSHA256(plan.Impact.APIInventorySHA256) {
+		return fmt.Errorf("release plan contains an invalid API SHA-256")
+	}
+	if !strings.HasPrefix(plan.ArchiveSum, "h1:") {
+		return fmt.Errorf("release plan contains an invalid canonical archive sum")
+	}
+	if len(plan.Operations) != 1 || plan.Operations[0].Order != 1 || plan.Operations[0].ModuleID != plan.Subject.ModuleID || plan.Operations[0].Tag != plan.Subject.Tag {
+		return fmt.Errorf("release plan operations do not authorize exactly its subject tag")
+	}
+	if !sort.SliceIsSorted(plan.Dependencies, func(i, j int) bool { return plan.Dependencies[i].Module < plan.Dependencies[j].Module }) {
+		return fmt.Errorf("release plan dependencies are not sorted")
+	}
+	lastDependency := ""
+	for _, dependency := range plan.Dependencies {
+		if dependency.Module == "" || dependency.Module == lastDependency || !isStableVersion(dependency.Version) {
+			return fmt.Errorf("release plan contains an invalid or duplicate dependency")
+		}
+		lastDependency = dependency.Module
+	}
+	if !sort.SliceIsSorted(plan.Inputs, func(i, j int) bool { return plan.Inputs[i].Path < plan.Inputs[j].Path }) {
+		return fmt.Errorf("release plan inputs are not sorted")
+	}
+	lastInput := ""
+	for _, input := range plan.Inputs {
+		if input.Path == "" || input.Path == lastInput || !isSHA256(input.SHA256) {
+			return fmt.Errorf("release plan contains an invalid or duplicate input")
+		}
+		lastInput = input.Path
+	}
+	if !sort.SliceIsSorted(plan.Impact.Fragments, func(i, j int) bool { return plan.Impact.Fragments[i].Path < plan.Impact.Fragments[j].Path }) {
+		return fmt.Errorf("release plan fragments are not sorted")
+	}
+	want, err := releasePlanDigest(plan)
+	if err != nil {
+		return err
+	}
+	if plan.PlanDigest == "" || plan.PlanDigest != want {
+		return fmt.Errorf("release plan digest mismatch: got %q want %q", plan.PlanDigest, want)
+	}
+	return nil
+}
+
+func isSHA256(value string) bool {
+	if len(value) != sha256.Size*2 {
+		return false
+	}
+	_, err := hex.DecodeString(value)
+	return err == nil
+}
+
+func ReadReleasePlan(path string) (ReleasePlan, error) {
+	var plan ReleasePlan
+	if err := readStrictJSON(path, &plan); err != nil {
+		return ReleasePlan{}, fmt.Errorf("read release plan: %w", err)
+	}
+	if err := plan.Validate(); err != nil {
+		return ReleasePlan{}, err
+	}
+	return plan, nil
+}
+
+func WriteReleasePlan(path string, plan ReleasePlan) error {
+	if err := plan.Validate(); err != nil {
+		return err
+	}
+	return writeJSON(path, plan)
+}
+
+// AuthorizeTag validates the evidence-bound authorization and re-derives its
+// plan at current main. Any main advance, source mutation, plan mutation,
+// evidence mutation, or tag mismatch invalidates the approval.
+func AuthorizeTag(root string, approved ReleasePlan, authorization ReleaseAuthorization, evidenceDirectory, expectedDigest, requiredCommit, tag, mainRef string) error {
+	if err := approved.Validate(); err != nil {
+		return err
+	}
+	if err := ValidateReleaseAuthorizationFiles(approved, authorization, evidenceDirectory); err != nil {
+		return err
+	}
+	if expectedDigest == "" || authorization.AuthorizationDigest != expectedDigest {
+		return fmt.Errorf("approved authorization digest %q does not match required digest %q", authorization.AuthorizationDigest, expectedDigest)
+	}
+	if approved.Subject.Commit != requiredCommit || approved.Subject.Tag != tag {
+		return fmt.Errorf("authorization does not cover commit %s and tag %s", requiredCommit, tag)
+	}
+	recomputed, err := BuildReleasePlan(root, approved.Subject.ModuleID, approved.Subject.TargetVersion, requiredCommit, mainRef)
+	if err != nil {
+		return err
+	}
+	if recomputed.PlanDigest != approved.PlanDigest {
+		return fmt.Errorf("authorized plan %s no longer matches current preflight %s", approved.PlanDigest, recomputed.PlanDigest)
+	}
+	return nil
+}
+
+func ReleaseNotes(plan ReleasePlan) (string, error) {
+	if err := plan.Validate(); err != nil {
+		return "", err
+	}
+	var notes strings.Builder
+	fmt.Fprintf(&notes, "# %s\n\n", plan.Subject.Tag)
+	for _, fragment := range plan.Impact.Fragments {
+		fmt.Fprintf(&notes, "- %s ([#%d](https://github.com/ronhuafeng/llm-go/issues/%d))\n", fragment.Summary, fragment.Issue, fragment.Issue)
+	}
+	fmt.Fprintf(&notes, "\nRelease plan: `%s`\n", plan.PlanDigest)
+	return notes.String(), nil
+}
+
+// ValidateDraftRelease permits a rerun to reuse only the exact unverified
+// release created for this immutable tag. The remote peeled tag independently
+// owns commit identity because GitHub ignores target_commitish for existing tags.
+func ValidateDraftRelease(data []byte, tag string) error {
+	var release githubRelease
+	if err := json.Unmarshal(data, &release); err != nil {
+		return fmt.Errorf("decode GitHub Release: %w", err)
+	}
+	if release.ID <= 0 || release.TagName != tag {
+		return fmt.Errorf("GitHub Release does not match tag %s", tag)
+	}
+	if !release.Draft {
+		return fmt.Errorf("GitHub Release for %s is already published; forward-only release automation will not modify it", tag)
+	}
+	if release.Prerelease {
+		return fmt.Errorf("GitHub Release for %s is an unexpected prerelease", tag)
+	}
+	return nil
+}
+
+func ValidateRemoteTagRefs(data []byte, tag, commit string) error {
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	wantDirect := "refs/tags/" + tag
+	wantPeeled := wantDirect + "^{}"
+	seenDirect := false
+	seenPeeled := false
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) != 2 {
+			return fmt.Errorf("invalid remote tag-ref evidence")
+		}
+		switch fields[1] {
+		case wantDirect:
+			seenDirect = true
+		case wantPeeled:
+			seenPeeled = true
+			if fields[0] != commit {
+				return fmt.Errorf("remote tag %s peels to %s, want %s", tag, fields[0], commit)
+			}
+		default:
+			return fmt.Errorf("unexpected remote tag ref %s", fields[1])
+		}
+	}
+	if !seenDirect || !seenPeeled {
+		return fmt.Errorf("remote tag %s is missing its annotated or peeled ref", tag)
+	}
+	return nil
+}

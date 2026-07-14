@@ -27,11 +27,16 @@ The machine-readable release plan binds:
 - target version and exact tag;
 - declared dependency tuple;
 - ordered release operations;
-- input and evidence digests.
+- deterministic release inputs.
+
+After preflight completes, a self-digesting release authorization binds that
+plan and the exact SHA-256 of every minimum/current/race/checkout evidence
+file. The protected approval applies to this complete authorization envelope,
+not to the plan alone.
 
 The tag-creation job receives the minimum required write permission only after
-environment approval. It verifies that the approved plan, current `main`
-commit, and tag operation still match before writing the tag.
+environment approval. It verifies that the approved authorization, current
+`main` commit, and tag operation still match before writing the tag.
 
 Tag namespaces are protected against ordinary local creation, movement, and
 reuse. A post-tag failure marks the immutable tag unverified; recovery is a
@@ -47,8 +52,8 @@ succeeds.
 
 ## Consequences
 
-- Human approval applies to an inspectable plan rather than manual release
-  commands.
+- Human approval applies to an inspectable, evidence-bound authorization
+  rather than manual release commands.
 - The commit, tag, dependency tuple, and verification evidence are bound.
 - Pull-request workflows remain read-only.
 - Local environments can reproduce preflight without holding publication
@@ -58,7 +63,7 @@ succeeds.
 ## Considered options
 
 Allowing maintainers to push formal tags locally was rejected because the tag
-could bypass the approved plan and preflight evidence.
+could bypass the approved authorization and preflight evidence.
 
 Relying only on a tag-triggered secondary workflow was rejected because release
 correctness would depend on event-delivery and token-trigger behavior outside

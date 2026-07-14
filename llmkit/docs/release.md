@@ -12,6 +12,10 @@ The first monorepo release is `llmkit/v0.6.0`, continuing the legacy
 `llmkit-go@v0.5.0` lineage. The path migration is intentionally breaking under
 the pre-v1 policy and does not change API shape or runtime semantics.
 
+The initial release tracer is hard-limited to this exact version. A later
+toolkit release must establish its own API-impact baseline before the workflow
+can authorize it.
+
 ## Public API
 
 The public API is the exported surface of:
@@ -34,7 +38,9 @@ breaking impact explicitly. At and after v1.0.0, standard SemVer major, minor,
 and patch rules apply.
 
 Each user-visible change supplies a module-local structured fragment in
-`.changes/`. A breaking fragment links to module-local migration guidance.
+`.changes/`. The release-preparation commit archives consumed fragments under
+`.changes/releases/<version>/`; the planner rejects loose fragments. A breaking
+fragment links to module-local migration guidance.
 
 ## Preflight
 
@@ -52,8 +58,18 @@ Before a tag, protected release CI additionally verifies:
 - the exact source commit and tree;
 - changelog and migration documentation.
 
-The resulting digest-bound release plan authorizes one immutable tag. Tags are
-never created manually or moved after publication.
+The deterministic plan is combined with the complete minimum/current/race and
+checkout evidence into a self-digesting release authorization. That final
+authorization, rather than the earlier plan alone, authorizes one immutable
+tag. Tags are never created manually or moved after publication.
+
+The tag job is bound to the protected `production-release` GitHub Environment.
+Its required reviewers approve the generated authorization and its bound
+evidence, not a mutable branch name.
+After approval, the tag job fetches authoritative `main` before authorization,
+fetches it again after authorization, and checks the remote head immediately
+before its tag-existence lease push. Any observed `main` advance fails and
+preflight must be rerun at the new current commit.
 
 ## Published verification
 

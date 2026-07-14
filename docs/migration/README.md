@@ -3,10 +3,11 @@
 The complete frozen `llmkit-go`, `codexsdk-go`, and `llmcaller-codex-go`
 histories are now reachable from this repository through their recorded pure
 relocation commits and independent merge edges. The toolkit source now declares
-`github.com/ronhuafeng/llm-go/llmkit`; its planned first replacement tag is
-`llmkit/v0.6.0`, but that tag is not published or proxy-verified yet. The SDK
-and adapter still declare their legacy module identities until their own
-migration tickets are complete.
+`github.com/ronhuafeng/llm-go/llmkit`; its first replacement tag is
+`llmkit/v0.6.0`. Its linked GitHub Release and the public Go proxy are the live
+verification sources; repository prose does not pre-announce the tag as
+verified. The SDK and adapter still declare their legacy module identities
+until their own migration tickets are complete.
 
 The accepted sequencing and completion gates are defined by the
 [target design](../architecture/DESIGN.md) and its
@@ -14,8 +15,9 @@ The accepted sequencing and completion gates are defined by the
 
 The toolkit's exact old-to-new import mapping is documented in the
 [llmkit v0.6.0 migration guide](../../llmkit/docs/migration/v0.6.0.md).
-Consumers must continue using the legacy release until `llmkit/v0.6.0` has
-passed the repository's protected tag and public-proxy verification gates.
+Consumers must continue using the legacy release until the
+[`llmkit/v0.6.0` GitHub Release](https://github.com/ronhuafeng/llm-go/releases/tag/llmkit%2Fv0.6.0)
+is marked verified by the protected tag and public-proxy verification gates.
 
 ## Imported-history issue audit
 

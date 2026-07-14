@@ -17,10 +17,13 @@ backends, or business validation rules.
 
 ## Status
 
-The module path is `github.com/ronhuafeng/llm-go/llmkit`. Its planned first
-monorepo release is `llmkit/v0.6.0`, continuing the legacy toolkit's pre-v1
-lineage. That tag is not yet published or public-proxy verified; consumers
-should remain on the legacy release until the protected release gate passes.
+The module path is `github.com/ronhuafeng/llm-go/llmkit`. Its first monorepo
+release identity is `llmkit/v0.6.0`, continuing the legacy toolkit's pre-v1
+lineage. The [GitHub Release](https://github.com/ronhuafeng/llm-go/releases/tag/llmkit%2Fv0.6.0)
+and the public Go proxy are the live availability and verification sources;
+this README does not pre-announce release success. Consumers should remain on
+the legacy release until the protected release gate marks that Release
+verified.
 Consumers of `github.com/ronhuafeng/llmkit-go@v0.5.0` should follow the
 [v0.6 migration guide](docs/migration/v0.6.0.md). The migration changes only
 module and import paths; it adds no forwarding or runtime compatibility layer.
@@ -40,7 +43,7 @@ The `internal/` tree contains repository tests and is not public API.
 
 Requires Go 1.23 or newer.
 
-After `llmkit/v0.6.0` is published and public-proxy verified, install it with:
+When `llmkit/v0.6.0` is marked verified, install it with:
 
 ```sh
 go get github.com/ronhuafeng/llm-go/llmkit@v0.6.0
@@ -293,7 +296,7 @@ Releases use directory-prefixed Go module tags:
 llmkit/vX.Y.Z
 ```
 
-The planned first tag is `llmkit/v0.6.0`. Production tags are created only by
+The first tag is `llmkit/v0.6.0`. Production tags are created only by
 the protected repository release workflow from an approved, digest-bound plan.
 See [docs/release.md](docs/release.md) for the module release contract.
 

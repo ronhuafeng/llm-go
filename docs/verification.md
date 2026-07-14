@@ -57,3 +57,34 @@ published-artifact evidence.
 The stable required check is `PR verification`. Detailed matrix jobs and JSON
 artifacts remain available for diagnosis without making branch protection
 depend on a changing set of affected modules.
+
+## Release evidence
+
+The manually dispatched release workflow uses three additional typed seams:
+
+- `repoctl release-plan` verifies the current `main` commit, path-prefixed tag,
+  SemVer impact, archived change fragments, mapped legacy API inventory,
+  module archive, documentation, dependencies, and input digests;
+- `repoctl finalize-release` validates and hashes the minimum/current/race and
+  checkout evidence together with the plan into the authorization envelope;
+- `repoctl authorize-tag` validates every authorized artifact and re-derives
+  the plan after protected-environment approval against a freshly fetched
+  `main`; the workflow compares remote `main` again before its
+  empty-expectation tag lease push;
+- `repoctl verify-tag` binds the immutable tag and authorization digest to the
+  public proxy artifact, checksum-database sums, Git origin, canonical module
+  `h1:` content sum, observed raw zip SHA-256, exact `go.mod` SHA-256, and an
+  isolated typed consumer.
+
+The first tracer is intentionally exact-scope: only `llmkit/v0.6.0` is
+authorized. Its legacy-mapped inventory is the baseline for that migration,
+not an allowlist for later toolkit versions. The workflow also validates any
+pre-existing GitHub Release as the exact matching unverified Draft before
+reusing it, and independently validates the remote annotated tag's peeled
+commit because GitHub ignores `target_commitish` when the tag already exists.
+This makes lost-response reruns forward-only and idempotent.
+
+Probe, artifact-validation, and consumer caches are distinct and freshly
+created. Every public Go command runs with `GOWORK=off`, `GOVCS=*:off`, an
+exclusive `https://proxy.golang.org`, and `sum.golang.org`. A GitHub Release
+remains Draft until the post-tag JSON evidence has been uploaded successfully.
