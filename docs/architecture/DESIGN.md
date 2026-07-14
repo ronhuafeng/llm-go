@@ -262,9 +262,9 @@ monorepo bootstrap ------------------/
 
 The execution order is:
 
-1. Freeze the legacy repositories.
-2. Publish their documentation-only final patches.
-3. Bootstrap the new repository.
+1. Bootstrap the new repository.
+2. Freeze the legacy repositories.
+3. Publish their documentation-only final patches.
 4. Import each complete history through its pure relocation commit and merge
    node.
 5. Establish root governance, the workspace, registry, provenance, and
