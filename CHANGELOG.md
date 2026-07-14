@@ -7,6 +7,17 @@ changes may occur in minor releases, but they must be documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking semantic change (planned for v0.5.0):** an unsettled final
+  `llmstep` attempt now preserves its validator-owned `Validation`, leaves
+  `RetryFeedback` unset, and returns `settle.ErrUnsettled` without invoking the
+  feedback sanitizer. Sanitizer rejection remains a sanitize-stage error only
+  when another render would actually run.
+
+See [Migrating to v0.5](docs/v0.5-migration.md) for the corrected terminal
+error and detailed-evidence semantics.
+
 ## [0.4.1] - 2026-07-13
 
 ### Changed

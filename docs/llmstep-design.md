@@ -155,11 +155,12 @@ rendered prompts; callers that need prompt capture should wrap their renderer.
 4. If `Validate` is nil, treat the output as settled.
 5. If validation returns `Settled: true`, return the typed output.
 6. Preserve the validation result exactly as returned, including observable
-   nil-versus-empty slice shape. If it is unsettled, sanitize an isolated copy
-   of its feedback into `RetryFeedback` before the next render.
-7. If the sanitizer rejects feedback, stop with a typed error.
-8. If all attempts fail validation, return an error wrapping
-   `settle.ErrUnsettled`.
+   nil-versus-empty slice shape.
+7. If an unsettled attempt has a subsequent retry, sanitize an isolated copy
+   of its feedback into `RetryFeedback` before the next render. If the
+   sanitizer rejects that feedback, stop with a typed sanitize-stage error.
+8. If the final allowed attempt is unsettled, do not invoke the sanitizer or
+   synthesize `RetryFeedback`; return an error wrapping `settle.ErrUnsettled`.
 
 The framework should not modify the business input `I` or output `O`.
 

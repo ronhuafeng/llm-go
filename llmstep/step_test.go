@@ -144,6 +144,107 @@ func TestRunExhaustedAttemptsWrapsErrUnsettled(t *testing.T) {
 	}
 }
 
+func TestRunDetailedFinalUnsettledAttemptSkipsRetryFeedbackSanitization(t *testing.T) {
+	validation := ValidationResult{Feedback: []Feedback{{
+		Summary:   "terminal validator evidence",
+		Codes:     []string{"not_ready"},
+		Locations: []string{"status"},
+	}}}
+	sanitizerCalls := 0
+
+	result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
+		Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"draft"}`}}},
+		Render: func(context.Context, stepInput, []Feedback) (string, error) {
+			return "prompt", nil
+		},
+		Validate: func(context.Context, stepInput, stepOutput) (ValidationResult, error) {
+			return validation, nil
+		},
+		Sanitizer: func([]Feedback) ([]Feedback, error) {
+			sanitizerCalls++
+			return nil, ErrUnsafeFeedback
+		},
+		MaxIter: 1,
+	}, stepInput{})
+
+	if !errors.Is(err, settle.ErrUnsettled) {
+		t.Fatalf("RunDetailed error = %v, want ErrUnsettled", err)
+	}
+	if errors.Is(err, ErrUnsafeFeedback) {
+		t.Fatalf("RunDetailed error = %v, must not expose terminal sanitizer error", err)
+	}
+	if sanitizerCalls != 0 {
+		t.Fatalf("sanitizer calls = %d, want 0", sanitizerCalls)
+	}
+	if len(result.Attempts) != 1 {
+		t.Fatalf("attempts = %d, want 1", len(result.Attempts))
+	}
+	attempt := result.Attempts[0]
+	if attempt.RetryFeedback != nil {
+		t.Fatalf("RetryFeedback = %#v, want nil without a retry", attempt.RetryFeedback)
+	}
+	if len(attempt.Validation.Feedback) != 1 ||
+		attempt.Validation.Feedback[0].Summary != validation.Feedback[0].Summary ||
+		attempt.Validation.Feedback[0].Codes[0] != "not_ready" ||
+		attempt.Validation.Feedback[0].Locations[0] != "status" {
+		t.Fatalf("Validation = %#v, want original validator decision", attempt.Validation)
+	}
+}
+
+func TestRunDetailedExhaustionPublishesRetryFeedbackOnlyForRealRetries(t *testing.T) {
+	caller := &fakeCaller{responses: []llmadapter.Response{
+		{FinalResponse: `{"status":"first"}`},
+		{FinalResponse: `{"status":"final"}`},
+	}}
+	var renderedFeedback [][]Feedback
+	sanitizerCalls := 0
+
+	result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
+		Caller: caller,
+		Render: func(_ context.Context, _ stepInput, feedback []Feedback) (string, error) {
+			renderedFeedback = append(renderedFeedback, copyFeedback(feedback))
+			return "prompt", nil
+		},
+		Validate: func(_ context.Context, _ stepInput, output stepOutput) (ValidationResult, error) {
+			return ValidationResult{Feedback: []Feedback{{
+				Summary: "validator " + output.Status,
+				Codes:   []string{"raw_" + output.Status},
+			}}}, nil
+		},
+		Sanitizer: func(feedback []Feedback) ([]Feedback, error) {
+			sanitizerCalls++
+			return []Feedback{{Codes: []string{"safe_retry"}}}, nil
+		},
+		MaxIter: 2,
+	}, stepInput{})
+
+	if !errors.Is(err, settle.ErrUnsettled) {
+		t.Fatalf("RunDetailed error = %v, want ErrUnsettled", err)
+	}
+	if sanitizerCalls != 1 {
+		t.Fatalf("sanitizer calls = %d, want 1 for the only real retry", sanitizerCalls)
+	}
+	if len(renderedFeedback) != 2 || renderedFeedback[0] != nil ||
+		len(renderedFeedback[1]) != 1 || renderedFeedback[1][0].Codes[0] != "safe_retry" {
+		t.Fatalf("rendered feedback = %#v, want only sanitized feedback on retry", renderedFeedback)
+	}
+	if len(result.Attempts) != 2 {
+		t.Fatalf("attempts = %d, want 2", len(result.Attempts))
+	}
+	if len(result.Attempts[0].RetryFeedback) != 1 ||
+		result.Attempts[0].RetryFeedback[0].Iteration != 1 ||
+		result.Attempts[0].RetryFeedback[0].Codes[0] != "safe_retry" {
+		t.Fatalf("first RetryFeedback = %#v, want sanitized retry evidence", result.Attempts[0].RetryFeedback)
+	}
+	if result.Attempts[1].RetryFeedback != nil {
+		t.Fatalf("final RetryFeedback = %#v, want nil", result.Attempts[1].RetryFeedback)
+	}
+	finalValidation := result.Attempts[1].Validation.Feedback
+	if len(finalValidation) != 1 || finalValidation[0].Summary != "validator final" || finalValidation[0].Codes[0] != "raw_final" {
+		t.Fatalf("final Validation = %#v, want original validator decision", finalValidation)
+	}
+}
+
 func TestRunFailsFastOnInvalidConfiguration(t *testing.T) {
 	validRender := func(context.Context, stepInput, []Feedback) (string, error) { return "prompt", nil }
 	caller := &fakeCaller{}
@@ -510,7 +611,7 @@ func TestRunDetailedPreservesOutputOnValidationAndSanitizeFailures(t *testing.T)
 		Validate: func(context.Context, stepInput, stepOutput) (ValidationResult, error) {
 			return ValidationResult{Feedback: []Feedback{{Summary: "https://unsafe.example"}}}, nil
 		},
-		MaxIter: 1,
+		MaxIter: 2,
 	}, stepInput{})
 	assertStepFailure(t, sanitizeResult, err, StageSanitize, ErrUnsafeFeedback, true)
 	if sanitizeResult.Attempts[0].Call.Response.FinalResponse != `{"status":"draft"}` {

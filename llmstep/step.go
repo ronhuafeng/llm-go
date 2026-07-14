@@ -87,8 +87,9 @@ type Attempt[O any] struct {
 	// nil-versus-empty slice shape, published as an isolated snapshot. Generic
 	// values in Call retain ordinary Go value semantics.
 	Validation ValidationResult
-	// RetryFeedback is the sanitizer-owned, iteration-stamped feedback eligible
-	// for the next Render call, published as an isolated snapshot.
+	// RetryFeedback is the sanitizer-owned, iteration-stamped feedback supplied
+	// to the next Render call when another attempt exists, published as an
+	// isolated snapshot.
 	RetryFeedback []Feedback
 	Err           error
 }
@@ -164,6 +165,10 @@ func RunDetailed[I any, O any](ctx context.Context, step Step[I, O], input I) (R
 		if validation.Settled {
 			result.Attempts = append(result.Attempts, attempt)
 			return snapshotResult(result), nil
+		}
+		if iter == step.MaxIter {
+			result.Attempts = append(result.Attempts, attempt)
+			return snapshotResult(result), fmt.Errorf("%w: maxIter=%d", settle.ErrUnsettled, step.MaxIter)
 		}
 
 		retryFeedback, err := sanitize(copyFeedback(validation.Feedback))

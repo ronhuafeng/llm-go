@@ -204,7 +204,7 @@ integers, stages, and errors are copied by normal Go assignment.
 | `llmstep.Result.Attempts` | Toolkit-owned slice snapshot. |
 | `llmstep.Attempt.Feedback` | Toolkit-owned snapshot of the prior retry feedback supplied to this attempt's `Render`. |
 | `llmstep.Attempt.Validation` | Validator decision exactly as returned, including nil-versus-empty slice shape, published as a toolkit-owned isolated snapshot including nested feedback slices. |
-| `llmstep.Attempt.RetryFeedback` | Sanitizer-owned, iteration-stamped model-facing feedback published as a toolkit-owned isolated snapshot. |
+| `llmstep.Attempt.RetryFeedback` | Sanitizer-owned, iteration-stamped model-facing feedback published as a toolkit-owned isolated snapshot only when a subsequent retry exists. |
 | `llmstep.Attempt.Call.Response` | Response evidence following the `llmadapter.Response` rules above. |
 
 ### llmstep
@@ -214,8 +214,11 @@ validation and bounded retries with sanitized validation feedback.
 
 `RunDetailed` records the validator's exact decision in `Attempt.Validation`
 and records sanitized, stamped feedback separately in `Attempt.RetryFeedback`.
-Only `RetryFeedback` is eligible for the next `Render`; sanitization never
-rewrites the validation record.
+Only `RetryFeedback` is eligible for the next `Render`; it is produced only
+when that render will run. A final unsettled attempt keeps `RetryFeedback` nil
+and returns an error wrapping `settle.ErrUnsettled`, even if its validation
+feedback would fail sanitization. Sanitization never rewrites the validation
+record.
 
 Validator decisions are detailed evidence and may be retained, logged, or
 serialized by applications. A validator must not return raw credentials,
@@ -271,6 +274,11 @@ Version 0.3 removes the helpers deprecated in v0.2. See
 Version 0.4 separates exact validator decisions from sanitized model-facing
 retry feedback. See [Migrating to v0.4](docs/v0.4-migration.md) for the field
 semantics and sensitive-feedback boundary.
+
+Version 0.5 limits sanitization to feedback that will reach a real retry; final
+unsettled attempts now return `settle.ErrUnsettled` directly. See
+[Migrating to v0.5](docs/v0.5-migration.md) for the corrected terminal error
+semantics.
 
 ## Versioning
 
