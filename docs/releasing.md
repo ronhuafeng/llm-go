@@ -184,15 +184,19 @@ read-only verification job:
 - validates the original plan, authorization, and all four preflight evidence
   hashes without rebuilding any of them;
 - binds the failed workflow run, artifact, annotated tag and authorization
-  message, peeled commit `14f28b0dd4727f079c02ba3139c326ed249bb86a`, and
-  Draft Release `353873922` with its exact target;
+  message, and peeled commit
+  `14f28b0dd4727f079c02ba3139c326ed249bb86a`;
 - builds `repoctl` from the authorized commit and reruns the same public Proxy,
   checksum, origin, and typed-consumer verification; and
 - uploads diagnostics even when verification fails.
 
-Only after that job succeeds does a separate job receive `contents: write`. It
-revalidates the same Release by ID and reconciles exactly three assets: the
-original release plan, release authorization, and new published evidence.
+The read-only token deliberately does not query a Draft Release: GitHub's
+Release API does not expose Drafts to this workflow token with only
+`contents: read`. Only after source, tag, authorization, and public-artifact
+verification succeeds does a separate job receive `contents: write`. That job
+first reads and typed-validates Draft Release `353873922`, including its exact
+tag and target, before it reconciles exactly three assets: the original release
+plan, release authorization, and new published evidence.
 Expected assets already present are downloaded by asset ID and must have the
 same SHA-256 as this run's evidence; only missing assets are uploaded. An
 unexpected name, duplicate, incomplete upload, or hash mismatch fails closed,

@@ -68,31 +68,31 @@ type recoveryArtifacts struct {
 	} `json:"artifacts"`
 }
 
-func ValidateReleaseRecoveryHostedFacts(contract ReleaseRecoveryContract, runData, artifactsData, draftData, tagObjectData []byte, allowPublished bool) (ReleaseRecoveryDisposition, error) {
-	if contract.Repository == "" || contract.WorkflowPath == "" || contract.SourceRunID <= 0 || contract.ArtifactID <= 0 || contract.ArtifactName == "" || contract.Tag == "" || contract.Commit == "" || contract.DraftReleaseID <= 0 || contract.AuthorizationDigest == "" {
-		return ReleaseRecoveryDisposition{}, fmt.Errorf("release recovery contract is incomplete")
+func ValidateReleaseRecoverySourceFacts(contract ReleaseRecoveryContract, runData, artifactsData, tagObjectData []byte) error {
+	if err := validateReleaseRecoveryContract(contract); err != nil {
+		return err
 	}
 
 	var run recoveryWorkflowRun
 	if err := json.Unmarshal(runData, &run); err != nil {
-		return ReleaseRecoveryDisposition{}, fmt.Errorf("decode source run: %w", err)
+		return fmt.Errorf("decode source run: %w", err)
 	}
 	if run.ID != contract.SourceRunID || run.Repository.FullName != contract.Repository {
-		return ReleaseRecoveryDisposition{}, fmt.Errorf("source run does not match recovery contract")
+		return fmt.Errorf("source run does not match recovery contract")
 	}
 	if run.Event != "workflow_dispatch" || run.Path != contract.WorkflowPath {
-		return ReleaseRecoveryDisposition{}, fmt.Errorf("source workflow does not match recovery contract")
+		return fmt.Errorf("source workflow does not match recovery contract")
 	}
 	if run.HeadSHA != contract.Commit || run.HeadBranch != "main" {
-		return ReleaseRecoveryDisposition{}, fmt.Errorf("source run commit or branch does not match recovery contract")
+		return fmt.Errorf("source run commit or branch does not match recovery contract")
 	}
 	if run.Status != "completed" || run.Conclusion != "failure" {
-		return ReleaseRecoveryDisposition{}, fmt.Errorf("source run is not the completed failed release run")
+		return fmt.Errorf("source run is not the completed failed release run")
 	}
 
 	var artifacts recoveryArtifacts
 	if err := json.Unmarshal(artifactsData, &artifacts); err != nil {
-		return ReleaseRecoveryDisposition{}, fmt.Errorf("decode source artifacts: %w", err)
+		return fmt.Errorf("decode source artifacts: %w", err)
 	}
 	matches := 0
 	for _, artifact := range artifacts.Artifacts {
@@ -101,46 +101,55 @@ func ValidateReleaseRecoveryHostedFacts(contract ReleaseRecoveryContract, runDat
 		}
 		matches++
 		if artifact.Name != contract.ArtifactName || artifact.WorkflowRun.ID != contract.SourceRunID || artifact.WorkflowRun.HeadBranch != "main" || artifact.WorkflowRun.HeadSHA != contract.Commit {
-			return ReleaseRecoveryDisposition{}, fmt.Errorf("source artifact does not match recovery contract")
+			return fmt.Errorf("source artifact does not match recovery contract")
 		}
 		if artifact.Expired {
-			return ReleaseRecoveryDisposition{}, fmt.Errorf("source artifact is expired")
+			return fmt.Errorf("source artifact is expired")
 		}
 	}
 	if matches != 1 {
-		return ReleaseRecoveryDisposition{}, fmt.Errorf("source artifact id %d matched %d artifacts", contract.ArtifactID, matches)
+		return fmt.Errorf("source artifact id %d matched %d artifacts", contract.ArtifactID, matches)
 	}
+	return validateRecoveryTagObject(tagObjectData, contract)
+}
 
-	var draft githubRelease
-	if err := json.Unmarshal(draftData, &draft); err != nil {
+func ValidateReleaseRecoveryReleaseState(contract ReleaseRecoveryContract, releaseData []byte, allowPublished bool) (ReleaseRecoveryDisposition, error) {
+	if err := validateReleaseRecoveryContract(contract); err != nil {
+		return ReleaseRecoveryDisposition{}, err
+	}
+	var release githubRelease
+	if err := json.Unmarshal(releaseData, &release); err != nil {
 		return ReleaseRecoveryDisposition{}, fmt.Errorf("decode Draft Release: %w", err)
 	}
-	if draft.ID != contract.DraftReleaseID || draft.TagName != contract.Tag {
-		return ReleaseRecoveryDisposition{}, fmt.Errorf("Draft Release does not match recovery contract")
+	if release.ID != contract.DraftReleaseID || release.TagName != contract.Tag {
+		return ReleaseRecoveryDisposition{}, fmt.Errorf("Release does not match recovery contract")
 	}
-	if draft.Prerelease {
-		return ReleaseRecoveryDisposition{}, fmt.Errorf("Draft Release is an unexpected prerelease")
+	if release.Prerelease {
+		return ReleaseRecoveryDisposition{}, fmt.Errorf("Release is an unexpected prerelease")
 	}
-	if draft.TargetCommitish != contract.Commit {
-		return ReleaseRecoveryDisposition{}, fmt.Errorf("Draft Release targets %s, want %s", draft.TargetCommitish, contract.Commit)
+	if release.TargetCommitish != contract.Commit {
+		return ReleaseRecoveryDisposition{}, fmt.Errorf("Release targets %s, want %s", release.TargetCommitish, contract.Commit)
 	}
-	disposition := ReleaseRecoveryDisposition{FormatVersion: 1, State: "draft", ReleaseID: draft.ID, AllowMissingAssets: true, Publish: true}
-	if !draft.Draft {
+	disposition := ReleaseRecoveryDisposition{FormatVersion: 1, State: "draft", ReleaseID: release.ID, AllowMissingAssets: true, Publish: true}
+	if !release.Draft {
 		if !allowPublished {
 			return ReleaseRecoveryDisposition{}, fmt.Errorf("Draft Release is already published")
 		}
-		if draft.Name != contract.Tag+" (verified)" {
+		if release.Name != contract.Tag+" (verified)" {
 			return ReleaseRecoveryDisposition{}, fmt.Errorf("published Release title does not match verified terminal state")
 		}
 		disposition.State = "published_verified"
 		disposition.AllowMissingAssets = false
 		disposition.Publish = false
 	}
-
-	if err := validateRecoveryTagObject(tagObjectData, contract); err != nil {
-		return ReleaseRecoveryDisposition{}, err
-	}
 	return disposition, nil
+}
+
+func validateReleaseRecoveryContract(contract ReleaseRecoveryContract) error {
+	if contract.Repository == "" || contract.WorkflowPath == "" || contract.SourceRunID <= 0 || contract.ArtifactID <= 0 || contract.ArtifactName == "" || contract.Tag == "" || contract.Commit == "" || contract.DraftReleaseID <= 0 || contract.AuthorizationDigest == "" {
+		return fmt.Errorf("release recovery contract is incomplete")
+	}
+	return nil
 }
 
 func WriteReleaseRecoveryDisposition(path string, disposition ReleaseRecoveryDisposition) error {

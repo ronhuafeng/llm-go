@@ -114,14 +114,16 @@ remains Draft until the post-tag JSON evidence has been uploaded successfully.
 The one-time `llmkit/v0.6.0` recovery workflow consumes the immutable preflight
 artifact from failed source run `29342863026`; it does not rebuild release
 authorization or receive the release Deploy Key. Typed recovery validation
-binds artifact `8314814782`, the annotated tag message and peeled commit, Draft
-Release `353873922`, and the original authorization digest before the
-authorized-commit `repoctl verify-tag` reruns public-proxy and typed-consumer
-checks. Diagnostics upload with `if: always()`. Only a dependent publish job
-has `contents: write`. It reconciles the exact three expected assets by name
-and downloaded SHA-256 without deletion or overwrite, then publishes the same
-Draft by ID after a second validation. A rerun after a lost PATCH response
-accepts only the exact verified published terminal state with all three assets
-already complete and becomes a no-op; it never uploads to a published Release.
-The publish job independently uploads its reconciliation and PATCH diagnostics
-with `if: always()`.
+binds artifact `8314814782`, the annotated tag message and peeled commit, and
+the original authorization digest before the authorized-commit `repoctl
+verify-tag` reruns public-proxy and typed-consumer checks. This read-only job
+does not call the Release API, because its `contents: read` workflow token
+cannot observe Draft Releases. Diagnostics upload with `if: always()`. Only a
+dependent publish job has `contents: write`; it reads and typed-validates Draft
+Release `353873922`, then reconciles the exact three expected assets by name
+and downloaded SHA-256 without deletion or overwrite. It publishes the same
+Draft by ID after another just-in-time validation. A rerun after a lost PATCH
+response accepts only the exact verified published terminal state with all
+three assets already complete and becomes a no-op; it never uploads to a
+published Release. The publish job independently uploads its reconciliation
+and PATCH diagnostics with `if: always()`.

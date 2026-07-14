@@ -40,8 +40,10 @@ func run(args []string) int {
 		return runVerifyTag(args[1:])
 	case "select-draft-release":
 		return runSelectDraftRelease(args[1:])
-	case "validate-release-recovery":
-		return runValidateReleaseRecovery(args[1:])
+	case "validate-release-recovery-source":
+		return runValidateReleaseRecoverySource(args[1:])
+	case "validate-release-recovery-release":
+		return runValidateReleaseRecoveryRelease(args[1:])
 	case "plan-release-assets":
 		return runPlanReleaseAssets(args[1:])
 	case "verify-release-assets":
@@ -134,38 +136,31 @@ func runSelectDraftRelease(args []string) int {
 	return 0
 }
 
-func runValidateReleaseRecovery(args []string) int {
-	flags := flag.NewFlagSet("validate-release-recovery", flag.ContinueOnError)
+func runValidateReleaseRecoverySource(args []string) int {
+	flags := flag.NewFlagSet("validate-release-recovery-source", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
 	runPath := flags.String("run", "", "source workflow-run JSON path")
 	artifactsPath := flags.String("artifacts", "", "source workflow artifacts JSON path")
-	draftPath := flags.String("draft", "", "Draft Release JSON path")
 	tagObjectPath := flags.String("tag-object", "", "annotated git tag object path")
 	planPath := flags.String("plan", "", "authorized release-plan JSON path")
 	authorizationPath := flags.String("authorization", "", "release authorization JSON path")
 	evidenceDir := flags.String("evidence-dir", "", "directory containing authorized preflight evidence")
-	allowPublished := flags.Bool("allow-published", false, "accept the exact already-published terminal state")
-	output := flags.String("output", "", "typed recovery disposition output path")
-	if !parseFlags(flags, args, "repoctl validate-release-recovery") || *runPath == "" || *artifactsPath == "" || *draftPath == "" || *tagObjectPath == "" || *planPath == "" || *authorizationPath == "" || *evidenceDir == "" || *output == "" {
-		fmt.Fprintln(os.Stderr, "repoctl validate-release-recovery: -run, -artifacts, -draft, -tag-object, -plan, -authorization, -evidence-dir, and -output are required")
+	if !parseFlags(flags, args, "repoctl validate-release-recovery-source") || *runPath == "" || *artifactsPath == "" || *tagObjectPath == "" || *planPath == "" || *authorizationPath == "" || *evidenceDir == "" {
+		fmt.Fprintln(os.Stderr, "repoctl validate-release-recovery-source: -run, -artifacts, -tag-object, -plan, -authorization, and -evidence-dir are required")
 		return 2
 	}
 	read := func(path string) ([]byte, error) { return os.ReadFile(path) }
 	runData, err := read(*runPath)
-	var artifactsData, draftData, tagObjectData []byte
+	var artifactsData, tagObjectData []byte
 	if err == nil {
 		artifactsData, err = read(*artifactsPath)
-	}
-	if err == nil {
-		draftData, err = read(*draftPath)
 	}
 	if err == nil {
 		tagObjectData, err = read(*tagObjectPath)
 	}
 	contract := repository.LLMKitV060RecoveryContract()
-	var disposition repository.ReleaseRecoveryDisposition
 	if err == nil {
-		disposition, err = repository.ValidateReleaseRecoveryHostedFacts(contract, runData, artifactsData, draftData, tagObjectData, *allowPublished)
+		err = repository.ValidateReleaseRecoverySourceFacts(contract, runData, artifactsData, tagObjectData)
 	}
 	var plan repository.ReleasePlan
 	if err == nil {
@@ -178,14 +173,37 @@ func runValidateReleaseRecovery(args []string) int {
 	if err == nil {
 		err = repository.ValidateReleaseRecoveryArtifacts(contract, plan, authorization, *evidenceDir)
 	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "repoctl validate-release-recovery-source: %v\n", err)
+		return 1
+	}
+	fmt.Fprintln(os.Stdout, contract.AuthorizationDigest)
+	return 0
+}
+
+func runValidateReleaseRecoveryRelease(args []string) int {
+	flags := flag.NewFlagSet("validate-release-recovery-release", flag.ContinueOnError)
+	flags.SetOutput(os.Stderr)
+	releasePath := flags.String("release", "", "Draft or published GitHub Release JSON path")
+	allowPublished := flags.Bool("allow-published", false, "accept the exact already-published terminal state")
+	output := flags.String("output", "", "typed recovery disposition output path")
+	if !parseFlags(flags, args, "repoctl validate-release-recovery-release") || *releasePath == "" || *output == "" {
+		fmt.Fprintln(os.Stderr, "repoctl validate-release-recovery-release: -release and -output are required")
+		return 2
+	}
+	data, err := os.ReadFile(*releasePath)
+	var disposition repository.ReleaseRecoveryDisposition
+	if err == nil {
+		disposition, err = repository.ValidateReleaseRecoveryReleaseState(repository.LLMKitV060RecoveryContract(), data, *allowPublished)
+	}
 	if err == nil {
 		err = repository.WriteReleaseRecoveryDisposition(*output, disposition)
 	}
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "repoctl validate-release-recovery: %v\n", err)
+		fmt.Fprintf(os.Stderr, "repoctl validate-release-recovery-release: %v\n", err)
 		return 1
 	}
-	fmt.Fprintln(os.Stdout, contract.AuthorizationDigest)
+	fmt.Fprintln(os.Stdout, disposition.State)
 	return 0
 }
 
@@ -471,5 +489,5 @@ func parseFlags(flags *flag.FlagSet, args []string, command string) bool {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: repoctl <verify|affected|verify-module|verify-checkout|release-plan|finalize-release|authorize-tag|release-notes|verify-tag|select-draft-release|validate-release-recovery|plan-release-assets|verify-release-assets|validate-tag-ref> [options]")
+	fmt.Fprintln(os.Stderr, "usage: repoctl <verify|affected|verify-module|verify-checkout|release-plan|finalize-release|authorize-tag|release-notes|verify-tag|select-draft-release|validate-release-recovery-source|validate-release-recovery-release|plan-release-assets|verify-release-assets|validate-tag-ref> [options]")
 }
