@@ -206,6 +206,11 @@ job uploads its own `if: always()` diagnostic artifact, distinct from verify
 diagnostics, so partial reconciliation, upload responses, pre-PATCH state, and
 typed PATCH validation remain inspectable on failure.
 
+Missing asset names are URL-encoded and posted by exact Draft ID to the
+absolute `https://uploads.github.com/repos/.../releases/{id}/assets` endpoint.
+Do not derive this endpoint with `gh api --hostname uploads.github.com`: that
+form targets the wrong `api.uploads.github.com` host.
+
 If the publish PATCH succeeds but its response is lost, a rerun accepts only
 the exact already-published terminal state: the same release ID, tag, target,
 non-prerelease status, verified title, and three content-matching assets. It

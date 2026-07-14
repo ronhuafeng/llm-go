@@ -242,10 +242,17 @@ jobs:
 
           jq -r '.assets[] | select(.state == "missing") | [.name, .source_path] | @tsv' "$RUNNER_TEMP/recovery-evidence/asset-plan-before.json" > "$RUNNER_TEMP/missing-assets.tsv"
           while IFS=$'\t' read -r name path; do
-            gh api --method POST --hostname uploads.github.com \
-              -H 'Content-Type: application/octet-stream' \
-              "repos/$GITHUB_REPOSITORY/releases/$DRAFT_ID/assets?name=$name" \
-              --input "$path" > "$RUNNER_TEMP/recovery-evidence/upload-$name.json"
+            encoded_name=$(jq -rn --arg value "$name" '$value | @uri')
+            curl --silent --show-error --fail-with-body \
+              --retry 3 --retry-delay 2 --retry-max-time 30 \
+              --request POST \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header 'Accept: application/vnd.github+json' \
+              --header 'X-GitHub-Api-Version: 2022-11-28' \
+              --header 'Content-Type: application/octet-stream' \
+              --data-binary "@$path" \
+              --output "$RUNNER_TEMP/recovery-evidence/upload-$name.json" \
+              "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$DRAFT_ID/assets?name=$encoded_name"
           done < "$RUNNER_TEMP/missing-assets.tsv"
 
           gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases/$DRAFT_ID/assets?per_page=100" > "$RUNNER_TEMP/recovery-evidence/assets-after.json"

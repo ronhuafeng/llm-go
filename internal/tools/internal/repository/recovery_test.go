@@ -166,7 +166,11 @@ func TestReleaseRecoveryWorkflowWiringSmoke(t *testing.T) {
 		"if: always()",
 		"name: llmkit-v0.6.0-release-publish-diagnostics",
 		"contents: write",
-		"uploads.github.com",
+		"encoded_name=$(jq -rn --arg value \"$name\" '$value | @uri')",
+		"https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$DRAFT_ID/assets?name=$encoded_name",
+		"Authorization: Bearer $GH_TOKEN",
+		"--silent --show-error --fail-with-body",
+		"--retry 3",
 		"releases/$DRAFT_ID",
 		"draft=false",
 	} {
@@ -180,7 +184,7 @@ func TestReleaseRecoveryWorkflowWiringSmoke(t *testing.T) {
 	if got := strings.Count(workflow, "if: always()"); got != 2 {
 		t.Errorf("recovery always-diagnostic uploads = %d, want verify and publish jobs", got)
 	}
-	for _, forbidden := range []string{"RELEASE_DEPLOY_KEY", "ssh-key:", "git tag ", "git push ", "git tag -d", "gh release delete", "--method DELETE", "length == 0", "release-plan -root", "finalize-release", "authorize-tag"} {
+	for _, forbidden := range []string{"RELEASE_DEPLOY_KEY", "ssh-key:", "git tag ", "git push ", "git tag -d", "gh release delete", "--method DELETE", "gh api --method POST --hostname uploads.github.com", "length == 0", "release-plan -root", "finalize-release", "authorize-tag"} {
 		if strings.Contains(workflow, forbidden) {
 			t.Errorf("recovery workflow contains forbidden mutation/authorization pattern %q", forbidden)
 		}
