@@ -1,6 +1,6 @@
 # Security Policy
 
-`codexsdk-go` is experimental and currently pre-1.0. Security fixes are handled
+`codexsdk` is experimental and currently pre-1.0. Security fixes are handled
 on the supported default branch and should be released as soon as practical.
 
 ## Reporting a Vulnerability
@@ -8,7 +8,7 @@ on the supported default branch and should be released as soon as practical.
 Please do not publish exploitable details in a public issue.
 
 Use GitHub private vulnerability reporting:
-https://github.com/ronhuafeng/codexsdk-go/security/advisories/new
+https://github.com/ronhuafeng/llm-go/security/advisories/new
 
 If private reporting is not available, open a minimal public issue asking only
 for a private channel. Do not include sensitive details, proofs of exploit,

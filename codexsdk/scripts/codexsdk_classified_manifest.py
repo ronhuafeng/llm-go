@@ -83,7 +83,7 @@ def generate_package(schema_root: Path, output: Path) -> Path:
         [
             "go",
             "run",
-            "./codexsdk/internal/cmd/protocolv2gen",
+            "./internal/cmd/protocolv2gen",
             "-schema-root",
             str(schema_root),
             "-out",
@@ -100,7 +100,7 @@ def classify_surface(stable_source: Path, complete_source: Path) -> list[dict[st
         [
             "go",
             "run",
-            "./codexsdk/internal/cmd/protocolv2gen",
+            "./internal/cmd/protocolv2gen",
             "-stdout",
             "classified-surface",
             "-stable-source",

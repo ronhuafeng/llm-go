@@ -6,10 +6,10 @@ Use this file as context for local sync decisions. It is not a linear playbook. 
 
 Source of truth:
 
-- checked-in schema baseline: `codexsdk/internal/protocolschema/appserver/v2`
+- checked-in schema baseline: `internal/protocolschema/appserver/v2`
 - metadata: `baseline_metadata.json`
 - manifest and coverage: `manifest.json`, `coverage_matrix.json`
-- generated Go: `codexsdk/protocolv2/*.gen.go`, `codexsdk/sdk_surface.gen.go`
+- generated Go: `protocolv2/*.gen.go`, `sdk_surface.gen.go`
 
 Record selected upstream provenance as:
 
@@ -82,9 +82,9 @@ Use `scripts/codexsdk_apply_sync_candidate.py` for mechanical candidate applicat
 
 Expected mechanical sync surface includes:
 
-- `codexsdk/internal/protocolschema/appserver/v2/**` for schema JSON, baseline metadata, manifest, coverage, and checked-in clean drift reports
-- `codexsdk/protocolv2/*.gen.go`
-- `codexsdk/sdk_surface.gen.go`
+- `internal/protocolschema/appserver/v2/**` for schema JSON, baseline metadata, manifest, coverage, and checked-in clean drift reports
+- `protocolv2/*.gen.go`
+- `sdk_surface.gen.go`
 
 Handwritten SDK, test, or doc changes are justified only when they preserve compatibility, expose already-supported stable surface, fix an existing facade broken by new schema, update tests/docs for real user-visible behavior, or are explicitly authorized by the user. Without reviewed drift evidence or explicit authorization, keep them out of the sync commit.
 

@@ -156,6 +156,17 @@ func TestLegacyAPIInventoryMappingIsExact(t *testing.T) {
 	}
 }
 
+func TestCodexSDKLegacyAPIInventoryMappingIncludesFlattenedRoot(t *testing.T) {
+	legacy := []byte("type github.com/ronhuafeng/codexsdk-go/codexsdk.Client struct{}\n" +
+		"type github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2.Turn struct{}\n")
+	want := []byte("type github.com/ronhuafeng/llm-go/codexsdk.Client struct{}\n" +
+		"type github.com/ronhuafeng/llm-go/codexsdk/protocolv2.Turn struct{}\n")
+	got := mapAPIInventory(legacy, "github.com/ronhuafeng/codexsdk-go/codexsdk", "github.com/ronhuafeng/llm-go/codexsdk")
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("mapped SDK inventory = %q, want %q", got, want)
+	}
+}
+
 func TestReleaseWorkflowWiringSmoke(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
 	if err != nil {

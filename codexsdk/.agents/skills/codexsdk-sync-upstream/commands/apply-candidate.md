@@ -20,7 +20,7 @@ Checks:
 - Apply result JSON parses.
 - `common.rs` source SHA matches the target SHA, and content is verified from `target_sha:codex-rs/app-server-protocol/src/protocol/common.rs` when an upstream clone is available.
 - Changed files from separate git diff/status evidence stay inside the allowed sync surface.
-- Mechanical sync surface is limited to `codexsdk/internal/protocolschema/appserver/v2/**`, `codexsdk/protocolv2/*.gen.go`, and `codexsdk/sdk_surface.gen.go`; handwritten SDK, tests, or docs require reviewed drift evidence or explicit user authorization.
+- Mechanical sync surface is limited to `internal/protocolschema/appserver/v2/**`, `protocolv2/*.gen.go`, and `sdk_surface.gen.go`; handwritten SDK, tests, or docs require reviewed drift evidence or explicit user authorization.
 - Candidate provenance still matches target.
 
 Output:

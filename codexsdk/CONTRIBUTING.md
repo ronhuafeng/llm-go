@@ -1,10 +1,10 @@
 # Contributing
 
-Thanks for helping make `codexsdk-go` boringly dependable.
+Thanks for improving the exact Codex SDK in the `llm-go` repository.
 
 ## Development Setup
 
-Use Go 1.23 or newer. If you work inside a larger local `go.work`, run release
+Use Go 1.23 or newer. Clone `llm-go`, enter `codexsdk`, and run standalone
 checks with `GOWORK=off` so the module is tested the way outside users consume
 it.
 
@@ -26,9 +26,9 @@ Check generated protocol code reproducibility:
 
 ```sh
 tmp="$(mktemp -d)"
-GOWORK=off go run ./codexsdk/internal/cmd/protocolv2gen -out "$tmp"
-diff -u codexsdk/protocolv2/method_registry.gen.go "$tmp/method_registry.gen.go"
-diff -u codexsdk/protocolv2/protocol_types.gen.go "$tmp/protocol_types.gen.go"
+GOWORK=off go run ./internal/cmd/protocolv2gen -out "$tmp"
+diff -u protocolv2/method_registry.gen.go "$tmp/method_registry.gen.go"
+diff -u protocolv2/protocol_types.gen.go "$tmp/protocol_types.gen.go"
 ```
 
 ## Public Surface
@@ -48,11 +48,11 @@ When updating the Codex app-server schema baseline:
 1. Generate drift artifacts with `scripts/codexsdk_track_upstream.sh`.
 2. Review upstream changes against the checked-in manifest and coverage matrix.
 3. Copy only reviewed schema and metadata updates into
-   `codexsdk/internal/protocolschema/appserver/v2`.
+   `internal/protocolschema/appserver/v2`.
 4. Keep provenance public and auditable: use upstream URLs, commit hashes,
    license identifiers, and repo-relative paths. Do not check in local absolute
    paths.
-5. Regenerate `codexsdk/protocolv2/*.gen.go`.
+5. Regenerate `protocolv2/*.gen.go`.
 6. Run gofmt, vet, tests, and generated-code reproducibility checks.
 7. Update `CHANGELOG.md`, `NOTICE`, and `docs/release.md` if the legal,
    compatibility, or maintenance story changed.
@@ -68,7 +68,7 @@ The real smoke test is opt-in:
 ```sh
 CODEXSDK_REAL_APP_SERVER_SMOKE=1 \
 CODEXSDK_REAL_APP_SERVER_MODEL=<model> \
-GOWORK=off go test ./codexsdk -run TestRealAppServerSmokeStartResumeFork -count=1
+GOWORK=off go test . -run TestRealAppServerSmokeStartResumeFork -count=1
 ```
 
 Use a disposable workspace and an approval policy appropriate for the test. Do

@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "module": "codexsdk",
+  "impact": "minor",
+  "breaking": true,
+  "summary": "Flatten the exact Codex SDK at github.com/ronhuafeng/llm-go/codexsdk without changing generated facts, API shape, lifecycle behavior, or evidence.",
+  "issue": 12,
+  "migration": "docs/migration/v0.6.0.md"
+}

@@ -1,0 +1,99 @@
+{
+  "description": "Deterministic rules used to upgrade the aggregate schema skeleton into the Phase 1B classified manifest.",
+  "facade_target_rule": {
+    "client_notification": "root_internal_overrides first; otherwise ClientNotifications().<Rust variant name>",
+    "client_request": "root_internal_overrides first; otherwise <family accessor>.<PascalCase method suffix>; root family methods use root_operation_overrides",
+    "family_accessors": {
+      "account": "Accounts()",
+      "app": "Apps()",
+      "applyPatchApproval": "ServerRequests()",
+      "collaborationMode": "CollaborationModes()",
+      "command": "Commands()",
+      "config": "Config()",
+      "configRequirements": "ConfigRequirements()",
+      "configWarning": "ServerNotifications()",
+      "deprecationNotice": "ServerNotifications()",
+      "error": "ServerNotifications()",
+      "execCommandApproval": "ServerRequests()",
+      "experimentalFeature": "ExperimentalFeatures()",
+      "externalAgentConfig": "ExternalAgentConfigs()",
+      "feedback": "Feedback()",
+      "fs": "FS()",
+      "fuzzyFileSearch": "FuzzyFileSearch()",
+      "guardianWarning": "ServerNotifications()",
+      "hook": "Hooks()",
+      "hooks": "Hooks()",
+      "initialize": "Initialize()",
+      "initialized": "ClientNotifications()",
+      "marketplace": "Marketplace()",
+      "mcpServer": "MCPServers()",
+      "mcpServerStatus": "MCPServerStatus()",
+      "memory": "Memory()",
+      "mock": "Mock()",
+      "model": "Models()",
+      "modelProvider": "ModelProviders()",
+      "plugin": "Plugins()",
+      "process": "Processes()",
+      "remoteControl": "RemoteControl()",
+      "review": "Reviews()",
+      "serverRequest": "ServerRequests()",
+      "skills": "Skills()",
+      "thread": "Threads()",
+      "turn": "Turns()",
+      "warning": "ServerNotifications()",
+      "windows": "Windows()",
+      "windowsSandbox": "WindowsSandbox()",
+      "attestation": "ServerRequests()",
+      "environment": "Environments()",
+      "permissionProfile": "PermissionProfiles()"
+    },
+    "root_internal_overrides": {
+      "initialize": "internal.InitializeHandshake.Request",
+      "initialized": "internal.InitializeHandshake.InitializedNotification"
+    },
+    "root_operation_overrides": {
+      "applyPatchApproval": "ApplyPatchApproval",
+      "configWarning": "ConfigWarning",
+      "deprecationNotice": "DeprecationNotice",
+      "error": "Error",
+      "execCommandApproval": "ExecCommandApproval",
+      "fuzzyFileSearch": "Search",
+      "guardianWarning": "GuardianWarning",
+      "initialize": "Initialize",
+      "initialized": "Initialized",
+      "warning": "Warning"
+    },
+    "server_notification": "ServerNotifications().<Rust variant name>",
+    "server_request": "ServerRequests().<Rust variant name>"
+  },
+  "facade_status_rule": {
+    "deferred_missing_generated_types": "The facade target is intentionally omitted only while one or more method constant, params type, or response type prerequisites are absent; generation fails once all prerequisites exist.",
+    "generated": "The facade target must have a method constant and every referenced protocol type; missing prerequisites fail generation."
+  },
+  "inputs": {
+    "experimental_baseline": "internal/protocolschema/appserver/v2",
+    "experimental_schema_command": "codex app-server generate-json-schema --experimental --out <tmpdir>",
+    "response_mapping_source": "codex-rs/app-server-protocol/src/protocol/common.rs",
+    "source_repo": "https://github.com/openai/codex",
+    "source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+    "stable_schema_command": "codex app-server generate-json-schema --out <tmpdir>",
+    "source_ref_name": "rust-v0.144.1",
+    "source_ref_kind": "stable_rust_tag"
+  },
+  "non_goals": [
+    "This file does not generate protocolv2 Go code.",
+    "This file does not create raw passthrough support."
+  ],
+  "response_schema_rule": {
+    "client_request": "Use common.rs client_request_definitions response type for checked-in baseline methods; resolve to checked-in schema file path.",
+    "notification": "No response schema; response_schema_status is not_applicable.",
+    "server_request": "Use common.rs server_request_definitions response type for checked-in baseline methods; resolve to checked-in schema file path."
+  },
+  "schema_version": 1,
+  "stability_rule": {
+    "field": "present_in_stable_schema if the same top-level field path exists in stable snapshot; experimental_only_in_schema otherwise.",
+    "method": "present_in_stable_schema if present in schema generated without --experimental; experimental_only_in_schema otherwise.",
+    "type": "present_in_stable_schema if schema file exists in stable snapshot; experimental_only_in_schema otherwise."
+  },
+  "status": "classified-manifest-rules"
+}

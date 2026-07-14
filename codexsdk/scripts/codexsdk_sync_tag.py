@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from typing import Any
 
 
-METADATA_PATH = "codexsdk/internal/protocolschema/appserver/v2/baseline_metadata.json"
+METADATA_PATH = "internal/protocolschema/appserver/v2/baseline_metadata.json"
 PREFIX = "upstream-codex"
 RUST_TAG_RE = re.compile(r"^rust-v[0-9]+[.][0-9]+[.][0-9]+$")
 

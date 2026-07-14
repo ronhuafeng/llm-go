@@ -13,6 +13,9 @@ This skill is context and routing, not orchestration. It gives Codex the domain 
 
 Use canonical scripts for deterministic work. Use Codex judgment for classification, repair decisions, focused validation choices, and recovery routing.
 
+All command and source paths in this skill are relative to the `codexsdk`
+module root. In the monorepo checkout, enter `codexsdk/` before running them.
+
 ## Completion Layers
 
 Report the highest completed layer precisely:

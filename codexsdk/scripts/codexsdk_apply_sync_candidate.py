@@ -26,7 +26,7 @@ import codexsdk_classified_manifest as classified_manifest
 import codexsdk_release_report as release_report
 
 
-DEFAULT_BASELINE = Path("codexsdk/internal/protocolschema/appserver/v2")
+DEFAULT_BASELINE = Path("internal/protocolschema/appserver/v2")
 COMMON_RS_REF = "codex-rs/app-server-protocol/src/protocol/common.rs"
 
 FAMILY_ACCESSORS = {
@@ -536,7 +536,7 @@ def build_metadata(root: Path, old: dict[str, Any], target_ref: str, target_kind
         "codex_version": codex_version,
         "experimental_included": True,
         "generated_at": datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
-        "generation_command": "codex app-server generate-json-schema --experimental --out codexsdk/internal/protocolschema/appserver/v2",
+        "generation_command": "codex app-server generate-json-schema --experimental --out internal/protocolschema/appserver/v2",
         "schema_bundle_sha256": schema_utils.schema_bundle_sha256(root),
         "schema_file_count": len(schema_utils.schema_files(root)),
         "schema_output_layout": "root JSON files plus v1/ and v2/",
@@ -572,7 +572,7 @@ def write_clean_reports(
         source_ref_kind=target_kind,
         codex_version=codex_version,
         generator="cargo",
-        generator_detail="codex app-server generate-json-schema --experimental --out codexsdk/internal/protocolschema/appserver/v2",
+        generator_detail="codex app-server generate-json-schema --experimental --out internal/protocolschema/appserver/v2",
     )
     drift["target"]["schema_bundle_sha256"] = schema_utils.schema_bundle_sha256(root)
     drift["generated_compatibility"] = generated_compatibility
@@ -662,7 +662,7 @@ def main() -> int:
 
     if not args.skip_codegen:
         subprocess.run(
-            ["go", "run", "./codexsdk/internal/cmd/protocolv2gen"],
+            ["go", "run", "./internal/cmd/protocolv2gen"],
             cwd=Path.cwd(),
             env={**dict(os.environ), "GOWORK": "off"},
             check=True,

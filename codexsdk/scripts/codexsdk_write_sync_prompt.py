@@ -9,7 +9,7 @@ from string import Template
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_TEMPLATE = REPO_ROOT / ".github/prompts/codexsdk-upstream-sync-repair.md"
+DEFAULT_TEMPLATE = REPO_ROOT / ".agents/prompts/codexsdk-upstream-sync-repair.md"
 
 
 def build_prompt(

@@ -17,7 +17,7 @@ func TestAffectedPlanUsesChangedPathsAndDeclaredRelationships(t *testing.T) {
 		want  []string
 	}{
 		{name: "toolkit closes over adapter", paths: []string{"llmkit/llmstep/step.go"}, want: []string{"codex-adapter", "llmkit"}},
-		{name: "SDK closes over adapter", paths: []string{"codexsdk/codexsdk/client.go"}, want: []string{"codex-adapter", "codexsdk"}},
+		{name: "SDK closes over adapter", paths: []string{"codexsdk/client.go"}, want: []string{"codex-adapter", "codexsdk"}},
 		{name: "adapter is a leaf", paths: []string{"llmcaller/codex/caller.go"}, want: []string{"codex-adapter"}},
 		{name: "tools remain isolated", paths: []string{"internal/tools/cmd/repoctl/main.go"}, want: []string{"repo-tools"}},
 		{name: "root orchestration affects all", paths: []string{"go.work"}, want: []string{"codex-adapter", "codexsdk", "llmkit", "repo-tools"}},
