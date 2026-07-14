@@ -193,10 +193,10 @@ func TestReleaseWorkflowWiringSmoke(t *testing.T) {
 		"needs: [preflight, post-tag]",
 		"published-evidence.json",
 		"gh release edit \"$TAG\"",
-		"validate-draft-release -input \"$release_json\" -tag \"$TAG\"",
+		"gh api --paginate --slurp \"repos/$GITHUB_REPOSITORY/releases?per_page=100\"",
+		"select-draft-release -input \"$releases_json\" -tag \"$TAG\" -target \"$COMMIT\"",
 		"validate-tag-ref -input \"$tag_refs\" -tag \"$TAG\" -commit \"$COMMIT\"",
-		"200:0)",
-		"404:*)",
+		"3)",
 	} {
 		if !strings.Contains(workflow, required) {
 			t.Errorf("release workflow missing wiring %q", required)
@@ -230,6 +230,9 @@ func TestReleaseWorkflowWiringSmoke(t *testing.T) {
 	}
 	if strings.Contains(workflow, "inputs.proxy") || strings.Contains(workflow, "inputs.sumdb") || strings.Contains(workflow, "proxy,direct") {
 		t.Error("release workflow exposes or weakens the exclusive public proxy policy")
+	}
+	if strings.Contains(workflow, "/releases/tags/") {
+		t.Error("Draft lookup must use the authenticated releases list because get-by-tag hides Draft Releases")
 	}
 	if got := strings.Count(workflow, "secrets.RELEASE_DEPLOY_KEY"); got != 2 {
 		t.Errorf("release Deploy Key secret references = %d, want only presence validation and checkout SSH auth", got)
@@ -477,26 +480,42 @@ func TestReleaseTracerFailsClosedForOtherModules(t *testing.T) {
 	}
 }
 
-func TestValidateDraftReleaseSupportsExactRerunOnly(t *testing.T) {
+func TestSelectDraftReleaseSupportsExactRerunOnly(t *testing.T) {
 	tag := "llmkit/v0.6.0"
-	commit := strings.Repeat("a", 40)
-	exact := []byte(`{"id":42,"tag_name":"llmkit/v0.6.0","target_commitish":"main","draft":true,"prerelease":false,"unknown":"ignored"}`)
-	if err := ValidateDraftRelease(exact, tag); err != nil {
+	commit := "14f28b0dd4727f079c02ba3139c326ed249bb86a"
+	exact := []byte(`[[{"id":42,"tag_name":"other/v1.0.0","target_commitish":"main","draft":false},{"id":353873922,"tag_name":"llmkit/v0.6.0","target_commitish":"` + commit + `","draft":true,"prerelease":false,"unknown":"ignored"}],[]]`)
+	id, err := SelectDraftRelease(exact, tag, commit)
+	if err != nil {
 		t.Fatalf("reuse exact Draft Release: %v", err)
+	}
+	if id != 353873922 {
+		t.Fatalf("selected release id = %d, want 353873922", id)
 	}
 	tests := []struct {
 		name string
 		json string
 		want string
 	}{
-		{name: "published", json: `{"id":42,"tag_name":"llmkit/v0.6.0","target_commitish":"main","draft":false}`, want: "already published"},
-		{name: "wrong tag", json: `{"id":42,"tag_name":"llmkit/v0.6.1","target_commitish":"main","draft":true}`, want: "does not match"},
-		{name: "prerelease", json: `{"id":42,"tag_name":"llmkit/v0.6.0","target_commitish":"main","draft":true,"prerelease":true}`, want: "unexpected prerelease"},
+		{name: "published", json: `[[{"id":42,"tag_name":"llmkit/v0.6.0","target_commitish":"` + commit + `","draft":false}]]`, want: "already published"},
+		{name: "prerelease", json: `[[{"id":42,"tag_name":"llmkit/v0.6.0","target_commitish":"` + commit + `","draft":true,"prerelease":true}]]`, want: "unexpected prerelease"},
+		{name: "wrong target", json: `[[{"id":42,"tag_name":"llmkit/v0.6.0","target_commitish":"main","draft":true}]]`, want: "targets"},
+		{name: "missing id", json: `[[{"id":0,"tag_name":"llmkit/v0.6.0","target_commitish":"` + commit + `","draft":true}]]`, want: "invalid id"},
+		{name: "duplicate", json: `[[{"id":42,"tag_name":"llmkit/v0.6.0","target_commitish":"` + commit + `","draft":true}],[{"id":43,"tag_name":"llmkit/v0.6.0","target_commitish":"` + commit + `","draft":true}]]`, want: "multiple"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if err := ValidateDraftRelease([]byte(test.json), tag); err == nil || !strings.Contains(err.Error(), test.want) {
-				t.Fatalf("ValidateDraftRelease error = %v, want %q", err, test.want)
+			if _, err := SelectDraftRelease([]byte(test.json), tag, commit); err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("SelectDraftRelease error = %v, want %q", err, test.want)
+			}
+		})
+	}
+	for name, data := range map[string][]byte{
+		"empty pages":     []byte(`[]`),
+		"only other tags": []byte(`[[{"id":42,"tag_name":"llmkit/v0.6.1","target_commitish":"` + commit + `","draft":true}]]`),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := SelectDraftRelease(data, tag, commit); !errors.Is(err, ErrDraftReleaseNotFound) {
+				t.Fatalf("SelectDraftRelease error = %v, want ErrDraftReleaseNotFound", err)
 			}
 		})
 	}

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -89,11 +90,15 @@ type changeFragment struct {
 }
 
 type githubRelease struct {
-	ID         int64  `json:"id"`
-	TagName    string `json:"tag_name"`
-	Draft      bool   `json:"draft"`
-	Prerelease bool   `json:"prerelease"`
+	ID              int64  `json:"id"`
+	TagName         string `json:"tag_name"`
+	TargetCommitish string `json:"target_commitish"`
+	Name            string `json:"name"`
+	Draft           bool   `json:"draft"`
+	Prerelease      bool   `json:"prerelease"`
 }
+
+var ErrDraftReleaseNotFound = errors.New("matching Draft Release not found")
 
 // BuildReleasePlan verifies the source facts that authorize exactly one tag.
 func BuildReleasePlan(root, moduleID, targetVersion, requiredCommit, mainRef string) (ReleasePlan, error) {
@@ -684,24 +689,46 @@ func ReleaseNotes(plan ReleasePlan) (string, error) {
 	return notes.String(), nil
 }
 
-// ValidateDraftRelease permits a rerun to reuse only the exact unverified
-// release created for this immutable tag. The remote peeled tag independently
-// owns commit identity because GitHub ignores target_commitish for existing tags.
-func ValidateDraftRelease(data []byte, tag string) error {
-	var release githubRelease
-	if err := json.Unmarshal(data, &release); err != nil {
-		return fmt.Errorf("decode GitHub Release: %w", err)
+// SelectDraftRelease finds exactly one release for tag in the authenticated,
+// paginated GitHub Releases list. GitHub's get-release-by-tag endpoint hides
+// Draft Releases, so it cannot own rerun discovery. The remote peeled tag still
+// independently owns immutable commit identity.
+func SelectDraftRelease(data []byte, tag, target string) (int64, error) {
+	if tag == "" || target == "" {
+		return 0, fmt.Errorf("Draft Release tag and target are required")
 	}
-	if release.ID <= 0 || release.TagName != tag {
-		return fmt.Errorf("GitHub Release does not match tag %s", tag)
+	var pages [][]githubRelease
+	if err := json.Unmarshal(data, &pages); err != nil {
+		return 0, fmt.Errorf("decode paginated GitHub Releases: %w", err)
+	}
+	matches := make([]githubRelease, 0, 1)
+	for _, page := range pages {
+		for _, release := range page {
+			if release.TagName == tag {
+				matches = append(matches, release)
+			}
+		}
+	}
+	if len(matches) == 0 {
+		return 0, fmt.Errorf("%w for tag %s", ErrDraftReleaseNotFound, tag)
+	}
+	if len(matches) != 1 {
+		return 0, fmt.Errorf("multiple GitHub Releases match tag %s", tag)
+	}
+	release := matches[0]
+	if release.ID <= 0 {
+		return 0, fmt.Errorf("GitHub Release for %s has invalid id", tag)
 	}
 	if !release.Draft {
-		return fmt.Errorf("GitHub Release for %s is already published; forward-only release automation will not modify it", tag)
+		return 0, fmt.Errorf("GitHub Release for %s is already published; forward-only release automation will not modify it", tag)
 	}
 	if release.Prerelease {
-		return fmt.Errorf("GitHub Release for %s is an unexpected prerelease", tag)
+		return 0, fmt.Errorf("GitHub Release for %s is an unexpected prerelease", tag)
 	}
-	return nil
+	if release.TargetCommitish != target {
+		return 0, fmt.Errorf("GitHub Release for %s targets %s, want %s", tag, release.TargetCommitish, target)
+	}
+	return release.ID, nil
 }
 
 func ValidateRemoteTagRefs(data []byte, tag, commit string) error {
