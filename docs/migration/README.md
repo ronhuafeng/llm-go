@@ -40,3 +40,10 @@ and can copy colliding legacy `v*` refs into this repository. After each fetch,
 verify that no unplanned root `v*` tag exists before any push. The source tag
 object and commit remain reachable through the custom provenance ref and merge
 ancestry; only the colliding tag ref is excluded.
+
+The committed raw tag-object payloads under `docs/migration/tag-objects/` are
+durable, offline evidence for the final annotated legacy tags. Provenance
+verification recomputes each Git tag object ID from those exact bytes and
+requires its `tag` and `object` headers to match the manifest's tag and source
+commit. These evidence files do not create Git refs and therefore cannot
+collide with the new repository's path-prefixed tag namespaces.
