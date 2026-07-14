@@ -1,11 +1,12 @@
-# llmkit-go
+# llmkit
 
 Provider-neutral typed LLM operations and the evidence they publish to callers.
 
 ## Language
 
 **Toolkit-owned state**:
-Provider-neutral request and result state whose representation llmkit-go owns and can publish as an isolated snapshot.
+Provider-neutral request and result state whose representation `llmkit` owns
+and can publish as an isolated snapshot.
 _Avoid_: Immutable result
 
 **Provider details**:

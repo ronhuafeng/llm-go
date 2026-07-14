@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ronhuafeng/llmkit-go/settle"
+	"github.com/ronhuafeng/llm-go/llmkit/settle"
 )
 
 type keywords struct {

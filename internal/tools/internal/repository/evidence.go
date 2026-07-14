@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"archive/zip"
 	"bytes"
 	"fmt"
 	"go/format"
@@ -11,6 +12,9 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+
+	modmodule "golang.org/x/mod/module"
+	modzip "golang.org/x/mod/zip"
 )
 
 const evidenceFormatVersion = 1
@@ -143,6 +147,11 @@ func VerifyModule(root, moduleID, stage string) (Evidence, error) {
 		if err == nil {
 			err = verifyAPISurface(recorder, runner, candidate.ID)
 		}
+		if err == nil && candidate.Published && strings.HasPrefix(candidate.path, "github.com/ronhuafeng/llm-go/") {
+			err = recorder.check("module archive boundaries", []string{"go", "module", "archive", "<module source>"}, func() error {
+				return verifyModuleArchive(moduleRoot, candidate, registered)
+			})
+		}
 		if err == nil && candidate.ID == "codexsdk" {
 			command := []string{"./scripts/codexsdk_validate_sync.sh"}
 			err = recorder.check("module-owned SDK generator validation", command, func() error {
@@ -156,6 +165,48 @@ func VerifyModule(root, moduleID, stage string) (Evidence, error) {
 		})
 	}
 	return recorder.evidence, err
+}
+
+func verifyModuleArchive(moduleRoot string, candidate module, registered registry) error {
+	temporary, err := os.CreateTemp("", "llm-go-module-*.zip")
+	if err != nil {
+		return err
+	}
+	archivePath := temporary.Name()
+	defer os.Remove(archivePath)
+	version := modmodule.Version{Path: candidate.path, Version: "v0.0.0"}
+	if err := modzip.CreateFromDir(temporary, version, moduleRoot); err != nil {
+		temporary.Close()
+		return fmt.Errorf("create module archive: %w", err)
+	}
+	if err := temporary.Close(); err != nil {
+		return err
+	}
+
+	archive, err := zip.OpenReader(archivePath)
+	if err != nil {
+		return err
+	}
+	defer archive.Close()
+	prefix := candidate.path + "@v0.0.0/"
+	for _, file := range archive.File {
+		if !strings.HasPrefix(file.Name, prefix) {
+			return fmt.Errorf("module archive entry %q has wrong prefix", file.Name)
+		}
+		relative := strings.TrimPrefix(file.Name, prefix)
+		if relative == "go.work" || relative == "go.work.sum" || relative == registryFilename || strings.HasPrefix(relative, ".github/") || strings.HasPrefix(relative, "internal/tools/") {
+			return fmt.Errorf("module archive contains repository-only path %s", relative)
+		}
+		for _, sibling := range registered.Modules {
+			if sibling.ID == candidate.ID || sibling.ID == "repo-tools" {
+				continue
+			}
+			if relative == sibling.Dir || strings.HasPrefix(relative, sibling.Dir+"/") {
+				return fmt.Errorf("module archive contains sibling module path %s", relative)
+			}
+		}
+	}
+	return nil
 }
 
 func VerifyCheckout(root string, plan AffectedPlan) (Evidence, error) {
@@ -215,10 +266,16 @@ func VerifyCheckout(root string, plan AffectedPlan) (Evidence, error) {
 		return recorder.evidence, err
 	}
 	if plan.WorkspaceRequired {
-		workspaceRunner := commandRunner{directory: root, environment: map[string]string{"GOWORK": filepath.Join(root, "go.work")}}
 		command := []string{"go", "test", "./llmcaller/codex/llmcaller/codex", "-run", "^TestThreeLayerCanaryFast$", "-count=1", "-v"}
-		if err = recorder.check("workspace three-layer canary", command, func() error {
-			return workspaceRunner.run(command...)
+		name := "workspace three-layer canary"
+		if !adapterUsesCurrentWorkspaceModules(registered) {
+			name = "staged legacy-path adapter canary"
+			recorder.evidence.DoesNotProve = append(recorder.evidence.DoesNotProve,
+				"current three-module workspace composition while module identities are staged",
+			)
+		}
+		if err = recorder.check(name, command, func() error {
+			return runWorkspaceCanary(root, command)
 		}); err != nil {
 			return recorder.evidence, err
 		}
@@ -241,6 +298,55 @@ func VerifyCheckout(root string, plan AffectedPlan) (Evidence, error) {
 		return recorder.evidence, err
 	}
 	return recorder.evidence, nil
+}
+
+func adapterUsesCurrentWorkspaceModules(registered registry) bool {
+	adapter, ok := findModule(registered, "codex-adapter")
+	if !ok {
+		return false
+	}
+	required := make(map[string]bool, len(adapter.requires))
+	for _, path := range adapter.requires {
+		required[path] = true
+	}
+	for _, id := range []string{"llmkit", "codexsdk"} {
+		candidate, ok := findModule(registered, id)
+		if !ok || !required[candidate.path] {
+			return false
+		}
+	}
+	return true
+}
+
+func runWorkspaceCanary(root string, command []string) (err error) {
+	data, err := os.ReadFile(filepath.Join(root, "go.work"))
+	if err != nil {
+		return fmt.Errorf("read workspace: %w", err)
+	}
+	workspace, err := os.CreateTemp(root, ".repoctl-*.work")
+	if err != nil {
+		return fmt.Errorf("create temporary workspace: %w", err)
+	}
+	workspacePath := workspace.Name()
+	defer func() {
+		for _, path := range []string{workspacePath, workspacePath + ".sum"} {
+			if removeErr := os.Remove(path); removeErr != nil && !os.IsNotExist(removeErr) && err == nil {
+				err = fmt.Errorf("remove temporary workspace metadata: %w", removeErr)
+			}
+		}
+	}()
+	if _, err = workspace.Write(data); err != nil {
+		workspace.Close()
+		return fmt.Errorf("write temporary workspace: %w", err)
+	}
+	if err = workspace.Close(); err != nil {
+		return fmt.Errorf("close temporary workspace: %w", err)
+	}
+	runner := commandRunner{directory: root, environment: map[string]string{
+		"GOFLAGS": "-mod=readonly",
+		"GOWORK":  workspacePath,
+	}}
+	return runner.run(command...)
 }
 
 func resolveTree(root, commit string) (string, error) {

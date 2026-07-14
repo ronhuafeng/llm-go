@@ -19,10 +19,18 @@ separate environments:
 
 Every module subprocess uses `GOWORK=off`. The current checkout is separately
 verified by `repoctl verify-checkout`, which runs the repository boundary
-contract, the fast three-layer workspace canary, and one isolated consumer per
-affected public module. Each consumer replaces only the module under test with
-its checkout directory; its upstream requirements remain those declared by the
-module.
+contract, the fast adapter canary, and one isolated consumer per affected
+public module. The canary is named three-layer workspace evidence only when the
+adapter requires the current checkout identities of both upstream modules.
+During staged path migration it is explicitly recorded as a legacy-path adapter
+canary and does not claim current three-module composition. Each consumer
+replaces only the module under test with its checkout directory; its upstream
+requirements remain those declared by the module.
+
+The workspace canary uses read-only module metadata through an ephemeral copy
+of `go.work`; any transient workspace sums are removed with that copy. It must
+not create or update the repository's `go.work.sum`, because checkout
+verification proves one immutable source identity before and after all checks.
 
 The non-published repository tool has its own Go toolchain contract. Minimum-Go
 jobs therefore build `repoctl` with current Go before switching the job to the

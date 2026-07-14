@@ -30,10 +30,4 @@
 // Trace-rich business provider adapters may use RequestFor and still call a
 // provider SDK directly when they must preserve provider-specific diagnostics,
 // lineage, artifacts, or failure mapping.
-//
-// Deprecated: This legacy module is frozen at v0.5.0 and receives no further
-// feature or security maintenance after cutover. Use
-// github.com/ronhuafeng/llm-go/llmkit/llmadapter, first released in
-// llmkit/v0.6.0. Published legacy versions remain available through the public
-// Go proxy; no forwarding or runtime compatibility layer is provided.
 package llmadapter

@@ -1,14 +1,8 @@
-# llmkit-go
+# llmkit
 
 Provider-neutral Go primitives for typed LLM programming.
 
-> **Important:** This legacy module is frozen at `v0.5.0`. Development has
-> moved to `github.com/ronhuafeng/llm-go/llmkit`, whose first release is
-> `llmkit/v0.6.0`. This repository receives no further feature or security
-> maintenance after the cutover. See the
-> [llm-go migration guide](docs/llm-go-migration.md).
-
-`llmkit-go` is a small toolkit for code that wants structured LLM output
+`llmkit` is a small toolkit for code that wants structured LLM output
 without taking a dependency on a specific model provider SDK. It focuses on
 four stable boundaries:
 
@@ -17,26 +11,28 @@ four stable boundaries:
 - `llmadapter`: one provider-neutral typed call with execution evidence.
 - `llmstep`: typed validation-feedback retries with stage-specific history.
 
-Concrete provider callers live in separate modules. This repository does not
+Concrete provider callers live in separate modules. This module does not
 own provider transport, provider credentials, prompt libraries, tracing
 backends, or business validation rules.
 
 ## Status
 
-`v0.5.0` is the final release from this legacy module path. New consumers
-should use `github.com/ronhuafeng/llm-go/llmkit@v0.6.0`. Existing consumers
-should follow the [llm-go migration guide](docs/llm-go-migration.md); the
-migration changes import paths but adds no forwarding or runtime compatibility
-layer.
+The module path is `github.com/ronhuafeng/llm-go/llmkit`. Its planned first
+monorepo release is `llmkit/v0.6.0`, continuing the legacy toolkit's pre-v1
+lineage. That tag is not yet published or public-proxy verified; consumers
+should remain on the legacy release until the protected release gate passes.
+Consumers of `github.com/ronhuafeng/llmkit-go@v0.5.0` should follow the
+[v0.6 migration guide](docs/migration/v0.6.0.md). The migration changes only
+module and import paths; it adds no forwarding or runtime compatibility layer.
 
 ## Packages
 
 | Package | Purpose | Provider dependencies |
 | --- | --- | --- |
-| `github.com/ronhuafeng/llmkit-go/settle` | Run and validate bounded candidates while preserving stage-specific attempt history. | Standard library only. |
-| `github.com/ronhuafeng/llmkit-go/llmschema` | Project Go output types to provider-neutral JSON Schema, validate responses, and decode typed values. | Uses JSON Schema projection and validation libraries. |
-| `github.com/ronhuafeng/llmkit-go/llmadapter` | Build one typed request, preserve provider-neutral execution evidence, and decode the final value. | Depends on `llmschema`; no concrete provider SDK. |
-| `github.com/ronhuafeng/llmkit-go/llmstep` | Run typed validation-feedback retries while preserving every request/call/decode/validation stage. | Depends on `llmadapter` and `settle`; no concrete provider SDK. |
+| `github.com/ronhuafeng/llm-go/llmkit/settle` | Run and validate bounded candidates while preserving stage-specific attempt history. | Standard library only. |
+| `github.com/ronhuafeng/llm-go/llmkit/llmschema` | Project Go output types to provider-neutral JSON Schema, validate responses, and decode typed values. | Uses JSON Schema projection and validation libraries. |
+| `github.com/ronhuafeng/llm-go/llmkit/llmadapter` | Build one typed request, preserve provider-neutral execution evidence, and decode the final value. | Depends on `llmschema`; no concrete provider SDK. |
+| `github.com/ronhuafeng/llm-go/llmkit/llmstep` | Run typed validation-feedback retries while preserving every request/call/decode/validation stage. | Depends on `llmadapter` and `settle`; no concrete provider SDK. |
 
 The `internal/` tree contains repository tests and is not public API.
 
@@ -44,8 +40,10 @@ The `internal/` tree contains repository tests and is not public API.
 
 Requires Go 1.23 or newer.
 
+After `llmkit/v0.6.0` is published and public-proxy verified, install it with:
+
 ```sh
-go get github.com/ronhuafeng/llmkit-go@v0.5.0
+go get github.com/ronhuafeng/llm-go/llmkit@v0.6.0
 ```
 
 ## Quick Start
@@ -63,7 +61,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ronhuafeng/llmkit-go/settle"
+	"github.com/ronhuafeng/llm-go/llmkit/settle"
 )
 
 type op struct {
@@ -102,7 +100,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/ronhuafeng/llmkit-go/llmschema"
+	"github.com/ronhuafeng/llm-go/llmkit/llmschema"
 )
 
 type Verdict struct {
@@ -138,7 +136,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ronhuafeng/llmkit-go/llmadapter"
+	"github.com/ronhuafeng/llm-go/llmkit/llmadapter"
 )
 
 type staticCaller struct{}
@@ -289,60 +287,53 @@ semantics.
 
 ## Versioning
 
-Releases are tagged as standard Go module tags. The final legacy release is:
+Releases use directory-prefixed Go module tags:
 
-```sh
-VERSION=v0.5.0
-git tag -a "$VERSION" -m "llmkit-go $VERSION"
-git push origin "$VERSION"
+```text
+llmkit/vX.Y.Z
 ```
 
-See [docs/release.md](docs/release.md) for the release checklist.
+The planned first tag is `llmkit/v0.6.0`. Production tags are created only by
+the protected repository release workflow from an approved, digest-bound plan.
+See [docs/release.md](docs/release.md) for the module release contract.
 
 ## Testing
 
 Run the same checks used by CI:
 
 ```sh
-gofmt -w $(find . -name '*.go' -not -path './vendor/*')
 test -z "$(gofmt -l $(find . -name '*.go' -not -path './vendor/*'))"
-go vet ./...
-go test ./...
-```
-
-If this repository is inside a larger local `go.work`, use `GOWORK=off` to
-verify it as a standalone module:
-
-```sh
+GOWORK=off go mod tidy -diff
+GOWORK=off go vet ./...
 GOWORK=off go test ./...
+GOWORK=off go test -race ./...
 ```
+
+`GOWORK=off` is required even when the repository workspace is available;
+these checks prove that the published module is independently consumable.
 
 ## Security
 
-This frozen repository receives no security maintenance after cutover. For
-sensitive reports, continue to use this repository's
-[private vulnerability reporting](https://github.com/ronhuafeng/llmkit-go/security/advisories/new)
-until the successor repository publishes its own confidential intake policy.
-This intake path does not make published legacy versions supported. See
-[SECURITY.md](SECURITY.md).
+Do not open public issues with exploit details. Use the llm-go repository's
+[private vulnerability reporting](https://github.com/ronhuafeng/llm-go/security/advisories/new).
+Supported-version details are in [SECURITY.md](SECURITY.md).
 
 ## License and Dependency Provenance
 
-`llmkit-go` is released under the MIT License. See [LICENSE](LICENSE).
+`llmkit` is released under the MIT License. See [LICENSE](LICENSE).
 
 Dependency provenance is tracked in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 and should be reviewed before each release.
 
 ## Contributing
 
-This repository is frozen. Migration, release-record, and archive corrections
-may still be considered, but feature and security work belongs in
+Toolkit work belongs to this module within
 [`ronhuafeng/llm-go`](https://github.com/ronhuafeng/llm-go). See
-[CONTRIBUTING.md](CONTRIBUTING.md) for the narrow legacy scope.
+[CONTRIBUTING.md](CONTRIBUTING.md) for scope and validation requirements.
 
 ## Related Modules
 
-The successor toolkit remains provider-neutral at
-`github.com/ronhuafeng/llm-go/llmkit`. Provider-specific callers, SDK wrappers,
-application policy, and business validation live in separate modules; see the
-[llm-go migration guide](docs/llm-go-migration.md) for exact paths.
+Codex transport and exact lifecycle facts live in
+`github.com/ronhuafeng/llm-go/codexsdk`. The Codex adapter and its provider
+policy live in `github.com/ronhuafeng/llm-go/llmcaller/codex`. Application
+policy and business validation remain consumer-owned.

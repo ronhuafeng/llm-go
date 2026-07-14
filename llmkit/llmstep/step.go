@@ -8,8 +8,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/ronhuafeng/llmkit-go/llmadapter"
-	"github.com/ronhuafeng/llmkit-go/settle"
+	"github.com/ronhuafeng/llm-go/llmkit/llmadapter"
+	"github.com/ronhuafeng/llm-go/llmkit/settle"
 )
 
 // ErrUnsafeFeedback reports validation feedback rejected by a sanitizer.

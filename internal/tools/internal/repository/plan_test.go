@@ -80,6 +80,74 @@ func TestEvidenceSeparatesCheckoutFromPublishedArtifacts(t *testing.T) {
 	}
 }
 
+func TestModuleArchiveRejectsRepositoryOnlyPaths(t *testing.T) {
+	registered := planningFixture()
+	candidate, ok := findModule(registered, "llmkit")
+	if !ok {
+		t.Fatal("missing fixture module")
+	}
+	root := t.TempDir()
+	writeFile(t, root, "go.mod", "module example.com/kit\n\ngo 1.23.0\n")
+	writeFile(t, root, "kit.go", "package kit\n")
+	if err := verifyModuleArchive(root, candidate, registered); err != nil {
+		t.Fatalf("clean module archive: %v", err)
+	}
+	writeFile(t, root, ".github/workflows/ci.yml", "name: legacy\n")
+	if err := verifyModuleArchive(root, candidate, registered); err == nil || !strings.Contains(err.Error(), "repository-only path") {
+		t.Fatalf("repository path error = %v", err)
+	}
+}
+
+func TestModuleArchiveRejectsSiblingModulePaths(t *testing.T) {
+	registered := planningFixture()
+	candidate, ok := findModule(registered, "llmkit")
+	if !ok {
+		t.Fatal("missing fixture module")
+	}
+	root := t.TempDir()
+	writeFile(t, root, "go.mod", "module example.com/kit\n\ngo 1.23.0\n")
+	writeFile(t, root, "codexsdk/copied.go", "package codexsdk\n")
+	if err := verifyModuleArchive(root, candidate, registered); err == nil || !strings.Contains(err.Error(), "sibling module path") {
+		t.Fatalf("sibling path error = %v", err)
+	}
+}
+
+func TestWorkspaceCanaryUsesEphemeralWorkspaceMetadata(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "go.work", "go 1.23.0\n")
+	command := []string{"go", "env", "GOWORK"}
+	if err := runWorkspaceCanary(root, command); err != nil {
+		t.Fatal(err)
+	}
+	matches, err := filepath.Glob(filepath.Join(root, ".repoctl-*.work*"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(matches) != 0 {
+		t.Fatalf("temporary workspace residue: %v", matches)
+	}
+}
+
+func TestAdapterUsesCurrentWorkspaceModules(t *testing.T) {
+	registered := planningFixture()
+	if !adapterUsesCurrentWorkspaceModules(registered) {
+		t.Fatal("fixture adapter should use current toolkit and SDK paths")
+	}
+	adapter, ok := findModule(registered, "codex-adapter")
+	if !ok {
+		t.Fatal("missing adapter")
+	}
+	adapter.requires[0] = "example.com/legacy-kit"
+	for index := range registered.Modules {
+		if registered.Modules[index].ID == adapter.ID {
+			registered.Modules[index] = adapter
+		}
+	}
+	if adapterUsesCurrentWorkspaceModules(registered) {
+		t.Fatal("legacy toolkit requirement must not claim current composition")
+	}
+}
+
 func TestSourceIdentityRejectsTrackedAndUntrackedChanges(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "tracked.txt", "original\n")

@@ -1,19 +1,12 @@
 # Contributing
 
-> **Repository frozen:** `v0.5.0` is the final release from this legacy module
-> path. Feature and security maintenance has moved to
-> [`ronhuafeng/llm-go`](https://github.com/ronhuafeng/llm-go), where the toolkit
-> module begins at `llmkit/v0.6.0`.
-
-Thanks for helping keep the `llmkit-go` migration record accurate.
+Thanks for improving the provider-neutral toolkit in the `llm-go` repository.
 
 ## Project scope
 
-This repository is limited to migration guidance, final-release records, and
-archive corrections. Do not open feature, dependency-upgrade, security-fix, or
-public API work here. Apply ongoing toolkit work to
-`github.com/ronhuafeng/llm-go/llmkit` and follow that repository's contribution
-policy.
+This module owns typed schemas and decoding, provider-neutral call evidence,
+bounded settling, and validation-feedback retries. It does not own provider
+transport, Codex policy, credentials, prompt libraries, or business validation.
 
 Public packages are:
 
@@ -22,53 +15,48 @@ Public packages are:
 - `llmadapter`
 - `llmstep`
 
-The `internal/` tree is private implementation and repository test support.
+The `internal/` tree is private module implementation and test support. Do not
+introduce imports from the sibling `codexsdk` module or repository tooling.
 
 ## Development setup
 
 Requires Go 1.23 or newer.
 
 ```sh
-git clone https://github.com/ronhuafeng/llmkit-go.git
-cd llmkit-go
-go test ./...
-```
-
-If you are working from a parent directory that has a `go.work`, run standalone
-checks with:
-
-```sh
+git clone https://github.com/ronhuafeng/llm-go.git
+cd llm-go/llmkit
 GOWORK=off go test ./...
 ```
 
-## Before opening a legacy correction
+The repository workspace is useful for composition tests, but standalone
+module checks must use `GOWORK=off`.
+
+## Before opening a change
 
 Run:
 
 ```sh
-gofmt -w $(find . -name '*.go' -not -path './vendor/*')
-go vet ./...
-go test ./...
+test -z "$(gofmt -l $(find . -name '*.go' -not -path './vendor/*'))"
+GOWORK=off go mod tidy -diff
+GOWORK=off go vet ./...
+GOWORK=off go test ./...
+GOWORK=off go test -race ./...
 ```
 
-Runtime behavior changes are out of scope. Documentation-only corrections do
-not need tests unless they update examples that should compile.
+Public changes must update the canonical API inventory, behavior tests,
+`CHANGELOG.md`, module documentation, and a structured change fragment as
+applicable. Breaking changes require module-local migration guidance.
 
-## API freeze
+## API review
 
-Do not change the exported API at this legacy module path. The final public
-surface is the `v0.5.0` tag. See [Migrating to llm-go](docs/llm-go-migration.md)
-for exact replacement imports.
-
-## Dependency freeze
-
-Do not add or upgrade dependencies in this repository. Dependency maintenance
-belongs in the successor module.
+The canonical public inventory is
+`internal/architecture/testdata/handwritten-api.txt`. Treat any diff as an API
+review, not incidental test churn. Simple APIs remain exact projections of
+detailed APIs, and provider-neutral abstractions must not discard evidence.
 
 ## Security
 
-Do not include credentials, private prompts, customer data, or local absolute
-paths in code, tests, docs, fixtures, or examples. This frozen repository does
-not receive security fixes after cutover. Until the successor repository
-publishes its own confidential intake policy, use this repository's private
-vulnerability reporting for sensitive disclosures; see [SECURITY.md](SECURITY.md).
+Do not include credentials, private prompts, customer data, local absolute
+paths, or generated build artifacts in code, tests, docs, fixtures, or
+examples. Report vulnerabilities through the confidential process in
+[SECURITY.md](SECURITY.md).

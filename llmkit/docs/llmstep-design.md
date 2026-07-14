@@ -79,7 +79,7 @@ package llmstep
 import (
     "context"
 
-    "github.com/ronhuafeng/llmkit-go/llmadapter"
+    "github.com/ronhuafeng/llm-go/llmkit/llmadapter"
 )
 
 type Feedback struct {
