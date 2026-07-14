@@ -22,6 +22,7 @@ type module struct {
 	Dir       string `json:"dir"`
 	Published bool   `json:"published"`
 	path      string
+	goVersion string
 	requires  []string
 	replaces  []moduleReplacement
 	excludes  []string

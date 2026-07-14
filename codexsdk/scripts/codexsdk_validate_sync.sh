@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Validation must not dirty a source checkout with Python bytecode caches.
+export PYTHONDONTWRITEBYTECODE=1
+
 usage() {
   cat <<'EOF'
 Usage:
@@ -52,6 +55,7 @@ if [[ -n "${unformatted_go}" ]]; then
 fi
 GOWORK=off go vet ./...
 GOWORK=off go test ./...
+python3 -m unittest discover -s scripts -p '*_test.py'
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "${tmp}"' EXIT

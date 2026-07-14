@@ -30,3 +30,15 @@ func Verify(root string) error {
 	sort.Strings(violations)
 	return fmt.Errorf("repository contract violations:\n- %s", strings.Join(violations, "\n- "))
 }
+
+func loadPopulatedRegistry(root string) (registry, error) {
+	registered, err := loadRegistry(root)
+	if err != nil {
+		return registry{}, err
+	}
+	if violations := verifyRegisteredModules(root, &registered); len(violations) != 0 {
+		sort.Strings(violations)
+		return registry{}, fmt.Errorf("module registry violations:\n- %s", strings.Join(violations, "\n- "))
+	}
+	return registered, nil
+}

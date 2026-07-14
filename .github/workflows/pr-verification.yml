@@ -1,0 +1,204 @@
+name: PR verification
+
+on:
+  pull_request:
+  merge_group:
+    types: [checks_requested]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-verification-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    name: Affected modules
+    runs-on: ubuntu-latest
+    outputs:
+      public_modules: ${{ steps.plan.outputs.public_modules }}
+    steps:
+      - name: Check out candidate source
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Set up current Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache-dependency-path: internal/tools/go.sum
+      - name: Compute typed affected-module plan
+        id: plan
+        working-directory: internal/tools
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || format('{0}^', github.sha) }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          GOWORK: "off"
+        run: |
+          go run ./cmd/repoctl affected -root ../.. -base "$BASE_SHA" -head "$HEAD_SHA" -output ../../affected-plan.json
+          echo "public_modules=$(jq -c '.public_modules' ../../affected-plan.json)" >> "$GITHUB_OUTPUT"
+      - name: Upload affected-module plan
+        uses: actions/upload-artifact@v7
+        with:
+          name: affected-plan
+          path: affected-plan.json
+
+  minimum:
+    name: Minimum Go (${{ matrix.module.id }})
+    needs: plan
+    if: needs.plan.outputs.public_modules != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        module: ${{ fromJSON(needs.plan.outputs.public_modules) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Set up current Go for repository tooling
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache-dependency-path: internal/tools/go.sum
+      - name: Build repository tool outside the checkout
+        working-directory: internal/tools
+        env:
+          GOWORK: "off"
+        run: go build -o "$RUNNER_TEMP/repoctl" ./cmd/repoctl
+      - name: Set up module minimum Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.module.minimum_go }}
+          cache-dependency-path: ${{ matrix.module.dir }}/go.sum
+      - name: Verify standalone module on minimum Go
+        working-directory: internal/tools
+        run: >-
+          "$RUNNER_TEMP/repoctl" verify-module -root ../..
+          -module "${{ matrix.module.id }}" -stage minimum
+          -evidence "../../evidence-${{ matrix.module.id }}-minimum.json"
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: evidence-${{ matrix.module.id }}-minimum
+          path: evidence-${{ matrix.module.id }}-minimum.json
+
+  current:
+    name: Current Go (${{ matrix.module.id }})
+    needs: plan
+    if: needs.plan.outputs.public_modules != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        module: ${{ fromJSON(needs.plan.outputs.public_modules) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache-dependency-path: ${{ matrix.module.dir }}/go.sum
+      - name: Verify standalone module on current Go
+        working-directory: internal/tools
+        env:
+          GOWORK: "off"
+        run: >-
+          go run ./cmd/repoctl verify-module -root ../..
+          -module "${{ matrix.module.id }}" -stage current
+          -evidence "../../evidence-${{ matrix.module.id }}-current.json"
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: evidence-${{ matrix.module.id }}-current
+          path: evidence-${{ matrix.module.id }}-current.json
+
+  race:
+    name: Race (${{ matrix.module.id }})
+    needs: plan
+    if: needs.plan.outputs.public_modules != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        module: ${{ fromJSON(needs.plan.outputs.public_modules) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache-dependency-path: ${{ matrix.module.dir }}/go.sum
+      - name: Verify standalone module with race detector
+        working-directory: internal/tools
+        env:
+          GOWORK: "off"
+        run: >-
+          go run ./cmd/repoctl verify-module -root ../..
+          -module "${{ matrix.module.id }}" -stage race
+          -evidence "../../evidence-${{ matrix.module.id }}-race.json"
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: evidence-${{ matrix.module.id }}-race
+          path: evidence-${{ matrix.module.id }}-race.json
+
+  checkout:
+    name: Checkout composition
+    needs: plan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache-dependency-path: |
+            internal/tools/go.sum
+            llmkit/go.sum
+            codexsdk/go.sum
+            llmcaller/codex/go.sum
+      - uses: actions/download-artifact@v8
+        with:
+          name: affected-plan
+      - name: Verify checkout contracts and composition
+        working-directory: internal/tools
+        run: >-
+          go run ./cmd/repoctl verify-checkout -root ../..
+          -plan ../../affected-plan.json -evidence ../../evidence-checkout.json
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: evidence-checkout
+          path: evidence-checkout.json
+
+  required:
+    name: PR verification
+    if: always()
+    needs: [plan, minimum, current, race, checkout]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every applicable verification stage
+        env:
+          PLAN: ${{ needs.plan.result }}
+          MINIMUM: ${{ needs.minimum.result }}
+          CURRENT: ${{ needs.current.result }}
+          RACE: ${{ needs.race.result }}
+          CHECKOUT: ${{ needs.checkout.result }}
+        run: |
+          test "$PLAN" = success
+          test "$CHECKOUT" = success
+          test "$MINIMUM" = success -o "$MINIMUM" = skipped
+          test "$CURRENT" = success -o "$CURRENT" = skipped
+          test "$RACE" = success -o "$RACE" = skipped
