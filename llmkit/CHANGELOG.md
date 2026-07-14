@@ -1,0 +1,116 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+This project follows Semantic Versioning. Before v1.0.0, breaking public API
+changes may occur in minor releases, but they must be documented here.
+
+## [Unreleased]
+
+This legacy module is frozen. Development continues at
+`github.com/ronhuafeng/llm-go/llmkit`; no further feature or security releases
+are planned here.
+
+## [0.5.0] - 2026-07-14
+
+### Deprecated
+
+- Froze `github.com/ronhuafeng/llmkit-go` at its final legacy release. The
+  replacement module is `github.com/ronhuafeng/llm-go/llmkit`, beginning with
+  `llmkit/v0.6.0`. This repository receives no feature or security maintenance
+  after cutover; published versions remain available through the public Go
+  proxy. See [Migrating to llm-go](docs/llm-go-migration.md).
+
+### Changed
+
+- **Breaking semantic change:** an unsettled final
+  `llmstep` attempt now preserves its validator-owned `Validation`, leaves
+  `RetryFeedback` unset, and returns `settle.ErrUnsettled` without invoking the
+  feedback sanitizer. Sanitizer rejection remains a sanitize-stage error only
+  when another render would actually run.
+
+- Strengthened tag verification to resolve releases exclusively through the
+  public Go proxy with distinct probe and clean-consumer caches, bounded
+  propagation retry, exact version and integrity checks, and reviewable
+  immutable-tag evidence.
+
+See [Migrating to v0.5](docs/v0.5-migration.md) for the corrected terminal
+error and detailed-evidence semantics.
+
+## [0.4.1] - 2026-07-13
+
+### Changed
+
+- Marked the implemented v0.2 refactor proposal as historical and
+  non-normative. Current API and release governance now rely on the mechanical
+  API inventory, public behavior and architecture tests, clean consumer,
+  SemVer policy, changelog, and migration guidance.
+- Changed the API inventory to ignore private struct fields while continuing
+  to reject unrecorded exported declarations, fields, and methods.
+
+## [0.4.0] - 2026-07-13
+
+### Changed
+
+- **Breaking semantic change (pre-v1):** `llmstep.Attempt` now records validator-owned `Validation` separately from
+  sanitizer-owned, iteration-stamped `RetryFeedback`. Only retry feedback is
+  supplied to the next render; sanitizer output no longer overwrites detailed
+  validator evidence. The safety contract now requires applications to redact,
+  omit, or deliberately pseudonymize sensitive validator facts before returning
+  them.
+
+See [Migrating to v0.4](docs/v0.4-migration.md) for the detailed-result field
+semantics and sensitive-feedback boundary.
+
+## [0.3.0] - 2026-07-13
+
+### Removed
+
+- Removed the v0.2-deprecated `llmschema.DecodeString`,
+  `llmadapter.Options`, `llmadapter.Op`, `llmadapter.NewOp`, `settle.Bind`, and
+  `settle.Runner` helper surface for v0.3.
+- Removed `llmadapter.ErrNilRender`, which was used only by the removed legacy
+  adapter operation. `llmstep.ErrNilRender` remains available for `llmstep`.
+
+See [Migrating to v0.3](docs/v0.3-migration.md) for replacements. These are
+intentional pre-v1 breaking changes.
+
+## [0.2.0] - 2026-07-11
+
+### Added
+
+- Detailed provider-neutral call results with execution evidence, typed
+  provider details, explicit request/call/decode errors, and partial response
+  preservation.
+- Schema-enforced structured-output decoding with stable typed violations.
+- Detailed `settle` and `llmstep` results that preserve candidate and failure
+  history through validation errors and retry exhaustion.
+- A canonical `go/types` allowlist for the handwritten public API.
+
+### Changed
+
+- `Value`, `settle.Run`, and `llmstep.Run` are projections of their detailed
+  counterparts and return the same error while retaining available output.
+- `llmstep` records request, call, decode, validation, and sanitizer failures
+  without retaining rendered prompts or raw model output in validation errors.
+
+### Deprecated
+
+- `llmschema.DecodeString`; use `Decode`.
+- `llmadapter.Options`, `Op`, and `NewOp`; use `llmstep` or implement
+  `settle.Op` directly.
+- `settle.Bind` and `Runner`; call `Run` or `RunDetailed` directly.
+
+## [0.1.0] - 2026-06-11
+
+### Added
+
+- Initial public release.
+- `settle` bounded stable loop primitive.
+- `llmschema` Go type to structured output JSON Schema projection and decode.
+- `llmadapter` provider-neutral typed request and value helpers.
+- Open-source project documentation, including contribution, security, support,
+  release, code of conduct, issue templates, pull request template, and
+  third-party dependency provenance guidance.
+- GitHub Actions CI for formatting, vet, and tests.
+- Dependabot configuration for Go modules and GitHub Actions.

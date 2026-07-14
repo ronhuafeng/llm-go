@@ -1,10 +1,9 @@
 # Migration status
 
-The complete frozen `codexsdk-go` and `llmcaller-codex-go` histories are now
-reachable from this repository through their recorded relocation and merge
-edges. The `llmkit-go` history remains pending its final legacy release and
-provenance baseline. No replacement module tag is available from this
-repository yet.
+The complete frozen `llmkit-go`, `codexsdk-go`, and `llmcaller-codex-go`
+histories are now reachable from this repository through their recorded pure
+relocation commits and independent merge edges. No replacement module tag is
+available from this repository yet.
 
 The accepted sequencing and completion gates are defined by the
 [target design](../architecture/DESIGN.md) and its
@@ -32,3 +31,12 @@ to imported commits and reopen any ticket whose own completion evidence is
 absent. Do not treat tracker state alone as proof that an import ticket or its
 dependents are complete; verify the destination tree, provenance entry, and
 merge ancestry first.
+
+## Legacy tag namespace hygiene
+
+Fetch a source tag into its custom provenance ref with `git fetch --no-tags`.
+A custom destination ref alone does not disable Git's tag auto-follow behavior
+and can copy colliding legacy `v*` refs into this repository. After each fetch,
+verify that no unplanned root `v*` tag exists before any push. The source tag
+object and commit remain reachable through the custom provenance ref and merge
+ancestry; only the colliding tag ref is excluded.
