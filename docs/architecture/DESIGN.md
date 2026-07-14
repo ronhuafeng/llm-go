@@ -226,7 +226,7 @@ llmcaller/codex/vX.Y.Z
 The first new releases are:
 
 ```text
-llmkit/v0.5.0
+llmkit/v0.6.0
 codexsdk/v0.6.0
 llmcaller/codex/v0.5.0
 ```
@@ -244,7 +244,7 @@ fragments into module-local changelogs and release notes.
 The final legacy migration versions are:
 
 ```text
-llmkit-go@v0.4.2
+llmkit-go@v0.5.0
 codexsdk-go@v0.5.1
 llmcaller-codex-go@v0.4.2
 ```
@@ -264,7 +264,7 @@ The execution order is:
 
 1. Bootstrap the new repository.
 2. Freeze the legacy repositories.
-3. Publish their final migration patches; each migration-specific release
+3. Publish their final migration releases; each migration-specific release
    commit is documentation-only, while pre-freeze unreleased changes remain
    visible in changelog and provenance evidence.
 4. Import each complete history through its pure relocation commit and merge

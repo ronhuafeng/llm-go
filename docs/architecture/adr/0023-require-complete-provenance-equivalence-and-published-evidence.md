@@ -49,7 +49,7 @@ artifact evidence.
 The first verified chain is:
 
 ```text
-llmkit/v0.5.0
+llmkit/v0.6.0
 codexsdk/v0.6.0
         |
         v
@@ -66,7 +66,8 @@ llmcaller/codex/v0.5.0
 
 ## Cutover
 
-- Final legacy documentation patches are proxy-available.
+- Final legacy migration releases are proxy-available; each
+  migration-preparation commit remains documentation-only.
 - Import mappings, migration guides, changelogs, and release notes are complete.
 - Legacy repositories become archived and read-only only after all replacement
   modules are verified.
