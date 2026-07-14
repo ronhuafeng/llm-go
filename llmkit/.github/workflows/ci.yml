@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+env:
+  GOWORK: "off"
+
+jobs:
+  minimum-go:
+    name: Minimum Go (1.23.0)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.23.0"
+          cache: true
+      - run: go mod download
+      - run: go vet ./...
+      - run: go test ./...
+
+  stable-go:
+    name: Stable Go (ordinary)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: true
+      - name: Verify formatting
+        run: |
+          files="$(gofmt -l $(find . -name '*.go' -not -path './vendor/*'))"
+          test -z "$files" || { echo "$files"; exit 1; }
+      - run: go vet ./...
+      - run: go test ./...
+
+  race:
+    name: Race
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: true
+      - run: go test -race ./...
+
+  module-hygiene:
+    name: Module hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: true
+      - name: Verify standalone module metadata and notices
+        env:
+          BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
+        run: ./scripts/ci/verify-module-hygiene.sh "$BASE_REF"
+
+  api-contract:
+    name: API and clean consumer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: true
+      - name: Verify canonical API and provider boundaries
+        run: go test ./internal/architecture
+      - name: Compile and run a fresh downstream caller
+        run: ./scripts/ci/verify-clean-consumer.sh local "$GITHUB_WORKSPACE"

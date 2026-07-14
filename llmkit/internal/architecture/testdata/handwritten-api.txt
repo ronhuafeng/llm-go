@@ -1,0 +1,57 @@
+const github.com/ronhuafeng/llmkit-go/llmadapter.ValueStageCall github.com/ronhuafeng/llmkit-go/llmadapter.ValueStage
+const github.com/ronhuafeng/llmkit-go/llmadapter.ValueStageDecode github.com/ronhuafeng/llmkit-go/llmadapter.ValueStage
+const github.com/ronhuafeng/llmkit-go/llmadapter.ValueStageRequest github.com/ronhuafeng/llmkit-go/llmadapter.ValueStage
+const github.com/ronhuafeng/llmkit-go/llmstep.StageCall github.com/ronhuafeng/llmkit-go/llmstep.Stage
+const github.com/ronhuafeng/llmkit-go/llmstep.StageDecode github.com/ronhuafeng/llmkit-go/llmstep.Stage
+const github.com/ronhuafeng/llmkit-go/llmstep.StageRender github.com/ronhuafeng/llmkit-go/llmstep.Stage
+const github.com/ronhuafeng/llmkit-go/llmstep.StageRequest github.com/ronhuafeng/llmkit-go/llmstep.Stage
+const github.com/ronhuafeng/llmkit-go/llmstep.StageSanitize github.com/ronhuafeng/llmkit-go/llmstep.Stage
+const github.com/ronhuafeng/llmkit-go/llmstep.StageValidate github.com/ronhuafeng/llmkit-go/llmstep.Stage
+const github.com/ronhuafeng/llmkit-go/settle.StageRun github.com/ronhuafeng/llmkit-go/settle.Stage
+const github.com/ronhuafeng/llmkit-go/settle.StageValidate github.com/ronhuafeng/llmkit-go/settle.Stage
+func github.com/ronhuafeng/llmkit-go/llmadapter.RequestFor[T any](prompt string) (github.com/ronhuafeng/llmkit-go/llmadapter.Request, error)
+func github.com/ronhuafeng/llmkit-go/llmadapter.ValueDetailed[T any](ctx context.Context, caller github.com/ronhuafeng/llmkit-go/llmadapter.Caller, prompt string) (github.com/ronhuafeng/llmkit-go/llmadapter.ValueResult[T], error)
+func github.com/ronhuafeng/llmkit-go/llmadapter.Value[T any](ctx context.Context, caller github.com/ronhuafeng/llmkit-go/llmadapter.Caller, prompt string) (T, error)
+func github.com/ronhuafeng/llmkit-go/llmschema.Decode[T any](data []byte) (T, error)
+func github.com/ronhuafeng/llmkit-go/llmschema.SchemaJSONFor[T any]() (encoding/json.RawMessage, error)
+func github.com/ronhuafeng/llmkit-go/llmstep.RunDetailed[I, O any](ctx context.Context, step github.com/ronhuafeng/llmkit-go/llmstep.Step[I, O], input I) (github.com/ronhuafeng/llmkit-go/llmstep.Result[O], error)
+func github.com/ronhuafeng/llmkit-go/llmstep.Run[I, O any](ctx context.Context, step github.com/ronhuafeng/llmkit-go/llmstep.Step[I, O], input I) (O, error)
+func github.com/ronhuafeng/llmkit-go/llmstep.StrictFeedbackSanitizer(feedback []github.com/ronhuafeng/llmkit-go/llmstep.Feedback) ([]github.com/ronhuafeng/llmkit-go/llmstep.Feedback, error)
+func github.com/ronhuafeng/llmkit-go/settle.RunDetailed[I, O any](ctx context.Context, op github.com/ronhuafeng/llmkit-go/settle.Op[I, O], input I, maxIter int) (github.com/ronhuafeng/llmkit-go/settle.Result[O], error)
+func github.com/ronhuafeng/llmkit-go/settle.Run[I, O any](ctx context.Context, op github.com/ronhuafeng/llmkit-go/settle.Op[I, O], input I, maxIter int) (O, error)
+method github.com/ronhuafeng/llmkit-go/llmadapter.ValueError.Errorfunc() string
+method github.com/ronhuafeng/llmkit-go/llmadapter.ValueError.Unwrapfunc() error
+method github.com/ronhuafeng/llmkit-go/llmschema.SchemaValidationError.Errorfunc() string
+method github.com/ronhuafeng/llmkit-go/llmstep.StepError.Errorfunc() string
+method github.com/ronhuafeng/llmkit-go/llmstep.StepError.Unwrapfunc() error
+type github.com/ronhuafeng/llmkit-go/llmadapter.Caller interface{Call(ctx context.Context, request github.com/ronhuafeng/llmkit-go/llmadapter.Request) (github.com/ronhuafeng/llmkit-go/llmadapter.Response, error)}
+type github.com/ronhuafeng/llmkit-go/llmadapter.ExecutionEvidence struct{ProviderName string; EffectiveModel string; Usage *github.com/ronhuafeng/llmkit-go/llmadapter.TokenUsage}
+type github.com/ronhuafeng/llmkit-go/llmadapter.ProviderDetails interface{ProviderName() string}
+type github.com/ronhuafeng/llmkit-go/llmadapter.Request struct{Prompt string; OutputSchema encoding/json.RawMessage}
+type github.com/ronhuafeng/llmkit-go/llmadapter.Response struct{FinalResponse string; Execution github.com/ronhuafeng/llmkit-go/llmadapter.ExecutionEvidence; ProviderDetails github.com/ronhuafeng/llmkit-go/llmadapter.ProviderDetails}
+type github.com/ronhuafeng/llmkit-go/llmadapter.TokenUsage struct{InputTokens int64; CachedInputTokens int64; OutputTokens int64; ReasoningOutputTokens int64}
+type github.com/ronhuafeng/llmkit-go/llmadapter.ValueError struct{Stage github.com/ronhuafeng/llmkit-go/llmadapter.ValueStage; Err error}
+type github.com/ronhuafeng/llmkit-go/llmadapter.ValueResult[T any] struct{Value T; Response github.com/ronhuafeng/llmkit-go/llmadapter.Response}
+type github.com/ronhuafeng/llmkit-go/llmadapter.ValueStage string
+type github.com/ronhuafeng/llmkit-go/llmschema.SchemaValidationError struct{Violations []github.com/ronhuafeng/llmkit-go/llmschema.Violation}
+type github.com/ronhuafeng/llmkit-go/llmschema.Violation struct{Path string; Keyword string; Message string}
+type github.com/ronhuafeng/llmkit-go/llmstep.Attempt[O any] struct{Iteration int; Feedback []github.com/ronhuafeng/llmkit-go/llmstep.Feedback; Call github.com/ronhuafeng/llmkit-go/llmadapter.ValueResult[O]; Validation github.com/ronhuafeng/llmkit-go/llmstep.ValidationResult; RetryFeedback []github.com/ronhuafeng/llmkit-go/llmstep.Feedback; Err error}
+type github.com/ronhuafeng/llmkit-go/llmstep.Feedback struct{Iteration int `json:"iteration,omitempty"`; Summary string `json:"summary,omitempty"`; Codes []string `json:"codes,omitempty"`; Locations []string `json:"locations,omitempty"`}
+type github.com/ronhuafeng/llmkit-go/llmstep.FeedbackSanitizer func([]github.com/ronhuafeng/llmkit-go/llmstep.Feedback) ([]github.com/ronhuafeng/llmkit-go/llmstep.Feedback, error)
+type github.com/ronhuafeng/llmkit-go/llmstep.Result[O any] struct{Output O; HasOutput bool; Attempts []github.com/ronhuafeng/llmkit-go/llmstep.Attempt[O]}
+type github.com/ronhuafeng/llmkit-go/llmstep.Stage string
+type github.com/ronhuafeng/llmkit-go/llmstep.StepError struct{Stage github.com/ronhuafeng/llmkit-go/llmstep.Stage; Iteration int; Err error}
+type github.com/ronhuafeng/llmkit-go/llmstep.Step[I any, O any] struct{Caller github.com/ronhuafeng/llmkit-go/llmadapter.Caller; Render func(context.Context, I, []github.com/ronhuafeng/llmkit-go/llmstep.Feedback) (string, error); Validate func(context.Context, I, O) (github.com/ronhuafeng/llmkit-go/llmstep.ValidationResult, error); MaxIter int; Sanitizer github.com/ronhuafeng/llmkit-go/llmstep.FeedbackSanitizer}
+type github.com/ronhuafeng/llmkit-go/llmstep.ValidationResult struct{Settled bool `json:"settled"`; Feedback []github.com/ronhuafeng/llmkit-go/llmstep.Feedback `json:"feedback,omitempty"`}
+type github.com/ronhuafeng/llmkit-go/settle.Attempt[O any] struct{Iteration int; Output O; HasOutput bool; Settled bool; Stage github.com/ronhuafeng/llmkit-go/settle.Stage; Err error}
+type github.com/ronhuafeng/llmkit-go/settle.Op[I, O any] interface{Run(ctx context.Context, input I) (O, error); Validate(ctx context.Context, input I, result O) (bool, error)}
+type github.com/ronhuafeng/llmkit-go/settle.Result[O any] struct{Output O; HasOutput bool; Attempts []github.com/ronhuafeng/llmkit-go/settle.Attempt[O]}
+type github.com/ronhuafeng/llmkit-go/settle.Stage string
+var github.com/ronhuafeng/llmkit-go/llmadapter.ErrEmptyResponse error
+var github.com/ronhuafeng/llmkit-go/llmadapter.ErrNilCaller error
+var github.com/ronhuafeng/llmkit-go/llmadapter.ErrProviderIdentityMismatch error
+var github.com/ronhuafeng/llmkit-go/llmstep.ErrNilRender error
+var github.com/ronhuafeng/llmkit-go/llmstep.ErrUnsafeFeedback error
+var github.com/ronhuafeng/llmkit-go/settle.ErrInvalidMaxIter error
+var github.com/ronhuafeng/llmkit-go/settle.ErrNilOp error
+var github.com/ronhuafeng/llmkit-go/settle.ErrUnsettled error
