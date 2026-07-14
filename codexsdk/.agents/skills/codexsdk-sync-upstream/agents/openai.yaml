@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex SDK Upstream Sync"
+  short_description: "Sync codexsdk-go with an upstream Codex tag, ref, or commit"
+  default_prompt: "Use $codexsdk-sync-upstream to sync codexsdk-go with an upstream Codex tag, ref, or commit."

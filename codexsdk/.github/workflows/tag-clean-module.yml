@@ -1,0 +1,39 @@
+name: Tag clean module
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  clean-module:
+    name: Tag clean module
+    runs-on: ubuntu-latest
+    env:
+      GOWORK: "off"
+      GOPROXY: https://proxy.golang.org
+    steps:
+      - name: Set up current stable Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: false
+
+      - name: Resolve and compile released tag from the module proxy
+        env:
+          MODULE_VERSION: ${{ github.ref_name }}
+        run: |
+          consumer="$(mktemp -d)"
+          cd "$consumer"
+          go mod init example.com/codexsdk-clean-consumer
+          go get "github.com/ronhuafeng/codexsdk-go/codexsdk@${MODULE_VERSION}"
+          printf '%s\n' \
+            'package consumer' \
+            '' \
+            'import "github.com/ronhuafeng/codexsdk-go/codexsdk"' \
+            '' \
+            'var _ codexsdk.Client' > consumer_test.go
+          go test ./...
