@@ -48,6 +48,30 @@
         "first_parent": "c6623cdd377d4901d10c7251a962f2f2062a76a0",
         "second_parent": "3194ead08b80ad3ac358beabc667a48e4ab0a3f4"
       }
+    },
+    {
+      "id": "llmkit",
+      "source": {
+        "repository": "https://github.com/ronhuafeng/llmkit-go",
+        "tag": "v0.5.0",
+        "commit": "fed06dc602a3933127ee81fbad13154a224c3223",
+        "tree": "34c85b133d115e75215e1785aa61fa76e3b6504f"
+      },
+      "destination": {
+        "directory": "llmkit",
+        "module": "github.com/ronhuafeng/llm-go/llmkit",
+        "first_tag": "llmkit/v0.6.0"
+      },
+      "relocation": {
+        "commit": "e656e3b32327d25d27898d5b2b37792c6f1a320a",
+        "parent": "fed06dc602a3933127ee81fbad13154a224c3223",
+        "subtree": "34c85b133d115e75215e1785aa61fa76e3b6504f"
+      },
+      "merge": {
+        "commit": "60091a52ca92c3ba689b9b24b8677d7c6d9caf14",
+        "first_parent": "16dc39136882b6a993391086ebfb5d85f6db848d",
+        "second_parent": "e656e3b32327d25d27898d5b2b37792c6f1a320a"
+      }
     }
   ]
 }
