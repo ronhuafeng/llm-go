@@ -5,9 +5,11 @@ histories are now reachable from this repository through their recorded pure
 relocation commits and independent merge edges. The toolkit source now declares
 `github.com/ronhuafeng/llm-go/llmkit`; its first replacement tag is
 `llmkit/v0.6.0`. Its linked GitHub Release and the public Go proxy are the live
-verification sources; repository prose does not pre-announce the tag as
-verified. The SDK and adapter still declare their legacy module identities
-until their own migration tickets are complete.
+verification sources; repository prose does not pre-announce a tag as
+verified. The SDK source now declares
+`github.com/ronhuafeng/llm-go/codexsdk`; its first replacement tag is
+`codexsdk/v0.6.0`. The adapter still declares its legacy module identity until
+its own migration ticket is complete.
 
 The accepted sequencing and completion gates are defined by the
 [target design](../architecture/DESIGN.md) and its
@@ -18,6 +20,11 @@ The toolkit's exact old-to-new import mapping is documented in the
 Consumers must continue using the legacy release until the
 [`llmkit/v0.6.0` GitHub Release](https://github.com/ronhuafeng/llm-go/releases/tag/llmkit%2Fv0.6.0)
 is marked verified by the protected tag and public-proxy verification gates.
+
+The SDK's flattened old-to-new import mapping is documented in the
+[codexsdk v0.6.0 migration guide](../../codexsdk/docs/migration/v0.6.0.md).
+Consumers must continue using `codexsdk-go@v0.5.1` until the protected SDK
+release gate marks `codexsdk/v0.6.0` verified.
 
 ## Imported-history issue audit
 

@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2"
+	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
 )
 
 func (c *Client) enqueueNotification(notification protocolv2.ServerNotification, evidence *notificationEvidence, waitForDispatch bool) (<-chan struct{}, error) {

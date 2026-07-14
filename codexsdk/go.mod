@@ -1,4 +1,4 @@
-module github.com/ronhuafeng/codexsdk-go
+module github.com/ronhuafeng/llm-go/codexsdk
 
 go 1.23.0
 

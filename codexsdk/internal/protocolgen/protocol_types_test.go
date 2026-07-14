@@ -30,7 +30,7 @@ func TestGenerateProtocolTypesMatchesCheckedInOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(generated, checkedIn) {
-		t.Fatal("generated protocol types do not match checked-in codexsdk/protocolv2/protocol_types.gen.go")
+		t.Fatal("generated protocol types do not match checked-in protocolv2/protocol_types.gen.go")
 	}
 }
 

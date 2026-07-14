@@ -130,7 +130,7 @@ def codes(findings: list[sync_state.Finding]) -> set[str]:
 class SyncStateTest(unittest.TestCase):
     def test_current_checked_in_baseline_passes(self) -> None:
         repo = Path(__file__).resolve().parents[1]
-        baseline = repo / "codexsdk/internal/protocolschema/appserver/v2"
+        baseline = repo / "internal/protocolschema/appserver/v2"
         findings = sync_state.validate_baseline(baseline)
         self.assertEqual(findings, [])
 

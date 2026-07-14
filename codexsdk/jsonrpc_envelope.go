@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2"
+	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
 )
 
 func validateJSONRPCEnvelope(data []byte) error {

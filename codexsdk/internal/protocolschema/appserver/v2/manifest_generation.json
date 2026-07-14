@@ -71,7 +71,7 @@
     "generated": "The facade target must have a method constant and every referenced protocol type; missing prerequisites fail generation."
   },
   "inputs": {
-    "experimental_baseline": "codexsdk/internal/protocolschema/appserver/v2",
+    "experimental_baseline": "internal/protocolschema/appserver/v2",
     "experimental_schema_command": "codex app-server generate-json-schema --experimental --out <tmpdir>",
     "response_mapping_source": "codex-rs/app-server-protocol/src/protocol/common.rs",
     "source_repo": "https://github.com/openai/codex",

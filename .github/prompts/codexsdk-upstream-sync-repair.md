@@ -9,7 +9,7 @@ Read and follow:
 - .agents/skills/codexsdk-sync-upstream/SKILL.md
 - .agents/skills/codexsdk-sync-upstream/commands/repair-applied-candidate.md
 
-Current state: Detect and apply have already completed. The workflow resolved `${UPSTREAM_REF}` (`${UPSTREAM_REF_KIND}`) to `${UPSTREAM_SHA}`, generated the candidate, and applied it to `${LAND_REF}` with `scripts/codexsdk_apply_sync_candidate.py`.
+Current state: Detect and apply have already completed. The workflow resolved `${UPSTREAM_REF}` (`${UPSTREAM_REF_KIND}`) to `${UPSTREAM_SHA}`, generated the candidate, and applied it to `${LAND_REF}` with `codexsdk/scripts/codexsdk_apply_sync_candidate.py`.
 
 Authoritative inputs:
 
@@ -29,7 +29,7 @@ Allowed side effects:
 
 Forbidden side effects:
 
-- Do not run `resolve-target`, `detect-drift`, `scripts/codexsdk_track_upstream.sh`, full Rust schema generation, or `apply-candidate`.
+- Do not run `resolve-target`, `detect-drift`, `codexsdk/scripts/codexsdk_track_upstream.sh`, full Rust schema generation, or `apply-candidate`.
 - Do not re-copy schemas from upstream.
 - Do not commit, push, tag, create PRs, change branches, request merges, or publish remote state.
 

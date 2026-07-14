@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2"
+	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
 )
 
 type exactRunner struct{ client *Client }

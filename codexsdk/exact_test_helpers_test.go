@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2"
+	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
 )
 
 func fakeCommand(mode string, extra ...string) []string {

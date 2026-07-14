@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2"
+	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
 )
 
 func (c *Client) handleServerRequest(message map[string]any) {

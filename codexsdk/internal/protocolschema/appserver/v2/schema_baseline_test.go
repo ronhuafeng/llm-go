@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ronhuafeng/codexsdk-go/codexsdk/internal/protocolgen"
+	"github.com/ronhuafeng/llm-go/codexsdk/internal/protocolgen"
 )
 
 var metadataFiles = map[string]bool{

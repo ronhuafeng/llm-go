@@ -8,7 +8,7 @@
     "source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
     "codex_version": "codex-cli 0.144.1",
     "generator": "cargo",
-    "generator_detail": "codex app-server generate-json-schema --experimental --out codexsdk/internal/protocolschema/appserver/v2",
+    "generator_detail": "codex app-server generate-json-schema --experimental --out internal/protocolschema/appserver/v2",
     "schema_bundle_sha256": "1725b584aa2f417560ba7eef0679701800a716b6f840fd7dafe7b4812246d8d6",
     "canonical_json_note": "Schema comparisons use canonical JSON; object member ordering is irrelevant."
   },

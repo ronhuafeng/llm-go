@@ -46,9 +46,10 @@ on:
 defaults:
   run:
     shell: bash
+    working-directory: codexsdk
 
 env:
-  CODEXSDK_SCHEMA_BASELINE: codexsdk/internal/protocolschema/appserver/v2
+  CODEXSDK_SCHEMA_BASELINE: internal/protocolschema/appserver/v2
   CODEXSDK_SYNC_TAG_JSON: /tmp/codexsdk-sync-tag.json
 
 concurrency:
@@ -331,7 +332,7 @@ jobs:
           set -euo pipefail
 
           dispatch_started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          gh workflow run upstream-protocol-sync.yml \
+          gh workflow run codexsdk-upstream-protocol-sync.yml \
             --ref "${DEFAULT_BRANCH}" \
             -f "upstream_ref=${UPSTREAM_REF}" \
             -f "force_compare=true"
@@ -340,7 +341,7 @@ jobs:
           for _ in $(seq 1 24); do
             run_id="$(
               gh run list \
-                --workflow upstream-protocol-sync.yml \
+                --workflow codexsdk-upstream-protocol-sync.yml \
                 --branch "${DEFAULT_BRANCH}" \
                 --limit 20 \
                 --json databaseId,createdAt,event,headSha \
@@ -415,7 +416,7 @@ jobs:
           openai-api-key: ${{ secrets.AZURE_OPENAI_API_KEY }}
           responses-api-endpoint: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
           model: gpt-5.3-codex-spark
-          prompt-file: .cache/codexsdk-finalize/explain-failure-prompt.md
+          prompt-file: codexsdk/.cache/codexsdk-finalize/explain-failure-prompt.md
           sandbox: workspace-write
           safety-strategy: drop-sudo
           allow-bots: "true"

@@ -1,15 +1,15 @@
-# codexsdk-go
+# codexsdk
 
 Go client and generated protocol types for the Codex app-server JSON-RPC
 protocol.
 
-> [!IMPORTANT]
-> This module path is frozen at `v0.5.1` and receives no further feature or
-> security updates. Development moves to
-> `github.com/ronhuafeng/llm-go/codexsdk`, beginning with `v0.6.0`. See the
-> [migration guide](docs/llm-go-migration.md) for exact import mappings. Treat
-> the replacement as available only after that tag resolves through the public
-> Go proxy.
+The module path is `github.com/ronhuafeng/llm-go/codexsdk`. Its first monorepo
+release identity is `codexsdk/v0.6.0`, continuing the legacy SDK's pre-v1
+lineage. The GitHub Release and public Go proxy are the live availability and
+verification sources; this README does not pre-announce release success.
+Consumers of `github.com/ronhuafeng/codexsdk-go@v0.5.1` should follow the
+[v0.6 migration guide](docs/migration/v0.6.0.md). The migration changes only
+module and import paths; it adds no forwarding or runtime compatibility layer.
 
 This project is unofficial and experimental. It is not an OpenAI product, is
 not supported by OpenAI, and may lag or diverge from the Codex CLI/app-server
@@ -21,11 +21,10 @@ launched Codex app-server over stdio.
 - License: MIT for this repository.
 - Upstream protocol source: OpenAI Codex, Apache-2.0, generated from the
   app-server schema baseline recorded in
-  `codexsdk/internal/protocolschema/appserver/v2/baseline_metadata.json`.
+  `internal/protocolschema/appserver/v2/baseline_metadata.json`.
 - API stability: pre-1.0. Public APIs are intended to be useful and reviewed,
   but breaking changes can happen before v1.0.
-- Final legacy release: `v0.5.1`; this repository is frozen pending archival
-  after the replacement module is verified.
+- Final legacy release: `github.com/ronhuafeng/codexsdk-go@v0.5.1`.
 - Runtime requirement: the SDK launches an external `codex app-server` command.
   Unit tests and CI do not require a local Codex binary.
 
@@ -42,17 +41,19 @@ For the unified malformed lifecycle partial-evidence contract, see the
 
 - `codexsdk`: stdio client, generated typed facades, exact `ThreadRunner`, exact
   notification streaming, and generated server-request handling.
-- `codexsdk/protocolv2`: generated app-server v2 params, responses,
+- `protocolv2`: generated app-server v2 params, responses,
   notifications, enums, unions, JSON helpers, and method registry.
-- `codexsdk/internal/protocolgen`: generator internals for the checked-in schema
+- `internal/protocolgen`: generator internals for the checked-in schema
   baseline.
-- `codexsdk/internal/protocolschema/appserver/v2`: reviewed schema baseline,
+- `internal/protocolschema/appserver/v2`: reviewed schema baseline,
   classified manifest, coverage matrix, drift report, and provenance metadata.
 
 ## Installation
 
+When `codexsdk/v0.6.0` is marked verified, install it with:
+
 ```sh
-go get github.com/ronhuafeng/codexsdk-go@v0.5.1
+go get github.com/ronhuafeng/llm-go/codexsdk@v0.6.0
 ```
 
 The module targets Go 1.23 or newer.
@@ -74,8 +75,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/ronhuafeng/codexsdk-go/codexsdk"
-	"github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2"
+	"github.com/ronhuafeng/llm-go/codexsdk"
+	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
 )
 
 func main() {
@@ -124,8 +125,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/ronhuafeng/codexsdk-go/codexsdk"
-	"github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2"
+	"github.com/ronhuafeng/llm-go/codexsdk"
+	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
 )
 
 func main() {
@@ -171,7 +172,7 @@ func main() {
 `StartStream` and `ResumeStream` expose every exact
 `protocolv2.ServerNotification`; `Result` remains available on failures and
 contains the latest immutable partial snapshot. More compile-checked examples
-live in `codexsdk/examples_test.go`.
+live in `examples_test.go`.
 
 Call `Stream.Wait` when multiple consumers need to observe the same run without
 coordinating ownership of `Next`. Any number of waiters can block independently
@@ -213,7 +214,7 @@ model, and may create or consume account state.
 ```sh
 CODEXSDK_REAL_APP_SERVER_SMOKE=1 \
 CODEXSDK_REAL_APP_SERVER_MODEL=gpt-5-mini \
-go test ./codexsdk -run TestRealAppServerSmokeStartResumeFork -count=1
+go test . -run TestRealAppServerSmokeStartResumeFork -count=1
 ```
 
 Optional command override:
@@ -222,7 +223,7 @@ Optional command override:
 CODEXSDK_REAL_APP_SERVER_COMMAND='codex app-server --listen stdio://' \
 CODEXSDK_REAL_APP_SERVER_SMOKE=1 \
 CODEXSDK_REAL_APP_SERVER_MODEL=gpt-5-mini \
-go test ./codexsdk -run TestRealAppServerSmokeStartResumeFork -count=1
+go test . -run TestRealAppServerSmokeStartResumeFork -count=1
 ```
 
 Normal CI does not run this test.
@@ -249,20 +250,20 @@ tracked with:
 Regenerate Go code from the checked-in baseline:
 
 ```sh
-go run ./codexsdk/internal/cmd/protocolv2gen
+go run ./internal/cmd/protocolv2gen
 ```
 
 Check generated code reproducibility without modifying the tree:
 
 ```sh
-go run ./codexsdk/internal/cmd/protocolv2gen -stdout method-registry |
-  diff -u codexsdk/protocolv2/method_registry.gen.go -
-go run ./codexsdk/internal/cmd/protocolv2gen -stdout protocol-types |
-  diff -u codexsdk/protocolv2/protocol_types.gen.go -
+go run ./internal/cmd/protocolv2gen -stdout method-registry |
+  diff -u protocolv2/method_registry.gen.go -
+go run ./internal/cmd/protocolv2gen -stdout protocol-types |
+  diff -u protocolv2/protocol_types.gen.go -
 tmp="$(mktemp -d)/sdk_surface.gen.go"
 python3 scripts/codexsdk_generate_sdk_surface.py --out "$tmp"
 gofmt -w "$tmp"
-diff -u codexsdk/sdk_surface.gen.go "$tmp"
+diff -u sdk_surface.gen.go "$tmp"
 ```
 
 ## Maintenance
@@ -277,7 +278,7 @@ that stable tag track; manual commits and track switches must be explicit.
 
 ```sh
 python3 scripts/codexsdk_target_policy.py \
-  --baseline codexsdk/internal/protocolschema/appserver/v2/baseline_metadata.json \
+  --baseline internal/protocolschema/appserver/v2/baseline_metadata.json \
   --target-ref rust-v0.140.0 \
   --target-kind stable_rust_tag \
   --target-sha <peeled-target-commit> \
@@ -301,9 +302,9 @@ generated Go code. Keep handwritten SDK changes limited to reviewed public
 surface or compatibility fixes. See `docs/release.md` for the release and
 schema baseline checklists.
 
-After committing a successful baseline sync, tag the codexsdk-go commit with an
-annotated upstream sync tag. These tags intentionally live outside the Go module
-release namespace.
+After committing a successful baseline sync, tag the repository commit with an
+annotated upstream sync tag. These tags intentionally live outside the Go
+module release namespace.
 
 ```sh
 python3 scripts/codexsdk_sync_tag.py --json
@@ -323,8 +324,8 @@ Codex app-server protocol changes or when the SDK corrects an unsafe public
 API. Patch releases should be backwards compatible except for security or data
 corruption fixes.
 
-After v1.0, the project should follow SemVer for the public API in `codexsdk`
-and `codexsdk/protocolv2`. Generated `protocolv2` additions are usually minor
+After v1.0, the project should follow SemVer for the public API at the module
+root and in `protocolv2`. Generated `protocolv2` additions are usually minor
 changes. Removing or changing generated types, method constants, or facade
 method signatures is a major change unless the upstream protocol removed the
 surface and compatibility cannot be preserved safely.

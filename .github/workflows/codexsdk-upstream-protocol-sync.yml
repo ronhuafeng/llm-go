@@ -24,6 +24,7 @@ on:
 defaults:
   run:
     shell: bash
+    working-directory: codexsdk
 
 env:
   CODEXSDK_AUTO_SYNC_DIR: .cache/codexsdk-auto-sync
@@ -34,7 +35,7 @@ env:
   CODEX_UPSTREAM_REPO: https://github.com/openai/codex.git
   CODEXSDK_DRIFT_ARTIFACT_DIR: /tmp/codexsdk-upstream
   CODEXSDK_RUST_TARGET_DIR: .cache/cargo-target/codex
-  CODEXSDK_SCHEMA_BASELINE: codexsdk/internal/protocolschema/appserver/v2
+  CODEXSDK_SCHEMA_BASELINE: internal/protocolschema/appserver/v2
   CODEXSDK_SYNC_BRANCH_PREFIX: codex/sync-upstream
   CODEXSDK_TARGET_POLICY_JSON: /tmp/codexsdk-target-policy.json
   CODEXSDK_UPSTREAM_CLONE: /tmp/openai-codex
@@ -74,7 +75,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: go.mod
+          go-version-file: codexsdk/go.mod
           cache: true
 
       - name: Resolve upstream baseline
@@ -224,7 +225,7 @@ jobs:
         uses: ./.github/actions/setup-codex-rust
         with:
           cache-key-suffix: ${{ steps.refs.outputs.upstream_short_sha }}
-          target-dir: ${{ env.CODEXSDK_RUST_TARGET_DIR }}
+          target-dir: codexsdk/${{ env.CODEXSDK_RUST_TARGET_DIR }}
 
       - name: Generate drift report
         if: steps.drift_action.outputs.decision == 'allow'
@@ -359,7 +360,7 @@ jobs:
           openai-api-key: ${{ secrets.AZURE_OPENAI_API_KEY }}
           responses-api-endpoint: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
           model: gpt-5.5
-          prompt-file: ${{ env.CODEXSDK_AUTO_SYNC_DIR }}/prompt.md
+          prompt-file: codexsdk/${{ env.CODEXSDK_AUTO_SYNC_DIR }}/prompt.md
           sandbox: workspace-write
           safety-strategy: drop-sudo
           allow-bots: "true"

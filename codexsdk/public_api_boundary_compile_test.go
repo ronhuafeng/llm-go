@@ -3,8 +3,8 @@ package codexsdk_test
 import (
 	"context"
 
-	"github.com/ronhuafeng/codexsdk-go/codexsdk"
-	"github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2"
+	"github.com/ronhuafeng/llm-go/codexsdk"
+	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
 )
 
 // These consumer-owned interfaces are compile-only examples for the public

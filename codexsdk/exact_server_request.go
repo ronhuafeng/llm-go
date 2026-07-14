@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2"
+	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
 )
 
 func (c *Client) handleExactServerRequest(id any, request protocolv2.ServerRequest) {

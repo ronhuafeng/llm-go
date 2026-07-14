@@ -21,6 +21,8 @@ func TestCodexSDKDoesNotImportToolkitCallerOrBusinessPackages(t *testing.T) {
 	}
 	forbiddenPrefixes := []string{
 		"smart-contract",
+		"github.com/ronhuafeng/llm-go/llmkit",
+		"github.com/ronhuafeng/llm-go/llmcaller/codex",
 		"github.com/ronhuafeng/llmkit-go",
 		"github.com/ronhuafeng/llmcaller-codex-go",
 	}
@@ -106,7 +108,7 @@ func publicProtocolInterfaces() []reflect.Type {
 		method := root.Method(i)
 		for result := 0; result < method.Type.NumOut(); result++ {
 			typ := method.Type.Out(result)
-			if typ.Kind() != reflect.Interface || typ.PkgPath() != "github.com/ronhuafeng/codexsdk-go/codexsdk" || seen[typ] {
+			if typ.Kind() != reflect.Interface || typ.PkgPath() != "github.com/ronhuafeng/llm-go/codexsdk" || seen[typ] {
 				continue
 			}
 			seen[typ] = true
@@ -248,7 +250,7 @@ func assertNoPublicRawProtocolType(t *testing.T, path string, typ reflect.Type, 
 		if typ.PkgPath() == "encoding/json" && typ.Name() == "RawMessage" {
 			t.Fatalf("%s exposes json.RawMessage", path)
 		}
-		if typ.PkgPath() != "" && typ.PkgPath() != "github.com/ronhuafeng/codexsdk-go/codexsdk" {
+		if typ.PkgPath() != "" && typ.PkgPath() != "github.com/ronhuafeng/llm-go/codexsdk" {
 			return
 		}
 		for i := 0; i < typ.NumField(); i++ {
@@ -269,7 +271,7 @@ func assertNoPublicRawProtocolType(t *testing.T, path string, typ reflect.Type, 
 		if typ.NumMethod() == 0 {
 			t.Fatalf("%s exposes bare interface protocol payload %s", path, typ)
 		}
-		if typ.PkgPath() != "github.com/ronhuafeng/codexsdk-go/codexsdk" {
+		if typ.PkgPath() != "github.com/ronhuafeng/llm-go/codexsdk" {
 			return
 		}
 		for i := 0; i < typ.NumMethod(); i++ {

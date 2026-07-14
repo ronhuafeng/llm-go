@@ -10,10 +10,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-DEFAULT_BASELINE = Path("codexsdk/internal/protocolschema/appserver/v2")
-DEFAULT_METHOD_REGISTRY = Path("codexsdk/protocolv2/method_registry.gen.go")
-DEFAULT_PROTOCOL_TYPES = Path("codexsdk/protocolv2/protocol_types.gen.go")
-DEFAULT_OUTPUT = Path("codexsdk/sdk_surface.gen.go")
+DEFAULT_BASELINE = Path("internal/protocolschema/appserver/v2")
+DEFAULT_METHOD_REGISTRY = Path("protocolv2/method_registry.gen.go")
+DEFAULT_PROTOCOL_TYPES = Path("protocolv2/protocol_types.gen.go")
+DEFAULT_OUTPUT = Path("sdk_surface.gen.go")
 
 FACADE_TARGET_RE = re.compile(r"^([A-Za-z][A-Za-z0-9]*)\(\)\.([A-Za-z][A-Za-z0-9]*)$")
 METHOD_CONST_RE = re.compile(r'^\s*(Method[A-Za-z0-9]+)\s+=\s+"([^"]+)"', re.MULTILINE)
@@ -163,7 +163,7 @@ def render(methods: list[SurfaceMethod]) -> str:
         "import (",
         '\t"context"',
         "",
-        '\t"github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2"',
+        '\t"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"',
         ")",
         "",
         "",

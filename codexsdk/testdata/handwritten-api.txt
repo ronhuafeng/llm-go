@@ -1,52 +1,52 @@
-func github.com/ronhuafeng/codexsdk-go/codexsdk.ApplyPatchApprovalResponse(value github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2.ApplyPatchApprovalResponse) github.com/ronhuafeng/codexsdk-go/codexsdk.ServerRequestResponse
-func github.com/ronhuafeng/codexsdk-go/codexsdk.AttestationResponse(value github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2.AttestationGenerateResponse) github.com/ronhuafeng/codexsdk-go/codexsdk.ServerRequestResponse
-func github.com/ronhuafeng/codexsdk-go/codexsdk.ChatGPTAuthRefreshResponse(value github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2.ChatgptAuthTokensRefreshResponse) github.com/ronhuafeng/codexsdk-go/codexsdk.ServerRequestResponse
-func github.com/ronhuafeng/codexsdk-go/codexsdk.CommandExecutionApprovalResponse(value github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2.CommandExecutionRequestApprovalResponse) github.com/ronhuafeng/codexsdk-go/codexsdk.ServerRequestResponse
-func github.com/ronhuafeng/codexsdk-go/codexsdk.CurrentTimeResponse(value github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2.CurrentTimeReadResponse) github.com/ronhuafeng/codexsdk-go/codexsdk.ServerRequestResponse
-func github.com/ronhuafeng/codexsdk-go/codexsdk.DynamicToolResponse(value github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2.DynamicToolCallResponse) github.com/ronhuafeng/codexsdk-go/codexsdk.ServerRequestResponse
-func github.com/ronhuafeng/codexsdk-go/codexsdk.ExecCommandApprovalResponse(value github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2.ExecCommandApprovalResponse) github.com/ronhuafeng/codexsdk-go/codexsdk.ServerRequestResponse
-func github.com/ronhuafeng/codexsdk-go/codexsdk.FileChangeApprovalResponse(value github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2.FileChangeRequestApprovalResponse) github.com/ronhuafeng/codexsdk-go/codexsdk.ServerRequestResponse
-func github.com/ronhuafeng/codexsdk-go/codexsdk.MCPElicitationResponse(value github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2.McpServerElicitationRequestResponse) github.com/ronhuafeng/codexsdk-go/codexsdk.ServerRequestResponse
-func github.com/ronhuafeng/codexsdk-go/codexsdk.New(options github.com/ronhuafeng/codexsdk-go/codexsdk.ClientOptions) (*github.com/ronhuafeng/codexsdk-go/codexsdk.Client, error)
-func github.com/ronhuafeng/codexsdk-go/codexsdk.PermissionsApprovalResponse(value github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2.PermissionsRequestApprovalResponse) github.com/ronhuafeng/codexsdk-go/codexsdk.ServerRequestResponse
-func github.com/ronhuafeng/codexsdk-go/codexsdk.ToolUserInputResponse(value github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2.ToolRequestUserInputResponse) github.com/ronhuafeng/codexsdk-go/codexsdk.ServerRequestResponse
-method github.com/ronhuafeng/codexsdk-go/codexsdk.Client.Closefunc() error
-method github.com/ronhuafeng/codexsdk-go/codexsdk.Client.ThreadRunnerfunc() github.com/ronhuafeng/codexsdk-go/codexsdk.ThreadRunner
-method github.com/ronhuafeng/codexsdk-go/codexsdk.ExactServerRequestError.Errorfunc() string
-method github.com/ronhuafeng/codexsdk-go/codexsdk.ExactServerRequestError.Unwrapfunc() error
-method github.com/ronhuafeng/codexsdk-go/codexsdk.ProtocolError.Errorfunc() string
-method github.com/ronhuafeng/codexsdk-go/codexsdk.ProtocolError.Unwrapfunc() error
-method github.com/ronhuafeng/codexsdk-go/codexsdk.Stream.Closefunc() error
-method github.com/ronhuafeng/codexsdk-go/codexsdk.Stream.Errfunc() error
-method github.com/ronhuafeng/codexsdk-go/codexsdk.Stream.Nextfunc(ctx context.Context) bool
-method github.com/ronhuafeng/codexsdk-go/codexsdk.Stream.Notificationfunc() github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2.ServerNotification
-method github.com/ronhuafeng/codexsdk-go/codexsdk.Stream.Resultfunc() (R, bool)
-method github.com/ronhuafeng/codexsdk-go/codexsdk.Stream.Waitfunc(ctx context.Context) (R, error)
-method github.com/ronhuafeng/codexsdk-go/codexsdk.TurnError.Errorfunc() string
-method github.com/ronhuafeng/codexsdk-go/codexsdk.TurnError.Unwrapfunc() error
-type github.com/ronhuafeng/codexsdk-go/codexsdk.Client struct{ /* unexported fields */ }
-type github.com/ronhuafeng/codexsdk-go/codexsdk.ClientOptions struct{CWD string; Command []string; Initialize github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2.InitializeParams; ServerRequestHandler github.com/ronhuafeng/codexsdk-go/codexsdk.ServerRequestHandler; ServerNotificationHandler github.com/ronhuafeng/codexsdk-go/codexsdk.ServerNotificationHandler; NotificationQueueCapacity int}
-type github.com/ronhuafeng/codexsdk-go/codexsdk.DiagnosticRef struct{Kind string; ID string; Path string; SizeBytes int64; SHA256 string}
-type github.com/ronhuafeng/codexsdk-go/codexsdk.ExactServerRequestError struct{Kind github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2.ServerRequestKind; Reason string}
-type github.com/ronhuafeng/codexsdk-go/codexsdk.InputStats struct{ItemsCount int; TextBytes int; AttachmentCount int; InputItemsHash string}
-type github.com/ronhuafeng/codexsdk-go/codexsdk.ProtocolError struct{RequestID github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2.RequestId; Method string; Code int64; Message string; Data *github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2.JSONValue; Err error}
-type github.com/ronhuafeng/codexsdk-go/codexsdk.ResumeThreadRunRequest struct{Thread github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2.ThreadResumeParams; Turn github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2.TurnStartParams}
-type github.com/ronhuafeng/codexsdk-go/codexsdk.ResumedThreadRun struct{Resume github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2.ThreadResumeResponse; Run github.com/ronhuafeng/codexsdk-go/codexsdk.ThreadRunResult}
-type github.com/ronhuafeng/codexsdk-go/codexsdk.ServerNotificationHandler func(context.Context, github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2.ServerNotification) error
-type github.com/ronhuafeng/codexsdk-go/codexsdk.ServerRequestHandler func(context.Context, github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2.ServerRequest) (github.com/ronhuafeng/codexsdk-go/codexsdk.ServerRequestResponse, error)
-type github.com/ronhuafeng/codexsdk-go/codexsdk.ServerRequestResponse struct{ /* unexported fields */ }
-type github.com/ronhuafeng/codexsdk-go/codexsdk.StartThreadRunRequest struct{Thread github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2.ThreadStartParams; Turn github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2.TurnStartParams}
-type github.com/ronhuafeng/codexsdk-go/codexsdk.StartedThreadRun struct{Start github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2.ThreadStartResponse; Run github.com/ronhuafeng/codexsdk-go/codexsdk.ThreadRunResult}
-type github.com/ronhuafeng/codexsdk-go/codexsdk.Stream struct{ /* unexported fields */ }
-type github.com/ronhuafeng/codexsdk-go/codexsdk.ThreadRunResult struct{Turn github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2.Turn; Usage *github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2.ThreadTokenUsage; Notifications []github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2.ServerNotification; FinalResponse string; InputStats github.com/ronhuafeng/codexsdk-go/codexsdk.InputStats; Diagnostics []github.com/ronhuafeng/codexsdk-go/codexsdk.DiagnosticRef}
-type github.com/ronhuafeng/codexsdk-go/codexsdk.ThreadRunner interface{Resume(context.Context, github.com/ronhuafeng/codexsdk-go/codexsdk.ResumeThreadRunRequest) (github.com/ronhuafeng/codexsdk-go/codexsdk.ResumedThreadRun, error); ResumeStream(context.Context, github.com/ronhuafeng/codexsdk-go/codexsdk.ResumeThreadRunRequest) (*github.com/ronhuafeng/codexsdk-go/codexsdk.Stream[github.com/ronhuafeng/codexsdk-go/codexsdk.ResumedThreadRun], error); Start(context.Context, github.com/ronhuafeng/codexsdk-go/codexsdk.StartThreadRunRequest) (github.com/ronhuafeng/codexsdk-go/codexsdk.StartedThreadRun, error); StartStream(context.Context, github.com/ronhuafeng/codexsdk-go/codexsdk.StartThreadRunRequest) (*github.com/ronhuafeng/codexsdk-go/codexsdk.Stream[github.com/ronhuafeng/codexsdk-go/codexsdk.StartedThreadRun], error)}
-type github.com/ronhuafeng/codexsdk-go/codexsdk.TurnError struct{ThreadID string; Turn github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2.Turn; Err error}
-var github.com/ronhuafeng/codexsdk-go/codexsdk.ErrClientClosed error
-var github.com/ronhuafeng/codexsdk-go/codexsdk.ErrExactServerRequest error
-var github.com/ronhuafeng/codexsdk-go/codexsdk.ErrHandlerFailed error
-var github.com/ronhuafeng/codexsdk-go/codexsdk.ErrMissingThreadID error
-var github.com/ronhuafeng/codexsdk-go/codexsdk.ErrMissingTurnID error
-var github.com/ronhuafeng/codexsdk-go/codexsdk.ErrNotificationBackpressure error
-var github.com/ronhuafeng/codexsdk-go/codexsdk.ErrStreamClosed error
-var github.com/ronhuafeng/codexsdk-go/codexsdk.ErrTurnFailed error
-var github.com/ronhuafeng/codexsdk-go/codexsdk.ErrTurnInterrupted error
+func github.com/ronhuafeng/llm-go/codexsdk.ApplyPatchApprovalResponse(value github.com/ronhuafeng/llm-go/codexsdk/protocolv2.ApplyPatchApprovalResponse) github.com/ronhuafeng/llm-go/codexsdk.ServerRequestResponse
+func github.com/ronhuafeng/llm-go/codexsdk.AttestationResponse(value github.com/ronhuafeng/llm-go/codexsdk/protocolv2.AttestationGenerateResponse) github.com/ronhuafeng/llm-go/codexsdk.ServerRequestResponse
+func github.com/ronhuafeng/llm-go/codexsdk.ChatGPTAuthRefreshResponse(value github.com/ronhuafeng/llm-go/codexsdk/protocolv2.ChatgptAuthTokensRefreshResponse) github.com/ronhuafeng/llm-go/codexsdk.ServerRequestResponse
+func github.com/ronhuafeng/llm-go/codexsdk.CommandExecutionApprovalResponse(value github.com/ronhuafeng/llm-go/codexsdk/protocolv2.CommandExecutionRequestApprovalResponse) github.com/ronhuafeng/llm-go/codexsdk.ServerRequestResponse
+func github.com/ronhuafeng/llm-go/codexsdk.CurrentTimeResponse(value github.com/ronhuafeng/llm-go/codexsdk/protocolv2.CurrentTimeReadResponse) github.com/ronhuafeng/llm-go/codexsdk.ServerRequestResponse
+func github.com/ronhuafeng/llm-go/codexsdk.DynamicToolResponse(value github.com/ronhuafeng/llm-go/codexsdk/protocolv2.DynamicToolCallResponse) github.com/ronhuafeng/llm-go/codexsdk.ServerRequestResponse
+func github.com/ronhuafeng/llm-go/codexsdk.ExecCommandApprovalResponse(value github.com/ronhuafeng/llm-go/codexsdk/protocolv2.ExecCommandApprovalResponse) github.com/ronhuafeng/llm-go/codexsdk.ServerRequestResponse
+func github.com/ronhuafeng/llm-go/codexsdk.FileChangeApprovalResponse(value github.com/ronhuafeng/llm-go/codexsdk/protocolv2.FileChangeRequestApprovalResponse) github.com/ronhuafeng/llm-go/codexsdk.ServerRequestResponse
+func github.com/ronhuafeng/llm-go/codexsdk.MCPElicitationResponse(value github.com/ronhuafeng/llm-go/codexsdk/protocolv2.McpServerElicitationRequestResponse) github.com/ronhuafeng/llm-go/codexsdk.ServerRequestResponse
+func github.com/ronhuafeng/llm-go/codexsdk.New(options github.com/ronhuafeng/llm-go/codexsdk.ClientOptions) (*github.com/ronhuafeng/llm-go/codexsdk.Client, error)
+func github.com/ronhuafeng/llm-go/codexsdk.PermissionsApprovalResponse(value github.com/ronhuafeng/llm-go/codexsdk/protocolv2.PermissionsRequestApprovalResponse) github.com/ronhuafeng/llm-go/codexsdk.ServerRequestResponse
+func github.com/ronhuafeng/llm-go/codexsdk.ToolUserInputResponse(value github.com/ronhuafeng/llm-go/codexsdk/protocolv2.ToolRequestUserInputResponse) github.com/ronhuafeng/llm-go/codexsdk.ServerRequestResponse
+method github.com/ronhuafeng/llm-go/codexsdk.Client.Closefunc() error
+method github.com/ronhuafeng/llm-go/codexsdk.Client.ThreadRunnerfunc() github.com/ronhuafeng/llm-go/codexsdk.ThreadRunner
+method github.com/ronhuafeng/llm-go/codexsdk.ExactServerRequestError.Errorfunc() string
+method github.com/ronhuafeng/llm-go/codexsdk.ExactServerRequestError.Unwrapfunc() error
+method github.com/ronhuafeng/llm-go/codexsdk.ProtocolError.Errorfunc() string
+method github.com/ronhuafeng/llm-go/codexsdk.ProtocolError.Unwrapfunc() error
+method github.com/ronhuafeng/llm-go/codexsdk.Stream.Closefunc() error
+method github.com/ronhuafeng/llm-go/codexsdk.Stream.Errfunc() error
+method github.com/ronhuafeng/llm-go/codexsdk.Stream.Nextfunc(ctx context.Context) bool
+method github.com/ronhuafeng/llm-go/codexsdk.Stream.Notificationfunc() github.com/ronhuafeng/llm-go/codexsdk/protocolv2.ServerNotification
+method github.com/ronhuafeng/llm-go/codexsdk.Stream.Resultfunc() (R, bool)
+method github.com/ronhuafeng/llm-go/codexsdk.Stream.Waitfunc(ctx context.Context) (R, error)
+method github.com/ronhuafeng/llm-go/codexsdk.TurnError.Errorfunc() string
+method github.com/ronhuafeng/llm-go/codexsdk.TurnError.Unwrapfunc() error
+type github.com/ronhuafeng/llm-go/codexsdk.Client struct{ /* unexported fields */ }
+type github.com/ronhuafeng/llm-go/codexsdk.ClientOptions struct{CWD string; Command []string; Initialize github.com/ronhuafeng/llm-go/codexsdk/protocolv2.InitializeParams; ServerRequestHandler github.com/ronhuafeng/llm-go/codexsdk.ServerRequestHandler; ServerNotificationHandler github.com/ronhuafeng/llm-go/codexsdk.ServerNotificationHandler; NotificationQueueCapacity int}
+type github.com/ronhuafeng/llm-go/codexsdk.DiagnosticRef struct{Kind string; ID string; Path string; SizeBytes int64; SHA256 string}
+type github.com/ronhuafeng/llm-go/codexsdk.ExactServerRequestError struct{Kind github.com/ronhuafeng/llm-go/codexsdk/protocolv2.ServerRequestKind; Reason string}
+type github.com/ronhuafeng/llm-go/codexsdk.InputStats struct{ItemsCount int; TextBytes int; AttachmentCount int; InputItemsHash string}
+type github.com/ronhuafeng/llm-go/codexsdk.ProtocolError struct{RequestID github.com/ronhuafeng/llm-go/codexsdk/protocolv2.RequestId; Method string; Code int64; Message string; Data *github.com/ronhuafeng/llm-go/codexsdk/protocolv2.JSONValue; Err error}
+type github.com/ronhuafeng/llm-go/codexsdk.ResumeThreadRunRequest struct{Thread github.com/ronhuafeng/llm-go/codexsdk/protocolv2.ThreadResumeParams; Turn github.com/ronhuafeng/llm-go/codexsdk/protocolv2.TurnStartParams}
+type github.com/ronhuafeng/llm-go/codexsdk.ResumedThreadRun struct{Resume github.com/ronhuafeng/llm-go/codexsdk/protocolv2.ThreadResumeResponse; Run github.com/ronhuafeng/llm-go/codexsdk.ThreadRunResult}
+type github.com/ronhuafeng/llm-go/codexsdk.ServerNotificationHandler func(context.Context, github.com/ronhuafeng/llm-go/codexsdk/protocolv2.ServerNotification) error
+type github.com/ronhuafeng/llm-go/codexsdk.ServerRequestHandler func(context.Context, github.com/ronhuafeng/llm-go/codexsdk/protocolv2.ServerRequest) (github.com/ronhuafeng/llm-go/codexsdk.ServerRequestResponse, error)
+type github.com/ronhuafeng/llm-go/codexsdk.ServerRequestResponse struct{ /* unexported fields */ }
+type github.com/ronhuafeng/llm-go/codexsdk.StartThreadRunRequest struct{Thread github.com/ronhuafeng/llm-go/codexsdk/protocolv2.ThreadStartParams; Turn github.com/ronhuafeng/llm-go/codexsdk/protocolv2.TurnStartParams}
+type github.com/ronhuafeng/llm-go/codexsdk.StartedThreadRun struct{Start github.com/ronhuafeng/llm-go/codexsdk/protocolv2.ThreadStartResponse; Run github.com/ronhuafeng/llm-go/codexsdk.ThreadRunResult}
+type github.com/ronhuafeng/llm-go/codexsdk.Stream struct{ /* unexported fields */ }
+type github.com/ronhuafeng/llm-go/codexsdk.ThreadRunResult struct{Turn github.com/ronhuafeng/llm-go/codexsdk/protocolv2.Turn; Usage *github.com/ronhuafeng/llm-go/codexsdk/protocolv2.ThreadTokenUsage; Notifications []github.com/ronhuafeng/llm-go/codexsdk/protocolv2.ServerNotification; FinalResponse string; InputStats github.com/ronhuafeng/llm-go/codexsdk.InputStats; Diagnostics []github.com/ronhuafeng/llm-go/codexsdk.DiagnosticRef}
+type github.com/ronhuafeng/llm-go/codexsdk.ThreadRunner interface{Resume(context.Context, github.com/ronhuafeng/llm-go/codexsdk.ResumeThreadRunRequest) (github.com/ronhuafeng/llm-go/codexsdk.ResumedThreadRun, error); ResumeStream(context.Context, github.com/ronhuafeng/llm-go/codexsdk.ResumeThreadRunRequest) (*github.com/ronhuafeng/llm-go/codexsdk.Stream[github.com/ronhuafeng/llm-go/codexsdk.ResumedThreadRun], error); Start(context.Context, github.com/ronhuafeng/llm-go/codexsdk.StartThreadRunRequest) (github.com/ronhuafeng/llm-go/codexsdk.StartedThreadRun, error); StartStream(context.Context, github.com/ronhuafeng/llm-go/codexsdk.StartThreadRunRequest) (*github.com/ronhuafeng/llm-go/codexsdk.Stream[github.com/ronhuafeng/llm-go/codexsdk.StartedThreadRun], error)}
+type github.com/ronhuafeng/llm-go/codexsdk.TurnError struct{ThreadID string; Turn github.com/ronhuafeng/llm-go/codexsdk/protocolv2.Turn; Err error}
+var github.com/ronhuafeng/llm-go/codexsdk.ErrClientClosed error
+var github.com/ronhuafeng/llm-go/codexsdk.ErrExactServerRequest error
+var github.com/ronhuafeng/llm-go/codexsdk.ErrHandlerFailed error
+var github.com/ronhuafeng/llm-go/codexsdk.ErrMissingThreadID error
+var github.com/ronhuafeng/llm-go/codexsdk.ErrMissingTurnID error
+var github.com/ronhuafeng/llm-go/codexsdk.ErrNotificationBackpressure error
+var github.com/ronhuafeng/llm-go/codexsdk.ErrStreamClosed error
+var github.com/ronhuafeng/llm-go/codexsdk.ErrTurnFailed error
+var github.com/ronhuafeng/llm-go/codexsdk.ErrTurnInterrupted error

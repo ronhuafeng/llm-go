@@ -26,7 +26,7 @@ func TestHandwrittenPublicAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 	loader := &sdkSourceImporter{root: root, fset: token.NewFileSet(), cache: map[string]*types.Package{}}
-	pkg, err := loader.Import("github.com/ronhuafeng/codexsdk-go/codexsdk")
+	pkg, err := loader.Import("github.com/ronhuafeng/llm-go/codexsdk")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func TestHandwrittenPublicAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 	if actual != string(want) {
-		t.Fatalf("handwritten API changed; update the normative plan and review the canonical allowlist:\n%s", actual)
+		t.Fatalf("handwritten public API changed; review the exported API, changelog, migration impact, and canonical allowlist:\n%s", actual)
 	}
 }
 
@@ -62,7 +62,7 @@ func TestRemovedV01CompatibilitySurfaceIsAbsent(t *testing.T) {
 		t.Fatal(err)
 	}
 	loader := &sdkSourceImporter{root: root, fset: token.NewFileSet(), cache: map[string]*types.Package{}}
-	pkg, err := loader.Import("github.com/ronhuafeng/codexsdk-go/codexsdk")
+	pkg, err := loader.Import("github.com/ronhuafeng/llm-go/codexsdk")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +83,7 @@ func TestGeneratedFacadeAccessorsReturnConcreteOpaqueValues(t *testing.T) {
 		t.Fatal(err)
 	}
 	loader := &sdkSourceImporter{root: root, fset: token.NewFileSet(), cache: map[string]*types.Package{}}
-	pkg, err := loader.Import("github.com/ronhuafeng/codexsdk-go/codexsdk")
+	pkg, err := loader.Import("github.com/ronhuafeng/llm-go/codexsdk")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +180,7 @@ func (i *sdkSourceImporter) Import(path string) (*types.Package, error) {
 	if pkg := i.cache[path]; pkg != nil {
 		return pkg, nil
 	}
-	const module = "github.com/ronhuafeng/codexsdk-go/codexsdk"
+	const module = "github.com/ronhuafeng/llm-go/codexsdk"
 	if path != module && !strings.HasPrefix(path, module+"/") {
 		if i.compiled == nil {
 			i.compiled = importer.ForCompiler(i.fset, "gc", i.openExport)

@@ -32,9 +32,4 @@
 //
 // It does not provide provider-neutral LLM abstractions, business validation,
 // workflow policy, or application safety profiles.
-//
-// Deprecated: The github.com/ronhuafeng/codexsdk-go module is frozen at
-// v0.5.1. Migrate to github.com/ronhuafeng/llm-go/codexsdk, beginning with
-// v0.6.0. The replacement retains the codexsdk package name and exact public
-// facts; only the import path changes during migration.
 package codexsdk

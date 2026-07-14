@@ -4,8 +4,8 @@ import (
 	"context"
 	"os"
 
-	"github.com/ronhuafeng/codexsdk-go/codexsdk"
-	"github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2"
+	"github.com/ronhuafeng/llm-go/codexsdk"
+	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
 )
 
 func ExampleThreadRunner_start() {

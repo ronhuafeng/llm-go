@@ -460,7 +460,7 @@ func findModule(registered registry, id string) (module, bool) {
 func verifyAPISurface(recorder *evidenceRecorder, runner commandRunner, moduleID string) error {
 	commands := map[string][]string{
 		"llmkit":        {"go", "test", "./internal/architecture", "-run", "^TestHandwrittenPublicAPI$", "-count=1"},
-		"codexsdk":      {"go", "test", "./codexsdk", "-run", "^Test(HandwrittenPublicAPI|GeneratedFacadeAccessorsReturnConcreteOpaqueValues)$", "-count=1"},
+		"codexsdk":      {"go", "test", ".", "-run", "^Test(HandwrittenPublicAPI|GeneratedFacadeAccessorsReturnConcreteOpaqueValues)$", "-count=1"},
 		"codex-adapter": {"go", "test", "./internal/architecture", "-run", "^TestHandwrittenPublicAPI$", "-count=1"},
 	}
 	command, ok := commands[moduleID]
@@ -509,7 +509,7 @@ func verifyFormatting(root string) error {
 func verifySourceConsumer(root string, candidate module) error {
 	imports := map[string]string{
 		"llmkit":        candidate.path + "/llmschema",
-		"codexsdk":      candidate.path + "/codexsdk",
+		"codexsdk":      candidate.path,
 		"codex-adapter": candidate.path + "/llmcaller/codex",
 	}
 	importPath, ok := imports[candidate.ID]

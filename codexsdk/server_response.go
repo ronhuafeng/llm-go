@@ -1,6 +1,6 @@
 package codexsdk
 
-import "github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2"
+import "github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
 
 func CommandExecutionApprovalResponse(value protocolv2.CommandExecutionRequestApprovalResponse) ServerRequestResponse {
 	return serverResponse(protocolv2.ServerRequestKindItemCommandExecutionRequestApproval, value)

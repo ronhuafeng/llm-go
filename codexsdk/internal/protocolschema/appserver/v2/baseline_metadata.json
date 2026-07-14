@@ -9,7 +9,7 @@
   "codex_version": "codex-cli 0.144.1",
   "experimental_included": true,
   "generated_at": "2026-07-12T12:44:00Z",
-  "generation_command": "codex app-server generate-json-schema --experimental --out codexsdk/internal/protocolschema/appserver/v2",
+  "generation_command": "codex app-server generate-json-schema --experimental --out internal/protocolschema/appserver/v2",
   "schema_bundle_sha256": "1725b584aa2f417560ba7eef0679701800a716b6f840fd7dafe7b4812246d8d6",
   "schema_file_count": 337,
   "schema_output_layout": "root JSON files plus v1/ and v2/",

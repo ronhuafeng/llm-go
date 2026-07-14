@@ -3,7 +3,7 @@ package codexsdk
 import (
 	"encoding/json"
 
-	"github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2"
+	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
 )
 
 // notificationAttributionClass records the per-run evidence rule derived from

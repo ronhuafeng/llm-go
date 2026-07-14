@@ -22,7 +22,7 @@ func TestGenerateMethodRegistryMatchesCheckedInOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(generated, checkedIn) {
-		t.Fatal("generated method registry does not match checked-in codexsdk/protocolv2/method_registry.gen.go")
+		t.Fatal("generated method registry does not match checked-in protocolv2/method_registry.gen.go")
 	}
 }
 

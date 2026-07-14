@@ -5,7 +5,7 @@ package codexsdk
 import (
 	"context"
 
-	"github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2"
+	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
 )
 
 // Accounts is an opaque generated facade for exact Codex operations.

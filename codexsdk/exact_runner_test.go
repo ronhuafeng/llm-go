@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2"
+	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
 )
 
 // docs/adr/0002-non-destructive-exact-run-wait.md defines 1,280 notifications

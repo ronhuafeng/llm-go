@@ -10,15 +10,15 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/ronhuafeng/codexsdk-go/codexsdk/internal/protocolgen"
+	"github.com/ronhuafeng/llm-go/codexsdk/internal/protocolgen"
 )
 
-const defaultSchemaRoot = "codexsdk/internal/protocolschema/appserver/v2"
+const defaultSchemaRoot = "internal/protocolschema/appserver/v2"
 
 func main() {
 	schemaRootFlag := flag.String("schema-root", "", "checked-in app-server v2 schema baseline root; defaults to the manifest directory or the checked-in baseline")
 	manifestPathFlag := flag.String("manifest", "", "classified app-server v2 manifest path; defaults to <schema-root>/manifest.json")
-	outDir := flag.String("out", "codexsdk/protocolv2", "protocolv2 output directory")
+	outDir := flag.String("out", "protocolv2", "protocolv2 output directory")
 	stdout := flag.String("stdout", "", "write one generated artifact to stdout instead of files: method-registry or protocol-types")
 	stableSource := flag.String("stable-source", "", "generated Go source from schemas without experimental visibility")
 	completeSource := flag.String("complete-source", "", "generated Go source from schemas with experimental visibility")

@@ -280,9 +280,6 @@ func validateReleaseCommit(checkoutCommit, requiredCommit, mainRef, mainCommit s
 }
 
 func validateFirstTagAPIInventory(root string, candidate module, inventoryPath string) (string, error) {
-	if candidate.ID != "llmkit" {
-		return "", fmt.Errorf("first-tag API mapping is not implemented for module %s", candidate.ID)
-	}
 	provenance, err := loadProvenance(root)
 	if err != nil {
 		return "", err
@@ -297,7 +294,11 @@ func validateFirstTagAPIInventory(root string, candidate module, inventoryPath s
 	if sourceCommit == "" {
 		return "", fmt.Errorf("module %s has no source commit for API baseline", candidate.ID)
 	}
-	legacy, err := gitBytes(root, "show", sourceCommit+":"+inventoryPath)
+	legacyInventoryPath := inventoryPath
+	if candidate.ID == "codexsdk" {
+		legacyInventoryPath = "codexsdk/" + inventoryPath
+	}
+	legacy, err := gitBytes(root, "show", sourceCommit+":"+legacyInventoryPath)
 	if err != nil {
 		return "", fmt.Errorf("read legacy API inventory: %w", err)
 	}
@@ -312,11 +313,18 @@ func validateFirstTagAPIInventory(root string, candidate module, inventoryPath s
 	if parsed.Module == nil || parsed.Module.Mod.Path == "" {
 		return "", fmt.Errorf("legacy go.mod has no module identity")
 	}
+	legacyPublicRoot := parsed.Module.Mod.Path
+	switch candidate.ID {
+	case "codexsdk":
+		legacyPublicRoot += "/codexsdk"
+	case "codex-adapter":
+		legacyPublicRoot += "/llmcaller/codex"
+	}
 	current, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(candidate.Dir), filepath.FromSlash(inventoryPath)))
 	if err != nil {
 		return "", fmt.Errorf("read current API inventory: %w", err)
 	}
-	return mappedAPIInventoryDigest(legacy, current, parsed.Module.Mod.Path, candidate.path)
+	return mappedAPIInventoryDigest(legacy, current, legacyPublicRoot, candidate.path)
 }
 
 func mapAPIInventory(inventory []byte, oldModulePath, newModulePath string) []byte {
@@ -509,7 +517,7 @@ func validateReleaseDocumentation(root string, candidate module, targetVersion s
 func apiInventoryPath(moduleID string) (string, error) {
 	paths := map[string]string{
 		"llmkit":        "internal/architecture/testdata/handwritten-api.txt",
-		"codexsdk":      "codexsdk/internal/architecture/testdata/handwritten-api.txt",
+		"codexsdk":      "testdata/handwritten-api.txt",
 		"codex-adapter": "internal/architecture/testdata/handwritten-api.txt",
 	}
 	path, ok := paths[moduleID]

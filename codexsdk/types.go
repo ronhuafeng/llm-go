@@ -3,7 +3,7 @@ package codexsdk
 import (
 	"context"
 	"errors"
-	"github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2"
+	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
 )
 
 var (
