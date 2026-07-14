@@ -7,9 +7,13 @@ changes may occur in minor releases, but they must be documented here.
 
 ## [Unreleased]
 
-This legacy module is frozen. Development continues at
-`github.com/ronhuafeng/llm-go/llmkit`; no further feature or security releases
-are planned here.
+### Changed
+
+- **Breaking import-path change (pre-v1):** moved the provider-neutral toolkit
+  from `github.com/ronhuafeng/llmkit-go` to
+  `github.com/ronhuafeng/llm-go/llmkit`. Package names, exported identifiers,
+  behavior, evidence, retry and validation semantics, and the Go 1.23 minimum
+  remain unchanged. See [Migrating to v0.6](docs/migration/v0.6.0.md).
 
 ## [0.5.0] - 2026-07-14
 
@@ -19,7 +23,7 @@ are planned here.
   replacement module is `github.com/ronhuafeng/llm-go/llmkit`, beginning with
   `llmkit/v0.6.0`. This repository receives no feature or security maintenance
   after cutover; published versions remain available through the public Go
-  proxy. See [Migrating to llm-go](docs/llm-go-migration.md).
+  proxy. See [Migrating to llm-go](docs/migration/v0.6.0.md).
 
 ### Changed
 

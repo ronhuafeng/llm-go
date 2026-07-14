@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"maps"
 
-	"github.com/ronhuafeng/llmkit-go/llmadapter"
+	"github.com/ronhuafeng/llm-go/llmkit/llmadapter"
 )
 
 type isolatedDetails struct {

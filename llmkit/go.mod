@@ -1,4 +1,4 @@
-module github.com/ronhuafeng/llmkit-go
+module github.com/ronhuafeng/llm-go/llmkit
 
 go 1.23.0
 

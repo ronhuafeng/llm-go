@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/ronhuafeng/llmkit-go/llmschema"
+	"github.com/ronhuafeng/llm-go/llmkit/llmschema"
 )
 
 var (

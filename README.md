@@ -7,10 +7,11 @@ independently published Go modules:
 - `github.com/ronhuafeng/llm-go/codexsdk`
 - `github.com/ronhuafeng/llm-go/llmcaller/codex`
 
-The complete legacy histories have been imported, but their module identities
-have not yet migrated and no replacement tag has been released from this
-repository. Continue using the legacy module paths until their migration guides
-identify verified replacement tags.
+The complete legacy histories have been imported. Migration is staged in
+dependency order: `llmkit` now declares its new module identity, while the SDK
+and adapter still use their legacy identities until their own migration steps.
+No replacement tag is announced as verified until its public-proxy release gate
+passes; follow each module's migration guide for the exact cutover point.
 
 The repository root is orchestration-only and intentionally has no public Go
 module or umbrella facade. The provider-neutral toolkit, exact Codex SDK, and

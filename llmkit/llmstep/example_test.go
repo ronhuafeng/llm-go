@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ronhuafeng/llmkit-go/llmadapter"
-	"github.com/ronhuafeng/llmkit-go/llmstep"
+	"github.com/ronhuafeng/llm-go/llmkit/llmadapter"
+	"github.com/ronhuafeng/llm-go/llmkit/llmstep"
 )
 
 type exampleCaller struct {

@@ -22,7 +22,7 @@ GOWORK=off go mod graph
 
 | Module | Version | License | Use |
 | --- | --- | --- | --- |
-| `github.com/google/go-cmp` | `v0.7.0` | BSD-3-Clause | Module dependency of `github.com/google/jsonschema-go`; not imported directly by `llmkit-go` packages. |
+| `github.com/google/go-cmp` | `v0.7.0` | BSD-3-Clause | Module dependency of `github.com/google/jsonschema-go`; not imported directly by `llmkit` packages. |
 | `github.com/dlclark/regexp2` | `v1.11.0` | MIT | Transitive regular-expression engine used by `github.com/santhosh-tekuri/jsonschema/v6`. |
 | `golang.org/x/text` | `v0.14.0` | BSD-3-Clause | Transitive localization support used by `github.com/santhosh-tekuri/jsonschema/v6`. |
 | `golang.org/x/mod` | `v0.8.0` | BSD-3-Clause | Module-graph-only dependency declared by `golang.org/x/text`; not needed by this module's packages. |

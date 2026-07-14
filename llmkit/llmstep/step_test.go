@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ronhuafeng/llmkit-go/llmadapter"
-	"github.com/ronhuafeng/llmkit-go/settle"
+	"github.com/ronhuafeng/llm-go/llmkit/llmadapter"
+	"github.com/ronhuafeng/llm-go/llmkit/settle"
 )
 
 type fakeCaller struct {

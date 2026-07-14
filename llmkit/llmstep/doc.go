@@ -19,10 +19,4 @@
 // It is intentionally smaller than a workflow engine: applications still own
 // business prompts, provider callers, semantic validators, write gates, and
 // policy.
-//
-// Deprecated: This legacy module is frozen at v0.5.0 and receives no further
-// feature or security maintenance after cutover. Use
-// github.com/ronhuafeng/llm-go/llmkit/llmstep, first released in
-// llmkit/v0.6.0. Published legacy versions remain available through the public
-// Go proxy; no forwarding or runtime compatibility layer is provided.
 package llmstep

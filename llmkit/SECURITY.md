@@ -2,29 +2,22 @@
 
 ## Supported versions
 
-No version of this frozen legacy module is supported after the `v0.5.0`
-cutover. Security maintenance continues only in
-`github.com/ronhuafeng/llm-go/llmkit`, beginning with `llmkit/v0.6.0`.
+Security maintenance follows supported releases of
+`github.com/ronhuafeng/llm-go/llmkit`, beginning with `llmkit/v0.6.0`. The
+legacy `github.com/ronhuafeng/llmkit-go` module is frozen at `v0.5.0` and does
+not receive security fixes.
 
 ## Reporting a vulnerability
 
-Do not open a public issue with exploit details. Until the successor repository
-publishes its own confidential intake policy, use this repository's
-[private vulnerability reporting](https://github.com/ronhuafeng/llmkit-go/security/advisories/new).
-Maintainers may coordinate disclosure and migration guidance through that
-channel, but this does not create a commitment to patch legacy releases.
-
-## What to include
+Do not open a public issue with exploit details. Use the llm-go repository's
+[private vulnerability reporting](https://github.com/ronhuafeng/llm-go/security/advisories/new).
 
 Include:
 
-- Affected version or commit.
-- Package and API involved.
-- Reproduction steps or proof of concept.
-- Impact and any known mitigations.
+- the affected module version or commit;
+- the package and API involved;
+- reproduction steps or a proof of concept;
+- impact and known mitigations.
 
-## Handling
-
-The immutable legacy releases are retained as migration evidence but will not
-receive security fixes. Consumers should migrate to the successor module and
-apply supported releases there.
+Maintainers will coordinate triage, disclosure, and a supported release through
+the confidential advisory.

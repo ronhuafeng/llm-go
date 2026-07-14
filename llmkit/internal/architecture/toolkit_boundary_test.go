@@ -28,7 +28,7 @@ func TestHandwrittenPublicAPI(t *testing.T) {
 	}
 	var declarations []string
 	for _, name := range []string{"llmschema", "llmadapter", "settle", "llmstep"} {
-		path := "github.com/ronhuafeng/llmkit-go/" + name
+		path := "github.com/ronhuafeng/llm-go/llmkit/" + name
 		pkg, err := loader.Import(path)
 		if err != nil {
 			t.Fatalf("load %s: %v", path, err)
@@ -96,15 +96,20 @@ func TestActiveGatesDoNotReferenceHistoricalRefactorPlan(t *testing.T) {
 		}
 		paths = append(paths, matches...)
 	}
-	if err := filepath.WalkDir(filepath.Join(root, "scripts"), func(path string, entry os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
+	scripts := filepath.Join(root, "scripts")
+	if _, err := os.Stat(scripts); err == nil {
+		if err := filepath.WalkDir(scripts, func(path string, entry os.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if entry != nil && !entry.IsDir() {
+				paths = append(paths, path)
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
 		}
-		if entry != nil && !entry.IsDir() {
-			paths = append(paths, path)
-		}
-		return nil
-	}); err != nil {
+	} else if !os.IsNotExist(err) {
 		t.Fatal(err)
 	}
 	for _, path := range paths {
@@ -149,7 +154,7 @@ func (i *sourceImporter) Import(path string) (*types.Package, error) {
 	if pkg := i.cache[path]; pkg != nil {
 		return pkg, nil
 	}
-	const module = "github.com/ronhuafeng/llmkit-go/"
+	const module = "github.com/ronhuafeng/llm-go/llmkit/"
 	if !strings.HasPrefix(path, module) {
 		if i.compiled == nil {
 			i.compiled = importer.ForCompiler(i.fset, "gc", i.openExport)

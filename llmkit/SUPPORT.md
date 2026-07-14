@@ -1,13 +1,14 @@
 # Support
 
-This legacy repository is frozen at `v0.5.0`. Only migration guidance,
-final-release records, and archive corrections may be considered here.
-Reproducible bugs and provider-neutral feature requests belong in
-[`ronhuafeng/llm-go`](https://github.com/ronhuafeng/llm-go).
+Reproducible toolkit bugs and provider-neutral feature requests belong in the
+[`ronhuafeng/llm-go` issue tracker](https://github.com/ronhuafeng/llm-go/issues).
+Include the module version, package, minimal reproduction, expected behavior,
+and actual behavior.
 
-This repository receives no feature or security maintenance after cutover. For
-sensitive reports, use this repository's private vulnerability reporting until
-the successor repository publishes its own confidential intake policy. That
-intake path does not make legacy releases supported. Migration and
-immutable-release expectations are documented in `README.md`, `SECURITY.md`,
-and `docs/llm-go-migration.md`.
+Questions about Codex transport or exact lifecycle facts belong to the
+`codexsdk` module. Questions about Codex schema policy or neutral evidence
+projection belong to `llmcaller/codex`. Application prompts and business
+validation remain consumer concerns.
+
+Sensitive reports must use the confidential process in
+[SECURITY.md](SECURITY.md), not a public issue.

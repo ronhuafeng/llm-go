@@ -3,7 +3,7 @@ package llmadapter_test
 import (
 	"context"
 
-	"github.com/ronhuafeng/llmkit-go/llmadapter"
+	"github.com/ronhuafeng/llm-go/llmkit/llmadapter"
 )
 
 // downstreamCaller proves the mirrored consumer contract without access to

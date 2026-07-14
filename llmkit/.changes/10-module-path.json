@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "module": "llmkit",
+  "impact": "minor",
+  "breaking": true,
+  "summary": "Move the toolkit to github.com/ronhuafeng/llm-go/llmkit without changing its API or behavior.",
+  "issue": 10,
+  "migration": "docs/migration/v0.6.0.md"
+}
