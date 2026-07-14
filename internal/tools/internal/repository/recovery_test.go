@@ -8,53 +8,70 @@ import (
 	"testing"
 )
 
-func TestValidateReleaseRecoveryHostedFactsBindsIncident(t *testing.T) {
+func TestValidateReleaseRecoverySourceFactsBindIncident(t *testing.T) {
 	contract := LLMKitV060RecoveryContract()
 	run := []byte(`{"id":29342863026,"event":"workflow_dispatch","head_sha":"14f28b0dd4727f079c02ba3139c326ed249bb86a","head_branch":"main","path":".github/workflows/release.yml","status":"completed","conclusion":"failure","repository":{"full_name":"ronhuafeng/llm-go"}}`)
 	artifacts := []byte(`{"total_count":1,"artifacts":[{"id":8314814782,"name":"release-preflight","expired":false,"workflow_run":{"id":29342863026,"head_branch":"main","head_sha":"14f28b0dd4727f079c02ba3139c326ed249bb86a"}}]}`)
-	draft := []byte(`{"id":353873922,"tag_name":"llmkit/v0.6.0","target_commitish":"14f28b0dd4727f079c02ba3139c326ed249bb86a","draft":true,"prerelease":false}`)
 	tagObject := []byte("object 14f28b0dd4727f079c02ba3139c326ed249bb86a\ntype commit\ntag llmkit/v0.6.0\ntagger github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com> 0 +0000\n\nllmkit/v0.6.0\n\nrelease-authorization: sha256:9b3a05c02f5b464b2e3bb53789368c6254873b982c3012f2c60075ffadaae0cb\n")
 
-	disposition, err := ValidateReleaseRecoveryHostedFacts(contract, run, artifacts, draft, tagObject, false)
-	if err != nil {
+	if err := ValidateReleaseRecoverySourceFacts(contract, run, artifacts, tagObject); err != nil {
 		t.Fatalf("validate exact recovery incident: %v", err)
-	}
-	if disposition.State != "draft" || !disposition.AllowMissingAssets || !disposition.Publish {
-		t.Fatalf("Draft disposition = %+v", disposition)
 	}
 
 	tests := map[string]struct {
 		run       []byte
 		artifacts []byte
-		draft     []byte
 		tagObject []byte
 		want      string
 	}{
-		"wrong source run":        {run: []byte(strings.Replace(string(run), "29342863026", "29342863027", 1)), artifacts: artifacts, draft: draft, tagObject: tagObject, want: "source run"},
-		"wrong workflow":          {run: []byte(strings.Replace(string(run), ".github/workflows/release.yml", ".github/workflows/other.yml", 1)), artifacts: artifacts, draft: draft, tagObject: tagObject, want: "workflow"},
-		"wrong commit":            {run: []byte(strings.Replace(string(run), contract.Commit, strings.Repeat("a", 40), 1)), artifacts: artifacts, draft: draft, tagObject: tagObject, want: "commit"},
-		"wrong artifact":          {run: run, artifacts: []byte(strings.Replace(string(artifacts), "8314814782", "8314814783", 1)), draft: draft, tagObject: tagObject, want: "artifact"},
-		"expired artifact":        {run: run, artifacts: []byte(strings.Replace(string(artifacts), `"expired":false`, `"expired":true`, 1)), draft: draft, tagObject: tagObject, want: "expired"},
-		"wrong draft id":          {run: run, artifacts: artifacts, draft: []byte(strings.Replace(string(draft), "353873922", "353873923", 1)), tagObject: tagObject, want: "Draft Release"},
-		"wrong draft target":      {run: run, artifacts: artifacts, draft: []byte(strings.Replace(string(draft), contract.Commit, strings.Repeat("b", 40), 1)), tagObject: tagObject, want: "targets"},
-		"wrong tag authorization": {run: run, artifacts: artifacts, draft: draft, tagObject: []byte(strings.Replace(string(tagObject), contract.AuthorizationDigest, "sha256:"+strings.Repeat("c", 64), 1)), want: "authorization"},
+		"wrong source run":        {run: []byte(strings.Replace(string(run), "29342863026", "29342863027", 1)), artifacts: artifacts, tagObject: tagObject, want: "source run"},
+		"wrong workflow":          {run: []byte(strings.Replace(string(run), ".github/workflows/release.yml", ".github/workflows/other.yml", 1)), artifacts: artifacts, tagObject: tagObject, want: "workflow"},
+		"wrong commit":            {run: []byte(strings.Replace(string(run), contract.Commit, strings.Repeat("a", 40), 1)), artifacts: artifacts, tagObject: tagObject, want: "commit"},
+		"wrong artifact":          {run: run, artifacts: []byte(strings.Replace(string(artifacts), "8314814782", "8314814783", 1)), tagObject: tagObject, want: "artifact"},
+		"expired artifact":        {run: run, artifacts: []byte(strings.Replace(string(artifacts), `"expired":false`, `"expired":true`, 1)), tagObject: tagObject, want: "expired"},
+		"wrong tag authorization": {run: run, artifacts: artifacts, tagObject: []byte(strings.Replace(string(tagObject), contract.AuthorizationDigest, "sha256:"+strings.Repeat("c", 64), 1)), want: "authorization"},
 	}
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			if _, err := ValidateReleaseRecoveryHostedFacts(contract, test.run, test.artifacts, test.draft, test.tagObject, false); err == nil || !strings.Contains(err.Error(), test.want) {
-				t.Fatalf("ValidateReleaseRecoveryHostedFacts error = %v, want %q", err, test.want)
+			if err := ValidateReleaseRecoverySourceFacts(contract, test.run, test.artifacts, test.tagObject); err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("ValidateReleaseRecoverySourceFacts error = %v, want %q", err, test.want)
+			}
+		})
+	}
+}
+
+func TestValidateReleaseRecoveryReleaseStateOwnsDisposition(t *testing.T) {
+	contract := LLMKitV060RecoveryContract()
+	draft := []byte(`{"id":353873922,"tag_name":"llmkit/v0.6.0","target_commitish":"14f28b0dd4727f079c02ba3139c326ed249bb86a","draft":true,"prerelease":false}`)
+	disposition, err := ValidateReleaseRecoveryReleaseState(contract, draft, false)
+	if err != nil {
+		t.Fatalf("validate exact Draft: %v", err)
+	}
+	if disposition.State != "draft" || !disposition.AllowMissingAssets || !disposition.Publish {
+		t.Fatalf("Draft disposition = %+v", disposition)
+	}
+	for name, test := range map[string]struct {
+		release []byte
+		want    string
+	}{
+		"wrong release id": {release: []byte(strings.Replace(string(draft), "353873922", "353873923", 1)), want: "Release"},
+		"wrong target":     {release: []byte(strings.Replace(string(draft), contract.Commit, strings.Repeat("b", 40), 1)), want: "targets"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := ValidateReleaseRecoveryReleaseState(contract, test.release, false); err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("ValidateReleaseRecoveryReleaseState error = %v, want %q", err, test.want)
 			}
 		})
 	}
 	published := []byte(`{"id":353873922,"tag_name":"llmkit/v0.6.0","target_commitish":"14f28b0dd4727f079c02ba3139c326ed249bb86a","name":"llmkit/v0.6.0 (verified)","draft":false,"prerelease":false}`)
-	publishedDisposition, err := ValidateReleaseRecoveryHostedFacts(contract, run, artifacts, published, tagObject, true)
+	publishedDisposition, err := ValidateReleaseRecoveryReleaseState(contract, published, true)
 	if err != nil {
 		t.Fatalf("accept exact already-published terminal state: %v", err)
 	}
 	if publishedDisposition.State != "published_verified" || publishedDisposition.AllowMissingAssets || publishedDisposition.Publish {
 		t.Fatalf("published disposition = %+v", publishedDisposition)
 	}
-	if _, err := ValidateReleaseRecoveryHostedFacts(contract, run, artifacts, published, tagObject, false); err == nil || !strings.Contains(err.Error(), "already published") {
+	if _, err := ValidateReleaseRecoveryReleaseState(contract, published, false); err == nil || !strings.Contains(err.Error(), "already published") {
 		t.Fatalf("Draft-only validation error = %v", err)
 	}
 }
@@ -135,7 +152,8 @@ func TestReleaseRecoveryWorkflowWiringSmoke(t *testing.T) {
 		"DRAFT_ID: '353873922'",
 		"actions/artifacts/$SOURCE_ARTIFACT_ID/zip",
 		"ref: 14f28b0dd4727f079c02ba3139c326ed249bb86a",
-		"validate-release-recovery",
+		"validate-release-recovery-source",
+		"validate-release-recovery-release",
 		"-allow-published",
 		"plan-release-assets",
 		"verify-release-assets",
