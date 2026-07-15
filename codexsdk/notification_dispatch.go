@@ -182,23 +182,41 @@ func invokeNotificationHandler(ctx context.Context, handler ServerNotificationHa
 }
 
 func (c *Client) failClient(err error) {
-	if err == nil {
+	cancel, claimed := c.claimClientFailure(err)
+	if !claimed {
 		return
+	}
+	if cancel != nil {
+		cancel()
+	}
+	c.publishClaimedClientFailure(err)
+	c.startClientFailureTeardown()
+}
+
+// claimClientFailure closes callback admission and gives one caller ownership
+// of first-cause publication and teardown.
+func (c *Client) claimClientFailure(err error) (context.CancelFunc, bool) {
+	if err == nil {
+		return nil, false
 	}
 	c.closeMu.Lock()
 	if c.failure != nil {
 		c.closeMu.Unlock()
-		return
+		return nil, false
 	}
 	c.failure = err
 	c.closed = true
 	cancel := c.cancel
 	c.closeMu.Unlock()
-	if cancel != nil {
-		cancel()
-	}
+	return cancel, true
+}
+
+func (c *Client) publishClaimedClientFailure(err error) {
 	c.failAll(err)
 	c.publishCloseCause()
+}
+
+func (c *Client) startClientFailureTeardown() {
 	go func() { _ = c.Close() }()
 }
 

@@ -3,7 +3,7 @@
   "module": "codexsdk",
   "impact": "patch",
   "breaking": false,
-  "summary": "Release rejected notification dispatch waiters only after publishing the client failure, preventing exact-run deadlocks without losing accepted evidence.",
+  "summary": "Publish callback failures before rejected dispatch fences or fail-closed protocol responses can release exact runs, preventing deadlocks and lost first causes without erasing accepted evidence.",
   "issue": 13,
   "migration": "none"
 }

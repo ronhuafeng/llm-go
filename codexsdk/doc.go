@@ -29,6 +29,10 @@
 // first cause. If shutdown, failure, or bounded backpressure rejects handler
 // work before queue ownership transfers, its dispatch fence is released as
 // discarded without removing already accepted exact-run evidence.
+// Exact server-request failures likewise close callback admission and publish
+// their typed first cause to active runs before the fail-closed protocol
+// response can prompt a terminal notification; transport teardown starts only
+// after that response is written.
 // Client shutdown atomically closes callback admission and joins callbacks
 // accepted before that boundary before releasing transport resources.
 //

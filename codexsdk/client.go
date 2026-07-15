@@ -68,13 +68,14 @@ type Client struct {
 
 	// testAfterExactStreamPublished pauses the deterministic test seam after an
 	// exact stream becomes live and before pending evidence is replayed.
-	testAfterExactStreamPublished  func()
-	testAfterExactTurnPublished    func()
-	testBeforeExactStreamOrderGate func()
-	testBeforeExactTurnAttach      func()
-	testPendingExactNotification   func(rpcNotification)
-	testBeforePendingTerminalFence func()
-	testAfterCloseCausePublished   func()
+	testAfterExactStreamPublished         func()
+	testAfterExactTurnPublished           func()
+	testBeforeExactStreamOrderGate        func()
+	testBeforeExactTurnAttach             func()
+	testPendingExactNotification          func(rpcNotification)
+	testBeforePendingTerminalFence        func()
+	testAfterCloseCausePublished          func()
+	testAfterServerRequestFailureResponse func()
 
 	readerDone chan struct{}
 }

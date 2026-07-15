@@ -566,6 +566,8 @@ func TestExactServerRequestHandlerRejectsMismatchedAndEmptyResponses(t *testing.
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Setenv("CODEXSDK_FAKE_RECORD", tempRecord(t))
+			failureResponseWritten := make(chan struct{})
+			releaseFailureResponse := make(chan struct{})
 			root, err := New(ClientOptions{
 				CWD:     t.TempDir(),
 				Command: fakeCommand("approval"),
@@ -576,7 +578,31 @@ func TestExactServerRequestHandlerRejectsMismatchedAndEmptyResponses(t *testing.
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, runErr := root.ThreadRunner().Start(context.Background(), StartThreadRunRequest{Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}}})
+			root.testAfterServerRequestFailureResponse = func() {
+				close(failureResponseWritten)
+				<-releaseFailureResponse
+			}
+			type outcome struct {
+				err error
+			}
+			finished := make(chan outcome, 1)
+			go func() {
+				_, runErr := root.ThreadRunner().Start(context.Background(), StartThreadRunRequest{Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}}})
+				finished <- outcome{err: runErr}
+			}()
+			select {
+			case <-failureResponseWritten:
+			case <-time.After(time.Second):
+				t.Fatal("invalid handler response was not rejected")
+			}
+			var got outcome
+			select {
+			case got = <-finished:
+			case <-time.After(time.Second):
+				t.Fatal("run did not publish a cause before the peer terminal response")
+			}
+			close(releaseFailureResponse)
+			runErr := got.err
 			if !errors.Is(runErr, ErrExactServerRequest) {
 				t.Fatalf("run error = %v, want typed exact server request failure", runErr)
 			}
