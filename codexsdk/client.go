@@ -35,11 +35,13 @@ type Client struct {
 	handlerCtx    context.Context
 	handlerCancel context.CancelFunc
 
-	closeMu       sync.Mutex
-	closed        bool
-	failure       error
-	normalClosing bool
-	handlerWG     sync.WaitGroup
+	closeMu             sync.Mutex
+	closed              bool
+	failure             error
+	normalClosing       bool
+	handlerWG           sync.WaitGroup
+	closeCauseOnce      sync.Once
+	closeCausePublished chan struct{}
 
 	shutdownOnce   sync.Once
 	dispatchStop   chan struct{}
@@ -66,12 +68,14 @@ type Client struct {
 
 	// testAfterExactStreamPublished pauses the deterministic test seam after an
 	// exact stream becomes live and before pending evidence is replayed.
-	testAfterExactStreamPublished  func()
-	testAfterExactTurnPublished    func()
-	testBeforeExactStreamOrderGate func()
-	testBeforeExactTurnAttach      func()
-	testPendingExactNotification   func(rpcNotification)
-	testBeforePendingTerminalFence func()
+	testAfterExactStreamPublished         func()
+	testAfterExactTurnPublished           func()
+	testBeforeExactStreamOrderGate        func()
+	testBeforeExactTurnAttach             func()
+	testPendingExactNotification          func(rpcNotification)
+	testBeforePendingTerminalFence        func()
+	testAfterCloseCausePublished          func()
+	testAfterServerRequestFailureResponse func()
 
 	readerDone chan struct{}
 }
@@ -116,18 +120,19 @@ func New(options ClientOptions) (*Client, error) {
 	clientCtx, cancel := context.WithCancel(context.Background())
 	handlerCtx, handlerCancel := context.WithCancel(clientCtx)
 	c := &Client{
-		options:            normalized,
-		ctx:                clientCtx,
-		cancel:             cancel,
-		handlerCtx:         handlerCtx,
-		handlerCancel:      handlerCancel,
-		exactStreams:       map[string]map[*exactRunState]struct{}{},
-		exactAttaching:     map[string]map[*exactRunState]struct{}{},
-		pendingEvents:      map[string][]rpcNotification{},
-		pendingDiagnostics: map[string][]DiagnosticRef{},
-		readerDone:         make(chan struct{}),
-		dispatchStop:       make(chan struct{}),
-		dispatcherDone:     make(chan struct{}),
+		options:             normalized,
+		ctx:                 clientCtx,
+		cancel:              cancel,
+		handlerCtx:          handlerCtx,
+		handlerCancel:       handlerCancel,
+		exactStreams:        map[string]map[*exactRunState]struct{}{},
+		exactAttaching:      map[string]map[*exactRunState]struct{}{},
+		pendingEvents:       map[string][]rpcNotification{},
+		pendingDiagnostics:  map[string][]DiagnosticRef{},
+		readerDone:          make(chan struct{}),
+		dispatchStop:        make(chan struct{}),
+		dispatcherDone:      make(chan struct{}),
+		closeCausePublished: make(chan struct{}),
 	}
 	queueCapacity := normalized.NotificationQueueCapacity
 	if queueCapacity == 0 {

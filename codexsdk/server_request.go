@@ -12,8 +12,7 @@ func (c *Client) handleServerRequest(message map[string]any) {
 	typed, err := decodeProtocolServerRequest(message)
 	if err != nil {
 		failure := fmt.Errorf("codexsdk: decode ServerRequest request_id=%s: %w", requestIDString(id), err)
-		c.writeServerRequestError(id, -32602, failure)
-		c.failClient(failure)
+		c.failExactServerRequest(id, -32602, failure)
 		return
 	}
 	if c.isClosed() {
