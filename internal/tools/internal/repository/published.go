@@ -364,6 +364,30 @@ func main() {
 	}
 }
 `, nil
+	case "codexsdk":
+		return `package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"` + modulePath + `"
+	"` + modulePath + `/protocolv2"
+)
+
+func main() {
+	ctx := context.Background()
+	var client codexsdk.Client
+
+	if _, err := client.Models().List(ctx, protocolv2.ModelListParams{}); !errors.Is(err, codexsdk.ErrClientClosed) {
+		panic(fmt.Sprintf("published codexsdk generated facade did not fail closed: %v", err))
+	}
+	if _, err := client.ThreadRunner().Start(ctx, codexsdk.StartThreadRunRequest{}); !errors.Is(err, codexsdk.ErrClientClosed) {
+		panic(fmt.Sprintf("published codexsdk exact lifecycle did not fail closed: %v", err))
+	}
+}
+`, nil
 	default:
 		return "", fmt.Errorf("module %s has no published consumer seam", moduleID)
 	}
