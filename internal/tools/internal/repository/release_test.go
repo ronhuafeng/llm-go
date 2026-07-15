@@ -203,15 +203,12 @@ func TestReleaseWorkflowWiringSmoke(t *testing.T) {
 		"git ls-remote origin refs/heads/main",
 		"git tag -a \"$TAG\" \"$COMMIT\"",
 		"git push --atomic --force-with-lease=\"refs/tags/$TAG:\" origin \"refs/tags/$TAG\"",
-		"--verify-tag --target \"$COMMIT\" --draft",
+		"bash .github/scripts/ensure-draft-release.sh",
 		"needs: [preflight, draft-release]",
 		"needs: [preflight, post-tag]",
 		"published-evidence.json",
 		"gh release edit \"$TAG\"",
-		"gh api --paginate --slurp \"repos/$GITHUB_REPOSITORY/releases?per_page=100\"",
-		"select-draft-release -input \"$releases_json\" -tag \"$TAG\" -target \"$COMMIT\"",
 		"validate-tag-ref -input \"$tag_refs\" -tag \"$TAG\" -commit \"$COMMIT\"",
-		"3)",
 	} {
 		if !strings.Contains(workflow, required) {
 			t.Errorf("release workflow missing wiring %q", required)

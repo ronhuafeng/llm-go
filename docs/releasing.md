@@ -122,7 +122,13 @@ in an issue, pull request, workflow artifact, command line, or log.
    authorized commit. Duplicate matches, a published release, or a mismatched
    target fail closed. After creation CI lists and validates again. The remote
    annotated tag's peeled ref remains the independent immutable commit evidence
-   and is checked before and after Draft lookup or creation.
+   and is checked before and after Draft lookup or creation. GitHub may return
+   successfully from Draft creation before the authenticated paginated Releases
+   list exposes that Draft. Only after a successful create, CI therefore retries
+   that list-and-validate observation for a short bounded interval. Only the
+   typed not-found result is retryable; malformed, duplicate, published,
+   prerelease, or wrong-target observations fail immediately, and creation is
+   never repeated inside the retry.
 6. Post-tag verification waits for public-proxy propagation with bounded
    retries. Every retry uses a disposable probe cache; artifact validation and
    the external typed consumer use separate fresh caches. Module caches are
@@ -169,6 +175,10 @@ If Draft creation succeeds but its client loses the response, rerun the failed
 Draft job. Paginated exact-tag discovery finds and validates that Draft even
 though GitHub's get-by-tag endpoint hides it; it never attempts a second
 release or turns an already published Release back into mutable state.
+If a newly created Draft remains absent after the bounded visibility window,
+the job fails with the immutable tag and Draft left in place. Rerun the failed
+job so its initial exact lookup can reuse the now-visible Draft; do not create,
+delete, or move any release tag by hand.
 
 ### Exact recovery for the first tracer
 
