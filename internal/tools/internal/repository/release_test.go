@@ -269,6 +269,59 @@ func TestReleaseWorkflowWiringSmoke(t *testing.T) {
 	}
 }
 
+func TestReleaseWorkflowBoundsDraftVisibilityRetryAfterCreation(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "release.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := string(data)
+	create := `gh release create "$TAG"`
+	retry := `for attempt in $(seq 1 "$draft_visibility_attempts"); do`
+	createIndex := strings.Index(workflow, create)
+	retryIndex := strings.Index(workflow, retry)
+	if createIndex < 0 || retryIndex <= createIndex {
+		t.Fatal("Draft visibility retry must run only after successful Draft creation")
+	}
+	if got := strings.Count(workflow, create); got != 1 {
+		t.Fatalf("Draft creation occurrences = %d, want exactly one", got)
+	}
+	for _, required := range []string{
+		"draft_visibility_attempts=6",
+		"draft_visibility_delay_seconds=2",
+	} {
+		settingIndex := strings.Index(workflow, required)
+		if settingIndex <= createIndex || settingIndex >= retryIndex {
+			t.Errorf("Draft visibility retry setting %q must be initialized between creation and retry", required)
+		}
+	}
+	retryEndOffset := strings.Index(workflow[retryIndex:], "              done")
+	if retryEndOffset < 0 {
+		t.Fatal("Draft visibility retry must have a bounded loop terminator")
+	}
+	retryBlock := workflow[retryIndex : retryIndex+retryEndOffset]
+	for _, required := range []string{
+		"list_releases",
+		`"$REPOCTL" select-draft-release -input "$releases_json" -tag "$TAG" -target "$COMMIT"`,
+		`case "$lookup_exit" in`,
+		"0)",
+		"3)",
+		`if [ "$attempt" -eq "$draft_visibility_attempts" ]; then`,
+		`exit "$lookup_exit"`,
+		`sleep "$draft_visibility_delay_seconds"`,
+	} {
+		if !strings.Contains(retryBlock, required) {
+			t.Errorf("Draft visibility retry missing %q", required)
+		}
+	}
+	if strings.Contains(retryBlock, "gh release create") {
+		t.Error("Draft visibility retry must never attempt a second Draft creation")
+	}
+}
+
 func TestPublishedDownloadBindsArtifactAndOriginToPlan(t *testing.T) {
 	plan := validReleasePlan(t)
 	root := t.TempDir()

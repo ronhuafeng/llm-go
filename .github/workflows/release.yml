@@ -226,8 +226,31 @@ jobs:
               ;;
             3)
               gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --target "$COMMIT" --draft --title "$TAG (verification pending)" --notes-file "$NOTES"
-              list_releases
-              "$REPOCTL" select-draft-release -input "$releases_json" -tag "$TAG" -target "$COMMIT"
+              draft_visibility_attempts=6
+              draft_visibility_delay_seconds=2
+              for attempt in $(seq 1 "$draft_visibility_attempts"); do
+                list_releases
+                set +e
+                "$REPOCTL" select-draft-release -input "$releases_json" -tag "$TAG" -target "$COMMIT"
+                lookup_exit=$?
+                set -e
+
+                case "$lookup_exit" in
+                  0)
+                    break
+                    ;;
+                  3)
+                    if [ "$attempt" -eq "$draft_visibility_attempts" ]; then
+                      echo "Draft Release remained absent from the authenticated Releases list after $draft_visibility_attempts attempts" >&2
+                      exit "$lookup_exit"
+                    fi
+                    sleep "$draft_visibility_delay_seconds"
+                    ;;
+                  *)
+                    exit "$lookup_exit"
+                    ;;
+                esac
+              done
               ;;
             *)
               exit "$lookup_exit"
