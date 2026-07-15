@@ -253,7 +253,7 @@ jobs:
           go run ./cmd/repoctl verify-tag -root ../.. -plan "$PLAN"
           -authorization "$AUTHORIZATION" -evidence-dir "$EVIDENCE_DIR"
           -digest "$DIGEST" -evidence "$EVIDENCE"
-          -timeout 10m -retry 15s -command-timeout 2m
+          -timeout 10m -retry 15s -command-timeout 5m
       - name: Upload post-tag evidence
         if: always()
         uses: actions/upload-artifact@v7

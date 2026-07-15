@@ -52,7 +52,11 @@ After an immutable tag is pushed, CI:
   tuple.
 
 Only a successful post-tag check marks the GitHub Release as verified. A failed
-published tag is never moved or reused; recovery publishes a new version.
+published tag is never moved or recreated. An artifact, provenance, checksum,
+or behavior defect publishes a new version. If only the verifier or its
+observation path is defective, an incident-specific forward-only recovery may
+recheck the same immutable artifact with corrected tooling, but it must reuse
+the original authorization and have no tag-write authority.
 
 ## Consequences
 

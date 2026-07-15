@@ -233,7 +233,10 @@ llmcaller/codex/v0.5.0
 
 Formal tags are created only by protected CI from an approved, digest-bound
 release plan. Publication is ordered and non-atomic. A failed immutable tag is
-never moved; recovery uses a new version.
+never moved. A public artifact, checksum, provenance, or behavior defect uses a
+new version. A verifier or observation defect may only complete the same
+artifact through an incident-specific, typed, forward-only recovery that
+reuses its original authorization and cannot write tags.
 
 Module-local structured change fragments express human-reviewed release impact.
 API inventories provide a mechanical impact floor. Release tooling consumes the
