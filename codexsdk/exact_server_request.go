@@ -26,8 +26,7 @@ func (c *Client) respondToExactServerRequest(ctx context.Context, id any, reques
 		response, ok := exactFailClosedServerRequestResponse(request)
 		if !ok {
 			failure := &ExactServerRequestError{Kind: request.Kind()}
-			c.writeServerRequestError(id, -32000, failure)
-			c.failClient(failure)
+			c.failExactServerRequest(id, -32000, failure)
 			return
 		}
 		if err := c.writeExactServerRequestResponse(id, request, response); err != nil {
@@ -40,18 +39,35 @@ func (c *Client) respondToExactServerRequest(ctx context.Context, id any, reques
 		if c.closingNormally() {
 			return
 		}
-		c.writeServerRequestError(id, -32000, err)
-		c.failClient(err)
+		c.failExactServerRequest(id, -32000, err)
 		return
 	}
 	if response.kind != request.Kind() || response.value == nil {
 		failure := &ExactServerRequestError{Kind: request.Kind(), Reason: fmt.Sprintf("received mismatched or empty response %s", response.kind)}
-		c.writeServerRequestError(id, -32602, failure)
-		c.failClient(failure)
+		c.failExactServerRequest(id, -32602, failure)
 		return
 	}
 	if err := c.writeExactServerRequestResponse(id, request, response); err != nil {
 		c.failClient(err)
+	}
+}
+
+func (c *Client) failExactServerRequest(id any, code int, failure error) {
+	cancel, claimed := c.claimClientFailure(failure)
+	if claimed {
+		// Publish the typed first cause before the peer can react to the
+		// fail-closed response with a successful terminal notification.
+		c.publishClaimedClientFailure(failure)
+	}
+	c.writeServerRequestError(id, code, failure)
+	if c.testAfterServerRequestFailureResponse != nil {
+		c.testAfterServerRequestFailureResponse()
+	}
+	if claimed {
+		if cancel != nil {
+			cancel()
+		}
+		c.startClientFailureTeardown()
 	}
 }
 
