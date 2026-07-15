@@ -152,3 +152,41 @@ the original immutable preflight. This is a verifier recovery, not a new
 release authorization: it has no tag-write identity, and only its dependent
 write-scoped job may reconcile the exact three assets and publish the same
 Draft after the corrected full-graph checksum and typed-consumer checks pass.
+
+## Migration acceptance audit
+
+The manually dispatched `Migration acceptance audit` workflow is the single
+cutover gate for ADR-0023. It checks out the exact current `main` commit and
+produces all-module minimum-Go, current-Go, race, and checkout-composition
+evidence before invoking `repoctl migration-audit`. The typed command emits one
+versioned JSON report with six mandatory categories:
+
+- imported-history provenance;
+- old-to-new API and behavior equivalence;
+- architecture boundaries;
+- independent module consumption;
+- the published dependency chain;
+- cutover readiness.
+
+Every check names the exact files, Git objects, Release assets, or Proxy module
+artifacts it inspected. The report is incomplete when a category, source
+evidence file, Release asset, checksum, typed consumer, or required document is
+missing. The workflow still uploads an incomplete report when an upstream
+evidence job failed, so absence cannot collapse into an ambiguous skipped gate.
+
+Published-chain evidence is independently observed at audit time. The command
+downloads and digest-checks the three evidence assets from each stable GitHub
+Release, resolves all three replacement tags through fresh isolated public
+Proxy caches, and runs the adapter's exact declared/resolved tuple consumer.
+Each immutable evidence asset is validated against the schema version it was
+published with; a later verifier schema must not make an earlier valid Release
+unverifiable.
+It also resolves the three final legacy migration releases from fresh public
+Proxy state and binds their origins to `migration-provenance.json`.
+
+The authoritative result is the post-merge Actions artifact named
+`migration-acceptance-<main commit>`. Its upload digest and the report's own
+digest identify the exact proof used to authorize archival. A report is not
+checked into the source tree because doing so would falsely claim to have
+audited the commit that contains itself. The command and schema are checked in;
+the immutable workflow artifact is the evidence for the exact post-merge tree.
