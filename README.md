@@ -10,8 +10,10 @@ independently published Go modules:
 The complete legacy histories have been imported. All three public modules now
 declare their new identities; the adapter records exact requirements on the
 verified `llmkit/v0.6.0` and `codexsdk/v0.6.0` artifacts.
-No replacement tag is announced as verified until its public-proxy release gate
-passes; follow each module's migration guide for the exact cutover point.
+The first replacement chain—`llmkit/v0.6.0`, `codexsdk/v0.6.0`, and
+`llmcaller/codex/v0.5.0`—has passed its protected release, public-Proxy, typed
+consumer, and final migration-acceptance gates. The three legacy repositories
+are archived and read-only.
 
 The repository root is orchestration-only and intentionally has no public Go
 module or umbrella facade. The provider-neutral toolkit, exact Codex SDK, and
@@ -42,3 +44,8 @@ See the [accepted target design](docs/architecture/DESIGN.md),
 [context map](CONTEXT-MAP.md), and
 [migration status](docs/migration/README.md). Production publication follows
 the [protected release operation](docs/releasing.md).
+
+## Security
+
+Report vulnerabilities through this repository's private intake. See the
+[security policy](SECURITY.md); do not publish sensitive details in an issue.

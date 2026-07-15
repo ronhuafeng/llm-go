@@ -1,6 +1,6 @@
 # llm-go Context Map
 
-The future monorepo contains three separately published Go modules whose
+This repository contains three separately published Go modules whose
 semantic ownership remains independent even though development and review share
 one repository.
 

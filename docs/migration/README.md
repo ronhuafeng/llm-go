@@ -11,28 +11,36 @@ verified. The SDK source now declares
 `codexsdk/v0.6.0`. The adapter source now declares
 `github.com/ronhuafeng/llm-go/llmcaller/codex`, is flattened at its module root,
 and requires those two verified upstream modules exactly. Its first replacement
-tag is `llmcaller/codex/v0.5.0`; the protected release and public-proxy gates,
-not this document, determine when that tag is verified.
+tag is `llmcaller/codex/v0.5.0`. All three replacement releases have passed the
+protected release and public-Proxy gates. The three legacy repositories are
+archived and read-only; this repository is now the sole active source, issue
+tracker, CI owner, release owner, and private security-reporting intake.
+
+The versioned [archival evidence](archive-evidence.json) binds the exact
+pre-archive acceptance artifact, repository and issue disposition, security
+intake handoff, disabled legacy automation, archived GitHub state, six fresh
+public-Proxy resolutions, exact adapter tuple, typed three-layer consumer, and
+post-archive acceptance artifact. Its repository contract is fail closed: a
+missing category, altered digest, incomplete repository state, or lost exact
+evidence makes repository verification fail.
 
 The accepted sequencing and completion gates are defined by the
 [target design](../architecture/DESIGN.md) and its
 [migration Definition of Done](../architecture/adr/0023-require-complete-provenance-equivalence-and-published-evidence.md).
 
 The toolkit's exact old-to-new import mapping is documented in the
-[llmkit v0.6.0 migration guide](../../llmkit/docs/migration/v0.6.0.md).
-Consumers must continue using the legacy release until the
+[llmkit v0.6.0 migration guide](../../llmkit/docs/migration/v0.6.0.md). The
 [`llmkit/v0.6.0` GitHub Release](https://github.com/ronhuafeng/llm-go/releases/tag/llmkit%2Fv0.6.0)
-is marked verified by the protected tag and public-proxy verification gates.
+is the first verified replacement release.
 
 The SDK's flattened old-to-new import mapping is documented in the
 [codexsdk v0.6.0 migration guide](../../codexsdk/docs/migration/v0.6.0.md).
-Consumers must continue using `codexsdk-go@v0.5.1` until the protected SDK
-release gate marks `codexsdk/v0.6.0` verified.
+`codexsdk/v0.6.0` is the first verified replacement release.
 
 The adapter's complete old-to-new import and dependency mapping is documented
 in the [adapter v0.5.0 migration guide](../../llmcaller/codex/docs/migration/v0.5.0.md).
-Consumers must continue using `llmcaller-codex-go@v0.4.2` until the protected
-adapter release gate marks `llmcaller/codex/v0.5.0` verified.
+`llmcaller/codex/v0.5.0` is the first verified replacement release and resolves
+the two upstream replacement versions exactly.
 
 ## Imported-history issue audit
 
