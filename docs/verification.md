@@ -20,10 +20,8 @@ separate environments:
 Every module subprocess uses `GOWORK=off`. The current checkout is separately
 verified by `repoctl verify-checkout`, which runs the repository boundary
 contract, the fast adapter canary, and one isolated consumer per affected
-public module. The canary is named three-layer workspace evidence only when the
-adapter requires the current checkout identities of both upstream modules.
-During staged path migration it is explicitly recorded as a legacy-path adapter
-canary and does not claim current three-module composition. Each consumer
+public module. The canary now uses the current package identities because the
+adapter requires both repository upstream modules. Each consumer
 replaces only the module under test with its checkout directory; its upstream
 requirements remain those declared by the module.
 
@@ -79,7 +77,8 @@ The manually dispatched release workflow uses three additional typed seams:
 The release tracer is intentionally exact-scope: only `llmkit/v0.6.0` and
 `codexsdk/v0.6.0` are authorized. The SDK path additionally verifies its
 module-owned generated facts and runs a public-artifact consumer over both a
-generated facade and the exact lifecycle API. The adapter remains unauthorized.
+generated facade and the exact lifecycle API. The adapter remains unauthorized
+until its dedicated release ticket adds the published exact-tuple consumer seam.
 First-tag API mapping is generic across migrated modules; while a first
 replacement tag is still absent, repository verification requires the current
 canonical inventory to equal its legacy inventory after the declared flattened

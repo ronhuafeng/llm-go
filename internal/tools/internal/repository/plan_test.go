@@ -148,6 +148,17 @@ func TestAdapterUsesCurrentWorkspaceModules(t *testing.T) {
 	}
 }
 
+func TestAdapterCheckoutSeamsUseFlattenedModuleRoot(t *testing.T) {
+	adapter := module{ID: "codex-adapter", path: "github.com/ronhuafeng/llm-go/llmcaller/codex"}
+	if got, err := sourceConsumerImportPath(adapter); err != nil || got != adapter.path {
+		t.Fatalf("source consumer import = %q, %v; want %q", got, err, adapter.path)
+	}
+	want := []string{"go", "test", "./llmcaller/codex", "-run", "^TestThreeLayerCanaryFast$", "-count=1", "-v"}
+	if got := workspaceCanaryCommand(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("workspace canary command = %q, want %q", got, want)
+	}
+}
+
 func TestSourceIdentityRejectsTrackedAndUntrackedChanges(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "tracked.txt", "original\n")

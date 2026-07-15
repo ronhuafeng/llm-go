@@ -1,19 +1,19 @@
 # Third-Party Notices
 
 This document summarizes dependency provenance for source releases of
-`llmcaller-codex-go`. It is informational and does not replace the license text
+the Codex adapter. It is informational and does not replace the license text
 in dependency repositories or module archives.
 
 ## Project License
 
-`llmcaller-codex-go` is licensed under the MIT License. See `LICENSE`.
+The Codex adapter is licensed under the MIT License. See `LICENSE`.
 
 ## Module Dependencies
 
 | Module | Version | Relationship | Provenance | License |
 | --- | --- | --- | --- | --- |
-| `github.com/ronhuafeng/llmkit-go` | `v0.4.1` | Direct | Go module declared in `go.mod`; provider-neutral typed request, schema, decode, validation, and retry primitives. | MIT |
-| `github.com/ronhuafeng/codexsdk-go` | `v0.5.0` | Direct | Go module declared in `go.mod`; exact Codex app-server protocol, transport, and lifecycle API. | MIT |
+| `github.com/ronhuafeng/llm-go/llmkit` | `v0.6.0` | Direct | Go module declared in `go.mod`; provider-neutral typed request, schema, decode, validation, and retry primitives. | MIT |
+| `github.com/ronhuafeng/llm-go/codexsdk` | `v0.6.0` | Direct | Go module declared in `go.mod`; exact Codex app-server protocol, transport, and lifecycle API. | MIT |
 | `github.com/google/jsonschema-go` | `v0.4.3` | Indirect | Go module declared as indirect in `go.mod`; JSON Schema support used by the typed schema stack. | MIT |
 | `github.com/santhosh-tekuri/jsonschema/v6` | `v6.0.2` | Direct | Strict JSON Schema validation used by the typed schema stack. | MIT |
 | `golang.org/x/text` | `v0.14.0` | Indirect | Unicode and text support used by transitive schema dependencies. | BSD-3-Clause |

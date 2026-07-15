@@ -1,26 +1,26 @@
-# llmcaller-codex-go
+# Codex adapter
 
-> [!IMPORTANT]
-> This legacy module path is frozen at its final release, `v0.4.2`. Development
-> continues in [`ronhuafeng/llm-go`](https://github.com/ronhuafeng/llm-go) at
-> `github.com/ronhuafeng/llm-go/llmcaller/codex`. No feature or security
-> maintenance continues here. Existing immutable versions remain available
-> through the public Go proxy. See the
-> [migration guide](docs/llm-go-migration.md).
+The module path is `github.com/ronhuafeng/llm-go/llmcaller/codex`. Its first
+monorepo release identity is `llmcaller/codex/v0.5.0`, continuing the legacy
+adapter's pre-v1 lineage. The GitHub Release and public Go proxy are the live
+availability and verification sources; this README does not pre-announce
+release success. Consumers of
+`github.com/ronhuafeng/llmcaller-codex-go@v0.4.2` should follow the
+[v0.5 migration guide](docs/migration/v0.5.0.md).
 
-`llmcaller-codex-go` adapts provider-neutral structured calls from
-[`llmkit-go`](https://github.com/ronhuafeng/llmkit-go) to exact Codex lifecycle
-operations from [`codexsdk-go`](https://github.com/ronhuafeng/codexsdk-go).
+The adapter connects provider-neutral structured calls from
+[`llmkit`](../../llmkit) to exact Codex lifecycle operations from
+[`codexsdk`](../../codexsdk).
 
 The adapter owns only Codex schema policy, exact request/result translation,
 construction defaults, and the named read-only ephemeral profile. Typed schema
-generation, decoding, validation, and retry belong to `llmkit-go`; transport,
-protocol, streaming, and thread lifecycle belong to `codexsdk-go`.
+generation, decoding, validation, and retry belong to `llmkit`; transport,
+protocol, streaming, and thread lifecycle belong to `codexsdk`.
 
 ## Install
 
 ```sh
-go get github.com/ronhuafeng/llmcaller-codex-go@v0.4.2
+go get github.com/ronhuafeng/llm-go/llmcaller/codex@v0.5.0
 ```
 
 Go 1.23 or newer is required.
@@ -50,7 +50,7 @@ value, err := llmadapter.Value[Result](ctx, caller, "Return JSON.")
 ```
 
 A compile-checked fake-runner version of the complete three-layer path is in
-[`llmcaller/codex/example_test.go`](llmcaller/codex/example_test.go).
+[`example_test.go`](example_test.go).
 
 ## Exact Defaults
 
@@ -124,7 +124,7 @@ semantics.
 The words **MUST**, **MUST NOT**, **SHOULD**, and **MAY** below are normative.
 
 Provider-neutral Go type projection and response decoding remain owned by
-`llmkit-go`. This adapter MUST apply only Codex-specific schema policy to the
+`llmkit`. This adapter MUST apply only Codex-specific schema policy to the
 exact JSON Schema it receives; it MUST NOT infer a broader schema from Go type
 shape or add transformations not described here.
 
@@ -181,7 +181,7 @@ with the listed stable error.
 | `optional-pointer-preserved` — `*T,omitempty` whose exact schema admits null | Preserved; property promoted to required |
 | `optional-scalar-fails-closed` — non-nullable scalar with `omitempty` | Fail-closed: `optional_non_nullable` at `/properties/score` |
 | `nested-optional-pointer-preserved` — nested nullable pointer | Preserved; the same rule applies at the nested pointer |
-| `optional-map-fails-closed` — `map[string]T,omitempty` projected as non-nullable by the locked `llmkit-go` | Fail-closed: `optional_non_nullable` at `/properties/labels`; no map-specific widening |
+| `optional-map-fails-closed` — `map[string]T,omitempty` projected as non-nullable by the resolved `llmkit` module | Fail-closed: `optional_non_nullable` at `/properties/labels`; no map-specific widening |
 | `optional-slice-preserved` — `[]T,omitempty` whose exact schema admits null | Preserved under ordinary nil-slice decoding |
 | `optional-pointer-to-slice-preserved` — `*[]T,omitempty` | Preserved under ordinary nil-pointer decoding |
 | `optional-raw-message-has-decoding-limitation` — `json.RawMessage,omitempty` | Limitation: accepted, but absence decodes to nil while explicit null is retained as `"null"` |
@@ -224,19 +224,13 @@ GOWORK=off go vet ./...
 GOWORK=off go test -race ./...
 ```
 
-Active compatibility sources are machine-listed in
-[`compatibility.json`](compatibility.json): the exported API inventory, resolved
-upstream module tags, schema matrix, clean external consumer, and fast/full
-three-layer canaries. Historical proposal documents are design context only and
-are not build, CI, or release gates. Every pushed `v*` tag runs the
-[`proxy-tag-consumer` workflow](.github/workflows/proxy-tag-consumer.yml), which
-waits at most ten minutes for the exact tag on `proxy.golang.org`, records
-matching SHA-256 digests for the checkout and proxy-module copies of the tagged
-compatibility contract plus exact declared and resolved versions, sums, and
-fail-closed caller provenance (the proxy origin hash or the checkout tag commit
-fallback), and runs a typed clean consumer without `replace`, `exclude`,
-`go.work`, or pseudo-version upstreams. Tuple validation begins only after the
-two shipped-contract digests match, and the gate cannot pass without provenance.
+The canonical exported API inventory, public behavior tests, and schema matrix
+remain module-owned. The committed `go.mod` is the sole compatibility-tuple
+owner. Repository-level `repoctl` verification derives the two stable upstream
+requirements from that file, runs the flattened three-layer canary and an
+isolated source consumer, and owns release and public-proxy evidence. Historical
+proposal documents remain design context only and are not build, CI, or release
+gates.
 
 This project is MIT licensed. Dependency provenance is recorded in
 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).

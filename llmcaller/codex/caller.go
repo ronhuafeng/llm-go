@@ -10,9 +10,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ronhuafeng/codexsdk-go/codexsdk"
-	"github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2"
-	"github.com/ronhuafeng/llmkit-go/llmadapter"
+	"github.com/ronhuafeng/llm-go/codexsdk"
+	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
+	"github.com/ronhuafeng/llm-go/llmkit/llmadapter"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 

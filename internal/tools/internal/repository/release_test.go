@@ -168,6 +168,22 @@ func TestCodexSDKLegacyAPIInventoryMappingIncludesFlattenedRoot(t *testing.T) {
 	}
 }
 
+func TestAdapterLegacyAPIInventoryMappingIncludesBothUpstreams(t *testing.T) {
+	legacy := []byte("func github.com/ronhuafeng/llmcaller-codex-go/llmcaller/codex.New() github.com/ronhuafeng/codexsdk-go/codexsdk.StartedThreadRun\n" +
+		"type github.com/ronhuafeng/llmcaller-codex-go/llmcaller/codex.Options struct{Request github.com/ronhuafeng/llmkit-go/llmadapter.Request}\n")
+	want := []byte("func github.com/ronhuafeng/llm-go/llmcaller/codex.New() github.com/ronhuafeng/llm-go/codexsdk.StartedThreadRun\n" +
+		"type github.com/ronhuafeng/llm-go/llmcaller/codex.Options struct{Request github.com/ronhuafeng/llm-go/llmkit/llmadapter.Request}\n")
+	mappings := []apiInventoryMapping{
+		{Old: "github.com/ronhuafeng/llmcaller-codex-go/llmcaller/codex", New: "github.com/ronhuafeng/llm-go/llmcaller/codex"},
+		{Old: "github.com/ronhuafeng/codexsdk-go/codexsdk", New: "github.com/ronhuafeng/llm-go/codexsdk"},
+		{Old: "github.com/ronhuafeng/llmkit-go", New: "github.com/ronhuafeng/llm-go/llmkit"},
+	}
+	got := mapAPIInventoryAll(legacy, mappings)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("mapped adapter inventory = %q, want %q", got, want)
+	}
+}
+
 func TestReleaseWorkflowWiringSmoke(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
 	if err != nil {

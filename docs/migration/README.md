@@ -8,8 +8,11 @@ relocation commits and independent merge edges. The toolkit source now declares
 verification sources; repository prose does not pre-announce a tag as
 verified. The SDK source now declares
 `github.com/ronhuafeng/llm-go/codexsdk`; its first replacement tag is
-`codexsdk/v0.6.0`. The adapter still declares its legacy module identity until
-its own migration ticket is complete.
+`codexsdk/v0.6.0`. The adapter source now declares
+`github.com/ronhuafeng/llm-go/llmcaller/codex`, is flattened at its module root,
+and requires those two verified upstream modules exactly. Its first replacement
+tag is `llmcaller/codex/v0.5.0`; the protected release and public-proxy gates,
+not this document, determine when that tag is verified.
 
 The accepted sequencing and completion gates are defined by the
 [target design](../architecture/DESIGN.md) and its
@@ -25,6 +28,11 @@ The SDK's flattened old-to-new import mapping is documented in the
 [codexsdk v0.6.0 migration guide](../../codexsdk/docs/migration/v0.6.0.md).
 Consumers must continue using `codexsdk-go@v0.5.1` until the protected SDK
 release gate marks `codexsdk/v0.6.0` verified.
+
+The adapter's complete old-to-new import and dependency mapping is documented
+in the [adapter v0.5.0 migration guide](../../llmcaller/codex/docs/migration/v0.5.0.md).
+Consumers must continue using `llmcaller-codex-go@v0.4.2` until the protected
+adapter release gate marks `llmcaller/codex/v0.5.0` verified.
 
 ## Imported-history issue audit
 
