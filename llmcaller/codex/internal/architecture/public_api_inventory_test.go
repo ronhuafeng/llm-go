@@ -19,7 +19,6 @@ func TestPublicAPIInventoryFailureGuidanceUsesActiveContracts(t *testing.T) {
 	}
 	for _, required := range []string{
 		"canonical allowlist",
-		"compatibility.json",
 		"changelog",
 		"migration",
 		"public behavior",

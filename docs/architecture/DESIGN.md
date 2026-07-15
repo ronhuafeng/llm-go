@@ -1,6 +1,6 @@
 # llm-go target design
 
-Status: bootstrap repository created; module migration not started
+Status: module sources migrated; adapter publication and final cutover pending
 
 ## North Star
 

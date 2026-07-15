@@ -10,7 +10,7 @@ Security fixes are provided for the latest released minor version. Before
 Please report suspected vulnerabilities through GitHub private vulnerability
 reporting:
 
-https://github.com/ronhuafeng/llmcaller-codex-go/security/advisories/new
+https://github.com/ronhuafeng/llm-go/security/advisories/new
 
 If private vulnerability reporting is unavailable, open a public issue asking
 for a private reporting channel. Do not include vulnerability details, exploit
@@ -27,17 +27,22 @@ A useful report includes:
 
 ## Security Boundaries
 
-`llmcaller-codex-go` does not read credentials or start processes directly. It
-uses the `codexsdk.ThreadClient` supplied by the application.
+The Codex adapter does not read credentials or start processes directly. It
+uses its consumer-owned `ThreadRunner` boundary; an application normally
+obtains that runner from `codexsdk.Client.ThreadRunner()`.
 
 Applications are responsible for:
 
 - Codex authentication and account configuration;
-- the app-server command used by `codexsdk-go`;
+- the app-server command used by `codexsdk`;
 - the working directory exposed to Codex;
 - approval policy and server request handling for file edits, shell commands,
   and other tool calls;
 - deciding whether model output is trusted enough for their business domain.
 
-For least privilege, pass the smallest practical working directory and use
-`codexsdk.ApprovalPolicyNever` when the call should be read-only.
+For least privilege, pass the smallest practical working directory and build
+adapter options with `ReadOnlyEphemeralOptions(client.ThreadRunner())` when the
+call should be read-only. That adapter-owned profile sends the exact generated
+`protocolv2` read-only sandbox and never-approve values at both thread and turn
+scope, then verifies the terminal effective profile. Applications should not
+replace those facts with copied approval or sandbox enums.

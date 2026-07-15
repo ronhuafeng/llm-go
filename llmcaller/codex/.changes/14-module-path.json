@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "module": "codex-adapter",
+  "impact": "minor",
+  "breaking": true,
+  "summary": "Flatten the Codex adapter at github.com/ronhuafeng/llm-go/llmcaller/codex against the verified llmkit and codexsdk v0.6.0 modules without changing runtime behavior or evidence.",
+  "issue": 14,
+  "migration": "docs/migration/v0.5.0.md"
+}

@@ -21,6 +21,56 @@ func verifyArchitecture(root string, registered *registry) []string {
 	violations = append(violations, verifyRegisteredModules(root, registered)...)
 	violations = append(violations, verifyWorkspace(root, *registered)...)
 	violations = append(violations, verifyModuleGraph(root, *registered)...)
+	violations = append(violations, verifyHistoricalProposalIsolation(root, *registered)...)
+	return violations
+}
+
+func verifyHistoricalProposalIsolation(root string, registered registry) []string {
+	var paths []string
+	patterns := []string{
+		filepath.Join(root, ".github", "workflows", "*.yml"),
+		filepath.Join(root, ".github", "workflows", "*.yaml"),
+	}
+	for _, candidate := range registered.Modules {
+		patterns = append(patterns, filepath.Join(root, filepath.FromSlash(candidate.Dir), "internal", "architecture", "*.go"))
+	}
+	for _, pattern := range patterns {
+		matches, err := filepath.Glob(pattern)
+		if err != nil {
+			return []string{fmt.Sprintf("scan active gates: %v", err)}
+		}
+		paths = append(paths, matches...)
+	}
+	toolsRoot := filepath.Join(root, "internal", "tools")
+	if err := filepath.WalkDir(toolsRoot, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".go") {
+			paths = append(paths, path)
+		}
+		return nil
+	}); err != nil && !os.IsNotExist(err) {
+		return []string{fmt.Sprintf("scan repository tools gates: %v", err)}
+	}
+	paths = append(paths, filepath.Join(root, "docs", "releasing.md"))
+
+	needle := "v0.2-" + "refactor-plan.md"
+	var violations []string
+	for _, path := range paths {
+		data, err := os.ReadFile(path)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			violations = append(violations, fmt.Sprintf("read active gate %s: %v", path, err))
+			continue
+		}
+		if strings.Contains(string(data), needle) {
+			relative, _ := filepath.Rel(root, path)
+			violations = append(violations, fmt.Sprintf("active gate %s references historical v0.2 refactor proposal", filepath.ToSlash(relative)))
+		}
+	}
 	return violations
 }
 
@@ -131,7 +181,9 @@ func verifyWorkspace(root string, registered registry) []string {
 
 func verifyModuleGraph(root string, registered registry) []string {
 	owners := make(map[string]string, len(registered.Modules))
+	modulesByID := make(map[string]module, len(registered.Modules))
 	for _, candidate := range registered.Modules {
+		modulesByID[candidate.ID] = candidate
 		if candidate.path != "" {
 			owners[candidate.path] = candidate.ID
 		}
@@ -190,6 +242,30 @@ func verifyModuleGraph(root string, registered registry) []string {
 		})
 		if err != nil {
 			violations = append(violations, fmt.Sprintf("scan module %s imports: %v", candidate.ID, err))
+		}
+	}
+	violations = append(violations, verifyAdapterUpstreamRequirements(modulesByID)...)
+	return violations
+}
+
+func verifyAdapterUpstreamRequirements(modulesByID map[string]module) []string {
+	adapter, ok := modulesByID["codex-adapter"]
+	if !ok || adapter.path == "" {
+		return nil
+	}
+	var violations []string
+	for _, upstreamID := range []string{"llmkit", "codexsdk"} {
+		upstream, ok := modulesByID[upstreamID]
+		if !ok || upstream.path == "" {
+			continue
+		}
+		version, ok := adapter.requireVersions[upstream.path]
+		if !ok {
+			violations = append(violations, fmt.Sprintf("module codex-adapter must directly require repository module %s", upstreamID))
+			continue
+		}
+		if !stableVersionPattern.MatchString(version) {
+			violations = append(violations, fmt.Sprintf("module codex-adapter requires repository module %s at non-stable version %q", upstreamID, version))
 		}
 	}
 	return violations

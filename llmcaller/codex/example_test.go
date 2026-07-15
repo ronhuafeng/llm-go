@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ronhuafeng/codexsdk-go/codexsdk"
-	"github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2"
-	codexcaller "github.com/ronhuafeng/llmcaller-codex-go/llmcaller/codex"
-	"github.com/ronhuafeng/llmkit-go/llmadapter"
+	"github.com/ronhuafeng/llm-go/codexsdk"
+	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
+	codexcaller "github.com/ronhuafeng/llm-go/llmcaller/codex"
+	"github.com/ronhuafeng/llm-go/llmkit/llmadapter"
 )
 
 type exampleRunner struct{}

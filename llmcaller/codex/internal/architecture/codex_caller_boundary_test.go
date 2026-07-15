@@ -12,21 +12,21 @@ import (
 )
 
 var allowedExternalImportPrefixes = []string{
-	"github.com/ronhuafeng/llmkit-go",
-	"github.com/ronhuafeng/codexsdk-go",
+	"github.com/ronhuafeng/llm-go/llmkit",
+	"github.com/ronhuafeng/llm-go/codexsdk",
 	"github.com/santhosh-tekuri/jsonschema/v6",
 }
 
 var forbiddenImportPrefixes = []string{
 	"smart-contract",
-	"github.com/ronhuafeng/llmkit-go/llmschema",
-	"github.com/ronhuafeng/llmkit-go/settle",
+	"github.com/ronhuafeng/llm-go/llmkit/llmschema",
+	"github.com/ronhuafeng/llm-go/llmkit/settle",
 }
 
 func TestCodexCallerImportBoundary(t *testing.T) {
 	root := repoRoot(t)
 
-	err := filepath.WalkDir(filepath.Join(root, "llmcaller"), func(path string, entry os.DirEntry, walkErr error) error {
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -69,10 +69,10 @@ func TestImportBoundaryClassifiesStdlibAndBusinessImports(t *testing.T) {
 	for _, importPath := range []string{
 		"smart-contract",
 		"smart-contract/internal/companyfacts",
-		"github.com/ronhuafeng/llmkit-go/llmschema",
-		"github.com/ronhuafeng/llmkit-go/llmschema/internal",
-		"github.com/ronhuafeng/llmkit-go/settle",
-		"github.com/ronhuafeng/llmkit-go/settle/runtime",
+		"github.com/ronhuafeng/llm-go/llmkit/llmschema",
+		"github.com/ronhuafeng/llm-go/llmkit/llmschema/internal",
+		"github.com/ronhuafeng/llm-go/llmkit/settle",
+		"github.com/ronhuafeng/llm-go/llmkit/settle/runtime",
 	} {
 		if !isForbiddenImport(importPath) {
 			t.Fatalf("import %q should be forbidden", importPath)

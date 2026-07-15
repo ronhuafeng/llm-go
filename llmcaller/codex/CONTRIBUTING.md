@@ -1,16 +1,9 @@
 # Contributing
 
-> [!IMPORTANT]
-> This legacy repository is frozen at `v0.4.2`. Active development has moved
-> to [`ronhuafeng/llm-go`](https://github.com/ronhuafeng/llm-go). No feature or
-> security maintenance continues here. Before archival, contributions to this
-> repository are limited to corrections required for migration, release
-> evidence, or archival.
-
-Thank you for helping keep the final migration and release evidence accurate.
+Thank you for helping keep the adapter focused and its evidence complete.
 
 This repository is intentionally small. It should stay focused on adapting
-`llmkit-go` typed requests to `codexsdk-go` Codex thread calls.
+`llmkit` typed requests to `codexsdk` Codex thread calls.
 
 ## Development Setup
 
@@ -23,7 +16,7 @@ Useful commands:
 
 ```sh
 go mod download
-gofmt -w llmcaller internal
+gofmt -w .
 go vet ./...
 go test ./...
 GOWORK=off go test ./...
@@ -31,16 +24,12 @@ GOWORK=off go test ./...
 
 ## Scope
 
-Before archival, accepted corrections are limited to migration mappings, final
-release or public-proxy evidence, and archival metadata. Runtime, API, schema,
-test, CI-feature, and dependency development belongs in `llm-go`.
-
-Out of scope for this repository:
+Out of scope for this module:
 
 - provider-neutral typed schema generation or decoding, which belongs in
-  `llmkit-go`;
+  `llmkit`;
 - Codex protocol transport, app-server lifecycle, and streaming APIs, which
-  belong in `codexsdk-go`;
+  belong in `codexsdk`;
 - business prompts, application workflows, private paths, credentials, or
   organization-specific examples.
 
@@ -69,5 +58,5 @@ Before opening a pull request:
 ## Dependency Policy
 
 New dependencies should be rare. Prefer the Go standard library and the
-existing `llmkit-go` and `codexsdk-go` contracts. Any new dependency must have
+existing `llmkit` and `codexsdk` contracts. Any new dependency must have
 an OSI-compatible license and a clear purpose documented in the pull request.

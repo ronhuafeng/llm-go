@@ -6,8 +6,16 @@ This project follows Semantic Versioning.
 
 ## [Unreleased]
 
-This legacy module path is frozen. Future releases use
-`github.com/ronhuafeng/llm-go/llmcaller/codex`.
+### Changed
+
+- **Breaking import-path change (pre-v1):** moved the Codex adapter from
+  `github.com/ronhuafeng/llmcaller-codex-go/llmcaller/codex` to the flattened
+  module-root package `github.com/ronhuafeng/llm-go/llmcaller/codex` and now
+  requires the verified `llmkit v0.6.0` and `codexsdk v0.6.0` modules. Package
+  names, exported identifiers, schema policy, effective-profile behavior,
+  neutral evidence projection, exact-result escape hatches, and the Go 1.23
+  minimum remain unchanged. See
+  [Migrating to v0.5](docs/migration/v0.5.0.md).
 
 ## [0.4.2] - 2026-07-14
 
@@ -16,7 +24,7 @@ This legacy module path is frozen. Future releases use
 - Froze `github.com/ronhuafeng/llmcaller-codex-go` at its final legacy release.
   The replacement module is
   `github.com/ronhuafeng/llm-go/llmcaller/codex`, beginning with `v0.5.0`; see
-  the [repository migration guide](docs/llm-go-migration.md) for the exact
+  the [repository migration guide](docs/migration/v0.5.0.md) for the exact
   adapter and upstream import mappings.
 - Ended feature and security maintenance for the legacy module path. Existing
   immutable versions remain available through the public Go proxy until the

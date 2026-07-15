@@ -7,10 +7,9 @@ independently published Go modules:
 - `github.com/ronhuafeng/llm-go/codexsdk`
 - `github.com/ronhuafeng/llm-go/llmcaller/codex`
 
-The complete legacy histories have been imported. Migration is staged in
-dependency order: `llmkit` and `codexsdk` now declare their new module
-identities, while the adapter still uses its legacy identity until its own
-migration step.
+The complete legacy histories have been imported. All three public modules now
+declare their new identities; the adapter records exact requirements on the
+verified `llmkit/v0.6.0` and `codexsdk/v0.6.0` artifacts.
 No replacement tag is announced as verified until its public-proxy release gate
 passes; follow each module's migration guide for the exact cutover point.
 

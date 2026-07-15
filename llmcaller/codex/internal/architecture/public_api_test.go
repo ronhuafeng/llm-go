@@ -20,7 +20,7 @@ import (
 func TestHandwrittenPublicAPI(t *testing.T) {
 	root := repoRoot(t)
 	loader := &callerSourceImporter{root: root, fset: token.NewFileSet()}
-	pkg, err := loader.Import("github.com/ronhuafeng/llmcaller-codex-go/llmcaller/codex")
+	pkg, err := loader.Import("github.com/ronhuafeng/llm-go/llmcaller/codex")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestHandwrittenPublicAPI(t *testing.T) {
 }
 
 func publicAPIMismatchMessage(actual string) string {
-	return "handwritten public API changed; review the exported surface against the canonical allowlist and active compatibility contract compatibility.json; review changelog and migration obligations, then verify public behavior tests and the clean consumer before accepting the inventory change:\n" + actual
+	return "handwritten public API changed; review the exported surface against the canonical allowlist, changelog, migration obligations, public behavior tests, and repository-owned clean consumer before accepting the inventory change:\n" + actual
 }
 
 type callerSourceImporter struct {
@@ -54,14 +54,14 @@ type callerSourceImporter struct {
 }
 
 func (i *callerSourceImporter) Import(path string) (*types.Package, error) {
-	const module = "github.com/ronhuafeng/llmcaller-codex-go/llmcaller/codex"
+	const module = "github.com/ronhuafeng/llm-go/llmcaller/codex"
 	if path != module {
 		if i.compiled == nil {
 			i.compiled = importer.ForCompiler(i.fset, "gc", i.openExport)
 		}
 		return i.compiled.Import(path)
 	}
-	dir := filepath.Join(i.root, "llmcaller", "codex")
+	dir := i.root
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err

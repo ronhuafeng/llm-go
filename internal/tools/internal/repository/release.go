@@ -316,37 +316,70 @@ func validateFirstTagAPIInventory(root string, candidate module, inventoryPath s
 	if err != nil {
 		return "", fmt.Errorf("read legacy API inventory: %w", err)
 	}
-	legacyGoMod, err := gitBytes(root, "show", sourceCommit+":go.mod")
-	if err != nil {
-		return "", fmt.Errorf("read legacy go.mod: %w", err)
-	}
-	parsed, err := modfile.Parse("legacy/go.mod", legacyGoMod, nil)
-	if err != nil {
-		return "", fmt.Errorf("parse legacy module identity: %w", err)
-	}
-	if parsed.Module == nil || parsed.Module.Mod.Path == "" {
-		return "", fmt.Errorf("legacy go.mod has no module identity")
-	}
-	legacyPublicRoot := parsed.Module.Mod.Path
-	switch candidate.ID {
-	case "codexsdk":
-		legacyPublicRoot += "/codexsdk"
-	case "codex-adapter":
-		legacyPublicRoot += "/llmcaller/codex"
-	}
 	current, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(candidate.Dir), filepath.FromSlash(inventoryPath)))
 	if err != nil {
 		return "", fmt.Errorf("read current API inventory: %w", err)
 	}
-	return mappedAPIInventoryDigest(legacy, current, legacyPublicRoot, candidate.path)
+	mappings, err := firstTagAPIInventoryMappings(root, provenance)
+	if err != nil {
+		return "", err
+	}
+	return mappedAPIInventoryDigestAll(legacy, current, mappings)
+}
+
+type apiInventoryMapping struct {
+	Old string
+	New string
+}
+
+func firstTagAPIInventoryMappings(root string, provenance provenanceManifest) ([]apiInventoryMapping, error) {
+	mappings := make([]apiInventoryMapping, 0, len(provenance.Imports))
+	for _, imported := range provenance.Imports {
+		legacyGoMod, err := gitBytes(root, "show", imported.Source.Commit+":go.mod")
+		if err != nil {
+			return nil, fmt.Errorf("read legacy go.mod for %s: %w", imported.ID, err)
+		}
+		parsed, err := modfile.Parse("legacy/go.mod", legacyGoMod, nil)
+		if err != nil {
+			return nil, fmt.Errorf("parse legacy module identity for %s: %w", imported.ID, err)
+		}
+		if parsed.Module == nil || parsed.Module.Mod.Path == "" {
+			return nil, fmt.Errorf("legacy go.mod for %s has no module identity", imported.ID)
+		}
+		legacyPublicRoot := parsed.Module.Mod.Path
+		switch imported.ID {
+		case "codexsdk":
+			legacyPublicRoot += "/codexsdk"
+		case "codex-adapter":
+			legacyPublicRoot += "/llmcaller/codex"
+		}
+		if imported.Destination.Module == "" {
+			return nil, fmt.Errorf("module %s has no destination module identity", imported.ID)
+		}
+		mappings = append(mappings, apiInventoryMapping{Old: legacyPublicRoot, New: imported.Destination.Module})
+	}
+	sort.Slice(mappings, func(i, j int) bool { return len(mappings[i].Old) > len(mappings[j].Old) })
+	return mappings, nil
 }
 
 func mapAPIInventory(inventory []byte, oldModulePath, newModulePath string) []byte {
 	return bytes.ReplaceAll(inventory, []byte(oldModulePath), []byte(newModulePath))
 }
 
+func mapAPIInventoryAll(inventory []byte, mappings []apiInventoryMapping) []byte {
+	mapped := append([]byte(nil), inventory...)
+	for _, mapping := range mappings {
+		mapped = mapAPIInventory(mapped, mapping.Old, mapping.New)
+	}
+	return mapped
+}
+
 func mappedAPIInventoryDigest(legacy, current []byte, oldModulePath, newModulePath string) (string, error) {
-	mapped := mapAPIInventory(legacy, oldModulePath, newModulePath)
+	return mappedAPIInventoryDigestAll(legacy, current, []apiInventoryMapping{{Old: oldModulePath, New: newModulePath}})
+}
+
+func mappedAPIInventoryDigestAll(legacy, current []byte, mappings []apiInventoryMapping) (string, error) {
+	mapped := mapAPIInventoryAll(legacy, mappings)
 	if !bytes.Equal(mapped, current) {
 		return "", fmt.Errorf("current API inventory is not equivalent to the legacy inventory after the declared module-path mapping")
 	}

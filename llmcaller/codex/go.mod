@@ -1,10 +1,10 @@
-module github.com/ronhuafeng/llmcaller-codex-go
+module github.com/ronhuafeng/llm-go/llmcaller/codex
 
 go 1.23.0
 
 require (
-	github.com/ronhuafeng/codexsdk-go v0.5.0
-	github.com/ronhuafeng/llmkit-go v0.4.1
+	github.com/ronhuafeng/llm-go/codexsdk v0.6.0
+	github.com/ronhuafeng/llm-go/llmkit v0.6.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 )
 

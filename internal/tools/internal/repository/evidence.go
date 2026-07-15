@@ -301,7 +301,7 @@ func VerifyCheckout(root string, plan AffectedPlan) (Evidence, error) {
 		return recorder.evidence, err
 	}
 	if plan.WorkspaceRequired {
-		command := []string{"go", "test", "./llmcaller/codex/llmcaller/codex", "-run", "^TestThreeLayerCanaryFast$", "-count=1", "-v"}
+		command := workspaceCanaryCommand()
 		name := "workspace three-layer canary"
 		if !adapterUsesCurrentWorkspaceModules(registered) {
 			name = "staged legacy-path adapter canary"
@@ -333,6 +333,10 @@ func VerifyCheckout(root string, plan AffectedPlan) (Evidence, error) {
 		return recorder.evidence, err
 	}
 	return recorder.evidence, nil
+}
+
+func workspaceCanaryCommand() []string {
+	return []string{"go", "test", "./llmcaller/codex", "-run", "^TestThreeLayerCanaryFast$", "-count=1", "-v"}
 }
 
 func adapterUsesCurrentWorkspaceModules(registered registry) bool {
@@ -507,14 +511,9 @@ func verifyFormatting(root string) error {
 }
 
 func verifySourceConsumer(root string, candidate module) error {
-	imports := map[string]string{
-		"llmkit":        candidate.path + "/llmschema",
-		"codexsdk":      candidate.path,
-		"codex-adapter": candidate.path + "/llmcaller/codex",
-	}
-	importPath, ok := imports[candidate.ID]
-	if !ok {
-		return fmt.Errorf("module %s has no source-consumer seam", candidate.ID)
+	importPath, err := sourceConsumerImportPath(candidate)
+	if err != nil {
+		return err
 	}
 	temporary, err := os.MkdirTemp("", "llm-go-source-consumer-")
 	if err != nil {
@@ -543,6 +542,19 @@ func verifySourceConsumer(root string, candidate module) error {
 		return err
 	}
 	return runner.run("go", "test", "./...")
+}
+
+func sourceConsumerImportPath(candidate module) (string, error) {
+	imports := map[string]string{
+		"llmkit":        candidate.path + "/llmschema",
+		"codexsdk":      candidate.path,
+		"codex-adapter": candidate.path,
+	}
+	importPath, ok := imports[candidate.ID]
+	if !ok {
+		return "", fmt.Errorf("module %s has no source-consumer seam", candidate.ID)
+	}
+	return importPath, nil
 }
 
 type commandRunner struct {

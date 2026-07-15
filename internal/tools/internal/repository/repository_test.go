@@ -82,6 +82,27 @@ func TestArchitectureRejectsBoundaryViolations(t *testing.T) {
 			want: "module codex-adapter contains prohibited exclude example.com/alias@v1.0.0",
 		},
 		{
+			name: "adapter omits toolkit",
+			mutate: func(t *testing.T, root string) {
+				writeFile(t, root, "llmcaller/codex/go.mod", "module example.com/llmcaller/codex\n\ngo 1.23.0\n\nrequire example.com/codexsdk v0.6.0\n")
+			},
+			want: "module codex-adapter must directly require repository module llmkit",
+		},
+		{
+			name: "adapter uses pseudo-version",
+			mutate: func(t *testing.T, root string) {
+				writeFile(t, root, "llmcaller/codex/go.mod", "module example.com/llmcaller/codex\n\ngo 1.23.0\n\nrequire (\n\texample.com/llmkit v0.6.1-0.20260715000000-0123456789ab\n\texample.com/codexsdk v0.6.0\n)\n")
+			},
+			want: "module codex-adapter requires repository module llmkit at non-stable version",
+		},
+		{
+			name: "adapter uses prerelease",
+			mutate: func(t *testing.T, root string) {
+				writeFile(t, root, "llmcaller/codex/go.mod", "module example.com/llmcaller/codex\n\ngo 1.23.0\n\nrequire (\n\texample.com/llmkit v0.6.0\n\texample.com/codexsdk v0.7.0-rc.1\n)\n")
+			},
+			want: "module codex-adapter requires repository module codexsdk at non-stable version",
+		},
+		{
 			name: "unregistered module",
 			mutate: func(t *testing.T, root string) {
 				writeFile(t, root, "shared/go.mod", "module example.com/shared\n\ngo 1.23.0\n")
@@ -108,6 +129,20 @@ func TestArchitectureRejectsBoundaryViolations(t *testing.T) {
 				writeFile(t, root, "go.work", "go 1.23.0\n\nuse (\n\t./llmkit\n\t./codexsdk\n\t./llmcaller/codex\n)\n")
 			},
 			want: "go.work is missing registered module internal/tools",
+		},
+		{
+			name: "active gate references historical proposal",
+			mutate: func(t *testing.T, root string) {
+				writeFile(t, root, ".github/workflows/ci.yml", "# gate: llmcaller/codex/docs/v0.2-"+"refactor-plan.md\n")
+			},
+			want: "active gate .github/workflows/ci.yml references historical v0.2 refactor proposal",
+		},
+		{
+			name: "repository tool references historical proposal",
+			mutate: func(t *testing.T, root string) {
+				writeFile(t, root, "internal/tools/internal/repository/gate.go", "package repository\nconst gate = \"llmcaller/codex/docs/v0.2-"+"refactor-plan.md\"\n")
+			},
+			want: "active gate internal/tools/internal/repository/gate.go references historical v0.2 refactor proposal",
 		},
 	}
 
@@ -251,7 +286,11 @@ func newArchitectureFixture(t *testing.T) string {
 		"internal/tools":  "example.com/llm-go/internal/tools",
 	}
 	for directory, modulePath := range modules {
-		writeFile(t, root, filepath.Join(directory, "go.mod"), fmt.Sprintf("module %s\n\ngo 1.23.0\n", modulePath))
+		contents := fmt.Sprintf("module %s\n\ngo 1.23.0\n", modulePath)
+		if directory == "llmcaller/codex" {
+			contents += "\nrequire (\n\texample.com/llmkit v0.6.0\n\texample.com/codexsdk v0.6.0\n)\n"
+		}
+		writeFile(t, root, filepath.Join(directory, "go.mod"), contents)
 		writeFile(t, root, filepath.Join(directory, "package.go"), "package fixture\n")
 	}
 	return root
