@@ -1,0 +1,254 @@
+{
+  "format_version": 1,
+  "subject": {
+    "repository": "https://github.com/ronhuafeng/llm-go",
+    "issue": 17,
+    "commit": "0a61fa052c62df84347e0bab3e295f480164d515",
+    "tree": "3534d75be3a14f07952ca0066335b1ead76778a3"
+  },
+  "prerequisite_acceptance": {
+    "run_id": 29388565609,
+    "run_attempt": 1,
+    "run_url": "https://github.com/ronhuafeng/llm-go/actions/runs/29388565609",
+    "created_at": "2026-07-15T04:16:05Z",
+    "completed_at": "2026-07-15T04:20:00Z",
+    "artifact_id": 8332394929,
+    "artifact_name": "migration-acceptance-0a61fa052c62df84347e0bab3e295f480164d515",
+    "artifact_sha256": "bd8f38d417a71b787886317917f302a444fdfef7f17fda3d36306a6ae4e99ba6",
+    "report_file_sha256": "ab43d55374e3c214e181e309ee8bf041fd8595b2baa680630a3f9137a44ce18f",
+    "report_digest": "sha256:727c805f6cddbd4334febbcfff0826e724244bd73edd1e81ec39d7caea69d36f",
+    "commit": "0a61fa052c62df84347e0bab3e295f480164d515",
+    "tree": "3534d75be3a14f07952ca0066335b1ead76778a3",
+    "complete": true,
+    "categories": [
+      {"id": "provenance", "status": "complete"},
+      {"id": "api_behavior_equivalence", "status": "complete"},
+      {"id": "architecture_boundaries", "status": "complete"},
+      {"id": "independent_consumption", "status": "complete"},
+      {"id": "published_dependency_chain", "status": "complete"},
+      {"id": "cutover_readiness", "status": "complete"}
+    ]
+  },
+  "successor": {
+    "repository_id": 1300311577,
+    "full_name": "ronhuafeng/llm-go",
+    "url": "https://github.com/ronhuafeng/llm-go",
+    "archived": false,
+    "default_branch": "main",
+    "head_commit": "0a61fa052c62df84347e0bab3e295f480164d515",
+    "description": "Provider-neutral LLM toolkit, exact Codex SDK, and Codex adapter in independently released Go modules",
+    "homepage": "",
+    "issues_enabled": true,
+    "actions_enabled": true,
+    "private_vulnerability_reporting": true
+  },
+  "security_handoff": {
+    "successor_enabled_before_legacy_disable": true,
+    "legacy_disabled_before_archive": true
+  },
+  "legacy_repositories": [
+    {
+      "id": "codex-adapter",
+      "repository_id": 1265769870,
+      "full_name": "ronhuafeng/llmcaller-codex-go",
+      "url": "https://github.com/ronhuafeng/llmcaller-codex-go",
+      "legacy_module": "github.com/ronhuafeng/llmcaller-codex-go",
+      "replacement_module": "github.com/ronhuafeng/llm-go/llmcaller/codex",
+      "final_tag": "v0.4.2",
+      "final_commit": "1e9184763f19ff10482f78cf2f85c83d47be1809",
+      "archived": true,
+      "archive_observed_at": "2026-07-15T04:31:40Z",
+      "default_branch": "main",
+      "head_commit": "1e9184763f19ff10482f78cf2f85c83d47be1809",
+      "description": "Archived: use github.com/ronhuafeng/llm-go/llmcaller/codex; legacy v0.4.2 is immutable",
+      "homepage": "https://github.com/ronhuafeng/llm-go",
+      "open_issues": 0,
+      "open_pull_requests": 0,
+      "actions_enabled": false,
+      "live_runs": 0,
+      "pre_archive_pvr_disabled": true,
+      "post_archive_pvr_status": "ineligible_archived_http_422",
+      "tracked_workflows": [
+        {"id": 293540372, "path": ".github/workflows/ci.yml", "state": "disabled_manually"},
+        {"id": 311736891, "path": ".github/workflows/full-canary.yml", "state": "disabled_manually"},
+        {"id": 312049368, "path": ".github/workflows/proxy-tag-consumer.yml", "state": "disabled_manually"}
+      ]
+    },
+    {
+      "id": "codexsdk",
+      "repository_id": 1265769872,
+      "full_name": "ronhuafeng/codexsdk-go",
+      "url": "https://github.com/ronhuafeng/codexsdk-go",
+      "legacy_module": "github.com/ronhuafeng/codexsdk-go",
+      "replacement_module": "github.com/ronhuafeng/llm-go/codexsdk",
+      "final_tag": "v0.5.1",
+      "final_commit": "304bb12cfef109b0fd30353a6f26a2c4cc71d8c7",
+      "archived": true,
+      "archive_observed_at": "2026-07-15T04:31:10Z",
+      "default_branch": "main",
+      "head_commit": "304bb12cfef109b0fd30353a6f26a2c4cc71d8c7",
+      "description": "Archived: use github.com/ronhuafeng/llm-go/codexsdk; legacy v0.5.1 is immutable",
+      "homepage": "https://github.com/ronhuafeng/llm-go",
+      "open_issues": 0,
+      "open_pull_requests": 0,
+      "actions_enabled": false,
+      "live_runs": 0,
+      "pre_archive_pvr_disabled": true,
+      "post_archive_pvr_status": "ineligible_archived_http_422",
+      "tracked_workflows": [
+        {"id": 293540404, "path": ".github/workflows/ci.yml", "state": "disabled_manually"},
+        {"id": 311537905, "path": ".github/workflows/tag-clean-module.yml", "state": "disabled_manually"},
+        {"id": 306972824, "path": ".github/workflows/upstream-protocol-finalize.yml", "state": "disabled_manually"},
+        {"id": 307398677, "path": ".github/workflows/upstream-protocol-sync.yml", "state": "disabled_manually"}
+      ]
+    },
+    {
+      "id": "llmkit",
+      "repository_id": 1265769868,
+      "full_name": "ronhuafeng/llmkit-go",
+      "url": "https://github.com/ronhuafeng/llmkit-go",
+      "legacy_module": "github.com/ronhuafeng/llmkit-go",
+      "replacement_module": "github.com/ronhuafeng/llm-go/llmkit",
+      "final_tag": "v0.5.0",
+      "final_commit": "fed06dc602a3933127ee81fbad13154a224c3223",
+      "archived": true,
+      "archive_observed_at": "2026-07-15T04:30:45Z",
+      "default_branch": "main",
+      "head_commit": "fed06dc602a3933127ee81fbad13154a224c3223",
+      "description": "Archived: use github.com/ronhuafeng/llm-go/llmkit; legacy v0.5.0 is immutable",
+      "homepage": "https://github.com/ronhuafeng/llm-go",
+      "open_issues": 0,
+      "open_pull_requests": 0,
+      "actions_enabled": false,
+      "live_runs": 0,
+      "pre_archive_pvr_disabled": true,
+      "post_archive_pvr_status": "ineligible_archived_http_422",
+      "tracked_workflows": [
+        {"id": 293540380, "path": ".github/workflows/ci.yml", "state": "disabled_manually"},
+        {"id": 311326758, "path": ".github/workflows/tag-verification.yml", "state": "disabled_manually"}
+      ]
+    }
+  ],
+  "issue_dispositions": [
+    {
+      "source_url": "https://github.com/ronhuafeng/llmkit-go/issues/12",
+      "outcome": "transferred",
+      "target_url": "https://github.com/ronhuafeng/llm-go/issues/41"
+    },
+    {
+      "source_url": "https://github.com/ronhuafeng/llmcaller-codex-go/issues/11",
+      "outcome": "closed",
+      "reason": "not_planned_superseded"
+    }
+  ],
+  "post_archive_acceptance": {
+    "run_id": 29389225193,
+    "run_attempt": 1,
+    "run_url": "https://github.com/ronhuafeng/llm-go/actions/runs/29389225193",
+    "created_at": "2026-07-15T04:32:38Z",
+    "completed_at": "2026-07-15T04:36:42Z",
+    "artifact_id": 8332620964,
+    "artifact_name": "migration-acceptance-0a61fa052c62df84347e0bab3e295f480164d515",
+    "artifact_sha256": "5bbef556cd3e45671fcc5ebda80213be027001a97d13578ae28576f489883d9f",
+    "report_file_sha256": "ab43d55374e3c214e181e309ee8bf041fd8595b2baa680630a3f9137a44ce18f",
+    "report_digest": "sha256:727c805f6cddbd4334febbcfff0826e724244bd73edd1e81ec39d7caea69d36f",
+    "commit": "0a61fa052c62df84347e0bab3e295f480164d515",
+    "tree": "3534d75be3a14f07952ca0066335b1ead76778a3",
+    "complete": true,
+    "categories": [
+      {"id": "provenance", "status": "complete"},
+      {"id": "api_behavior_equivalence", "status": "complete"},
+      {"id": "architecture_boundaries", "status": "complete"},
+      {"id": "independent_consumption", "status": "complete"},
+      {"id": "published_dependency_chain", "status": "complete"},
+      {"id": "cutover_readiness", "status": "complete"}
+    ]
+  },
+  "proxy_environment": {
+    "goproxy": "https://proxy.golang.org",
+    "gosumdb": "sum.golang.org",
+    "gowork": "off",
+    "govcs": "*:off",
+    "fresh_caches": true,
+    "separate_caches": true
+  },
+  "proxy_modules": [
+    {
+      "path": "github.com/ronhuafeng/codexsdk-go",
+      "version": "v0.5.1",
+      "sum": "h1:eXK2m4cfSrVI5eJC9z0QRt5EgTVeA8wbklAavReQ1iA=",
+      "go_mod_sum": "h1:HiIbSu45LR3UD2TKxgoMqVj1I6KAN+f9C+PLc/KaUSU=",
+      "zip_sha256": "161b40531600dc6789cf8398fd0918bedf45420d553b42378b43f8c45937d496",
+      "go_mod_sha256": "e71990e8b4cc15ff2b90ab3c45e84441b8dab1f273ca4754a595ca2adc05233b",
+      "origin": {"vcs": "git", "url": "https://github.com/ronhuafeng/codexsdk-go", "subdir": "", "hash": "304bb12cfef109b0fd30353a6f26a2c4cc71d8c7", "ref": "refs/tags/v0.5.1"}
+    },
+    {
+      "path": "github.com/ronhuafeng/llm-go/codexsdk",
+      "version": "v0.6.0",
+      "sum": "h1:fA0kZWu7GjJZMqXAGQkQZ+OIySA9+7bZtPsQ+vbQjkk=",
+      "go_mod_sum": "h1:nEUkMR3zmP6lqOf6el0qvH1q8M1X4HPhguadeTFceuI=",
+      "zip_sha256": "0dd48e1fa8fca81993d1a6e61ebb9cceab788a0e1e513223bf4d41a0b8e8786f",
+      "go_mod_sha256": "6e33c5a0bd83aa2e4428aff6d36938bcf136eed7646859e9d0e02ab2fa917cb5",
+      "origin": {"vcs": "git", "url": "https://github.com/ronhuafeng/llm-go", "subdir": "codexsdk", "hash": "87915c12e0a82ceceb2f3eb15df9eef01046a1b4", "ref": "refs/tags/codexsdk/v0.6.0"}
+    },
+    {
+      "path": "github.com/ronhuafeng/llm-go/llmcaller/codex",
+      "version": "v0.5.0",
+      "sum": "h1:2FJ0oyYFNM0WaJk77ridLhD20ewcv3gSckvOne2+7zM=",
+      "go_mod_sum": "h1:3NqAgoS1F0oydCJsIlr4VzkMw+ZrEzoyFriQ2RqKuqM=",
+      "zip_sha256": "71ab8b5658d053e3beab0af392629e85d481382981e16400c2bdccf603c2a104",
+      "go_mod_sha256": "bee9a51e82b1bb6f1cee4ddcc9ba28eeee70cc8bc2b852e07d7c8dc088847e5a",
+      "origin": {"vcs": "git", "url": "https://github.com/ronhuafeng/llm-go", "subdir": "llmcaller/codex", "hash": "5fd612b358292ee587c558dbd8041c5a75aea0d7", "ref": "refs/tags/llmcaller/codex/v0.5.0"}
+    },
+    {
+      "path": "github.com/ronhuafeng/llm-go/llmkit",
+      "version": "v0.6.0",
+      "sum": "h1:E0YJvPAOb6vaBqJ080Uc3uECC9VFjIHGRuc0Z1USEnM=",
+      "go_mod_sum": "h1:1hPj0obVfhX5KgzgRS0Ot6vldCt9xLT0oVrppcEIfaA=",
+      "zip_sha256": "36f27ecf96bd8ca37eb4ca2d164d6a463473859dbfad74d0201e59856e3bce04",
+      "go_mod_sha256": "3b9993c2c379422c2085561b557fe52a9e576e8c361ee704ef8e2e7ac1044ca3",
+      "origin": {"vcs": "git", "url": "https://github.com/ronhuafeng/llm-go", "subdir": "llmkit", "hash": "14f28b0dd4727f079c02ba3139c326ed249bb86a", "ref": "refs/tags/llmkit/v0.6.0"}
+    },
+    {
+      "path": "github.com/ronhuafeng/llmcaller-codex-go",
+      "version": "v0.4.2",
+      "sum": "h1:wMRxKrkh3GTO6B8+kllJ5+kSMJQAFhFaCWIzLcCFLbk=",
+      "go_mod_sum": "h1:XEuj1kqoD1qyZDHoq3zuWAbmoBnFi0BCVun3Xg1ZMh4=",
+      "zip_sha256": "7645169b4472be4cf5ad986d1c0e34cc2108894ed7a78ed8c9bcad015a910eb4",
+      "go_mod_sha256": "3d034dcd8f95ca0f294ebf4cf612ea14903bdbc4937d821828678acc7da3240a",
+      "origin": {"vcs": "git", "url": "https://github.com/ronhuafeng/llmcaller-codex-go", "subdir": "", "hash": "1e9184763f19ff10482f78cf2f85c83d47be1809", "ref": "refs/tags/v0.4.2"}
+    },
+    {
+      "path": "github.com/ronhuafeng/llmkit-go",
+      "version": "v0.5.0",
+      "sum": "h1:TcriLCtDDp5RiA1VgX8m51Oqni0uYHhTzvGlyMCamMU=",
+      "go_mod_sum": "h1:iOuMNJGzFLL3bDJ8uRIVRHyOFfIcUbfKz0e8LQNFlds=",
+      "zip_sha256": "a6bd984a7a599768cc3492b9ec71d4840e4986f1a0ad3f4ff5ea6dbd16fb6e0f",
+      "go_mod_sha256": "8be71d69fcdcf0d91d33adbba7de469ccb79cde3d1d9027bab667aad22fd6370",
+      "origin": {"vcs": "git", "url": "https://github.com/ronhuafeng/llmkit-go", "subdir": "", "hash": "fed06dc602a3933127ee81fbad13154a224c3223", "ref": "refs/tags/v0.5.0"}
+    }
+  ],
+  "adapter_tuple": {
+    "caller": {"module": "github.com/ronhuafeng/llm-go/llmcaller/codex", "version": "v0.5.0"},
+    "dependencies": [
+      {"module": "github.com/ronhuafeng/llm-go/codexsdk", "version": "v0.6.0"},
+      {"module": "github.com/ronhuafeng/llm-go/llmkit", "version": "v0.6.0"}
+    ],
+    "no_replace": true,
+    "no_exclude": true,
+    "no_workspace": true,
+    "typed_consumer": {
+      "kind": "typed_three_layer_call",
+      "typed_value": "verified",
+      "provider_name": "codex",
+      "effective_model": "proxy-model",
+      "neutral_input_tokens": 11,
+      "exact_thread_id": "thread-proxy",
+      "exact_turn_id": "turn-proxy",
+      "exact_result_preserved": true
+    }
+  },
+  "observed_at": "2026-07-15T04:40:51Z",
+  "complete": true,
+  "report_digest": "sha256:c419e83d070310cb8319c19ed242f210fc6a4bf779ad110bca42426c5008db0e"
+}

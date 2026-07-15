@@ -23,6 +23,7 @@ func Verify(root string) error {
 	var violations []string
 	violations = append(violations, verifyArchitecture(absoluteRoot, &registered)...)
 	violations = append(violations, verifyProvenance(absoluteRoot, registered, commandGit{root: absoluteRoot})...)
+	violations = append(violations, verifyArchivalEvidence(absoluteRoot)...)
 	violations = append(violations, verifyPendingFirstTagAPIInventories(absoluteRoot, registered)...)
 	if len(violations) == 0 {
 		return nil
