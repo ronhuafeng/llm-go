@@ -26,7 +26,9 @@
 // after its justified per-run append completes. A terminal exact notification
 // cannot complete its affected stream until that notification's global handler
 // invocation has returned and any handler failure is published as the client
-// first cause.
+// first cause. If shutdown, failure, or bounded backpressure rejects handler
+// work before queue ownership transfers, its dispatch fence is released as
+// discarded without removing already accepted exact-run evidence.
 // Client shutdown atomically closes callback admission and joins callbacks
 // accepted before that boundary before releasing transport resources.
 //

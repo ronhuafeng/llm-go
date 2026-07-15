@@ -222,6 +222,7 @@ func TestHandlerFailureDiscardsQueuedTerminalWithoutBlockingRun(t *testing.T) {
 	handlerEntered := make(chan struct{})
 	releaseFailure := make(chan struct{})
 	releaseAttach := make(chan struct{})
+	releaseTerminalEnqueue := make(chan struct{})
 	terminalEvidenceQueued := make(chan struct{})
 	terminalEvidenceAccepted := make(chan struct{})
 	var calls atomic.Int32
@@ -246,6 +247,7 @@ func TestHandlerFailureDiscardsQueuedTerminalWithoutBlockingRun(t *testing.T) {
 	client.testPendingExactNotification = func(notification rpcNotification) {
 		if notification.method == protocolv2.MethodTurnCompleted {
 			close(terminalEvidenceQueued)
+			<-releaseTerminalEnqueue
 		}
 	}
 	client.testBeforePendingTerminalFence = func() { close(terminalEvidenceAccepted) }
@@ -274,7 +276,18 @@ func TestHandlerFailureDiscardsQueuedTerminalWithoutBlockingRun(t *testing.T) {
 	default:
 	}
 	close(releaseFailure)
-	got := <-finished
+	select {
+	case <-client.ctx.Done():
+	case <-time.After(time.Second):
+		t.Fatal("handler failure did not close the client")
+	}
+	close(releaseTerminalEnqueue)
+	var got outcome
+	select {
+	case got = <-finished:
+	case <-time.After(time.Second):
+		t.Fatal("closed-client notification rejection did not release the terminal dispatch waiter")
+	}
 	if !errors.Is(got.err, handlerErr) {
 		t.Fatalf("run error = %v, want first handler cause", got.err)
 	}

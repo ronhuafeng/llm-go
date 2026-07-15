@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "module": "codexsdk",
+  "impact": "patch",
+  "breaking": false,
+  "summary": "Release rejected notification dispatch waiters only after publishing the client failure, preventing exact-run deadlocks without losing accepted evidence.",
+  "issue": 13,
+  "migration": "none"
+}

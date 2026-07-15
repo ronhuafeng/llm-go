@@ -11,10 +11,6 @@ import (
 
 func (c *Client) enqueueNotification(notification protocolv2.ServerNotification, evidence *notificationEvidence, waitForDispatch bool) (<-chan struct{}, error) {
 	c.closeMu.Lock()
-	defer c.closeMu.Unlock()
-	if c.closed {
-		return nil, nil
-	}
 	hasHandler := c.options.ServerNotificationHandler != nil
 	var dispatched chan struct{}
 	if evidence != nil {
@@ -23,17 +19,44 @@ func (c *Client) enqueueNotification(notification protocolv2.ServerNotification,
 		dispatched = make(chan struct{})
 	}
 	accepted := acceptedNotification{notification: notification, evidence: evidence, dispatched: dispatched}
+	if c.closed {
+		c.closeMu.Unlock()
+		c.awaitCloseCausePublication()
+		accepted.releaseDispatchWaiter()
+		return nil, nil
+	}
 	if hasHandler {
 		c.handlerWG.Add(1)
 	}
 	select {
 	case c.notifications <- accepted:
+		c.closeMu.Unlock()
 		return dispatched, nil
 	default:
 		if hasHandler {
 			c.handlerWG.Done()
 		}
+		c.closeMu.Unlock()
+		c.failClient(ErrNotificationBackpressure)
+		c.awaitCloseCausePublication()
+		accepted.releaseDispatchWaiter()
 		return nil, ErrNotificationBackpressure
+	}
+}
+
+// releaseDispatchWaiter owns the dispatch fence only until queue admission.
+// A successful send transfers that ownership to notificationDispatcher; every
+// rejected send must release it here so an exact terminal replay cannot wait
+// for handler work that the dispatcher never received.
+func (accepted acceptedNotification) releaseDispatchWaiter() {
+	if accepted.dispatched != nil {
+		close(accepted.dispatched)
+	}
+}
+
+func (c *Client) awaitCloseCausePublication() {
+	if c.closeCausePublished != nil {
+		<-c.closeCausePublished
 	}
 }
 
@@ -183,7 +206,16 @@ func (c *Client) failClient(err error) {
 		cancel()
 	}
 	c.failAll(err)
+	c.publishCloseCause()
 	go func() { _ = c.Close() }()
+}
+
+func (c *Client) publishCloseCause() {
+	c.closeCauseOnce.Do(func() {
+		if c.closeCausePublished != nil {
+			close(c.closeCausePublished)
+		}
+	})
 }
 
 func (c *Client) shutdown() {
@@ -195,6 +227,7 @@ func (c *Client) shutdown() {
 
 	if failure == nil {
 		c.failAll(ErrClientClosed)
+		c.publishCloseCause()
 		if c.dispatchStop != nil {
 			close(c.dispatchStop)
 		}
