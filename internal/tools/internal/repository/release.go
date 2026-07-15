@@ -100,12 +100,19 @@ type githubRelease struct {
 
 var ErrDraftReleaseNotFound = errors.New("matching Draft Release not found")
 
+const (
+	adapterModulePath  = "github.com/ronhuafeng/llm-go/llmcaller/codex"
+	codexSDKModulePath = "github.com/ronhuafeng/llm-go/codexsdk"
+	llmkitModulePath   = "github.com/ronhuafeng/llm-go/llmkit"
+)
+
 // validateReleaseTracerScope owns the exact module/version tuples whose
 // owner-specific preflight and public-consumer gates are complete.
 func validateReleaseTracerScope(moduleID, targetVersion string) error {
 	firstTracerVersions := map[string]string{
-		"llmkit":   "v0.6.0",
-		"codexsdk": "v0.6.0",
+		"llmkit":        "v0.6.0",
+		"codexsdk":      "v0.6.0",
+		"codex-adapter": "v0.5.0",
 	}
 	wantVersion, ok := firstTracerVersions[moduleID]
 	if !ok {
@@ -256,6 +263,9 @@ func BuildReleasePlan(root, moduleID, targetVersion, requiredCommit, mainRef str
 		dependencies = append(dependencies, ReleaseDependency{Module: path, Version: version})
 	}
 	sort.Slice(dependencies, func(i, j int) bool { return dependencies[i].Module < dependencies[j].Module })
+	if err := validateFirstTracerDependencies(candidate.ID, targetVersion, dependencies); err != nil {
+		return ReleasePlan{}, err
+	}
 
 	plan := ReleasePlan{
 		FormatVersion: releasePlanFormatVersion,
@@ -281,6 +291,25 @@ func BuildReleasePlan(root, moduleID, targetVersion, requiredCommit, mainRef str
 		return ReleasePlan{}, err
 	}
 	return plan, nil
+}
+
+func validateFirstTracerDependencies(moduleID, targetVersion string, dependencies []ReleaseDependency) error {
+	if moduleID != "codex-adapter" || targetVersion != "v0.5.0" {
+		return nil
+	}
+	versions := make(map[string]string, len(dependencies))
+	for _, dependency := range dependencies {
+		versions[dependency.Module] = dependency.Version
+	}
+	for modulePath, want := range map[string]string{
+		codexSDKModulePath: "v0.6.0",
+		llmkitModulePath:   "v0.6.0",
+	} {
+		if got := versions[modulePath]; got != want {
+			return fmt.Errorf("adapter first release requires %s at %s, got %q", modulePath, want, got)
+		}
+	}
+	return nil
 }
 
 func validateReleaseCommit(checkoutCommit, requiredCommit, mainRef, mainCommit string) error {

@@ -6,6 +6,8 @@ This project follows Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-15
+
 ### Changed
 
 - **Breaking import-path change (pre-v1):** moved the Codex adapter from

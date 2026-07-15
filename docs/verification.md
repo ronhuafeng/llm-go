@@ -74,11 +74,14 @@ The manually dispatched release workflow uses three additional typed seams:
   `h1:` content sum, observed raw zip SHA-256, exact `go.mod` SHA-256, and an
   isolated typed consumer.
 
-The release tracer is intentionally exact-scope: only `llmkit/v0.6.0` and
-`codexsdk/v0.6.0` are authorized. The SDK path additionally verifies its
-module-owned generated facts and runs a public-artifact consumer over both a
-generated facade and the exact lifecycle API. The adapter remains unauthorized
-until its dedicated release ticket adds the published exact-tuple consumer seam.
+The release tracer is intentionally exact-scope: only `llmkit/v0.6.0`,
+`codexsdk/v0.6.0`, and `llmcaller/codex/v0.5.0` are authorized. The SDK path
+additionally verifies its module-owned generated facts and runs a
+public-artifact consumer over both a generated facade and the exact lifecycle
+API. The adapter path reads the declared upstream tuple from the proxy
+artifact's `go.mod`, compares it with an isolated consumer's resolved graph,
+records official sums for all three internal modules, and executes a typed
+three-layer call that checks neutral evidence and the complete exact SDK result.
 First-tag API mapping is generic across migrated modules; while a first
 replacement tag is still absent, repository verification requires the current
 canonical inventory to equal its legacy inventory after the declared flattened
