@@ -28,7 +28,8 @@ A useful report includes:
 ## Security Boundaries
 
 The Codex adapter does not read credentials or start processes directly. It
-uses the `codexsdk.ThreadClient` supplied by the application.
+uses its consumer-owned `ThreadRunner` boundary; an application normally
+obtains that runner from `codexsdk.Client.ThreadRunner()`.
 
 Applications are responsible for:
 
@@ -39,5 +40,9 @@ Applications are responsible for:
   and other tool calls;
 - deciding whether model output is trusted enough for their business domain.
 
-For least privilege, pass the smallest practical working directory and use
-`codexsdk.ApprovalPolicyNever` when the call should be read-only.
+For least privilege, pass the smallest practical working directory and build
+adapter options with `ReadOnlyEphemeralOptions(client.ThreadRunner())` when the
+call should be read-only. That adapter-owned profile sends the exact generated
+`protocolv2` read-only sandbox and never-approve values at both thread and turn
+scope, then verifies the terminal effective profile. Applications should not
+replace those facts with copied approval or sandbox enums.
