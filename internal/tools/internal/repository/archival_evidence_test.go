@@ -30,6 +30,13 @@ func TestCommittedArchivalEvidenceFailsClosed(t *testing.T) {
 		want   string
 	}{
 		{
+			name: "uppercase Git object identity",
+			mutate: func(evidence *archivalEvidence) {
+				evidence.Subject.Commit = strings.ToUpper(evidence.Subject.Commit)
+			},
+			want: "subject is incomplete",
+		},
+		{
 			name: "missing prerequisite category",
 			mutate: func(evidence *archivalEvidence) {
 				evidence.Prerequisite.Categories = evidence.Prerequisite.Categories[:5]
@@ -108,6 +115,17 @@ func TestCommittedArchivalEvidenceFailsClosed(t *testing.T) {
 				t.Fatalf("validate() = %v, want %q", err, test.want)
 			}
 		})
+	}
+}
+
+func TestArchivalEvidenceUsesCanonicalIdentityRules(t *testing.T) {
+	if objectIDPattern.MatchString(strings.Repeat("A", 40)) {
+		t.Fatal("canonical Git object rule accepted uppercase hex")
+	}
+	for _, tag := range []string{"llmkit/V0.6.0", "llmkit/v0.6", "llmkit/main"} {
+		if _, err := migrationVersion(tag); err == nil {
+			t.Fatalf("canonical migration version rule accepted %q", tag)
+		}
 	}
 }
 

@@ -1,6 +1,6 @@
 # llm-go target design
 
-Status: module sources migrated; adapter publication and final cutover pending
+Status: migration complete; modules published and verified; legacy repositories archived
 
 ## North Star
 

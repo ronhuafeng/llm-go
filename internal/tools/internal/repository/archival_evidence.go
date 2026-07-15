@@ -22,6 +22,12 @@ var archivalCategoryIDs = []string{
 	"cutover_readiness",
 }
 
+var archivalRepositoryIDs = map[string]int64{
+	"codex-adapter": 1265769870,
+	"codexsdk":      1265769872,
+	"llmkit":        1265769868,
+}
+
 type archivalEvidence struct {
 	FormatVersion         int                         `json:"format_version"`
 	Subject               archivalSubject             `json:"subject"`
@@ -193,7 +199,7 @@ func verifyArchivalEvidence(root string) []string {
 }
 
 func (evidence archivalEvidence) validate(root string, provenance provenanceManifest) error {
-	if evidence.FormatVersion != 1 || evidence.Subject.Repository != "https://github.com/ronhuafeng/llm-go" || evidence.Subject.Issue != 17 || !isGitCommit(evidence.Subject.Commit) || !isGitCommit(evidence.Subject.Tree) {
+	if evidence.FormatVersion != 1 || evidence.Subject.Repository != "https://github.com/ronhuafeng/llm-go" || evidence.Subject.Issue != 17 || !objectIDPattern.MatchString(evidence.Subject.Commit) || !objectIDPattern.MatchString(evidence.Subject.Tree) {
 		return fmt.Errorf("archival evidence subject is incomplete")
 	}
 	if !evidence.Complete {
@@ -201,6 +207,14 @@ func (evidence archivalEvidence) validate(root string, provenance provenanceMani
 	}
 	if _, err := time.Parse(time.RFC3339, evidence.ObservedAt); err != nil {
 		return fmt.Errorf("archival evidence observed_at is invalid: %w", err)
+	}
+	commit, err := resolveCommit(root, evidence.Subject.Commit)
+	if err != nil || commit != evidence.Subject.Commit {
+		return fmt.Errorf("archival evidence subject commit is not available")
+	}
+	tree, err := resolveTree(root, commit)
+	if err != nil || tree != evidence.Subject.Tree {
+		return fmt.Errorf("archival evidence subject tree does not match its commit")
 	}
 	if err := validateAcceptanceReference(evidence.Prerequisite, evidence.Subject); err != nil {
 		return fmt.Errorf("prerequisite acceptance: %w", err)
@@ -210,8 +224,13 @@ func (evidence archivalEvidence) validate(root string, provenance provenanceMani
 	}
 	prerequisiteCompleted, _ := time.Parse(time.RFC3339, evidence.Prerequisite.CompletedAt)
 	postArchiveCreated, _ := time.Parse(time.RFC3339, evidence.PostArchiveAcceptance.CreatedAt)
+	postArchiveCompleted, _ := time.Parse(time.RFC3339, evidence.PostArchiveAcceptance.CompletedAt)
+	observedAt, _ := time.Parse(time.RFC3339, evidence.ObservedAt)
 	if !postArchiveCreated.After(prerequisiteCompleted) {
 		return fmt.Errorf("post-archive acceptance does not follow the prerequisite report")
+	}
+	if !observedAt.After(postArchiveCompleted) {
+		return fmt.Errorf("archival evidence observation does not follow the post-archive report")
 	}
 	if err := validateSuccessorState(evidence.Successor, evidence.Subject); err != nil {
 		return err
@@ -222,7 +241,7 @@ func (evidence archivalEvidence) validate(root string, provenance provenanceMani
 	if err := validateLegacyRepositoryStates(root, evidence.LegacyRepositories, provenance, prerequisiteCompleted, postArchiveCreated); err != nil {
 		return err
 	}
-	if err := validateIssueDispositions(evidence.IssueDispositions); err != nil {
+	if err := validateIssueDispositions(evidence.IssueDispositions, provenance); err != nil {
 		return err
 	}
 	if evidence.ProxyEnvironment != (archivalProxyEnvironment{
@@ -247,14 +266,19 @@ func (evidence archivalEvidence) validate(root string, provenance provenanceMani
 }
 
 func validateAcceptanceReference(reference archivalAcceptanceReference, subject archivalSubject) error {
-	if reference.RunID <= 0 || reference.RunAttempt <= 0 || reference.ArtifactID <= 0 || reference.RunURL == "" || reference.ArtifactName == "" || !reference.Complete || reference.Commit != subject.Commit || reference.Tree != subject.Tree {
+	if reference.RunID <= 0 || reference.RunAttempt != 1 || reference.ArtifactID <= 0 || reference.RunURL != fmt.Sprintf("%s/actions/runs/%d", subject.Repository, reference.RunID) || reference.ArtifactName != "migration-acceptance-"+subject.Commit || !reference.Complete || reference.Commit != subject.Commit || reference.Tree != subject.Tree {
 		return fmt.Errorf("report identity is incomplete or does not match the archival subject")
 	}
-	if _, err := time.Parse(time.RFC3339, reference.CreatedAt); err != nil {
+	createdAt, err := time.Parse(time.RFC3339, reference.CreatedAt)
+	if err != nil {
 		return fmt.Errorf("created_at is invalid")
 	}
-	if _, err := time.Parse(time.RFC3339, reference.CompletedAt); err != nil {
+	completedAt, err := time.Parse(time.RFC3339, reference.CompletedAt)
+	if err != nil {
 		return fmt.Errorf("completed_at is invalid")
+	}
+	if !completedAt.After(createdAt) {
+		return fmt.Errorf("report completion does not follow its creation")
 	}
 	if !isSHA256(reference.ArtifactSHA256) || !isSHA256(reference.ReportFileSHA256) || !isPrefixedSHA256(reference.ReportDigest) {
 		return fmt.Errorf("report digests are incomplete")
@@ -291,15 +315,22 @@ func validateLegacyRepositoryStates(root string, states []archivalLegacyReposito
 		}
 		wantName := strings.TrimPrefix(imported.Source.Repository, "https://github.com/")
 		archiveObservedAt, timeErr := time.Parse(time.RFC3339, state.ArchiveObservedAt)
-		if state.ID != imported.ID || state.RepositoryID <= 0 || state.FullName != wantName || state.URL != imported.Source.Repository || state.LegacyModule != legacyModule || state.ReplacementModule != imported.Destination.Module || state.FinalTag != imported.Source.Tag || state.FinalCommit != imported.Source.Commit || !state.Archived || timeErr != nil || !archiveObservedAt.After(prerequisiteCompleted) || !archiveObservedAt.Before(postArchiveCreated) || state.DefaultBranch != "main" || state.HeadCommit != state.FinalCommit || state.OpenIssues != 0 || state.OpenPullRequests != 0 || state.ActionsEnabled || state.LiveRuns != 0 || !state.PreArchivePVRDisabled || state.PostArchivePVRStatus != "ineligible_archived_http_422" || state.Homepage != "https://github.com/ronhuafeng/llm-go" || !strings.Contains(state.Description, state.ReplacementModule) {
+		wantDescription := fmt.Sprintf("Archived: use %s; legacy %s is immutable", imported.Destination.Module, imported.Source.Tag)
+		if state.ID != imported.ID || state.RepositoryID != archivalRepositoryIDs[imported.ID] || state.FullName != wantName || state.URL != imported.Source.Repository || state.LegacyModule != legacyModule || state.ReplacementModule != imported.Destination.Module || state.FinalTag != imported.Source.Tag || state.FinalCommit != imported.Source.Commit || !state.Archived || timeErr != nil || !archiveObservedAt.After(prerequisiteCompleted) || !archiveObservedAt.Before(postArchiveCreated) || state.DefaultBranch != "main" || state.HeadCommit != state.FinalCommit || state.Description != wantDescription || state.OpenIssues != 0 || state.OpenPullRequests != 0 || state.ActionsEnabled || state.LiveRuns != 0 || !state.PreArchivePVRDisabled || state.PostArchivePVRStatus != "ineligible_archived_http_422" || state.Homepage != "https://github.com/ronhuafeng/llm-go" {
 			return fmt.Errorf("legacy repository %s archival state is incomplete", imported.ID)
 		}
-		if len(state.TrackedWorkflows) == 0 {
-			return fmt.Errorf("legacy repository %s reports no tracked workflows", imported.ID)
+		workflowOutput, err := gitOutput(root, "ls-tree", "-r", "--name-only", imported.Source.Commit, "--", ".github/workflows")
+		if err != nil {
+			return err
+		}
+		wantWorkflows := strings.Fields(workflowOutput)
+		sort.Strings(wantWorkflows)
+		if len(state.TrackedWorkflows) != len(wantWorkflows) || len(state.TrackedWorkflows) == 0 {
+			return fmt.Errorf("legacy repository %s reports an incomplete tracked workflow set", imported.ID)
 		}
 		lastPath := ""
-		for _, workflow := range state.TrackedWorkflows {
-			if workflow.ID <= 0 || !strings.HasPrefix(workflow.Path, ".github/workflows/") || workflow.Path <= lastPath || workflow.State != "disabled_manually" {
+		for workflowIndex, workflow := range state.TrackedWorkflows {
+			if workflow.ID <= 0 || workflow.Path != wantWorkflows[workflowIndex] || workflow.Path <= lastPath || workflow.State != "disabled_manually" {
 				return fmt.Errorf("legacy repository %s contains invalid workflow evidence", imported.ID)
 			}
 			lastPath = workflow.Path
@@ -308,14 +339,18 @@ func validateLegacyRepositoryStates(root string, states []archivalLegacyReposito
 	return nil
 }
 
-func validateIssueDispositions(dispositions []archivalIssueDisposition) error {
+func validateIssueDispositions(dispositions []archivalIssueDisposition, provenance provenanceManifest) error {
 	if len(dispositions) != 2 {
 		return fmt.Errorf("archival evidence must account for exactly two unfinished legacy issues")
 	}
-	if dispositions[0].Outcome != "transferred" || dispositions[0].SourceURL == "" || dispositions[0].TargetURL == "" || dispositions[0].Reason != "" {
+	repositories := map[string]string{}
+	for _, imported := range provenance.Imports {
+		repositories[imported.ID] = imported.Source.Repository
+	}
+	if dispositions[0].Outcome != "transferred" || dispositions[0].SourceURL != repositories["llmkit"]+"/issues/12" || dispositions[0].TargetURL != "https://github.com/ronhuafeng/llm-go/issues/41" || dispositions[0].Reason != "" {
 		return fmt.Errorf("transferred legacy issue evidence is incomplete")
 	}
-	if dispositions[1].Outcome != "closed" || dispositions[1].SourceURL == "" || dispositions[1].TargetURL != "" || dispositions[1].Reason != "not_planned_superseded" {
+	if dispositions[1].Outcome != "closed" || dispositions[1].SourceURL != repositories["codex-adapter"]+"/issues/11" || dispositions[1].TargetURL != "" || dispositions[1].Reason != "not_planned_superseded" {
 		return fmt.Errorf("closed legacy roadmap evidence is incomplete")
 	}
 	return nil
@@ -338,16 +373,20 @@ func validateArchivalProxyModules(root string, modules []archivalProxyModule, pr
 			return err
 		}
 		want[legacyModule] = struct{ version, url, subdir, hash, ref string }{imported.Source.Tag, imported.Source.Repository, "", imported.Source.Commit, "refs/tags/" + imported.Source.Tag}
+		destinationVersion, err := migrationVersion(imported.Destination.FirstTag)
+		if err != nil {
+			return err
+		}
 		tagCommit, err := resolveCommit(root, imported.Destination.FirstTag)
 		if err != nil {
 			return err
 		}
-		want[imported.Destination.Module] = struct{ version, url, subdir, hash, ref string }{version: versionFromTag(imported.Destination.FirstTag), url: "https://github.com/ronhuafeng/llm-go", subdir: imported.Destination.Directory, hash: tagCommit, ref: "refs/tags/" + imported.Destination.FirstTag}
+		want[imported.Destination.Module] = struct{ version, url, subdir, hash, ref string }{version: destinationVersion, url: "https://github.com/ronhuafeng/llm-go", subdir: imported.Destination.Directory, hash: tagCommit, ref: "refs/tags/" + imported.Destination.FirstTag}
 	}
 	lastPath := ""
 	for _, module := range modules {
 		expected, ok := want[module.Path]
-		if !ok || module.Path <= lastPath || module.Version != expected.version || module.Sum == "" || module.GoModSum == "" || !isSHA256(module.ZipSHA256) || !isSHA256(module.GoModSHA256) || module.Origin.VCS != "git" || canonicalRepositoryURL(module.Origin.URL) != canonicalRepositoryURL(expected.url) || module.Origin.Subdir != expected.subdir || !isGitCommit(module.Origin.Hash) || (expected.hash != "" && module.Origin.Hash != expected.hash) || module.Origin.Ref != expected.ref {
+		if !ok || module.Path <= lastPath || module.Version != expected.version || module.Sum == "" || module.GoModSum == "" || !isSHA256(module.ZipSHA256) || !isSHA256(module.GoModSHA256) || module.Origin.VCS != "git" || canonicalRepositoryURL(module.Origin.URL) != canonicalRepositoryURL(expected.url) || module.Origin.Subdir != expected.subdir || !objectIDPattern.MatchString(module.Origin.Hash) || (expected.hash != "" && module.Origin.Hash != expected.hash) || module.Origin.Ref != expected.ref {
 			return fmt.Errorf("public-Proxy module %s evidence is incomplete", module.Path)
 		}
 		lastPath = module.Path
@@ -358,7 +397,11 @@ func validateArchivalProxyModules(root string, modules []archivalProxyModule, pr
 func validateArchivalAdapterTuple(tuple archivalAdapterTuple, provenance provenanceManifest) error {
 	versions := map[string]string{}
 	for _, imported := range provenance.Imports {
-		versions[imported.Destination.Module] = versionFromTag(imported.Destination.FirstTag)
+		version, err := migrationVersion(imported.Destination.FirstTag)
+		if err != nil {
+			return err
+		}
+		versions[imported.Destination.Module] = version
 	}
 	if tuple.Caller != (archivalModuleVersion{Module: adapterModulePath, Version: versions[adapterModulePath]}) || len(tuple.Dependencies) != 2 || tuple.Dependencies[0] != (archivalModuleVersion{Module: codexSDKModulePath, Version: versions[codexSDKModulePath]}) || tuple.Dependencies[1] != (archivalModuleVersion{Module: llmkitModulePath, Version: versions[llmkitModulePath]}) || !tuple.NoReplace || !tuple.NoExclude || !tuple.NoWorkspace {
 		return fmt.Errorf("archival adapter tuple is not the exact released dependency join")
@@ -380,22 +423,6 @@ func archivalEvidenceDigest(evidence archivalEvidence) (string, error) {
 	return "sha256:" + hex.EncodeToString(digest[:]), nil
 }
 
-func isGitCommit(value string) bool {
-	return len(value) == 40 && isHex(value)
-}
-
 func isPrefixedSHA256(value string) bool {
 	return strings.HasPrefix(value, "sha256:") && isSHA256(strings.TrimPrefix(value, "sha256:"))
-}
-
-func isHex(value string) bool {
-	_, err := hex.DecodeString(value)
-	return err == nil
-}
-
-func versionFromTag(tag string) string {
-	if index := strings.LastIndex(tag, "/"); index >= 0 {
-		return tag[index+1:]
-	}
-	return tag
 }
