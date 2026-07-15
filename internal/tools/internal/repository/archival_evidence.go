@@ -13,6 +13,11 @@ import (
 
 const archivalEvidenceFilename = "docs/migration/archive-evidence.json"
 
+const (
+	archivalSuccessorRepositoryID int64 = 1300311577
+	archivalSuccessorDescription        = "Provider-neutral LLM toolkit, exact Codex SDK, and Codex adapter in independently released Go modules"
+)
+
 var archivalCategoryIDs = []string{
 	"provenance",
 	"api_behavior_equivalence",
@@ -295,7 +300,7 @@ func validateAcceptanceReference(reference archivalAcceptanceReference, subject 
 }
 
 func validateSuccessorState(state archivalRepositoryState, subject archivalSubject) error {
-	if state.RepositoryID <= 0 || state.FullName != "ronhuafeng/llm-go" || state.URL != subject.Repository || state.Archived || state.DefaultBranch != "main" || state.HeadCommit != subject.Commit || state.Description == "" || state.Homepage != "" || !state.IssuesEnabled || !state.ActionsEnabled || !state.PrivateVulnerabilityReporting {
+	if state.RepositoryID != archivalSuccessorRepositoryID || state.FullName != "ronhuafeng/llm-go" || state.URL != subject.Repository || state.Archived || state.DefaultBranch != "main" || state.HeadCommit != subject.Commit || state.Description != archivalSuccessorDescription || state.Homepage != "" || !state.IssuesEnabled || !state.ActionsEnabled || !state.PrivateVulnerabilityReporting {
 		return fmt.Errorf("successor repository is not the sole active source, tracker, automation owner, and security intake")
 	}
 	return nil

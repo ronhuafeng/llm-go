@@ -129,6 +129,52 @@ func TestArchivalEvidenceUsesCanonicalIdentityRules(t *testing.T) {
 	}
 }
 
+func TestArchivalEvidenceBindsExactSuccessorMetadataBeyondDigest(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var complete archivalEvidence
+	if err := readStrictJSON(filepath.Join(root, filepath.FromSlash(archivalEvidenceFilename)), &complete); err != nil {
+		t.Fatal(err)
+	}
+	provenance, err := loadProvenance(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name   string
+		mutate func(*archivalEvidence)
+	}{
+		{
+			name: "different positive repository id",
+			mutate: func(evidence *archivalEvidence) {
+				evidence.Successor.RepositoryID++
+			},
+		},
+		{
+			name: "different nonempty description",
+			mutate: func(evidence *archivalEvidence) {
+				evidence.Successor.Description = "another active repository"
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			candidate := cloneArchivalEvidence(t, complete)
+			test.mutate(&candidate)
+			digest, err := archivalEvidenceDigest(candidate)
+			if err != nil {
+				t.Fatal(err)
+			}
+			candidate.ReportDigest = digest
+			if err := candidate.validate(root, provenance); err == nil || !strings.Contains(err.Error(), "successor repository") {
+				t.Fatalf("validate() = %v, want exact successor metadata failure", err)
+			}
+		})
+	}
+}
+
 func cloneArchivalEvidence(t *testing.T, source archivalEvidence) archivalEvidence {
 	t.Helper()
 	data, err := json.Marshal(source)
