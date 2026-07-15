@@ -29,7 +29,7 @@ Never call a sync finalized at PR publication time.
 ## Automation Phases
 
 - Detect resolves the upstream target, runs policy, generates drift evidence, and writes PR-ready drift analysis artifacts.
-- Fix runs in the scheduled/manual sync workflow when drift is `review-required` and the run is not `force_compare` verification. It applies the generated candidate, runs `repair-applied-candidate`, validates, commits the local sync, and publishes a protected PR automatically. The PR body carries drift analysis, fix description, and compact sync metadata.
+- Fix runs in the scheduled/manual sync workflow for an allowed forward target when the run is not `force_compare` verification. Clean drift uses `metadata-sync` to advance provenance without a Codex repair pass; `review-required` drift uses `repair-sync` to apply the candidate and run `repair-applied-candidate`. Both paths validate, commit the bounded local sync, and publish a protected PR. The PR body records the sync mode, drift analysis, fix description, and compact sync metadata.
 - Finalize runs only after the PR landed. The PR-closed trigger is the fast path after a sync PR merges; schedule and manual dispatch are required recovery paths. It verifies the landed commit, creates sync tags when applicable, and dispatches drift verification when requested.
 
 Sync PR metadata records the upstream target, drift fingerprint, sync commit, and base branch needed by finalize. It must not select workflow code refs, landing refs, or finalize refs outside the repository default branch.
@@ -41,10 +41,10 @@ Sync PR metadata records the upstream target, drift fingerprint, sync commit, an
 - Do not delete or move upstream sync tags.
 - Do not weaken branch protection or merge around failed required checks.
 - Keep `action_required` documented as an expected maintainer rerun gate for sync PRs created by `GITHUB_TOKEN`.
-- Keep auto-merge on the real protected-branch PR path after the required `Go` check passes.
+- Keep merge decisions on the real protected-branch PR path after the required `PR verification` check passes.
 - Keep checked-in baseline metadata and checked-in reports free of local absolute paths, `.cache` output paths, private repo paths, account data, and raw smoke-test transcripts.
 - Preserve unrelated user changes.
-- Keep merge decisions on the protected PR path. Branch protection, the real required `Go` check, and repository auto-merge settings decide whether a sync PR lands.
+- Keep merge decisions on the protected PR path. Branch protection, the real required `PR verification` check, and an authorized maintainer decide whether a sync PR lands; repository auto-merge may be enabled separately but is not assumed.
 - Keep workflow control-plane refs and remote landing/finalize refs constrained to the repository default branch unless a future explicit allowlist is added.
 
 ## Command Index

@@ -49,7 +49,11 @@ class TrackUpstreamTest(unittest.TestCase):
             subprocess.run(["git", "init", "-q", str(codex_repo)], check=True)
             subprocess.run(["git", "-C", str(codex_repo), "config", "user.email", "codex@example.com"], check=True)
             subprocess.run(["git", "-C", str(codex_repo), "config", "user.name", "Codex"], check=True)
-            subprocess.run(["git", "-C", str(codex_repo), "commit", "--allow-empty", "-q", "-m", "init"], check=True)
+            common_rs = codex_repo / "codex-rs/app-server-protocol/src/protocol/common.rs"
+            common_rs.parent.mkdir(parents=True)
+            common_rs.write_text("pub struct TestMapping;\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(codex_repo), "add", "."], check=True)
+            subprocess.run(["git", "-C", str(codex_repo), "commit", "-q", "-m", "init"], check=True)
             commit = subprocess.check_output(["git", "-C", str(codex_repo), "rev-parse", "HEAD"], text=True).strip()
 
             fake_codex = root / "codex"
@@ -113,6 +117,8 @@ class TrackUpstreamTest(unittest.TestCase):
             self.assertTrue((reports / "SUMMARY.md").exists())
             self.assertTrue((out / "schema" / "ClientRequest.json").exists())
             self.assertTrue((out / "stable-schema" / "ClientRequest.json").exists())
+            self.assertEqual((out / "common.rs").read_text(encoding="utf-8"), "pub struct TestMapping;\n")
+            self.assertEqual((out / "common.rs.source_sha").read_text(encoding="utf-8"), commit + "\n")
             self.assertEqual(drift["status"], "clean")
             self.assertEqual(sorted(drift.keys()), ["comparison_mode", "file_diff", "matrix_update_skeleton", "method_diff", "status", "target"])
             self.assertEqual(matrix["status"], "empty")

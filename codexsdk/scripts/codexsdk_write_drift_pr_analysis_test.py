@@ -24,8 +24,14 @@ class WriteDriftPrAnalysisTest(unittest.TestCase):
             artifact_dir = Path(tmp) / "artifact"
             drift_path = artifact_dir / "reports" / "drift_summary.json"
             write_json(drift_path, sample_drift())
+            (artifact_dir / "reports" / "SUMMARY.md").write_text("Generated summary.\n", encoding="utf-8")
             output = Path(tmp) / "github-output.txt"
-            env = {**os.environ, "GITHUB_OUTPUT": str(output)}
+            step_summary = Path(tmp) / "github-summary.md"
+            env = {
+                **os.environ,
+                "GITHUB_OUTPUT": str(output),
+                "GITHUB_STEP_SUMMARY": str(step_summary),
+            }
 
             completed = subprocess.run(
                 [
@@ -56,6 +62,7 @@ class WriteDriftPrAnalysisTest(unittest.TestCase):
             payload = json.loads(completed.stdout)
             analysis = (artifact_dir / "drift-analysis.md").read_text(encoding="utf-8")
             github_output = output.read_text(encoding="utf-8")
+            github_summary = step_summary.read_text(encoding="utf-8")
 
             self.assertEqual(payload["status"], "review-required")
             self.assertEqual(payload["drift_sha"], expected_sha)
@@ -65,6 +72,10 @@ class WriteDriftPrAnalysisTest(unittest.TestCase):
             self.assertIn("Workflow run: https://github.example/runs/1", analysis)
             self.assertIn("status=review-required", github_output)
             self.assertIn(f"drift_sha={expected_sha}", github_output)
+            self.assertIn("Drift status: `review-required`", github_summary)
+            self.assertIn(f"Drift fingerprint: `{expected_sha}`", github_summary)
+            self.assertIn(f"codex-upstream-drift-{'a' * 40}-{expected_sha}", github_summary)
+            self.assertIn("Generated summary.", github_summary)
 
 
 def sample_drift() -> dict[str, object]:
