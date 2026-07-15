@@ -2,10 +2,10 @@
 
 Use recovery recipes before adding automation. Keep recovery on the protected PR path. Never weaken branch protection, bypass required checks, synthesize statuses, force-push `main`, or move/delete tags.
 
-## Sync PR `Go` Check Is `action_required`
+## Sync PR `PR verification` Check Is `action_required`
 
 Trigger:
-- A sync PR created by `GITHUB_TOKEN` has a required `Go` run in `action_required`.
+- A sync PR created by `GITHUB_TOKEN` has the required `PR verification` run in `action_required`.
 
 Evidence:
 - First run has no jobs or shows GitHub's maintainer rerun/approval gate.
@@ -14,7 +14,7 @@ Allowed action:
 - A maintainer with write access may approve or rerun the check once.
 
 Stop:
-- Do not manually merge around this gate. After the real `Go` check passes, protected auto-merge should continue.
+- Do not manually merge around this gate. After the real `PR verification` check passes, an authorized maintainer or separately configured repository auto-merge may merge it.
 
 ## Sync PR Does Not Merge After Publication
 

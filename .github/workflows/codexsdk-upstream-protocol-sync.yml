@@ -31,7 +31,6 @@ env:
   CODEXSDK_GO_CACHE_DIR: .cache/go-build
   CODEXSDK_GO_MOD_CACHE_DIR: .cache/go-mod
   CODEXSDK_GO_PATH_DIR: .cache/go
-  CODEX_UPSTREAM_COMMON_RS: codex-rs/app-server-protocol/src/protocol/common.rs
   CODEX_UPSTREAM_REPO: https://github.com/openai/codex.git
   CODEXSDK_DRIFT_ARTIFACT_DIR: /tmp/codexsdk-upstream
   CODEXSDK_RUST_TARGET_DIR: .cache/cargo-target/codex
@@ -70,14 +69,9 @@ jobs:
       - name: Check out
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: codexsdk/go.mod
-          cache: true
+          persist-credentials: false
 
       - name: Resolve upstream baseline
         id: refs
@@ -122,6 +116,10 @@ jobs:
         env:
           ALLOW_DOWNGRADE: ${{ inputs.allow_downgrade || false }}
           GITHUB_EVENT_NAME: ${{ github.event_name }}
+          TARGET_EXPLICIT: ${{ steps.refs.outputs.target_explicit }}
+          TARGET_REF: ${{ steps.refs.outputs.upstream_ref }}
+          TARGET_REF_KIND: ${{ steps.refs.outputs.upstream_ref_kind }}
+          TARGET_SHA: ${{ steps.refs.outputs.upstream_sha }}
         run: |
           set -euo pipefail
 
@@ -133,10 +131,10 @@ jobs:
           policy_json="$(
             python3 scripts/codexsdk_target_policy.py \
               --baseline "${CODEXSDK_SCHEMA_BASELINE}/baseline_metadata.json" \
-              --target-ref "${{ steps.refs.outputs.upstream_ref }}" \
-              --target-kind "${{ steps.refs.outputs.upstream_ref_kind }}" \
-              --target-sha "${{ steps.refs.outputs.upstream_sha }}" \
-              --target-explicit "${{ steps.refs.outputs.target_explicit }}" \
+              --target-ref "${TARGET_REF}" \
+              --target-kind "${TARGET_REF_KIND}" \
+              --target-sha "${TARGET_SHA}" \
+              --target-explicit "${TARGET_EXPLICIT}" \
               --mode "${mode}" \
               --allow-downgrade "${ALLOW_DOWNGRADE}" \
               --json
@@ -171,85 +169,79 @@ jobs:
             echo
             echo "- Decision: \`$(jq -r '.decision' "${CODEXSDK_TARGET_POLICY_JSON}")\`"
             echo "- Reason: $(jq -r '.reason' "${CODEXSDK_TARGET_POLICY_JSON}")"
-            echo "- Baseline target: \`${{ steps.refs.outputs.baseline_sha }}\`"
-            echo "- Requested target: \`${{ steps.refs.outputs.upstream_ref }}\` (\`${{ steps.refs.outputs.upstream_ref_kind }}\`)"
+            echo "- Baseline target: \`$(jq -r '.baseline_commit' "${CODEXSDK_TARGET_POLICY_JSON}")\`"
+            echo "- Requested target: \`${TARGET_REF}\` (\`${TARGET_REF_KIND}\`)"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Select drift action
-        id: drift_action
+      - name: Plan drift execution
+        id: pre_plan
         env:
           FORCE_COMPARE: ${{ inputs.force_compare || false }}
+          POLICY_DECISION: ${{ steps.target_policy.outputs.decision }}
+          POLICY_REASON: ${{ steps.target_policy.outputs.reason }}
         run: |
           set -euo pipefail
 
-          decision="${{ steps.target_policy.outputs.decision }}"
-          reason="${{ steps.target_policy.outputs.reason }}"
-          if [[ "${decision}" == "skip" && "${FORCE_COMPARE}" == "true" ]]; then
-            decision="allow"
-            reason="force_compare requested; generating verification drift artifacts"
-          fi
-
-          {
-            echo "decision=${decision}"
-            echo "reason=${reason}"
-          } >> "$GITHUB_OUTPUT"
+          python3 scripts/codexsdk_sync_workflow_plan.py \
+            --policy-decision "${POLICY_DECISION}" \
+            --force-compare "${FORCE_COMPARE}" \
+            --json
 
           {
             echo
-            echo "## Drift action"
+            echo "## Workflow plan"
             echo
-            echo "- Effective decision: \`${decision}\`"
-            echo "- Reason: ${reason}"
+            echo "- Policy decision: \`${POLICY_DECISION}\`"
+            echo "- Reason: ${POLICY_REASON}"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Skip when target policy is current
-        if: steps.drift_action.outputs.decision == 'skip'
+        if: steps.pre_plan.outputs.mode == 'noop'
+        env:
+          UPSTREAM_REF: ${{ steps.refs.outputs.upstream_ref }}
         run: |
-          echo "Baseline already points at the selected openai/codex upstream target: ${{ steps.refs.outputs.upstream_ref }}." >> "$GITHUB_STEP_SUMMARY"
+          echo "Baseline already points at the selected openai/codex upstream target: ${UPSTREAM_REF}." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Stop when target policy blocks drift detection
-        if: steps.drift_action.outputs.decision == 'block'
+        if: steps.pre_plan.outputs.mode == 'blocked' || steps.pre_plan.outputs.mode == 'verification-fail'
+        env:
+          POLICY_REASON: ${{ steps.target_policy.outputs.reason }}
         run: |
           {
             echo "Protocol drift generation was skipped by target policy."
             echo
-            echo "Reason: ${{ steps.drift_action.outputs.reason }}"
+            echo "Reason: ${POLICY_REASON}"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Clone upstream Codex
-        if: steps.drift_action.outputs.decision == 'allow'
+        if: steps.pre_plan.outputs.should_detect == 'true'
         run: |
           git clone --filter=blob:none --no-checkout "${CODEX_UPSTREAM_REPO}" "${CODEXSDK_UPSTREAM_CLONE}"
 
       - name: Set up Codex Rust
-        if: steps.drift_action.outputs.decision == 'allow'
+        if: steps.pre_plan.outputs.should_detect == 'true'
         uses: ./.github/actions/setup-codex-rust
         with:
           cache-key-suffix: ${{ steps.refs.outputs.upstream_short_sha }}
           target-dir: codexsdk/${{ env.CODEXSDK_RUST_TARGET_DIR }}
 
       - name: Generate drift report
-        if: steps.drift_action.outputs.decision == 'allow'
+        if: steps.pre_plan.outputs.should_detect == 'true'
+        env:
+          UPSTREAM_REF: ${{ steps.refs.outputs.upstream_ref }}
+          UPSTREAM_REF_KIND: ${{ steps.refs.outputs.upstream_ref_kind }}
+          UPSTREAM_SHA: ${{ steps.refs.outputs.upstream_sha }}
         run: |
           CARGO_TARGET_DIR="$PWD/${CODEXSDK_RUST_TARGET_DIR}" \
             scripts/codexsdk_track_upstream.sh \
             --codex-repo "${CODEXSDK_UPSTREAM_CLONE}" \
-            --commit "${{ steps.refs.outputs.upstream_sha }}" \
-            --source-ref "${{ steps.refs.outputs.upstream_ref }}" \
-            --source-ref-kind "${{ steps.refs.outputs.upstream_ref_kind }}" \
+            --commit "${UPSTREAM_SHA}" \
+            --source-ref "${UPSTREAM_REF}" \
+            --source-ref-kind "${UPSTREAM_REF_KIND}" \
             --out "${CODEXSDK_DRIFT_ARTIFACT_DIR}"
 
-      - name: Capture upstream response mappings
-        if: steps.drift_action.outputs.decision == 'allow'
-        run: |
-          git -C "${CODEXSDK_UPSTREAM_CLONE}" show \
-            "${{ steps.refs.outputs.upstream_sha }}:${CODEX_UPSTREAM_COMMON_RS}" \
-            > "${CODEXSDK_DRIFT_ARTIFACT_DIR}/common.rs"
-          printf '%s\n' "${{ steps.refs.outputs.upstream_sha }}" \
-            > "${CODEXSDK_DRIFT_ARTIFACT_DIR}/common.rs.source_sha"
-
       - name: Prepare drift PR analysis
-        if: steps.drift_action.outputs.decision == 'allow'
+        if: steps.pre_plan.outputs.should_detect == 'true'
         id: drift
         env:
           BASELINE_SHA: ${{ steps.refs.outputs.baseline_sha }}
@@ -268,34 +260,44 @@ jobs:
             --upstream-sha "${UPSTREAM_SHA}"
 
       - name: Upload drift evidence
-        if: steps.drift_action.outputs.decision == 'allow'
+        if: steps.pre_plan.outputs.should_detect == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: codex-upstream-drift-${{ steps.refs.outputs.upstream_sha }}-${{ steps.drift.outputs.drift_sha }}
           path: ${{ env.CODEXSDK_DRIFT_ARTIFACT_DIR }}
           if-no-files-found: error
 
-      - name: Update workflow summary
-        if: steps.drift_action.outputs.decision == 'allow'
+      - name: Plan sync action
+        id: plan
+        if: steps.pre_plan.outputs.should_detect == 'true'
+        env:
+          DRIFT_STATUS: ${{ steps.drift.outputs.status }}
+          FORCE_COMPARE: ${{ inputs.force_compare || false }}
+          POLICY_DECISION: ${{ steps.target_policy.outputs.decision }}
         run: |
           set -euo pipefail
-          {
-            echo
-            echo "- Drift status: \`${{ steps.drift.outputs.status }}\`"
-            echo "- Drift fingerprint: \`${{ steps.drift.outputs.drift_sha }}\`"
-            echo "- Drift evidence artifact: \`codex-upstream-drift-${{ steps.refs.outputs.upstream_sha }}-${{ steps.drift.outputs.drift_sha }}\`"
-            echo
-            cat "${CODEXSDK_DRIFT_ARTIFACT_DIR}/reports/SUMMARY.md"
-          } >> "$GITHUB_STEP_SUMMARY"
+          python3 scripts/codexsdk_sync_workflow_plan.py \
+            --policy-decision "${POLICY_DECISION}" \
+            --force-compare "${FORCE_COMPARE}" \
+            --drift-status "${DRIFT_STATUS}" \
+            --json
 
-      - name: Configure git identity
-        if: steps.drift_action.outputs.decision == 'allow' && steps.drift.outputs.status == 'review-required' && !inputs.force_compare
+      - name: Set up Go
+        if: steps.plan.outputs.needs_apply == 'true'
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: codexsdk/go.mod
+          cache: false
+
+      - name: Guard clean sync worktree
+        if: steps.plan.outputs.needs_apply == 'true'
         run: |
-          git config user.name "codexsdk-sync-bot"
-          git config user.email "codexsdk-sync-bot@users.noreply.github.com"
+          set -euo pipefail
+          python3 scripts/codexsdk_sync_changes.py assert-clean \
+            --repo-root "${GITHUB_WORKSPACE}"
 
       - name: Apply sync candidate mechanically
-        if: steps.drift_action.outputs.decision == 'allow' && steps.drift.outputs.status == 'review-required' && !inputs.force_compare
+        if: steps.plan.outputs.needs_apply == 'true'
         env:
           CANDIDATE_DIR: ${{ env.CODEXSDK_DRIFT_ARTIFACT_DIR }}
           UPSTREAM_REF: ${{ steps.refs.outputs.upstream_ref }}
@@ -315,10 +317,13 @@ jobs:
             --target-kind "${UPSTREAM_REF_KIND}" \
             --target-sha "${UPSTREAM_SHA}" \
             --json | tee "${CODEXSDK_AUTO_SYNC_DIR}/apply-result.json"
-          git diff --name-status > "${CODEXSDK_AUTO_SYNC_DIR}/diff-name-status.txt"
+          python3 scripts/codexsdk_sync_changes.py capture \
+            --repo-root "${GITHUB_WORKSPACE}" \
+            --phase mechanical \
+            --output "${CODEXSDK_AUTO_SYNC_DIR}/mechanical-changes.json"
 
       - name: Build Codex drift repair prompt
-        if: steps.drift_action.outputs.decision == 'allow' && steps.drift.outputs.status == 'review-required' && !inputs.force_compare
+        if: steps.plan.outputs.needs_agent == 'true'
         env:
           CANDIDATE_DIR: ${{ env.CODEXSDK_DRIFT_ARTIFACT_DIR }}
           LAND_REF: ${{ github.event.repository.default_branch }}
@@ -339,7 +344,7 @@ jobs:
             --upstream-sha "${UPSTREAM_SHA}"
 
       - name: Prepare Go validation cache for Codex repair
-        if: steps.drift_action.outputs.decision == 'allow' && steps.drift.outputs.status == 'review-required' && !inputs.force_compare
+        if: steps.plan.outputs.needs_agent == 'true'
         env:
           GOCACHE: ${{ github.workspace }}/codexsdk/${{ env.CODEXSDK_GO_CACHE_DIR }}
           GOMODCACHE: ${{ github.workspace }}/codexsdk/${{ env.CODEXSDK_GO_MOD_CACHE_DIR }}
@@ -350,7 +355,7 @@ jobs:
           GOWORK=off go list -deps -test ./... >/dev/null
 
       - name: Run Codex drift repair agent
-        if: steps.drift_action.outputs.decision == 'allow' && steps.drift.outputs.status == 'review-required' && !inputs.force_compare
+        if: steps.plan.outputs.needs_agent == 'true'
         uses: openai/codex-action@v1
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}/codexsdk/${{ env.CODEXSDK_RUST_TARGET_DIR }}
@@ -368,8 +373,17 @@ jobs:
           allow-bots: "true"
           codex-args: '["--ephemeral"]'
 
+      - name: Capture final sync change set
+        if: steps.plan.outputs.needs_apply == 'true'
+        run: |
+          set -euo pipefail
+          python3 scripts/codexsdk_sync_changes.py capture \
+            --repo-root "${GITHUB_WORKSPACE}" \
+            --phase final \
+            --output "${CODEXSDK_AUTO_SYNC_DIR}/final-changes.json"
+
       - name: Validate sync before commit
-        if: steps.drift_action.outputs.decision == 'allow' && steps.drift.outputs.status == 'review-required' && !inputs.force_compare
+        if: steps.plan.outputs.needs_apply == 'true'
         env:
           CANDIDATE_DIR: ${{ env.CODEXSDK_DRIFT_ARTIFACT_DIR }}
           GOCACHE: ${{ github.workspace }}/codexsdk/${{ env.CODEXSDK_GO_CACHE_DIR }}
@@ -383,7 +397,8 @@ jobs:
             --target-sha "${UPSTREAM_SHA}"
 
       - name: Commit local sync changes
-        if: steps.drift_action.outputs.decision == 'allow' && steps.drift.outputs.status == 'review-required' && !inputs.force_compare
+        id: commit
+        if: steps.plan.outputs.needs_publish == 'true'
         env:
           UPSTREAM_REF: ${{ steps.refs.outputs.upstream_ref }}
           UPSTREAM_REF_KIND: ${{ steps.refs.outputs.upstream_ref_kind }}
@@ -391,35 +406,38 @@ jobs:
         run: |
           set -euo pipefail
           echo "Using codexsdk-sync-upstream command: commit-local-sync."
-          git diff --name-status
-          if git diff --quiet; then
-            echo "Codex sync produced no file changes while drift was review-required." >&2
-            exit 1
-          fi
-          git add -A
+          python3 scripts/codexsdk_sync_changes.py stage \
+            --repo-root "${GITHUB_WORKSPACE}" \
+            --manifest "${CODEXSDK_AUTO_SYNC_DIR}/final-changes.json"
           if git diff --cached --quiet; then
             echo "No staged sync changes are available to commit." >&2
             exit 1
           fi
-          git commit \
+          git -c user.name="codexsdk-sync-bot" \
+            -c user.email="codexsdk-sync-bot@users.noreply.github.com" \
+            commit \
             -m "Sync Codex protocol baseline to ${UPSTREAM_REF}" \
             -m "Upstream-ref: ${UPSTREAM_REF}" \
             -m "Upstream-ref-kind: ${UPSTREAM_REF_KIND}" \
             -m "Upstream-commit: ${UPSTREAM_SHA}"
+          echo "validated_commit=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
 
       - name: Publish protected sync PR
         id: publish
-        if: steps.drift_action.outputs.decision == 'allow' && steps.drift.outputs.status == 'review-required' && !inputs.force_compare
+        if: steps.plan.outputs.needs_publish == 'true'
         env:
           CANDIDATE_DIR: ${{ env.CODEXSDK_DRIFT_ARTIFACT_DIR }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           DRIFT_SHA: ${{ steps.drift.outputs.drift_sha }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SYNC_MODE: ${{ steps.plan.outputs.mode }}
           UPSTREAM_REF: ${{ steps.refs.outputs.upstream_ref }}
           UPSTREAM_REF_KIND: ${{ steps.refs.outputs.upstream_ref_kind }}
           UPSTREAM_SHA: ${{ steps.refs.outputs.upstream_sha }}
+          VALIDATED_COMMIT: ${{ steps.commit.outputs.validated_commit }}
         run: |
           set -euo pipefail
+          gh auth setup-git
           args=(
             --land-ref "${DEFAULT_BRANCH}"
             --default-branch "${DEFAULT_BRANCH}"
@@ -430,6 +448,8 @@ jobs:
             --drift-sha "${DRIFT_SHA}"
             --drift-analysis "${CANDIDATE_DIR}/drift-analysis.md"
             --candidate "${CANDIDATE_DIR}/schema"
+            --sync-mode "${SYNC_MODE}"
+            --validated-commit "${VALIDATED_COMMIT}"
           )
           scripts/codexsdk_publish_sync_pr.sh "${args[@]}"
 
@@ -449,11 +469,14 @@ jobs:
             echo "- Sync commit: \`${SYNC_COMMIT}\`"
             echo "- Sync PR: ${PR_URL}"
             echo
-            echo "Branch protection, the required \`Go\` check, and repository auto-merge rules own the merge decision. The finalize workflow owns landed verification, sync tags, and drift verification."
+            echo "Branch protection and the required \`PR verification\` check own the merge gate. An authorized maintainer owns the merge decision. The finalize workflow owns landed verification, sync tags, and drift verification."
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Fail verification when drift remains
-        if: inputs.force_compare && steps.drift_action.outputs.decision == 'allow' && steps.drift.outputs.status != 'clean'
+      - name: Fail forced verification
+        if: always() && (steps.pre_plan.outputs.verification_failed == 'true' || steps.plan.outputs.verification_failed == 'true')
+        env:
+          DRIFT_STATUS: ${{ steps.drift.outputs.status }}
+          POLICY_REASON: ${{ steps.target_policy.outputs.reason }}
         run: |
-          echo "force_compare verification found drift status '${{ steps.drift.outputs.status }}'." >&2
+          echo "force_compare verification failed (policy: ${POLICY_REASON}; drift: ${DRIFT_STATUS:-not-generated})." >&2
           exit 1

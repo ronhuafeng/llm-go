@@ -6,8 +6,10 @@ State:
 Inputs:
 - Target ref, ref kind, target SHA, validation evidence, diff/status evidence, and intended commit message metadata.
 
-Tool:
-- `git add` and `git commit` on the current branch, scoped by the reviewed local sync diff.
+Tools:
+- `scripts/codexsdk_sync_changes.py capture --phase final`
+- `scripts/codexsdk_sync_changes.py stage`
+- `git commit` on the current branch after exact-manifest staging.
 
 Boundaries:
 - May stage and commit only reviewed local sync changes after validation has passed for the same target SHA.
@@ -17,7 +19,9 @@ Boundaries:
 
 Checks:
 - Validation evidence names `scripts/codexsdk_validate_sync.sh` or equivalent focused checks and matches the target SHA.
-- Diff/status evidence was reviewed after repair and before staging.
+- The final change manifest was captured after repair, includes untracked files, and was reviewed before validation and staging.
+- Automation asserted a clean tracked/untracked worktree before apply, so every final manifest path was introduced by the current sync attempt.
+- Live changed paths still exactly match the final manifest when staging begins.
 - Mechanical sync files are limited to `internal/protocolschema/appserver/v2/**`, `protocolv2/*.gen.go`, and `sdk_surface.gen.go`; any handwritten SDK, test, or doc file in the commit has reviewed drift evidence or explicit user authorization.
 - Commit message records upstream ref, upstream ref kind, and upstream commit.
 - The resulting `HEAD` is the committed sync change and the worktree/index are clean except for intentionally preserved unrelated user changes that were not staged.

@@ -13,12 +13,14 @@ Options:
   --drift-analysis <path>   Drift analysis markdown to include in the PR body.
   --drift-sha <sha>         Drift fingerprint that produced this sync candidate.
   --remote <name>           Git remote to fetch and push. Defaults to origin.
+  --sync-mode <mode>        metadata-sync or repair-sync. Defaults to repair-sync.
   --target-kind <kind>      Upstream target kind, such as stable_rust_tag.
+  --validated-commit <sha>  HEAD already validated by the caller before rebase.
 
-The script assumes HEAD is the committed sync change. It validates, rebases onto
-the current remote landing ref, pushes a sync branch with force-with-lease when
-updating an existing sync branch, then creates or updates a PR against the
-landing ref.
+The script assumes HEAD is the committed sync change. It verifies caller-owned
+validation evidence when provided, rebases onto the current remote landing ref,
+validates the rebased tree, pushes a target-SHA-bound sync branch without
+overwriting a different remote commit, then creates a PR against the landing ref.
 EOF
 }
 
@@ -29,9 +31,11 @@ drift_analysis=""
 drift_sha=""
 land_ref=""
 remote="origin"
+sync_mode="repair-sync"
 target_ref=""
 target_kind=""
 target_sha=""
+validated_commit=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -63,6 +67,10 @@ while [[ $# -gt 0 ]]; do
       remote="$2"
       shift 2
       ;;
+    --sync-mode)
+      sync_mode="$2"
+      shift 2
+      ;;
     --target-ref)
       target_ref="$2"
       shift 2
@@ -73,6 +81,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --target-sha)
       target_sha="$2"
+      shift 2
+      ;;
+    --validated-commit)
+      validated_commit="$2"
       shift 2
       ;;
     -h|--help)
@@ -89,6 +101,10 @@ done
 
 if [[ -z "${land_ref}" || -z "${target_ref}" || -z "${target_kind}" || -z "${target_sha}" ]]; then
   usage >&2
+  exit 2
+fi
+if [[ "${sync_mode}" != "metadata-sync" && "${sync_mode}" != "repair-sync" ]]; then
+  echo "--sync-mode must be metadata-sync or repair-sync" >&2
   exit 2
 fi
 
@@ -138,7 +154,7 @@ if [[ "${land_ref}" != "${default_branch}" ]]; then
   exit 1
 fi
 
-if ! git diff --quiet || ! git diff --cached --quiet; then
+if [[ -n "$(git status --porcelain --untracked-files=all)" ]]; then
   echo "worktree must be clean before publishing a sync PR" >&2
   git status --short >&2
   exit 1
@@ -160,7 +176,7 @@ validate_sync() {
     args+=(--candidate "${candidate}")
   fi
   scripts/codexsdk_validate_sync.sh "${args[@]}" || return 1
-  if ! git diff --quiet || ! git diff --cached --quiet; then
+  if [[ -n "$(git status --porcelain --untracked-files=all)" ]]; then
     echo "validation changed the committed sync tree; commit validation changes before publishing" >&2
     git status --short >&2
     return 1
@@ -195,7 +211,7 @@ name = re.sub(r"^refs/(heads|tags)/", "", target_ref) or target_sha[:12]
 name = re.sub(r"[^A-Za-z0-9._-]+", "-", name).strip("-.")
 if not name:
     name = target_sha[:12]
-print(f"{prefix.rstrip('-/')}-{name[:80]}")
+print(f"{prefix.rstrip('-/')}-{name[:64]}-{target_sha[:12]}")
 PY
 }
 
@@ -208,12 +224,14 @@ push_sync_branch() {
   fi
 
   if [[ -n "${expected_remote}" ]]; then
-    git push \
-      --force-with-lease="refs/heads/${sync_branch}:${expected_remote}" \
-      "${remote}" "HEAD:refs/heads/${sync_branch}"
-  else
-    git push "${remote}" "HEAD:refs/heads/${sync_branch}"
+    if [[ "${expected_remote}" == "$(git rev-parse HEAD)" ]]; then
+      return 0
+    fi
+    echo "Refusing to overwrite existing sync branch ${sync_branch} at ${expected_remote}." >&2
+    echo "Recover or close the existing sync PR before retrying this target." >&2
+    return 1
   fi
+  git push "${remote}" "HEAD:refs/heads/${sync_branch}"
 }
 
 render_drift_analysis() {
@@ -232,6 +250,7 @@ create_or_update_pr() {
   local body_file
   local pr_number
   local pr_url
+  local fix_description
 
   if ! command -v gh >/dev/null 2>&1; then
     echo "gh is required to create or update the sync PR" >&2
@@ -239,10 +258,16 @@ create_or_update_pr() {
   fi
 
   title="Sync Codex protocol baseline to ${target_ref}"
+  if [[ "${sync_mode}" == "metadata-sync" ]]; then
+    fix_description="This PR advances the checked-in upstream provenance to a schema-compatible target, regenerates deterministic SDK artifacts, validates the synchronized baseline, and publishes it through the protected PR path. No Codex repair pass was needed."
+  else
+    fix_description="This PR applies the regenerated upstream schema candidate, runs the bounded Codex repair pass for handwritten compatibility, validates the synchronized baseline, and publishes it through the protected PR path."
+  fi
   body_file="$(mktemp)"
   cat > "${body_file}" <<EOF
 <!-- codexsdk-upstream-sync
 phase: fix
+sync_mode: ${sync_mode}
 upstream_ref: ${target_ref}
 upstream_ref_kind: ${target_kind}
 upstream_commit: ${target_sha}
@@ -259,7 +284,7 @@ $(render_drift_analysis)
 
 ## Fix Description
 
-This PR applies the regenerated upstream schema candidate, runs the bounded Codex repair pass for handwritten compatibility, validates the synchronized baseline, commits the result, and publishes it through the protected PR path.
+${fix_description}
 
 It does not merge itself, tag, or bypass branch protection. The finalize workflow owns landed verification, sync tag handling, and drift verification after merge.
 
@@ -271,8 +296,9 @@ It does not merge itself, tag, or bypass branch protection. The finalize workflo
 - Drift fingerprint: \`${drift_sha:-not provided}\`
 - Sync commit: \`${sync_commit}\`
 - Base branch: \`${land_ref}\`
+- Sync mode: \`${sync_mode}\`
 
-This PR was generated by the upstream protocol sync workflow. It stops at the protected PR boundary and does not tag or bypass branch protection. Merge should happen only through branch protection, repository auto-merge rules, and the required \`Go\` check on this head commit.
+This PR was generated by the upstream protocol sync workflow. It stops at the protected PR boundary and does not tag or bypass branch protection. Merge should happen only after branch protection and the required \`PR verification\` check accept this head commit.
 
 After this PR lands, the post-merge finalize trigger should pick up this PR automatically. Scheduled finalize remains the fallback, and manual finalize remains the explicit recovery path.
 EOF
@@ -306,7 +332,14 @@ EOF
   printf '%s\n' "${pr_url}"
 }
 
-validate_sync
+if [[ -n "${validated_commit}" ]]; then
+  if [[ "$(git rev-parse HEAD)" != "${validated_commit}" ]]; then
+    echo "validated commit ${validated_commit} does not match HEAD $(git rev-parse HEAD)" >&2
+    exit 1
+  fi
+else
+  validate_sync
+fi
 fetch_landing_ref
 git rebase "${remote}/${land_ref}"
 confirm_target_still_points_at_sha

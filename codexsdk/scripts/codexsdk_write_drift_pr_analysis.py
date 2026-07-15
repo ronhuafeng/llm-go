@@ -92,6 +92,19 @@ def write_github_output(status: str, drift_sha: str) -> None:
         output.write(f"drift_sha={drift_sha}\n")
 
 
+def write_github_summary(*, artifact_dir: Path, status: str, drift_sha: str, upstream_sha: str) -> None:
+    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if not summary_path:
+        return
+    generated_summary = (artifact_dir / "reports" / "SUMMARY.md").read_text(encoding="utf-8")
+    with open(summary_path, "a", encoding="utf-8") as summary:
+        summary.write("\n")
+        summary.write(f"- Drift status: `{status}`\n")
+        summary.write(f"- Drift fingerprint: `{drift_sha}`\n")
+        summary.write(f"- Drift evidence artifact: `codex-upstream-drift-{upstream_sha}-{drift_sha}`\n\n")
+        summary.write(generated_summary)
+
+
 def write_artifacts(
     *,
     artifact_dir: Path,
@@ -118,6 +131,12 @@ def write_artifacts(
     artifact_dir.mkdir(parents=True, exist_ok=True)
     (artifact_dir / "drift-analysis.md").write_text(analysis, encoding="utf-8")
     write_github_output(drift["status"], drift_sha)
+    write_github_summary(
+        artifact_dir=artifact_dir,
+        status=drift["status"],
+        drift_sha=drift_sha,
+        upstream_sha=upstream_sha,
+    )
 
     return {
         "drift_sha": drift_sha,

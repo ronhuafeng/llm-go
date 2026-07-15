@@ -275,6 +275,11 @@ else
       generator_detail="${worktree}/codex-rs cargo run -p codex-cli"
       ;;
   esac
+
+  git -C "${codex_repo}" show \
+    "${resolved_commit}:codex-rs/app-server-protocol/src/protocol/common.rs" \
+    > "${out}/common.rs"
+  printf '%s\n' "${resolved_commit}" > "${out}/common.rs.source_sha"
 fi
 
 schema_diff_args=(

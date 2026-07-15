@@ -1,6 +1,6 @@
 # Sync Workflow Automation Reference
 
-Use this reference for the GitHub Actions sync/finalize workflows, protected PR path, auto-merge behavior, drift verification, and remote completion layers.
+Use this reference for the GitHub Actions sync/finalize workflows, protected PR path, merge ownership, drift verification, and remote completion layers.
 
 ## Contents
 
@@ -12,12 +12,12 @@ Use this reference for the GitHub Actions sync/finalize workflows, protected PR 
 
 ## Workflow Contract
 
-Routine drift handling is split across a sync workflow and a finalize workflow. Scheduled or manual sync detects drift, renders PR-ready analysis, and publishes a protected sync PR automatically when drift is `review-required` and the run is not `force_compare` verification. Finalize runs only after the protected PR has landed; the PR-closed trigger is the fast path, with schedule and manual dispatch as required recovery paths.
+Routine drift handling is split across a sync workflow and a finalize workflow. Scheduled or manual sync detects drift, renders PR-ready analysis, and publishes a protected sync PR for any allowed forward target when the run is not `force_compare` verification. Clean drift uses a metadata-only sync; `review-required` drift adds the bounded repair pass. Finalize runs only after the protected PR has landed; the PR-closed trigger is the fast path, with schedule and manual dispatch as required recovery paths.
 
 The high-level job structure must stay recognizable:
 
-1. `sync`: resolve target, run policy, generate drift, upload candidate evidence, apply mechanical sync when needed, run a bounded Codex repair pass, validate, commit, and publish a protected sync PR with drift analysis and fix description.
-2. protected branch auto-merge: GitHub merges only after required real checks pass.
+1. `sync`: resolve target, run policy, generate drift, upload candidate evidence, apply the mechanical sync, run a bounded Codex repair pass only for `repair-sync`, validate, commit, and publish a protected sync PR with drift analysis and fix description.
+2. protected merge: GitHub permits merge only after required real checks pass; an authorized maintainer or separately configured repository auto-merge performs the merge.
 3. `finalize`: after a sync PR merge event or recovery scan, verify the landed commit, tag landed stable syncs when applicable, and dispatch drift verification when requested.
 
 Invariants:
@@ -27,36 +27,36 @@ Invariants:
 - no PAT, GitHub App token, or bot-token bypass
 - no synthetic required status writing
 - no tag deletion or tag movement
-- auto-merge continues through real PR `Go` checks
+- the required `PR verification` check runs on the actual PR head
 - merge queue, if enabled, may enqueue instead of immediate merge
 
-Sync PRs created by `GITHUB_TOKEN` may require one maintainer approval or rerun before GitHub schedules the required `Go` pull request check. This `action_required` state is an expected GitHub Actions safety gate, not a sync failure.
+Sync PRs created by `GITHUB_TOKEN` may require one maintainer approval or rerun before GitHub schedules the required `PR verification` pull request check. This `action_required` state is an expected GitHub Actions safety gate, not a sync failure.
 
 ## Sync Workflow
 
 The detect phase must:
 
 - resolve landing ref as the repository default branch
-- check out the landing ref with full history
+- check out the triggering default-branch SHA with full history so workflow code and checked-out code are the same revision
 - resolve upstream target through `scripts/codexsdk_resolve_upstream.py`
 - evaluate target policy through `scripts/codexsdk_target_policy.py`
-- stop cleanly on policy `block`
-- stop drift generation on policy `skip`
-- clone upstream only after policy `allow`
+- stop cleanly on policy `block`, except that `force_compare` must fail verification
+- stop drift generation on policy `skip`, except that `force_compare` performs read-only drift generation
+- clone upstream only when the deterministic workflow plan requests drift detection
 - generate drift with `scripts/codexsdk_track_upstream.sh`
-- capture upstream `common.rs` response mappings for the fix phase
+- capture upstream `common.rs` response mappings inside the tracking command at the same target commit
 - render drift PR analysis as a deterministic artifact
 - upload the full candidate artifact directory as pre-change evidence
 
-The fix phase must run only when drift status is `review-required` and the run is not `force_compare` verification. Scheduled drift may publish a protected sync PR automatically; it must still stop at PR publication.
+The fix phase must run only when target policy allows the target and the run is not `force_compare` verification. `clean` drift selects `metadata-sync`; `review-required` selects `repair-sync`. Scheduled drift may publish a protected sync PR automatically; it must still stop at PR publication.
 
 The fix phase must:
 
-- set up Go and Codex Rust
-- configure a bot git identity
+- set up Codex Rust for drift generation and set up Go only when a sync candidate will be applied
 - apply the candidate mechanically with `scripts/codexsdk_apply_sync_candidate.py`
-- build a bounded Codex repair prompt
-- run `openai/codex-action@v1` against the current worktree
+- build a bounded Codex repair prompt only for `repair-sync`
+- run `openai/codex-action@v1` against the current worktree only for `repair-sync`
+- capture changed paths including untracked files, reject scope-external paths, and stage only the validated final manifest
 - validate with `scripts/codexsdk_validate_sync.sh`
 - commit the validated local sync through the `commit-local-sync` boundary only when there are real changes
 - publish a sync PR with `scripts/codexsdk_publish_sync_pr.sh`, including drift analysis and the fix description in the PR body
@@ -76,7 +76,7 @@ Post-publication diagnostics must keep merge decisions on the protected PR path:
 
 - PR state, merge state, review decision, and status rollup
 - `gh pr checks`
-- recent `ci.yml` runs for the sync branch
+- the required `PR verification` run for the sync branch
 - reminder that an empty `action_required` first run needs one maintainer rerun
 
 ## Finalize Workflow
@@ -120,12 +120,13 @@ Confirm outcome:
 
 ## Helper Boundaries
 
-Workflow helper scripts may perform deterministic formatting, rendering, validation, polling, or writing. They must not decide analysis strategy, model, prompt policy, task split, repair logic, branch protection strategy, or sync target policy.
+Workflow helper scripts may perform deterministic formatting, rendering, validation, polling, writing, or map explicit target-policy/force/drift inputs into named execution modes and boolean step gates. They must not decide analysis strategy, model, prompt policy, repair contents, branch protection strategy, or sync target policy.
 
 Good helpers in this workflow include:
 
 - rendering the Codex prompt file from explicit inputs
 - rendering drift PR analysis artifacts from `drift_summary.json`
+- mapping explicit policy, force-compare, and drift-status inputs into deterministic workflow step gates
 - publishing the protected sync PR and printing post-publication diagnostics
 - validating generated outputs and sync state
 

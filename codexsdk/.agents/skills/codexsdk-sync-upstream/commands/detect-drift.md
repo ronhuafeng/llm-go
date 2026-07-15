@@ -31,5 +31,6 @@ Output:
 - Policy decision, reason, drift status, drift fingerprint, target provenance, artifact directory, run URL, and any caller-owned dispatch action.
 
 Stop if:
-- Policy returns `block` or `skip`; stop drift generation in both cases.
+- Policy returns `block`; stop drift generation, and fail a caller-owned `force_compare` verification.
+- Policy returns `skip` and the caller did not request `force_compare`; forced comparison may continue read-only drift generation.
 - Candidate provenance is missing or drift generation fails.

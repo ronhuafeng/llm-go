@@ -41,7 +41,7 @@ Preserve compact pre-change evidence before overwriting checked-in clean reports
 ## Automation Phases
 
 - Detect: resolve target, run policy, generate drift, record upstream ref/SHA, drift fingerprint, and workflow run URL, then render PR-ready drift analysis.
-- Fix: when workflow-owned drift is `review-required` and the run is not `force_compare` verification, apply the generated candidate, run `repair-applied-candidate`, validate, commit the local sync, and publish a protected PR automatically.
+- Fix: for an allowed forward target when the run is not `force_compare` verification, apply the generated candidate, then choose `metadata-sync` for clean drift or `repair-sync` plus `repair-applied-candidate` for `review-required` drift. Validate, commit the bounded change manifest, and publish a protected PR automatically.
 - Finalize: after the PR lands, verify the landed commit, create the stable sync tag when applicable, and run forced drift verification when requested.
 
 Do not depend on a `GITHUB_TOKEN` remote event to trigger the fix. The sync workflow should continue directly from drift evidence to protected PR publication when drift requires it.
@@ -56,8 +56,8 @@ Prefer stable tags or named refs for normal syncs. Treat bare `manual_commit` SH
 Policy meanings:
 
 - `allow`: drift generation may run
-- `skip`: selected target is already represented; stop drift generation
-- `block`: stop before drift generation
+- `skip`: selected target is already represented; stop drift generation unless `force_compare` requests read-only verification
+- `block`: stop before drift generation; a `force_compare` run must fail rather than report successful verification
 
 Do not convert a `block` into remote publication.
 
@@ -104,6 +104,8 @@ Validation should prove:
 
 After validation passes, use `commit-local-sync` to create the local sync commit before publication. `publish-protected-pr` consumes that committed `HEAD`; it must not create the commit itself.
 
+Capture the mechanical and final change sets with `scripts/codexsdk_sync_changes.py`. The final manifest includes untracked files, rejects paths outside `codexsdk/` and automation-owned cache/skill paths, and is the only source used for staging.
+
 When validation fails, inspect the first actionable failure before adding code or abstractions.
 
 ## Target Movement And Tags
@@ -122,7 +124,7 @@ Tag only after a successful baseline sync commit exists on the landing ref:
 ## Decision Rules
 
 - If drift is clean and the user only asked to check a target, report no SDK update is needed.
-- If drift is clean but the user asked to move provenance, update provenance and clean reports without changing schema-derived Go output.
+- If an allowed forward target is clean, update provenance and clean reports through `metadata-sync` without a Codex repair pass or schema-derived Go changes.
 - If target policy returns `block`, stop before drift generation.
 - If a fix PR was published, report `sync PR published` and stop before merge, tag, or drift verification.
 - If a PR has landed, finalize from the landed commit rather than the PR branch head or an unmerged attempt.
