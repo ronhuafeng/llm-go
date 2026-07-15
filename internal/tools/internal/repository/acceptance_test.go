@@ -228,6 +228,29 @@ func TestCurrentActiveDependenciesAreCutOver(t *testing.T) {
 	}
 }
 
+func TestMigrationAcceptanceWorkflowKeepsPlanOutsideCheckout(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "migration-acceptance.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := string(data)
+	for _, required := range []string{
+		"path: ${{ runner.temp }}/acceptance-plan",
+		`-plan "$RUNNER_TEMP/acceptance-plan/acceptance-plan.json"`,
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Errorf("migration acceptance workflow missing isolated plan wiring %q", required)
+		}
+	}
+	if strings.Contains(workflow, "-plan ../../acceptance-plan.json") {
+		t.Error("migration acceptance workflow materializes its downloaded plan inside the checkout")
+	}
+}
+
 func completeAcceptanceFixture() MigrationAcceptanceReport {
 	artifact := MigrationAcceptanceArtifact{ID: "artifact", Kind: "test", Locator: "testdata/artifact", SHA256: strings.Repeat("a", 64)}
 	categories := make([]MigrationAcceptanceCategory, 0, len(migrationAcceptanceCategoryIDs))

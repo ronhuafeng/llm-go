@@ -173,6 +173,10 @@ artifacts it inspected. The report is incomplete when a category, source
 evidence file, Release asset, checksum, typed consumer, or required document is
 missing. The workflow still uploads an incomplete report when an upstream
 evidence job failed, so absence cannot collapse into an ambiguous skipped gate.
+Inputs downloaded into a source-verification job live under the runner
+temporary directory, outside the checkout. Checkout verification treats a
+downloaded audit input materialized in the repository tree as untracked source
+and fails closed.
 
 Published-chain evidence is independently observed at audit time. The command
 downloads and digest-checks the three evidence assets from each stable GitHub

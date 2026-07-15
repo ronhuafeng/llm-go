@@ -166,11 +166,13 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: acceptance-plan
+          path: ${{ runner.temp }}/acceptance-plan
       - name: Verify source consumers and three-layer composition
         working-directory: internal/tools
         run: >-
           go run ./cmd/repoctl verify-checkout -root ../..
-          -plan ../../acceptance-plan.json -evidence ../../evidence-checkout.json
+          -plan "$RUNNER_TEMP/acceptance-plan/acceptance-plan.json"
+          -evidence ../../evidence-checkout.json
       - if: always()
         uses: actions/upload-artifact@v7
         with:
