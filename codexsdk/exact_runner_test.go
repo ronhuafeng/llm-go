@@ -225,6 +225,7 @@ func TestHandlerFailureDiscardsQueuedTerminalWithoutBlockingRun(t *testing.T) {
 	releaseTerminalEnqueue := make(chan struct{})
 	terminalEvidenceQueued := make(chan struct{})
 	terminalEvidenceAccepted := make(chan struct{})
+	closeCausePublished := make(chan struct{})
 	var calls atomic.Int32
 	t.Setenv("CODEXSDK_FAKE_RECORD", tempRecord(t))
 	root, err := New(ClientOptions{
@@ -251,6 +252,7 @@ func TestHandlerFailureDiscardsQueuedTerminalWithoutBlockingRun(t *testing.T) {
 		}
 	}
 	client.testBeforePendingTerminalFence = func() { close(terminalEvidenceAccepted) }
+	client.testAfterCloseCausePublished = func() { close(closeCausePublished) }
 	queued := protocolv2.NewServerNotificationConfigWarning(protocolv2.ServerNotificationConfigWarning{
 		Params: protocolv2.ConfigWarningNotification{Summary: "hold handler"},
 	})
@@ -277,9 +279,9 @@ func TestHandlerFailureDiscardsQueuedTerminalWithoutBlockingRun(t *testing.T) {
 	}
 	close(releaseFailure)
 	select {
-	case <-client.ctx.Done():
+	case <-closeCausePublished:
 	case <-time.After(time.Second):
-		t.Fatal("handler failure did not close the client")
+		t.Fatal("handler failure was not published as the client first cause")
 	}
 	close(releaseTerminalEnqueue)
 	var got outcome

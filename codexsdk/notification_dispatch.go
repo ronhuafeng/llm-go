@@ -105,9 +105,7 @@ func (c *Client) notificationDispatcher() {
 
 func (c *Client) discardCurrentAndQueuedNotifications(accepted acceptedNotification) {
 	c.endNotificationHandler()
-	if accepted.dispatched != nil {
-		close(accepted.dispatched)
-	}
+	accepted.releaseDispatchWaiter()
 	c.discardAcceptedNotifications()
 }
 
@@ -115,16 +113,12 @@ func (c *Client) dispatchAcceptedNotification(handler ServerNotificationHandler,
 	err := invokeNotificationHandler(c.ctx, handler, accepted.notification)
 	c.endNotificationHandler()
 	if err == nil {
-		if accepted.dispatched != nil {
-			close(accepted.dispatched)
-		}
+		accepted.releaseDispatchWaiter()
 		return true
 	}
 	c.failClient(err)
 	c.discardAcceptedNotifications()
-	if accepted.dispatched != nil {
-		close(accepted.dispatched)
-	}
+	accepted.releaseDispatchWaiter()
 	return false
 }
 
@@ -168,9 +162,7 @@ func (c *Client) discardAcceptedNotifications() {
 		select {
 		case accepted := <-c.notifications:
 			c.handlerWG.Done()
-			if accepted.dispatched != nil {
-				close(accepted.dispatched)
-			}
+			accepted.releaseDispatchWaiter()
 		default:
 			return
 		}
@@ -214,6 +206,9 @@ func (c *Client) publishCloseCause() {
 	c.closeCauseOnce.Do(func() {
 		if c.closeCausePublished != nil {
 			close(c.closeCausePublished)
+		}
+		if c.testAfterCloseCausePublished != nil {
+			c.testAfterCloseCausePublished()
 		}
 	})
 }
