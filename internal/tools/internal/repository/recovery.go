@@ -9,6 +9,7 @@ import (
 )
 
 type ReleaseRecoveryContract struct {
+	ID                  string
 	Repository          string
 	WorkflowPath        string
 	SourceRunID         int64
@@ -16,6 +17,8 @@ type ReleaseRecoveryContract struct {
 	ArtifactName        string
 	Tag                 string
 	Commit              string
+	ModuleID            string
+	TargetVersion       string
 	DraftReleaseID      int64
 	AuthorizationDigest string
 }
@@ -30,6 +33,7 @@ type ReleaseRecoveryDisposition struct {
 
 func LLMKitV060RecoveryContract() ReleaseRecoveryContract {
 	return ReleaseRecoveryContract{
+		ID:                  "llmkit-v0.6.0",
 		Repository:          "ronhuafeng/llm-go",
 		WorkflowPath:        ".github/workflows/release.yml",
 		SourceRunID:         29342863026,
@@ -37,9 +41,40 @@ func LLMKitV060RecoveryContract() ReleaseRecoveryContract {
 		ArtifactName:        "release-preflight",
 		Tag:                 "llmkit/v0.6.0",
 		Commit:              "14f28b0dd4727f079c02ba3139c326ed249bb86a",
+		ModuleID:            "llmkit",
+		TargetVersion:       "v0.6.0",
 		DraftReleaseID:      353873922,
 		AuthorizationDigest: "sha256:9b3a05c02f5b464b2e3bb53789368c6254873b982c3012f2c60075ffadaae0cb",
 	}
+}
+
+func CodexAdapterV050RecoveryContract() ReleaseRecoveryContract {
+	return ReleaseRecoveryContract{
+		ID:                  "codex-adapter-v0.5.0",
+		Repository:          "ronhuafeng/llm-go",
+		WorkflowPath:        ".github/workflows/release.yml",
+		SourceRunID:         29383675440,
+		ArtifactID:          8330664749,
+		ArtifactName:        "release-preflight",
+		Tag:                 "llmcaller/codex/v0.5.0",
+		Commit:              "5fd612b358292ee587c558dbd8041c5a75aea0d7",
+		ModuleID:            "codex-adapter",
+		TargetVersion:       "v0.5.0",
+		DraftReleaseID:      354170731,
+		AuthorizationDigest: "sha256:1c838c2d505275a20a54e0040a8049bda4ad3b19329865985201e24928385172",
+	}
+}
+
+func ReleaseRecoveryContractByID(id string) (ReleaseRecoveryContract, error) {
+	contracts := map[string]ReleaseRecoveryContract{
+		"llmkit-v0.6.0":        LLMKitV060RecoveryContract(),
+		"codex-adapter-v0.5.0": CodexAdapterV050RecoveryContract(),
+	}
+	contract, ok := contracts[id]
+	if !ok {
+		return ReleaseRecoveryContract{}, fmt.Errorf("unknown release recovery contract %q", id)
+	}
+	return contract, nil
 }
 
 type recoveryWorkflowRun struct {
@@ -146,7 +181,7 @@ func ValidateReleaseRecoveryReleaseState(contract ReleaseRecoveryContract, relea
 }
 
 func validateReleaseRecoveryContract(contract ReleaseRecoveryContract) error {
-	if contract.Repository == "" || contract.WorkflowPath == "" || contract.SourceRunID <= 0 || contract.ArtifactID <= 0 || contract.ArtifactName == "" || contract.Tag == "" || contract.Commit == "" || contract.DraftReleaseID <= 0 || contract.AuthorizationDigest == "" {
+	if contract.ID == "" || contract.Repository == "" || contract.WorkflowPath == "" || contract.SourceRunID <= 0 || contract.ArtifactID <= 0 || contract.ArtifactName == "" || contract.Tag == "" || contract.Commit == "" || contract.ModuleID == "" || contract.TargetVersion == "" || contract.DraftReleaseID <= 0 || contract.AuthorizationDigest == "" {
 		return fmt.Errorf("release recovery contract is incomplete")
 	}
 	return nil
@@ -323,7 +358,11 @@ func ValidateReleaseRecoveryArtifacts(contract ReleaseRecoveryContract, plan Rel
 	if err := ValidateReleaseAuthorizationFiles(plan, authorization, evidenceDirectory); err != nil {
 		return err
 	}
-	if plan.Subject.Tag != contract.Tag || plan.Subject.Commit != contract.Commit || plan.Subject.ModuleID != "llmkit" || plan.Subject.TargetVersion != "v0.6.0" {
+	return validateReleaseRecoveryPlanIdentity(contract, plan, authorization)
+}
+
+func validateReleaseRecoveryPlanIdentity(contract ReleaseRecoveryContract, plan ReleasePlan, authorization ReleaseAuthorization) error {
+	if plan.Subject.Tag != contract.Tag || plan.Subject.Commit != contract.Commit || plan.Subject.ModuleID != contract.ModuleID || plan.Subject.TargetVersion != contract.TargetVersion {
 		return fmt.Errorf("release plan does not match recovery contract")
 	}
 	if authorization.AuthorizationDigest != contract.AuthorizationDigest {

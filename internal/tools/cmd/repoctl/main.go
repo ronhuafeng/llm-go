@@ -145,6 +145,7 @@ func runValidateReleaseRecoverySource(args []string) int {
 	planPath := flags.String("plan", "", "authorized release-plan JSON path")
 	authorizationPath := flags.String("authorization", "", "release authorization JSON path")
 	evidenceDir := flags.String("evidence-dir", "", "directory containing authorized preflight evidence")
+	contractID := flags.String("contract", "llmkit-v0.6.0", "exact typed release recovery contract")
 	if !parseFlags(flags, args, "repoctl validate-release-recovery-source") || *runPath == "" || *artifactsPath == "" || *tagObjectPath == "" || *planPath == "" || *authorizationPath == "" || *evidenceDir == "" {
 		fmt.Fprintln(os.Stderr, "repoctl validate-release-recovery-source: -run, -artifacts, -tag-object, -plan, -authorization, and -evidence-dir are required")
 		return 2
@@ -158,7 +159,10 @@ func runValidateReleaseRecoverySource(args []string) int {
 	if err == nil {
 		tagObjectData, err = read(*tagObjectPath)
 	}
-	contract := repository.LLMKitV060RecoveryContract()
+	contract, contractErr := repository.ReleaseRecoveryContractByID(*contractID)
+	if err == nil {
+		err = contractErr
+	}
 	if err == nil {
 		err = repository.ValidateReleaseRecoverySourceFacts(contract, runData, artifactsData, tagObjectData)
 	}
@@ -187,6 +191,7 @@ func runValidateReleaseRecoveryRelease(args []string) int {
 	releasePath := flags.String("release", "", "Draft or published GitHub Release JSON path")
 	allowPublished := flags.Bool("allow-published", false, "accept the exact already-published terminal state")
 	output := flags.String("output", "", "typed recovery disposition output path")
+	contractID := flags.String("contract", "llmkit-v0.6.0", "exact typed release recovery contract")
 	if !parseFlags(flags, args, "repoctl validate-release-recovery-release") || *releasePath == "" || *output == "" {
 		fmt.Fprintln(os.Stderr, "repoctl validate-release-recovery-release: -release and -output are required")
 		return 2
@@ -194,7 +199,11 @@ func runValidateReleaseRecoveryRelease(args []string) int {
 	data, err := os.ReadFile(*releasePath)
 	var disposition repository.ReleaseRecoveryDisposition
 	if err == nil {
-		disposition, err = repository.ValidateReleaseRecoveryReleaseState(repository.LLMKitV060RecoveryContract(), data, *allowPublished)
+		var contract repository.ReleaseRecoveryContract
+		contract, err = repository.ReleaseRecoveryContractByID(*contractID)
+		if err == nil {
+			disposition, err = repository.ValidateReleaseRecoveryReleaseState(contract, data, *allowPublished)
+		}
 	}
 	if err == nil {
 		err = repository.WriteReleaseRecoveryDisposition(*output, disposition)

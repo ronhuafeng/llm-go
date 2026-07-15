@@ -40,6 +40,39 @@ func TestValidateReleaseRecoverySourceFactsBindIncident(t *testing.T) {
 	}
 }
 
+func TestValidateAdapterReleaseRecoverySourceFactsBindIncident(t *testing.T) {
+	contract := CodexAdapterV050RecoveryContract()
+	run := []byte(`{"id":29383675440,"event":"workflow_dispatch","head_sha":"5fd612b358292ee587c558dbd8041c5a75aea0d7","head_branch":"main","path":".github/workflows/release.yml","status":"completed","conclusion":"failure","repository":{"full_name":"ronhuafeng/llm-go"}}`)
+	artifacts := []byte(`{"total_count":2,"artifacts":[{"id":8330765998,"name":"published-evidence","expired":false,"workflow_run":{"id":29383675440,"head_branch":"main","head_sha":"5fd612b358292ee587c558dbd8041c5a75aea0d7"}},{"id":8330664749,"name":"release-preflight","expired":false,"workflow_run":{"id":29383675440,"head_branch":"main","head_sha":"5fd612b358292ee587c558dbd8041c5a75aea0d7"}}]}`)
+	tagObject := []byte("object 5fd612b358292ee587c558dbd8041c5a75aea0d7\ntype commit\ntag llmcaller/codex/v0.5.0\ntagger github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com> 0 +0000\n\nllmcaller/codex/v0.5.0\n\nrelease-authorization: sha256:1c838c2d505275a20a54e0040a8049bda4ad3b19329865985201e24928385172\n")
+	if err := ValidateReleaseRecoverySourceFacts(contract, run, artifacts, tagObject); err != nil {
+		t.Fatalf("validate adapter recovery incident: %v", err)
+	}
+	if contract.ModuleID != "codex-adapter" || contract.TargetVersion != "v0.5.0" || contract.DraftReleaseID != 354170731 {
+		t.Fatalf("adapter recovery contract = %+v", contract)
+	}
+}
+
+func TestRecoveryPlanIdentityComesFromExactContract(t *testing.T) {
+	adapter := CodexAdapterV050RecoveryContract()
+	plan := validAdapterReleasePlan(t)
+	plan.Subject.Commit = adapter.Commit
+	plan.PlanDigest = ""
+	var err error
+	plan.PlanDigest, err = releasePlanDigest(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	authorization := ReleaseAuthorization{AuthorizationDigest: adapter.AuthorizationDigest}
+	if err := validateReleaseRecoveryPlanIdentity(adapter, plan, authorization); err != nil {
+		t.Fatal(err)
+	}
+	plan.Subject.ModuleID = "llmkit"
+	if err := validateReleaseRecoveryPlanIdentity(adapter, plan, authorization); err == nil || !strings.Contains(err.Error(), "contract") {
+		t.Fatalf("wrong recovery plan error = %v", err)
+	}
+}
+
 func TestValidateReleaseRecoveryReleaseStateOwnsDisposition(t *testing.T) {
 	contract := LLMKitV060RecoveryContract()
 	draft := []byte(`{"id":353873922,"tag_name":"llmkit/v0.6.0","target_commitish":"14f28b0dd4727f079c02ba3139c326ed249bb86a","draft":true,"prerelease":false}`)
@@ -187,6 +220,54 @@ func TestReleaseRecoveryWorkflowWiringSmoke(t *testing.T) {
 	for _, forbidden := range []string{"RELEASE_DEPLOY_KEY", "ssh-key:", "git tag ", "git push ", "git tag -d", "gh release delete", "--method DELETE", "gh api --method POST --hostname uploads.github.com", "length == 0", "release-plan -root", "finalize-release", "authorize-tag"} {
 		if strings.Contains(workflow, forbidden) {
 			t.Errorf("recovery workflow contains forbidden mutation/authorization pattern %q", forbidden)
+		}
+	}
+}
+
+func TestAdapterReleaseRecoveryWorkflowWiringSmoke(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "recover-codex-adapter-v0.5.0.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := string(data)
+	for _, required := range []string{
+		"options: ['29383675440']",
+		"SOURCE_ARTIFACT_ID: '8330664749'",
+		"TAG: llmcaller/codex/v0.5.0",
+		"COMMIT: 5fd612b358292ee587c558dbd8041c5a75aea0d7",
+		"AUTHORIZATION_DIGEST: sha256:1c838c2d505275a20a54e0040a8049bda4ad3b19329865985201e24928385172",
+		"DRAFT_ID: '354170731'",
+		"-contract codex-adapter-v0.5.0",
+		"validate-release-recovery-source",
+		"validate-release-recovery-release",
+		"\"$RUNNER_TEMP/repoctl-recovery\" verify-tag",
+		"-root \"$AUTHORIZED_SOURCE\"",
+		"-command-timeout 5m",
+		"name: codex-adapter-v0.5.0-release-recovery",
+		"name: codex-adapter-v0.5.0-release-publish-diagnostics",
+		"contents: write",
+		"if: always()",
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Errorf("adapter recovery workflow missing wiring %q", required)
+		}
+	}
+	if got := strings.Count(workflow, "contents: write"); got != 1 {
+		t.Errorf("adapter recovery contents:write occurrences = %d, want publish job only", got)
+	}
+	if got := strings.Count(workflow, "if: always()"); got != 2 {
+		t.Errorf("adapter recovery always-diagnostic uploads = %d, want verify and publish jobs", got)
+	}
+	for _, forbidden := range []string{
+		"RELEASE_DEPLOY_KEY", "ssh-key:", "git tag ", "git push ", "git tag -d", "gh release delete", "--method DELETE",
+		"release-plan -root", "finalize-release", "authorize-tag", "repoctl-authorized",
+	} {
+		if strings.Contains(workflow, forbidden) {
+			t.Errorf("adapter recovery workflow contains forbidden mutation/authorization pattern %q", forbidden)
 		}
 	}
 }

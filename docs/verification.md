@@ -82,6 +82,13 @@ API. The adapter path reads the declared upstream tuple from the proxy
 artifact's `go.mod`, compares it with an isolated consumer's resolved graph,
 records official sums for all three internal modules, and executes a typed
 three-layer call that checks neutral evidence and the complete exact SDK result.
+Because Go's lazy module loading can list an indirect module before fetching
+its zip, the adapter consumer first materializes the entire versioned graph
+with `go mod download -json all` through the exclusive public Proxy. Every
+download must carry both official sums, and its complete path, version, and sum
+set must exactly equal the subsequent `go list -m -json all` result; missing,
+extra, replaced, excluded, or non-stable modules fail closed. Public-network
+commands remain bounded, with a five-minute per-command limit.
 First-tag API mapping is generic across migrated modules; while a first
 replacement tag is still absent, repository verification requires the current
 canonical inventory to equal its legacy inventory after the declared flattened
@@ -135,3 +142,13 @@ response accepts only the exact verified published terminal state with all
 three assets already complete and becomes a no-op; it never uploads to a
 published Release. The publish job independently uploads its reconciliation
 and PATCH diagnostics with `if: always()`.
+
+The one-time `llmcaller/codex/v0.5.0` recovery workflow binds failed run
+`29383675440`, original preflight artifact `8330664749`, immutable tag commit
+`5fd612b358292ee587c558dbd8041c5a75aea0d7`, Draft Release `354170731`, and the
+original authorization digest. It builds the corrected typed verifier from
+current `main`, but verifies the separately checked-out authorized source and
+the original immutable preflight. This is a verifier recovery, not a new
+release authorization: it has no tag-write identity, and only its dependent
+write-scoped job may reconcile the exact three assets and publish the same
+Draft after the corrected full-graph checksum and typed-consumer checks pass.

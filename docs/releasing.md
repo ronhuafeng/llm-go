@@ -140,9 +140,16 @@ in an issue, pull request, workflow artifact, command line, or log.
    adapter consumer additionally requires its proxy artifact to directly
    declare `llmkit v0.6.0` and `codexsdk v0.6.0`, requires the fresh resolved
    graph to contain that exact tuple with official sums and no replacements,
-   exclusions, prereleases, or pseudo-versions, and proves typed neutral
-   evidence retains the complete exact SDK result. The adapter `go.mod` is the
-   compatibility owner; there is no second compatibility manifest.
+   exclusions, prereleases, or pseudo-versions. Go's lazy module loading can
+   put a dependency in that build list before its module zip has been fetched,
+   so the consumer first runs `go mod download -json all` through the same
+   exclusive public Proxy. Every versioned build-list module must have both an
+   official module sum and `go.mod` sum in the download result, and the complete
+   downloaded set must exactly match the subsequently listed graph. These
+   bounded public-network commands receive five minutes each. The consumer
+   then proves typed neutral evidence retains the complete exact SDK result.
+   The adapter `go.mod` is the compatibility owner; there is no second
+   compatibility manifest.
 7. CI attaches the plan, release authorization, and published evidence before
    changing the GitHub Release from Draft to `verified`.
 
@@ -240,3 +247,31 @@ The recovery workflow has no Deploy Key,
 tag-write step, release-plan construction, or tag authorization. It must never
 create, move, or delete a tag, replace the Draft, delete an asset, or use local
 proxy evidence as completion proof.
+
+### Exact recovery for the adapter checksum incident
+
+Run `29383675440` created immutable tag `llmcaller/codex/v0.5.0` at
+`5fd612b358292ee587c558dbd8041c5a75aea0d7` and Draft Release `354170731`, then
+post-tag verification failed because Go's lazy module loading listed
+`golang.org/x/mod` before its zip checksums had been materialized. The tag and
+original authorization remain immutable; do not move the tag, rebuild the
+preflight, or treat the failed published-evidence artifact as completion
+proof.
+
+Use only the manually dispatched `Recover llmcaller/codex v0.5.0 release`
+workflow from `main`, with source run `29383675440`. Its typed contract binds
+original preflight artifact `8330664749`, authorization digest
+`sha256:1c838c2d505275a20a54e0040a8049bda4ad3b19329865985201e24928385172`, the
+annotated tag and peeled commit, module/version identity, and Draft ID. The
+read-only job builds the corrected verifier from current `main`, applies it to
+the separately checked-out authorized commit and original preflight, fully
+materializes the public build graph, and emits new published evidence. Using
+current recovery tooling is intentional: the immutable tagged source contains
+the verifier defect being recovered, while the public module artifact and its
+authorization remain the objects under test.
+
+Only after that verification succeeds does the dependent write-scoped job
+reconcile the same three content-bound assets and publish the same Draft by ID.
+It has no Deploy Key, tag mutation, new plan, or new authorization path. The
+same forward-only, fail-closed asset and lost-response rules described above
+apply; an exact already-published terminal state is the only permitted no-op.

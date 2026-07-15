@@ -75,8 +75,13 @@ hosted precondition: GitHub secret expressions do not reveal whether a missing
 Environment value fell back to a same-named repository or organization secret.
 
 Tag namespaces are protected against ordinary local creation, movement, and
-reuse. A post-tag failure marks the immutable tag unverified; recovery is a
-forward release with a new version.
+reuse. A post-tag failure marks the immutable tag unverified. An artifact,
+checksum, provenance, or behavior defect requires a forward release with a new
+version. A verifier or observation defect may only complete the same immutable
+artifact through an incident-specific typed recovery that reuses the original
+authorization, has no tag-write authority, and fails closed unless the
+authorized source, archive, checksums, provenance, and behavior are unchanged
+and satisfy the corrected verification contract.
 
 Post-tag verification is explicitly scheduled by the release workflow. It does
 not assume that a secondary workflow will happen to run in response to an event

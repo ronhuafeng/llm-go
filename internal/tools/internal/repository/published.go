@@ -466,6 +466,16 @@ func runPublishedConsumer(ctx context.Context, plan ReleasePlan, declaredTuple m
 	}
 	if plan.Subject.ModuleID == "codex-adapter" {
 		commandCtx, cancel = context.WithTimeout(ctx, options.CommandTimeout)
+		output, downloadErr := command(commandCtx, root, environment, "go", "mod", "download", "-json", "all")
+		cancel()
+		if downloadErr != nil {
+			return PublishedConsumer{}, nil, downloadErr
+		}
+		downloaded, decodeErr := decodeDownloadedModules(output)
+		if decodeErr != nil {
+			return PublishedConsumer{}, nil, decodeErr
+		}
+		commandCtx, cancel = context.WithTimeout(ctx, options.CommandTimeout)
 		output, listErr := command(commandCtx, root, environment, "go", "list", "-m", "-json", "all")
 		cancel()
 		if listErr != nil {
@@ -474,6 +484,9 @@ func runPublishedConsumer(ctx context.Context, plan ReleasePlan, declaredTuple m
 		modules, decodeErr := decodeListedModules(output)
 		if decodeErr != nil {
 			return PublishedConsumer{}, nil, decodeErr
+		}
+		if err := validateMaterializedGraph(modules, downloaded); err != nil {
+			return PublishedConsumer{}, nil, err
 		}
 		tuple, err = validateAdapterResolvedGraph(modules, plan.Subject.ModulePath, plan.Subject.TargetVersion, declaredTuple)
 		if err != nil {
@@ -493,6 +506,58 @@ func runPublishedConsumer(ctx context.Context, plan ReleasePlan, declaredTuple m
 		}
 	}
 	return consumer, tuple, nil
+}
+
+func decodeDownloadedModules(data []byte) (map[string]moduleDownload, error) {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	modules := map[string]moduleDownload{}
+	for {
+		var module moduleDownload
+		if err := decoder.Decode(&module); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, fmt.Errorf("decode full graph download: %w", err)
+		}
+		if module.Path == "" || !isStableVersion(module.Version) {
+			return nil, fmt.Errorf("full graph download contains an invalid module %s@%s", module.Path, module.Version)
+		}
+		if module.Error != "" {
+			return nil, fmt.Errorf("full graph download %s@%s failed: %s", module.Path, module.Version, module.Error)
+		}
+		if module.Sum == "" || module.GoModSum == "" {
+			return nil, fmt.Errorf("full graph download %s@%s is missing an official checksum", module.Path, module.Version)
+		}
+		if _, duplicate := modules[module.Path]; duplicate {
+			return nil, fmt.Errorf("full graph download contains duplicate module %s", module.Path)
+		}
+		modules[module.Path] = module
+	}
+	if len(modules) == 0 {
+		return nil, fmt.Errorf("full graph download is empty")
+	}
+	return modules, nil
+}
+
+func validateMaterializedGraph(listed []listedModule, downloaded map[string]moduleDownload) error {
+	versioned := 0
+	for _, module := range listed {
+		if module.Main {
+			continue
+		}
+		versioned++
+		download, ok := downloaded[module.Path]
+		if !ok {
+			return fmt.Errorf("resolved module %s was not materialized by the full graph download", module.Path)
+		}
+		if download.Version != module.Version || download.Sum != module.Sum || download.GoModSum != module.GoModSum {
+			return fmt.Errorf("resolved module %s does not match its full graph download checksums", module.Path)
+		}
+	}
+	if len(downloaded) != versioned {
+		return fmt.Errorf("full graph download contains %d modules, resolved graph contains %d versioned modules", len(downloaded), versioned)
+	}
+	return nil
 }
 
 func validateCleanConsumerGoMod(path string) error {

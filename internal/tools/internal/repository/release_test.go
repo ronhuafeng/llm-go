@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -223,6 +224,7 @@ func TestReleaseWorkflowWiringSmoke(t *testing.T) {
 		"needs: [preflight, draft-release]",
 		"needs: [preflight, post-tag]",
 		"published-evidence.json",
+		"-command-timeout 5m",
 		"gh release edit \"$TAG\"",
 		"validate-tag-ref -input \"$tag_refs\" -tag \"$TAG\" -commit \"$COMMIT\"",
 	} {
@@ -676,6 +678,110 @@ replace github.com/ronhuafeng/llm-go/llmkit => ` + filepath.ToSlash(filepath.Joi
 	if _, err := validateAdapterConsumerAttestation(output); err != nil {
 		t.Fatalf("consumer attestation: %v: %s", err, output)
 	}
+}
+
+func TestAdapterPublishedConsumerMaterializesEntireGraphBeforeValidation(t *testing.T) {
+	plan := validAdapterReleasePlan(t)
+	declared := map[string]string{codexSDKModulePath: "v0.6.0", llmkitModulePath: "v0.6.0"}
+	graph := []listedModule{
+		{Path: "example.test/llm-go-published-consumer", Main: true},
+		{Path: adapterModulePath, Version: "v0.5.0", Sum: "h1:adapter", GoModSum: "h1:adapter-mod"},
+		{Path: codexSDKModulePath, Version: "v0.6.0", Sum: "h1:sdk", GoModSum: "h1:sdk-mod"},
+		{Path: llmkitModulePath, Version: "v0.6.0", Sum: "h1:kit", GoModSum: "h1:kit-mod"},
+		{Path: "golang.org/x/mod", Version: "v0.8.0", Sum: "h1:xmod", GoModSum: "h1:xmod-mod"},
+	}
+	materialized := false
+	commands := []string{}
+	command := func(_ context.Context, _ string, environment map[string]string, args ...string) ([]byte, error) {
+		commands = append(commands, strings.Join(args, " "))
+		if environment["GOWORK"] != "off" || environment["GOVCS"] != "*:off" || environment["GOPROXY"] != "https://proxy.golang.org" || environment["GOSUMDB"] != "sum.golang.org" {
+			t.Fatalf("unsafe consumer environment: %+v", environment)
+		}
+		switch strings.Join(args, " ") {
+		case "go mod tidy":
+			return nil, nil
+		case "go mod download -json all":
+			materialized = true
+			return moduleDownloadStream(t, graph[1:]), nil
+		case "go list -m -json all":
+			listed := append([]listedModule(nil), graph...)
+			if !materialized {
+				listed[4].Sum = ""
+				listed[4].GoModSum = ""
+			}
+			return listedModuleStream(t, listed), nil
+		case "go run .":
+			return []byte(`{"kind":"typed_three_layer_call","typed_value":"verified","provider_name":"codex","effective_model":"proxy-model","neutral_input_tokens":11,"exact_thread_id":"thread-proxy","exact_turn_id":"turn-proxy","exact_result_preserved":true}`), nil
+		default:
+			return nil, fmt.Errorf("unexpected command %q", strings.Join(args, " "))
+		}
+	}
+	options := PublishOptions{Proxy: "https://proxy.golang.org", SumDB: "sum.golang.org", CommandTimeout: time.Second}
+	_, tuple, err := runPublishedConsumer(context.Background(), plan, declared, options, command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tuple) != 3 {
+		t.Fatalf("tuple = %+v", tuple)
+	}
+	want := []string{"go mod tidy", "go mod download -json all", "go list -m -json all", "go run ."}
+	if !reflect.DeepEqual(commands, want) {
+		t.Fatalf("consumer commands = %v, want %v", commands, want)
+	}
+}
+
+func TestAdapterPublishedConsumerRejectsIncompleteGraphDownload(t *testing.T) {
+	plan := validAdapterReleasePlan(t)
+	declared := map[string]string{codexSDKModulePath: "v0.6.0", llmkitModulePath: "v0.6.0"}
+	command := func(_ context.Context, _ string, _ map[string]string, args ...string) ([]byte, error) {
+		switch strings.Join(args, " ") {
+		case "go mod tidy":
+			return nil, nil
+		case "go mod download -json all":
+			return []byte(`{"Path":"golang.org/x/mod","Version":"v0.8.0","Sum":"","GoModSum":"h1:xmod-mod"}`), nil
+		case "go list -m -json all":
+			return listedModuleStream(t, []listedModule{
+				{Path: "example.test/llm-go-published-consumer", Main: true},
+				{Path: adapterModulePath, Version: "v0.5.0", Sum: "h1:adapter", GoModSum: "h1:adapter-mod"},
+				{Path: codexSDKModulePath, Version: "v0.6.0", Sum: "h1:sdk", GoModSum: "h1:sdk-mod"},
+				{Path: llmkitModulePath, Version: "v0.6.0", Sum: "h1:kit", GoModSum: "h1:kit-mod"},
+			}), nil
+		case "go run .":
+			return []byte(`{"kind":"typed_three_layer_call","typed_value":"verified","provider_name":"codex","effective_model":"proxy-model","neutral_input_tokens":11,"exact_thread_id":"thread-proxy","exact_turn_id":"turn-proxy","exact_result_preserved":true}`), nil
+		default:
+			return nil, fmt.Errorf("unexpected command")
+		}
+	}
+	options := PublishOptions{Proxy: "https://proxy.golang.org", SumDB: "sum.golang.org", CommandTimeout: time.Second}
+	if _, _, err := runPublishedConsumer(context.Background(), plan, declared, options, command); err == nil || !strings.Contains(err.Error(), "download") || !strings.Contains(err.Error(), "checksum") {
+		t.Fatalf("incomplete graph download error = %v", err)
+	}
+}
+
+func moduleDownloadStream(t *testing.T, modules []listedModule) []byte {
+	t.Helper()
+	var stream []byte
+	for _, module := range modules {
+		data, err := json.Marshal(moduleDownload{Path: module.Path, Version: module.Version, Sum: module.Sum, GoModSum: module.GoModSum})
+		if err != nil {
+			t.Fatal(err)
+		}
+		stream = append(stream, data...)
+	}
+	return stream
+}
+
+func listedModuleStream(t *testing.T, modules []listedModule) []byte {
+	t.Helper()
+	var stream []byte
+	for _, module := range modules {
+		data, err := json.Marshal(module)
+		if err != nil {
+			t.Fatal(err)
+		}
+		stream = append(stream, data...)
+	}
+	return stream
 }
 
 func TestCodexSDKPublishedConsumerTemplateRunsAgainstCheckoutPublicSeams(t *testing.T) {
