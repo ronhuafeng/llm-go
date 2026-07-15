@@ -153,13 +153,13 @@ release authorization: it has no tag-write identity, and only its dependent
 write-scoped job may reconcile the exact three assets and publish the same
 Draft after the corrected full-graph checksum and typed-consumer checks pass.
 
-## Migration acceptance audit
+## Retired migration acceptance audit
 
-The manually dispatched `Migration acceptance audit` workflow is the single
-cutover gate for ADR-0023. It checks out the exact current `main` commit and
-produces all-module minimum-Go, current-Go, race, and checkout-composition
-evidence before invoking `repoctl migration-audit`. The typed command emits one
-versioned JSON report with six mandatory categories:
+The one-time `Migration acceptance audit` workflow was the cutover gate for
+ADR-0023. It checked out an exact `main` commit and produced all-module
+minimum-Go, current-Go, race, and checkout-composition evidence before invoking
+`repoctl migration-audit`. The typed command emitted one versioned JSON report
+with six mandatory categories:
 
 - imported-history provenance;
 - old-to-new API and behavior equivalence;
@@ -168,29 +168,28 @@ versioned JSON report with six mandatory categories:
 - the published dependency chain;
 - cutover readiness.
 
-Every check names the exact files, Git objects, Release assets, or Proxy module
-artifacts it inspected. The report is incomplete when a category, source
-evidence file, Release asset, checksum, typed consumer, or required document is
-missing. The workflow still uploads an incomplete report when an upstream
-evidence job failed, so absence cannot collapse into an ambiguous skipped gate.
-Inputs downloaded into a source-verification job live under the runner
-temporary directory, outside the checkout. Checkout verification treats a
+Every check named the exact files, Git objects, Release assets, or Proxy module
+artifacts it inspected. A report was incomplete when a category, source
+evidence file, Release asset, checksum, typed consumer, or required document was
+missing. The workflow uploaded an incomplete report when an upstream evidence
+job failed, so absence could not collapse into an ambiguous skipped gate.
+Inputs downloaded into a source-verification job lived under the runner
+temporary directory, outside the checkout. Checkout verification treated a
 downloaded audit input materialized in the repository tree as untracked source
-and fails closed.
+and failed closed.
 
-Published-chain evidence is independently observed at audit time. The command
-downloads and digest-checks the three evidence assets from each stable GitHub
-Release, resolves all three replacement tags through fresh isolated public
-Proxy caches, and runs the adapter's exact declared/resolved tuple consumer.
-Each immutable evidence asset is validated against the schema version it was
-published with; a later verifier schema must not make an earlier valid Release
-unverifiable.
-It also resolves the three final legacy migration releases from fresh public
-Proxy state and binds their origins to `migration-provenance.json`.
+Published-chain evidence was independently observed at audit time. The command
+downloaded and digest-checked the three evidence assets from each stable GitHub
+Release, resolved all three replacement tags through fresh isolated public
+Proxy caches, and ran the adapter's exact declared/resolved tuple consumer.
+Each immutable evidence asset was validated against the schema version it was
+published with. It also resolved the three final legacy migration releases from
+fresh public Proxy state and bound their origins to `migration-provenance.json`.
 
-The authoritative result is the post-merge Actions artifact named
-`migration-acceptance-<main commit>`. Its upload digest and the report's own
-digest identify the exact proof used to authorize archival. A report is not
-checked into the source tree because doing so would falsely claim to have
-audited the commit that contains itself. The command and schema are checked in;
-the immutable workflow artifact is the evidence for the exact post-merge tree.
+The authoritative pre-archive and post-archive Actions artifacts, their upload
+digests, report digests, exact commits, and exact trees are permanently bound by
+`docs/migration/archive-evidence.json`. The workflow was retired after cutover
+and archival completed; later `main` commits do not produce new migration
+acceptance reports. The `repoctl migration-audit` command, report schema, and
+fail-closed validators remain checked in for historical verification and
+explicit forensic reruns.
