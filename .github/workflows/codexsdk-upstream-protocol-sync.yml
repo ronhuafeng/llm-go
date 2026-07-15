@@ -56,6 +56,7 @@ jobs:
 
     steps:
       - name: Guard control-plane ref
+        working-directory: ${{ github.workspace }}
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
@@ -359,7 +360,8 @@ jobs:
         with:
           openai-api-key: ${{ secrets.AZURE_OPENAI_API_KEY }}
           responses-api-endpoint: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
-          model: gpt-5.5
+          model: gpt-5.6-sol
+          effort: high
           prompt-file: codexsdk/${{ env.CODEXSDK_AUTO_SYNC_DIR }}/prompt.md
           sandbox: workspace-write
           safety-strategy: drop-sudo
