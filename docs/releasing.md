@@ -2,12 +2,13 @@
 
 Public module tags are created only by the manually dispatched
 `Release public module` GitHub Actions workflow. The tracer deliberately
-supports exactly the first `llmkit/v0.6.0` and `codexsdk/v0.6.0` releases. The
-SDK scope adds its owner-specific generated-facade, exact-lifecycle, API,
-archive, and clean-consumer gates. The adapter remains unauthorized until its
-dependency and composed-consumer gates are implemented. Later toolkit or SDK
+supports exactly the first `llmkit/v0.6.0`, `codexsdk/v0.6.0`, and
+`llmcaller/codex/v0.5.0` releases. The SDK scope adds its owner-specific
+generated-facade and exact-lifecycle gates. The adapter scope reads its direct
+upstream tuple from the proxy artifact's own `go.mod`, compares it with the
+fresh consumer's resolved graph, and runs a typed three-layer call. Later
 versions require a new mechanical API-impact baseline rather than silently
-treating either first-migration inventory as an evergreen allowlist.
+treating any first-migration inventory as an evergreen allowlist.
 
 ## One-time GitHub configuration
 
@@ -135,7 +136,13 @@ in an issue, pull request, workflow artifact, command line, or log.
    writable solely so teardown is reliable, and a cleanup failure fails the
    evidence rather than silently leaving reusable state behind. The SDK
    consumer exercises a generated facade and the exact `ThreadRunner`
-   lifecycle through their public fail-closed zero-client contract.
+   lifecycle through their public fail-closed zero-client contract. The
+   adapter consumer additionally requires its proxy artifact to directly
+   declare `llmkit v0.6.0` and `codexsdk v0.6.0`, requires the fresh resolved
+   graph to contain that exact tuple with official sums and no replacements,
+   exclusions, prereleases, or pseudo-versions, and proves typed neutral
+   evidence retains the complete exact SDK result. The adapter `go.mod` is the
+   compatibility owner; there is no second compatibility manifest.
 7. CI attaches the plan, release authorization, and published evidence before
    changing the GitHub Release from Draft to `verified`.
 

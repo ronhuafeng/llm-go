@@ -195,8 +195,8 @@ func TestReleaseWorkflowWiringSmoke(t *testing.T) {
 	}
 	workflow := string(data)
 	for _, required := range []string{
-		"options: [llmkit, codexsdk]",
-		"options: [v0.6.0]",
+		"options: [llmkit, codexsdk, codex-adapter]",
+		"options: [v0.6.0, v0.5.0]",
 		"permissions:\n  contents: read",
 		"if: github.ref != 'refs/heads/main'",
 		"release dispatch must originate from refs/heads/main",
@@ -259,8 +259,8 @@ func TestReleaseWorkflowWiringSmoke(t *testing.T) {
 	if strings.Contains(workflow, "inputs.proxy") || strings.Contains(workflow, "inputs.sumdb") || strings.Contains(workflow, "proxy,direct") {
 		t.Error("release workflow exposes or weakens the exclusive public proxy policy")
 	}
-	if strings.Contains(workflow, "options: [llmkit, codexsdk, codex-adapter]") || strings.Contains(workflow, "go-version-file: llmkit/go.mod") {
-		t.Error("release workflow must authorize only the first toolkit and SDK tags and derive the selected module directory from the typed plan")
+	if strings.Contains(workflow, "go-version-file: llmkit/go.mod") {
+		t.Error("release workflow must derive the selected module directory from the typed plan")
 	}
 	if strings.Contains(workflow, "/releases/tags/") {
 		t.Error("Draft lookup must use the authenticated releases list because get-by-tag hides Draft Releases")
@@ -502,7 +502,7 @@ func TestPublishedEnvironmentDisablesWorkspaceVCSAndPrivateBypass(t *testing.T) 
 	}
 }
 
-func TestReleaseTracerScopesOnlyFirstToolkitAndSDKTags(t *testing.T) {
+func TestReleaseTracerScopesOnlyApprovedFirstTags(t *testing.T) {
 	for _, test := range []struct {
 		moduleID string
 		version  string
@@ -510,14 +510,171 @@ func TestReleaseTracerScopesOnlyFirstToolkitAndSDKTags(t *testing.T) {
 	}{
 		{moduleID: "llmkit", version: "v0.6.0", allowed: true},
 		{moduleID: "codexsdk", version: "v0.6.0", allowed: true},
-		{moduleID: "codex-adapter", version: "v0.5.0", allowed: false},
+		{moduleID: "codex-adapter", version: "v0.5.0", allowed: true},
 		{moduleID: "llmkit", version: "v0.6.1", allowed: false},
 		{moduleID: "codexsdk", version: "v0.6.1", allowed: false},
+		{moduleID: "codex-adapter", version: "v0.5.1", allowed: false},
 	} {
 		err := validateReleaseTracerScope(test.moduleID, test.version)
 		if (err == nil) != test.allowed {
 			t.Fatalf("validateReleaseTracerScope(%s, %s) = %v, allowed=%t", test.moduleID, test.version, err, test.allowed)
 		}
+	}
+}
+
+func TestAdapterFirstReleaseRequiresExactUpstreamPlanTuple(t *testing.T) {
+	exact := []ReleaseDependency{
+		{Module: codexSDKModulePath, Version: "v0.6.0"},
+		{Module: llmkitModulePath, Version: "v0.6.0"},
+	}
+	if err := validateFirstTracerDependencies("codex-adapter", "v0.5.0", exact); err != nil {
+		t.Fatal(err)
+	}
+	wrong := append([]ReleaseDependency(nil), exact...)
+	wrong[0].Version = "v0.6.1"
+	if err := validateFirstTracerDependencies("codex-adapter", "v0.5.0", wrong); err == nil || !strings.Contains(err.Error(), "v0.6.0") {
+		t.Fatalf("wrong tuple error = %v", err)
+	}
+	missing := exact[:1]
+	if err := validateFirstTracerDependencies("codex-adapter", "v0.5.0", missing); err == nil || !strings.Contains(err.Error(), llmkitModulePath) {
+		t.Fatalf("missing tuple error = %v", err)
+	}
+}
+
+func TestAdapterArtifactMetadataOwnsExactDeclaredTuple(t *testing.T) {
+	plan := validAdapterReleasePlan(t)
+	valid := []byte(`module github.com/ronhuafeng/llm-go/llmcaller/codex
+
+go 1.23.0
+
+require (
+	github.com/ronhuafeng/llm-go/codexsdk v0.6.0
+	github.com/ronhuafeng/llm-go/llmkit v0.6.0
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
+)
+`)
+	declared, err := validateAdapterArtifactMetadata(valid, plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		"github.com/ronhuafeng/llm-go/codexsdk": "v0.6.0",
+		"github.com/ronhuafeng/llm-go/llmkit":   "v0.6.0",
+	}
+	if !reflect.DeepEqual(declared, want) {
+		t.Fatalf("declared tuple = %v, want %v", declared, want)
+	}
+
+	tests := []struct {
+		name string
+		mod  string
+		want string
+	}{
+		{name: "stable but wrong SDK", mod: strings.Replace(string(valid), "codexsdk v0.6.0", "codexsdk v0.6.1", 1), want: "at v0.6.1"},
+		{name: "pseudo toolkit", mod: strings.Replace(string(valid), "llmkit v0.6.0", "llmkit v0.6.1-0.20260715000000-0123456789ab", 1), want: "non-stable"},
+		{name: "indirect toolkit", mod: strings.Replace(string(valid), "llmkit v0.6.0", "llmkit v0.6.0 // indirect", 1), want: "directly require"},
+		{name: "missing toolkit", mod: strings.Replace(string(valid), "\tgithub.com/ronhuafeng/llm-go/llmkit v0.6.0\n", "", 1), want: "must declare"},
+		{name: "replacement", mod: string(valid) + "\nreplace github.com/ronhuafeng/llm-go/llmkit => ../llmkit\n", want: "replace"},
+		{name: "exclusion", mod: string(valid) + "\nexclude github.com/ronhuafeng/llm-go/llmkit v0.6.0\n", want: "exclude"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := validateAdapterArtifactMetadata([]byte(test.mod), plan); err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("validateAdapterArtifactMetadata error = %v, want %q", err, test.want)
+			}
+		})
+	}
+}
+
+func TestAdapterResolvedGraphMustMatchDeclaredTupleExactly(t *testing.T) {
+	declared := map[string]string{
+		"github.com/ronhuafeng/llm-go/codexsdk": "v0.6.0",
+		"github.com/ronhuafeng/llm-go/llmkit":   "v0.6.0",
+	}
+	modules := []listedModule{
+		{Path: "example.test/consumer", Main: true},
+		{Path: "github.com/ronhuafeng/llm-go/llmcaller/codex", Version: "v0.5.0", Sum: "h1:adapter", GoModSum: "h1:adapter-mod"},
+		{Path: "github.com/ronhuafeng/llm-go/codexsdk", Version: "v0.6.0", Sum: "h1:sdk", GoModSum: "h1:sdk-mod"},
+		{Path: "github.com/ronhuafeng/llm-go/llmkit", Version: "v0.6.0", Sum: "h1:kit", GoModSum: "h1:kit-mod"},
+		{Path: "github.com/santhosh-tekuri/jsonschema/v6", Version: "v6.0.2", Sum: "h1:json", GoModSum: "h1:json-mod"},
+	}
+	tuple, err := validateAdapterResolvedGraph(modules, "github.com/ronhuafeng/llm-go/llmcaller/codex", "v0.5.0", declared)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tuple) != 3 {
+		t.Fatalf("tuple = %+v, want three modules", tuple)
+	}
+	for _, entry := range tuple {
+		if entry.DeclaredVersion != entry.ResolvedVersion || entry.Sum == "" || entry.GoModSum == "" {
+			t.Fatalf("incomplete tuple entry = %+v", entry)
+		}
+	}
+
+	tests := []struct {
+		name   string
+		mutate func([]listedModule) []listedModule
+		want   string
+	}{
+		{name: "stable but wrong toolkit", mutate: func(got []listedModule) []listedModule { got[3].Version = "v0.6.1"; return got }, want: "resolved to v0.6.1"},
+		{name: "pseudo dependency", mutate: func(got []listedModule) []listedModule {
+			got[4].Version = "v6.0.3-0.20260715000000-0123456789ab"
+			return got
+		}, want: "non-stable"},
+		{name: "replacement", mutate: func(got []listedModule) []listedModule {
+			got[2].Replace = &listedModule{Path: "example.com/sdk"}
+			return got
+		}, want: "replacement"},
+		{name: "missing sum", mutate: func(got []listedModule) []listedModule { got[2].Sum = ""; return got }, want: "checksum"},
+		{name: "missing toolkit", mutate: func(got []listedModule) []listedModule { return append(got[:3], got[4:]...) }, want: "missing"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := append([]listedModule(nil), modules...)
+			got = test.mutate(got)
+			if _, err := validateAdapterResolvedGraph(got, "github.com/ronhuafeng/llm-go/llmcaller/codex", "v0.5.0", declared); err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("validateAdapterResolvedGraph error = %v, want %q", err, test.want)
+			}
+		})
+	}
+}
+
+func TestAdapterPublishedConsumerTemplatePreservesThreeLayerEvidence(t *testing.T) {
+	repositoryRoot, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	modulePath := "github.com/ronhuafeng/llm-go/llmcaller/codex"
+	source, err := publishedConsumerSource("codex-adapter", modulePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	consumerRoot := t.TempDir()
+	goMod := `module example.test/adapter-release-consumer
+
+go 1.23.0
+
+require github.com/ronhuafeng/llm-go/llmcaller/codex v0.0.0
+
+replace github.com/ronhuafeng/llm-go/llmcaller/codex => ` + filepath.ToSlash(filepath.Join(repositoryRoot, "llmcaller/codex")) + `
+replace github.com/ronhuafeng/llm-go/codexsdk => ` + filepath.ToSlash(filepath.Join(repositoryRoot, "codexsdk")) + `
+replace github.com/ronhuafeng/llm-go/llmkit => ` + filepath.ToSlash(filepath.Join(repositoryRoot, "llmkit")) + `
+`
+	if err := os.WriteFile(filepath.Join(consumerRoot, "go.mod"), []byte(goMod), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(consumerRoot, "main.go"), []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command("go", "run", ".")
+	command.Dir = consumerRoot
+	command.Env = append(os.Environ(), "GOWORK=off", "GOFLAGS=-mod=mod", "GOTOOLCHAIN=local")
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("run adapter release consumer: %v: %s", err, output)
+	}
+	if _, err := validateAdapterConsumerAttestation(output); err != nil {
+		t.Fatalf("consumer attestation: %v: %s", err, output)
 	}
 }
 
@@ -658,6 +815,36 @@ func validReleasePlan(t *testing.T) ReleasePlan {
 		},
 		Operations: []ReleaseOperation{{Order: 1, ModuleID: "llmkit", Tag: "llmkit/v0.6.0"}},
 		Inputs:     []ReleaseInput{{Path: "llmkit/go.mod", SHA256: strings.Repeat("d", 64)}},
+		ArchiveSum: "h1:canonical",
+	}
+	var err error
+	plan.PlanDigest, err = releasePlanDigest(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return plan
+}
+
+func validAdapterReleasePlan(t *testing.T) ReleasePlan {
+	t.Helper()
+	plan := ReleasePlan{
+		FormatVersion: releasePlanFormatVersion,
+		Subject: ReleasePlanSubject{
+			Commit: strings.Repeat("a", 40), Tree: strings.Repeat("b", 40), ModuleID: "codex-adapter", ModuleDir: "llmcaller/codex",
+			ModulePath: "github.com/ronhuafeng/llm-go/llmcaller/codex", RepositoryURL: "https://github.com/ronhuafeng/llm-go", PreviousVersion: "v0.4.2", TargetVersion: "v0.5.0",
+			TagPrefix: "llmcaller/codex/", Tag: "llmcaller/codex/v0.5.0",
+		},
+		Impact: ReleaseImpact{
+			Declared: "minor", Breaking: true, APIInventoryPath: "llmcaller/codex/internal/architecture/testdata/handwritten-api.txt",
+			APIInventorySHA256: strings.Repeat("c", 64), Baseline: "fixture",
+			Fragments: []ReleaseFragment{{Path: "llmcaller/codex/.changes/releases/v0.5.0/14-module-path.json", Impact: "minor", Breaking: true, Summary: "Move path.", Issue: 14, Migration: "docs/migration/v0.5.0.md"}},
+		},
+		Dependencies: []ReleaseDependency{
+			{Module: "github.com/ronhuafeng/llm-go/codexsdk", Version: "v0.6.0"},
+			{Module: "github.com/ronhuafeng/llm-go/llmkit", Version: "v0.6.0"},
+		},
+		Operations: []ReleaseOperation{{Order: 1, ModuleID: "codex-adapter", Tag: "llmcaller/codex/v0.5.0"}},
+		Inputs:     []ReleaseInput{{Path: "llmcaller/codex/go.mod", SHA256: strings.Repeat("d", 64)}},
 		ArchiveSum: "h1:canonical",
 	}
 	var err error
