@@ -1,14 +1,16 @@
 # Protected release operation
 
 Public module tags are created only by the manually dispatched
-`Release public module` GitHub Actions workflow. The tracer deliberately
-supports exactly the first `llmkit/v0.6.0`, `codexsdk/v0.6.0`, and
-`llmcaller/codex/v0.5.0` releases. The SDK scope adds its owner-specific
-generated-facade and exact-lifecycle gates. The adapter scope reads its direct
-upstream tuple from the proxy artifact's own `go.mod`, compares it with the
-fresh consumer's resolved graph, and runs a typed three-layer call. Later
-versions require a new mechanical API-impact baseline rather than silently
-treating any first-migration inventory as an evergreen allowlist.
+`Release public module` GitHub Actions workflow. It accepts the exact next
+stable SemVer for any registered public module. The release plan compares the
+current module-owned canonical API inventory with the inventory committed at
+the latest stable module tag and classifies the mechanical impact as
+metadata-only, additive, or breaking. Structured change fragments may declare
+a higher behavior impact but cannot understate that mechanical floor. The SDK
+scope adds its owner-specific generated-facade and exact-lifecycle gates. The
+adapter scope reads its direct upstream tuple from the proxy artifact's own
+`go.mod`, compares it with the fresh consumer's resolved graph, and runs a typed
+three-layer call.
 
 ## One-time GitHub configuration
 
@@ -138,10 +140,11 @@ in an issue, pull request, workflow artifact, command line, or log.
    consumer exercises a generated facade and the exact `ThreadRunner`
    lifecycle through their public fail-closed zero-client contract. The
    adapter consumer additionally requires its proxy artifact to directly
-   declare `llmkit v0.6.0` and `codexsdk v0.6.0`, requires the fresh resolved
-   graph to contain that exact tuple with official sums and no replacements,
-   exclusions, prereleases, or pseudo-versions. Go's lazy module loading can
-   put a dependency in that build list before its module zip has been fetched,
+   declare the exact `llmkit` and `codexsdk` versions bound by the release plan,
+   requires the fresh resolved graph to contain that exact tuple with official
+   sums and no replacements, exclusions, prereleases, or pseudo-versions. Go's
+   lazy module loading can put a dependency in that build list before its module
+   zip has been fetched,
    so the consumer first runs `go mod download -json all` through the same
    exclusive public Proxy. Every versioned build-list module must have both an
    official module sum and `go.mod` sum in the download result, and the complete
@@ -154,9 +157,9 @@ in an issue, pull request, workflow artifact, command line, or log.
    changing the GitHub Release from Draft to `verified`.
 
 The plan is deterministic and binds the commit, tree, module identity, target
-version, tag, declared requirements, mapped API baseline, change fragments,
-module archive, and release inputs. Human-readable notes are rendered from the
-same archived fragments.
+version, tag, declared requirements, latest-tag API baseline, SDK generated
+compatibility when applicable, change fragments, module archive, and release
+inputs. Human-readable notes are rendered from the same archived fragments.
 
 The authorization envelope binds the plan digest and the exact SHA-256 of all
 four preflight evidence files. The module archive's canonical `h1:` content sum
@@ -194,84 +197,7 @@ the job fails with the immutable tag and Draft left in place. Rerun the failed
 job so its initial exact lookup can reuse the now-visible Draft; do not create,
 delete, or move any release tag by hand.
 
-### Exact recovery for the first tracer
-
-Run `29342863026` used the earlier get-by-tag lookup and failed after it had
-already created immutable tag `llmkit/v0.6.0` and Draft Release `353873922`.
-GitHub reruns use the workflow definition captured by the original run, so
-rerunning that failed job would repeat the same 404. A new production release
-dispatch is also invalid because the tag already exists.
-
-Use only the manually dispatched `Recover llmkit v0.6.0 release` workflow from
-`main`, with its sole source-run option `29342863026`. This is an exact,
-forward-only recovery transaction, not a second release authorization. Its
-read-only verification job:
-
-- downloads original artifact `8314814782` from that failed run;
-- validates the original plan, authorization, and all four preflight evidence
-  hashes without rebuilding any of them;
-- binds the failed workflow run, artifact, annotated tag and authorization
-  message, and peeled commit
-  `14f28b0dd4727f079c02ba3139c326ed249bb86a`;
-- builds `repoctl` from the authorized commit and reruns the same public Proxy,
-  checksum, origin, and typed-consumer verification; and
-- uploads diagnostics even when verification fails.
-
-The read-only token deliberately does not query a Draft Release: GitHub's
-Release API does not expose Drafts to this workflow token with only
-`contents: read`. Only after source, tag, authorization, and public-artifact
-verification succeeds does a separate job receive `contents: write`. That job
-first reads and typed-validates Draft Release `353873922`, including its exact
-tag and target, before it reconciles exactly three assets: the original release
-plan, release authorization, and new published evidence.
-Expected assets already present are downloaded by asset ID and must have the
-same SHA-256 as this run's evidence; only missing assets are uploaded. An
-unexpected name, duplicate, incomplete upload, or hash mismatch fails closed,
-and no asset is deleted or overwritten. After upload, all three are listed,
-downloaded, and verified again before publishing that same Draft. The publish
-job uploads its own `if: always()` diagnostic artifact, distinct from verify
-diagnostics, so partial reconciliation, upload responses, pre-PATCH state, and
-typed PATCH validation remain inspectable on failure.
-
-Missing asset names are URL-encoded and posted by exact Draft ID to the
-absolute `https://uploads.github.com/repos/.../releases/{id}/assets` endpoint.
-Do not derive this endpoint with `gh api --hostname uploads.github.com`: that
-form targets the wrong `api.uploads.github.com` host.
-
-If the publish PATCH succeeds but its response is lost, a rerun accepts only
-the exact already-published terminal state: the same release ID, tag, target,
-non-prerelease status, verified title, and three content-matching assets. It
-then succeeds without another PATCH. A published Release with a missing or
-mismatched asset fails closed; recovery never repairs assets after publication.
-The recovery workflow has no Deploy Key,
-tag-write step, release-plan construction, or tag authorization. It must never
-create, move, or delete a tag, replace the Draft, delete an asset, or use local
-proxy evidence as completion proof.
-
-### Exact recovery for the adapter checksum incident
-
-Run `29383675440` created immutable tag `llmcaller/codex/v0.5.0` at
-`5fd612b358292ee587c558dbd8041c5a75aea0d7` and Draft Release `354170731`, then
-post-tag verification failed because Go's lazy module loading listed
-`golang.org/x/mod` before its zip checksums had been materialized. The tag and
-original authorization remain immutable; do not move the tag, rebuild the
-preflight, or treat the failed published-evidence artifact as completion
-proof.
-
-Use only the manually dispatched `Recover llmcaller/codex v0.5.0 release`
-workflow from `main`, with source run `29383675440`. Its typed contract binds
-original preflight artifact `8330664749`, authorization digest
-`sha256:1c838c2d505275a20a54e0040a8049bda4ad3b19329865985201e24928385172`, the
-annotated tag and peeled commit, module/version identity, and Draft ID. The
-read-only job builds the corrected verifier from current `main`, applies it to
-the separately checked-out authorized commit and original preflight, fully
-materializes the public build graph, and emits new published evidence. Using
-current recovery tooling is intentional: the immutable tagged source contains
-the verifier defect being recovered, while the public module artifact and its
-authorization remain the objects under test.
-
-Only after that verification succeeds does the dependent write-scoped job
-reconcile the same three content-bound assets and publish the same Draft by ID.
-It has no Deploy Key, tag mutation, new plan, or new authorization path. The
-same forward-only, fail-closed asset and lost-response rules described above
-apply; an exact already-published terminal state is the only permitted no-op.
+The repository keeps no standing incident-recovery workflow or mutation
+command. A future verifier or observation incident requires a separately
+reviewed, incident-specific path under ADR-0019; completed incidents do not
+remain available as reusable release entry points.

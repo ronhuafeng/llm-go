@@ -75,9 +75,10 @@ generator drift, a clean module archive, and an isolated source consumer.
 
 Before a tag, protected release CI additionally binds the requested version,
 path-prefixed tag, exact source commit and tree, declared impact, migration
-documentation, module archive, mapped legacy API inventory, and evidence
-digests into one immutable authorization. Tags are created only by protected
-CI and are never moved or reused.
+documentation, module archive, the handwritten inventory diff from the latest
+stable `codexsdk` tag, the module-owned generated compatibility report, and
+evidence digests into one immutable authorization. Tags are created only by
+protected CI and are never moved or reused.
 
 After tag creation, CI resolves the module from the public Go proxy with fresh
 caches, `GOWORK=off`, `GOVCS=*:off`, and the public checksum database. An

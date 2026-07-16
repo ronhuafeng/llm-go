@@ -164,12 +164,6 @@ func VerifyPublishedTag(ctx context.Context, root string, plan ReleasePlan, auth
 		if err := plan.Validate(); err != nil {
 			return err
 		}
-		if err := validateReleaseTracerScope(plan.Subject.ModuleID, plan.Subject.TargetVersion); err != nil {
-			return err
-		}
-		if err := validateFirstTracerDependencies(plan.Subject.ModuleID, plan.Subject.TargetVersion, plan.Dependencies); err != nil {
-			return err
-		}
 		if err := ValidateReleaseAuthorizationFiles(plan, authorization, evidenceDirectory); err != nil {
 			return err
 		}
@@ -378,7 +372,7 @@ func validateModuleDownload(download moduleDownload, plan ReleasePlan) (Publishe
 }
 
 func validateAdapterArtifactMetadata(data []byte, plan ReleasePlan) (map[string]string, error) {
-	if plan.Subject.ModuleID != "codex-adapter" || plan.Subject.ModulePath != adapterModulePath || plan.Subject.TargetVersion != "v0.5.0" {
+	if plan.Subject.ModuleID != "codex-adapter" || plan.Subject.ModulePath != adapterModulePath || !isStableVersion(plan.Subject.TargetVersion) {
 		return nil, fmt.Errorf("adapter artifact verification received an unauthorized release subject")
 	}
 	parsed, err := modfile.Parse("proxy-artifact/go.mod", data, nil)
@@ -598,7 +592,7 @@ func decodeListedModules(data []byte) ([]listedModule, error) {
 }
 
 func validateAdapterResolvedGraph(modules []listedModule, subjectPath, subjectVersion string, declared map[string]string) ([]PublishedTupleEntry, error) {
-	if subjectPath != adapterModulePath || subjectVersion != "v0.5.0" || len(declared) != 2 {
+	if subjectPath != adapterModulePath || !isStableVersion(subjectVersion) || len(declared) != 2 {
 		return nil, fmt.Errorf("adapter resolved graph has an incomplete declared tuple")
 	}
 	resolved := make(map[string]listedModule, len(modules))

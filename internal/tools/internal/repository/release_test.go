@@ -197,7 +197,7 @@ func TestReleaseWorkflowWiringSmoke(t *testing.T) {
 	workflow := string(data)
 	for _, required := range []string{
 		"options: [llmkit, codexsdk, codex-adapter]",
-		"options: [v0.6.0, v0.5.0]",
+		"description: Exact next stable SemVer",
 		"permissions:\n  contents: read",
 		"if: github.ref != 'refs/heads/main'",
 		"release dispatch must originate from refs/heads/main",
@@ -266,6 +266,9 @@ func TestReleaseWorkflowWiringSmoke(t *testing.T) {
 	}
 	if strings.Contains(workflow, "/releases/tags/") {
 		t.Error("Draft lookup must use the authenticated releases list because get-by-tag hides Draft Releases")
+	}
+	if strings.Contains(workflow, "options: [v0.6.0, v0.5.0]") {
+		t.Error("release workflow must not retain the completed first-release version allowlist")
 	}
 	if got := strings.Count(workflow, "secrets.RELEASE_DEPLOY_KEY"); got != 2 {
 		t.Errorf("release Deploy Key secret references = %d, want only presence validation and checkout SSH auth", got)
@@ -504,42 +507,63 @@ func TestPublishedEnvironmentDisablesWorkspaceVCSAndPrivateBypass(t *testing.T) 
 	}
 }
 
-func TestReleaseTracerScopesOnlyApprovedFirstTags(t *testing.T) {
+func TestAPIInventoryEstablishesMechanicalReleaseFloor(t *testing.T) {
+	baseline := []byte("func example.com/pkg.A()\nfunc example.com/pkg.B()\n")
 	for _, test := range []struct {
-		moduleID string
-		version  string
-		allowed  bool
+		name     string
+		current  []byte
+		impact   apiInventoryImpact
+		preV1Min string
+		v1Min    string
 	}{
-		{moduleID: "llmkit", version: "v0.6.0", allowed: true},
-		{moduleID: "codexsdk", version: "v0.6.0", allowed: true},
-		{moduleID: "codex-adapter", version: "v0.5.0", allowed: true},
-		{moduleID: "llmkit", version: "v0.6.1", allowed: false},
-		{moduleID: "codexsdk", version: "v0.6.1", allowed: false},
-		{moduleID: "codex-adapter", version: "v0.5.1", allowed: false},
+		{name: "metadata only", current: append([]byte(nil), baseline...), impact: apiInventoryMetadataOnly, preV1Min: "patch", v1Min: "patch"},
+		{name: "additive", current: append(append([]byte(nil), baseline...), []byte("func example.com/pkg.C()\n")...), impact: apiInventoryAdditive, preV1Min: "minor", v1Min: "minor"},
+		{name: "breaking", current: []byte("func example.com/pkg.A()\n"), impact: apiInventoryBreaking, preV1Min: "minor", v1Min: "major"},
 	} {
-		err := validateReleaseTracerScope(test.moduleID, test.version)
-		if (err == nil) != test.allowed {
-			t.Fatalf("validateReleaseTracerScope(%s, %s) = %v, allowed=%t", test.moduleID, test.version, err, test.allowed)
-		}
+		t.Run(test.name, func(t *testing.T) {
+			got := classifyAPIInventory(baseline, test.current)
+			if got != test.impact {
+				t.Fatalf("impact = %s, want %s", got, test.impact)
+			}
+			if got := minimumReleaseImpact("v0.6.0", test.impact); got != test.preV1Min {
+				t.Fatalf("pre-v1 minimum = %s, want %s", got, test.preV1Min)
+			}
+			if got := minimumReleaseImpact("v1.2.3", test.impact); got != test.v1Min {
+				t.Fatalf("v1 minimum = %s, want %s", got, test.v1Min)
+			}
+		})
+	}
+	if err := validateAPIImpactFloor("llmkit/v0.6.0", "v0.6.0", apiInventoryMetadataOnly, "patch", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateAPIImpactFloor("llmkit/v0.6.0", "v0.6.0", apiInventoryAdditive, "patch", false); err == nil || !strings.Contains(err.Error(), "at least a minor") {
+		t.Fatalf("additive patch error = %v", err)
+	}
+	if err := validateAPIImpactFloor("llmkit/v0.6.0", "v0.6.0", apiInventoryBreaking, "minor", false); err == nil || !strings.Contains(err.Error(), "breaking=true") {
+		t.Fatalf("undeclared breaking error = %v", err)
+	}
+	if err := validateAPIImpactFloor("llmkit/v0.6.0", "v0.6.0", apiInventoryBreaking, "minor", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateAPIImpactFloor("llmkit/v1.2.3", "v1.2.3", apiInventoryBreaking, "minor", true); err == nil || !strings.Contains(err.Error(), "at least a major") {
+		t.Fatalf("post-v1 breaking minor error = %v", err)
 	}
 }
 
-func TestAdapterFirstReleaseRequiresExactUpstreamPlanTuple(t *testing.T) {
-	exact := []ReleaseDependency{
-		{Module: codexSDKModulePath, Version: "v0.6.0"},
-		{Module: llmkitModulePath, Version: "v0.6.0"},
-	}
-	if err := validateFirstTracerDependencies("codex-adapter", "v0.5.0", exact); err != nil {
+func TestCodexSDKGeneratedAPIBaselineUsesModuleOwnedReport(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
 		t.Fatal(err)
 	}
-	wrong := append([]ReleaseDependency(nil), exact...)
-	wrong[0].Version = "v0.6.1"
-	if err := validateFirstTracerDependencies("codex-adapter", "v0.5.0", wrong); err == nil || !strings.Contains(err.Error(), "v0.6.0") {
-		t.Fatalf("wrong tuple error = %v", err)
+	impact, digest, err := codexSDKGeneratedAPIImpact(root, module{ID: "codexsdk", Dir: "codexsdk"}, "codexsdk/v0.6.0")
+	if err != nil {
+		t.Fatal(err)
 	}
-	missing := exact[:1]
-	if err := validateFirstTracerDependencies("codex-adapter", "v0.5.0", missing); err == nil || !strings.Contains(err.Error(), llmkitModulePath) {
-		t.Fatalf("missing tuple error = %v", err)
+	if impact != apiInventoryMetadataOnly && impact != apiInventoryAdditive && impact != apiInventoryBreaking {
+		t.Fatalf("generated baseline returned unknown impact %q", impact)
+	}
+	if !isSHA256(digest) {
+		t.Fatalf("generated baseline impact=%s digest=%q", impact, digest)
 	}
 }
 
