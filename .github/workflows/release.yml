@@ -9,10 +9,9 @@ on:
         type: choice
         options: [llmkit, codexsdk, codex-adapter]
       version:
-        description: Exact first-tracer version
+        description: Exact next stable SemVer
         required: true
-        type: choice
-        options: [v0.6.0, v0.5.0]
+        type: string
       commit:
         description: Exact current main commit to release
         required: true

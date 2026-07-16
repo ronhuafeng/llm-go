@@ -61,8 +61,9 @@ depend on a changing set of affected modules.
 The manually dispatched release workflow uses three additional typed seams:
 
 - `repoctl release-plan` verifies the current `main` commit, path-prefixed tag,
-  SemVer impact, archived change fragments, mapped legacy API inventory,
-  module archive, documentation, dependencies, and input digests;
+  SemVer impact, archived change fragments, the canonical API inventory diff
+  from the latest stable module tag, module archive, documentation,
+  dependencies, and input digests;
 - `repoctl finalize-release` validates and hashes the minimum/current/race and
   checkout evidence together with the plan into the authorization envelope;
 - `repoctl authorize-tag` validates every authorized artifact and re-derives
@@ -74,11 +75,14 @@ The manually dispatched release workflow uses three additional typed seams:
   `h1:` content sum, observed raw zip SHA-256, exact `go.mod` SHA-256, and an
   isolated typed consumer.
 
-The release tracer is intentionally exact-scope: only `llmkit/v0.6.0`,
-`codexsdk/v0.6.0`, and `llmcaller/codex/v0.5.0` are authorized. The SDK path
-additionally verifies its module-owned generated facts and runs a
-public-artifact consumer over both a generated facade and the exact lifecycle
-API. The adapter path reads the declared upstream tuple from the proxy
+The release workflow accepts the exact next stable SemVer derived from the
+module's latest stable tag and archived fragments. A metadata-only API diff has
+a patch floor, an additive diff has a minor floor, and a breaking diff requires
+at least a pre-v1 minor or post-v1 major release plus an explicit breaking
+fragment. The SDK path combines its handwritten inventory diff with the
+module-owned generated compatibility report, verifies generated facts, and
+runs a public-artifact consumer over both a generated facade and the exact
+lifecycle API. The adapter path reads the declared upstream tuple from the proxy
 artifact's `go.mod`, compares it with an isolated consumer's resolved graph,
 records official sums for all three internal modules, and executes a typed
 three-layer call that checks neutral evidence and the complete exact SDK result.
@@ -89,10 +93,7 @@ download must carry both official sums, and its complete path, version, and sum
 set must exactly equal the subsequent `go list -m -json all` result; missing,
 extra, replaced, excluded, or non-stable modules fail closed. Public-network
 commands remain bounded, with a five-minute per-command limit.
-First-tag API mapping is generic across migrated modules; while a first
-replacement tag is still absent, repository verification requires the current
-canonical inventory to equal its legacy inventory after the declared flattened
-import mapping. That migration baseline is not an allowlist for later versions.
+
 The workflow also validates any
 pre-existing GitHub Release through the authenticated, paginated Releases list
 because GitHub's get-by-tag endpoint returns 404 for Drafts. Exactly one tag
@@ -125,33 +126,6 @@ Probe, artifact-validation, and consumer caches are distinct and freshly
 created. Every public Go command runs with `GOWORK=off`, `GOVCS=*:off`, an
 exclusive `https://proxy.golang.org`, and `sum.golang.org`. A GitHub Release
 remains Draft until the post-tag JSON evidence has been uploaded successfully.
-
-The one-time `llmkit/v0.6.0` recovery workflow consumes the immutable preflight
-artifact from failed source run `29342863026`; it does not rebuild release
-authorization or receive the release Deploy Key. Typed recovery validation
-binds artifact `8314814782`, the annotated tag message and peeled commit, and
-the original authorization digest before the authorized-commit `repoctl
-verify-tag` reruns public-proxy and typed-consumer checks. This read-only job
-does not call the Release API, because its `contents: read` workflow token
-cannot observe Draft Releases. Diagnostics upload with `if: always()`. Only a
-dependent publish job has `contents: write`; it reads and typed-validates Draft
-Release `353873922`, then reconciles the exact three expected assets by name
-and downloaded SHA-256 without deletion or overwrite. It publishes the same
-Draft by ID after another just-in-time validation. A rerun after a lost PATCH
-response accepts only the exact verified published terminal state with all
-three assets already complete and becomes a no-op; it never uploads to a
-published Release. The publish job independently uploads its reconciliation
-and PATCH diagnostics with `if: always()`.
-
-The one-time `llmcaller/codex/v0.5.0` recovery workflow binds failed run
-`29383675440`, original preflight artifact `8330664749`, immutable tag commit
-`5fd612b358292ee587c558dbd8041c5a75aea0d7`, Draft Release `354170731`, and the
-original authorization digest. It builds the corrected typed verifier from
-current `main`, but verifies the separately checked-out authorized source and
-the original immutable preflight. This is a verifier recovery, not a new
-release authorization: it has no tag-write identity, and only its dependent
-write-scoped job may reconcile the exact three assets and publish the same
-Draft after the corrected full-graph checksum and typed-consumer checks pass.
 
 ## Retired migration acceptance audit
 

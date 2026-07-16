@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -106,29 +107,8 @@ const (
 	llmkitModulePath   = "github.com/ronhuafeng/llm-go/llmkit"
 )
 
-// validateReleaseTracerScope owns the exact module/version tuples whose
-// owner-specific preflight and public-consumer gates are complete.
-func validateReleaseTracerScope(moduleID, targetVersion string) error {
-	firstTracerVersions := map[string]string{
-		"llmkit":        "v0.6.0",
-		"codexsdk":      "v0.6.0",
-		"codex-adapter": "v0.5.0",
-	}
-	wantVersion, ok := firstTracerVersions[moduleID]
-	if !ok {
-		return fmt.Errorf("release tracer does not support module %s; its owner-specific gates are not authorized", moduleID)
-	}
-	if targetVersion != wantVersion {
-		return fmt.Errorf("release tracer authorizes only %s/%s; later versions must add a new mechanical API-impact baseline", moduleID, wantVersion)
-	}
-	return nil
-}
-
 // BuildReleasePlan verifies the source facts that authorize exactly one tag.
 func BuildReleasePlan(root, moduleID, targetVersion, requiredCommit, mainRef string) (ReleasePlan, error) {
-	if err := validateReleaseTracerScope(moduleID, targetVersion); err != nil {
-		return ReleasePlan{}, err
-	}
 	root, err := filepath.Abs(root)
 	if err != nil {
 		return ReleasePlan{}, fmt.Errorf("resolve repository root: %w", err)
@@ -173,16 +153,13 @@ func BuildReleasePlan(root, moduleID, targetVersion, requiredCommit, mainRef str
 	if repositoryURL != "https://github.com/ronhuafeng/llm-go" {
 		return ReleasePlan{}, fmt.Errorf("release origin %q is not the canonical repository", repositoryURL)
 	}
-	previousVersion, firstTag, err := previousReleaseVersion(root, candidate)
+	previousVersion, err := previousReleaseVersion(root, candidate)
 	if err != nil {
 		return ReleasePlan{}, err
 	}
 	tag := candidate.Dir + "/" + targetVersion
 	if err := validateTargetVersion(previousVersion, targetVersion); err != nil {
 		return ReleasePlan{}, err
-	}
-	if firstTag != "" && tag != firstTag {
-		return ReleasePlan{}, fmt.Errorf("first tag %s does not match migration provenance %s", tag, firstTag)
 	}
 	if output, err := gitOutput(root, "tag", "--list", tag); err != nil {
 		return ReleasePlan{}, err
@@ -214,13 +191,9 @@ func BuildReleasePlan(root, moduleID, targetVersion, requiredCommit, mainRef str
 	if err := verifyAPISurface(recorder, runner, candidate.ID); err != nil {
 		return ReleasePlan{}, fmt.Errorf("verify canonical API inventory: %w", err)
 	}
-	baseline := "canonical inventory verified against the current module source"
-	if firstTag != "" {
-		mappedDigest, err := validateFirstTagAPIInventory(root, candidate, inventoryPath)
-		if err != nil {
-			return ReleasePlan{}, err
-		}
-		baseline = "legacy mapped inventory sha256:" + mappedDigest + "; breaking impact is the declared import-path migration"
+	baseline, err := validateAPIInventoryBaseline(root, candidate, inventoryPath, previousVersion, declaredImpact, breaking)
+	if err != nil {
+		return ReleasePlan{}, err
 	}
 	archiveIdentity, err := moduleArchiveIdentityForVersion(moduleRoot, candidate, registered, targetVersion)
 	if err != nil {
@@ -234,6 +207,9 @@ func BuildReleasePlan(root, moduleID, targetVersion, requiredCommit, mainRef str
 		filepath.ToSlash(filepath.Join(candidate.Dir, "go.sum")),
 		filepath.ToSlash(filepath.Join(candidate.Dir, "CHANGELOG.md")),
 		filepath.ToSlash(filepath.Join(candidate.Dir, inventoryPath)),
+	}
+	if candidate.ID == "codexsdk" {
+		inputPaths = append(inputPaths, filepath.ToSlash(filepath.Join(candidate.Dir, codexSDKGeneratedManifestPath)))
 	}
 	inputPaths = append(inputPaths, fragmentInputs...)
 	for _, fragment := range fragments {
@@ -263,9 +239,6 @@ func BuildReleasePlan(root, moduleID, targetVersion, requiredCommit, mainRef str
 		dependencies = append(dependencies, ReleaseDependency{Module: path, Version: version})
 	}
 	sort.Slice(dependencies, func(i, j int) bool { return dependencies[i].Module < dependencies[j].Module })
-	if err := validateFirstTracerDependencies(candidate.ID, targetVersion, dependencies); err != nil {
-		return ReleasePlan{}, err
-	}
 
 	plan := ReleasePlan{
 		FormatVersion: releasePlanFormatVersion,
@@ -293,25 +266,6 @@ func BuildReleasePlan(root, moduleID, targetVersion, requiredCommit, mainRef str
 	return plan, nil
 }
 
-func validateFirstTracerDependencies(moduleID, targetVersion string, dependencies []ReleaseDependency) error {
-	if moduleID != "codex-adapter" || targetVersion != "v0.5.0" {
-		return nil
-	}
-	versions := make(map[string]string, len(dependencies))
-	for _, dependency := range dependencies {
-		versions[dependency.Module] = dependency.Version
-	}
-	for modulePath, want := range map[string]string{
-		codexSDKModulePath: "v0.6.0",
-		llmkitModulePath:   "v0.6.0",
-	} {
-		if got := versions[modulePath]; got != want {
-			return fmt.Errorf("adapter first release requires %s at %s, got %q", modulePath, want, got)
-		}
-	}
-	return nil
-}
-
 func validateReleaseCommit(checkoutCommit, requiredCommit, mainRef, mainCommit string) error {
 	if requiredCommit == "" || checkoutCommit != requiredCommit {
 		return fmt.Errorf("checkout commit %s does not match required commit %s", checkoutCommit, requiredCommit)
@@ -320,6 +274,159 @@ func validateReleaseCommit(checkoutCommit, requiredCommit, mainRef, mainCommit s
 		return fmt.Errorf("required commit %s is no longer current %s at %s", checkoutCommit, mainRef, mainCommit)
 	}
 	return nil
+}
+
+type apiInventoryImpact string
+
+const codexSDKGeneratedManifestPath = "internal/protocolschema/appserver/v2/manifest.json"
+
+const (
+	apiInventoryMetadataOnly apiInventoryImpact = "metadata-only"
+	apiInventoryAdditive     apiInventoryImpact = "additive"
+	apiInventoryBreaking     apiInventoryImpact = "breaking"
+)
+
+func validateAPIInventoryBaseline(root string, candidate module, inventoryPath, previousVersion, declaredImpact string, declaredBreaking bool) (string, error) {
+	previousTag := candidate.Dir + "/" + previousVersion
+	previousPath := filepath.ToSlash(filepath.Join(candidate.Dir, inventoryPath))
+	previous, err := gitBytes(root, "show", previousTag+":"+previousPath)
+	if err != nil {
+		return "", fmt.Errorf("read canonical API inventory from %s: %w", previousTag, err)
+	}
+	current, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(previousPath)))
+	if err != nil {
+		return "", fmt.Errorf("read current canonical API inventory: %w", err)
+	}
+	impact := classifyAPIInventory(previous, current)
+	baseline := fmt.Sprintf("%s canonical API inventory sha256:%s; handwritten impact:%s", previousTag, sha256Hex(previous), impact)
+	if candidate.ID == "codexsdk" {
+		generatedImpact, generatedDigest, err := codexSDKGeneratedAPIImpact(root, candidate, previousTag)
+		if err != nil {
+			return "", err
+		}
+		impact = strongerAPIImpact(impact, generatedImpact)
+		baseline += fmt.Sprintf("; generated manifest sha256:%s; generated impact:%s", generatedDigest, generatedImpact)
+	}
+	if err := validateAPIImpactFloor(previousTag, previousVersion, impact, declaredImpact, declaredBreaking); err != nil {
+		return "", err
+	}
+	return baseline + "; mechanical impact:" + string(impact), nil
+}
+
+func validateAPIImpactFloor(previousTag, previousVersion string, impact apiInventoryImpact, declaredImpact string, declaredBreaking bool) error {
+	minimum := minimumReleaseImpact(previousVersion, impact)
+	if releaseImpactRank(declaredImpact) < releaseImpactRank(minimum) {
+		return fmt.Errorf("canonical API inventory is %s since %s and requires at least a %s release, got %s", impact, previousTag, minimum, declaredImpact)
+	}
+	if impact == apiInventoryBreaking && !declaredBreaking {
+		return fmt.Errorf("canonical API inventory is breaking since %s but no change fragment declares breaking=true", previousTag)
+	}
+	return nil
+}
+
+func codexSDKGeneratedAPIImpact(root string, candidate module, previousTag string) (apiInventoryImpact, string, error) {
+	manifestPath := filepath.ToSlash(filepath.Join(candidate.Dir, codexSDKGeneratedManifestPath))
+	previous, err := gitBytes(root, "show", previousTag+":"+manifestPath)
+	if err != nil {
+		return "", "", fmt.Errorf("read generated API manifest from %s: %w", previousTag, err)
+	}
+	temporary, err := os.CreateTemp("", "llm-go-codexsdk-manifest-*.json")
+	if err != nil {
+		return "", "", fmt.Errorf("create generated API baseline: %w", err)
+	}
+	temporaryPath := temporary.Name()
+	defer os.Remove(temporaryPath)
+	if _, err := temporary.Write(previous); err != nil {
+		temporary.Close()
+		return "", "", fmt.Errorf("write generated API baseline: %w", err)
+	}
+	if err := temporary.Close(); err != nil {
+		return "", "", fmt.Errorf("close generated API baseline: %w", err)
+	}
+	moduleRoot := filepath.Join(root, filepath.FromSlash(candidate.Dir))
+	command := exec.Command("python3", "scripts/codexsdk_release_report.py", "--base-manifest", temporaryPath, "--target-manifest", codexSDKGeneratedManifestPath)
+	command.Dir = moduleRoot
+	command.Env = overriddenEnvironment(map[string]string{"PYTHONNOUSERSITE": "1", "PYTHONPATH": ""})
+	output, runErr := command.CombinedOutput()
+	if runErr != nil {
+		var exitErr *exec.ExitError
+		if !errors.As(runErr, &exitErr) || exitErr.ExitCode() != 1 {
+			return "", "", fmt.Errorf("classify generated API compatibility: %w: %s", runErr, strings.TrimSpace(string(output)))
+		}
+	}
+	var report struct {
+		CompatibilityImpact string            `json:"compatibility_impact"`
+		Added               []json.RawMessage `json:"added"`
+	}
+	if err := json.Unmarshal(output, &report); err != nil {
+		return "", "", fmt.Errorf("decode generated API compatibility report: %w", err)
+	}
+	impact := apiInventoryMetadataOnly
+	switch report.CompatibilityImpact {
+	case "incompatible":
+		impact = apiInventoryBreaking
+	case "additive_or_metadata_only":
+		if len(report.Added) != 0 {
+			impact = apiInventoryAdditive
+		}
+	default:
+		return "", "", fmt.Errorf("generated API compatibility report has unknown impact %q", report.CompatibilityImpact)
+	}
+	return impact, sha256Hex(previous), nil
+}
+
+func classifyAPIInventory(previous, current []byte) apiInventoryImpact {
+	if bytes.Equal(previous, current) {
+		return apiInventoryMetadataOnly
+	}
+	currentLines := inventoryLines(current)
+	for line := range inventoryLines(previous) {
+		if !currentLines[line] {
+			return apiInventoryBreaking
+		}
+	}
+	return apiInventoryAdditive
+}
+
+func inventoryLines(inventory []byte) map[string]bool {
+	lines := map[string]bool{}
+	for _, line := range strings.Split(strings.TrimSpace(string(inventory)), "\n") {
+		if line != "" {
+			lines[line] = true
+		}
+	}
+	return lines
+}
+
+func strongerAPIImpact(left, right apiInventoryImpact) apiInventoryImpact {
+	rank := map[apiInventoryImpact]int{apiInventoryMetadataOnly: 1, apiInventoryAdditive: 2, apiInventoryBreaking: 3}
+	if rank[right] > rank[left] {
+		return right
+	}
+	return left
+}
+
+func sha256Hex(data []byte) string {
+	digest := sha256.Sum256(data)
+	return hex.EncodeToString(digest[:])
+}
+
+func minimumReleaseImpact(previousVersion string, impact apiInventoryImpact) string {
+	switch impact {
+	case apiInventoryAdditive:
+		return "minor"
+	case apiInventoryBreaking:
+		if semver.Major(previousVersion) == "v0" {
+			return "minor"
+		}
+		return "major"
+	default:
+		return "patch"
+	}
+}
+
+func releaseImpactRank(impact string) int {
+	return map[string]int{"patch": 1, "minor": 2, "major": 3}[impact]
 }
 
 func validateFirstTagAPIInventory(root string, candidate module, inventoryPath string) (string, error) {
@@ -424,34 +531,18 @@ func canonicalRepositoryURL(value string) string {
 	return value
 }
 
-func previousReleaseVersion(root string, candidate module) (string, string, error) {
+func previousReleaseVersion(root string, candidate module) (string, error) {
 	output, err := gitOutput(root, "tag", "--list", candidate.Dir+"/v*", "--sort=-version:refname")
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 	for _, tag := range strings.Fields(output) {
 		version := strings.TrimPrefix(tag, candidate.Dir+"/")
 		if isStableVersion(version) {
-			return version, "", nil
+			return version, nil
 		}
 	}
-	provenance, err := loadProvenance(root)
-	if err != nil {
-		return "", "", err
-	}
-	for _, imported := range provenance.Imports {
-		if imported.ID != candidate.ID {
-			continue
-		}
-		if imported.Destination.Directory != candidate.Dir || imported.Destination.Module != candidate.path {
-			return "", "", fmt.Errorf("migration provenance disagrees with module %s identity", candidate.ID)
-		}
-		if !isStableVersion(imported.Source.Tag) {
-			return "", "", fmt.Errorf("migration provenance source tag %q is not stable SemVer", imported.Source.Tag)
-		}
-		return imported.Source.Tag, imported.Destination.FirstTag, nil
-	}
-	return "", "", fmt.Errorf("module %s has no prior tag or migration provenance", candidate.ID)
+	return "", fmt.Errorf("module %s has no published stable tag to use as its API baseline", candidate.ID)
 }
 
 func validateTargetVersion(previous, target string) error {
@@ -528,7 +619,6 @@ func loadReleaseFragments(root string, candidate module, targetVersion string) (
 	if len(paths) == 0 {
 		return nil, nil, "", false, fmt.Errorf("release %s has no archived change fragments", targetVersion)
 	}
-	impactRank := map[string]int{"patch": 1, "minor": 2, "major": 3}
 	declared := "patch"
 	breaking := false
 	fragments := make([]ReleaseFragment, 0, len(paths))
@@ -538,7 +628,7 @@ func loadReleaseFragments(root string, candidate module, targetVersion string) (
 		if err := readStrictJSON(path, &fragment); err != nil {
 			return nil, nil, "", false, fmt.Errorf("read change fragment %s: %w", filepath.Base(path), err)
 		}
-		if fragment.FormatVersion != 1 || fragment.Module != candidate.ID || impactRank[fragment.Impact] == 0 || strings.TrimSpace(fragment.Summary) == "" || fragment.Issue <= 0 {
+		if fragment.FormatVersion != 1 || fragment.Module != candidate.ID || releaseImpactRank(fragment.Impact) == 0 || strings.TrimSpace(fragment.Summary) == "" || fragment.Issue <= 0 {
 			return nil, nil, "", false, fmt.Errorf("change fragment %s is incomplete or invalid", filepath.Base(path))
 		}
 		if fragment.Breaking && (fragment.Migration == "" || fragment.Migration == "none") {
@@ -547,7 +637,7 @@ func loadReleaseFragments(root string, candidate module, targetVersion string) (
 		if fragment.Breaking && fragment.Impact == "patch" {
 			return nil, nil, "", false, fmt.Errorf("breaking pre-v1 change fragment %s must require at least a minor release", filepath.Base(path))
 		}
-		if impactRank[fragment.Impact] > impactRank[declared] {
+		if releaseImpactRank(fragment.Impact) > releaseImpactRank(declared) {
 			declared = fragment.Impact
 		}
 		breaking = breaking || fragment.Breaking
@@ -663,7 +753,7 @@ func (plan ReleasePlan) Validate() error {
 	if plan.Impact.Breaking && plan.Impact.Declared == "patch" {
 		return fmt.Errorf("release plan declares a breaking patch release")
 	}
-	if len(plan.Impact.Fragments) == 0 || plan.Impact.Declared == "" || plan.Impact.APIInventorySHA256 == "" || plan.ArchiveSum == "" {
+	if len(plan.Impact.Fragments) == 0 || plan.Impact.Declared == "" || plan.Impact.APIInventorySHA256 == "" || plan.Impact.Baseline == "" || plan.ArchiveSum == "" {
 		return fmt.Errorf("release plan impact or archive evidence is incomplete")
 	}
 	if !isSHA256(plan.Impact.APIInventorySHA256) {
