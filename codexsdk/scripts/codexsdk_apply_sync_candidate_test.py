@@ -21,6 +21,30 @@ def write_json(path: Path, value: object) -> None:
 
 
 class ApplySyncCandidateTest(unittest.TestCase):
+    def test_manifest_generation_requires_current_shape(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "manifest_generation.json"
+            with self.assertRaises(FileNotFoundError):
+                apply_sync.update_manifest_generation(path, "rust-v1.2.3", "stable_rust_tag", "1" * 40)
+
+            for value in (None, [], "old"):
+                with self.subTest(inputs=value):
+                    write_json(path, {} if value is None else {"inputs": value})
+                    with self.assertRaisesRegex(ValueError, "inputs"):
+                        apply_sync.update_manifest_generation(path, "rust-v1.2.3", "stable_rust_tag", "1" * 40)
+
+    def test_versioned_baseline_builders_require_current_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for value in (None, 0, 2, True):
+                old = {} if value is None else {"schema_version": value}
+                with self.subTest(builder="metadata", schema_version=value):
+                    with self.assertRaisesRegex(ValueError, "schema_version"):
+                        apply_sync.build_metadata(root, old, "rust-v1.2.3", "stable_rust_tag", "1" * 40, "codex-cli 1.2.3")
+                with self.subTest(builder="coverage", schema_version=value):
+                    with self.assertRaisesRegex(ValueError, "schema_version"):
+                        apply_sync.build_coverage(root, old, {"entries": []}, set())
+
     def test_common_rs_source_sha_must_match_target_sha(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             common_rs = Path(tmp) / "common.rs"

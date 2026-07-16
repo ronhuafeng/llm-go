@@ -48,10 +48,11 @@ func LoadManifest(path string) (Manifest, error) {
 	if manifest.Status != classifiedManifestStatus {
 		return Manifest{}, fmt.Errorf("manifest status %q is not %q", manifest.Status, classifiedManifestStatus)
 	}
-	if manifest.SchemaVersion >= 2 {
-		if err := ValidateSurface(manifest.Surface); err != nil {
-			return Manifest{}, fmt.Errorf("validate manifest surface: %w", err)
-		}
+	if manifest.SchemaVersion < 2 {
+		return Manifest{}, fmt.Errorf("manifest schema_version %d is older than the classified surface contract", manifest.SchemaVersion)
+	}
+	if err := ValidateSurface(manifest.Surface); err != nil {
+		return Manifest{}, fmt.Errorf("validate manifest surface: %w", err)
 	}
 	seen := map[string]bool{}
 	for _, entry := range manifest.Entries {

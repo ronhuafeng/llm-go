@@ -205,11 +205,6 @@ type ScalarAliasPlan struct {
 	TypeName string
 }
 
-func schemaRefName(ref string) string {
-	parts := strings.Split(ref, "/")
-	return parts[len(parts)-1]
-}
-
 func generatedDefinitionTypeName(resolver generatedDefinitionNameResolver, schemaPath string, name string) string {
 	if typeName, ok := resolver.NameForDefinition(schemaPath, name); ok {
 		return typeName
@@ -1770,13 +1765,6 @@ func stringEnumValues(schema *Schema) ([]string, bool) {
 	return append([]string(nil), variant.Enum...), true
 }
 
-func reviewedStringEnumValues(schemaPath string, name string, schema *Schema) ([]string, bool) {
-	if !isReviewedGeneratedDefinition(schemaPath, name) {
-		return nil, false
-	}
-	return stringEnumValues(schema)
-}
-
 func pureMultiOneOfStringEnumValues(schema *Schema) ([]string, bool) {
 	if schema == nil ||
 		len(schema.OneOf) < 2 ||
@@ -2351,10 +2339,6 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 
 func isObjectStructDefinitionSchema(schema *Schema) bool {
 	return schema != nil && schema.Type.Only("object")
-}
-
-func isGeneratedDefinitionStructTaggedUnionTransitionCheckpoint(schemaPath string, name string) bool {
-	return schemaPath == "v2/ThreadStartParams.json" && name == "DynamicToolSpec"
 }
 
 func isGeneratedDefinitionMixedUnionCheckpoint(schemaPath string, name string) bool {

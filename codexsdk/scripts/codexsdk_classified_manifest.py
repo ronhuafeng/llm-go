@@ -129,12 +129,13 @@ def derive_surface(stable_schema: Path, complete_schema: Path) -> list[dict[str,
 
 def update_manifest(manifest_path: Path, surface: list[dict[str, str]]) -> None:
     manifest = load_json(manifest_path)
+    if int(manifest.get("schema_version", 0)) < 2:
+        raise ValueError("classified manifest schema_version must be at least 2")
     manifest["surface"] = surface
     classification_sources = manifest.setdefault("classification_sources", {})
     classification_sources["generated_surface"] = (
         "exported Go identities compared between generation without and with experimental schema visibility"
     )
-    manifest["schema_version"] = max(2, int(manifest.get("schema_version", 1)))
     write_json(manifest_path, manifest)
 
 

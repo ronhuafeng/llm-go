@@ -466,10 +466,6 @@ func taggedVariantByValue(variants []TaggedUnionVariantPlan) map[string]TaggedUn
 	return byValue
 }
 
-func definitionExists(typ TypePlan, name string) bool {
-	return typ.Schema != nil && typ.Schema.Definitions[name] != nil
-}
-
 func TestSelectGeneratedTaggedUnions(t *testing.T) {
 	plan, err := BuildProtocolTypePlan(filepath.Join("..", "protocolschema", "appserver", "v2"))
 	if err != nil {

@@ -14,6 +14,10 @@ from typing import Any
 import codexsdk_schema_utils as schema_utils
 
 
+SOURCE_COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
+SOURCE_REF_KINDS = {"stable_rust_tag", "manual_ref", "manual_commit"}
+
+
 @dataclass(frozen=True)
 class Finding:
     code: str
@@ -44,6 +48,20 @@ def validate_metadata(root: Path, target_sha: str) -> list[Finding]:
                 "metadata_schema_count",
                 str(path),
                 f"schema_file_count={metadata.get('schema_file_count')!r}, want {actual_count}",
+            )
+        )
+
+    if (
+        not SOURCE_COMMIT_RE.fullmatch(str(metadata.get("source_commit") or ""))
+        or not isinstance(metadata.get("source_ref_name"), str)
+        or not metadata["source_ref_name"]
+        or metadata.get("source_ref_kind") not in SOURCE_REF_KINDS
+    ):
+        findings.append(
+            finding(
+                "metadata_source_identity",
+                str(path),
+                "source_commit, source_ref_name, and source_ref_kind must use the canonical upstream identity shape",
             )
         )
 
@@ -150,6 +168,15 @@ def validate_manifest(root: Path) -> list[Finding]:
     aggregate_methods = schema_utils.aggregate_methods(root, aggregates)
     manifest_entries = manifest.get("entries", [])
     manifest_methods: dict[str, dict[str, Any]] = {}
+    schema_version = manifest.get("schema_version")
+    if not isinstance(schema_version, int) or schema_version < 2:
+        findings.append(
+            finding(
+                "manifest_schema_version",
+                str(manifest_path),
+                f"schema_version={schema_version!r}, want at least 2",
+            )
+        )
     for entry in manifest_entries:
         method = entry.get("method", "")
         if not method:
@@ -196,27 +223,26 @@ def validate_manifest(root: Path) -> list[Finding]:
     for method in sorted(set(manifest_methods) - set(aggregate_methods)):
         findings.append(finding("manifest_stale_method", str(manifest_path), f"manifest method {method!r} is not present in aggregate schemas"))
 
-    if int(manifest.get("schema_version", 1)) >= 2:
-        surface = manifest.get("surface", [])
-        if not surface:
-            findings.append(finding("manifest_empty_surface", str(manifest_path), "schema v2 manifest has no classified generated surface"))
-        seen_surface: set[tuple[str, str]] = set()
-        valid_kinds = {"const", "field", "func", "interface_method", "method", "type", "value", "var"}
-        valid_stability = {"stable", "experimental", "mixed"}
-        for entry in surface:
-            kind = entry.get("kind", "")
-            name = entry.get("name", "")
-            stability = entry.get("stability", "")
-            signature = entry.get("signature", "")
-            identity = (kind, name)
-            if not kind or not name or not signature or stability not in valid_stability:
-                findings.append(finding("manifest_unclassified_surface", str(manifest_path), f"invalid surface entry: {entry!r}"))
-                continue
-            if kind not in valid_kinds or (stability == "mixed" and kind != "type"):
-                findings.append(finding("manifest_invalid_surface", str(manifest_path), f"invalid classified surface entry: {entry!r}"))
-            if identity in seen_surface:
-                findings.append(finding("manifest_duplicate_surface", str(manifest_path), f"duplicate surface identity {kind} {name!r}"))
-            seen_surface.add(identity)
+    surface = manifest.get("surface", [])
+    if not surface:
+        findings.append(finding("manifest_empty_surface", str(manifest_path), "classified manifest has no generated surface"))
+    seen_surface: set[tuple[str, str]] = set()
+    valid_kinds = {"const", "field", "func", "interface_method", "method", "type", "value", "var"}
+    valid_stability = {"stable", "experimental", "mixed"}
+    for entry in surface:
+        kind = entry.get("kind", "")
+        name = entry.get("name", "")
+        stability = entry.get("stability", "")
+        signature = entry.get("signature", "")
+        identity = (kind, name)
+        if not kind or not name or not signature or stability not in valid_stability:
+            findings.append(finding("manifest_unclassified_surface", str(manifest_path), f"invalid surface entry: {entry!r}"))
+            continue
+        if kind not in valid_kinds or (stability == "mixed" and kind != "type"):
+            findings.append(finding("manifest_invalid_surface", str(manifest_path), f"invalid classified surface entry: {entry!r}"))
+        if identity in seen_surface:
+            findings.append(finding("manifest_duplicate_surface", str(manifest_path), f"duplicate surface identity {kind} {name!r}"))
+        seen_surface.add(identity)
     return findings
 
 

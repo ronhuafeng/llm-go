@@ -27,9 +27,9 @@ evidence makes repository verification fail.
 The one-time Actions workflow that produced the cutover reports was retired
 after both the pre-archive and post-archive acceptance runs completed. Later
 `main` commits are governed by the normal PR and release verification paths and
-do not create new migration acceptance artifacts. The typed
-`repoctl migration-audit` command and its fail-closed report validators remain
-available for historical verification and explicit forensic reruns.
+do not create new migration acceptance artifacts. Repository verification
+continues to validate only the committed immutable provenance and archival
+evidence; it cannot create or replay migration acceptance reports.
 
 The accepted sequencing and completion gates are defined by the
 [target design](../architecture/DESIGN.md) and its
@@ -49,34 +49,7 @@ in the [adapter v0.5.0 migration guide](../../llmcaller/codex/docs/migration/v0.
 `llmcaller/codex/v0.5.0` is the first verified replacement release and resolves
 the two upstream replacement versions exactly.
 
-## Imported-history issue audit
-
-GitHub evaluates historical closing keywords when previously unrelated commits
-become reachable from the default branch. A legacy commit that referred to an
-issue number in its source repository can therefore close the same number in
-this repository even though the tickets are unrelated.
-
-This occurred when imported adapter commit
-[`c4cdcb5`](https://github.com/ronhuafeng/llm-go/commit/c4cdcb5de99406013a98b072186b758981f0a834)
-closed [`#5`](https://github.com/ronhuafeng/llm-go/issues/5). The issue-event
-audit exposed the imported commit as the closure source, and the issue was
-reopened after verifying that the toolkit destination and provenance entry did
-not exist.
-
-After every history-import merge, inspect issue events for closures attributed
-to imported commits and reopen any ticket whose own completion evidence is
-absent. Do not treat tracker state alone as proof that an import ticket or its
-dependents are complete; verify the destination tree, provenance entry, and
-merge ancestry first.
-
-## Legacy tag namespace hygiene
-
-Fetch a source tag into its custom provenance ref with `git fetch --no-tags`.
-A custom destination ref alone does not disable Git's tag auto-follow behavior
-and can copy colliding legacy `v*` refs into this repository. After each fetch,
-verify that no unplanned root `v*` tag exists before any push. The source tag
-object and commit remain reachable through the custom provenance ref and merge
-ancestry; only the colliding tag ref is excluded.
+## Offline tag evidence
 
 The committed raw tag-object payloads under `docs/migration/tag-objects/` are
 durable, offline evidence for the final annotated legacy tags. Provenance

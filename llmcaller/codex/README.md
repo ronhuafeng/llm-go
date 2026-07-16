@@ -1,10 +1,9 @@
 # Codex adapter
 
-The module path is `github.com/ronhuafeng/llm-go/llmcaller/codex`. Its first
-monorepo release identity is `llmcaller/codex/v0.5.0`, continuing the legacy
+The module path is `github.com/ronhuafeng/llm-go/llmcaller/codex`. Its verified
+first monorepo release is `llmcaller/codex/v0.5.0`, continuing the legacy
 adapter's pre-v1 lineage. The GitHub Release and public Go proxy are the live
-availability and verification sources; this README does not pre-announce
-release success. Consumers of
+availability and verification sources. Consumers of
 `github.com/ronhuafeng/llmcaller-codex-go@v0.4.2` should follow the
 [v0.5 migration guide](docs/migration/v0.5.0.md).
 

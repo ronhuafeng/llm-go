@@ -478,14 +478,6 @@ func exactNotification(notification rpcNotification) (protocolv2.ServerNotificat
 	return typed, nil
 }
 
-func (c *Client) routeExactNotification(notification rpcNotification, typed protocolv2.ServerNotification) bool {
-	routed, completions, _ := c.routeExactNotificationBeforeTerminalCompletion(notification, typed)
-	for _, complete := range completions {
-		complete()
-	}
-	return routed
-}
-
 func (c *Client) routeExactNotificationBeforeTerminalCompletion(notification rpcNotification, typed protocolv2.ServerNotification) (bool, []func(), *notificationEvidence) {
 	class, identity := attributionFor(typed)
 	if class == notificationAttributionGlobal || class == notificationAttributionUnsupported {
@@ -576,8 +568,8 @@ func (c *Client) failExactNotificationDelivery(stream *exactRunState, err error)
 func (c *Client) routeExactNotificationError(notification rpcNotification, err error) {
 	raw, _ := json.Marshal(notification.params)
 	sum := sha256.Sum256(raw)
-	ref := DiagnosticRef{Kind: "notification_decode_error", ID: turnIDFromNotification(notification.method, notification.params), Path: notification.method, SizeBytes: int64(len(raw)), SHA256: hex.EncodeToString(sum[:])}
-	turnID := turnIDFromNotification(notification.method, notification.params)
+	turnID := turnIDFromNotification(notification.params)
+	ref := DiagnosticRef{Kind: "notification_decode_error", ID: turnID, Path: notification.method, SizeBytes: int64(len(raw)), SHA256: hex.EncodeToString(sum[:])}
 	threadID := threadIDFromNotification(notification.params)
 	c.turnMu.Lock()
 	var targets []*exactRunState
@@ -603,15 +595,6 @@ func (c *Client) routeExactNotificationError(notification rpcNotification, err e
 		stream.addDiagnosticOrdered(ref)
 	}
 	c.failClient(err)
-}
-
-func (c *Client) attachExactStream(stream *exactRunState) {
-	c.turnMu.Lock()
-	if c.testBeforeExactStreamOrderGate != nil {
-		c.testBeforeExactStreamOrderGate()
-	}
-	stream.notificationOrderMu.Lock()
-	c.attachExactStreamLocked(stream)
 }
 
 // attachExactStreamLocked requires turnMu and the stream notification order
@@ -761,21 +744,6 @@ func (c *Client) unregisterAttachingExactStream(stream *exactRunState) {
 	}
 }
 
-func (c *Client) hasExactRun(threadID, turnID string) bool {
-	c.turnMu.Lock()
-	defer c.turnMu.Unlock()
-	if turnID != "" && len(c.exactStreams[turnID]) != 0 {
-		return true
-	}
-	if threadID != "" && len(c.exactAttaching[threadID]) != 0 {
-		return true
-	}
-	if threadID == "" && turnID == "" {
-		return len(c.exactStreams) != 0 || len(c.exactAttaching) != 0
-	}
-	return false
-}
-
 func (c *Client) unregisterExactRun(stream *exactRunState) {
 	c.turnMu.Lock()
 	defer c.turnMu.Unlock()
@@ -866,7 +834,7 @@ func (c *Client) drainStderr(stderr io.Reader) {
 	_, _ = io.Copy(io.Discard, stderr)
 }
 
-func turnIDFromNotification(method string, params map[string]any) string {
+func turnIDFromNotification(params map[string]any) string {
 	if params == nil {
 		return ""
 	}
@@ -878,12 +846,6 @@ func turnIDFromNotification(method string, params map[string]any) string {
 			return turnID
 		}
 	}
-	if method == "turn/completed" {
-		return stringAt(params, "turn", "id")
-	}
-	if method == "error" {
-		return stringAt(params, "error", "turnId")
-	}
 	return ""
 }
 
@@ -891,36 +853,8 @@ func threadIDFromNotification(params map[string]any) string {
 	if params == nil {
 		return ""
 	}
-	return identityString(params, "threadId", "thread_id")
-}
-
-func defaultString(value, fallback string) string {
-	if strings.TrimSpace(value) == "" {
-		return fallback
-	}
-	return value
-}
-
-func stringAt(value map[string]any, path ...string) string {
-	current := any(value)
-	for _, key := range path {
-		object, ok := current.(map[string]any)
-		if !ok {
-			return ""
-		}
-		current = object[key]
-	}
-	result, _ := current.(string)
-	return result
-}
-
-func identityString(obj map[string]any, keys ...string) string {
-	for _, key := range keys {
-		if value, ok := obj[key].(string); ok && value != "" {
-			return value
-		}
-	}
-	return ""
+	threadID, _ := params["threadId"].(string)
+	return threadID
 }
 
 func intFromAny(value any) int {

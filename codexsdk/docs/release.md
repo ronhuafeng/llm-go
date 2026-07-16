@@ -8,7 +8,7 @@ directory:
 codexsdk/vX.Y.Z
 ```
 
-The first monorepo release is `codexsdk/v0.6.0`, continuing the legacy
+The first monorepo release was `codexsdk/v0.6.0`, continuing the legacy
 `codexsdk-go@v0.5.1` lineage. The pre-v1 path migration is intentionally
 breaking; it changes no exported identifier, generated protocol fact, exact
 lifecycle behavior, or evidence contract.
@@ -21,14 +21,10 @@ The handwritten public API is the exported surface of the module-root
 generated facade methods are derived from the classified schema manifest and
 remain generator-owned facts.
 
-An inventory diff is an API-design review, not incidental test churn. The first
-monorepo release must be mechanically equivalent to the legacy inventory after
-mapping:
-
-```text
-github.com/ronhuafeng/codexsdk-go/codexsdk
-  -> github.com/ronhuafeng/llm-go/codexsdk
-```
+An inventory diff is an API-design review, not incidental test churn. Every
+release compares the current handwritten and generated inventories with the
+latest stable `codexsdk/` tag and authorizes only the exact next stable SemVer
+required by the archived change fragments.
 
 ## SemVer policy
 

@@ -17,13 +17,10 @@ backends, or business validation rules.
 
 ## Status
 
-The module path is `github.com/ronhuafeng/llm-go/llmkit`. Its first monorepo
-release identity is `llmkit/v0.6.0`, continuing the legacy toolkit's pre-v1
+The module path is `github.com/ronhuafeng/llm-go/llmkit`. Its verified first
+monorepo release is `llmkit/v0.6.0`, continuing the legacy toolkit's pre-v1
 lineage. The [GitHub Release](https://github.com/ronhuafeng/llm-go/releases/tag/llmkit%2Fv0.6.0)
-and the public Go proxy are the live availability and verification sources;
-this README does not pre-announce release success. Consumers should remain on
-the legacy release until the protected release gate marks that Release
-verified.
+and the public Go proxy are the live availability and verification sources.
 Consumers of `github.com/ronhuafeng/llmkit-go@v0.5.0` should follow the
 [v0.6 migration guide](docs/migration/v0.6.0.md). The migration changes only
 module and import paths; it adds no forwarding or runtime compatibility layer.
@@ -43,7 +40,7 @@ The `internal/` tree contains repository tests and is not public API.
 
 Requires Go 1.23 or newer.
 
-When `llmkit/v0.6.0` is marked verified, install it with:
+Install the verified replacement release with:
 
 ```sh
 go get github.com/ronhuafeng/llm-go/llmkit@v0.6.0

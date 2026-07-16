@@ -710,15 +710,6 @@ func TestScalarAliasRefGoTypeRecognizesLegacyAppPathString(t *testing.T) {
 	}
 }
 
-func mustField(t *testing.T, plan ProtocolTypePlan, path string) FieldPlan {
-	t.Helper()
-	field, ok := plan.FieldByPath(path)
-	if !ok {
-		t.Fatalf("missing field plan for %s", path)
-	}
-	return field
-}
-
 func optionalField(plan ProtocolTypePlan, path string) (FieldPlan, bool) {
 	return plan.FieldByPath(path)
 }

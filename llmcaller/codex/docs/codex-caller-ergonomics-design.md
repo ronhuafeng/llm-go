@@ -1,6 +1,10 @@
 # Codex Caller Ergonomics
 
-Status: incorporated into the v0.2 API
+Status: historical, incorporated, and non-normative.
+
+This document records design rationale only. Current contract facts are owned
+by the module README, exported code, public behavior and schema tests, the
+canonical API inventory, and `go.mod`.
 
 ## Decision
 
@@ -53,5 +57,7 @@ wrapper. Partial runs remain available when an SDK or profile error also occurs.
 - A read-only helper that sets only convenient request defaults but never
   verifies effective facts has a misleading name.
 
-The normative API and acceptance criteria live in
-[`v0.2-refactor-plan.md`](v0.2-refactor-plan.md).
+The incorporated proposal remains available in
+[`v0.2-refactor-plan.md`](v0.2-refactor-plan.md) as historical context. The
+current API and verification owners are listed in the module
+[`README`](../README.md#verification).

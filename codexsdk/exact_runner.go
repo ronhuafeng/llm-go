@@ -463,14 +463,6 @@ func (s *exactRunState) acceptStateBeforeTerminalCompletion(notification protoco
 	return nil, nil
 }
 
-func (s *exactRunState) acceptOrdered(notification protocolv2.ServerNotification) error {
-	completion, err := s.acceptOrderedBeforeTerminalCompletion(notification)
-	if completion != nil {
-		completion()
-	}
-	return err
-}
-
 func (s *exactRunState) acceptOrderedBeforeTerminalCompletion(notification protocolv2.ServerNotification) (func(), error) {
 	if s.testAtNotificationOrderGate != nil {
 		s.testAtNotificationOrderGate()
