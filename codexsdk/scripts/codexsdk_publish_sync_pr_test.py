@@ -42,7 +42,7 @@ class PublishSyncPrTest(unittest.TestCase):
                 encoding="utf-8",
             )
             (scripts / "codexsdk_resolve_upstream.py").write_text(
-                f"#!/usr/bin/env python3\nprint('{{\"upstream_sha\": \"{TARGET_SHA}\"}}')\n",
+                f"#!/usr/bin/env python3\nprint('{{\"peeled_commit_sha\": \"{TARGET_SHA}\"}}')\n",
                 encoding="utf-8",
             )
             (fake_bin / "gh").write_text(

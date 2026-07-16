@@ -93,10 +93,10 @@ jobs:
           target = json.loads(Path(os.environ["CODEXSDK_UPSTREAM_TARGET_JSON"]).read_text())
           metadata = json.loads(Path(os.environ["CODEXSDK_SCHEMA_BASELINE"], "baseline_metadata.json").read_text())
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
-              output.write(f"upstream_ref={target['upstream_ref']}\n")
-              output.write(f"upstream_ref_kind={target['upstream_ref_kind']}\n")
-              output.write(f"upstream_sha={target['upstream_sha']}\n")
-              output.write(f"upstream_short_sha={target['upstream_sha'][:12]}\n")
+              output.write(f"upstream_ref={target['ref_name']}\n")
+              output.write(f"upstream_ref_kind={target['ref_kind']}\n")
+              output.write(f"upstream_sha={target['peeled_commit_sha']}\n")
+              output.write(f"upstream_short_sha={target['peeled_commit_sha'][:12]}\n")
               output.write(f"baseline_sha={metadata['source_commit']}\n")
               output.write(f"target_explicit={str(target['target_explicit']).lower()}\n")
           PY
@@ -106,8 +106,8 @@ jobs:
             echo
             echo "- Current phase: \`detect\`"
             echo "- Baseline: \`$(python3 -c 'import json, os; print(json.load(open(os.environ["CODEXSDK_SCHEMA_BASELINE"] + "/baseline_metadata.json"))["source_commit"])')\`"
-            echo "- Upstream target: \`$(jq -r '.upstream_ref' "${CODEXSDK_UPSTREAM_TARGET_JSON}")\` (\`$(jq -r '.upstream_ref_kind' "${CODEXSDK_UPSTREAM_TARGET_JSON}")\`)"
-            echo "- Upstream commit: \`$(jq -r '.upstream_sha' "${CODEXSDK_UPSTREAM_TARGET_JSON}")\`"
+            echo "- Upstream target: \`$(jq -r '.ref_name' "${CODEXSDK_UPSTREAM_TARGET_JSON}")\` (\`$(jq -r '.ref_kind' "${CODEXSDK_UPSTREAM_TARGET_JSON}")\`)"
+            echo "- Upstream commit: \`$(jq -r '.peeled_commit_sha' "${CODEXSDK_UPSTREAM_TARGET_JSON}")\`"
             echo "- Explicit target: \`$(jq -r '.target_explicit' "${CODEXSDK_UPSTREAM_TARGET_JSON}")\`"
           } >> "$GITHUB_STEP_SUMMARY"
 

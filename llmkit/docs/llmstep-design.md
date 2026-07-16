@@ -1,13 +1,19 @@
 # Typed LLM Step DSL Design
 
-Status: implemented
+Status: historical, implemented, and non-normative.
+
+This document records the design that produced `llmstep`; it is not an active
+API, compatibility, build, CI, or release contract. Current facts are owned by
+the exported package, package documentation, module README, behavior tests, and
+canonical API inventory.
 
 ## Summary
 
-Add a small provider-neutral `llmstep` package to `llmkit-go`.
+The proposal added a small provider-neutral `llmstep` package to the standalone
+toolkit repository that preceded the monorepo.
 
-The package should own the reusable mechanics for a single typed structured
-LLM step:
+The implemented package owns the reusable mechanics for a single typed
+structured LLM step:
 
 ```text
 render prompt
@@ -17,9 +23,9 @@ render prompt
 -> retry up to MaxIter
 ```
 
-It must not become a workflow engine. Business prompts, semantic validators,
+It does not become a workflow engine. Business prompts, semantic validators,
 provider transport, write gates, and application policy remain outside
-`llmkit-go`.
+the toolkit module.
 
 ## Motivation
 
@@ -61,17 +67,21 @@ structured-output tasks.
 
 ## Current Boundaries
 
-Keep the current package responsibilities:
+The implementation kept these package responsibilities:
 
 - `llmschema`: Go type to JSON Schema projection and JSON decode.
 - `llmadapter`: provider-neutral request/response and one typed call.
 - `settle`: general-purpose operation retry loop.
-- new `llmstep`: typed structured-output retry with feedback.
+- `llmstep`: typed structured-output retry with feedback.
 
-Do not put `llmstep` into `llmadapter`. `llmadapter.ValueDetailed[T]` remains
-the one-call evidence-preserving core, while `Value[T]` is its simple projection.
+`llmstep` remained separate from `llmadapter`.
+`llmadapter.ValueDetailed[T]` is the one-call evidence-preserving core, while
+`Value[T]` is its simple projection.
 
-## Proposed API
+## Proposed API at Implementation Time
+
+This historical sketch explains the ownership decision; exported code and the
+canonical API inventory own the current signatures.
 
 ```go
 package llmstep
@@ -210,9 +220,9 @@ This is additive. Existing packages and APIs remain valid.
 `llmstep` is the path when a typed LLM call needs validation feedback across
 retries; generic stabilization uses an application-owned `settle.Op` directly.
 
-## Test Plan
+## Historical Test Plan
 
-Add focused tests for externally visible behavior:
+The implementation added focused tests for externally visible behavior:
 
 - first render receives no feedback;
 - failed validation feeds sanitized feedback into the next render;
@@ -225,19 +235,18 @@ Add focused tests for externally visible behavior:
 - `RunDetailed` exposes distinct original validation decisions and sanitized
   retry feedback history.
 
-Tests should use a fake `llmadapter.Caller` and small synthetic typed structs.
+The tests used a fake `llmadapter.Caller` and small synthetic typed structs.
 
-## Acceptance Criteria
+## Recorded Acceptance Results
 
-- New `llmstep` package exists with README or package docs.
-- `go test ./...` passes.
-- `go vet ./...` passes.
-- No new concrete provider dependency is added to `llmkit-go`.
+- The `llmstep` package was added with package documentation.
+- `go test ./...` and `go vet ./...` passed at implementation time.
+- No concrete provider dependency was added to the toolkit module.
 - The v0.2 implementation was additive; the deprecated compatibility helpers
   were subsequently removed for v0.3 as documented in `v0.3-migration.md`.
-- README documents when to use `llmstep` versus `llmadapter.Value` and
+- The README documented when to use `llmstep` versus `llmadapter.Value` and
   `settle.Run`.
-- The implementation contains no journal, Codex, or application-specific
+- The implementation contained no journal, Codex, or application-specific
   concepts.
 
 ## Example

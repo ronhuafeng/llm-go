@@ -27,24 +27,6 @@ def parse_bool(value: str) -> bool:
     raise argparse.ArgumentTypeError(f"invalid boolean value: {value!r}")
 
 
-def normalize_kind(kind: str, ref_name: str) -> str:
-    if kind == "latest_stable_rust_tag":
-        return STABLE_TAG
-    if kind == "manual":
-        return infer_kind(ref_name)
-    if kind:
-        return kind
-    return infer_kind(ref_name)
-
-
-def infer_kind(ref_name: str) -> str:
-    if RUST_TAG_RE.fullmatch(ref_name):
-        return STABLE_TAG
-    if SHA_RE.fullmatch(ref_name):
-        return MANUAL_COMMIT
-    return MANUAL_REF
-
-
 def parse_rust_tag(ref_name: str) -> tuple[int, int, int] | None:
     match = RUST_TAG_RE.fullmatch(ref_name)
     if match is None:
@@ -54,13 +36,10 @@ def parse_rust_tag(ref_name: str) -> tuple[int, int, int] | None:
 
 def load_baseline(path: Path) -> dict[str, str]:
     metadata = json.loads(path.read_text(encoding="utf-8"))
-    source_commit = metadata.get("source_commit", "")
-    source_ref_name = metadata.get("source_ref_name") or source_commit
-    source_ref_kind = normalize_kind(metadata.get("source_ref_kind", ""), source_ref_name)
     return {
-        "source_commit": source_commit,
-        "source_ref_name": source_ref_name,
-        "source_ref_kind": source_ref_kind,
+        "source_commit": str(metadata.get("source_commit") or ""),
+        "source_ref_name": str(metadata.get("source_ref_name") or ""),
+        "source_ref_kind": str(metadata.get("source_ref_kind") or ""),
     }
 
 
@@ -99,41 +78,40 @@ def evaluate_policy(
     mode: str,
     allow_downgrade: bool,
 ) -> dict[str, Any]:
-    baseline_kind = normalize_kind(baseline.get("source_ref_kind", ""), baseline.get("source_ref_name", ""))
-    target_kind = normalize_kind(target_kind, target_ref)
     normalized_baseline = {
         "source_commit": baseline.get("source_commit", ""),
-        "source_ref_name": baseline.get("source_ref_name", "") or baseline.get("source_commit", ""),
-        "source_ref_kind": baseline_kind,
+        "source_ref_name": baseline.get("source_ref_name", ""),
+        "source_ref_kind": baseline.get("source_ref_kind", ""),
     }
+    baseline_kind = normalized_baseline["source_ref_kind"]
+
+    if not SHA_RE.fullmatch(normalized_baseline["source_commit"]) or not normalized_baseline["source_ref_name"] or baseline_kind not in VALID_KINDS:
+        return result(
+            "block",
+            "baseline source identity is incomplete or unsupported",
+            baseline=normalized_baseline,
+            target_ref=target_ref,
+            target_kind=target_kind,
+            target_sha=target_sha,
+            target_explicit=target_explicit,
+            mode=mode,
+        )
+    if target_kind not in VALID_KINDS or not SHA_RE.fullmatch(target_sha):
+        return result(
+            "block",
+            "target source identity is incomplete or unsupported",
+            baseline=normalized_baseline,
+            target_ref=target_ref,
+            target_kind=target_kind,
+            target_sha=target_sha,
+            target_explicit=target_explicit,
+            mode=mode,
+        )
 
     if normalized_baseline["source_commit"] == target_sha:
         return result(
             "skip",
             "baseline already points at the selected upstream commit",
-            baseline=normalized_baseline,
-            target_ref=target_ref,
-            target_kind=target_kind,
-            target_sha=target_sha,
-            target_explicit=target_explicit,
-            mode=mode,
-        )
-
-    if baseline_kind not in VALID_KINDS:
-        return result(
-            "block",
-            f"unsupported baseline source_ref_kind: {baseline_kind}",
-            baseline=normalized_baseline,
-            target_ref=target_ref,
-            target_kind=target_kind,
-            target_sha=target_sha,
-            target_explicit=target_explicit,
-            mode=mode,
-        )
-    if target_kind not in VALID_KINDS:
-        return result(
-            "block",
-            f"unsupported target source_ref_kind: {target_kind}",
             baseline=normalized_baseline,
             target_ref=target_ref,
             target_kind=target_kind,

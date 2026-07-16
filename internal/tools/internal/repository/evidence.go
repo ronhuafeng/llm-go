@@ -180,11 +180,6 @@ func moduleArchiveDigest(moduleRoot string, candidate module, registered registr
 	return identity.SHA256, err
 }
 
-func moduleArchiveDigestForVersion(moduleRoot string, candidate module, registered registry, versionValue string) (string, error) {
-	identity, err := moduleArchiveIdentityForVersion(moduleRoot, candidate, registered, versionValue)
-	return identity.SHA256, err
-}
-
 type moduleArchiveIdentity struct {
 	Sum    string
 	SHA256 string
@@ -302,14 +297,7 @@ func VerifyCheckout(root string, plan AffectedPlan) (Evidence, error) {
 	}
 	if plan.WorkspaceRequired {
 		command := workspaceCanaryCommand()
-		name := "workspace three-layer canary"
-		if !adapterUsesCurrentWorkspaceModules(registered) {
-			name = "staged legacy-path adapter canary"
-			recorder.evidence.DoesNotProve = append(recorder.evidence.DoesNotProve,
-				"current three-module workspace composition while module identities are staged",
-			)
-		}
-		if err = recorder.check(name, command, func() error {
+		if err = recorder.check("workspace three-layer canary", command, func() error {
 			return runWorkspaceCanary(root, command)
 		}); err != nil {
 			return recorder.evidence, err
@@ -337,24 +325,6 @@ func VerifyCheckout(root string, plan AffectedPlan) (Evidence, error) {
 
 func workspaceCanaryCommand() []string {
 	return []string{"go", "test", "./llmcaller/codex", "-run", "^TestThreeLayerCanaryFast$", "-count=1", "-v"}
-}
-
-func adapterUsesCurrentWorkspaceModules(registered registry) bool {
-	adapter, ok := findModule(registered, "codex-adapter")
-	if !ok {
-		return false
-	}
-	required := make(map[string]bool, len(adapter.requires))
-	for _, path := range adapter.requires {
-		required[path] = true
-	}
-	for _, id := range []string{"llmkit", "codexsdk"} {
-		candidate, ok := findModule(registered, id)
-		if !ok || !required[candidate.path] {
-			return false
-		}
-	}
-	return true
 }
 
 func runWorkspaceCanary(root string, command []string) (err error) {

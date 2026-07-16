@@ -3,10 +3,10 @@
 Go client and generated protocol types for the Codex app-server JSON-RPC
 protocol.
 
-The module path is `github.com/ronhuafeng/llm-go/codexsdk`. Its first monorepo
-release identity is `codexsdk/v0.6.0`, continuing the legacy SDK's pre-v1
+The module path is `github.com/ronhuafeng/llm-go/codexsdk`. Its verified first
+monorepo release is `codexsdk/v0.6.0`, continuing the legacy SDK's pre-v1
 lineage. The GitHub Release and public Go proxy are the live availability and
-verification sources; this README does not pre-announce release success.
+verification sources.
 Consumers of `github.com/ronhuafeng/codexsdk-go@v0.5.1` should follow the
 [v0.6 migration guide](docs/migration/v0.6.0.md). The migration changes only
 module and import paths; it adds no forwarding or runtime compatibility layer.
@@ -50,7 +50,7 @@ For the unified malformed lifecycle partial-evidence contract, see the
 
 ## Installation
 
-When `codexsdk/v0.6.0` is marked verified, install it with:
+Install the verified replacement release with:
 
 ```sh
 go get github.com/ronhuafeng/llm-go/codexsdk@v0.6.0

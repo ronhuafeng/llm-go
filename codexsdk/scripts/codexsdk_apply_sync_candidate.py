@@ -310,6 +310,8 @@ def facade_target(entry: AggregateEntry, direction: str, kind: str, existing: di
 
 
 def build_manifest(root: Path, old_manifest: dict[str, Any], mappings: dict[str, RequestMapping], source_commit: str) -> dict[str, Any]:
+    if int(old_manifest.get("schema_version", 0)) < 2:
+        raise ValueError("classified manifest schema_version must be at least 2")
     old_entries = {entry["method"]: entry for entry in old_manifest.get("entries", [])}
     aggregates = old_manifest.get("aggregate_schemas") or list(schema_utils.AGGREGATE_SCHEMAS)
     entries: list[dict[str, Any]] = []
@@ -374,7 +376,7 @@ def build_manifest(root: Path, old_manifest: dict[str, Any], mappings: dict[str,
         "description": old_manifest.get("description", "Classified app-server protocol manifest."),
         "entries": sorted(entries, key=lambda item: item["method"]),
         "surface": old_manifest.get("surface", []),
-        "schema_version": old_manifest.get("schema_version", 1),
+        "schema_version": old_manifest["schema_version"],
         "status": "classified-manifest",
     }
 
@@ -448,6 +450,8 @@ def top_level_object_fields(root: Path, schema: str) -> list[dict[str, Any]]:
 
 
 def build_coverage(root: Path, old_coverage: dict[str, Any], manifest: dict[str, Any], field_seed_schemas: set[str]) -> dict[str, Any]:
+    if type(old_coverage.get("schema_version")) is not int or old_coverage["schema_version"] != 1:
+        raise ValueError("coverage matrix schema_version must be 1")
     valid_statuses = old_coverage.get("valid_statuses") or ["supported", "supported-generated", "deferred", "intentionally-unsupported"]
 
     old_methods = {item["method"]: item for item in old_coverage.get("methods", [])}
@@ -497,7 +501,7 @@ def build_coverage(root: Path, old_coverage: dict[str, Any], manifest: dict[str,
         "description": old_coverage.get("description", "Coverage classification for the checked-in Codex app-server protocol baseline."),
         "fields": sorted(fields_by_path.values(), key=lambda item: item["path"]),
         "methods": sorted(methods, key=lambda item: item["method"]),
-        "schema_version": old_coverage.get("schema_version", 1),
+        "schema_version": old_coverage["schema_version"],
         "status": "classified-manifest",
         "types": sorted(types, key=lambda item: item["schema"]),
         "valid_statuses": valid_statuses,
@@ -505,10 +509,10 @@ def build_coverage(root: Path, old_coverage: dict[str, Any], manifest: dict[str,
 
 
 def update_manifest_generation(path: Path, target_ref: str, target_kind: str, target_sha: str) -> None:
-    if not path.exists():
-        return
     data = load_json(path)
-    inputs = data.setdefault("inputs", {})
+    inputs = data.get("inputs")
+    if not isinstance(inputs, dict):
+        raise ValueError("manifest generation inputs must be an object")
     inputs["source_ref_name"] = target_ref
     inputs["source_ref_kind"] = target_kind
     inputs["source_commit"] = target_sha
@@ -530,6 +534,8 @@ def copy_candidate_schema(candidate: Path, root: Path) -> None:
 
 
 def build_metadata(root: Path, old: dict[str, Any], target_ref: str, target_kind: str, target_sha: str, codex_version: str) -> dict[str, Any]:
+    if type(old.get("schema_version")) is not int or old["schema_version"] != 1:
+        raise ValueError("baseline metadata schema_version must be 1")
     return {
         "aggregate_schemas": list(schema_utils.AGGREGATE_SCHEMAS),
         "codex_binary": "codex",
@@ -540,7 +546,7 @@ def build_metadata(root: Path, old: dict[str, Any], target_ref: str, target_kind
         "schema_bundle_sha256": schema_utils.schema_bundle_sha256(root),
         "schema_file_count": len(schema_utils.schema_files(root)),
         "schema_output_layout": "root JSON files plus v1/ and v2/",
-        "schema_version": old.get("schema_version", 1),
+        "schema_version": old["schema_version"],
         "source_commit": target_sha,
         "source_dirty": False,
         "source_license": "Apache-2.0",

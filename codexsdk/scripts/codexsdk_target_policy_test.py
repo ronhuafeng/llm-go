@@ -124,6 +124,23 @@ class TargetPolicyTest(unittest.TestCase):
         self.assertEqual(decision["decision"], "block")
         self.assertIn("not a rust-vX.Y.Z tag", decision["reason"])
 
+    def test_noncanonical_or_missing_baseline_identity_blocks(self):
+        for base in (
+            baseline("rust-v0.140.0", "obsolete"),
+            baseline("rust-v0.140.0", ""),
+            baseline("", "stable_rust_tag"),
+            baseline("rust-v0.140.0", "stable_rust_tag", commit=""),
+        ):
+            with self.subTest(base=base):
+                decision = decide(base, "rust-v0.141.0", "stable_rust_tag")
+                self.assertEqual(decision["decision"], "block")
+                self.assertIn("baseline source identity", decision["reason"])
+
+    def test_target_kind_is_not_inferred(self):
+        decision = decide(baseline("rust-v0.140.0", "stable_rust_tag"), "rust-v0.141.0", "")
+        self.assertEqual(decision["decision"], "block")
+        self.assertIn("target source identity", decision["reason"])
+
     def test_cli_is_quiet_without_json(self):
         completed = run_policy_cli(json_output=False)
         self.assertEqual(completed.stdout, "")

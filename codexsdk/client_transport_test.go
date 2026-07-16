@@ -1,9 +1,7 @@
 package codexsdk
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"strings"
 	"sync"
@@ -420,22 +418,4 @@ func pendingCount(c *Client) int {
 		return true
 	})
 	return count
-}
-
-func recordedJSONMessage(t *testing.T, writer *recordingWriteCloser) map[string]any {
-	t.Helper()
-	deadline := time.Now().Add(time.Second)
-	for time.Now().Before(deadline) {
-		raw := bytes.TrimSpace(writer.Bytes())
-		if len(raw) > 0 {
-			var message map[string]any
-			if err := json.Unmarshal(raw, &message); err != nil {
-				t.Fatalf("recorded JSON-RPC message = %q: %v", writer.String(), err)
-			}
-			return message
-		}
-		time.Sleep(time.Millisecond)
-	}
-	t.Fatalf("timed out waiting for recorded JSON-RPC message")
-	return nil
 }

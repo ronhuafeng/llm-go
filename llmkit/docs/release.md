@@ -8,13 +8,13 @@ directory:
 llmkit/vX.Y.Z
 ```
 
-The first monorepo release is `llmkit/v0.6.0`, continuing the legacy
+The first monorepo release was `llmkit/v0.6.0`, continuing the legacy
 `llmkit-go@v0.5.0` lineage. The path migration is intentionally breaking under
 the pre-v1 policy and does not change API shape or runtime semantics.
 
-The initial release tracer is hard-limited to this exact version. A later
-toolkit release must establish its own API-impact baseline before the workflow
-can authorize it.
+Every release compares the current canonical API inventory with the latest
+stable `llmkit/` tag and authorizes only the exact next stable SemVer required
+by the archived change fragments.
 
 ## Public API
 

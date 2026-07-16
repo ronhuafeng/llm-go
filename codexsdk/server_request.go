@@ -34,11 +34,6 @@ func decodeProtocolServerRequest(message map[string]any) (protocolv2.ServerReque
 	return typed, nil
 }
 
-func validateProtocolServerRequest(message map[string]any) error {
-	_, err := decodeProtocolServerRequest(message)
-	return err
-}
-
 func requestIDString(id any) string {
 	if id == nil {
 		return ""

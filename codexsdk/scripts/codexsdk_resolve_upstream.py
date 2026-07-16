@@ -24,18 +24,6 @@ class UpstreamTarget:
     peeled_commit_sha: str
     target_explicit: bool
 
-    @property
-    def upstream_ref(self) -> str:
-        return self.ref_name
-
-    @property
-    def upstream_ref_kind(self) -> str:
-        return self.ref_kind
-
-    @property
-    def upstream_sha(self) -> str:
-        return self.peeled_commit_sha
-
     def to_json_dict(self) -> dict[str, object]:
         return {
             "ref_name": self.ref_name,
@@ -43,10 +31,6 @@ class UpstreamTarget:
             "tag_sha": self.tag_sha,
             "peeled_commit_sha": self.peeled_commit_sha,
             "target_explicit": self.target_explicit,
-            # Back-compatible keys used by workflows and existing scripts.
-            "upstream_ref": self.ref_name,
-            "upstream_ref_kind": self.ref_kind,
-            "upstream_sha": self.peeled_commit_sha,
         }
 
 

@@ -89,6 +89,7 @@ def write_valid_baseline(root: Path) -> None:
         root / "manifest.json",
         {
             "status": "classified-manifest",
+            "schema_version": 2,
             "aggregate_schemas": [
                 "ClientRequest.json",
                 "ServerRequest.json",
@@ -102,6 +103,9 @@ def write_valid_baseline(root: Path) -> None:
                     "params_or_payload_schema": "ThreadStartParams",
                     "response_schema": "ThreadStartResponse.json",
                 }
+            ],
+            "surface": [
+                {"kind": "type", "name": "ThreadStartResponse", "signature": "struct{}", "stability": "stable"}
             ],
         },
     )
@@ -187,6 +191,23 @@ class SyncStateTest(unittest.TestCase):
 
             self.assertTrue({"metadata_schema_count", "metadata_schema_bundle_sha256"} <= codes(sync_state.validate_baseline(root)))
 
+    def test_noncanonical_or_missing_metadata_source_identity_fails(self) -> None:
+        for field, value in (
+            ("source_commit", ""),
+            ("source_ref_name", ""),
+            ("source_ref_kind", "obsolete"),
+        ):
+            with self.subTest(field=field):
+                with tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp)
+                    write_valid_baseline(root)
+                    metadata_path = root / "baseline_metadata.json"
+                    metadata = schema_utils.load_json(metadata_path)
+                    metadata[field] = value
+                    write_json(metadata_path, metadata)
+
+                    self.assertIn("metadata_source_identity", codes(sync_state.validate_baseline(root)))
+
     def test_dirty_drift_report_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -246,6 +267,17 @@ class SyncStateTest(unittest.TestCase):
                 {"manifest_unclassified_surface", "manifest_invalid_surface", "manifest_duplicate_surface"}
                 <= codes(sync_state.validate_baseline(root))
             )
+
+    def test_manifest_requires_classified_surface_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_valid_baseline(root)
+            manifest_path = root / "manifest.json"
+            manifest = schema_utils.load_json(manifest_path)
+            del manifest["schema_version"]
+            write_json(manifest_path, manifest)
+
+            self.assertIn("manifest_schema_version", codes(sync_state.validate_baseline(root)))
 
     def test_stale_coverage_method_type_and_field_fail(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

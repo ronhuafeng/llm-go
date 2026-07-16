@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,6 +19,45 @@ func fakeCommand(mode string, extra ...string) []string {
 	args := []string{os.Args[0], "-test.run=TestHelperProcess", "--", mode}
 	args = append(args, extra...)
 	return args
+}
+
+func defaultString(value, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
+}
+
+func (c *Client) routeExactNotification(notification rpcNotification, typed protocolv2.ServerNotification) bool {
+	routed, completions, _ := c.routeExactNotificationBeforeTerminalCompletion(notification, typed)
+	for _, complete := range completions {
+		complete()
+	}
+	return routed
+}
+
+func (c *Client) attachExactStream(stream *exactRunState) {
+	c.turnMu.Lock()
+	if c.testBeforeExactStreamOrderGate != nil {
+		c.testBeforeExactStreamOrderGate()
+	}
+	stream.notificationOrderMu.Lock()
+	c.attachExactStreamLocked(stream)
+}
+
+func (c *Client) hasExactRun(threadID, turnID string) bool {
+	c.turnMu.Lock()
+	defer c.turnMu.Unlock()
+	if turnID != "" && len(c.exactStreams[turnID]) != 0 {
+		return true
+	}
+	if threadID != "" && len(c.exactAttaching[threadID]) != 0 {
+		return true
+	}
+	if threadID == "" && turnID == "" {
+		return len(c.exactStreams) != 0 || len(c.exactAttaching) != 0
+	}
+	return false
 }
 
 func fakeLateApprovalDuringFailureCommand(notificationAccepted, failureObserved, lateRequestSent string) []string {
@@ -89,44 +127,6 @@ func firstRecord(records []map[string]any, kind, method string) map[string]any {
 	return nil
 }
 
-func recordsByMethod(records []map[string]any, kind, method string) []map[string]any {
-	var out []map[string]any
-	for _, record := range records {
-		if record["kind"] == kind && record["method"] == method {
-			out = append(out, record)
-		}
-	}
-	return out
-}
-
-func mustOutputSchema(t *testing.T, raw string) protocolv2.OutputSchema {
-	t.Helper()
-	schema, err := protocolv2.OutputSchemaFromJSON([]byte(raw))
-	if err != nil {
-		t.Fatalf("parse output schema %s: %v", raw, err)
-	}
-	return schema
-}
-
-func assertJSONEqual(t *testing.T, got any, want string) {
-	t.Helper()
-	gotRaw, err := json.Marshal(got)
-	if err != nil {
-		t.Fatalf("marshal got JSON value: %v", err)
-	}
-	var gotValue any
-	if err := json.Unmarshal(gotRaw, &gotValue); err != nil {
-		t.Fatalf("unmarshal got JSON value %q: %v", gotRaw, err)
-	}
-	var wantValue any
-	if err := json.Unmarshal([]byte(want), &wantValue); err != nil {
-		t.Fatalf("unmarshal want JSON value %q: %v", want, err)
-	}
-	if !reflect.DeepEqual(gotValue, wantValue) {
-		t.Fatalf("JSON value = %#v, want %#v", gotValue, wantValue)
-	}
-}
-
 func waitForRecord(t *testing.T, path, kind, method string, timeout time.Duration) bool {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
@@ -137,14 +137,6 @@ func waitForRecord(t *testing.T, path, kind, method string, timeout time.Duratio
 		time.Sleep(10 * time.Millisecond)
 	}
 	return false
-}
-
-func stringify(values []any) []string {
-	out := make([]string, 0, len(values))
-	for _, value := range values {
-		out = append(out, value.(string))
-	}
-	return out
 }
 
 func contains(values []string, needle string) bool {
@@ -1346,12 +1338,6 @@ func sendExactReroute(threadID, turnID, fromModel, toModel string) {
 	}})
 }
 
-func fakeAuthRefreshParams() map[string]any {
-	return map[string]any{
-		"reason": "unauthorized",
-	}
-}
-
 func fakeDynamicToolCallParams(threadID, turnID string) map[string]any {
 	return map[string]any{
 		"arguments": map[string]any{"query": "status"},
@@ -1360,33 +1346,6 @@ func fakeDynamicToolCallParams(threadID, turnID string) map[string]any {
 		"tool":      "lookup",
 		"turnId":    turnID,
 	}
-}
-
-func fakeToolUserInputParams(threadID, turnID string) map[string]any {
-	return map[string]any{
-		"itemId": "item-input",
-		"questions": []any{
-			map[string]any{
-				"header":   "Confirm",
-				"id":       "q1",
-				"question": "Continue?",
-			},
-		},
-		"threadId": threadID,
-		"turnId":   turnID,
-	}
-}
-
-func fakeMCPElicitationParams(threadID, turnID string) map[string]any {
-	return map[string]any{
-		"serverName": "mcp-server",
-		"threadId":   threadID,
-		"turnId":     turnID,
-	}
-}
-
-func jsonValuePtr(value protocolv2.JSONValue) *protocolv2.JSONValue {
-	return &value
 }
 
 func sendProtocolResult(id any, result any) {
@@ -1468,16 +1427,6 @@ func facadeThreadAgentMessageItem(itemID string, text string) protocolv2.ThreadI
 		ID:   itemID,
 		Text: text,
 	})
-}
-
-func facadeRealtimeAudioChunk() protocolv2.ThreadRealtimeAudioChunk {
-	return protocolv2.ThreadRealtimeAudioChunk{
-		Data:              "base64",
-		ItemID:            protocolv2.Value("item-1"),
-		NumChannels:       2,
-		SampleRate:        24000,
-		SamplesPerChannel: protocolv2.Value(uint32(480)),
-	}
 }
 
 func facadeConfigReadResponse() protocolv2.ConfigReadResponse {

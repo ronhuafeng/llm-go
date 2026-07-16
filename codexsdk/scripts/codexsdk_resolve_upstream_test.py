@@ -50,9 +50,8 @@ class ResolveUpstreamTest(unittest.TestCase):
 
     def test_explicit_sha_resolves_without_remote_lookup(self) -> None:
         target = resolve.resolve_upstream("unused", SHA1)
-        self.assertEqual(target.upstream_ref, SHA1)
-        self.assertEqual(target.upstream_ref_kind, "manual_commit")
-        self.assertEqual(target.upstream_sha, SHA1)
+        self.assertEqual(target.ref_name, SHA1)
+        self.assertEqual(target.ref_kind, "manual_commit")
         self.assertEqual(target.tag_sha, "")
         self.assertEqual(target.peeled_commit_sha, SHA1)
         self.assertTrue(target.target_explicit)
@@ -102,7 +101,7 @@ class ResolveUpstreamTest(unittest.TestCase):
         self.assertEqual(payload["ref_kind"], "stable_rust_tag")
         self.assertEqual(payload["tag_sha"], SHA1)
         self.assertEqual(payload["peeled_commit_sha"], SHA2)
-        self.assertEqual(payload["upstream_sha"], SHA2)
+        self.assertEqual(set(payload), {"ref_name", "ref_kind", "tag_sha", "peeled_commit_sha", "target_explicit"})
         self.assertTrue(payload["target_explicit"])
         self.assertEqual(completed.stderr, "")
 
@@ -145,9 +144,7 @@ class ResolveUpstreamTest(unittest.TestCase):
         self.assertEqual(payload["ref_kind"], "stable_rust_tag")
         self.assertEqual(payload["tag_sha"], SHA2)
         self.assertEqual(payload["peeled_commit_sha"], SHA2)
-        self.assertEqual(payload["upstream_ref"], "rust-v0.100.0")
-        self.assertEqual(payload["upstream_ref_kind"], "stable_rust_tag")
-        self.assertEqual(payload["upstream_sha"], SHA2)
+        self.assertEqual(set(payload), {"ref_name", "ref_kind", "tag_sha", "peeled_commit_sha", "target_explicit"})
         self.assertFalse(payload["target_explicit"])
         self.assertEqual(completed.stderr, "")
 

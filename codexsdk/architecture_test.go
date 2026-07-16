@@ -285,27 +285,3 @@ func assertNoPublicRawProtocolType(t *testing.T, path string, typ reflect.Type, 
 		}
 	}
 }
-
-func methodCallNames(file *ast.File, name string) map[string]bool {
-	calls := map[string]bool{}
-	for _, decl := range file.Decls {
-		fn, ok := decl.(*ast.FuncDecl)
-		if !ok || fn.Name.Name != name || fn.Recv == nil || fn.Body == nil {
-			continue
-		}
-		ast.Inspect(fn.Body, func(node ast.Node) bool {
-			call, ok := node.(*ast.CallExpr)
-			if !ok {
-				return true
-			}
-			switch expr := call.Fun.(type) {
-			case *ast.Ident:
-				calls[expr.Name] = true
-			case *ast.SelectorExpr:
-				calls[expr.Sel.Name] = true
-			}
-			return true
-		})
-	}
-	return calls
-}

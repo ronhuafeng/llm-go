@@ -128,26 +128,6 @@ func TestWorkspaceCanaryUsesEphemeralWorkspaceMetadata(t *testing.T) {
 	}
 }
 
-func TestAdapterUsesCurrentWorkspaceModules(t *testing.T) {
-	registered := planningFixture()
-	if !adapterUsesCurrentWorkspaceModules(registered) {
-		t.Fatal("fixture adapter should use current toolkit and SDK paths")
-	}
-	adapter, ok := findModule(registered, "codex-adapter")
-	if !ok {
-		t.Fatal("missing adapter")
-	}
-	adapter.requires[0] = "example.com/legacy-kit"
-	for index := range registered.Modules {
-		if registered.Modules[index].ID == adapter.ID {
-			registered.Modules[index] = adapter
-		}
-	}
-	if adapterUsesCurrentWorkspaceModules(registered) {
-		t.Fatal("legacy toolkit requirement must not claim current composition")
-	}
-}
-
 func TestAdapterCheckoutSeamsUseFlattenedModuleRoot(t *testing.T) {
 	adapter := module{ID: "codex-adapter", path: "github.com/ronhuafeng/llm-go/llmcaller/codex"}
 	if got, err := sourceConsumerImportPath(adapter); err != nil || got != adapter.path {

@@ -53,6 +53,16 @@ func TestLoadManifestRejectsSkeleton(t *testing.T) {
 	}
 }
 
+func TestLoadManifestRequiresClassifiedSurfaceSchema(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "manifest.json")
+	if err := os.WriteFile(path, []byte(`{"status":"classified-manifest","entries":[]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadManifest(path); err == nil || !strings.Contains(err.Error(), "schema_version") {
+		t.Fatalf("LoadManifest error = %v, want schema_version failure", err)
+	}
+}
+
 func TestMethodConstNameUsesGoAcronyms(t *testing.T) {
 	cases := map[string]string{
 		"account/chatgptAuthTokens/refresh": "MethodAccountChatGPTAuthTokensRefresh",

@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"golang.org/x/mod/modfile"
 )
 
 const archivalEvidenceFilename = "docs/migration/archive-evidence.json"
@@ -297,6 +299,26 @@ func validateAcceptanceReference(reference archivalAcceptanceReference, subject 
 		}
 	}
 	return nil
+}
+
+func legacyModulePath(root string, imported provenanceImport) (string, error) {
+	goMod, err := gitBytes(root, "show", imported.Source.Commit+":go.mod")
+	if err != nil {
+		return "", err
+	}
+	parsed, err := modfile.Parse("legacy/go.mod", goMod, nil)
+	if err != nil || parsed.Module == nil {
+		return "", fmt.Errorf("invalid legacy go.mod")
+	}
+	return parsed.Module.Mod.Path, nil
+}
+
+func migrationVersion(firstTag string) (string, error) {
+	separator := strings.LastIndex(firstTag, "/")
+	if separator < 0 || !isStableVersion(firstTag[separator+1:]) {
+		return "", fmt.Errorf("invalid path-prefixed stable tag %q", firstTag)
+	}
+	return firstTag[separator+1:], nil
 }
 
 func validateSuccessorState(state archivalRepositoryState, subject archivalSubject) error {

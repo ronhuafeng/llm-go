@@ -189,7 +189,7 @@ confirm_target_still_points_at_sha() {
     python3 scripts/codexsdk_resolve_upstream.py \
       --upstream-ref "${target_ref}" \
       --json |
-      jq -r '.upstream_sha'
+      jq -r '.peeled_commit_sha'
   )"
   if [[ "${resolved_sha}" != "${target_sha}" ]]; then
     echo "upstream target moved: ${target_ref} resolved to ${resolved_sha}, expected ${target_sha}" >&2

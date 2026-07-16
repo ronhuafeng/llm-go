@@ -63,7 +63,7 @@ class ClassifiedManifestTest(unittest.TestCase):
     def test_update_manifest_replaces_surface_and_records_mechanical_source(self) -> None:
         with tempfile.TemporaryDirectory() as raw_tmp:
             path = Path(raw_tmp) / "manifest.json"
-            write_json(path, {"schema_version": 1, "classification_sources": {}, "surface": []})
+            write_json(path, {"schema_version": 2, "classification_sources": {}, "surface": []})
             surface = [{"kind": "type", "name": "Event", "signature": "struct{}", "stability": "stable"}]
 
             classified_manifest.update_manifest(path, surface)
@@ -72,6 +72,14 @@ class ClassifiedManifestTest(unittest.TestCase):
             self.assertEqual(manifest["schema_version"], 2)
             self.assertEqual(manifest["surface"], surface)
             self.assertIn("without and with experimental", manifest["classification_sources"]["generated_surface"])
+
+    def test_update_manifest_requires_classified_surface_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            path = Path(raw_tmp) / "manifest.json"
+            write_json(path, {"classification_sources": {}, "surface": []})
+
+            with self.assertRaisesRegex(ValueError, "schema_version"):
+                classified_manifest.update_manifest(path, [])
 
 
 if __name__ == "__main__":

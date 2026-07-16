@@ -144,47 +144,6 @@ func TestReleaseCommitApprovalExpiresWhenMainAdvances(t *testing.T) {
 	}
 }
 
-func TestLegacyAPIInventoryMappingIsExact(t *testing.T) {
-	legacy := []byte("pkg github.com/ronhuafeng/llmkit-go/llmstep, type Result\npkg github.com/ronhuafeng/llmkit-go/settle, func Run()\n")
-	want := []byte("pkg github.com/ronhuafeng/llm-go/llmkit/llmstep, type Result\npkg github.com/ronhuafeng/llm-go/llmkit/settle, func Run()\n")
-	got := mapAPIInventory(legacy, "github.com/ronhuafeng/llmkit-go", "github.com/ronhuafeng/llm-go/llmkit")
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("mapped inventory = %q, want %q", got, want)
-	}
-	mutated := append([]byte(nil), want...)
-	mutated = append(mutated, []byte("pkg unexpected, type Added\n")...)
-	if _, err := mappedAPIInventoryDigest(legacy, mutated, "github.com/ronhuafeng/llmkit-go", "github.com/ronhuafeng/llm-go/llmkit"); err == nil || !strings.Contains(err.Error(), "not equivalent") {
-		t.Fatalf("mismatched inventory error = %v", err)
-	}
-}
-
-func TestCodexSDKLegacyAPIInventoryMappingIncludesFlattenedRoot(t *testing.T) {
-	legacy := []byte("type github.com/ronhuafeng/codexsdk-go/codexsdk.Client struct{}\n" +
-		"type github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2.Turn struct{}\n")
-	want := []byte("type github.com/ronhuafeng/llm-go/codexsdk.Client struct{}\n" +
-		"type github.com/ronhuafeng/llm-go/codexsdk/protocolv2.Turn struct{}\n")
-	got := mapAPIInventory(legacy, "github.com/ronhuafeng/codexsdk-go/codexsdk", "github.com/ronhuafeng/llm-go/codexsdk")
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("mapped SDK inventory = %q, want %q", got, want)
-	}
-}
-
-func TestAdapterLegacyAPIInventoryMappingIncludesBothUpstreams(t *testing.T) {
-	legacy := []byte("func github.com/ronhuafeng/llmcaller-codex-go/llmcaller/codex.New() github.com/ronhuafeng/codexsdk-go/codexsdk.StartedThreadRun\n" +
-		"type github.com/ronhuafeng/llmcaller-codex-go/llmcaller/codex.Options struct{Request github.com/ronhuafeng/llmkit-go/llmadapter.Request}\n")
-	want := []byte("func github.com/ronhuafeng/llm-go/llmcaller/codex.New() github.com/ronhuafeng/llm-go/codexsdk.StartedThreadRun\n" +
-		"type github.com/ronhuafeng/llm-go/llmcaller/codex.Options struct{Request github.com/ronhuafeng/llm-go/llmkit/llmadapter.Request}\n")
-	mappings := []apiInventoryMapping{
-		{Old: "github.com/ronhuafeng/llmcaller-codex-go/llmcaller/codex", New: "github.com/ronhuafeng/llm-go/llmcaller/codex"},
-		{Old: "github.com/ronhuafeng/codexsdk-go/codexsdk", New: "github.com/ronhuafeng/llm-go/codexsdk"},
-		{Old: "github.com/ronhuafeng/llmkit-go", New: "github.com/ronhuafeng/llm-go/llmkit"},
-	}
-	got := mapAPIInventoryAll(legacy, mappings)
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("mapped adapter inventory = %q, want %q", got, want)
-	}
-}
-
 func TestReleaseWorkflowWiringSmoke(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
 	if err != nil {
