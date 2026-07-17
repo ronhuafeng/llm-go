@@ -217,6 +217,11 @@ Applications configure those behaviors through the adjacent layers.
 
 ## Verification
 
+Release orchestration obtains handwritten compatibility facts from the
+module-owned `internal/cmd/apiinventoryreport` command, which binds the baseline
+and candidate inventory digests and classifies the change without transferring
+adapter API ownership to repository tooling.
+
 ```sh
 GOWORK=off go test ./...
 GOWORK=off go vet ./...

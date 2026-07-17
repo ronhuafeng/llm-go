@@ -4,13 +4,14 @@ Public module tags are created only by the manually dispatched
 `Release public module` GitHub Actions workflow. It accepts the exact next
 stable SemVer for any registered public module. The release plan compares the
 current module-owned canonical API inventory with the inventory committed at
-the latest stable module tag and classifies the mechanical impact as
-metadata-only, additive, or breaking. Structured change fragments may declare
-a higher behavior impact but cannot understate that mechanical floor. The SDK
-scope adds its owner-specific generated-facade and exact-lifecycle gates. The
-adapter scope reads its direct upstream tuple from the proxy artifact's own
-`go.mod`, compares it with the fresh consumer's resolved graph, and runs a typed
-three-layer call.
+the latest stable module tag. Each module's private inventory-report command
+classifies the handwritten mechanical impact as metadata-only, additive, or
+breaking; `repoctl` validates and aggregates the typed reports. Structured
+change fragments may declare a higher behavior impact but cannot understate
+that mechanical floor. The SDK scope adds its owner-specific generated-facade
+report and exact-lifecycle gates. The adapter scope reads its direct upstream
+tuple from the proxy artifact's own `go.mod`, compares it with the fresh
+consumer's resolved graph, and runs a typed three-layer call.
 
 ## Hosted GitHub configuration
 

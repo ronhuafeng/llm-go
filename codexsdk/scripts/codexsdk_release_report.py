@@ -71,9 +71,11 @@ def compatibility_report(base: dict[str, Any], target: dict[str, Any]) -> dict[s
                 }
             )
     implementation_obligations = [item for item in added if item["kind"] == "interface_method"]
+    release_impact = "breaking" if removed or changed or implementation_obligations else "additive" if added else "metadata-only"
     return {
         "policy": "go_source_compatibility_with_classification_metadata",
         "compatibility_impact": "incompatible" if removed or changed or implementation_obligations else "additive_or_metadata_only",
+        "release_impact": release_impact,
         "added": added,
         "removed": removed,
         "reclassified": reclassified,

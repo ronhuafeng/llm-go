@@ -53,6 +53,7 @@ class ReleaseReportTest(unittest.TestCase):
         report = release_report.compatibility_report(base, target)
 
         self.assertEqual(report["compatibility_impact"], "incompatible")
+        self.assertEqual(report["release_impact"], "breaking")
         self.assertEqual(report["removed"][0]["name"], "Event.Preview")
         self.assertEqual(report["removed"][0]["classification"], "experimental")
         self.assertEqual(report["counts_by_classification"]["experimental"]["removed"], 1)
@@ -68,7 +69,16 @@ class ReleaseReportTest(unittest.TestCase):
         report = release_report.compatibility_report(base, target)
 
         self.assertEqual(report["compatibility_impact"], "additive_or_metadata_only")
+        self.assertEqual(report["release_impact"], "additive")
         self.assertEqual(report["counts_by_classification"]["experimental"]["added"], 1)
+
+    def test_unchanged_surface_is_metadata_only(self) -> None:
+        base = manifest(("type", "Event", "stable"))
+
+        report = release_report.compatibility_report(base, base)
+
+        self.assertEqual(report["compatibility_impact"], "additive_or_metadata_only")
+        self.assertEqual(report["release_impact"], "metadata-only")
 
     def test_signature_change_is_incompatible_and_classified(self) -> None:
         base = manifest(("field", "Event.ID", "experimental"))
@@ -78,6 +88,7 @@ class ReleaseReportTest(unittest.TestCase):
         report = release_report.compatibility_report(base, target)
 
         self.assertEqual(report["compatibility_impact"], "incompatible")
+        self.assertEqual(report["release_impact"], "breaking")
         self.assertEqual(report["changed"][0]["name"], "Event.ID")
         self.assertEqual(report["changed"][0]["classification"], "experimental")
 
@@ -88,6 +99,7 @@ class ReleaseReportTest(unittest.TestCase):
         report = release_report.compatibility_report(base, target)
 
         self.assertEqual(report["compatibility_impact"], "additive_or_metadata_only")
+        self.assertEqual(report["release_impact"], "additive")
         self.assertEqual(report["external_implementation_obligations"], [])
         self.assertEqual(
             [(item["kind"], item["name"]) for item in report["added"]],
@@ -108,6 +120,7 @@ class ReleaseReportTest(unittest.TestCase):
         report = release_report.compatibility_report(base, target)
 
         self.assertEqual(report["compatibility_impact"], "incompatible")
+        self.assertEqual(report["release_impact"], "breaking")
         self.assertEqual(
             [item["name"] for item in report["external_implementation_obligations"]],
             ["Models.Read"],
