@@ -63,6 +63,7 @@ Commands live under [commands/](commands/). A caller may invoke any single comma
 
 References are optional context, not required linear playbooks:
 
+- [references/automation.md](references/automation.md): current remote workflow phases, invariants, and completion layers.
 - [references/local-sync.md](references/local-sync.md): local sync context and decision rules.
 - [references/recovery.md](references/recovery.md): recovery recipes for known remote failure states.
 

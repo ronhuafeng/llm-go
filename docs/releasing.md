@@ -12,10 +12,9 @@ adapter scope reads its direct upstream tuple from the proxy artifact's own
 `go.mod`, compares it with the fresh consumer's resolved graph, and runs a typed
 three-layer call.
 
-## One-time GitHub configuration
+## Hosted GitHub configuration
 
-Before the workflow is used, configure all of the following repository-hosted
-controls:
+Keep all of the following repository-hosted controls in place:
 
 1. Keep exactly one repository Deploy Key. It must be dedicated to this release
    workflow and have write access. Do not retain unrelated read-only or write
@@ -38,12 +37,10 @@ controls:
    - an **immutability** ruleset containing tag deletion and
      `non_fast_forward`, with an empty bypass list.
 
-The existing hosted ruleset `18924050` combines creation, deletion, and
-`non_fast_forward`. Migrate without weakening immutability: first create and
-activate the matching creation-only ruleset, then remove only the creation rule
-from `18924050` so it becomes the immutability owner. Never add a bypass actor
-to the immutability ruleset. Both rulesets must remain active and target the
-same formal tag prefixes.
+Hosted ruleset `18935608` owns the creation-only restriction. Hosted ruleset
+`18924050` owns deletion and `non_fast_forward` protection. Never add a bypass
+actor to the immutability ruleset. Both rulesets must remain active and target
+the same formal tag prefixes.
 
 GitHub represents the `DeployKey` bypass with `actor_id: null`, so it applies
 to every Deploy Key in the repository rather than selecting the dedicated key.
