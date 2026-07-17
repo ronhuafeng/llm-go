@@ -4,6 +4,9 @@ status: accepted
 
 # Import each history through a pure relocation commit
 
+ADR-0024 supersedes only this decision's continuing machine-readable migration
+evidence obligation. The recorded source-history topology remains unchanged.
+
 The new repository preserves the complete reachable history of each source
 repository. Each history is attached through an explicit relocation commit and
 an independent merge node:

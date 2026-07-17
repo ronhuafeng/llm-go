@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-// Verify checks the repository registry, workspace, ownership graph, and
-// immutable migration provenance from the supplied repository root.
+// Verify checks the repository registry, workspace, and ownership graph from
+// the supplied repository root.
 func Verify(root string) error {
 	absoluteRoot, err := filepath.Abs(root)
 	if err != nil {
@@ -22,8 +22,6 @@ func Verify(root string) error {
 
 	var violations []string
 	violations = append(violations, verifyArchitecture(absoluteRoot, &registered)...)
-	violations = append(violations, verifyProvenance(absoluteRoot, registered, commandGit{root: absoluteRoot})...)
-	violations = append(violations, verifyArchivalEvidence(absoluteRoot)...)
 	if len(violations) == 0 {
 		return nil
 	}

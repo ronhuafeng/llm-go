@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by ADR-0024
 ---
 
 # Require complete provenance, equivalence, and published evidence

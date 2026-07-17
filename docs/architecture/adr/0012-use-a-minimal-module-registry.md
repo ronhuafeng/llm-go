@@ -4,6 +4,9 @@ status: accepted
 
 # Use a minimal module registry
 
+ADR-0024 supersedes only this decision's continuing retention of the one-time
+migration provenance manifest.
+
 The repository root contains a versioned machine-readable registry of governed
 Go modules. It declares only publication identities that cannot be safely
 inferred from arbitrary directory discovery:
