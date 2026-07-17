@@ -21,7 +21,9 @@ The handwritten public API is the exported surface of the module-root
 generated facade methods are derived from the classified schema manifest and
 remain generator-owned facts.
 
-An inventory diff is an API-design review, not incidental test churn. Every
+The module-owned `internal/cmd/apiinventoryreport` command classifies the
+handwritten inventory diff and binds both input digests in its JSON report. An
+inventory diff is an API-design review, not incidental test churn. Every
 release compares the current handwritten and generated inventories with the
 latest stable `codexsdk/` tag and authorizes only the exact next stable SemVer
 required by the archived change fragments.
@@ -71,7 +73,7 @@ generator drift, a clean module archive, and an isolated source consumer.
 
 Before a tag, protected release CI additionally binds the requested version,
 path-prefixed tag, exact source commit and tree, declared impact, migration
-documentation, module archive, the handwritten inventory diff from the latest
+documentation, module archive, the module-owned handwritten inventory report from the latest
 stable `codexsdk` tag, the module-owned generated compatibility report, and
 evidence digests into one immutable authorization. Tags are created only by
 protected CI and are never moved or reused.

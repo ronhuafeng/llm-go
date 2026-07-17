@@ -114,7 +114,7 @@ remain in the module-owned migration guides rather than the repository design.
 | Fact | Authoritative evidence |
 | --- | --- |
 | Current module identity and requirements | Module-local `go.mod` |
-| Current exported API | Module-local canonical API inventory and exported code |
+| Current exported API and compatibility classification | Module-local canonical API inventory, exported code, and module-owned inventory report |
 | Runtime semantics | Module-local public behavior tests |
 | Generated facts | Owner-local generator inputs, manifests, and committed output |
 | Release impact intent | Module-local structured change fragments |

@@ -26,7 +26,9 @@ The public API is the exported surface of:
 - `github.com/ronhuafeng/llm-go/llmkit/llmstep`
 
 The canonical inventory is
-`internal/architecture/testdata/handwritten-api.txt`. Any inventory diff is an
+`internal/architecture/testdata/handwritten-api.txt`. The module-owned
+`internal/cmd/apiinventoryreport` command classifies any inventory diff and
+binds both input digests in its JSON report. Any inventory diff is an
 API-design review, not incidental test churn. Runtime behavior remains owned by
 module tests.
 

@@ -466,24 +466,17 @@ func TestPublishedEnvironmentDisablesWorkspaceVCSAndPrivateBypass(t *testing.T) 
 	}
 }
 
-func TestAPIInventoryEstablishesMechanicalReleaseFloor(t *testing.T) {
-	baseline := []byte("func example.com/pkg.A()\nfunc example.com/pkg.B()\n")
+func TestOwnerReportedAPIImpactEstablishesMechanicalReleaseFloor(t *testing.T) {
 	for _, test := range []struct {
-		name     string
-		current  []byte
 		impact   apiInventoryImpact
 		preV1Min string
 		v1Min    string
 	}{
-		{name: "metadata only", current: append([]byte(nil), baseline...), impact: apiInventoryMetadataOnly, preV1Min: "patch", v1Min: "patch"},
-		{name: "additive", current: append(append([]byte(nil), baseline...), []byte("func example.com/pkg.C()\n")...), impact: apiInventoryAdditive, preV1Min: "minor", v1Min: "minor"},
-		{name: "breaking", current: []byte("func example.com/pkg.A()\n"), impact: apiInventoryBreaking, preV1Min: "minor", v1Min: "major"},
+		{impact: apiInventoryMetadataOnly, preV1Min: "patch", v1Min: "patch"},
+		{impact: apiInventoryAdditive, preV1Min: "minor", v1Min: "minor"},
+		{impact: apiInventoryBreaking, preV1Min: "minor", v1Min: "major"},
 	} {
-		t.Run(test.name, func(t *testing.T) {
-			got := classifyAPIInventory(baseline, test.current)
-			if got != test.impact {
-				t.Fatalf("impact = %s, want %s", got, test.impact)
-			}
+		t.Run(string(test.impact), func(t *testing.T) {
 			if got := minimumReleaseImpact("v0.6.0", test.impact); got != test.preV1Min {
 				t.Fatalf("pre-v1 minimum = %s, want %s", got, test.preV1Min)
 			}
@@ -509,33 +502,45 @@ func TestAPIInventoryEstablishesMechanicalReleaseFloor(t *testing.T) {
 	}
 }
 
-func TestGeneratedAPIReportEstablishesMechanicalReleaseFloor(t *testing.T) {
-	for _, test := range []struct {
-		name    string
-		report  generatedAPICompatibilityReport
-		impact  apiInventoryImpact
-		wantErr string
-	}{
-		{name: "metadata only", report: generatedAPICompatibilityReport{CompatibilityImpact: "additive_or_metadata_only"}, impact: apiInventoryMetadataOnly},
-		{name: "additive", report: generatedAPICompatibilityReport{CompatibilityImpact: "additive_or_metadata_only", Added: []json.RawMessage{json.RawMessage(`{}`)}}, impact: apiInventoryAdditive},
-		{name: "breaking", report: generatedAPICompatibilityReport{CompatibilityImpact: "incompatible"}, impact: apiInventoryBreaking},
-		{name: "unknown", report: generatedAPICompatibilityReport{CompatibilityImpact: "unknown"}, wantErr: "unknown impact"},
+func TestReleaseOrchestratorConsumesEachModuleInventoryReport(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, candidate := range []module{
+		{ID: "llmkit", Dir: "llmkit"},
+		{ID: "codexsdk", Dir: "codexsdk"},
+		{ID: "codex-adapter", Dir: "llmcaller/codex"},
 	} {
-		t.Run(test.name, func(t *testing.T) {
-			impact, err := classifyGeneratedAPICompatibility(test.report)
-			if test.wantErr != "" {
-				if err == nil || !strings.Contains(err.Error(), test.wantErr) {
-					t.Fatalf("error = %v, want %q", err, test.wantErr)
-				}
-				return
-			}
+		t.Run(candidate.ID, func(t *testing.T) {
+			inventoryPath, err := apiInventoryPath(candidate.ID)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if impact != test.impact {
-				t.Fatalf("impact = %s, want %s", impact, test.impact)
+			current, err := os.ReadFile(filepath.Join(root, candidate.Dir, inventoryPath))
+			if err != nil {
+				t.Fatal(err)
+			}
+			report, impact, err := moduleAPIInventoryImpact(root, candidate, inventoryPath, current, current)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if impact != apiInventoryMetadataOnly || report.BaselineSHA256 != report.TargetSHA256 {
+				t.Fatalf("report = %#v, impact = %s", report, impact)
 			}
 		})
+	}
+}
+
+func TestAPIInventoryReportImpactIsClosed(t *testing.T) {
+	for _, value := range []string{"metadata-only", "additive", "breaking"} {
+		impact, err := parseAPIInventoryImpact(value)
+		if err != nil || string(impact) != value {
+			t.Fatalf("parse %q = %q, %v", value, impact, err)
+		}
+	}
+	if _, err := parseAPIInventoryImpact("unknown"); err == nil || !strings.Contains(err.Error(), "unknown API inventory impact") {
+		t.Fatalf("unknown impact error = %v", err)
 	}
 }
 
@@ -911,12 +916,19 @@ func validReleasePlan(t *testing.T) ReleasePlan {
 			TagPrefix: "llmkit/", Tag: "llmkit/v0.6.0",
 		},
 		Impact: ReleaseImpact{
-			Declared: "minor", Breaking: true, APIInventoryPath: "llmkit/internal/architecture/testdata/handwritten-api.txt",
-			APIInventorySHA256: strings.Repeat("c", 64), Baseline: "fixture",
+			Declared: "minor", Breaking: true,
+			APIInventory: ReleaseAPIInventoryEvidence{
+				Path: "llmkit/internal/architecture/testdata/handwritten-api.txt", BaselineTag: "llmkit/v0.5.0",
+				BaselineSHA256: strings.Repeat("c", 64), CurrentSHA256: strings.Repeat("c", 64),
+				HandwrittenImpact: "breaking", MechanicalImpact: "breaking",
+			},
 			Fragments: []ReleaseFragment{{Path: "llmkit/.changes/releases/v0.6.0/10.json", Impact: "minor", Breaking: true, Summary: "Move path.", Issue: 10, Migration: "docs/migration/v0.6.0.md"}},
 		},
 		Operations: []ReleaseOperation{{Order: 1, ModuleID: "llmkit", Tag: "llmkit/v0.6.0"}},
-		Inputs:     []ReleaseInput{{Path: "llmkit/go.mod", SHA256: strings.Repeat("d", 64)}},
+		Inputs: []ReleaseInput{
+			{Path: "llmkit/go.mod", SHA256: strings.Repeat("d", 64)},
+			{Path: "llmkit/internal/architecture/testdata/handwritten-api.txt", SHA256: strings.Repeat("c", 64)},
+		},
 		ArchiveSum: "h1:canonical",
 	}
 	var err error
@@ -937,8 +949,12 @@ func validAdapterReleasePlan(t *testing.T) ReleasePlan {
 			TagPrefix: "llmcaller/codex/", Tag: "llmcaller/codex/v0.5.0",
 		},
 		Impact: ReleaseImpact{
-			Declared: "minor", Breaking: true, APIInventoryPath: "llmcaller/codex/internal/architecture/testdata/handwritten-api.txt",
-			APIInventorySHA256: strings.Repeat("c", 64), Baseline: "fixture",
+			Declared: "minor", Breaking: true,
+			APIInventory: ReleaseAPIInventoryEvidence{
+				Path: "llmcaller/codex/internal/architecture/testdata/handwritten-api.txt", BaselineTag: "llmcaller/codex/v0.4.2",
+				BaselineSHA256: strings.Repeat("c", 64), CurrentSHA256: strings.Repeat("c", 64),
+				HandwrittenImpact: "breaking", MechanicalImpact: "breaking",
+			},
 			Fragments: []ReleaseFragment{{Path: "llmcaller/codex/.changes/releases/v0.5.0/14-module-path.json", Impact: "minor", Breaking: true, Summary: "Move path.", Issue: 14, Migration: "docs/migration/v0.5.0.md"}},
 		},
 		Dependencies: []ReleaseDependency{
@@ -946,7 +962,10 @@ func validAdapterReleasePlan(t *testing.T) ReleasePlan {
 			{Module: "github.com/ronhuafeng/llm-go/llmkit", Version: "v0.6.0"},
 		},
 		Operations: []ReleaseOperation{{Order: 1, ModuleID: "codex-adapter", Tag: "llmcaller/codex/v0.5.0"}},
-		Inputs:     []ReleaseInput{{Path: "llmcaller/codex/go.mod", SHA256: strings.Repeat("d", 64)}},
+		Inputs: []ReleaseInput{
+			{Path: "llmcaller/codex/go.mod", SHA256: strings.Repeat("d", 64)},
+			{Path: "llmcaller/codex/internal/architecture/testdata/handwritten-api.txt", SHA256: strings.Repeat("c", 64)},
+		},
 		ArchiveSum: "h1:canonical",
 	}
 	var err error

@@ -17,7 +17,7 @@ import (
 	"golang.org/x/mod/semver"
 )
 
-const releasePlanFormatVersion = 1
+const releasePlanFormatVersion = 2
 
 // ReleasePlan is the immutable authorization input for one public-module tag.
 // It intentionally contains only deterministic facts from one source commit.
@@ -46,12 +46,27 @@ type ReleasePlanSubject struct {
 }
 
 type ReleaseImpact struct {
-	Declared           string            `json:"declared"`
-	Breaking           bool              `json:"breaking"`
-	APIInventoryPath   string            `json:"api_inventory_path"`
-	APIInventorySHA256 string            `json:"api_inventory_sha256"`
-	Baseline           string            `json:"baseline"`
-	Fragments          []ReleaseFragment `json:"fragments"`
+	Declared     string                      `json:"declared"`
+	Breaking     bool                        `json:"breaking"`
+	APIInventory ReleaseAPIInventoryEvidence `json:"api_inventory"`
+	Fragments    []ReleaseFragment           `json:"fragments"`
+}
+
+type ReleaseAPIInventoryEvidence struct {
+	Path              string                       `json:"path"`
+	BaselineTag       string                       `json:"baseline_tag"`
+	BaselineSHA256    string                       `json:"baseline_sha256"`
+	CurrentSHA256     string                       `json:"current_sha256"`
+	HandwrittenImpact string                       `json:"handwritten_impact"`
+	MechanicalImpact  string                       `json:"mechanical_impact"`
+	Generated         *ReleaseGeneratedAPIEvidence `json:"generated,omitempty"`
+}
+
+type ReleaseGeneratedAPIEvidence struct {
+	Path           string `json:"path"`
+	BaselineSHA256 string `json:"baseline_sha256"`
+	CurrentSHA256  string `json:"current_sha256"`
+	Impact         string `json:"impact"`
 }
 
 type ReleaseFragment struct {
@@ -190,7 +205,7 @@ func BuildReleasePlan(root, moduleID, targetVersion, requiredCommit, mainRef str
 	if err := verifyAPISurface(recorder, runner, candidate.ID); err != nil {
 		return ReleasePlan{}, fmt.Errorf("verify canonical API inventory: %w", err)
 	}
-	baseline, err := validateAPIInventoryBaseline(root, candidate, inventoryPath, previousVersion, declaredImpact, breaking)
+	apiInventory, err := validateAPIInventoryBaseline(root, candidate, inventoryPath, previousVersion, declaredImpact, breaking)
 	if err != nil {
 		return ReleasePlan{}, err
 	}
@@ -228,6 +243,9 @@ func BuildReleasePlan(root, moduleID, targetVersion, requiredCommit, mainRef str
 	if inventoryDigest == "" {
 		return ReleasePlan{}, fmt.Errorf("canonical API inventory digest is missing")
 	}
+	if inventoryDigest != apiInventory.CurrentSHA256 {
+		return ReleasePlan{}, fmt.Errorf("canonical API inventory input digest does not match the module-owned report")
+	}
 
 	dependencies := make([]ReleaseDependency, 0, len(candidate.requireVersions))
 	for path, version := range candidate.requireVersions {
@@ -246,8 +264,7 @@ func BuildReleasePlan(root, moduleID, targetVersion, requiredCommit, mainRef str
 			TagPrefix: candidate.Dir + "/", Tag: tag,
 		},
 		Impact: ReleaseImpact{
-			Declared: declaredImpact, Breaking: breaking, APIInventoryPath: filepath.ToSlash(filepath.Join(candidate.Dir, inventoryPath)),
-			APIInventorySHA256: inventoryDigest, Baseline: baseline, Fragments: fragments,
+			Declared: declaredImpact, Breaking: breaking, APIInventory: apiInventory, Fragments: fragments,
 		},
 		Dependencies: dependencies,
 		Operations:   []ReleaseOperation{{Order: 1, ModuleID: candidate.ID, Tag: tag}},
@@ -276,9 +293,15 @@ func validateReleaseCommit(checkoutCommit, requiredCommit, mainRef, mainCommit s
 
 type apiInventoryImpact string
 
-type generatedAPICompatibilityReport struct {
-	CompatibilityImpact string            `json:"compatibility_impact"`
-	Added               []json.RawMessage `json:"added"`
+type moduleAPIInventoryReport struct {
+	FormatVersion  int    `json:"format_version"`
+	BaselineSHA256 string `json:"baseline_sha256"`
+	TargetSHA256   string `json:"target_sha256"`
+	Impact         string `json:"impact"`
+}
+
+type generatedAPIReleaseReport struct {
+	ReleaseImpact string `json:"release_impact"`
 }
 
 const codexSDKGeneratedManifestPath = "internal/protocolschema/appserver/v2/manifest.json"
@@ -289,31 +312,80 @@ const (
 	apiInventoryBreaking     apiInventoryImpact = "breaking"
 )
 
-func validateAPIInventoryBaseline(root string, candidate module, inventoryPath, previousVersion, declaredImpact string, declaredBreaking bool) (string, error) {
+func validateAPIInventoryBaseline(root string, candidate module, inventoryPath, previousVersion, declaredImpact string, declaredBreaking bool) (ReleaseAPIInventoryEvidence, error) {
 	previousTag := candidate.Dir + "/" + previousVersion
 	previousPath := filepath.ToSlash(filepath.Join(candidate.Dir, inventoryPath))
 	previous, err := gitBytes(root, "show", previousTag+":"+previousPath)
 	if err != nil {
-		return "", fmt.Errorf("read canonical API inventory from %s: %w", previousTag, err)
+		return ReleaseAPIInventoryEvidence{}, fmt.Errorf("read canonical API inventory from %s: %w", previousTag, err)
 	}
 	current, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(previousPath)))
 	if err != nil {
-		return "", fmt.Errorf("read current canonical API inventory: %w", err)
+		return ReleaseAPIInventoryEvidence{}, fmt.Errorf("read current canonical API inventory: %w", err)
 	}
-	impact := classifyAPIInventory(previous, current)
-	baseline := fmt.Sprintf("%s canonical API inventory sha256:%s; handwritten impact:%s", previousTag, sha256Hex(previous), impact)
+	report, impact, err := moduleAPIInventoryImpact(root, candidate, inventoryPath, previous, current)
+	if err != nil {
+		return ReleaseAPIInventoryEvidence{}, err
+	}
+	evidence := ReleaseAPIInventoryEvidence{
+		Path:              previousPath,
+		BaselineTag:       previousTag,
+		BaselineSHA256:    report.BaselineSHA256,
+		CurrentSHA256:     report.TargetSHA256,
+		HandwrittenImpact: string(impact),
+	}
 	if candidate.ID == "codexsdk" {
-		generatedImpact, generatedDigest, err := codexSDKGeneratedAPIImpact(root, candidate, previousTag)
+		generated, generatedImpact, err := codexSDKGeneratedAPIImpact(root, candidate, previousTag)
 		if err != nil {
-			return "", err
+			return ReleaseAPIInventoryEvidence{}, err
 		}
+		evidence.Generated = &generated
 		impact = strongerAPIImpact(impact, generatedImpact)
-		baseline += fmt.Sprintf("; generated manifest sha256:%s; generated impact:%s", generatedDigest, generatedImpact)
 	}
 	if err := validateAPIImpactFloor(previousTag, previousVersion, impact, declaredImpact, declaredBreaking); err != nil {
-		return "", err
+		return ReleaseAPIInventoryEvidence{}, err
 	}
-	return baseline + "; mechanical impact:" + string(impact), nil
+	evidence.MechanicalImpact = string(impact)
+	return evidence, nil
+}
+
+func moduleAPIInventoryImpact(root string, candidate module, inventoryPath string, previous, current []byte) (moduleAPIInventoryReport, apiInventoryImpact, error) {
+	temporary, err := os.CreateTemp("", "llm-go-api-inventory-*.txt")
+	if err != nil {
+		return moduleAPIInventoryReport{}, "", fmt.Errorf("create API inventory baseline: %w", err)
+	}
+	temporaryPath := temporary.Name()
+	defer os.Remove(temporaryPath)
+	if _, err := temporary.Write(previous); err != nil {
+		temporary.Close()
+		return moduleAPIInventoryReport{}, "", fmt.Errorf("write API inventory baseline: %w", err)
+	}
+	if err := temporary.Close(); err != nil {
+		return moduleAPIInventoryReport{}, "", fmt.Errorf("close API inventory baseline: %w", err)
+	}
+	moduleRoot := filepath.Join(root, filepath.FromSlash(candidate.Dir))
+	command := exec.Command("go", "run", "./internal/cmd/apiinventoryreport", "-baseline", temporaryPath, "-target", inventoryPath)
+	command.Dir = moduleRoot
+	command.Env = overriddenEnvironment(map[string]string{"GOWORK": "off", "GOTOOLCHAIN": "local"})
+	output, err := command.CombinedOutput()
+	if err != nil {
+		return moduleAPIInventoryReport{}, "", fmt.Errorf("module-owned API inventory report: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	var report moduleAPIInventoryReport
+	if err := json.Unmarshal(output, &report); err != nil {
+		return moduleAPIInventoryReport{}, "", fmt.Errorf("decode module-owned API inventory report: %w", err)
+	}
+	if report.FormatVersion != 1 {
+		return moduleAPIInventoryReport{}, "", fmt.Errorf("module-owned API inventory report has unsupported format_version %d", report.FormatVersion)
+	}
+	if report.BaselineSHA256 != sha256Hex(previous) || report.TargetSHA256 != sha256Hex(current) {
+		return moduleAPIInventoryReport{}, "", fmt.Errorf("module-owned API inventory report digests do not match its inputs")
+	}
+	impact, err := parseAPIInventoryImpact(report.Impact)
+	if err != nil {
+		return moduleAPIInventoryReport{}, "", fmt.Errorf("module-owned API inventory report: %w", err)
+	}
+	return report, impact, nil
 }
 
 func validateAPIImpactFloor(previousTag, previousVersion string, impact apiInventoryImpact, declaredImpact string, declaredBreaking bool) error {
@@ -327,24 +399,29 @@ func validateAPIImpactFloor(previousTag, previousVersion string, impact apiInven
 	return nil
 }
 
-func codexSDKGeneratedAPIImpact(root string, candidate module, previousTag string) (apiInventoryImpact, string, error) {
+func codexSDKGeneratedAPIImpact(root string, candidate module, previousTag string) (ReleaseGeneratedAPIEvidence, apiInventoryImpact, error) {
 	manifestPath := filepath.ToSlash(filepath.Join(candidate.Dir, codexSDKGeneratedManifestPath))
 	previous, err := gitBytes(root, "show", previousTag+":"+manifestPath)
 	if err != nil {
-		return "", "", fmt.Errorf("read generated API manifest from %s: %w", previousTag, err)
+		return ReleaseGeneratedAPIEvidence{}, "", fmt.Errorf("read generated API manifest from %s: %w", previousTag, err)
+	}
+	currentPath := filepath.Join(root, filepath.FromSlash(manifestPath))
+	current, err := os.ReadFile(currentPath)
+	if err != nil {
+		return ReleaseGeneratedAPIEvidence{}, "", fmt.Errorf("read current generated API manifest: %w", err)
 	}
 	temporary, err := os.CreateTemp("", "llm-go-codexsdk-manifest-*.json")
 	if err != nil {
-		return "", "", fmt.Errorf("create generated API baseline: %w", err)
+		return ReleaseGeneratedAPIEvidence{}, "", fmt.Errorf("create generated API baseline: %w", err)
 	}
 	temporaryPath := temporary.Name()
 	defer os.Remove(temporaryPath)
 	if _, err := temporary.Write(previous); err != nil {
 		temporary.Close()
-		return "", "", fmt.Errorf("write generated API baseline: %w", err)
+		return ReleaseGeneratedAPIEvidence{}, "", fmt.Errorf("write generated API baseline: %w", err)
 	}
 	if err := temporary.Close(); err != nil {
-		return "", "", fmt.Errorf("close generated API baseline: %w", err)
+		return ReleaseGeneratedAPIEvidence{}, "", fmt.Errorf("close generated API baseline: %w", err)
 	}
 	moduleRoot := filepath.Join(root, filepath.FromSlash(candidate.Dir))
 	command := exec.Command("python3", "scripts/codexsdk_release_report.py", "--base-manifest", temporaryPath, "--target-manifest", codexSDKGeneratedManifestPath)
@@ -354,56 +431,33 @@ func codexSDKGeneratedAPIImpact(root string, candidate module, previousTag strin
 	if runErr != nil {
 		var exitErr *exec.ExitError
 		if !errors.As(runErr, &exitErr) || exitErr.ExitCode() != 1 {
-			return "", "", fmt.Errorf("classify generated API compatibility: %w: %s", runErr, strings.TrimSpace(string(output)))
+			return ReleaseGeneratedAPIEvidence{}, "", fmt.Errorf("classify generated API compatibility: %w: %s", runErr, strings.TrimSpace(string(output)))
 		}
 	}
-	var report generatedAPICompatibilityReport
+	var report generatedAPIReleaseReport
 	if err := json.Unmarshal(output, &report); err != nil {
-		return "", "", fmt.Errorf("decode generated API compatibility report: %w", err)
+		return ReleaseGeneratedAPIEvidence{}, "", fmt.Errorf("decode generated API compatibility report: %w", err)
 	}
-	impact, err := classifyGeneratedAPICompatibility(report)
+	impact, err := parseAPIInventoryImpact(report.ReleaseImpact)
 	if err != nil {
-		return "", "", err
+		return ReleaseGeneratedAPIEvidence{}, "", fmt.Errorf("generated API compatibility report: %w", err)
 	}
-	return impact, sha256Hex(previous), nil
+	return ReleaseGeneratedAPIEvidence{
+		Path:           manifestPath,
+		BaselineSHA256: sha256Hex(previous),
+		CurrentSHA256:  sha256Hex(current),
+		Impact:         string(impact),
+	}, impact, nil
 }
 
-func classifyGeneratedAPICompatibility(report generatedAPICompatibilityReport) (apiInventoryImpact, error) {
-	impact := apiInventoryMetadataOnly
-	switch report.CompatibilityImpact {
-	case "incompatible":
-		impact = apiInventoryBreaking
-	case "additive_or_metadata_only":
-		if len(report.Added) != 0 {
-			impact = apiInventoryAdditive
-		}
+func parseAPIInventoryImpact(value string) (apiInventoryImpact, error) {
+	impact := apiInventoryImpact(value)
+	switch impact {
+	case apiInventoryMetadataOnly, apiInventoryAdditive, apiInventoryBreaking:
+		return impact, nil
 	default:
-		return "", fmt.Errorf("generated API compatibility report has unknown impact %q", report.CompatibilityImpact)
+		return "", fmt.Errorf("unknown API inventory impact %q", value)
 	}
-	return impact, nil
-}
-
-func classifyAPIInventory(previous, current []byte) apiInventoryImpact {
-	if bytes.Equal(previous, current) {
-		return apiInventoryMetadataOnly
-	}
-	currentLines := inventoryLines(current)
-	for line := range inventoryLines(previous) {
-		if !currentLines[line] {
-			return apiInventoryBreaking
-		}
-	}
-	return apiInventoryAdditive
-}
-
-func inventoryLines(inventory []byte) map[string]bool {
-	lines := map[string]bool{}
-	for _, line := range strings.Split(strings.TrimSpace(string(inventory)), "\n") {
-		if line != "" {
-			lines[line] = true
-		}
-	}
-	return lines
 }
 
 func strongerAPIImpact(left, right apiInventoryImpact) apiInventoryImpact {
@@ -665,11 +719,40 @@ func (plan ReleasePlan) Validate() error {
 	if plan.Impact.Breaking && plan.Impact.Declared == "patch" {
 		return fmt.Errorf("release plan declares a breaking patch release")
 	}
-	if len(plan.Impact.Fragments) == 0 || plan.Impact.Declared == "" || plan.Impact.APIInventorySHA256 == "" || plan.Impact.Baseline == "" || plan.ArchiveSum == "" {
+	if len(plan.Impact.Fragments) == 0 || plan.Impact.Declared == "" || plan.ArchiveSum == "" {
 		return fmt.Errorf("release plan impact or archive evidence is incomplete")
 	}
-	if !isSHA256(plan.Impact.APIInventorySHA256) {
-		return fmt.Errorf("release plan contains an invalid API SHA-256")
+	inventoryPath, err := apiInventoryPath(plan.Subject.ModuleID)
+	if err != nil {
+		return err
+	}
+	wantInventoryPath := filepath.ToSlash(filepath.Join(plan.Subject.ModuleDir, inventoryPath))
+	inventory := plan.Impact.APIInventory
+	if inventory.Path != wantInventoryPath || inventory.BaselineTag != plan.Subject.ModuleDir+"/"+plan.Subject.PreviousVersion || !isSHA256(inventory.BaselineSHA256) || !isSHA256(inventory.CurrentSHA256) {
+		return fmt.Errorf("release plan API inventory evidence is incomplete or inconsistent")
+	}
+	handwrittenImpact, err := parseAPIInventoryImpact(inventory.HandwrittenImpact)
+	if err != nil {
+		return err
+	}
+	mechanicalImpact := handwrittenImpact
+	if plan.Subject.ModuleID == "codexsdk" {
+		if inventory.Generated == nil || inventory.Generated.Path != filepath.ToSlash(filepath.Join(plan.Subject.ModuleDir, codexSDKGeneratedManifestPath)) || !isSHA256(inventory.Generated.BaselineSHA256) || !isSHA256(inventory.Generated.CurrentSHA256) {
+			return fmt.Errorf("release plan generated API evidence is incomplete or inconsistent")
+		}
+		generatedImpact, err := parseAPIInventoryImpact(inventory.Generated.Impact)
+		if err != nil {
+			return err
+		}
+		mechanicalImpact = strongerAPIImpact(mechanicalImpact, generatedImpact)
+	} else if inventory.Generated != nil {
+		return fmt.Errorf("release plan contains generated API evidence for a non-SDK module")
+	}
+	if inventory.MechanicalImpact != string(mechanicalImpact) {
+		return fmt.Errorf("release plan mechanical API impact does not match owner reports")
+	}
+	if err := validateAPIImpactFloor(inventory.BaselineTag, plan.Subject.PreviousVersion, mechanicalImpact, plan.Impact.Declared, plan.Impact.Breaking); err != nil {
+		return err
 	}
 	if !strings.HasPrefix(plan.ArchiveSum, "h1:") {
 		return fmt.Errorf("release plan contains an invalid canonical archive sum")
@@ -697,6 +780,12 @@ func (plan ReleasePlan) Validate() error {
 		}
 		lastInput = input.Path
 	}
+	if releaseInputSHA256(plan.Inputs, inventory.Path) != inventory.CurrentSHA256 {
+		return fmt.Errorf("release plan API inventory evidence does not match its release input")
+	}
+	if inventory.Generated != nil && releaseInputSHA256(plan.Inputs, inventory.Generated.Path) != inventory.Generated.CurrentSHA256 {
+		return fmt.Errorf("release plan generated API evidence does not match its release input")
+	}
 	if !sort.SliceIsSorted(plan.Impact.Fragments, func(i, j int) bool { return plan.Impact.Fragments[i].Path < plan.Impact.Fragments[j].Path }) {
 		return fmt.Errorf("release plan fragments are not sorted")
 	}
@@ -708,6 +797,15 @@ func (plan ReleasePlan) Validate() error {
 		return fmt.Errorf("release plan digest mismatch: got %q want %q", plan.PlanDigest, want)
 	}
 	return nil
+}
+
+func releaseInputSHA256(inputs []ReleaseInput, path string) string {
+	for _, input := range inputs {
+		if input.Path == path {
+			return input.SHA256
+		}
+	}
+	return ""
 }
 
 func isSHA256(value string) bool {

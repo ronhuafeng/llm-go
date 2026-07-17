@@ -27,6 +27,12 @@ Inventory changes correspond exactly to real exported API changes. Module-local
 diff logic classifies them as additive, breaking, or metadata-only. Behavior
 tests continue to own runtime semantics; an inventory describes surface only.
 
+Each public module exposes that classification to release orchestration through
+its non-published `internal/cmd/apiinventoryreport` command. The command accepts
+one baseline inventory and one candidate inventory and emits a versioned JSON
+report binding both digests and the module-owned impact. `repoctl` validates and
+aggregates those reports; it does not reimplement their classification logic.
+
 `repoctl release-plan` aggregates the module reports and checks their changelog,
 migration, and requested SemVer impact. It does not become an independent API
 fact source. Pre-v1 releases still report breaking changes explicitly; after v1,
