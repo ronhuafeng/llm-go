@@ -86,6 +86,7 @@ class SyncTagTest(unittest.TestCase):
             "codex_version": "codex-cli 0.1.0",
         }
         message = sync_tag.sync_tag_message(metadata, SDK_SHA)
+        self.assertTrue(message.startswith("Sync llm-go/codexsdk with openai/codex rust-v0.140.0\n"))
         self.assertIn("upstream_ref: rust-v0.140.0", message)
         self.assertIn(f"upstream_commit: {UPSTREAM_SHA}", message)
         self.assertIn(f"codexsdk_commit: {SDK_SHA}", message)

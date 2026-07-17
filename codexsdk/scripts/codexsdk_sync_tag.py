@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create annotated codexsdk-go tags for stable upstream Codex baselines."""
+"""Create annotated codexsdk tags for stable upstream Codex baselines."""
 
 from __future__ import annotations
 
@@ -70,7 +70,7 @@ def tag_name(metadata: dict[str, Any]) -> str:
 def sync_tag_message(metadata: dict[str, Any], codexsdk_commit: str) -> str:
     ref_name = str(metadata.get("source_ref_name") or "")
     lines = [
-        f"Sync codexsdk-go with openai/codex {ref_name}",
+        f"Sync llm-go/codexsdk with openai/codex {ref_name}",
         "",
         f"upstream_repo: {metadata.get('source_repo', 'https://github.com/openai/codex')}",
         f"upstream_ref: {ref_name}",

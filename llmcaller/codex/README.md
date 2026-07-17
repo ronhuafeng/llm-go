@@ -227,9 +227,13 @@ The canonical exported API inventory, public behavior tests, and schema matrix
 remain module-owned. The committed `go.mod` is the sole compatibility-tuple
 owner. Repository-level `repoctl` verification derives the two stable upstream
 requirements from that file, runs the flattened three-layer canary and an
-isolated source consumer, and owns release and public-proxy evidence. Historical
-proposal documents remain design context only and are not build, CI, or release
-gates.
+isolated source consumer, and owns release and public-proxy evidence.
+
+## Security
+
+Applications own Codex authentication, workspace exposure, approval handling,
+and the app-server command. See [SECURITY.md](SECURITY.md) for the complete
+adapter boundary and private vulnerability-reporting path.
 
 This project is MIT licensed. Dependency provenance is recorded in
 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).

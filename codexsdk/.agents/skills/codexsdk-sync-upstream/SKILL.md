@@ -1,6 +1,6 @@
 ---
 name: codexsdk-sync-upstream
-description: Sync codexsdk-go's checked-in Codex app-server protocol baseline to a selected upstream openai/codex tag, ref, or commit. Use for protocol drift detection, protected sync PR publication, baseline metadata/report refresh, protocolv2 regeneration, validation, upstream sync tagging, and finalize verification.
+description: Sync the codexsdk module's checked-in Codex app-server protocol baseline to a selected upstream openai/codex tag, ref, or commit. Use for protocol drift detection, protected sync PR publication, baseline metadata/report refresh, protocolv2 regeneration, validation, upstream sync tagging, and finalize verification.
 ---
 
 # Codex SDK Upstream Sync
@@ -41,7 +41,6 @@ Sync PR metadata records the upstream target, drift fingerprint, sync commit, an
 - Do not delete or move upstream sync tags.
 - Do not weaken branch protection or merge around failed required checks.
 - Keep `action_required` documented as an expected maintainer rerun gate for sync PRs created by `GITHUB_TOKEN`.
-- Keep merge decisions on the real protected-branch PR path after the required `PR verification` check passes.
 - Keep checked-in baseline metadata and checked-in reports free of local absolute paths, `.cache` output paths, private repo paths, account data, and raw smoke-test transcripts.
 - Preserve unrelated user changes.
 - Keep merge decisions on the protected PR path. Branch protection, the real required `PR verification` check, and an authorized maintainer decide whether a sync PR lands; repository auto-merge may be enabled separately but is not assumed.
