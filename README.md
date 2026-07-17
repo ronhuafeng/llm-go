@@ -1,43 +1,79 @@
 # llm-go
 
-`llm-go` is the single source and release repository for three
-independently published Go modules:
+Typed Go building blocks for reliable structured LLM calls.
 
-- `github.com/ronhuafeng/llm-go/llmkit`
-- `github.com/ronhuafeng/llm-go/codexsdk`
-- `github.com/ronhuafeng/llm-go/llmcaller/codex`
+`llm-go` provides three independently versioned modules. Use the
+provider-neutral toolkit on its own, control a local Codex app-server directly,
+or connect the two while keeping the complete Codex result available.
+
+## Modules
+
+| Module | Use it to | Import path |
+| --- | --- | --- |
+| [`llmkit`](llmkit) | Generate JSON Schema from Go types, decode and validate structured output, and run bounded retries without a provider SDK. | `github.com/ronhuafeng/llm-go/llmkit` |
+| [`codexsdk`](codexsdk) | Control a local Codex app-server through generated protocol types and typed thread/turn APIs. | `github.com/ronhuafeng/llm-go/codexsdk` |
+| [`llmcaller/codex`](llmcaller/codex) | Use Codex as an `llmkit` caller with access to the complete SDK result. | `github.com/ronhuafeng/llm-go/llmcaller/codex` |
+
+Start with the README for the module matching your use case.
+
+For an implementation-oriented guide that a coding agent can follow, see
+[Integrating `llm-go`](docs/coding-agent-guide.md). It covers module selection,
+recommended call paths, schema constraints, error handling, and testing.
+
+## Architecture
+
+```text
+structured application
+        │
+      llmkit
+        │
+llmcaller/codex
+        │
+     codexsdk
+        │
+ Codex app-server
+```
+
+The modules remain separate by design:
+
+- `llmkit` and `codexsdk` do not depend on each other.
+- `llmcaller/codex` is the only public module that depends on both.
+- `internal/tools` may use all three public modules; they never depend on it.
+- The repository root coordinates development and releases but is not a Go
+  module or umbrella API.
 
 The complete legacy histories are part of this repository. The three legacy
 repositories are archived and read-only; all active development and releases
 use the module paths above.
 
-The repository root is orchestration-only and intentionally has no public Go
-module or umbrella facade. The provider-neutral toolkit, exact Codex SDK, and
-Codex adapter remain separate semantic and release units.
+## Development
 
-## Repository contract
-
-`module-registry.json` identifies the three published modules and the
-non-published repository-tools module. The committed `go.work` composes those
-four modules for checkout development. Verify the registry, workspace, import
-ownership graph, and orchestration-only root with:
+From the repository root, check the module registry, workspace, import
+boundaries, and root layout with:
 
 ```sh
 go run ./internal/tools/cmd/repoctl verify
 ```
 
-Workspace composition is additional evidence, not a substitute for independent
-module verification. Disable the workspace when checking a release unit:
+Then test every module independently using the dependencies declared in its
+own `go.mod`:
 
 ```sh
-(cd llmkit && GOWORK=off go test ./...)
-(cd codexsdk && GOWORK=off go test ./...)
-(cd llmcaller/codex && GOWORK=off go test ./...)
-(cd internal/tools && GOWORK=off go test ./...)
+(
+  set -e
+  for module in llmkit codexsdk llmcaller/codex internal/tools; do
+    echo "==> Testing ${module}"
+    (cd "${module}" && GOWORK=off go test ./...)
+  done
+)
 ```
 
-See the [current design](docs/architecture/DESIGN.md),
-[context map](CONTEXT-MAP.md), and [protected release operation](docs/releasing.md).
+See the [context map](CONTEXT-MAP.md) for current semantic ownership, the
+[architecture design](docs/architecture/DESIGN.md) for the accepted repository
+structure, [repository verification](docs/verification.md) for the complete CI
+checks, and the [protected release operation](docs/releasing.md) for release
+maintainers.
+
 Consumers moving from the archived module paths should use the module-owned
 [toolkit](llmkit/docs/migration/v0.6.0.md),
 [SDK](codexsdk/docs/migration/v0.6.0.md), or
