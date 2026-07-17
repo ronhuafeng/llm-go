@@ -61,14 +61,15 @@ func buildReport(baseline, target []byte) inventoryReport {
 }
 
 func classifyInventory(baseline, target []byte) inventoryImpact {
-	if string(baseline) == string(target) {
-		return impactMetadataOnly
-	}
+	baselineLines := inventoryLines(baseline)
 	targetLines := inventoryLines(target)
-	for line := range inventoryLines(baseline) {
+	for line := range baselineLines {
 		if !targetLines[line] {
 			return impactBreaking
 		}
+	}
+	if len(baselineLines) == len(targetLines) {
+		return impactMetadataOnly
 	}
 	return impactAdditive
 }

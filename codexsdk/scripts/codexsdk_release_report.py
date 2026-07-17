@@ -71,16 +71,22 @@ def compatibility_report(base: dict[str, Any], target: dict[str, Any]) -> dict[s
                 }
             )
     implementation_obligations = [item for item in added if item["kind"] == "interface_method"]
-    release_impact = "breaking" if removed or changed or implementation_obligations else "additive" if added else "metadata-only"
+    support_rank = {"experimental": 0, "mixed": 1, "stable": 2}
+    weakened_support = [item for item in reclassified if support_rank[item["to"]] < support_rank[item["from"]]]
+    strengthened_support = [item for item in reclassified if support_rank[item["to"]] > support_rank[item["from"]]]
+    incompatible = bool(removed or changed or implementation_obligations or weakened_support)
+    release_impact = "breaking" if incompatible else "additive" if added or strengthened_support else "metadata-only"
     return {
         "policy": "go_source_compatibility_with_classification_metadata",
-        "compatibility_impact": "incompatible" if removed or changed or implementation_obligations else "additive_or_metadata_only",
+        "compatibility_impact": "incompatible" if incompatible else "additive_or_metadata_only",
         "release_impact": release_impact,
         "added": added,
         "removed": removed,
         "reclassified": reclassified,
         "changed": changed,
         "external_implementation_obligations": implementation_obligations,
+        "weakened_support": weakened_support,
+        "strengthened_support": strengthened_support,
         "counts_by_classification": {
             stability: {
                 "added": sum(item["classification"] == stability for item in added),

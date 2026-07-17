@@ -57,16 +57,16 @@ type ReleaseAPIInventoryEvidence struct {
 	BaselineTag       string                       `json:"baseline_tag"`
 	BaselineSHA256    string                       `json:"baseline_sha256"`
 	CurrentSHA256     string                       `json:"current_sha256"`
-	HandwrittenImpact string                       `json:"handwritten_impact"`
-	MechanicalImpact  string                       `json:"mechanical_impact"`
+	HandwrittenImpact apiInventoryImpact           `json:"handwritten_impact"`
+	MechanicalImpact  apiInventoryImpact           `json:"mechanical_impact"`
 	Generated         *ReleaseGeneratedAPIEvidence `json:"generated,omitempty"`
 }
 
 type ReleaseGeneratedAPIEvidence struct {
-	Path           string `json:"path"`
-	BaselineSHA256 string `json:"baseline_sha256"`
-	CurrentSHA256  string `json:"current_sha256"`
-	Impact         string `json:"impact"`
+	Path           string             `json:"path"`
+	BaselineSHA256 string             `json:"baseline_sha256"`
+	CurrentSHA256  string             `json:"current_sha256"`
+	Impact         apiInventoryImpact `json:"impact"`
 }
 
 type ReleaseFragment struct {
@@ -294,14 +294,14 @@ func validateReleaseCommit(checkoutCommit, requiredCommit, mainRef, mainCommit s
 type apiInventoryImpact string
 
 type moduleAPIInventoryReport struct {
-	FormatVersion  int    `json:"format_version"`
-	BaselineSHA256 string `json:"baseline_sha256"`
-	TargetSHA256   string `json:"target_sha256"`
-	Impact         string `json:"impact"`
+	FormatVersion  int                `json:"format_version"`
+	BaselineSHA256 string             `json:"baseline_sha256"`
+	TargetSHA256   string             `json:"target_sha256"`
+	Impact         apiInventoryImpact `json:"impact"`
 }
 
 type generatedAPIReleaseReport struct {
-	ReleaseImpact string `json:"release_impact"`
+	ReleaseImpact apiInventoryImpact `json:"release_impact"`
 }
 
 const codexSDKGeneratedManifestPath = "internal/protocolschema/appserver/v2/manifest.json"
@@ -332,7 +332,7 @@ func validateAPIInventoryBaseline(root string, candidate module, inventoryPath, 
 		BaselineTag:       previousTag,
 		BaselineSHA256:    report.BaselineSHA256,
 		CurrentSHA256:     report.TargetSHA256,
-		HandwrittenImpact: string(impact),
+		HandwrittenImpact: impact,
 	}
 	if candidate.ID == "codexsdk" {
 		generated, generatedImpact, err := codexSDKGeneratedAPIImpact(root, candidate, previousTag)
@@ -345,7 +345,7 @@ func validateAPIInventoryBaseline(root string, candidate module, inventoryPath, 
 	if err := validateAPIImpactFloor(previousTag, previousVersion, impact, declaredImpact, declaredBreaking); err != nil {
 		return ReleaseAPIInventoryEvidence{}, err
 	}
-	evidence.MechanicalImpact = string(impact)
+	evidence.MechanicalImpact = impact
 	return evidence, nil
 }
 
@@ -446,17 +446,16 @@ func codexSDKGeneratedAPIImpact(root string, candidate module, previousTag strin
 		Path:           manifestPath,
 		BaselineSHA256: sha256Hex(previous),
 		CurrentSHA256:  sha256Hex(current),
-		Impact:         string(impact),
+		Impact:         impact,
 	}, impact, nil
 }
 
-func parseAPIInventoryImpact(value string) (apiInventoryImpact, error) {
-	impact := apiInventoryImpact(value)
+func parseAPIInventoryImpact(impact apiInventoryImpact) (apiInventoryImpact, error) {
 	switch impact {
 	case apiInventoryMetadataOnly, apiInventoryAdditive, apiInventoryBreaking:
 		return impact, nil
 	default:
-		return "", fmt.Errorf("unknown API inventory impact %q", value)
+		return "", fmt.Errorf("unknown API inventory impact %q", impact)
 	}
 }
 
@@ -748,7 +747,7 @@ func (plan ReleasePlan) Validate() error {
 	} else if inventory.Generated != nil {
 		return fmt.Errorf("release plan contains generated API evidence for a non-SDK module")
 	}
-	if inventory.MechanicalImpact != string(mechanicalImpact) {
+	if inventory.MechanicalImpact != mechanicalImpact {
 		return fmt.Errorf("release plan mechanical API impact does not match owner reports")
 	}
 	if err := validateAPIImpactFloor(inventory.BaselineTag, plan.Subject.PreviousVersion, mechanicalImpact, plan.Impact.Declared, plan.Impact.Breaking); err != nil {
