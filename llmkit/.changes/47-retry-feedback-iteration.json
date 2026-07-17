@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "module": "llmkit",
+  "impact": "patch",
+  "breaking": false,
+  "summary": "Stamp model-facing retry feedback with the framework-assigned iteration.",
+  "issue": 47,
+  "migration": "none"
+}

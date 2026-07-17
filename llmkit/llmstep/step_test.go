@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -417,6 +418,93 @@ func TestRunDetailedSeparatesValidationFromRetryFeedback(t *testing.T) {
 	}
 	if sanitizerOutput[0].Iteration != 0 || sanitizerOutput[0].Codes[0] != "safe_code" {
 		t.Fatalf("framework mutated sanitizer-owned output: %#v", sanitizerOutput)
+	}
+}
+
+func TestRunDetailedStampsValidatorRetryFeedbackWithFrameworkIteration(t *testing.T) {
+	for _, validatorIteration := range []int{0, -1, 999} {
+		t.Run(fmt.Sprintf("validator iteration %d", validatorIteration), func(t *testing.T) {
+			caller := &fakeCaller{responses: []llmadapter.Response{
+				{FinalResponse: `{"status":"draft"}`},
+				{FinalResponse: `{"status":"ok"}`},
+			}}
+			var rendered []Feedback
+
+			result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
+				Caller: caller,
+				Render: func(_ context.Context, _ stepInput, feedback []Feedback) (string, error) {
+					if len(feedback) > 0 {
+						rendered = copyFeedback(feedback)
+					}
+					return "prompt", nil
+				},
+				Validate: func(_ context.Context, _ stepInput, output stepOutput) (ValidationResult, error) {
+					if output.Status == "ok" {
+						return ValidationResult{Settled: true}, nil
+					}
+					return ValidationResult{Feedback: []Feedback{{Iteration: validatorIteration, Codes: []string{"safe_retry"}}}}, nil
+				},
+				MaxIter: 2,
+			}, stepInput{})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if got := result.Attempts[0].Validation.Feedback[0].Iteration; got != validatorIteration {
+				t.Fatalf("Validation iteration = %d, want validator-provided %d", got, validatorIteration)
+			}
+			if len(rendered) != 1 || rendered[0].Iteration != 1 {
+				t.Fatalf("rendered retry feedback = %#v, want framework iteration 1", rendered)
+			}
+			if retry := result.Attempts[0].RetryFeedback; len(retry) != 1 || retry[0].Iteration != 1 {
+				t.Fatalf("RetryFeedback = %#v, want framework iteration 1", retry)
+			}
+		})
+	}
+}
+
+func TestRunDetailedStampsCustomSanitizerRetryFeedbackWithFrameworkIteration(t *testing.T) {
+	for _, sanitizerIteration := range []int{0, -1, 999} {
+		t.Run(fmt.Sprintf("sanitizer iteration %d", sanitizerIteration), func(t *testing.T) {
+			caller := &fakeCaller{responses: []llmadapter.Response{
+				{FinalResponse: `{"status":"draft"}`},
+				{FinalResponse: `{"status":"ok"}`},
+			}}
+			var rendered []Feedback
+
+			result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
+				Caller: caller,
+				Render: func(_ context.Context, _ stepInput, feedback []Feedback) (string, error) {
+					if len(feedback) > 0 {
+						rendered = copyFeedback(feedback)
+					}
+					return "prompt", nil
+				},
+				Validate: func(_ context.Context, _ stepInput, output stepOutput) (ValidationResult, error) {
+					if output.Status == "ok" {
+						return ValidationResult{Settled: true}, nil
+					}
+					return ValidationResult{Feedback: []Feedback{{Iteration: -1, Codes: []string{"validator_detail"}}}}, nil
+				},
+				Sanitizer: func([]Feedback) ([]Feedback, error) {
+					return []Feedback{{Iteration: sanitizerIteration, Codes: []string{"safe_retry"}}}, nil
+				},
+				MaxIter: 2,
+			}, stepInput{})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if got := result.Attempts[0].Validation.Feedback[0].Iteration; got != -1 {
+				t.Fatalf("Validation iteration = %d, want validator-provided -1", got)
+			}
+			if len(rendered) != 1 || rendered[0].Iteration != 1 {
+				t.Fatalf("rendered retry feedback = %#v, want framework iteration 1", rendered)
+			}
+			if retry := result.Attempts[0].RetryFeedback; len(retry) != 1 || retry[0].Iteration != 1 {
+				t.Fatalf("RetryFeedback = %#v, want framework iteration 1", retry)
+			}
+		})
 	}
 }
 
