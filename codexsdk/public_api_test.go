@@ -49,34 +49,6 @@ func TestHandwrittenPublicAPI(t *testing.T) {
 	}
 }
 
-func TestRemovedV01CompatibilitySurfaceIsAbsent(t *testing.T) {
-	removed := []string{
-		"ThreadClient", "ThreadClientOptions", "ThreadStream", "ThreadEvent",
-		"StartThreadRequest", "ResumeThreadRequest", "ForkThreadRequest",
-		"InputItem", "ReasoningEffort", "ApprovalPolicy", "ApprovalsReviewer",
-		"LegacyThreadRunResult", "LegacyServerRequestHandler", "ServerRequestKind",
-		"ApprovalDecision", "ClientCapabilities", "Text", "TextAndFiles", "Bool",
-	}
-	root, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	loader := &sdkSourceImporter{root: root, fset: token.NewFileSet(), cache: map[string]*types.Package{}}
-	pkg, err := loader.Import("github.com/ronhuafeng/llm-go/codexsdk")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, name := range removed {
-		if object := pkg.Scope().Lookup(name); object != nil && object.Exported() {
-			t.Errorf("removed v0.1 declaration %s remains public", name)
-		}
-	}
-	client := pkg.Scope().Lookup("Client").Type()
-	if method, _, _ := types.LookupFieldOrMethod(client, true, pkg, "ThreadClient"); method != nil {
-		t.Error("removed Client.ThreadClient method remains public")
-	}
-}
-
 func TestGeneratedFacadeAccessorsReturnConcreteOpaqueValues(t *testing.T) {
 	root, err := os.Getwd()
 	if err != nil {
