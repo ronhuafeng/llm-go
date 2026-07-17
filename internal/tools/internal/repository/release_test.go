@@ -509,20 +509,33 @@ func TestAPIInventoryEstablishesMechanicalReleaseFloor(t *testing.T) {
 	}
 }
 
-func TestCodexSDKGeneratedAPIBaselineUsesModuleOwnedReport(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	impact, digest, err := codexSDKGeneratedAPIImpact(root, module{ID: "codexsdk", Dir: "codexsdk"}, "codexsdk/v0.6.0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if impact != apiInventoryMetadataOnly && impact != apiInventoryAdditive && impact != apiInventoryBreaking {
-		t.Fatalf("generated baseline returned unknown impact %q", impact)
-	}
-	if !isSHA256(digest) {
-		t.Fatalf("generated baseline impact=%s digest=%q", impact, digest)
+func TestGeneratedAPIReportEstablishesMechanicalReleaseFloor(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		report  generatedAPICompatibilityReport
+		impact  apiInventoryImpact
+		wantErr string
+	}{
+		{name: "metadata only", report: generatedAPICompatibilityReport{CompatibilityImpact: "additive_or_metadata_only"}, impact: apiInventoryMetadataOnly},
+		{name: "additive", report: generatedAPICompatibilityReport{CompatibilityImpact: "additive_or_metadata_only", Added: []json.RawMessage{json.RawMessage(`{}`)}}, impact: apiInventoryAdditive},
+		{name: "breaking", report: generatedAPICompatibilityReport{CompatibilityImpact: "incompatible"}, impact: apiInventoryBreaking},
+		{name: "unknown", report: generatedAPICompatibilityReport{CompatibilityImpact: "unknown"}, wantErr: "unknown impact"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			impact, err := classifyGeneratedAPICompatibility(test.report)
+			if test.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), test.wantErr) {
+					t.Fatalf("error = %v, want %q", err, test.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if impact != test.impact {
+				t.Fatalf("impact = %s, want %s", impact, test.impact)
+			}
+		})
 	}
 }
 

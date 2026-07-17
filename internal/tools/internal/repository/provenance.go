@@ -16,10 +16,7 @@ import (
 
 const provenanceFilename = "migration-provenance.json"
 
-var (
-	stableVersionPattern = regexp.MustCompile(`^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
-	objectIDPattern      = regexp.MustCompile(`^[0-9a-f]{40}$`)
-)
+var objectIDPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
 type provenanceManifest struct {
 	FormatVersion int                `json:"format_version"`
@@ -152,7 +149,7 @@ func validateProvenanceFields(root, prefix string, registeredModule module, impo
 	if imported.Source.Repository == "" || !strings.HasPrefix(imported.Source.Repository, "https://") {
 		violations = append(violations, fmt.Sprintf("%s source repository must be an HTTPS URL", prefix))
 	}
-	if !stableVersionPattern.MatchString(imported.Source.Tag) {
+	if !isStableVersion(imported.Source.Tag) {
 		violations = append(violations, fmt.Sprintf("%s source tag %q is not stable SemVer", prefix, imported.Source.Tag))
 	}
 	for field, value := range map[string]string{
@@ -177,7 +174,7 @@ func validateProvenanceFields(root, prefix string, registeredModule module, impo
 		violations = append(violations, fmt.Sprintf("%s destination module %q does not end in /%s", prefix, imported.Destination.Module, imported.Destination.Directory))
 	}
 	firstTagPrefix := imported.Destination.Directory + "/"
-	if !strings.HasPrefix(imported.Destination.FirstTag, firstTagPrefix) || !stableVersionPattern.MatchString(strings.TrimPrefix(imported.Destination.FirstTag, firstTagPrefix)) {
+	if !strings.HasPrefix(imported.Destination.FirstTag, firstTagPrefix) || !isStableVersion(strings.TrimPrefix(imported.Destination.FirstTag, firstTagPrefix)) {
 		violations = append(violations, fmt.Sprintf("%s first tag %q does not use directory-prefixed stable SemVer", prefix, imported.Destination.FirstTag))
 	}
 	if imported.Relocation.Parent != imported.Source.Commit {

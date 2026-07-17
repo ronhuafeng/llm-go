@@ -38,6 +38,8 @@ func run(args []string) int {
 		return runReleaseNotes(args[1:])
 	case "verify-tag":
 		return runVerifyTag(args[1:])
+	case "migration-audit":
+		return runMigrationAudit(args[1:])
 	case "select-draft-release":
 		return runSelectDraftRelease(args[1:])
 	case "finalize-release":
@@ -48,6 +50,41 @@ func run(args []string) int {
 		usage()
 		return 2
 	}
+}
+
+func runMigrationAudit(args []string) int {
+	flags := flag.NewFlagSet("migration-audit", flag.ContinueOnError)
+	flags.SetOutput(os.Stderr)
+	root := flags.String("root", ".", "repository root")
+	sourceEvidence := flags.String("source-evidence", "", "directory containing all-module source evidence JSON")
+	output := flags.String("output", "", "migration acceptance report JSON path")
+	timeout := flags.Duration("timeout", 10*time.Minute, "maximum duration for each public artifact")
+	retry := flags.Duration("retry", 15*time.Second, "public proxy retry interval")
+	commandTimeout := flags.Duration("command-timeout", 5*time.Minute, "maximum duration of one Go command")
+	if !parseFlags(flags, args, "repoctl migration-audit") || *sourceEvidence == "" || *output == "" {
+		fmt.Fprintln(os.Stderr, "repoctl migration-audit: -source-evidence and -output are required")
+		return 2
+	}
+	report, auditErr := repository.BuildMigrationAcceptanceReport(context.Background(), *root, repository.MigrationAcceptanceOptions{
+		SourceEvidenceDirectory: *sourceEvidence,
+		GitHubToken:             os.Getenv("GITHUB_TOKEN"),
+		Publish: repository.PublishOptions{
+			Proxy: "https://proxy.golang.org", SumDB: "sum.golang.org", Timeout: *timeout,
+			RetryInterval: *retry, CommandTimeout: *commandTimeout,
+		},
+	})
+	writeErr := repository.WriteMigrationAcceptanceReport(*output, report)
+	if auditErr != nil {
+		fmt.Fprintf(os.Stderr, "repoctl migration-audit: %v\n", auditErr)
+	}
+	if writeErr != nil {
+		fmt.Fprintf(os.Stderr, "repoctl migration-audit: write report: %v\n", writeErr)
+	}
+	if auditErr != nil || writeErr != nil {
+		return 1
+	}
+	fmt.Fprintln(os.Stdout, report.ReportDigest)
+	return 0
 }
 
 func runValidateTagRef(args []string) int {
@@ -358,5 +395,5 @@ func parseFlags(flags *flag.FlagSet, args []string, command string) bool {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: repoctl <verify|affected|verify-module|verify-checkout|release-plan|finalize-release|authorize-tag|release-notes|verify-tag|select-draft-release|validate-tag-ref> [options]")
+	fmt.Fprintln(os.Stderr, "usage: repoctl <verify|affected|verify-module|verify-checkout|release-plan|finalize-release|authorize-tag|release-notes|verify-tag|migration-audit|select-draft-release|validate-tag-ref> [options]")
 }

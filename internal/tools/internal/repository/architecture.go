@@ -264,7 +264,7 @@ func verifyAdapterUpstreamRequirements(modulesByID map[string]module) []string {
 			violations = append(violations, fmt.Sprintf("module codex-adapter must directly require repository module %s", upstreamID))
 			continue
 		}
-		if !stableVersionPattern.MatchString(version) {
+		if !isStableVersion(version) {
 			violations = append(violations, fmt.Sprintf("module codex-adapter requires repository module %s at non-stable version %q", upstreamID, version))
 		}
 	}

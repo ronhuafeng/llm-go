@@ -132,8 +132,8 @@ remains Draft until the post-tag JSON evidence has been uploaded successfully.
 The one-time `Migration acceptance audit` workflow was the cutover gate for
 ADR-0023. It checked out an exact `main` commit and produced all-module
 minimum-Go, current-Go, race, and checkout-composition evidence before invoking
-the typed acceptance builder. It emitted one versioned JSON report with six
-mandatory categories:
+`repoctl migration-audit`. The typed command emitted one versioned JSON report
+with six mandatory categories:
 
 - imported-history provenance;
 - old-to-new API and behavior equivalence;
@@ -164,6 +164,6 @@ The authoritative pre-archive and post-archive Actions artifacts, their upload
 digests, report digests, exact commits, and exact trees are permanently bound by
 `docs/migration/archive-evidence.json`. The workflow was retired after cutover
 and archival completed; later `main` commits do not produce new migration
-acceptance reports. Current repository verification validates the committed
-immutable provenance and archival evidence without retaining a report builder
-or replay path.
+acceptance reports. The `repoctl migration-audit` command, report schema, and
+fail-closed validators remain checked in for historical verification and
+explicit forensic reruns.
