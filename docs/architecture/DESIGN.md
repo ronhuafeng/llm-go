@@ -24,11 +24,13 @@ semantic owners or their runtime APIs.
 
 ## Boundary constraints
 
-- Creating a root facade, umbrella module, shared runtime module, or shared test
+The repository must not:
+
+- create a root facade, umbrella module, shared runtime module, or shared test
   utility package.
-- Preserving old import paths through mirrors, forwarding packages, or
+- preserve old import paths through mirrors, forwarding packages, or
   re-exports.
-- Claiming atomic publication across independent Go modules.
+- claim atomic publication across independent Go modules.
 
 ## Repository layout
 

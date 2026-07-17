@@ -314,12 +314,12 @@ const (
 
 func validateAPIInventoryBaseline(root string, candidate module, inventoryPath, previousVersion, declaredImpact string, declaredBreaking bool) (ReleaseAPIInventoryEvidence, error) {
 	previousTag := candidate.Dir + "/" + previousVersion
-	previousPath := filepath.ToSlash(filepath.Join(candidate.Dir, inventoryPath))
-	previous, err := gitBytes(root, "show", previousTag+":"+previousPath)
+	inventoryRepoPath := filepath.ToSlash(filepath.Join(candidate.Dir, inventoryPath))
+	previous, err := gitBytes(root, "show", previousTag+":"+inventoryRepoPath)
 	if err != nil {
 		return ReleaseAPIInventoryEvidence{}, fmt.Errorf("read canonical API inventory from %s: %w", previousTag, err)
 	}
-	current, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(previousPath)))
+	current, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(inventoryRepoPath)))
 	if err != nil {
 		return ReleaseAPIInventoryEvidence{}, fmt.Errorf("read current canonical API inventory: %w", err)
 	}
@@ -328,7 +328,7 @@ func validateAPIInventoryBaseline(root string, candidate module, inventoryPath, 
 		return ReleaseAPIInventoryEvidence{}, err
 	}
 	evidence := ReleaseAPIInventoryEvidence{
-		Path:              previousPath,
+		Path:              inventoryRepoPath,
 		BaselineTag:       previousTag,
 		BaselineSHA256:    report.BaselineSHA256,
 		CurrentSHA256:     report.TargetSHA256,
