@@ -497,6 +497,9 @@ func TestOwnerReportedAPIImpactEstablishesMechanicalReleaseFloor(t *testing.T) {
 	if err := validateAPIImpactFloor("llmkit/v0.6.0", "v0.6.0", apiInventoryBreaking, "minor", true); err != nil {
 		t.Fatal(err)
 	}
+	if err := validateAPIImpactFloor("codexsdk/v0.6.0", "v0.6.0", apiInventoryBreaking, "patch", true); err == nil || !strings.Contains(err.Error(), "at least a minor") {
+		t.Fatalf("weakened generated stability patch error = %v", err)
+	}
 	if err := validateAPIImpactFloor("llmkit/v1.2.3", "v1.2.3", apiInventoryBreaking, "minor", true); err == nil || !strings.Contains(err.Error(), "at least a major") {
 		t.Fatalf("post-v1 breaking minor error = %v", err)
 	}
@@ -533,13 +536,13 @@ func TestReleaseOrchestratorConsumesEachModuleInventoryReport(t *testing.T) {
 }
 
 func TestAPIInventoryReportImpactIsClosed(t *testing.T) {
-	for _, value := range []string{"metadata-only", "additive", "breaking"} {
+	for _, value := range []apiInventoryImpact{apiInventoryMetadataOnly, apiInventoryAdditive, apiInventoryBreaking} {
 		impact, err := parseAPIInventoryImpact(value)
-		if err != nil || string(impact) != value {
+		if err != nil || impact != value {
 			t.Fatalf("parse %q = %q, %v", value, impact, err)
 		}
 	}
-	if _, err := parseAPIInventoryImpact("unknown"); err == nil || !strings.Contains(err.Error(), "unknown API inventory impact") {
+	if _, err := parseAPIInventoryImpact(apiInventoryImpact("unknown")); err == nil || !strings.Contains(err.Error(), "unknown API inventory impact") {
 		t.Fatalf("unknown impact error = %v", err)
 	}
 }
@@ -920,7 +923,7 @@ func validReleasePlan(t *testing.T) ReleasePlan {
 			APIInventory: ReleaseAPIInventoryEvidence{
 				Path: "llmkit/internal/architecture/testdata/handwritten-api.txt", BaselineTag: "llmkit/v0.5.0",
 				BaselineSHA256: strings.Repeat("c", 64), CurrentSHA256: strings.Repeat("c", 64),
-				HandwrittenImpact: "breaking", MechanicalImpact: "breaking",
+				HandwrittenImpact: apiInventoryBreaking, MechanicalImpact: apiInventoryBreaking,
 			},
 			Fragments: []ReleaseFragment{{Path: "llmkit/.changes/releases/v0.6.0/10.json", Impact: "minor", Breaking: true, Summary: "Move path.", Issue: 10, Migration: "docs/migration/v0.6.0.md"}},
 		},
@@ -953,7 +956,7 @@ func validAdapterReleasePlan(t *testing.T) ReleasePlan {
 			APIInventory: ReleaseAPIInventoryEvidence{
 				Path: "llmcaller/codex/internal/architecture/testdata/handwritten-api.txt", BaselineTag: "llmcaller/codex/v0.4.2",
 				BaselineSHA256: strings.Repeat("c", 64), CurrentSHA256: strings.Repeat("c", 64),
-				HandwrittenImpact: "breaking", MechanicalImpact: "breaking",
+				HandwrittenImpact: apiInventoryBreaking, MechanicalImpact: apiInventoryBreaking,
 			},
 			Fragments: []ReleaseFragment{{Path: "llmcaller/codex/.changes/releases/v0.5.0/14-module-path.json", Impact: "minor", Breaking: true, Summary: "Move path.", Issue: 14, Migration: "docs/migration/v0.5.0.md"}},
 		},

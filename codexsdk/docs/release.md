@@ -26,7 +26,9 @@ handwritten inventory diff and binds both input digests in its JSON report. An
 inventory diff is an API-design review, not incidental test churn. Every
 release compares the current handwritten and generated inventories with the
 latest stable `codexsdk/` tag and authorizes only the exact next stable SemVer
-required by the archived change fragments.
+required by the archived change fragments. The generated report treats a
+weaker stability classification as breaking and a stronger classification as
+additive, even when the Go declaration itself is unchanged.
 
 ## SemVer policy
 

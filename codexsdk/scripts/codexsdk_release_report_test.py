@@ -80,6 +80,26 @@ class ReleaseReportTest(unittest.TestCase):
         self.assertEqual(report["compatibility_impact"], "additive_or_metadata_only")
         self.assertEqual(report["release_impact"], "metadata-only")
 
+    def test_stable_to_experimental_reclassification_is_breaking(self) -> None:
+        base = manifest(("type", "Event", "stable"))
+        target = manifest(("type", "Event", "experimental"))
+
+        report = release_report.compatibility_report(base, target)
+
+        self.assertEqual(report["compatibility_impact"], "incompatible")
+        self.assertEqual(report["release_impact"], "breaking")
+        self.assertEqual(report["weakened_support"], report["reclassified"])
+
+    def test_experimental_to_stable_reclassification_is_additive(self) -> None:
+        base = manifest(("type", "Event", "experimental"))
+        target = manifest(("type", "Event", "stable"))
+
+        report = release_report.compatibility_report(base, target)
+
+        self.assertEqual(report["compatibility_impact"], "additive_or_metadata_only")
+        self.assertEqual(report["release_impact"], "additive")
+        self.assertEqual(report["strengthened_support"], report["reclassified"])
+
     def test_signature_change_is_incompatible_and_classified(self) -> None:
         base = manifest(("field", "Event.ID", "experimental"))
         target = manifest(("field", "Event.ID", "experimental"))

@@ -10,6 +10,7 @@ func TestBuildReportClassifiesCanonicalInventoryChanges(t *testing.T) {
 		impact inventoryImpact
 	}{
 		{name: "metadata only", target: append([]byte(nil), baseline...), impact: impactMetadataOnly},
+		{name: "reordering is metadata only", target: []byte("func example.com/pkg.B()\nfunc example.com/pkg.A()\n"), impact: impactMetadataOnly},
 		{name: "additive", target: append(append([]byte(nil), baseline...), []byte("func example.com/pkg.C()\n")...), impact: impactAdditive},
 		{name: "breaking", target: []byte("func example.com/pkg.A()\n"), impact: impactBreaking},
 	} {
