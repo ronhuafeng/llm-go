@@ -27,9 +27,9 @@ evidence makes repository verification fail.
 The one-time Actions workflow that produced the cutover reports was retired
 after both the pre-archive and post-archive acceptance runs completed. Later
 `main` commits are governed by the normal PR and release verification paths and
-do not create new migration acceptance artifacts. Repository verification
-continues to validate only the committed immutable provenance and archival
-evidence; it cannot create or replay migration acceptance reports.
+do not create new migration acceptance artifacts. The typed
+`repoctl migration-audit` command and its fail-closed report validators remain
+available for historical verification and explicit forensic reruns.
 
 The accepted sequencing and completion gates are defined by the
 [target design](../architecture/DESIGN.md) and its

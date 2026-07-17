@@ -276,6 +276,11 @@ func validateReleaseCommit(checkoutCommit, requiredCommit, mainRef, mainCommit s
 
 type apiInventoryImpact string
 
+type generatedAPICompatibilityReport struct {
+	CompatibilityImpact string            `json:"compatibility_impact"`
+	Added               []json.RawMessage `json:"added"`
+}
+
 const codexSDKGeneratedManifestPath = "internal/protocolschema/appserver/v2/manifest.json"
 
 const (
@@ -352,13 +357,18 @@ func codexSDKGeneratedAPIImpact(root string, candidate module, previousTag strin
 			return "", "", fmt.Errorf("classify generated API compatibility: %w: %s", runErr, strings.TrimSpace(string(output)))
 		}
 	}
-	var report struct {
-		CompatibilityImpact string            `json:"compatibility_impact"`
-		Added               []json.RawMessage `json:"added"`
-	}
+	var report generatedAPICompatibilityReport
 	if err := json.Unmarshal(output, &report); err != nil {
 		return "", "", fmt.Errorf("decode generated API compatibility report: %w", err)
 	}
+	impact, err := classifyGeneratedAPICompatibility(report)
+	if err != nil {
+		return "", "", err
+	}
+	return impact, sha256Hex(previous), nil
+}
+
+func classifyGeneratedAPICompatibility(report generatedAPICompatibilityReport) (apiInventoryImpact, error) {
 	impact := apiInventoryMetadataOnly
 	switch report.CompatibilityImpact {
 	case "incompatible":
@@ -368,9 +378,9 @@ func codexSDKGeneratedAPIImpact(root string, candidate module, previousTag strin
 			impact = apiInventoryAdditive
 		}
 	default:
-		return "", "", fmt.Errorf("generated API compatibility report has unknown impact %q", report.CompatibilityImpact)
+		return "", fmt.Errorf("generated API compatibility report has unknown impact %q", report.CompatibilityImpact)
 	}
-	return impact, sha256Hex(previous), nil
+	return impact, nil
 }
 
 func classifyAPIInventory(previous, current []byte) apiInventoryImpact {
