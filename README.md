@@ -18,7 +18,8 @@ Start with the README for the module matching your use case.
 
 For an implementation-oriented guide that a coding agent can follow, see
 [Integrating `llm-go`](docs/coding-agent-guide.md). It covers module selection,
-recommended call paths, schema constraints, error handling, and testing.
+a cross-module quickstart, and routes detailed contracts to their owning module
+documentation.
 
 ## Architecture
 

@@ -63,7 +63,8 @@ github.com/ronhuafeng/llm-go
 │   └── .changes/
 └── internal/tools/                  non-published workspace module
     ├── go.mod
-    └── cmd/repoctl/
+    ├── cmd/repoctl/
+    └── integration/                 genuine cross-module canaries
 ```
 
 The repository root is orchestration-only and has no public `go.mod`. The

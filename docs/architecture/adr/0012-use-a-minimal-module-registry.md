@@ -45,8 +45,8 @@ than mirrored at the root; see ADR-0018.
 
 Two other machine-readable documents have separate lifetimes and ownership:
 
-- `migration-provenance.json` is immutable historical evidence for the one-time
-  repository import;
+- `migration-provenance.json` was immutable historical evidence for the
+  one-time repository import; ADR-0024 retired its continuing retention;
 - release-plan JSON is generated CI evidence for one proposed publication and
   is not committed as current repository state.
 

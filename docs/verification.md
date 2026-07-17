@@ -19,9 +19,10 @@ separate environments:
 
 Every module subprocess uses `GOWORK=off`. The current checkout is separately
 verified by `repoctl verify-checkout`, which runs the repository boundary
-contract, the fast adapter canary, and one isolated consumer per affected
-public module. The canary now uses the current package identities because the
-adapter requires both repository upstream modules. Each consumer
+contract, the repository-owned three-layer canary under `internal/tools`, and
+one isolated consumer per affected public module. The canary uses the current
+package identities because the adapter requires both repository upstream
+modules. Each consumer
 replaces only the module under test with its checkout directory; its upstream
 requirements remain those declared by the module.
 
@@ -29,6 +30,15 @@ The workspace canary uses read-only module metadata through an ephemeral copy
 of `go.work`; any transient workspace sums are removed with that copy. It must
 not create or update the repository's `go.work.sum`, because checkout
 verification proves one immutable source identity before and after all checks.
+
+The ordinary checkout gate runs the bounded fast canary. Maintainers can run
+the repository-owned extended transport, ordering, backpressure, and shutdown
+cases explicitly with:
+
+```sh
+LLMGO_FULL_CANARY=1 \
+go test ./internal/tools/integration -run '^TestThreeLayerCanaryFull$' -count=1 -v
+```
 
 The non-published repository tool has its own Go toolchain contract. Minimum-Go
 jobs therefore build `repoctl` with current Go before switching the job to the

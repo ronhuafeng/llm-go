@@ -16,7 +16,7 @@ import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -541,7 +541,7 @@ def build_metadata(root: Path, old: dict[str, Any], target_ref: str, target_kind
         "codex_binary": "codex",
         "codex_version": codex_version,
         "experimental_included": True,
-        "generated_at": datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "generated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "generation_command": "codex app-server generate-json-schema --experimental --out internal/protocolschema/appserver/v2",
         "schema_bundle_sha256": schema_utils.schema_bundle_sha256(root),
         "schema_file_count": len(schema_utils.schema_files(root)),
