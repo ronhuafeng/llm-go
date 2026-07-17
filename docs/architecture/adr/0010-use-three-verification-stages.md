@@ -4,6 +4,9 @@ status: accepted
 
 # Use deterministic PR, release-preflight, and post-tag verification stages
 
+ADR-0024 supersedes only the one-time migration-provenance check formerly
+included in pull-request verification.
+
 Repository verification is divided by the facts that each stage can actually
 observe. CI owns merge and release evidence, but a pull request cannot prove the
 contents of a tag that has not been published.

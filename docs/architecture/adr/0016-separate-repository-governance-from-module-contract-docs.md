@@ -4,6 +4,10 @@ status: accepted
 
 # Separate repository governance from module contract documentation
 
+ADR-0024 supersedes only this decision's retention of completed proposals, the
+dedicated `repoctl` isolation check, and the one-time root migration evidence
+documentation. The module documentation ownership rules remain accepted.
+
 Documentation follows semantic ownership. Repository-root documentation
 provides navigation, cross-module architecture, and release governance; each
 public module owns its current API, behavior, version history, and consumer

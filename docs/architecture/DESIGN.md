@@ -1,6 +1,6 @@
-# llm-go target design
+# llm-go design
 
-Status: migration complete; modules published and verified; legacy repositories archived
+Status: current
 
 ## North Star
 
@@ -8,27 +8,22 @@ Every layer reduces the cognitive cost of correct use without reducing the
 expressive power of the layer beneath it. Abstractions hide complexity, not
 facts.
 
-The repository move changes source, review, CI, and release coordination. It
-does not collapse the three semantic owners or redesign their runtime APIs.
+Shared source, review, CI, and release coordination do not collapse the three
+semantic owners or their runtime APIs.
 
 ## Goals
 
-- Make `github.com/ronhuafeng/llm-go` the only active source and release
+- Keep `github.com/ronhuafeng/llm-go` as the only active source and release
   repository.
 - Publish three independently versioned Go modules from one repository.
 - Preserve the provider-neutral toolkit, exact Codex SDK, and Codex adapter as
   separate semantic owners.
 - Make the adapter the only runtime dependency join.
-- Replace cross-repository release coordination with one typed, auditable
-  orchestrator.
-- Preserve complete Git provenance and public behavior during migration.
-- Prove final compatibility through real, proxy-resolved module artifacts.
+- Coordinate releases through one typed, auditable orchestrator.
+- Prove published compatibility through real, proxy-resolved module artifacts.
 
-## Non-goals for the first release
+## Boundary constraints
 
-- Redesigning exported APIs, lifecycle contracts, evidence models, schema
-  policy, retry policy, or safety profiles.
-- Renaming toolkit packages.
 - Creating a root facade, umbrella module, shared runtime module, or shared test
   utility package.
 - Preserving old import paths through mirrors, forwarding packages, or
@@ -41,10 +36,8 @@ does not collapse the three semantic owners or redesign their runtime APIs.
 github.com/ronhuafeng/llm-go
 ├── .github/workflows/               thin GitHub platform wiring
 ├── docs/
-│   ├── architecture/                North Star, context map, ADRs
-│   └── migration/                   old-repository cutover guide
+│   └── architecture/                North Star, context map, ADRs
 ├── module-registry.json             minimal release-unit registry
-├── migration-provenance.json        immutable source-history evidence
 ├── go.work                          committed development workspace
 ├── go.work.sum
 ├── llmkit/                          public Go module
@@ -101,33 +94,19 @@ A fourth runtime owner named `common`, `shared`, `core`, `types`, `testutil`, or
 equivalent is prohibited. Similar implementation shapes do not establish shared
 semantics.
 
-## Public import migration
+## Public module identities
 
-The SDK and adapter are flattened to their module roots after their original
-repository trees have been imported unchanged:
+The current public package roots are:
 
 ```text
-github.com/ronhuafeng/llmkit-go/llmadapter
-  -> github.com/ronhuafeng/llm-go/llmkit/llmadapter
-github.com/ronhuafeng/llmkit-go/llmschema
-  -> github.com/ronhuafeng/llm-go/llmkit/llmschema
-github.com/ronhuafeng/llmkit-go/llmstep
-  -> github.com/ronhuafeng/llm-go/llmkit/llmstep
-github.com/ronhuafeng/llmkit-go/settle
-  -> github.com/ronhuafeng/llm-go/llmkit/settle
-
-github.com/ronhuafeng/codexsdk-go/codexsdk
-  -> github.com/ronhuafeng/llm-go/codexsdk
-github.com/ronhuafeng/codexsdk-go/codexsdk/protocolv2
-  -> github.com/ronhuafeng/llm-go/codexsdk/protocolv2
-
-github.com/ronhuafeng/llmcaller-codex-go/llmcaller/codex
-  -> github.com/ronhuafeng/llm-go/llmcaller/codex
+github.com/ronhuafeng/llm-go/llmkit/...
+github.com/ronhuafeng/llm-go/codexsdk
+github.com/ronhuafeng/llm-go/codexsdk/protocolv2
+github.com/ronhuafeng/llm-go/llmcaller/codex
 ```
 
-Exported identifiers, package names, generated facts, and runtime behavior stay
-unchanged. Toolkit package renaming is deferred to a separately reviewed API
-redesign.
+The SDK and adapter live at their module roots. Consumer migration mappings
+remain in the module-owned migration guides rather than the repository design.
 
 ## Facts and their evidence owners
 
@@ -139,10 +118,9 @@ redesign.
 | Generated facts | Owner-local generator inputs, manifests, and committed output |
 | Release impact intent | Module-local structured change fragments |
 | Release units | Minimal root module registry |
-| Source migration provenance | Immutable migration provenance manifest and Git DAG |
 | Planned release | Generated digest-bound release-plan artifact |
 | Published version and tuple | Immutable tags, public Proxy graph, checksums, and clean-consumer evidence |
-| Historical rationale | Non-normative proposal or ADR history |
+| Architectural rationale | Accepted ADRs for decisions that still shape the repository |
 
 Facts derivable from `go.mod`, Git tags, or the public proxy are not copied into
 the module registry. Root architecture documents do not become API allowlists.
@@ -223,14 +201,6 @@ codexsdk/vX.Y.Z
 llmcaller/codex/vX.Y.Z
 ```
 
-The first new releases are:
-
-```text
-llmkit/v0.6.0
-codexsdk/v0.6.0
-llmcaller/codex/v0.5.0
-```
-
 Formal tags are created only by protected CI from an approved, digest-bound
 release plan. Publication is ordered and non-atomic. A failed immutable tag is
 never moved. A public artifact, checksum, provenance, or behavior defect uses a
@@ -242,52 +212,8 @@ Module-local structured change fragments express human-reviewed release impact.
 API inventories provide a mechanical impact floor. Release tooling consumes the
 fragments into module-local changelogs and release notes.
 
-## History migration and cutover
+## API change boundary
 
-The final legacy migration versions are:
-
-```text
-llmkit-go@v0.5.0
-codexsdk-go@v0.5.1
-llmcaller-codex-go@v0.4.2
-```
-
-Each final source tip receives a pure directory-relocation child commit. Each
-relocated history is joined to the monorepo by its own no-fast-forward merge
-node. Original source commit IDs remain reachable; old colliding tag refs are
-recorded in provenance rather than copied.
-
-```text
-legacy final tip -> pure relocation --\
-                                      +--> independent merge node -> main
-monorepo bootstrap ------------------/
-```
-
-The execution order is:
-
-1. Bootstrap the new repository.
-2. Freeze the legacy repositories.
-3. Publish their final migration releases; each migration-specific release
-   commit is documentation-only, while pre-freeze unreleased changes remain
-   visible in changelog and provenance evidence.
-4. Import each complete history through its pure relocation commit and merge
-   node.
-5. Establish root governance, the workspace, registry, provenance, and
-   repository tooling.
-6. Migrate, independently verify, publish, and proxy-verify `llmkit` and
-   `codexsdk`.
-7. Flatten and migrate the adapter only after both new upstream tags are
-   available; commit their exact requirements.
-8. Publish and proxy-verify the adapter and complete three-layer consumer.
-9. Archive the legacy repositories only after every completion gate passes.
-
-The migration is complete only under the full provenance, equivalence,
-architecture, independent-consumption, published-chain, and cutover evidence in
-[ADR-0023](./adr/0023-require-complete-provenance-equivalence-and-published-evidence.md).
-
-## Follow-up boundary
-
-After the three new modules are published and verified, API redesigns may be
-proposed independently. Package renaming, new facades, lifecycle changes, or
-other semantic improvements require their own contracts, migration guidance,
-and SemVer decisions. The monorepo migration is not authorization to make them.
+Package renaming, new facades, lifecycle changes, or other semantic changes
+require their own contracts, migration guidance, and SemVer decisions. A
+repository-level refactor does not authorize changes to module-owned behavior.
