@@ -27,12 +27,16 @@ func verifyArchitecture(root string, registered *registry) []string {
 
 func verifyHistoricalProposalIsolation(root string, registered registry) []string {
 	var paths []string
+	walkRoots := []string{filepath.Join(root, "internal", "tools")}
 	patterns := []string{
 		filepath.Join(root, ".github", "workflows", "*.yml"),
 		filepath.Join(root, ".github", "workflows", "*.yaml"),
 	}
 	for _, candidate := range registered.Modules {
-		patterns = append(patterns, filepath.Join(root, filepath.FromSlash(candidate.Dir), "internal", "architecture", "*.go"))
+		moduleRoot := filepath.Join(root, filepath.FromSlash(candidate.Dir))
+		patterns = append(patterns, filepath.Join(moduleRoot, "internal", "architecture", "*.go"))
+		paths = append(paths, filepath.Join(moduleRoot, "docs", "release.md"))
+		walkRoots = append(walkRoots, filepath.Join(moduleRoot, "scripts"))
 	}
 	for _, pattern := range patterns {
 		matches, err := filepath.Glob(pattern)
@@ -41,21 +45,26 @@ func verifyHistoricalProposalIsolation(root string, registered registry) []strin
 		}
 		paths = append(paths, matches...)
 	}
-	toolsRoot := filepath.Join(root, "internal", "tools")
-	if err := filepath.WalkDir(toolsRoot, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
+	for _, walkRoot := range walkRoots {
+		if err := filepath.WalkDir(walkRoot, func(path string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if !entry.IsDir() && (walkRoot != filepath.Join(root, "internal", "tools") || strings.HasSuffix(entry.Name(), ".go")) {
+				paths = append(paths, path)
+			}
+			return nil
+		}); err != nil && !os.IsNotExist(err) {
+			return []string{fmt.Sprintf("scan active gates under %s: %v", walkRoot, err)}
 		}
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".go") {
-			paths = append(paths, path)
-		}
-		return nil
-	}); err != nil && !os.IsNotExist(err) {
-		return []string{fmt.Sprintf("scan repository tools gates: %v", err)}
 	}
 	paths = append(paths, filepath.Join(root, "docs", "releasing.md"))
 
-	needle := "v0.2-" + "refactor-plan.md"
+	forbiddenReferences := []string{
+		"v0.2-" + "refactor-plan.md",
+		"normative local " + "refactor plan",
+		"update the normative " + "plan",
+	}
 	var violations []string
 	for _, path := range paths {
 		data, err := os.ReadFile(path)
@@ -66,9 +75,16 @@ func verifyHistoricalProposalIsolation(root string, registered registry) []strin
 			violations = append(violations, fmt.Sprintf("read active gate %s: %v", path, err))
 			continue
 		}
-		if strings.Contains(string(data), needle) {
+		for _, forbidden := range forbiddenReferences {
+			if !strings.Contains(string(data), forbidden) {
+				continue
+			}
 			relative, _ := filepath.Rel(root, path)
-			violations = append(violations, fmt.Sprintf("active gate %s references historical v0.2 refactor proposal", filepath.ToSlash(relative)))
+			if strings.HasPrefix(forbidden, "v0.2-") {
+				violations = append(violations, fmt.Sprintf("active gate %s references historical v0.2 refactor proposal", filepath.ToSlash(relative)))
+			} else {
+				violations = append(violations, fmt.Sprintf("active gate %s references historical proposal through %q", filepath.ToSlash(relative), forbidden))
+			}
 		}
 	}
 	return violations

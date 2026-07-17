@@ -82,53 +82,6 @@ type Public struct {
 	}
 }
 
-func TestActiveGatesDoNotReferenceHistoricalRefactorPlan(t *testing.T) {
-	root := repoRoot(t)
-	paths := []string{filepath.Join(root, "docs", "release.md")}
-	for _, pattern := range []string{
-		filepath.Join(root, ".github", "workflows", "*.yml"),
-		filepath.Join(root, ".github", "workflows", "*.yaml"),
-		filepath.Join(root, "internal", "architecture", "*.go"),
-	} {
-		matches, err := filepath.Glob(pattern)
-		if err != nil {
-			t.Fatal(err)
-		}
-		paths = append(paths, matches...)
-	}
-	scripts := filepath.Join(root, "scripts")
-	if _, err := os.Stat(scripts); err == nil {
-		if err := filepath.WalkDir(scripts, func(path string, entry os.DirEntry, walkErr error) error {
-			if walkErr != nil {
-				return walkErr
-			}
-			if entry != nil && !entry.IsDir() {
-				paths = append(paths, path)
-			}
-			return nil
-		}); err != nil {
-			t.Fatal(err)
-		}
-	} else if !os.IsNotExist(err) {
-		t.Fatal(err)
-	}
-	for _, path := range paths {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, forbidden := range []string{
-			"v0.2-" + "refactor-plan.md",
-			"normative local " + "refactor plan",
-			"update the normative " + "plan",
-		} {
-			if strings.Contains(string(data), forbidden) {
-				t.Errorf("active gate %s references historical proposal through %q", relPath(root, path), forbidden)
-			}
-		}
-	}
-}
-
 func fixturePackage(t *testing.T, source string) *types.Package {
 	t.Helper()
 	fset := token.NewFileSet()

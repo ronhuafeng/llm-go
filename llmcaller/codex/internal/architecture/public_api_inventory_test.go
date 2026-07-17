@@ -14,9 +14,6 @@ import (
 
 func TestPublicAPIInventoryFailureGuidanceUsesActiveContracts(t *testing.T) {
 	guidance := publicAPIMismatchMessage("type example.com/fixture.Added struct{}\n")
-	if strings.Contains(guidance, "normative plan") {
-		t.Fatalf("failure guidance still treats a historical plan as normative: %q", guidance)
-	}
 	for _, required := range []string{
 		"canonical allowlist",
 		"changelog",

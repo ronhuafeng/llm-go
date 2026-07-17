@@ -138,6 +138,34 @@ func TestArchitectureRejectsBoundaryViolations(t *testing.T) {
 			want: "active gate .github/workflows/ci.yml references historical v0.2 refactor proposal",
 		},
 		{
+			name: "module release documentation references historical proposal",
+			mutate: func(t *testing.T, root string) {
+				writeFile(t, root, "llmkit/docs/release.md", "release gate: docs/v0.2-"+"refactor-plan.md\n")
+			},
+			want: "active gate llmkit/docs/release.md references historical v0.2 refactor proposal",
+		},
+		{
+			name: "module release documentation treats local refactor plan as normative",
+			mutate: func(t *testing.T, root string) {
+				writeFile(t, root, "llmkit/docs/release.md", "use the normative local "+"refactor plan\n")
+			},
+			want: "active gate llmkit/docs/release.md references historical proposal through \"normative local " + "refactor plan\"",
+		},
+		{
+			name: "module script references historical proposal",
+			mutate: func(t *testing.T, root string) {
+				writeFile(t, root, "llmkit/scripts/release.sh", "# gate: docs/v0.2-"+"refactor-plan.md\n")
+			},
+			want: "active gate llmkit/scripts/release.sh references historical v0.2 refactor proposal",
+		},
+		{
+			name: "module script asks to update normative plan",
+			mutate: func(t *testing.T, root string) {
+				writeFile(t, root, "llmkit/scripts/release.sh", "# update the normative "+"plan\n")
+			},
+			want: "active gate llmkit/scripts/release.sh references historical proposal through \"update the normative " + "plan\"",
+		},
+		{
 			name: "repository tool references historical proposal",
 			mutate: func(t *testing.T, root string) {
 				writeFile(t, root, "internal/tools/internal/repository/gate.go", "package repository\nconst gate = \"llmcaller/codex/docs/v0.2-"+"refactor-plan.md\"\n")
