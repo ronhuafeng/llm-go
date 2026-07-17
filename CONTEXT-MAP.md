@@ -6,11 +6,11 @@ one repository.
 
 ## Contexts
 
-- [LLM Toolkit](./docs/architecture/contexts/llmkit/CONTEXT.md) — owns provider-neutral typed LLM
+- [LLM Toolkit](./llmkit/CONTEXT.md) — owns provider-neutral typed LLM
   operations, validation, retry, and published toolkit evidence.
-- [Codex SDK](./docs/architecture/contexts/codexsdk/CONTEXT.md) — owns exact Codex transport,
+- [Codex SDK](./codexsdk/CONTEXT.md) — owns exact Codex transport,
   generated protocol access, and thread/turn lifecycle facts.
-- [Codex Adapter](./docs/architecture/contexts/llmcaller-codex/CONTEXT.md) — owns Codex-specific
+- [Codex Adapter](./llmcaller/codex/CONTEXT.md) — owns Codex-specific
   schema and safety policy and projects exact Codex facts into toolkit evidence.
 
 ## Relationships
