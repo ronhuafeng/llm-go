@@ -176,7 +176,7 @@ func RunDetailed[I any, O any](ctx context.Context, step Step[I, O], input I) (R
 			return fail(result, attempt, StageSanitize, err)
 		}
 		retryFeedback = copyFeedback(retryFeedback)
-		stampMissingIterations(retryFeedback, iter)
+		stampIterations(retryFeedback, iter)
 		attempt.RetryFeedback = copyFeedback(retryFeedback)
 		feedback = copyFeedback(retryFeedback)
 		result.Attempts = append(result.Attempts, attempt)
@@ -245,11 +245,9 @@ func StrictFeedbackSanitizer(feedback []Feedback) ([]Feedback, error) {
 	return sanitized, nil
 }
 
-func stampMissingIterations(feedback []Feedback, iteration int) {
+func stampIterations(feedback []Feedback, iteration int) {
 	for i := range feedback {
-		if feedback[i].Iteration == 0 {
-			feedback[i].Iteration = iteration
-		}
+		feedback[i].Iteration = iteration
 	}
 }
 
