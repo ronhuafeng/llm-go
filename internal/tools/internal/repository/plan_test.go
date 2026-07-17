@@ -133,7 +133,7 @@ func TestAdapterCheckoutSeamsUseFlattenedModuleRoot(t *testing.T) {
 	if got, err := sourceConsumerImportPath(adapter); err != nil || got != adapter.path {
 		t.Fatalf("source consumer import = %q, %v; want %q", got, err, adapter.path)
 	}
-	want := []string{"go", "test", "./llmcaller/codex", "-run", "^TestThreeLayerCanaryFast$", "-count=1", "-v"}
+	want := []string{"go", "test", "./internal/tools/integration", "-run", "^TestThreeLayerCanaryFast$", "-count=1", "-v"}
 	if got := workspaceCanaryCommand(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("workspace canary command = %q, want %q", got, want)
 	}

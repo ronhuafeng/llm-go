@@ -1,4 +1,4 @@
-package codexcaller
+package integration
 
 import (
 	"bufio"
@@ -17,6 +17,7 @@ import (
 
 	"github.com/ronhuafeng/llm-go/codexsdk"
 	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
+	codexcaller "github.com/ronhuafeng/llm-go/llmcaller/codex"
 	"github.com/ronhuafeng/llm-go/llmkit/llmadapter"
 )
 
@@ -37,7 +38,7 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 		if result.Response.Execution.Usage == nil || result.Response.Execution.Usage.InputTokens != 30 {
 			t.Fatalf("neutral usage = %#v", result.Response.Execution.Usage)
 		}
-		details := result.Response.ProviderDetails.(Details)
+		details := result.Response.ProviderDetails.(codexcaller.Details)
 		if details.Run.Run.FinalResponse != `{"answer":true}` || len(details.Run.Run.Notifications) != 4 || details.Run.Run.Usage.Total.OutputTokens != 20 {
 			t.Fatalf("exact details = %#v", details.Run)
 		}
@@ -50,7 +51,7 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 		if err == nil || response.FinalResponse != "partial" || response.Execution.ProviderName != "codex" || response.Execution.EffectiveModel != "canary-start" {
 			t.Fatalf("response=%#v err=%v", response, err)
 		}
-		details := response.ProviderDetails.(Details)
+		details := response.ProviderDetails.(codexcaller.Details)
 		if details.Run.Run.Turn.Status != protocolv2.TurnStatusFailed || len(details.Run.Run.Notifications) < 2 {
 			t.Fatalf("partial exact details = %#v", details.Run)
 		}
@@ -68,7 +69,7 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 		if err == nil || !errors.As(err, &protocolErr) || protocolErr.Method != protocolv2.MethodTurnStart {
 			t.Fatalf("response=%#v err=%v, want turn/start ProtocolError", response, err)
 		}
-		details := response.ProviderDetails.(Details)
+		details := response.ProviderDetails.(codexcaller.Details)
 		if details.Run.Start.Thread.ID != "thread-1" || details.Run.Run.Turn.ID != "" {
 			t.Fatalf("post-thread/start evidence = %#v", details.Run)
 		}
@@ -81,7 +82,7 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 		if err == nil || result.Response.FinalResponse != "not-json" {
 			t.Fatalf("result=%#v err=%v", result, err)
 		}
-		if result.Response.ProviderDetails.(Details).Run.Run.Turn.Status != protocolv2.TurnStatusCompleted {
+		if result.Response.ProviderDetails.(codexcaller.Details).Run.Run.Turn.Status != protocolv2.TurnStatusCompleted {
 			t.Fatalf("decode failure erased exact run: %#v", result.Response)
 		}
 	})
@@ -105,7 +106,7 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 			t.Fatal("CallStream did not retain the typed SDK stream escape hatch")
 		}
 		run, err := stream.Wait(context.Background())
-		if !errors.Is(err, ErrEffectiveProfile) {
+		if !errors.Is(err, codexcaller.ErrEffectiveProfile) {
 			t.Fatalf("Wait error = %v, want ErrEffectiveProfile", err)
 		}
 		if run.Start.Thread.ID != "thread-1" || run.Start.Model != "canary-start" || run.Run.Turn.Status != protocolv2.TurnStatusCompleted || len(run.Run.Notifications) != 4 || run.Run.Usage == nil || run.Run.Usage.Total.OutputTokens != 20 {
@@ -136,24 +137,24 @@ func TestEffectiveProfileContractAcrossPublicCallPaths(t *testing.T) {
 	}
 	paths := []struct {
 		name string
-		call func(*testing.T, *Caller, profileCase) (codexsdk.StartedThreadRun, error)
+		call func(*testing.T, *codexcaller.Caller, profileCase) (codexsdk.StartedThreadRun, error)
 	}{
-		{name: "Call", call: func(t *testing.T, caller *Caller, profileCase profileCase) (codexsdk.StartedThreadRun, error) {
+		{name: "Call", call: func(t *testing.T, caller *codexcaller.Caller, profileCase profileCase) (codexsdk.StartedThreadRun, error) {
 			t.Helper()
 			response, err := caller.Call(context.Background(), validRequest())
 			if response.Execution.ProviderName != "codex" || response.Execution.EffectiveModel != profileCase.wantEffectiveModel {
 				t.Fatalf("neutral evidence = %#v, want decoded start projection", response.Execution)
 			}
-			details, ok := response.ProviderDetails.(Details)
+			details, ok := response.ProviderDetails.(codexcaller.Details)
 			if !ok {
 				t.Fatalf("provider details = %#v, want typed exact evidence", response.ProviderDetails)
 			}
 			return details.Run, err
 		}},
-		{name: "CallDetailed", call: func(_ *testing.T, caller *Caller, _ profileCase) (codexsdk.StartedThreadRun, error) {
+		{name: "CallDetailed", call: func(_ *testing.T, caller *codexcaller.Caller, _ profileCase) (codexsdk.StartedThreadRun, error) {
 			return caller.CallDetailed(context.Background(), validRequest())
 		}},
-		{name: "CallStream", call: func(t *testing.T, caller *Caller, _ profileCase) (codexsdk.StartedThreadRun, error) {
+		{name: "CallStream", call: func(t *testing.T, caller *codexcaller.Caller, _ profileCase) (codexsdk.StartedThreadRun, error) {
 			t.Helper()
 			stream, err := caller.CallStream(context.Background(), validRequest())
 			if err != nil {
@@ -180,7 +181,7 @@ func TestEffectiveProfileContractAcrossPublicCallPaths(t *testing.T) {
 					}
 				} else if profileCase.missingThreadID {
 					requireMissingThreadProfileError(t, err, profileCase.want)
-				} else if !errors.Is(err, ErrEffectiveProfile) || !strings.Contains(err.Error(), profileCase.want) {
+				} else if !errors.Is(err, codexcaller.ErrEffectiveProfile) || !strings.Contains(err.Error(), profileCase.want) {
 					t.Fatalf("call error = %v, want ErrEffectiveProfile containing %q", err, profileCase.want)
 				}
 				if run.Start.Model != "canary-start" || run.Start.CWD != "/workspace" {
@@ -199,8 +200,8 @@ func TestEffectiveProfileContractAcrossPublicCallPaths(t *testing.T) {
 }
 
 func TestThreeLayerCanaryFull(t *testing.T) {
-	if os.Getenv("LLMCALLER_FULL_CANARY") != "1" {
-		t.Skip("set LLMCALLER_FULL_CANARY=1 for release/manual evidence")
+	if os.Getenv("LLMGO_FULL_CANARY") != "1" {
+		t.Skip("set LLMGO_FULL_CANARY=1 for release/manual evidence")
 	}
 
 	t.Run("transport failure retains accepted partial evidence and first cause", func(t *testing.T) {
@@ -209,7 +210,7 @@ func TestThreeLayerCanaryFull(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "invalid app-server JSON-RPC") || !errors.Is(err, io.EOF) {
 			t.Fatalf("response=%#v err=%v", response, err)
 		}
-		details := response.ProviderDetails.(Details)
+		details := response.ProviderDetails.(codexcaller.Details)
 		accepted, _ := json.Marshal(details.Run.Run.Notifications)
 		if response.Execution.ProviderName != "codex" || response.Execution.EffectiveModel != "canary-start" || details.Run.Start.Thread.ID != "thread-1" || details.Run.Run.Turn.ID != "turn-1" || len(details.Run.Run.Notifications) != 1 || !strings.Contains(string(accepted), `"text":"partial"`) {
 			t.Fatalf("transport failure erased partial evidence: %#v", response)
@@ -386,7 +387,7 @@ type canaryClient interface {
 	Close() error
 }
 
-func canaryCaller(t *testing.T, scenario string, options codexsdk.ClientOptions) (canaryClient, *Caller) {
+func canaryCaller(t *testing.T, scenario string, options codexsdk.ClientOptions) (canaryClient, *codexcaller.Caller) {
 	t.Helper()
 	if options.CWD == "" {
 		options.CWD = t.TempDir()
@@ -396,12 +397,26 @@ func canaryCaller(t *testing.T, scenario string, options codexsdk.ClientOptions)
 	if err != nil {
 		t.Fatalf("start fake app-server: %v", err)
 	}
-	caller, err := New(ReadOnlyEphemeralOptions(client.ThreadRunner()))
+	caller, err := codexcaller.New(codexcaller.ReadOnlyEphemeralOptions(client.ThreadRunner()))
 	if err != nil {
 		client.Close()
 		t.Fatal(err)
 	}
 	return client, caller
+}
+
+func validRequest() llmadapter.Request {
+	return llmadapter.Request{
+		Prompt:       "prompt",
+		OutputSchema: json.RawMessage(`{"type":"object","required":["answer"],"properties":{"answer":{"type":"string"}}}`),
+	}
+}
+
+func requireMissingThreadProfileError(t *testing.T, err error, want string) {
+	t.Helper()
+	if !errors.Is(err, codexsdk.ErrMissingThreadID) || !errors.Is(err, codexcaller.ErrEffectiveProfile) || !strings.Contains(err.Error(), want) {
+		t.Fatalf("error = %v, want missing-thread and profile causes containing %q", err, want)
+	}
 }
 
 const canaryOverflowHandlerStarted = "overflow-handler-started"

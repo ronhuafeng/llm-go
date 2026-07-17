@@ -324,7 +324,7 @@ func VerifyCheckout(root string, plan AffectedPlan) (Evidence, error) {
 }
 
 func workspaceCanaryCommand() []string {
-	return []string{"go", "test", "./llmcaller/codex", "-run", "^TestThreeLayerCanaryFast$", "-count=1", "-v"}
+	return []string{"go", "test", "./internal/tools/integration", "-run", "^TestThreeLayerCanaryFast$", "-count=1", "-v"}
 }
 
 func runWorkspaceCanary(root string, command []string) (err error) {
