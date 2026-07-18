@@ -263,13 +263,14 @@ Use `settle.RunDetailed` and `llmstep.RunDetailed` when callers need candidates,
 attempt errors, validation feedback, provider response evidence, or the latest
 partial output after a failure or exhausted retry bound.
 
-Both detailed retry APIs observe context cancellation before work begins and
-after each successful caller-provided phase. If cancellation is observed after
-a phase succeeds, they return the context error while retaining completed
-partial output and phase evidence. A callback's own error takes precedence over
-cancellation observed at the same boundary. Cancellation after the final
-observation can still race with a successful return, as with other cooperative
-Go context APIs.
+Both detailed retry APIs observe context cancellation before work begins and at
+their documented callback boundaries: `settle` checks after Run and Validate;
+`llmstep` checks after Render, provider Call, and Validate. If cancellation is
+observed after one of those phases succeeds, they return the context error while
+retaining completed partial output and phase evidence. A callback's own error
+takes precedence over cancellation observed at the same boundary. Cancellation
+after the final observation can still race with a successful return, as with
+other cooperative Go context APIs.
 
 ## API Compatibility
 
