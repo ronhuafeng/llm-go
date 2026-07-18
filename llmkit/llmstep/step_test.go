@@ -282,6 +282,30 @@ func TestRunFailsFastOnInvalidConfiguration(t *testing.T) {
 	}
 }
 
+func TestRunDetailedFailsFastOnTypedNilCaller(t *testing.T) {
+	var caller *fakeCaller
+	renderCalls := 0
+
+	result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
+		Caller: caller,
+		Render: func(context.Context, stepInput, []Feedback) (string, error) {
+			renderCalls++
+			return "prompt", nil
+		},
+		MaxIter: 1,
+	}, stepInput{})
+
+	if !errors.Is(err, llmadapter.ErrNilCaller) {
+		t.Fatalf("RunDetailed error = %v, want ErrNilCaller", err)
+	}
+	if renderCalls != 0 {
+		t.Fatalf("render calls = %d, want 0", renderCalls)
+	}
+	if len(result.Attempts) != 0 {
+		t.Fatalf("attempts = %#v, want no manufactured attempt", result.Attempts)
+	}
+}
+
 func TestRunStopsOnDecodeFailureWithoutRetryingAsValidation(t *testing.T) {
 	caller := &fakeCaller{responses: []llmadapter.Response{
 		{FinalResponse: `not-json`},

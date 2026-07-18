@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strings"
 	"unicode"
@@ -118,7 +119,7 @@ func RunDetailed[I any, O any](ctx context.Context, step Step[I, O], input I) (R
 	if step.MaxIter < 1 {
 		return result, settle.ErrInvalidMaxIter
 	}
-	if step.Caller == nil {
+	if isNilCaller(step.Caller) {
 		return result, llmadapter.ErrNilCaller
 	}
 	if step.Render == nil {
@@ -183,6 +184,20 @@ func RunDetailed[I any, O any](ctx context.Context, step Step[I, O], input I) (R
 	}
 
 	return snapshotResult(result), fmt.Errorf("%w: maxIter=%d", settle.ErrUnsettled, step.MaxIter)
+}
+
+func isNilCaller(caller llmadapter.Caller) bool {
+	if caller == nil {
+		return true
+	}
+
+	value := reflect.ValueOf(caller)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
 }
 
 func valueStage(err error) Stage {
