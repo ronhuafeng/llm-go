@@ -238,22 +238,23 @@ func snapshotResult[O any](result Result[O]) Result[O] {
 	return result
 }
 
-// StrictFeedbackSanitizer accepts short, identifier-oriented feedback and
-// rejects strings that look like secrets, credentials, URLs, or private paths.
+// StrictFeedbackSanitizer accepts identifier-oriented Codes and Locations and
+// rejects every non-empty free-form Summary. It is not a DLP system, secret
+// scanner, or privacy guarantee; applications must still redact validator
+// evidence before returning it.
 func StrictFeedbackSanitizer(feedback []Feedback) ([]Feedback, error) {
 	sanitized := make([]Feedback, 0, len(feedback))
 	for i, item := range feedback {
+		if strings.TrimSpace(item.Summary) != "" {
+			return nil, fmt.Errorf("%w: feedback[%d].summary", ErrUnsafeFeedback, i)
+		}
 		next := Feedback{
 			Iteration: item.Iteration,
-			Summary:   strings.TrimSpace(item.Summary),
 			Codes:     sanitizeStrings(item.Codes),
 			Locations: sanitizeStrings(item.Locations),
 		}
-		if next.Summary == "" && len(next.Codes) == 0 && len(next.Locations) == 0 {
+		if len(next.Codes) == 0 && len(next.Locations) == 0 {
 			continue
-		}
-		if next.Summary != "" && !safeSummary(next.Summary) {
-			return nil, fmt.Errorf("%w: feedback[%d].summary", ErrUnsafeFeedback, i)
 		}
 		if err := safeTokens(next.Codes, "codes", i); err != nil {
 			return nil, err
@@ -318,13 +319,6 @@ func sanitizeStrings(values []string) []string {
 
 var unsafeFeedbackPattern = regexp.MustCompile(`(?i)(https?://|www\.|authorization\s*:|bearer\s+[a-z0-9._~+/=-]+|api[_ -]?key|password|passwd|secret|token\s*[:=]|sk-[a-z0-9]{12,}|[a-z]:\\|~[/\\]|/(users|home|var|etc|private|tmp)/)`)
 
-func safeSummary(summary string) bool {
-	if len(summary) > 240 || unsafeFeedbackPattern.MatchString(summary) {
-		return false
-	}
-	return printableSingleLine(summary)
-}
-
 func safeTokens(tokens []string, field string, feedbackIndex int) error {
 	for tokenIndex, token := range tokens {
 		if !safeToken(token) {
@@ -346,18 +340,6 @@ func safeToken(token string) bool {
 		case '_', '-', '.', ':', '#':
 			continue
 		default:
-			return false
-		}
-	}
-	return true
-}
-
-func printableSingleLine(value string) bool {
-	for _, r := range value {
-		if r == '\n' || r == '\r' || r == '\t' {
-			return false
-		}
-		if unicode.IsControl(r) {
 			return false
 		}
 	}

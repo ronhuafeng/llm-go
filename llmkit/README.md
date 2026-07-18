@@ -239,6 +239,14 @@ as opaque: it does not compute, key, verify, or promise their security. The
 sanitizer independently determines whether a redacted or fingerprinted fact may
 be sent to the model.
 
+When `Step.Sanitizer` is nil, `StrictFeedbackSanitizer` rejects every non-empty
+free-form `Summary` and permits only identifier-oriented `Codes` and
+`Locations`. To intentionally send a free-form summary, configure a custom
+sanitizer and treat its output as application-owned model-facing policy. The
+default sanitizer is not DLP, secret scanning, or a privacy guarantee; values
+placed in structured fields can still be sensitive, so applications remain
+responsible for redaction.
+
 ```go
 result, err := llmstep.Run(ctx, llmstep.Step[ReviewInput, ReviewResult]{
 	Caller:   caller,
@@ -292,6 +300,10 @@ Version 0.5 limits sanitization to feedback that will reach a real retry; final
 unsettled attempts now return `settle.ErrUnsettled` directly. See
 [Migrating to v0.5](docs/v0.5-migration.md) for the corrected terminal error
 semantics.
+
+Version 0.7 makes the default retry-feedback sanitizer structured-only. See
+[Migrating to v0.7](docs/migration/v0.7.0.md) for the required changes when a
+validator previously relied on default free-form summaries.
 
 ## Versioning
 

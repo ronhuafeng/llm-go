@@ -13,6 +13,13 @@
 // before their validator returns them, or deliberately substitute a caller-owned
 // threat-model-reviewed keyed pseudonymous fingerprint.
 //
+// When Step.Sanitizer is nil, StrictFeedbackSanitizer is the default. It rejects
+// every non-empty free-form Summary and accepts only identifier-oriented Codes
+// and Locations. Applications that intentionally send free-form feedback must
+// provide an explicit sanitizer and own that policy. Neither the default nor a
+// custom sanitizer is a DLP system, secret scanner, or privacy guarantee;
+// applications remain responsible for redacting validator evidence.
+//
 // RunDetailed publishes owned snapshots of attempt, validation, and feedback
 // slices. Typed outputs inside those snapshots follow ordinary Go value
 // semantics and are not generically deep-cloned.
