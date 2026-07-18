@@ -100,8 +100,7 @@ func TestRunFeedsSanitizedValidationFeedbackIntoNextRender(t *testing.T) {
 			}
 			return ValidationResult{
 				Feedback: []Feedback{{
-					Summary: "status must be ok",
-					Codes:   []string{"invalid_status"},
+					Codes: []string{"invalid_status"},
 				}},
 			}, nil
 		},
@@ -435,6 +434,44 @@ func TestRunRejectsUnsafeFeedbackBeforeNextRender(t *testing.T) {
 	}
 }
 
+func TestStrictFeedbackSanitizerRejectsFreeFormSummaries(t *testing.T) {
+	tests := map[string]string{
+		"AWS access key":      "AKIAIOSFODNN7EXAMPLE",
+		"GitHub token":        "ghp_1234567890abcdefghijklmnopqrstuvwxyz",
+		"PEM header":          "-----BEGIN PRIVATE KEY-----",
+		"database connection": "postgres://db.internal/app",
+		"email address":       "alice@example.com",
+		"phone number":        "+1 (415) 555-0132",
+		"customer identifier": "customer-48291",
+		"business fragment":   "premium renewal approved",
+		"source fragment":     "invoiceTotal := rate * units",
+	}
+
+	for name, summary := range tests {
+		t.Run(name, func(t *testing.T) {
+			_, err := StrictFeedbackSanitizer([]Feedback{{Summary: summary}})
+			if !errors.Is(err, ErrUnsafeFeedback) {
+				t.Fatalf("StrictFeedbackSanitizer(%q) error = %v, want ErrUnsafeFeedback", summary, err)
+			}
+		})
+	}
+}
+
+func TestStrictFeedbackSanitizerAllowsStructuredFields(t *testing.T) {
+	got, err := StrictFeedbackSanitizer([]Feedback{{
+		Iteration: 7,
+		Summary:   "   ",
+		Codes:     []string{" invalid_status "},
+		Locations: []string{" result.status "},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Iteration != 7 || got[0].Summary != "" || got[0].Codes[0] != "invalid_status" || got[0].Locations[0] != "result.status" {
+		t.Fatalf("StrictFeedbackSanitizer result = %#v, want trimmed structured fields", got)
+	}
+}
+
 func TestRunUsesCustomSanitizer(t *testing.T) {
 	caller := &fakeCaller{responses: []llmadapter.Response{
 		{FinalResponse: `{"status":"draft"}`},
@@ -495,7 +532,7 @@ func TestRunDetailedSeparatesValidationFromRetryFeedback(t *testing.T) {
 		Sanitizer: func(feedback []Feedback) ([]Feedback, error) {
 			feedback[0].Summary = "sanitizer input mutation"
 			feedback[0].Codes[0] = "sanitizer_input_mutation"
-			sanitizerOutput = []Feedback{{Codes: []string{"safe_code"}}}
+			sanitizerOutput = []Feedback{{Summary: "model-safe detail", Codes: []string{"safe_code"}}}
 			return sanitizerOutput, nil
 		},
 		MaxIter: 2,
@@ -511,13 +548,13 @@ func TestRunDetailedSeparatesValidationFromRetryFeedback(t *testing.T) {
 		t.Fatalf("Validation = %#v, want original validator decision", validation)
 	}
 	retry := result.Attempts[0].RetryFeedback
-	if len(retry) != 1 || retry[0].Iteration != 1 || retry[0].Summary != "" || retry[0].Codes[0] != "safe_code" || retry[0].Locations != nil {
+	if len(retry) != 1 || retry[0].Iteration != 1 || retry[0].Summary != "model-safe detail" || retry[0].Codes[0] != "safe_code" || retry[0].Locations != nil {
 		t.Fatalf("RetryFeedback = %#v, want sanitized and stamped feedback", retry)
 	}
-	if len(rendered) != 1 || rendered[0].Codes[0] != "safe_code" || result.Attempts[1].Feedback[0].Codes[0] != "safe_code" || result.Attempts[0].RetryFeedback[0].Codes[0] != "safe_code" {
+	if len(rendered) != 1 || rendered[0].Summary != "model-safe detail" || rendered[0].Codes[0] != "safe_code" || result.Attempts[1].Feedback[0].Summary != "model-safe detail" || result.Attempts[1].Feedback[0].Codes[0] != "safe_code" || result.Attempts[0].RetryFeedback[0].Summary != "model-safe detail" || result.Attempts[0].RetryFeedback[0].Codes[0] != "safe_code" {
 		t.Fatalf("render feedback or snapshots aliased: rendered=%#v attempts=%#v", rendered, result.Attempts)
 	}
-	if sanitizerOutput[0].Iteration != 0 || sanitizerOutput[0].Codes[0] != "safe_code" {
+	if sanitizerOutput[0].Iteration != 0 || sanitizerOutput[0].Summary != "model-safe detail" || sanitizerOutput[0].Codes[0] != "safe_code" {
 		t.Fatalf("framework mutated sanitizer-owned output: %#v", sanitizerOutput)
 	}
 }

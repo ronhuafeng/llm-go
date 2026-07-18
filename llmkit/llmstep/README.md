@@ -21,5 +21,12 @@ when another attempt will run. The final unsettled attempt therefore returns
 `settle.ErrUnsettled` without invoking the sanitizer and without synthesizing
 retry feedback.
 
+With no configured sanitizer, the default policy rejects every non-empty
+free-form `Summary` and permits only identifier-oriented `Codes` and
+`Locations`. Applications that intentionally send free-form feedback must
+provide a custom sanitizer and own that decision. Sanitization is not DLP,
+secret scanning, or a privacy guarantee; validators must redact sensitive
+evidence before returning it.
+
 The package does not include provider transport, prompt templates, business
 validators, tool calling, streaming, write gates, or multi-step orchestration.

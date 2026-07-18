@@ -49,8 +49,7 @@ func ExampleRun() {
 			}
 			return llmstep.ValidationResult{
 				Feedback: []llmstep.Feedback{{
-					Summary: "verdict must be pass or fail",
-					Codes:   []string{"invalid_verdict"},
+					Codes: []string{"invalid_verdict"},
 				}},
 			}, nil
 		},
