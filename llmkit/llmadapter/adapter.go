@@ -126,6 +126,9 @@ func ValueDetailed[T any](ctx context.Context, caller Caller, prompt string) (Va
 	if callErr != nil || identityErr != nil {
 		return result, valueError(ValueStageCall, errors.Join(callErr, identityErr))
 	}
+	if err := ctx.Err(); err != nil {
+		return result, valueError(ValueStageCall, err)
+	}
 	result.Value, err = decodeFinalResponse[T](response.FinalResponse)
 	if err != nil {
 		return result, valueError(ValueStageDecode, err)

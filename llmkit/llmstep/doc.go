@@ -16,6 +16,15 @@
 // RunDetailed publishes owned snapshots of attempt, validation, and feedback
 // slices. Typed outputs inside those snapshots follow ordinary Go value
 // semantics and are not generically deep-cloned.
+//
+// RunDetailed observes context cancellation before Render and after successful
+// Render, provider Call, and Validate callbacks. A callback error remains the
+// phase error even when the context is also canceled. When a callback succeeds
+// but cancellation is observed at its boundary, RunDetailed returns a StepError
+// wrapping ctx.Err at that phase and retains completed output and evidence in
+// the detailed result. Cancellation after the final observation may race with
+// a successful return.
+//
 // It is intentionally smaller than a workflow engine: applications still own
 // business prompts, provider callers, semantic validators, write gates, and
 // policy.

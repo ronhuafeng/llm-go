@@ -73,6 +73,12 @@ func RunDetailed[I any, O any](ctx context.Context, op Op[I, O], input I, maxIte
 		attempt := Attempt[O]{Iteration: iter, Output: output, HasOutput: true}
 		result.Output = output
 		result.HasOutput = true
+		if err := ctx.Err(); err != nil {
+			attempt.Stage = StageRun
+			attempt.Err = err
+			result.Attempts = append(result.Attempts, attempt)
+			return snapshot(result), err
+		}
 
 		settled, err := op.Validate(ctx, input, output)
 		if err != nil {
@@ -82,6 +88,12 @@ func RunDetailed[I any, O any](ctx context.Context, op Op[I, O], input I, maxIte
 			return snapshot(result), err
 		}
 		attempt.Settled = settled
+		if err := ctx.Err(); err != nil {
+			attempt.Stage = StageValidate
+			attempt.Err = err
+			result.Attempts = append(result.Attempts, attempt)
+			return snapshot(result), err
+		}
 		result.Attempts = append(result.Attempts, attempt)
 		if settled {
 			return snapshot(result), nil
