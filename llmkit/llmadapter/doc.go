@@ -14,6 +14,13 @@
 // runtime state. Generic typed outputs follow ordinary Go value semantics; the
 // package does not promise a universal deep copy of arbitrary T.
 //
+// After a successful Caller.Call and provider-identity check, ValueDetailed
+// observes context cancellation before decoding the typed output. If canceled,
+// it returns a call-stage error while preserving the cloned response evidence.
+// Caller and identity errors take precedence over cancellation observed at that
+// boundary. Cancellation after the final observation may race with decoding
+// and a successful return.
+//
 // A safe adapter constructs details from copied provider state:
 //
 //	type details struct {

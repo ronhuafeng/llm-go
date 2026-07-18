@@ -143,6 +143,9 @@ func RunDetailed[I any, O any](ctx context.Context, step Step[I, O], input I) (R
 		if err != nil {
 			return fail(result, attempt, StageRender, err)
 		}
+		if err := ctx.Err(); err != nil {
+			return fail(result, attempt, StageRender, err)
+		}
 
 		call, err := llmadapter.ValueDetailed[O](ctx, step.Caller, prompt)
 		attempt.Call = call
@@ -163,6 +166,9 @@ func RunDetailed[I any, O any](ctx context.Context, step Step[I, O], input I) (R
 		}
 
 		attempt.Validation = copyValidationResult(validation)
+		if err := ctx.Err(); err != nil {
+			return fail(result, attempt, StageValidate, err)
+		}
 		if validation.Settled {
 			result.Attempts = append(result.Attempts, attempt)
 			return snapshotResult(result), nil

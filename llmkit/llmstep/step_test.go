@@ -306,6 +306,83 @@ func TestRunDetailedFailsFastOnTypedNilCaller(t *testing.T) {
 	}
 }
 
+func TestRunDetailedRecordsCancellationAfterSuccessfulRender(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	caller := &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"ok"}`}}}
+
+	result, err := RunDetailed(ctx, Step[stepInput, stepOutput]{
+		Caller: caller,
+		Render: func(context.Context, stepInput, []Feedback) (string, error) {
+			cancel()
+			return "prompt", nil
+		},
+		MaxIter: 1,
+	}, stepInput{})
+
+	var stepErr *StepError
+	if !errors.As(err, &stepErr) || stepErr.Stage != StageRender || !errors.Is(err, context.Canceled) {
+		t.Fatalf("RunDetailed error = %v, want render-stage context.Canceled", err)
+	}
+	if result.HasOutput || len(result.Attempts) != 1 || result.Attempts[0].Err == nil {
+		t.Fatalf("result = %#v, want one render-stage failed attempt without output", result)
+	}
+	if len(caller.requests) != 0 {
+		t.Fatalf("caller requests = %d, want 0 after observed cancellation", len(caller.requests))
+	}
+}
+
+func TestRunDetailedRecordsCancellationAfterSuccessfulProviderCall(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	response := llmadapter.Response{FinalResponse: `{"status":"ok"}`}
+
+	result, err := RunDetailed(ctx, Step[stepInput, stepOutput]{
+		Caller: stepCallerFunc(func(context.Context, llmadapter.Request) (llmadapter.Response, error) {
+			cancel()
+			return response, nil
+		}),
+		Render:  func(context.Context, stepInput, []Feedback) (string, error) { return "prompt", nil },
+		MaxIter: 1,
+	}, stepInput{})
+
+	var stepErr *StepError
+	if !errors.As(err, &stepErr) || stepErr.Stage != StageCall || !errors.Is(err, context.Canceled) {
+		t.Fatalf("RunDetailed error = %v, want call-stage context.Canceled", err)
+	}
+	if result.HasOutput || len(result.Attempts) != 1 {
+		t.Fatalf("result = %#v, want one call-stage failed attempt without decoded output", result)
+	}
+	if got := result.Attempts[0].Call.Response.FinalResponse; got != response.FinalResponse {
+		t.Fatalf("partial response = %q, want %q", got, response.FinalResponse)
+	}
+}
+
+func TestRunDetailedRecordsCancellationAfterSuccessfulValidation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	validation := ValidationResult{Settled: true, Feedback: []Feedback{{Codes: []string{"accepted"}}}}
+
+	result, err := RunDetailed(ctx, Step[stepInput, stepOutput]{
+		Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"ok"}`}}},
+		Render: func(context.Context, stepInput, []Feedback) (string, error) { return "prompt", nil },
+		Validate: func(context.Context, stepInput, stepOutput) (ValidationResult, error) {
+			cancel()
+			return validation, nil
+		},
+		MaxIter: 1,
+	}, stepInput{})
+
+	var stepErr *StepError
+	if !errors.As(err, &stepErr) || stepErr.Stage != StageValidate || !errors.Is(err, context.Canceled) {
+		t.Fatalf("RunDetailed error = %v, want validate-stage context.Canceled", err)
+	}
+	if !result.HasOutput || result.Output.Status != "ok" || len(result.Attempts) != 1 {
+		t.Fatalf("result = %#v, want typed output plus one validation-stage failure", result)
+	}
+	attempt := result.Attempts[0]
+	if !attempt.Validation.Settled || len(attempt.Validation.Feedback) != 1 || attempt.Validation.Feedback[0].Codes[0] != "accepted" {
+		t.Fatalf("Validation = %#v, want completed validation evidence", attempt.Validation)
+	}
+}
+
 func TestRunStopsOnDecodeFailureWithoutRetryingAsValidation(t *testing.T) {
 	caller := &fakeCaller{responses: []llmadapter.Response{
 		{FinalResponse: `not-json`},

@@ -15,6 +15,27 @@ type recordingOp struct {
 	validateCalls int
 }
 
+type cancelingOp struct {
+	cancel        context.CancelFunc
+	during        Stage
+	validateCalls int
+}
+
+func (op *cancelingOp) Run(context.Context, string) (string, error) {
+	if op.during == StageRun {
+		op.cancel()
+	}
+	return "candidate", nil
+}
+
+func (op *cancelingOp) Validate(context.Context, string, string) (bool, error) {
+	op.validateCalls++
+	if op.during == StageValidate {
+		op.cancel()
+	}
+	return true, nil
+}
+
 func (op *recordingOp) Run(ctx context.Context, input string) (string, error) {
 	op.runCalls++
 	if op.runErr != nil {
@@ -154,6 +175,49 @@ func TestRunReturnsContextCancellation(t *testing.T) {
 	}
 	if op.runCalls != 0 {
 		t.Fatalf("Run calls = %d, want 0", op.runCalls)
+	}
+}
+
+func TestRunDetailedRecordsCancellationAfterSuccessfulRun(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	op := &cancelingOp{cancel: cancel, during: StageRun}
+
+	result, err := RunDetailed(ctx, op, "input", 1)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("RunDetailed error = %v, want context.Canceled", err)
+	}
+	if !result.HasOutput || result.Output != "candidate" {
+		t.Fatalf("result = %#v, want completed candidate", result)
+	}
+	if len(result.Attempts) != 1 {
+		t.Fatalf("attempts = %#v, want one run-stage cancellation", result.Attempts)
+	}
+	attempt := result.Attempts[0]
+	if !attempt.HasOutput || attempt.Output != "candidate" || attempt.Stage != StageRun || !errors.Is(attempt.Err, context.Canceled) {
+		t.Fatalf("attempt = %#v, want candidate plus run-stage cancellation", attempt)
+	}
+	if op.validateCalls != 0 {
+		t.Fatalf("validate calls = %d, want 0 after observed cancellation", op.validateCalls)
+	}
+}
+
+func TestRunDetailedRecordsCancellationAfterSuccessfulValidation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	op := &cancelingOp{cancel: cancel, during: StageValidate}
+
+	result, err := RunDetailed(ctx, op, "input", 1)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("RunDetailed error = %v, want context.Canceled", err)
+	}
+	if !result.HasOutput || result.Output != "candidate" {
+		t.Fatalf("result = %#v, want completed candidate", result)
+	}
+	if len(result.Attempts) != 1 {
+		t.Fatalf("attempts = %#v, want one validation-stage cancellation", result.Attempts)
+	}
+	attempt := result.Attempts[0]
+	if !attempt.HasOutput || attempt.Output != "candidate" || !attempt.Settled || attempt.Stage != StageValidate || !errors.Is(attempt.Err, context.Canceled) {
+		t.Fatalf("attempt = %#v, want settled evidence plus validation-stage cancellation", attempt)
 	}
 }
 
