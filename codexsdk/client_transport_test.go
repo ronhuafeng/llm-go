@@ -124,6 +124,39 @@ func TestInternalJSONRPCCloseFailsPendingWaits(t *testing.T) {
 	}
 }
 
+func TestInternalJSONRPCShutdownClosesAdmissionBeforeRegistration(t *testing.T) {
+	c := newTransportHarness()
+	atAdmission := make(chan struct{})
+	releaseAdmission := make(chan struct{})
+	c.testBeforePendingAdmission = func() {
+		close(atAdmission)
+		<-releaseAdmission
+	}
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := c.call(context.Background(), "racing/method", nil)
+		errCh <- err
+	}()
+
+	<-atAdmission
+	if err := c.Close(); err != nil {
+		t.Fatal(err)
+	}
+	close(releaseAdmission)
+
+	select {
+	case err := <-errCh:
+		if !errors.Is(err, ErrClientClosed) {
+			t.Fatalf("call error = %v, want ErrClientClosed", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("call admitted after shutdown and remained pending")
+	}
+	if got := pendingCount(c); got != 0 {
+		t.Fatalf("pending count = %d, want 0", got)
+	}
+}
+
 func TestInternalJSONRPCProtocolErrorIsPropagated(t *testing.T) {
 	c := newTransportHarness()
 	errCh := make(chan error, 1)
@@ -374,6 +407,7 @@ func newTransportHarness() *Client {
 		ctx:            ctx,
 		cancel:         cancel,
 		stdin:          &recordingWriteCloser{},
+		pending:        map[string]pendingCall{},
 		pendingEvents:  map[string][]rpcNotification{},
 		exactStreams:   map[string]map[*exactRunState]struct{}{},
 		exactAttaching: map[string]map[*exactRunState]struct{}{},
@@ -412,10 +446,7 @@ func waitForPendingCount(t *testing.T, c *Client, want int) {
 }
 
 func pendingCount(c *Client) int {
-	count := 0
-	c.pending.Range(func(_, _ any) bool {
-		count++
-		return true
-	})
-	return count
+	c.closeMu.Lock()
+	defer c.closeMu.Unlock()
+	return len(c.pending)
 }

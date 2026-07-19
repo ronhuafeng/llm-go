@@ -54,7 +54,7 @@ type Client struct {
 	cmd     *exec.Cmd
 
 	nextID  atomic.Uint64
-	pending sync.Map
+	pending map[string]pendingCall
 
 	turnMu         sync.Mutex
 	exactStreams   map[string]map[*exactRunState]struct{}
@@ -76,6 +76,7 @@ type Client struct {
 	testBeforePendingTerminalFence        func()
 	testAfterCloseCausePublished          func()
 	testAfterServerRequestFailureResponse func()
+	testBeforePendingAdmission            func()
 
 	readerDone chan struct{}
 }
@@ -129,6 +130,7 @@ func New(options ClientOptions) (*Client, error) {
 		exactAttaching:      map[string]map[*exactRunState]struct{}{},
 		pendingEvents:       map[string][]rpcNotification{},
 		pendingDiagnostics:  map[string][]DiagnosticRef{},
+		pending:             map[string]pendingCall{},
 		readerDone:          make(chan struct{}),
 		dispatchStop:        make(chan struct{}),
 		dispatcherDone:      make(chan struct{}),
@@ -277,27 +279,61 @@ func (c *Client) call(ctx context.Context, method string, params map[string]any)
 }
 
 func (c *Client) callValidated(ctx context.Context, method string, params map[string]any, validate func(map[string]any) error) (map[string]any, error) {
-	if err := c.checkOpen(); err != nil {
-		return nil, err
+	if c == nil || c.ctx == nil {
+		return nil, ErrClientClosed
 	}
 	id := "go-sdk-" + strconv.FormatUint(c.nextID.Add(1), 10)
 	ch := make(chan rpcResponse, 1)
-	c.pending.Store(id, pendingCall{method: method, response: ch, validate: validate})
+	if c.testBeforePendingAdmission != nil {
+		c.testBeforePendingAdmission()
+	}
+	if err := c.admitPending(id, pendingCall{method: method, response: ch, validate: validate}); err != nil {
+		return nil, err
+	}
 	payload := map[string]any{"id": id, "method": method}
 	if params != nil {
 		payload["params"] = params
 	}
 	if err := c.write(payload); err != nil {
-		c.pending.Delete(id)
-		return nil, err
+		if _, owned := c.takePending(id); owned {
+			return nil, err
+		}
+		response := <-ch
+		return response.result, response.err
 	}
 	select {
 	case response := <-ch:
 		return response.result, response.err
 	case <-ctx.Done():
-		c.pending.Delete(id)
-		return nil, ctx.Err()
+		if _, owned := c.takePending(id); owned {
+			return nil, ctx.Err()
+		}
+		response := <-ch
+		return response.result, response.err
 	}
+}
+
+func (c *Client) admitPending(id string, call pendingCall) error {
+	c.closeMu.Lock()
+	defer c.closeMu.Unlock()
+	if c.closed {
+		return ErrClientClosed
+	}
+	if c.pending == nil {
+		c.pending = map[string]pendingCall{}
+	}
+	c.pending[id] = call
+	return nil
+}
+
+func (c *Client) takePending(id string) (pendingCall, bool) {
+	c.closeMu.Lock()
+	defer c.closeMu.Unlock()
+	call, ok := c.pending[id]
+	if ok {
+		delete(c.pending, id)
+	}
+	return call, ok
 }
 
 func (c *Client) notify(payload any) error {
@@ -387,11 +423,10 @@ func (c *Client) handleMessage(message map[string]any) {
 
 func (c *Client) routeResponse(message map[string]any) {
 	id := fmt.Sprint(message["id"])
-	raw, ok := c.pending.LoadAndDelete(id)
+	pending, ok := c.takePending(id)
 	if !ok {
 		return
 	}
-	pending := raw.(pendingCall)
 	if rawError := message["error"]; rawError != nil {
 		pending.response <- rpcResponse{err: protocolError(message["id"], pending.method, rawError)}
 		return
@@ -759,12 +794,13 @@ func (c *Client) unregisterExactRun(stream *exactRunState) {
 }
 
 func (c *Client) failAll(err error) {
-	var pendingCalls []pendingCall
-	c.pending.Range(func(key, value any) bool {
-		c.pending.Delete(key)
-		pendingCalls = append(pendingCalls, value.(pendingCall))
-		return true
-	})
+	c.closeMu.Lock()
+	pendingCalls := make([]pendingCall, 0, len(c.pending))
+	for id, call := range c.pending {
+		delete(c.pending, id)
+		pendingCalls = append(pendingCalls, call)
+	}
+	c.closeMu.Unlock()
 	c.turnMu.Lock()
 	var exactStreams []*exactRunState
 	for _, byTurn := range c.exactStreams {
