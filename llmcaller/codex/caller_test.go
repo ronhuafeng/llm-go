@@ -256,10 +256,7 @@ func TestCallIsProjectionOfDetailedResult(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want, err := responseFromRun(detailed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	want := responseFromRun(detailed)
 	got, err := caller.Call(context.Background(), validRequest())
 	if err != nil {
 		t.Fatal(err)
@@ -295,6 +292,56 @@ func TestCallerPublishesImmutableDetailsAndDefaults(t *testing.T) {
 	rerouted, ok := detailsAgain.Run.Run.Notifications[0].AsModelRerouted()
 	if !ok || rerouted.Params.FromModel != "gpt" || details.Run.Run.Notifications[0].Kind() != protocolv2.ServerNotificationKindModelRerouted {
 		t.Fatal("details snapshot was aliased")
+	}
+}
+
+func TestCallerIsolatesPartialTurnWithoutIdentity(t *testing.T) {
+	run := validStartedRun("partial", "gpt")
+	run.Run.Turn.ID = ""
+	runner := &fakeRunner{result: run}
+	caller, err := New(Options{Runner: runner})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := caller.Call(context.Background(), validRequest())
+	if err != nil {
+		t.Fatal(err)
+	}
+	details := response.ProviderDetails.(Details)
+	runner.result.Run.Turn.Items[0] = protocolv2.NewThreadItemAgentMessage(protocolv2.ThreadItemAgentMessage{
+		ID: "mutated", Text: "mutated",
+	})
+	message, ok := details.Run.Run.Turn.Items[0].AsAgentMessage()
+	if !ok || message.ID != "item-1" || message.Text != "partial" {
+		t.Fatalf("partial turn details aliased runner result: %#v", details.Run.Run.Turn.Items)
+	}
+}
+
+func TestCallOmitsProviderDetailsWhenSnapshotFails(t *testing.T) {
+	run := validStartedRun("safe-final", "safe-model")
+	run.Run.Turn = protocolv2.Turn{
+		ID: "invalid-turn", StartedAt: protocolv2.Value(int64(1)), Status: protocolv2.TurnStatusInProgress,
+	}
+	run.Run.Notifications = []protocolv2.ServerNotification{modelRerouted("safe-model", "aliased-reroute")}
+	run.Run.Usage = &protocolv2.ThreadTokenUsage{Total: protocolv2.TokenUsageBreakdown{InputTokens: 3}}
+	runner := &fakeRunner{result: run}
+	caller, err := New(Options{Runner: runner})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	response, err := caller.Call(context.Background(), validRequest())
+	if err == nil || !strings.Contains(err.Error(), "Turn.items") {
+		t.Fatalf("Call error = %v, want snapshot failure", err)
+	}
+	if response.ProviderDetails != nil {
+		t.Fatalf("ProviderDetails = %#v, want no unisolated run", response.ProviderDetails)
+	}
+	if response.FinalResponse != "safe-final" || response.Execution.ProviderName != "codex" || response.Execution.EffectiveModel != "safe-model" {
+		t.Fatalf("safe scalar evidence = %#v", response)
+	}
+	if response.Execution.Usage != nil {
+		t.Fatalf("usage = %#v, want no aliased reference evidence", response.Execution.Usage)
 	}
 }
 

@@ -87,6 +87,11 @@ configuration remain available there. If the SDK returns a partial run and an
 error, the adapter returns both the available response evidence and the same
 error cause chain.
 
+If an exact run cannot be isolated, `Call` returns the snapshot error and omits
+`ProviderDetails` rather than publishing mutable runner state. Direct scalar
+facts such as final text and the start model remain available; aliased usage and
+notification-derived facts are omitted.
+
 Requested-policy enforcement happens before transport for `Call`,
 `CallDetailed`, and `CallStream`: no explicitly conflicting named-profile
 defaults can reach the SDK runner. All three paths also apply the same
