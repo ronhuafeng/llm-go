@@ -211,17 +211,26 @@ func ReadOnlyEphemeralOptions(runner ThreadRunner) Options {
 
 // Call executes the detailed path and projects its available neutral facts.
 func (c *Caller) Call(ctx context.Context, request llmadapter.Request) (llmadapter.Response, error) {
-	run, runErr := c.CallDetailed(ctx, request)
+	run, runErr := c.startRun(ctx, request)
 	if !hasRunEvidence(run, runErr) {
 		return llmadapter.Response{}, runErr
 	}
-	response, projectionErr := responseFromRun(run)
-	return response, errors.Join(runErr, projectionErr)
+	cloned, cloneErr := cloneStartedRun(run)
+	if cloneErr != nil {
+		return safeResponseFromRun(run), errors.Join(runErr, cloneErr)
+	}
+	profileErr := c.validateProfile(cloned, runErr)
+	return responseFromRun(cloned), errors.Join(runErr, profileErr)
 }
 
 // CallDetailed executes a structured call and returns the exact run, including
 // partial evidence when an error also occurs.
 func (c *Caller) CallDetailed(ctx context.Context, request llmadapter.Request) (codexsdk.StartedThreadRun, error) {
+	run, runErr := c.startRun(ctx, request)
+	return c.finalizeRun(run, runErr)
+}
+
+func (c *Caller) startRun(ctx context.Context, request llmadapter.Request) (codexsdk.StartedThreadRun, error) {
 	if c == nil || isNil(c.runner) {
 		return codexsdk.StartedThreadRun{}, ErrNilThreadRunner
 	}
@@ -229,8 +238,7 @@ func (c *Caller) CallDetailed(ctx context.Context, request llmadapter.Request) (
 	if err != nil {
 		return codexsdk.StartedThreadRun{}, err
 	}
-	run, runErr := c.runner.Start(ctx, startRequest)
-	return c.finalizeRun(run, runErr)
+	return c.runner.Start(ctx, startRequest)
 }
 
 func (c *Caller) finalizeRun(run codexsdk.StartedThreadRun, runErr error) (codexsdk.StartedThreadRun, error) {
@@ -325,21 +333,26 @@ func (c *Caller) validateProfile(run codexsdk.StartedThreadRun, runErr error) er
 	return nil
 }
 
-func responseFromRun(run codexsdk.StartedThreadRun) (llmadapter.Response, error) {
-	cloned, cloneErr := cloneStartedRun(run)
-	if cloneErr != nil {
-		cloned = run
-	}
-	response := llmadapter.Response{
-		FinalResponse: cloned.Run.FinalResponse,
+func responseFromRun(run codexsdk.StartedThreadRun) llmadapter.Response {
+	return llmadapter.Response{
+		FinalResponse: run.Run.FinalResponse,
 		Execution: llmadapter.ExecutionEvidence{
 			ProviderName:   "codex",
-			EffectiveModel: effectiveModel(cloned),
-			Usage:          neutralUsage(cloned.Run.Usage),
+			EffectiveModel: effectiveModel(run),
+			Usage:          neutralUsage(run.Run.Usage),
 		},
-		ProviderDetails: Details{Run: cloned},
+		ProviderDetails: Details{Run: run},
 	}
-	return response, cloneErr
+}
+
+func safeResponseFromRun(run codexsdk.StartedThreadRun) llmadapter.Response {
+	return llmadapter.Response{
+		FinalResponse: run.Run.FinalResponse,
+		Execution: llmadapter.ExecutionEvidence{
+			ProviderName:   "codex",
+			EffectiveModel: run.Start.Model,
+		},
+	}
 }
 
 func hasRunEvidence(run codexsdk.StartedThreadRun, runErr error) bool {
@@ -697,13 +710,13 @@ func cloneStartRequest(request codexsdk.StartThreadRunRequest) (codexsdk.StartTh
 func cloneStartedRun(run codexsdk.StartedThreadRun) (codexsdk.StartedThreadRun, error) {
 	var cloned codexsdk.StartedThreadRun
 	if !reflect.DeepEqual(run.Start, protocolv2.ThreadStartResponse{}) {
-		if err := cloneGenerated(run.Start, &cloned.Start); err != nil {
+		if err := cloneGeneratedOrSafeValue(run.Start, &cloned.Start); err != nil {
 			return cloned, err
 		}
 	}
 	cloned.Run = run.Run
-	if run.Run.Turn.ID != "" {
-		if err := cloneGenerated(run.Run.Turn, &cloned.Run.Turn); err != nil {
+	if hasTurnEvidence(run.Run.Turn) {
+		if err := cloneGeneratedOrSafeValue(run.Run.Turn, &cloned.Run.Turn); err != nil {
 			return cloned, err
 		}
 	}
@@ -726,12 +739,60 @@ func cloneStartedRun(run codexsdk.StartedThreadRun) (codexsdk.StartedThreadRun, 
 	return cloned, nil
 }
 
+func hasTurnEvidence(turn protocolv2.Turn) bool {
+	return turn.CompletedAt != nil ||
+		turn.DurationMS != nil ||
+		turn.Error != nil ||
+		turn.ID != "" ||
+		turn.Items != nil ||
+		turn.ItemsView != nil ||
+		turn.StartedAt != nil ||
+		turn.Status != ""
+}
+
 func cloneGenerated(source any, destination any) error {
 	raw, err := json.Marshal(source)
 	if err != nil {
 		return err
 	}
 	return json.Unmarshal(raw, destination)
+}
+
+func cloneGeneratedOrSafeValue(source any, destination any) error {
+	if err := cloneGenerated(source, destination); err != nil {
+		if hasMutableReferences(reflect.ValueOf(source)) {
+			return err
+		}
+		reflect.ValueOf(destination).Elem().Set(reflect.ValueOf(source))
+	}
+	return nil
+}
+
+func hasMutableReferences(value reflect.Value) bool {
+	if !value.IsValid() {
+		return false
+	}
+	switch value.Kind() {
+	case reflect.Interface:
+		return !value.IsNil() && hasMutableReferences(value.Elem())
+	case reflect.Chan, reflect.Func, reflect.Map, reflect.Pointer, reflect.Slice:
+		return !value.IsNil()
+	case reflect.UnsafePointer:
+		return !value.IsNil()
+	case reflect.Array:
+		for index := 0; index < value.Len(); index++ {
+			if hasMutableReferences(value.Field(index)) {
+				return true
+			}
+		}
+	case reflect.Struct:
+		for index := 0; index < value.NumField(); index++ {
+			if hasMutableReferences(value.Field(index)) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func isNil(value any) bool {
