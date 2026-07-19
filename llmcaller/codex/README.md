@@ -195,6 +195,7 @@ with the listed stable error.
 | `boolean-schema-has-codex-limitation` — `true` or `false` schema | Limitation: accepted unchanged by this policy; no object normalization or Codex acceptance guarantee |
 | `draft-2020-12-preserved` — explicit draft 2020-12 | Preserved using draft 2020-12 semantics |
 | `draft-7-ref-sibling-limitation` — explicit draft-07 `$ref` with siblings | Limitation: accepted using draft-07 semantics, where `$ref` siblings are ignored |
+| `unversioned-legacy-tuple-fails-closed` — tuple-form `items` without `$schema` | Fail-closed: `invalid_schema` under the default draft 2020-12 semantics |
 | `unsupported-draft-fails-closed` — unknown explicit draft identifier | Fail-closed: `invalid_schema` at the root path |
 | `unknown-annotation-preserved` — unknown annotation keyword | Preserved by decoded JSON value semantics |
 | `unknown-assertion-has-validation-limitation` — unknown assertion keyword | Limitation: value preserved, enforcement not guaranteed |
@@ -207,12 +208,14 @@ with the listed stable error.
 | `unresolvable-ref-fails-closed` — missing local target | Fail-closed: `unresolvable_ref` at `/$ref` |
 | `dynamic-ref-fails-closed` — `$dynamicRef` | Fail-closed: `unsupported_dynamic_ref` at `/$dynamicRef` |
 
-Schemas without an explicit `$schema` use draft 2020-12, except documents with
-legacy tuple-form `items`, which retain draft-07 interpretation for
-compatibility. Other drafts and vocabularies are supported only when explicitly
-added to this contract and matrix.
+Schemas without an explicit `$schema` always use draft 2020-12. Legacy
+tuple-form `items` requires an explicit draft-07 `$schema`. Explicit dialects
+other than the documented draft-07 and draft 2020-12 identifiers fail closed
+until added to this contract and matrix.
 
-See [`docs/v0.2-migration.md`](docs/v0.2-migration.md) for concrete examples.
+See [`docs/v0.2-migration.md`](docs/v0.2-migration.md) for the original strict
+schema policy and [`docs/migration/v0.6.0.md`](docs/migration/v0.6.0.md) for the
+explicit dialect migration.
 
 ## Boundaries
 
