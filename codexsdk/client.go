@@ -761,13 +761,17 @@ func (n rpcNotification) completeEvidenceTerminal() {
 	}
 }
 
-func (c *Client) registerAttachingExactStream(stream *exactRunState) {
+func (c *Client) registerAttachingExactStream(stream *exactRunState) error {
 	c.turnMu.Lock()
 	defer c.turnMu.Unlock()
+	if len(c.exactAttaching[stream.threadID]) != 0 {
+		return fmt.Errorf("%w: thread_id=%s", errConcurrentTurnStart, stream.threadID)
+	}
 	if c.exactAttaching[stream.threadID] == nil {
 		c.exactAttaching[stream.threadID] = map[*exactRunState]struct{}{}
 	}
 	c.exactAttaching[stream.threadID][stream] = struct{}{}
+	return nil
 }
 
 func (c *Client) unregisterAttachingExactStream(stream *exactRunState) {
