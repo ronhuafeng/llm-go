@@ -166,7 +166,6 @@ def render(methods: list[SurfaceMethod]) -> str:
         '\t"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"',
         ")",
         "",
-        "",
     ]
 
     for accessor in accessors:

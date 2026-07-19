@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 import unittest
 
@@ -12,6 +13,28 @@ import codexsdk_generate_sdk_surface as sdk_surface
 
 
 class SDKSurfaceGeneratorTest(unittest.TestCase):
+    def test_rendered_surface_is_gofmt_formatted(self) -> None:
+        generated = sdk_surface.render(
+            [
+                sdk_surface.SurfaceMethod(
+                    accessor="Models",
+                    operation="List",
+                    method="model/list",
+                    method_const="MethodModelList",
+                    params_type="ModelListParams",
+                    response_type="ModelListResponse",
+                    stability="stable",
+                )
+            ]
+        )
+
+        formatted = subprocess.check_output(
+            ["gofmt"],
+            input=generated,
+            text=True,
+        )
+        self.assertEqual(generated, formatted)
+
     def test_facade_is_exported_concrete_opaque_value(self) -> None:
         generated = sdk_surface.render(
             [
