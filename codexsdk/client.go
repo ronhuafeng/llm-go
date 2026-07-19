@@ -806,13 +806,51 @@ func (c *Client) registerAttachingExactStream(stream *exactRunState) error {
 	return nil
 }
 
-func (c *Client) unregisterAttachingExactStream(stream *exactRunState) {
+func (c *Client) finishAttachingExactStream(stream *exactRunState, finishErr error) {
+	stream.notificationOrderMu.Lock()
 	c.turnMu.Lock()
-	defer c.turnMu.Unlock()
 	delete(c.exactAttaching[stream.threadID], stream)
 	if len(c.exactAttaching[stream.threadID]) == 0 {
 		delete(c.exactAttaching, stream.threadID)
 	}
+	var pending []rpcNotification
+	for turnID, notifications := range c.pendingEvents {
+		kept := notifications[:0]
+		for _, notification := range notifications {
+			if notification.evidence != nil && notification.evidence.state == stream {
+				pending = append(pending, notification)
+				continue
+			}
+			kept = append(kept, notification)
+		}
+		if len(kept) == 0 {
+			delete(c.pendingEvents, turnID)
+		} else {
+			c.pendingEvents[turnID] = kept
+		}
+	}
+	c.turnMu.Unlock()
+
+	var deliveryErr error
+	for _, notification := range pending {
+		err := notification.resolveEvidence(func(typed protocolv2.ServerNotification) (func(), error) {
+			return stream.acceptStateBeforeTerminalCompletion(typed)
+		})
+		if completion := notification.evidenceCompletion(); completion != nil {
+			notification.awaitEvidenceHandler()
+			notification.completeEvidenceTerminal()
+		}
+		if deliveryErr == nil && err != nil {
+			deliveryErr = err
+		}
+	}
+	stream.notificationOrderMu.Unlock()
+	if deliveryErr != nil {
+		stream.finish(deliveryErr)
+		c.failExactNotificationDelivery(stream, deliveryErr)
+		return
+	}
+	stream.finish(finishErr)
 }
 
 func (c *Client) unregisterExactRun(stream *exactRunState) {
