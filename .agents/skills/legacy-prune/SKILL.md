@@ -68,6 +68,14 @@ record 或 required decision record，则按当前 owner 和用途判定，而�
 默认排除 Git ignored 缓存、构建产物、依赖目录和范围外的未跟踪目录；只有调用关系、
 构建入口或契约证据指向这些位置时才扩展检索。
 
+## llm-go 项目 profile
+
+每次 review 或 apply 先读取根 `README.md`、`CONTEXT-MAP.md`、受影响模块的
+`CONTEXT.md` 与当前适用的 ADR；以 `docs/architecture/DESIGN.md` 的 North Star 和
+`docs/verification.md` 为设计及验证契约。按模块本地事实判断三个独立发布的语义 owner，
+保持 adapter 是唯一运行时依赖连接，并区分 checkout-source 与已发布 artifact 证据；
+相似实现形状本身不授权跨边界合并或创建新的 shared owner。
+
 区分 proposed、local、committed、published、deployed 和 externally verified 完成层级。
 保留并行用户工作；除非用户另行明确授权，不 commit、push、创建 PR、部署或修改远端、
 生产环境状态。
