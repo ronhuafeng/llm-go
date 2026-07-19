@@ -874,8 +874,21 @@ func TestStrictOutputSchemaCompatibilityMatrix(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+	t.Run("draft-7-legacy-tuple-requires-explicit-dialect", func(t *testing.T) {
+		assertSchemaError(t, json.RawMessage(`{"type":"array","items":[{"type":"string"}]}`), "invalid_schema", "")
+		if _, err := StrictOutputSchemaFromJSON(json.RawMessage(`{"$schema":"http://json-schema.org/draft-07/schema#","type":"array","items":[{"type":"string"}]}`)); err != nil {
+			t.Fatalf("explicit Draft 7 tuple rejected: %v", err)
+		}
+	})
+	t.Run("annotation-data-does-not-select-draft-7", func(t *testing.T) {
+		assertSchemaError(t,
+			json.RawMessage(`{"type":"object","properties":{"value":{"$ref":"#/$defs/nullable","type":"string","default":{"items":[{}]}}},"$defs":{"nullable":{"type":["string","null"]}}}`),
+			"optional_non_nullable", "/properties/value")
+	})
 	t.Run("unsupported-draft-fails-closed", func(t *testing.T) {
 		assertSchemaError(t, json.RawMessage(`{"$schema":"https://json-schema.org/draft/9999/schema","type":"object"}`), "invalid_schema", "")
+		assertSchemaError(t, json.RawMessage(`{"$schema":"https://json-schema.org/draft/2019-09/schema","type":"object"}`), "invalid_schema", "")
+		assertSchemaError(t, json.RawMessage(`{"$schema":7,"type":"object"}`), "invalid_schema", "")
 	})
 	t.Run("unknown-annotation-preserved", func(t *testing.T) {
 		schema, err := StrictOutputSchemaFromJSON(json.RawMessage(`{"type":"object","required":["name"],"properties":{"name":{"type":"string","x-note":{"level":2}}}}`))
@@ -1103,7 +1116,7 @@ func TestStrictOutputSchemaTraversesSupportedSubschemaPositions(t *testing.T) {
 	}{
 		{"additional items", `{"additionalItems":{"type":"object","properties":{"value":{"type":"string"}}}}`, "optional_non_nullable"},
 		{"content schema", `{"contentSchema":{"type":"object","properties":{"value":{"type":"string"}}}}`, "optional_non_nullable"},
-		{"tuple items", `{"items":[{"type":"object","properties":{"value":{"type":"string"}}}]}`, "optional_non_nullable"},
+		{"tuple items", `{"$schema":"http://json-schema.org/draft-07/schema#","items":[{"type":"object","properties":{"value":{"type":"string"}}}]}`, "optional_non_nullable"},
 		{"schema dependency", `{"dependencies":{"value":{"type":"object","properties":{"nested":{"type":"string"}}}}}`, "optional_non_nullable"},
 		{"dynamic ref", `{"$dynamicRef":"#node"}`, "unsupported_dynamic_ref"},
 	}

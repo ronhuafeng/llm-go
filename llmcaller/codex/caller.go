@@ -426,11 +426,12 @@ func StrictOutputSchemaFromJSON(raw json.RawMessage) (protocolv2.OutputSchema, e
 	if err := decoder.Decode(&root); err != nil {
 		return protocolv2.OutputSchema{}, &SchemaPolicyError{Path: "", Kind: "invalid_json", Err: err}
 	}
-	compiler := jsonschema.NewCompiler()
-	compiler.DefaultDraft(jsonschema.Draft2020)
-	if usesLegacyTupleItems(root) {
-		compiler.DefaultDraft(jsonschema.Draft7)
+	draft, err := supportedSchemaDraft(root)
+	if err != nil {
+		return protocolv2.OutputSchema{}, err
 	}
+	compiler := jsonschema.NewCompiler()
+	compiler.DefaultDraft(draft)
 	compiler.UseLoader(rejectSchemaResourceLoader{})
 	const schemaResourceURL = "https://llmcaller.invalid/output-schema.json"
 	if err := compiler.AddResource(schemaResourceURL, root); err != nil {
@@ -648,25 +649,27 @@ func objectMap(value any) (map[string]any, bool) {
 	return object, ok
 }
 
-func usesLegacyTupleItems(value any) bool {
-	switch value := value.(type) {
-	case []any:
-		for _, child := range value {
-			if usesLegacyTupleItems(child) {
-				return true
-			}
-		}
-	case map[string]any:
-		if _, legacy := value["items"].([]any); legacy {
-			return true
-		}
-		for _, child := range value {
-			if usesLegacyTupleItems(child) {
-				return true
-			}
-		}
+func supportedSchemaDraft(root any) (*jsonschema.Draft, error) {
+	object, ok := root.(map[string]any)
+	if !ok {
+		return jsonschema.Draft2020, nil
 	}
-	return false
+	value, exists := object["$schema"]
+	if !exists {
+		return jsonschema.Draft2020, nil
+	}
+	identifier, ok := value.(string)
+	if !ok {
+		return nil, &SchemaPolicyError{Path: "", Kind: "invalid_schema", Err: errors.New("$schema must be a string")}
+	}
+	switch identifier {
+	case "http://json-schema.org/draft-07/schema#":
+		return jsonschema.Draft7, nil
+	case "https://json-schema.org/draft/2020-12/schema":
+		return jsonschema.Draft2020, nil
+	default:
+		return nil, &SchemaPolicyError{Path: "", Kind: "invalid_schema", Err: fmt.Errorf("unsupported $schema %q", identifier)}
+	}
 }
 
 func copyRefSet(refs map[string]bool) map[string]bool {
