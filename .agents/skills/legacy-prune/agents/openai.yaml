@@ -1,0 +1,6 @@
+interface:
+  display_name: "Legacy Prune"
+  short_description: "审查并清理明确范围内缺少当前保留证据的遗留闭包"
+  default_prompt: "使用 $legacy-prune review 审查 <明确范围> 中的遗留闭包，只报告有当前证据支持的 findings。"
+policy:
+  allow_implicit_invocation: false
