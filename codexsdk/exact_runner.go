@@ -119,8 +119,7 @@ func (r *exactRunner) StartStream(ctx context.Context, request StartThreadRunReq
 	turnParams.ThreadID = started.Thread.ID
 	var turnStarted protocolv2.TurnStartResponse
 	if err := r.client.callProtocol(ctx, protocolv2.MethodTurnStart, turnParams, &turnStarted); err != nil {
-		r.client.unregisterAttachingExactStream(state)
-		state.finish(err)
+		r.client.finishAttachingExactStream(state, err)
 		return stream, nil
 	}
 	if turnStarted.Turn.ID == "" {
@@ -175,8 +174,7 @@ func (r *exactRunner) ResumeStream(ctx context.Context, request ResumeThreadRunR
 	turnParams.ThreadID = threadID
 	var turnStarted protocolv2.TurnStartResponse
 	if err := r.client.callProtocol(ctx, protocolv2.MethodTurnStart, turnParams, &turnStarted); err != nil {
-		r.client.unregisterAttachingExactStream(state)
-		state.finish(err)
+		r.client.finishAttachingExactStream(state, err)
 		return stream, nil
 	}
 	if turnStarted.Turn.ID == "" {
@@ -189,8 +187,7 @@ func (r *exactRunner) ResumeStream(ctx context.Context, request ResumeThreadRunR
 
 func finishMissingTurnID(client *Client, state *exactRunState, turn protocolv2.Turn) {
 	state.setTurn(turn)
-	client.unregisterAttachingExactStream(state)
-	state.finish(fmt.Errorf("codexsdk: turn/start response missing turn id: %w", ErrMissingTurnID))
+	client.finishAttachingExactStream(state, fmt.Errorf("codexsdk: turn/start response missing turn id: %w", ErrMissingTurnID))
 }
 
 func drainExactStream[R any](ctx context.Context, stream *Stream[R]) (R, error) {

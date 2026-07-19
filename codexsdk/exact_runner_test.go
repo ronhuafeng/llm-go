@@ -67,12 +67,12 @@ func TestExactRunnerRejectsOverlappingSameThreadAttachment(t *testing.T) {
 		firstErr <- err
 	}()
 
-	waitForPendingMethod(t, root, protocolv2.MethodThreadResume)
+	firstResumeID := waitForWrittenRequest(t, root.stdin.(*recordingWriteCloser), protocolv2.MethodThreadResume, 1)
 	root.routeResponse(map[string]any{
-		"id":     "go-sdk-1",
+		"id":     firstResumeID,
 		"result": protocolResultMap(t, facadeThreadResumeResponse("thread-shared", "model-first")),
 	})
-	waitForPendingMethod(t, root, protocolv2.MethodTurnStart)
+	firstTurnID := waitForWrittenRequest(t, root.stdin.(*recordingWriteCloser), protocolv2.MethodTurnStart, 1)
 
 	secondResult := make(chan *Stream[ResumedThreadRun], 1)
 	secondErr := make(chan error, 1)
@@ -81,9 +81,9 @@ func TestExactRunnerRejectsOverlappingSameThreadAttachment(t *testing.T) {
 		secondResult <- stream
 		secondErr <- err
 	}()
-	waitForPendingMethod(t, root, protocolv2.MethodThreadResume)
+	secondResumeID := waitForWrittenRequest(t, root.stdin.(*recordingWriteCloser), protocolv2.MethodThreadResume, 2)
 	root.routeResponse(map[string]any{
-		"id":     "go-sdk-3",
+		"id":     secondResumeID,
 		"result": protocolResultMap(t, facadeThreadResumeResponse("thread-shared", "model-second")),
 	})
 
@@ -104,7 +104,7 @@ func TestExactRunnerRejectsOverlappingSameThreadAttachment(t *testing.T) {
 	}
 
 	root.routeResponse(map[string]any{
-		"id": "go-sdk-2",
+		"id": firstTurnID,
 		"result": protocolResultMap(t, protocolv2.TurnStartResponse{Turn: protocolv2.Turn{
 			ID: "turn-first", Items: []protocolv2.ThreadItem{}, Status: protocolv2.TurnStatusInProgress,
 		}}),
@@ -126,17 +126,17 @@ func TestExactRunnerRejectsOverlappingSameThreadAttachment(t *testing.T) {
 		thirdResult <- stream
 		thirdErr <- err
 	}()
-	waitForPendingMethod(t, root, protocolv2.MethodThreadResume)
+	thirdResumeID := waitForWrittenRequest(t, root.stdin.(*recordingWriteCloser), protocolv2.MethodThreadResume, 3)
 	root.routeResponse(map[string]any{
-		"id":     "go-sdk-4",
+		"id":     thirdResumeID,
 		"result": protocolResultMap(t, facadeThreadResumeResponse("thread-shared", "model-third")),
 	})
-	waitForPendingMethod(t, root, protocolv2.MethodTurnStart)
+	thirdTurnID := waitForWrittenRequest(t, root.stdin.(*recordingWriteCloser), protocolv2.MethodTurnStart, 2)
 	if got := writtenMethodCount(t, root.stdin.(*recordingWriteCloser), protocolv2.MethodTurnStart); got != 2 {
 		t.Fatalf("turn/start writes after attachment = %d, want a later same-thread turn", got)
 	}
 	root.routeResponse(map[string]any{
-		"id": "go-sdk-5",
+		"id": thirdTurnID,
 		"result": protocolResultMap(t, protocolv2.TurnStartResponse{Turn: protocolv2.Turn{
 			ID: "turn-third", Items: []protocolv2.ThreadItem{}, Status: protocolv2.TurnStatusInProgress,
 		}}),
@@ -154,6 +154,75 @@ func TestExactRunnerRejectsOverlappingSameThreadAttachment(t *testing.T) {
 	}
 }
 
+func TestExactRunnerFailedAttachmentReleasesAcceptedNotificationFence(t *testing.T) {
+	c := &Client{
+		exactStreams:   map[string]map[*exactRunState]struct{}{},
+		exactAttaching: map[string]map[*exactRunState]struct{}{},
+		pendingEvents:  map[string][]rpcNotification{},
+	}
+	state := newExactRunState(c, "thread-failed-attachment", ResumedThreadRun{
+		Resume: facadeThreadResumeResponse("thread-failed-attachment", "model"),
+	})
+	c.exactAttaching[state.threadID] = map[*exactRunState]struct{}{state: {}}
+	pending := rpcNotification{method: protocolv2.MethodModelRerouted, params: map[string]any{
+		"threadId":  state.threadID,
+		"turnId":    "turn-early",
+		"fromModel": "model-a",
+		"toModel":   "model-b",
+		"reason":    "highRiskCyberActivity",
+	}}
+	pending.evidence = &notificationEvidence{ready: make(chan struct{}), state: state}
+	c.pendingEvents["turn-early"] = []rpcNotification{pending}
+
+	handshakeErr := errors.New("turn/start failed")
+	c.finishAttachingExactStream(state, handshakeErr)
+
+	select {
+	case <-pending.evidence.ready:
+	default:
+		t.Fatal("accepted notification fence was not released")
+	}
+	if len(c.exactAttaching) != 0 || len(c.pendingEvents) != 0 {
+		t.Fatalf("failed attachment retained state: attaching=%d pending=%d", len(c.exactAttaching), len(c.pendingEvents))
+	}
+	stream := &Stream[ResumedThreadRun]{state: state}
+	result, ok := stream.Result()
+	if !ok || !errors.Is(stream.Err(), handshakeErr) {
+		t.Fatalf("failed attachment result ok=%v err=%v", ok, stream.Err())
+	}
+	if len(result.Run.Notifications) != 1 || result.Run.Notifications[0].Kind() != protocolv2.ServerNotificationKindModelRerouted {
+		t.Fatalf("accepted notification evidence = %#v", result.Run.Notifications)
+	}
+}
+
+func TestExactRunnerFailedAttachmentDeliveryErrorTerminatesStream(t *testing.T) {
+	c := newTransportHarness()
+	state := newExactRunState(c, "thread-invalid-early-notification", ResumedThreadRun{
+		Resume: facadeThreadResumeResponse("thread-invalid-early-notification", "model"),
+	})
+	c.exactAttaching[state.threadID] = map[*exactRunState]struct{}{state: {}}
+	pending := rpcNotification{method: protocolv2.MethodItemAgentMessageDelta, params: map[string]any{
+		"threadId": state.threadID,
+		"turnId":   "turn-early",
+		"delta":    map[string]any{"invalid": true},
+	}}
+	pending.evidence = &notificationEvidence{ready: make(chan struct{}), state: state}
+	c.pendingEvents["turn-early"] = []rpcNotification{pending}
+
+	c.finishAttachingExactStream(state, errors.New("turn/start failed"))
+
+	stream := &Stream[ResumedThreadRun]{state: state}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, err := stream.Wait(ctx)
+	if err == nil || errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("delivery failure did not terminate stream: %v", err)
+	}
+	if len(c.exactAttaching) != 0 || len(c.pendingEvents) != 0 {
+		t.Fatalf("delivery failure retained state: attaching=%d pending=%d", len(c.exactAttaching), len(c.pendingEvents))
+	}
+}
+
 func protocolResultMap(t *testing.T, value any) map[string]any {
 	t.Helper()
 	raw, err := json.Marshal(value)
@@ -167,25 +236,31 @@ func protocolResultMap(t *testing.T, value any) map[string]any {
 	return result
 }
 
-func waitForPendingMethod(t *testing.T, c *Client, method string) {
+func waitForWrittenRequest(t *testing.T, writer *recordingWriteCloser, method string, occurrence int) string {
 	t.Helper()
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
-		c.closeMu.Lock()
-		found := false
-		for _, call := range c.pending {
-			if call.method == method {
-				found = true
-				break
+		seen := 0
+		for _, line := range strings.Split(strings.TrimSpace(writer.String()), "\n") {
+			var message map[string]any
+			if err := json.Unmarshal([]byte(line), &message); err != nil {
+				continue
 			}
-		}
-		c.closeMu.Unlock()
-		if found {
-			return
+			if message["method"] == method {
+				seen++
+				if seen == occurrence {
+					id, ok := message["id"].(string)
+					if !ok || id == "" {
+						t.Fatalf("request %q occurrence %d has invalid id %#v", method, occurrence, message["id"])
+					}
+					return id
+				}
+			}
 		}
 		time.Sleep(time.Millisecond)
 	}
-	t.Fatalf("pending method %q was not observed", method)
+	t.Fatalf("request %q occurrence %d was not observed", method, occurrence)
+	return ""
 }
 
 func writtenMethodCount(t *testing.T, writer *recordingWriteCloser, method string) int {
