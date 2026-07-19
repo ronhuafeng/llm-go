@@ -48,6 +48,11 @@ For the unified malformed lifecycle partial-evidence contract, see the
 - `internal/protocolschema/appserver/v2`: reviewed schema baseline,
   classified manifest, coverage matrix, drift report, and provenance metadata.
 
+Inbound app-server JSON-RPC frames are limited to 16 MiB, including the newline
+delimiter. Oversized or unterminated frames fail the Root Client with sanitized
+byte-count and hash diagnostics; outbound messages are not subject to this
+internal transport limit.
+
 ## Installation
 
 Install the verified replacement release with:

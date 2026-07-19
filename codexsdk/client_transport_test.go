@@ -1,8 +1,10 @@
 package codexsdk
 
 import (
+	"bufio"
 	"context"
 	"errors"
+	"io"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -283,6 +285,75 @@ func TestInternalJSONRPCReadLoopMalformedLineFailsPendingWaits(t *testing.T) {
 	}
 	if got := pendingCount(c); got != 0 {
 		t.Fatalf("pending count = %d, want 0", got)
+	}
+}
+
+func TestInternalJSONRPCFrameReaderBoundsAndTerminatesFrames(t *testing.T) {
+	const limit = 64
+	t.Run("exact limit", func(t *testing.T) {
+		input := strings.Repeat("x", limit-1) + "\n"
+		frame, err := readFrame(bufio.NewReader(strings.NewReader(input)), limit)
+		if err != nil || string(frame) != input {
+			t.Fatalf("readFrame = (%q, %v), want exact frame", frame, err)
+		}
+	})
+
+	t.Run("oversized", func(t *testing.T) {
+		_, err := readFrame(bufio.NewReader(strings.NewReader(strings.Repeat("stdout_secret", limit))), limit)
+		if !errors.Is(err, errInboundFrameTooLarge) || !strings.Contains(err.Error(), "prefix_bytes=") || !strings.Contains(err.Error(), "prefix_sha256=") {
+			t.Fatalf("oversized error = %v", err)
+		}
+		if strings.Contains(err.Error(), "stdout_secret") {
+			t.Fatalf("oversized error leaked frame content: %v", err)
+		}
+	})
+
+	t.Run("clean EOF", func(t *testing.T) {
+		_, err := readFrame(bufio.NewReader(strings.NewReader("")), limit)
+		if !errors.Is(err, io.EOF) {
+			t.Fatalf("clean EOF error = %v", err)
+		}
+	})
+
+	t.Run("unterminated", func(t *testing.T) {
+		_, err := readFrame(bufio.NewReader(strings.NewReader(`{"value":"stdout_secret"}`)), limit)
+		if !errors.Is(err, errInboundFrameUnterminated) || !strings.Contains(err.Error(), "bytes=") || !strings.Contains(err.Error(), "sha256=") {
+			t.Fatalf("unterminated error = %v", err)
+		}
+		if strings.Contains(err.Error(), "stdout_secret") {
+			t.Fatalf("unterminated error leaked frame content: %v", err)
+		}
+	})
+}
+
+func TestInternalJSONRPCOversizedFrameFailsCallsAndExactRuns(t *testing.T) {
+	c := newTransportHarness()
+	state := newExactRunState(c, "thread-frame", StartedThreadRun{})
+	state.turnID = "turn-frame"
+	c.exactStreams[state.turnID] = map[*exactRunState]struct{}{state: {}}
+	stream := &Stream[StartedThreadRun]{state: state}
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := c.call(context.Background(), "read/oversized", nil)
+		errCh <- err
+	}()
+	waitForPendingCount(t, c, 1)
+
+	c.readLoopWithLimit(strings.NewReader(strings.Repeat("stdout_secret", 16)), 32)
+
+	select {
+	case err := <-errCh:
+		if !errors.Is(err, errInboundFrameTooLarge) || strings.Contains(err.Error(), "stdout_secret") {
+			t.Fatalf("pending call error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("oversized frame did not finish pending call")
+	}
+	if !errors.Is(stream.Err(), errInboundFrameTooLarge) {
+		t.Fatalf("Exact Run error = %v", stream.Err())
+	}
+	if closeErr := c.Close(); !errors.Is(closeErr, errInboundFrameTooLarge) {
+		t.Fatalf("Close error = %v, want frame failure", closeErr)
 	}
 }
 

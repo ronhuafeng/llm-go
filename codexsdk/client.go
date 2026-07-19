@@ -21,8 +21,14 @@ import (
 )
 
 const (
-	defaultClientName  = "codex-go-sdk"
-	defaultClientTitle = "Codex Go SDK"
+	defaultClientName           = "codex-go-sdk"
+	defaultClientTitle          = "Codex Go SDK"
+	maxInboundJSONRPCFrameBytes = 16 << 20
+)
+
+var (
+	errInboundFrameTooLarge     = errors.New("codexsdk: app-server JSON-RPC frame too large")
+	errInboundFrameUnterminated = errors.New("codexsdk: app-server JSON-RPC frame missing newline")
 )
 
 // Client owns one Codex app-server process and its transport, callbacks, and
@@ -358,11 +364,15 @@ func (c *Client) write(payload any) error {
 }
 
 func (c *Client) readLoop(stdout io.Reader) {
+	c.readLoopWithLimit(stdout, maxInboundJSONRPCFrameBytes)
+}
+
+func (c *Client) readLoopWithLimit(stdout io.Reader, maxBytes int) {
 	defer close(c.readerDone)
 	reader := bufio.NewReader(stdout)
 	for {
-		line, err := reader.ReadBytes('\n')
-		if len(line) == 0 && err != nil {
+		line, err := readFrame(reader, maxBytes)
+		if err != nil {
 			if errors.Is(err, io.EOF) {
 				break
 			}
@@ -385,23 +395,45 @@ func (c *Client) readLoop(stdout io.Reader) {
 			return
 		}
 		c.handleMessage(message)
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
-			if c.isClosed() {
-				c.failAll(ErrClientClosed)
-				return
-			}
-			c.failClient(err)
-			return
-		}
 	}
 	if c.isClosed() {
 		c.failAll(ErrClientClosed)
 		return
 	}
 	c.failClient(errors.New("codexsdk: app-server closed stdout"))
+}
+
+func readFrame(reader *bufio.Reader, maxBytes int) ([]byte, error) {
+	if maxBytes <= 0 {
+		return nil, errors.New("codexsdk: invalid inbound JSON-RPC frame limit")
+	}
+	capacity := min(maxBytes, 64<<10)
+	frame := make([]byte, 0, capacity)
+	digest := sha256.New()
+	consumed := 0
+	for {
+		fragment, err := reader.ReadSlice('\n')
+		if len(fragment) > 0 {
+			consumed += len(fragment)
+			_, _ = digest.Write(fragment)
+			if consumed > maxBytes {
+				return nil, fmt.Errorf("%w: prefix_bytes=%d prefix_sha256=%s", errInboundFrameTooLarge, consumed, hex.EncodeToString(digest.Sum(nil)))
+			}
+			frame = append(frame, fragment...)
+		}
+		switch {
+		case err == nil:
+			return frame, nil
+		case errors.Is(err, bufio.ErrBufferFull):
+			continue
+		case errors.Is(err, io.EOF) && consumed == 0:
+			return nil, io.EOF
+		case errors.Is(err, io.EOF):
+			return nil, fmt.Errorf("%w: bytes=%d sha256=%s", errInboundFrameUnterminated, consumed, hex.EncodeToString(digest.Sum(nil)))
+		default:
+			return nil, fmt.Errorf("codexsdk: read app-server JSON-RPC frame bytes=%d sha256=%s: %w", consumed, hex.EncodeToString(digest.Sum(nil)), err)
+		}
+	}
 }
 
 func (c *Client) handleMessage(message map[string]any) {
