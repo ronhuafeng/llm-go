@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "module": "codexsdk",
+  "impact": "patch",
+  "breaking": false,
+  "summary": "Reject overlapping same-thread turn attachment so early Exact Run evidence always has one structural owner.",
+  "issue": 56,
+  "migration": "none"
+}

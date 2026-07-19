@@ -14,6 +14,8 @@ import (
 
 type exactRunner struct{ client *Client }
 
+var errConcurrentTurnStart = errors.New("codexsdk: turn/start is already attaching for thread")
+
 type Stream[R any] struct {
 	mu      sync.Mutex
 	state   *exactRunState
@@ -109,8 +111,11 @@ func (r *exactRunner) StartStream(ctx context.Context, request StartThreadRunReq
 		return &Stream[StartedThreadRun]{state: state}, nil
 	}
 	state := r.client.newExactRunState(started.Thread.ID, initial)
-	r.client.registerAttachingExactStream(state)
 	stream := &Stream[StartedThreadRun]{state: state}
+	if err := r.client.registerAttachingExactStream(state); err != nil {
+		state.finish(err)
+		return stream, nil
+	}
 	turnParams.ThreadID = started.Thread.ID
 	var turnStarted protocolv2.TurnStartResponse
 	if err := r.client.callProtocol(ctx, protocolv2.MethodTurnStart, turnParams, &turnStarted); err != nil {
@@ -162,8 +167,11 @@ func (r *exactRunner) ResumeStream(ctx context.Context, request ResumeThreadRunR
 		return &Stream[ResumedThreadRun]{state: state}, nil
 	}
 	state := r.client.newExactRunState(threadID, initial)
-	r.client.registerAttachingExactStream(state)
 	stream := &Stream[ResumedThreadRun]{state: state}
+	if err := r.client.registerAttachingExactStream(state); err != nil {
+		state.finish(err)
+		return stream, nil
+	}
 	turnParams.ThreadID = threadID
 	var turnStarted protocolv2.TurnStartResponse
 	if err := r.client.callProtocol(ctx, protocolv2.MethodTurnStart, turnParams, &turnStarted); err != nil {

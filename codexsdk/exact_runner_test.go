@@ -2,10 +2,12 @@ package codexsdk
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -49,6 +51,156 @@ func TestExactRunnerStartPreservesGeneratedFacts(t *testing.T) {
 	if result.Run.InputStats.ItemsCount != 1 || result.Run.InputStats.TextBytes != 5 || result.Run.InputStats.InputItemsHash == "" {
 		t.Fatalf("input stats = %#v", result.Run.InputStats)
 	}
+}
+
+func TestExactRunnerRejectsOverlappingSameThreadAttachment(t *testing.T) {
+	root := newTransportHarness()
+	firstResult := make(chan *Stream[ResumedThreadRun], 1)
+	firstErr := make(chan error, 1)
+	request := ResumeThreadRunRequest{
+		Thread: protocolv2.ThreadResumeParams{ThreadID: "thread-shared"},
+		Turn:   protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}},
+	}
+	go func() {
+		stream, err := root.ThreadRunner().ResumeStream(context.Background(), request)
+		firstResult <- stream
+		firstErr <- err
+	}()
+
+	waitForPendingMethod(t, root, protocolv2.MethodThreadResume)
+	root.routeResponse(map[string]any{
+		"id":     "go-sdk-1",
+		"result": protocolResultMap(t, facadeThreadResumeResponse("thread-shared", "model-first")),
+	})
+	waitForPendingMethod(t, root, protocolv2.MethodTurnStart)
+
+	secondResult := make(chan *Stream[ResumedThreadRun], 1)
+	secondErr := make(chan error, 1)
+	go func() {
+		stream, err := root.ThreadRunner().ResumeStream(context.Background(), request)
+		secondResult <- stream
+		secondErr <- err
+	}()
+	waitForPendingMethod(t, root, protocolv2.MethodThreadResume)
+	root.routeResponse(map[string]any{
+		"id":     "go-sdk-3",
+		"result": protocolResultMap(t, facadeThreadResumeResponse("thread-shared", "model-second")),
+	})
+
+	var rejected *Stream[ResumedThreadRun]
+	select {
+	case rejected = <-secondResult:
+	case <-time.After(time.Second):
+		t.Fatal("overlapping same-thread attachment did not fail promptly")
+	}
+	if err := <-secondErr; err != nil {
+		t.Fatalf("ResumeStream error = %v, want terminal Exact Run", err)
+	}
+	if rejected == nil || !errors.Is(rejected.Err(), errConcurrentTurnStart) {
+		t.Fatalf("overlapping Exact Run error = %v, want concurrent turn/start rejection", rejected.Err())
+	}
+	if got := writtenMethodCount(t, root.stdin.(*recordingWriteCloser), protocolv2.MethodTurnStart); got != 1 {
+		t.Fatalf("turn/start writes = %d, want only the first attachment", got)
+	}
+
+	root.routeResponse(map[string]any{
+		"id": "go-sdk-2",
+		"result": protocolResultMap(t, protocolv2.TurnStartResponse{Turn: protocolv2.Turn{
+			ID: "turn-first", Items: []protocolv2.ThreadItem{}, Status: protocolv2.TurnStatusInProgress,
+		}}),
+	})
+	var first *Stream[ResumedThreadRun]
+	select {
+	case first = <-firstResult:
+	case <-time.After(time.Second):
+		t.Fatal("first attachment did not complete")
+	}
+	if err := <-firstErr; err != nil || first == nil {
+		t.Fatalf("first ResumeStream = (%v, %v)", first, err)
+	}
+
+	thirdResult := make(chan *Stream[ResumedThreadRun], 1)
+	thirdErr := make(chan error, 1)
+	go func() {
+		stream, err := root.ThreadRunner().ResumeStream(context.Background(), request)
+		thirdResult <- stream
+		thirdErr <- err
+	}()
+	waitForPendingMethod(t, root, protocolv2.MethodThreadResume)
+	root.routeResponse(map[string]any{
+		"id":     "go-sdk-4",
+		"result": protocolResultMap(t, facadeThreadResumeResponse("thread-shared", "model-third")),
+	})
+	waitForPendingMethod(t, root, protocolv2.MethodTurnStart)
+	if got := writtenMethodCount(t, root.stdin.(*recordingWriteCloser), protocolv2.MethodTurnStart); got != 2 {
+		t.Fatalf("turn/start writes after attachment = %d, want a later same-thread turn", got)
+	}
+	root.routeResponse(map[string]any{
+		"id": "go-sdk-5",
+		"result": protocolResultMap(t, protocolv2.TurnStartResponse{Turn: protocolv2.Turn{
+			ID: "turn-third", Items: []protocolv2.ThreadItem{}, Status: protocolv2.TurnStatusInProgress,
+		}}),
+	})
+	select {
+	case third := <-thirdResult:
+		if err := <-thirdErr; err != nil || third == nil {
+			t.Fatalf("later ResumeStream = (%v, %v)", third, err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("later same-thread turn remained blocked after attachment")
+	}
+	if err := root.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func protocolResultMap(t *testing.T, value any) map[string]any {
+	t.Helper()
+	raw, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(raw, &result); err != nil {
+		t.Fatal(err)
+	}
+	return result
+}
+
+func waitForPendingMethod(t *testing.T, c *Client, method string) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		c.closeMu.Lock()
+		found := false
+		for _, call := range c.pending {
+			if call.method == method {
+				found = true
+				break
+			}
+		}
+		c.closeMu.Unlock()
+		if found {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("pending method %q was not observed", method)
+}
+
+func writtenMethodCount(t *testing.T, writer *recordingWriteCloser, method string) int {
+	t.Helper()
+	count := 0
+	for _, line := range strings.Split(strings.TrimSpace(writer.String()), "\n") {
+		var message map[string]any
+		if err := json.Unmarshal([]byte(line), &message); err != nil {
+			t.Fatal(err)
+		}
+		if message["method"] == method {
+			count++
+		}
+	}
+	return count
 }
 
 func TestExactRunnerPassesThroughGeneratedParamsAndOwnsOnlyThreadID(t *testing.T) {

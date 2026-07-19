@@ -186,6 +186,11 @@ backpressure. `Next` context cancellation retains its shared-run cancellation
 semantics. The separately configurable global notification-handler queue
 remains bounded.
 
+For one thread, only one Exact Run may be waiting for `turn/start` to return its
+turn identity. An overlapping start fails before sending another `turn/start`.
+Once the first turn identity is attached, later turns on the same thread may
+start without waiting for the earlier live turn to finish.
+
 Configure `ServerRequestHandler` when the application can provide generated
 response data. With no handler, the
 SDK immediately returns a generated fail-closed response for requests that
