@@ -874,7 +874,7 @@ func TestStrictOutputSchemaCompatibilityMatrix(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
-	t.Run("draft-7-legacy-tuple-requires-explicit-dialect", func(t *testing.T) {
+	t.Run("unversioned-legacy-tuple-fails-closed", func(t *testing.T) {
 		assertSchemaError(t, json.RawMessage(`{"type":"array","items":[{"type":"string"}]}`), "invalid_schema", "")
 		if _, err := StrictOutputSchemaFromJSON(json.RawMessage(`{"$schema":"http://json-schema.org/draft-07/schema#","type":"array","items":[{"type":"string"}]}`)); err != nil {
 			t.Fatalf("explicit Draft 7 tuple rejected: %v", err)
