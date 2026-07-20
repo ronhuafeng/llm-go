@@ -35,7 +35,7 @@ env:
   CODEXSDK_DRIFT_ARTIFACT_DIR: /tmp/codexsdk-upstream
   CODEXSDK_RUST_TARGET_DIR: .cache/cargo-target/codex
   CODEXSDK_SCHEMA_BASELINE: internal/protocolschema/appserver/v2
-  CODEXSDK_SYNC_BRANCH_PREFIX: codex/sync-upstream
+  CODEXSDK_SYNC_BRANCH_PREFIX: "codex/sync-upstream/run-${{ github.run_id }}-${{ github.run_attempt }}"
   CODEXSDK_TARGET_POLICY_JSON: /tmp/codexsdk-target-policy.json
   CODEXSDK_UPSTREAM_CLONE: /tmp/openai-codex
   CODEXSDK_UPSTREAM_TARGET_JSON: /tmp/codexsdk-upstream-target.json
@@ -471,6 +471,30 @@ jobs:
             echo
             echo "Branch protection and the required \`PR verification\` check own the merge gate. An authorized maintainer owns the merge decision. The finalize workflow owns landed verification, sync tags, and drift verification."
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Dispose superseded sync PRs
+        if: >-
+          steps.publish.outputs.pr_number != '' ||
+          (
+            steps.target_policy.outputs.decision == 'skip' &&
+            steps.pre_plan.outputs.verification_failed != 'true' &&
+            steps.plan.outputs.verification_failed != 'true'
+          )
+        env:
+          CURRENT_PR: ${{ steps.publish.outputs.pr_number }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          UPSTREAM_REF: ${{ steps.refs.outputs.upstream_ref }}
+          UPSTREAM_SHA: ${{ steps.refs.outputs.upstream_sha }}
+        run: |
+          set -euo pipefail
+          scripts/codexsdk_dispose_superseded_sync_prs.sh \
+            --current-pr "${CURRENT_PR}" \
+            --default-branch "${DEFAULT_BRANCH}" \
+            --run-url "${RUN_URL}" \
+            --upstream-ref "${UPSTREAM_REF}" \
+            --upstream-sha "${UPSTREAM_SHA}"
 
       - name: Fail forced verification
         if: always() && (steps.pre_plan.outputs.verification_failed == 'true' || steps.plan.outputs.verification_failed == 'true')
