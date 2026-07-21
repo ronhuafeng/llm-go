@@ -29,7 +29,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerRequest.json#/oneOf/6",
         "aggregate_schema": "ServerRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "ChatgptAuthTokensRefreshParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#server_request_definitions/ChatgptAuthTokensRefresh",
@@ -46,7 +46,6 @@
       "facade_target": "Accounts().LoginCancel",
       "family": "account",
       "kind": "request",
-      "facade_status": "generated",
       "method": "account/login/cancel",
       "params_or_payload_schema": "CancelLoginAccountParams",
       "response_schema": "v2/CancelLoginAccountResponse.json",
@@ -56,7 +55,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/94",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/CancelLoginAccountParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/CancelLoginAccount",
@@ -66,7 +65,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "CancelLoginAccount",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -82,7 +82,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/67",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/AccountLoginCompletedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -99,7 +99,6 @@
       "facade_target": "Accounts().LoginStart",
       "family": "account",
       "kind": "request",
-      "facade_status": "generated",
       "method": "account/login/start",
       "params_or_payload_schema": "LoginAccountParams",
       "response_schema": "v2/LoginAccountResponse.json",
@@ -109,7 +108,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/93",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/LoginAccountParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/LoginAccount",
@@ -119,14 +118,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "LoginAccount",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Accounts().Logout",
       "family": "account",
       "kind": "request",
-      "facade_status": "generated",
       "method": "account/logout",
       "params_or_payload_schema": "",
       "response_schema": "v2/LogoutAccountResponse.json",
@@ -136,7 +135,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/95",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/LogoutAccount",
@@ -146,14 +145,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "LogoutAccount",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Accounts().RateLimitResetCreditConsume",
       "family": "account",
       "kind": "request",
-      "facade_status": "generated",
       "method": "account/rateLimitResetCredit/consume",
       "params_or_payload_schema": "ConsumeAccountRateLimitResetCreditParams",
       "response_schema": "v2/ConsumeAccountRateLimitResetCreditResponse.json",
@@ -163,7 +162,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/97",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ConsumeAccountRateLimitResetCreditParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ConsumeAccountRateLimitResetCredit",
@@ -173,14 +172,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ConsumeAccountRateLimitResetCredit",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Accounts().RateLimitsRead",
       "family": "account",
       "kind": "request",
-      "facade_status": "generated",
       "method": "account/rateLimits/read",
       "params_or_payload_schema": "",
       "response_schema": "v2/GetAccountRateLimitsResponse.json",
@@ -190,7 +189,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/96",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/GetAccountRateLimits",
@@ -200,7 +199,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "GetAccountRateLimits",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -216,7 +216,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/37",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/AccountRateLimitsUpdatedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -233,7 +233,6 @@
       "facade_target": "Accounts().Read",
       "family": "account",
       "kind": "request",
-      "facade_status": "generated",
       "method": "account/read",
       "params_or_payload_schema": "GetAccountParams",
       "response_schema": "v2/GetAccountResponse.json",
@@ -243,7 +242,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/117",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/GetAccountParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/GetAccount",
@@ -253,14 +252,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "GetAccount",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Accounts().SendAddCreditsNudgeEmail",
       "family": "account",
       "kind": "request",
-      "facade_status": "generated",
       "method": "account/sendAddCreditsNudgeEmail",
       "params_or_payload_schema": "SendAddCreditsNudgeEmailParams",
       "response_schema": "v2/SendAddCreditsNudgeEmailResponse.json",
@@ -270,7 +269,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/100",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/SendAddCreditsNudgeEmailParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/SendAddCreditsNudgeEmail",
@@ -280,7 +279,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "SendAddCreditsNudgeEmail",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -296,7 +296,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/36",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/AccountUpdatedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -313,7 +313,6 @@
       "facade_target": "Accounts().UsageRead",
       "family": "account",
       "kind": "request",
-      "facade_status": "deferred_missing_generated_types",
       "method": "account/usage/read",
       "params_or_payload_schema": "",
       "response_schema": "v2/GetAccountTokenUsageResponse.json",
@@ -323,7 +322,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/98",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/GetAccountTokenUsage",
@@ -333,14 +332,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "GetAccountTokenUsage",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "deferred_missing_generated_types"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Accounts().WorkspaceMessagesRead",
       "family": "account",
       "kind": "request",
-      "facade_status": "generated",
       "method": "account/workspaceMessages/read",
       "params_or_payload_schema": "",
       "response_schema": "v2/GetWorkspaceMessagesResponse.json",
@@ -350,7 +349,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/99",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/GetWorkspaceMessages",
@@ -360,14 +359,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "GetWorkspaceMessages",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Apps().List",
       "family": "app",
       "kind": "request",
-      "facade_status": "generated",
       "method": "app/list",
       "params_or_payload_schema": "AppsListParams",
       "response_schema": "v2/AppsListResponse.json",
@@ -377,7 +376,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/47",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/AppsListParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/AppsList",
@@ -387,7 +386,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "AppsList",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -403,7 +403,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/38",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/AppListUpdatedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -429,7 +429,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerRequest.json#/oneOf/9",
         "aggregate_schema": "ServerRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "ApplyPatchApprovalParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#server_request_definitions/ApplyPatchApproval",
@@ -455,7 +455,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerRequest.json#/oneOf/7",
         "aggregate_schema": "ServerRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "AttestationGenerateParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#server_request_definitions/AttestationGenerate",
@@ -472,7 +472,6 @@
       "facade_target": "CollaborationModes().List",
       "family": "collaborationMode",
       "kind": "request",
-      "facade_status": "generated",
       "method": "collaborationMode/list",
       "params_or_payload_schema": "CollaborationModeListParams",
       "response_schema": "v2/CollaborationModeListResponse.json",
@@ -482,7 +481,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/82",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/CollaborationModeListParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/CollaborationModeList",
@@ -492,14 +491,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "CollaborationModeList",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Commands().Exec",
       "family": "command",
       "kind": "request",
-      "facade_status": "generated",
       "method": "command/exec",
       "params_or_payload_schema": "CommandExecParams",
       "response_schema": "v2/CommandExecResponse.json",
@@ -509,7 +508,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/102",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/CommandExecParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/OneOffCommandExec",
@@ -519,7 +518,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "OneOffCommandExec",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -535,7 +535,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/25",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/CommandExecOutputDeltaNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -552,7 +552,6 @@
       "facade_target": "Commands().ExecResize",
       "family": "command",
       "kind": "request",
-      "facade_status": "generated",
       "method": "command/exec/resize",
       "params_or_payload_schema": "CommandExecResizeParams",
       "response_schema": "v2/CommandExecResizeResponse.json",
@@ -562,7 +561,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/105",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/CommandExecResizeParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/CommandExecResize",
@@ -572,14 +571,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "CommandExecResize",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Commands().ExecTerminate",
       "family": "command",
       "kind": "request",
-      "facade_status": "generated",
       "method": "command/exec/terminate",
       "params_or_payload_schema": "CommandExecTerminateParams",
       "response_schema": "v2/CommandExecTerminateResponse.json",
@@ -589,7 +588,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/104",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/CommandExecTerminateParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/CommandExecTerminate",
@@ -599,14 +598,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "CommandExecTerminate",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Commands().ExecWrite",
       "family": "command",
       "kind": "request",
-      "facade_status": "generated",
       "method": "command/exec/write",
       "params_or_payload_schema": "CommandExecWriteParams",
       "response_schema": "v2/CommandExecWriteResponse.json",
@@ -616,7 +615,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/103",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/CommandExecWriteParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/CommandExecWrite",
@@ -626,14 +625,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "CommandExecWrite",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Config().BatchWrite",
       "family": "config",
       "kind": "request",
-      "facade_status": "generated",
       "method": "config/batchWrite",
       "params_or_payload_schema": "ConfigBatchWriteParams",
       "response_schema": "v2/ConfigWriteResponse.json",
@@ -643,7 +642,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/115",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ConfigBatchWriteParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ConfigBatchWrite",
@@ -653,14 +652,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ConfigBatchWrite",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Config().MCPServerReload",
       "family": "config",
       "kind": "request",
-      "facade_status": "generated",
       "method": "config/mcpServer/reload",
       "params_or_payload_schema": "",
       "response_schema": "v2/McpServerRefreshResponse.json",
@@ -670,7 +669,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/87",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/McpServerRefresh",
@@ -680,14 +679,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "McpServerRefresh",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Config().Read",
       "family": "config",
       "kind": "request",
-      "facade_status": "generated",
       "method": "config/read",
       "params_or_payload_schema": "ConfigReadParams",
       "response_schema": "v2/ConfigReadResponse.json",
@@ -697,7 +696,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/110",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ConfigReadParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ConfigRead",
@@ -707,14 +706,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ConfigRead",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Config().ValueWrite",
       "family": "config",
       "kind": "request",
-      "facade_status": "generated",
       "method": "config/value/write",
       "params_or_payload_schema": "ConfigValueWriteParams",
       "response_schema": "v2/ConfigWriteResponse.json",
@@ -724,7 +723,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/114",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ConfigValueWriteParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ConfigValueWrite",
@@ -734,14 +733,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ConfigValueWrite",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "ConfigRequirements().Read",
       "family": "configRequirements",
       "kind": "request",
-      "facade_status": "generated",
       "method": "configRequirements/read",
       "params_or_payload_schema": "",
       "response_schema": "v2/ConfigRequirementsReadResponse.json",
@@ -751,7 +750,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/116",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ConfigRequirementsRead",
@@ -761,7 +760,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ConfigRequirementsRead",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -777,7 +777,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/54",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ConfigWarningNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -803,7 +803,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerRequest.json#/oneOf/8",
         "aggregate_schema": "ServerRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "CurrentTimeReadParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#server_request_definitions/CurrentTimeRead",
@@ -829,7 +829,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/53",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/DeprecationNoticeNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -846,7 +846,6 @@
       "facade_target": "Environments().Add",
       "family": "environment",
       "kind": "request",
-      "facade_status": "generated",
       "method": "environment/add",
       "params_or_payload_schema": "EnvironmentAddParams",
       "response_schema": "v2/EnvironmentAddResponse.json",
@@ -856,7 +855,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/84",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/EnvironmentAddParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/EnvironmentAdd",
@@ -866,14 +865,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "EnvironmentAdd",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Environments().Info",
       "family": "environment",
       "kind": "request",
-      "facade_status": "deferred_missing_generated_types",
       "method": "environment/info",
       "params_or_payload_schema": "EnvironmentInfoParams",
       "response_schema": "v2/EnvironmentInfoResponse.json",
@@ -883,7 +882,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/85",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/EnvironmentInfoParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/EnvironmentInfo",
@@ -893,7 +892,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "EnvironmentInfo",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "deferred_missing_generated_types"
     },
     {
       "direction": "server_to_client",
@@ -909,7 +909,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/0",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ErrorNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -935,7 +935,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerRequest.json#/oneOf/10",
         "aggregate_schema": "ServerRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "ExecCommandApprovalParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#server_request_definitions/ExecCommandApproval",
@@ -952,7 +952,6 @@
       "facade_target": "ExperimentalFeatures().EnablementSet",
       "family": "experimentalFeature",
       "kind": "request",
-      "facade_status": "generated",
       "method": "experimentalFeature/enablement/set",
       "params_or_payload_schema": "ExperimentalFeatureEnablementSetParams",
       "response_schema": "v2/ExperimentalFeatureEnablementSetResponse.json",
@@ -962,7 +961,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/74",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ExperimentalFeatureEnablementSetParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ExperimentalFeatureEnablementSet",
@@ -972,14 +971,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ExperimentalFeatureEnablementSet",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "ExperimentalFeatures().List",
       "family": "experimentalFeature",
       "kind": "request",
-      "facade_status": "generated",
       "method": "experimentalFeature/list",
       "params_or_payload_schema": "ExperimentalFeatureListParams",
       "response_schema": "v2/ExperimentalFeatureListResponse.json",
@@ -989,7 +988,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/72",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ExperimentalFeatureListParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ExperimentalFeatureList",
@@ -999,14 +998,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ExperimentalFeatureList",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "ExternalAgentConfigs().Detect",
       "family": "externalAgentConfig",
       "kind": "request",
-      "facade_status": "generated",
       "method": "externalAgentConfig/detect",
       "params_or_payload_schema": "ExternalAgentConfigDetectParams",
       "response_schema": "v2/ExternalAgentConfigDetectResponse.json",
@@ -1016,7 +1015,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/111",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ExternalAgentConfigDetectParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ExternalAgentConfigDetect",
@@ -1026,14 +1025,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ExternalAgentConfigDetect",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "ExternalAgentConfigs().Import",
       "family": "externalAgentConfig",
       "kind": "request",
-      "facade_status": "generated",
       "method": "externalAgentConfig/import",
       "params_or_payload_schema": "ExternalAgentConfigImportParams",
       "response_schema": "v2/ExternalAgentConfigImportResponse.json",
@@ -1043,7 +1042,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/112",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ExternalAgentConfigImportParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ExternalAgentConfigImport",
@@ -1053,7 +1052,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ExternalAgentConfigImport",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -1069,7 +1069,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/41",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ExternalAgentConfigImportCompletedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1095,7 +1095,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/40",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ExternalAgentConfigImportProgressNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1112,7 +1112,6 @@
       "facade_target": "ExternalAgentConfigs().ImportReadHistories",
       "family": "externalAgentConfig",
       "kind": "request",
-      "facade_status": "generated",
       "method": "externalAgentConfig/import/readHistories",
       "params_or_payload_schema": "",
       "response_schema": "v2/ExternalAgentConfigImportHistoriesReadResponse.json",
@@ -1122,7 +1121,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/113",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ExternalAgentConfigImportHistoriesRead",
@@ -1132,14 +1131,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ExternalAgentConfigImportHistoriesRead",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Feedback().Upload",
       "family": "feedback",
       "kind": "request",
-      "facade_status": "generated",
       "method": "feedback/upload",
       "params_or_payload_schema": "FeedbackUploadParams",
       "response_schema": "v2/FeedbackUploadResponse.json",
@@ -1149,7 +1148,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/101",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/FeedbackUploadParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/FeedbackUpload",
@@ -1159,7 +1158,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "FeedbackUpload",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -1175,7 +1175,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/42",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/FsChangedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1192,7 +1192,6 @@
       "facade_target": "FS().Copy",
       "family": "fs",
       "kind": "request",
-      "facade_status": "generated",
       "method": "fs/copy",
       "params_or_payload_schema": "FsCopyParams",
       "response_schema": "v2/FsCopyResponse.json",
@@ -1202,7 +1201,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/54",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/FsCopyParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/FsCopy",
@@ -1212,14 +1211,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "FsCopy",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "FS().CreateDirectory",
       "family": "fs",
       "kind": "request",
-      "facade_status": "generated",
       "method": "fs/createDirectory",
       "params_or_payload_schema": "FsCreateDirectoryParams",
       "response_schema": "v2/FsCreateDirectoryResponse.json",
@@ -1229,7 +1228,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/50",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/FsCreateDirectoryParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/FsCreateDirectory",
@@ -1239,14 +1238,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "FsCreateDirectory",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "FS().GetMetadata",
       "family": "fs",
       "kind": "request",
-      "facade_status": "generated",
       "method": "fs/getMetadata",
       "params_or_payload_schema": "FsGetMetadataParams",
       "response_schema": "v2/FsGetMetadataResponse.json",
@@ -1256,7 +1255,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/51",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/FsGetMetadataParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/FsGetMetadata",
@@ -1266,14 +1265,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "FsGetMetadata",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "FS().ReadDirectory",
       "family": "fs",
       "kind": "request",
-      "facade_status": "generated",
       "method": "fs/readDirectory",
       "params_or_payload_schema": "FsReadDirectoryParams",
       "response_schema": "v2/FsReadDirectoryResponse.json",
@@ -1283,7 +1282,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/52",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/FsReadDirectoryParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/FsReadDirectory",
@@ -1293,14 +1292,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "FsReadDirectory",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "FS().ReadFile",
       "family": "fs",
       "kind": "request",
-      "facade_status": "generated",
       "method": "fs/readFile",
       "params_or_payload_schema": "FsReadFileParams",
       "response_schema": "v2/FsReadFileResponse.json",
@@ -1310,7 +1309,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/48",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/FsReadFileParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/FsReadFile",
@@ -1320,14 +1319,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "FsReadFile",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "FS().Remove",
       "family": "fs",
       "kind": "request",
-      "facade_status": "generated",
       "method": "fs/remove",
       "params_or_payload_schema": "FsRemoveParams",
       "response_schema": "v2/FsRemoveResponse.json",
@@ -1337,7 +1336,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/53",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/FsRemoveParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/FsRemove",
@@ -1347,14 +1346,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "FsRemove",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "FS().Unwatch",
       "family": "fs",
       "kind": "request",
-      "facade_status": "generated",
       "method": "fs/unwatch",
       "params_or_payload_schema": "FsUnwatchParams",
       "response_schema": "v2/FsUnwatchResponse.json",
@@ -1364,7 +1363,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/56",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/FsUnwatchParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/FsUnwatch",
@@ -1374,14 +1373,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "FsUnwatch",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "FS().Watch",
       "family": "fs",
       "kind": "request",
-      "facade_status": "generated",
       "method": "fs/watch",
       "params_or_payload_schema": "FsWatchParams",
       "response_schema": "v2/FsWatchResponse.json",
@@ -1391,7 +1390,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/55",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/FsWatchParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/FsWatch",
@@ -1401,14 +1400,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "FsWatch",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "FS().WriteFile",
       "family": "fs",
       "kind": "request",
-      "facade_status": "generated",
       "method": "fs/writeFile",
       "params_or_payload_schema": "FsWriteFileParams",
       "response_schema": "v2/FsWriteFileResponse.json",
@@ -1418,7 +1417,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/49",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/FsWriteFileParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/FsWriteFile",
@@ -1428,14 +1427,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "FsWriteFile",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "FuzzyFileSearch().Search",
       "family": "fuzzyFileSearch",
       "kind": "request",
-      "facade_status": "generated",
       "method": "fuzzyFileSearch",
       "params_or_payload_schema": "FuzzyFileSearchParams",
       "response_schema": "FuzzyFileSearchResponse.json",
@@ -1445,7 +1444,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/118",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "FuzzyFileSearchParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/FuzzyFileSearch",
@@ -1455,7 +1454,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "FuzzyFileSearch",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -1471,7 +1471,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/56",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "FuzzyFileSearchSessionCompletedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1488,7 +1488,6 @@
       "facade_target": "FuzzyFileSearch().SessionStart",
       "family": "fuzzyFileSearch",
       "kind": "request",
-      "facade_status": "generated",
       "method": "fuzzyFileSearch/sessionStart",
       "params_or_payload_schema": "FuzzyFileSearchSessionStartParams",
       "response_schema": "FuzzyFileSearchSessionStartResponse.json",
@@ -1498,7 +1497,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/119",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "FuzzyFileSearchSessionStartParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/FuzzyFileSearchSessionStart",
@@ -1508,14 +1507,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "FuzzyFileSearchSessionStart",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "FuzzyFileSearch().SessionStop",
       "family": "fuzzyFileSearch",
       "kind": "request",
-      "facade_status": "generated",
       "method": "fuzzyFileSearch/sessionStop",
       "params_or_payload_schema": "FuzzyFileSearchSessionStopParams",
       "response_schema": "FuzzyFileSearchSessionStopResponse.json",
@@ -1525,7 +1524,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/121",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "FuzzyFileSearchSessionStopParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/FuzzyFileSearchSessionStop",
@@ -1535,14 +1534,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "FuzzyFileSearchSessionStop",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "FuzzyFileSearch().SessionUpdate",
       "family": "fuzzyFileSearch",
       "kind": "request",
-      "facade_status": "generated",
       "method": "fuzzyFileSearch/sessionUpdate",
       "params_or_payload_schema": "FuzzyFileSearchSessionUpdateParams",
       "response_schema": "FuzzyFileSearchSessionUpdateResponse.json",
@@ -1552,7 +1551,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/120",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "FuzzyFileSearchSessionUpdateParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/FuzzyFileSearchSessionUpdate",
@@ -1562,7 +1561,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "FuzzyFileSearchSessionUpdate",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -1578,7 +1578,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/55",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "FuzzyFileSearchSessionUpdatedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1604,7 +1604,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/52",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/GuardianWarningNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1630,7 +1630,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/16",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/HookCompletedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1656,7 +1656,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/14",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/HookStartedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1673,7 +1673,6 @@
       "facade_target": "Hooks().List",
       "family": "hooks",
       "kind": "request",
-      "facade_status": "generated",
       "method": "hooks/list",
       "params_or_payload_schema": "HooksListParams",
       "response_schema": "v2/HooksListResponse.json",
@@ -1683,7 +1682,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/34",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/HooksListParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/HooksList",
@@ -1693,7 +1692,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "HooksList",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
@@ -1709,7 +1709,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/0",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v1/InitializeParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/Initialize",
@@ -1735,7 +1735,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientNotification.json#/oneOf/0",
         "aggregate_schema": "ClientNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1761,7 +1761,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/23",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/AgentMessageDeltaNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1787,7 +1787,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/21",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ItemGuardianApprovalReviewCompletedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1813,7 +1813,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/20",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ItemGuardianApprovalReviewStartedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1839,7 +1839,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/28",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/CommandExecutionOutputDeltaNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1865,7 +1865,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerRequest.json#/oneOf/0",
         "aggregate_schema": "ServerRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "CommandExecutionRequestApprovalParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#server_request_definitions/CommandExecutionRequestApproval",
@@ -1891,7 +1891,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/29",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/TerminalInteractionNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1917,7 +1917,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/22",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ItemCompletedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1943,7 +1943,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/30",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/FileChangeOutputDeltaNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1969,7 +1969,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/31",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/FileChangePatchUpdatedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1995,7 +1995,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerRequest.json#/oneOf/1",
         "aggregate_schema": "ServerRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "FileChangeRequestApprovalParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#server_request_definitions/FileChangeRequestApproval",
@@ -2021,7 +2021,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/33",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/McpToolCallProgressNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -2047,7 +2047,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerRequest.json#/oneOf/4",
         "aggregate_schema": "ServerRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "PermissionsRequestApprovalParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#server_request_definitions/PermissionsRequestApproval",
@@ -2073,7 +2073,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/24",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/PlanDeltaNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -2099,7 +2099,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/44",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ReasoningSummaryPartAddedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -2125,7 +2125,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/43",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ReasoningSummaryTextDeltaNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -2151,7 +2151,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/45",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ReasoningTextDeltaNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -2177,7 +2177,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/19",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ItemStartedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -2203,7 +2203,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerRequest.json#/oneOf/5",
         "aggregate_schema": "ServerRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "DynamicToolCallParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#server_request_definitions/DynamicToolCall",
@@ -2229,7 +2229,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerRequest.json#/oneOf/2",
         "aggregate_schema": "ServerRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "ToolRequestUserInputParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#server_request_definitions/ToolRequestUserInput",
@@ -2246,7 +2246,6 @@
       "facade_target": "Marketplace().Add",
       "family": "marketplace",
       "kind": "request",
-      "facade_status": "generated",
       "method": "marketplace/add",
       "params_or_payload_schema": "MarketplaceAddParams",
       "response_schema": "v2/MarketplaceAddResponse.json",
@@ -2256,7 +2255,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/35",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/MarketplaceAddParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/MarketplaceAdd",
@@ -2266,14 +2265,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "MarketplaceAdd",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Marketplace().Remove",
       "family": "marketplace",
       "kind": "request",
-      "facade_status": "generated",
       "method": "marketplace/remove",
       "params_or_payload_schema": "MarketplaceRemoveParams",
       "response_schema": "v2/MarketplaceRemoveResponse.json",
@@ -2283,7 +2282,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/36",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/MarketplaceRemoveParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/MarketplaceRemove",
@@ -2293,14 +2292,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "MarketplaceRemove",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Marketplace().Upgrade",
       "family": "marketplace",
       "kind": "request",
-      "facade_status": "generated",
       "method": "marketplace/upgrade",
       "params_or_payload_schema": "MarketplaceUpgradeParams",
       "response_schema": "v2/MarketplaceUpgradeResponse.json",
@@ -2310,7 +2309,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/37",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/MarketplaceUpgradeParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/MarketplaceUpgrade",
@@ -2320,7 +2319,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "MarketplaceUpgrade",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -2336,7 +2336,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerRequest.json#/oneOf/3",
         "aggregate_schema": "ServerRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "McpServerElicitationRequestParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#server_request_definitions/McpServerElicitationRequest",
@@ -2353,7 +2353,6 @@
       "facade_target": "MCPServers().OAuthLogin",
       "family": "mcpServer",
       "kind": "request",
-      "facade_status": "generated",
       "method": "mcpServer/oauth/login",
       "params_or_payload_schema": "McpServerOauthLoginParams",
       "response_schema": "v2/McpServerOauthLoginResponse.json",
@@ -2363,7 +2362,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/86",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/McpServerOauthLoginParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/McpServerOauthLogin",
@@ -2373,7 +2372,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "McpServerOauthLogin",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -2389,7 +2389,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/34",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/McpServerOauthLoginCompletedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -2406,7 +2406,6 @@
       "facade_target": "MCPServers().ResourceRead",
       "family": "mcpServer",
       "kind": "request",
-      "facade_status": "generated",
       "method": "mcpServer/resource/read",
       "params_or_payload_schema": "McpResourceReadParams",
       "response_schema": "v2/McpResourceReadResponse.json",
@@ -2416,7 +2415,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/89",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/McpResourceReadParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/McpResourceRead",
@@ -2426,7 +2425,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "McpResourceRead",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -2442,7 +2442,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/35",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/McpServerStatusUpdatedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -2459,7 +2459,6 @@
       "facade_target": "MCPServers().ToolCall",
       "family": "mcpServer",
       "kind": "request",
-      "facade_status": "generated",
       "method": "mcpServer/tool/call",
       "params_or_payload_schema": "McpServerToolCallParams",
       "response_schema": "v2/McpServerToolCallResponse.json",
@@ -2469,7 +2468,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/90",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/McpServerToolCallParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/McpServerToolCall",
@@ -2479,14 +2478,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "McpServerToolCall",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "MCPServerStatus().List",
       "family": "mcpServerStatus",
       "kind": "request",
-      "facade_status": "generated",
       "method": "mcpServerStatus/list",
       "params_or_payload_schema": "ListMcpServerStatusParams",
       "response_schema": "v2/ListMcpServerStatusResponse.json",
@@ -2496,7 +2495,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/88",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ListMcpServerStatusParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/McpServerStatusList",
@@ -2506,14 +2505,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "McpServerStatusList",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Memory().Reset",
       "family": "memory",
       "kind": "request",
-      "facade_status": "generated",
       "method": "memory/reset",
       "params_or_payload_schema": "",
       "response_schema": "v2/MemoryResetResponse.json",
@@ -2523,7 +2522,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/16",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/MemoryReset",
@@ -2533,14 +2532,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "MemoryReset",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Mock().ExperimentalMethod",
       "family": "mock",
       "kind": "request",
-      "facade_status": "generated",
       "method": "mock/experimentalMethod",
       "params_or_payload_schema": "MockExperimentalMethodParams",
       "response_schema": "v2/MockExperimentalMethodResponse.json",
@@ -2550,7 +2549,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/83",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/MockExperimentalMethodParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/MockExperimentalMethod",
@@ -2560,14 +2559,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "MockExperimentalMethod",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Models().List",
       "family": "model",
       "kind": "request",
-      "facade_status": "generated",
       "method": "model/list",
       "params_or_payload_schema": "ModelListParams",
       "response_schema": "v2/ModelListResponse.json",
@@ -2577,7 +2576,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/70",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ModelListParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ModelList",
@@ -2587,7 +2586,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ModelList",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -2603,7 +2603,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/47",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ModelReroutedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -2629,7 +2629,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/50",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ModelSafetyBufferingUpdatedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -2655,7 +2655,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/48",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ModelVerificationNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -2672,7 +2672,6 @@
       "facade_target": "ModelProviders().CapabilitiesRead",
       "family": "modelProvider",
       "kind": "request",
-      "facade_status": "generated",
       "method": "modelProvider/capabilities/read",
       "params_or_payload_schema": "ModelProviderCapabilitiesReadParams",
       "response_schema": "v2/ModelProviderCapabilitiesReadResponse.json",
@@ -2682,7 +2681,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/71",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ModelProviderCapabilitiesReadParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ModelProviderCapabilitiesRead",
@@ -2692,14 +2691,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ModelProviderCapabilitiesRead",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "PermissionProfiles().List",
       "family": "permissionProfile",
       "kind": "request",
-      "facade_status": "deferred_missing_generated_types",
       "method": "permissionProfile/list",
       "params_or_payload_schema": "PermissionProfileListParams",
       "response_schema": "v2/PermissionProfileListResponse.json",
@@ -2709,7 +2708,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/73",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/PermissionProfileListParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/PermissionProfileList",
@@ -2719,14 +2718,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "PermissionProfileList",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "deferred_missing_generated_types"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Plugins().Install",
       "family": "plugin",
       "kind": "request",
-      "facade_status": "generated",
       "method": "plugin/install",
       "params_or_payload_schema": "PluginInstallParams",
       "response_schema": "v2/PluginInstallResponse.json",
@@ -2736,7 +2735,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/58",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/PluginInstallParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/PluginInstall",
@@ -2746,14 +2745,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "PluginInstall",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Plugins().Installed",
       "family": "plugin",
       "kind": "request",
-      "facade_status": "generated",
       "method": "plugin/installed",
       "params_or_payload_schema": "PluginInstalledParams",
       "response_schema": "v2/PluginInstalledResponse.json",
@@ -2763,7 +2762,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/39",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/PluginInstalledParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/PluginInstalled",
@@ -2773,14 +2772,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "PluginInstalled",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Plugins().List",
       "family": "plugin",
       "kind": "request",
-      "facade_status": "generated",
       "method": "plugin/list",
       "params_or_payload_schema": "PluginListParams",
       "response_schema": "v2/PluginListResponse.json",
@@ -2790,7 +2789,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/38",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/PluginListParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/PluginList",
@@ -2800,14 +2799,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "PluginList",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Plugins().Read",
       "family": "plugin",
       "kind": "request",
-      "facade_status": "generated",
       "method": "plugin/read",
       "params_or_payload_schema": "PluginReadParams",
       "response_schema": "v2/PluginReadResponse.json",
@@ -2817,7 +2816,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/40",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/PluginReadParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/PluginRead",
@@ -2827,14 +2826,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "PluginRead",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Plugins().ShareCheckout",
       "family": "plugin",
       "kind": "request",
-      "facade_status": "generated",
       "method": "plugin/share/checkout",
       "params_or_payload_schema": "PluginShareCheckoutParams",
       "response_schema": "v2/PluginShareCheckoutResponse.json",
@@ -2844,7 +2843,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/45",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/PluginShareCheckoutParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/PluginShareCheckout",
@@ -2854,14 +2853,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "PluginShareCheckout",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Plugins().ShareDelete",
       "family": "plugin",
       "kind": "request",
-      "facade_status": "generated",
       "method": "plugin/share/delete",
       "params_or_payload_schema": "PluginShareDeleteParams",
       "response_schema": "v2/PluginShareDeleteResponse.json",
@@ -2871,7 +2870,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/46",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/PluginShareDeleteParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/PluginShareDelete",
@@ -2881,14 +2880,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "PluginShareDelete",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Plugins().ShareList",
       "family": "plugin",
       "kind": "request",
-      "facade_status": "generated",
       "method": "plugin/share/list",
       "params_or_payload_schema": "PluginShareListParams",
       "response_schema": "v2/PluginShareListResponse.json",
@@ -2898,7 +2897,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/44",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/PluginShareListParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/PluginShareList",
@@ -2908,14 +2907,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "PluginShareList",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Plugins().ShareSave",
       "family": "plugin",
       "kind": "request",
-      "facade_status": "generated",
       "method": "plugin/share/save",
       "params_or_payload_schema": "PluginShareSaveParams",
       "response_schema": "v2/PluginShareSaveResponse.json",
@@ -2925,7 +2924,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/42",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/PluginShareSaveParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/PluginShareSave",
@@ -2935,14 +2934,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "PluginShareSave",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Plugins().ShareUpdateTargets",
       "family": "plugin",
       "kind": "request",
-      "facade_status": "generated",
       "method": "plugin/share/updateTargets",
       "params_or_payload_schema": "PluginShareUpdateTargetsParams",
       "response_schema": "v2/PluginShareUpdateTargetsResponse.json",
@@ -2952,7 +2951,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/43",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/PluginShareUpdateTargetsParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/PluginShareUpdateTargets",
@@ -2962,14 +2961,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "PluginShareUpdateTargets",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Plugins().SkillRead",
       "family": "plugin",
       "kind": "request",
-      "facade_status": "generated",
       "method": "plugin/skill/read",
       "params_or_payload_schema": "PluginSkillReadParams",
       "response_schema": "v2/PluginSkillReadResponse.json",
@@ -2979,7 +2978,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/41",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/PluginSkillReadParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/PluginSkillRead",
@@ -2989,14 +2988,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "PluginSkillRead",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Plugins().Uninstall",
       "family": "plugin",
       "kind": "request",
-      "facade_status": "generated",
       "method": "plugin/uninstall",
       "params_or_payload_schema": "PluginUninstallParams",
       "response_schema": "v2/PluginUninstallResponse.json",
@@ -3006,7 +3005,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/59",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/PluginUninstallParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/PluginUninstall",
@@ -3016,7 +3015,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "PluginUninstall",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -3032,7 +3032,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/27",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ProcessExitedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -3049,7 +3049,6 @@
       "facade_target": "Processes().Kill",
       "family": "process",
       "kind": "request",
-      "facade_status": "generated",
       "method": "process/kill",
       "params_or_payload_schema": "ProcessKillParams",
       "response_schema": "v2/ProcessKillResponse.json",
@@ -3059,7 +3058,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/108",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ProcessKillParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ProcessKill",
@@ -3069,7 +3068,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ProcessKill",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -3085,7 +3085,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/26",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ProcessOutputDeltaNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -3102,7 +3102,6 @@
       "facade_target": "Processes().ResizePTY",
       "family": "process",
       "kind": "request",
-      "facade_status": "generated",
       "method": "process/resizePty",
       "params_or_payload_schema": "ProcessResizePtyParams",
       "response_schema": "v2/ProcessResizePtyResponse.json",
@@ -3112,7 +3111,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/109",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ProcessResizePtyParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ProcessResizePty",
@@ -3122,14 +3121,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ProcessResizePty",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Processes().Spawn",
       "family": "process",
       "kind": "request",
-      "facade_status": "generated",
       "method": "process/spawn",
       "params_or_payload_schema": "ProcessSpawnParams",
       "response_schema": "v2/ProcessSpawnResponse.json",
@@ -3139,7 +3138,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/106",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ProcessSpawnParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ProcessSpawn",
@@ -3149,14 +3148,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ProcessSpawn",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Processes().WriteStdin",
       "family": "process",
       "kind": "request",
-      "facade_status": "generated",
       "method": "process/writeStdin",
       "params_or_payload_schema": "ProcessWriteStdinParams",
       "response_schema": "v2/ProcessWriteStdinResponse.json",
@@ -3166,7 +3165,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/107",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ProcessWriteStdinParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ProcessWriteStdin",
@@ -3176,14 +3175,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ProcessWriteStdin",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "RemoteControl().ClientList",
       "family": "remoteControl",
       "kind": "request",
-      "facade_status": "deferred_missing_generated_types",
       "method": "remoteControl/client/list",
       "params_or_payload_schema": "RemoteControlClientsListParams",
       "response_schema": "v2/RemoteControlClientsListResponse.json",
@@ -3193,7 +3192,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/80",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/RemoteControlClientsListParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/RemoteControlClientsList",
@@ -3203,14 +3202,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "RemoteControlClientsList",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "deferred_missing_generated_types"
     },
     {
       "direction": "client_to_server",
       "facade_target": "RemoteControl().ClientRevoke",
       "family": "remoteControl",
       "kind": "request",
-      "facade_status": "generated",
       "method": "remoteControl/client/revoke",
       "params_or_payload_schema": "RemoteControlClientsRevokeParams",
       "response_schema": "v2/RemoteControlClientsRevokeResponse.json",
@@ -3220,7 +3219,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/81",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/RemoteControlClientsRevokeParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/RemoteControlClientsRevoke",
@@ -3230,14 +3229,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "RemoteControlClientsRevoke",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "RemoteControl().Disable",
       "family": "remoteControl",
       "kind": "request",
-      "facade_status": "generated",
       "method": "remoteControl/disable",
       "params_or_payload_schema": "",
       "response_schema": "v2/RemoteControlDisableResponse.json",
@@ -3247,7 +3246,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/76",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/RemoteControlDisable",
@@ -3257,14 +3256,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "RemoteControlDisable",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "RemoteControl().Enable",
       "family": "remoteControl",
       "kind": "request",
-      "facade_status": "generated",
       "method": "remoteControl/enable",
       "params_or_payload_schema": "",
       "response_schema": "v2/RemoteControlEnableResponse.json",
@@ -3274,7 +3273,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/75",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/RemoteControlEnable",
@@ -3284,14 +3283,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "RemoteControlEnable",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "RemoteControl().PairingStart",
       "family": "remoteControl",
       "kind": "request",
-      "facade_status": "generated",
       "method": "remoteControl/pairing/start",
       "params_or_payload_schema": "RemoteControlPairingStartParams",
       "response_schema": "v2/RemoteControlPairingStartResponse.json",
@@ -3301,7 +3300,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/78",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/RemoteControlPairingStartParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/RemoteControlPairingStart",
@@ -3311,14 +3310,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "RemoteControlPairingStart",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "RemoteControl().PairingStatus",
       "family": "remoteControl",
       "kind": "request",
-      "facade_status": "generated",
       "method": "remoteControl/pairing/status",
       "params_or_payload_schema": "RemoteControlPairingStatusParams",
       "response_schema": "v2/RemoteControlPairingStatusResponse.json",
@@ -3328,7 +3327,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/79",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/RemoteControlPairingStatusParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/RemoteControlPairingStatus",
@@ -3338,7 +3337,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "RemoteControlPairingStatus",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -3354,7 +3354,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/39",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/RemoteControlStatusChangedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -3371,7 +3371,6 @@
       "facade_target": "RemoteControl().StatusRead",
       "family": "remoteControl",
       "kind": "request",
-      "facade_status": "generated",
       "method": "remoteControl/status/read",
       "params_or_payload_schema": "",
       "response_schema": "v2/RemoteControlStatusReadResponse.json",
@@ -3381,7 +3380,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/77",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/RemoteControlStatusRead",
@@ -3391,14 +3390,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "RemoteControlStatusRead",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Reviews().Start",
       "family": "review",
       "kind": "request",
-      "facade_status": "generated",
       "method": "review/start",
       "params_or_payload_schema": "ReviewStartParams",
       "response_schema": "v2/ReviewStartResponse.json",
@@ -3408,7 +3407,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/69",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ReviewStartParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ReviewStart",
@@ -3418,7 +3417,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ReviewStart",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -3434,7 +3434,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/32",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ServerRequestResolvedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -3460,7 +3460,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/7",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/SkillsChangedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -3477,7 +3477,6 @@
       "facade_target": "Skills().ConfigWrite",
       "family": "skills",
       "kind": "request",
-      "facade_status": "generated",
       "method": "skills/config/write",
       "params_or_payload_schema": "SkillsConfigWriteParams",
       "response_schema": "v2/SkillsConfigWriteResponse.json",
@@ -3487,7 +3486,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/57",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/SkillsConfigWriteParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/SkillsConfigWrite",
@@ -3497,14 +3496,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "SkillsConfigWrite",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Skills().ExtraRootsSet",
       "family": "skills",
       "kind": "request",
-      "facade_status": "generated",
       "method": "skills/extraRoots/set",
       "params_or_payload_schema": "SkillsExtraRootsSetParams",
       "response_schema": "v2/SkillsExtraRootsSetResponse.json",
@@ -3514,7 +3513,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/33",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/SkillsExtraRootsSetParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/SkillsExtraRootsSet",
@@ -3524,14 +3523,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "SkillsExtraRootsSet",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Skills().List",
       "family": "skills",
       "kind": "request",
-      "facade_status": "generated",
       "method": "skills/list",
       "params_or_payload_schema": "SkillsListParams",
       "response_schema": "v2/SkillsListResponse.json",
@@ -3541,7 +3540,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/32",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/SkillsListParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/SkillsList",
@@ -3551,14 +3550,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "SkillsList",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Threads().ApproveGuardianDeniedAction",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/approveGuardianDeniedAction",
       "params_or_payload_schema": "ThreadApproveGuardianDeniedActionParams",
       "response_schema": "v2/ThreadApproveGuardianDeniedActionResponse.json",
@@ -3568,7 +3567,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/20",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadApproveGuardianDeniedActionParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadApproveGuardianDeniedAction",
@@ -3578,14 +3577,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadApproveGuardianDeniedAction",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Threads().Archive",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/archive",
       "params_or_payload_schema": "ThreadArchiveParams",
       "response_schema": "v2/ThreadArchiveResponse.json",
@@ -3595,7 +3594,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/4",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadArchiveParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadArchive",
@@ -3605,7 +3604,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadArchive",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -3621,7 +3621,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/3",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadArchivedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -3638,7 +3638,6 @@
       "facade_target": "Threads().BackgroundTerminalsClean",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/backgroundTerminals/clean",
       "params_or_payload_schema": "ThreadBackgroundTerminalsCleanParams",
       "response_schema": "v2/ThreadBackgroundTerminalsCleanResponse.json",
@@ -3648,7 +3647,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/21",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadBackgroundTerminalsCleanParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadBackgroundTerminalsClean",
@@ -3658,14 +3657,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadBackgroundTerminalsClean",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Threads().BackgroundTerminalsList",
       "family": "thread",
       "kind": "request",
-      "facade_status": "deferred_missing_generated_types",
       "method": "thread/backgroundTerminals/list",
       "params_or_payload_schema": "ThreadBackgroundTerminalsListParams",
       "response_schema": "v2/ThreadBackgroundTerminalsListResponse.json",
@@ -3675,7 +3674,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/22",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadBackgroundTerminalsListParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadBackgroundTerminalsList",
@@ -3685,14 +3684,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadBackgroundTerminalsList",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "deferred_missing_generated_types"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Threads().BackgroundTerminalsTerminate",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/backgroundTerminals/terminate",
       "params_or_payload_schema": "ThreadBackgroundTerminalsTerminateParams",
       "response_schema": "v2/ThreadBackgroundTerminalsTerminateResponse.json",
@@ -3702,7 +3701,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/23",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadBackgroundTerminalsTerminateParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadBackgroundTerminalsTerminate",
@@ -3712,7 +3711,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadBackgroundTerminalsTerminate",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -3728,7 +3728,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/6",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadClosedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -3745,7 +3745,6 @@
       "facade_target": "Threads().CompactStart",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/compact/start",
       "params_or_payload_schema": "ThreadCompactStartParams",
       "response_schema": "v2/ThreadCompactStartResponse.json",
@@ -3755,7 +3754,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/18",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadCompactStartParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadCompactStart",
@@ -3765,7 +3764,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadCompactStart",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -3781,7 +3781,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/46",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ContextCompactedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -3798,7 +3798,6 @@
       "facade_target": "Threads().DecrementElicitation",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/decrement_elicitation",
       "params_or_payload_schema": "ThreadDecrementElicitationParams",
       "response_schema": "v2/ThreadDecrementElicitationResponse.json",
@@ -3808,7 +3807,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/8",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadDecrementElicitationParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadDecrementElicitation",
@@ -3818,14 +3817,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadDecrementElicitation",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Threads().Delete",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/delete",
       "params_or_payload_schema": "ThreadDeleteParams",
       "response_schema": "v2/ThreadDeleteResponse.json",
@@ -3835,7 +3834,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/5",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadDeleteParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadDelete",
@@ -3845,7 +3844,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadDelete",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -3861,7 +3861,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/4",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadDeletedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -3878,7 +3878,6 @@
       "facade_target": "Threads().Fork",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/fork",
       "params_or_payload_schema": "ThreadForkParams",
       "response_schema": "v2/ThreadForkResponse.json",
@@ -3888,7 +3887,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/3",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadForkParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadFork",
@@ -3898,14 +3897,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadFork",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Threads().GoalClear",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/goal/clear",
       "params_or_payload_schema": "ThreadGoalClearParams",
       "response_schema": "v2/ThreadGoalClearResponse.json",
@@ -3915,7 +3914,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/12",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadGoalClearParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadGoalClear",
@@ -3925,7 +3924,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadGoalClear",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -3941,7 +3941,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/10",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadGoalClearedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -3958,7 +3958,6 @@
       "facade_target": "Threads().GoalGet",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/goal/get",
       "params_or_payload_schema": "ThreadGoalGetParams",
       "response_schema": "v2/ThreadGoalGetResponse.json",
@@ -3968,7 +3967,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/11",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadGoalGetParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadGoalGet",
@@ -3978,14 +3977,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadGoalGet",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Threads().GoalSet",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/goal/set",
       "params_or_payload_schema": "ThreadGoalSetParams",
       "response_schema": "v2/ThreadGoalSetResponse.json",
@@ -3995,7 +3994,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/10",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadGoalSetParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadGoalSet",
@@ -4005,7 +4004,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadGoalSet",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -4021,7 +4021,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/9",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadGoalUpdatedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -4038,7 +4038,6 @@
       "facade_target": "Threads().IncrementElicitation",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/increment_elicitation",
       "params_or_payload_schema": "ThreadIncrementElicitationParams",
       "response_schema": "v2/ThreadIncrementElicitationResponse.json",
@@ -4048,7 +4047,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/7",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadIncrementElicitationParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadIncrementElicitation",
@@ -4058,14 +4057,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadIncrementElicitation",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Threads().InjectItems",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/inject_items",
       "params_or_payload_schema": "ThreadInjectItemsParams",
       "response_schema": "v2/ThreadInjectItemsResponse.json",
@@ -4075,7 +4074,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/31",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadInjectItemsParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadInjectItems",
@@ -4085,14 +4084,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadInjectItems",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Threads().ItemsList",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/items/list",
       "params_or_payload_schema": "ThreadItemsListParams",
       "response_schema": "v2/ThreadItemsListResponse.json",
@@ -4102,7 +4101,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/30",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadItemsListParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadItemsList",
@@ -4112,14 +4111,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadItemsList",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Threads().List",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/list",
       "params_or_payload_schema": "ThreadListParams",
       "response_schema": "v2/ThreadListResponse.json",
@@ -4129,7 +4128,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/25",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadListParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadList",
@@ -4139,14 +4138,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadList",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Threads().LoadedList",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/loaded/list",
       "params_or_payload_schema": "ThreadLoadedListParams",
       "response_schema": "v2/ThreadLoadedListResponse.json",
@@ -4156,7 +4155,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/27",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadLoadedListParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadLoadedList",
@@ -4166,14 +4165,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadLoadedList",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Threads().MemoryModeSet",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/memoryMode/set",
       "params_or_payload_schema": "ThreadMemoryModeSetParams",
       "response_schema": "v2/ThreadMemoryModeSetResponse.json",
@@ -4183,7 +4182,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/15",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadMemoryModeSetParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadMemoryModeSet",
@@ -4193,14 +4192,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadMemoryModeSet",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Threads().MetadataUpdate",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/metadata/update",
       "params_or_payload_schema": "ThreadMetadataUpdateParams",
       "response_schema": "v2/ThreadMetadataUpdateResponse.json",
@@ -4210,7 +4209,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/13",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadMetadataUpdateParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadMetadataUpdate",
@@ -4220,14 +4219,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadMetadataUpdate",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Threads().NameSet",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/name/set",
       "params_or_payload_schema": "ThreadSetNameParams",
       "response_schema": "v2/ThreadSetNameResponse.json",
@@ -4237,7 +4236,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/9",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadSetNameParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadSetName",
@@ -4247,7 +4246,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadSetName",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -4263,7 +4263,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/8",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadNameUpdatedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -4280,7 +4280,6 @@
       "facade_target": "Threads().Read",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/read",
       "params_or_payload_schema": "ThreadReadParams",
       "response_schema": "v2/ThreadReadResponse.json",
@@ -4290,7 +4289,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/28",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadReadParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadRead",
@@ -4300,14 +4299,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadRead",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Threads().RealtimeAppendAudio",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/realtime/appendAudio",
       "params_or_payload_schema": "ThreadRealtimeAppendAudioParams",
       "response_schema": "v2/ThreadRealtimeAppendAudioResponse.json",
@@ -4317,7 +4316,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/64",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadRealtimeAppendAudioParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadRealtimeAppendAudio",
@@ -4327,14 +4326,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadRealtimeAppendAudio",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Threads().RealtimeAppendSpeech",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/realtime/appendSpeech",
       "params_or_payload_schema": "ThreadRealtimeAppendSpeechParams",
       "response_schema": "v2/ThreadRealtimeAppendSpeechResponse.json",
@@ -4344,7 +4343,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/66",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadRealtimeAppendSpeechParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadRealtimeAppendSpeech",
@@ -4354,14 +4353,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadRealtimeAppendSpeech",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Threads().RealtimeAppendText",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/realtime/appendText",
       "params_or_payload_schema": "ThreadRealtimeAppendTextParams",
       "response_schema": "v2/ThreadRealtimeAppendTextResponse.json",
@@ -4371,7 +4370,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/65",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadRealtimeAppendTextParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadRealtimeAppendText",
@@ -4381,7 +4380,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadRealtimeAppendText",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -4397,7 +4397,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/64",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadRealtimeClosedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -4423,7 +4423,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/63",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadRealtimeErrorNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -4449,7 +4449,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/58",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadRealtimeItemAddedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -4466,7 +4466,6 @@
       "facade_target": "Threads().RealtimeListVoices",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/realtime/listVoices",
       "params_or_payload_schema": "ThreadRealtimeListVoicesParams",
       "response_schema": "v2/ThreadRealtimeListVoicesResponse.json",
@@ -4476,7 +4475,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/68",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadRealtimeListVoicesParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadRealtimeListVoices",
@@ -4486,7 +4485,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadRealtimeListVoices",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -4502,7 +4502,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/61",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadRealtimeOutputAudioDeltaNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -4528,7 +4528,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/62",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadRealtimeSdpNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -4545,7 +4545,6 @@
       "facade_target": "Threads().RealtimeStart",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/realtime/start",
       "params_or_payload_schema": "ThreadRealtimeStartParams",
       "response_schema": "v2/ThreadRealtimeStartResponse.json",
@@ -4555,7 +4554,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/63",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadRealtimeStartParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadRealtimeStart",
@@ -4565,7 +4564,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadRealtimeStart",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -4581,7 +4581,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/57",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadRealtimeStartedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -4598,7 +4598,6 @@
       "facade_target": "Threads().RealtimeStop",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/realtime/stop",
       "params_or_payload_schema": "ThreadRealtimeStopParams",
       "response_schema": "v2/ThreadRealtimeStopResponse.json",
@@ -4608,7 +4607,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/67",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadRealtimeStopParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadRealtimeStop",
@@ -4618,7 +4617,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadRealtimeStop",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -4634,7 +4634,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/59",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadRealtimeTranscriptDeltaNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -4660,7 +4660,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/60",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadRealtimeTranscriptDoneNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -4677,7 +4677,6 @@
       "facade_target": "Threads().Resume",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/resume",
       "params_or_payload_schema": "ThreadResumeParams",
       "response_schema": "v2/ThreadResumeResponse.json",
@@ -4687,7 +4686,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/2",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadResumeParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadResume",
@@ -4697,14 +4696,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadResume",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Threads().Rollback",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/rollback",
       "params_or_payload_schema": "ThreadRollbackParams",
       "response_schema": "v2/ThreadRollbackResponse.json",
@@ -4714,7 +4713,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/24",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadRollbackParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadRollback",
@@ -4724,14 +4723,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadRollback",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Threads().Search",
       "family": "thread",
       "kind": "request",
-      "facade_status": "deferred_missing_generated_types",
       "method": "thread/search",
       "params_or_payload_schema": "ThreadSearchParams",
       "response_schema": "v2/ThreadSearchResponse.json",
@@ -4741,7 +4740,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/26",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadSearchParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadSearch",
@@ -4751,14 +4750,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadSearch",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "deferred_missing_generated_types"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Threads().SettingsUpdate",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/settings/update",
       "params_or_payload_schema": "ThreadSettingsUpdateParams",
       "response_schema": "v2/ThreadSettingsUpdateResponse.json",
@@ -4768,7 +4767,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/14",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadSettingsUpdateParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadSettingsUpdate",
@@ -4778,7 +4777,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadSettingsUpdate",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -4794,7 +4794,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/11",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadSettingsUpdatedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -4811,7 +4811,6 @@
       "facade_target": "Threads().ShellCommand",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/shellCommand",
       "params_or_payload_schema": "ThreadShellCommandParams",
       "response_schema": "v2/ThreadShellCommandResponse.json",
@@ -4821,7 +4820,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/19",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadShellCommandParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadShellCommand",
@@ -4831,14 +4830,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadShellCommand",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Threads().Start",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/start",
       "params_or_payload_schema": "ThreadStartParams",
       "response_schema": "v2/ThreadStartResponse.json",
@@ -4848,7 +4847,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/1",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadStartParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadStart",
@@ -4858,7 +4857,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadStart",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -4874,7 +4874,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/1",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadStartedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -4900,7 +4900,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/2",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadStatusChangedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -4926,7 +4926,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/12",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadTokenUsageUpdatedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -4943,7 +4943,6 @@
       "facade_target": "Threads().TurnsList",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/turns/list",
       "params_or_payload_schema": "ThreadTurnsListParams",
       "response_schema": "v2/ThreadTurnsListResponse.json",
@@ -4953,7 +4952,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/29",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadTurnsListParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadTurnsList",
@@ -4963,14 +4962,14 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadTurnsList",
       "stability": "experimental",
-      "stability_source": "experimental_only_in_schema"
+      "stability_source": "experimental_only_in_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "client_to_server",
       "facade_target": "Threads().Unarchive",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/unarchive",
       "params_or_payload_schema": "ThreadUnarchiveParams",
       "response_schema": "v2/ThreadUnarchiveResponse.json",
@@ -4980,7 +4979,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/17",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadUnarchiveParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadUnarchive",
@@ -4990,7 +4989,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadUnarchive",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -5006,7 +5006,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/5",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadUnarchivedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -5023,7 +5023,6 @@
       "facade_target": "Threads().Unsubscribe",
       "family": "thread",
       "kind": "request",
-      "facade_status": "generated",
       "method": "thread/unsubscribe",
       "params_or_payload_schema": "ThreadUnsubscribeParams",
       "response_schema": "v2/ThreadUnsubscribeResponse.json",
@@ -5033,7 +5032,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/6",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadUnsubscribeParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadUnsubscribe",
@@ -5043,7 +5042,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "ThreadUnsubscribe",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -5059,7 +5059,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/15",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/TurnCompletedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -5085,7 +5085,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/17",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/TurnDiffUpdatedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -5102,7 +5102,6 @@
       "facade_target": "Turns().Interrupt",
       "family": "turn",
       "kind": "request",
-      "facade_status": "generated",
       "method": "turn/interrupt",
       "params_or_payload_schema": "TurnInterruptParams",
       "response_schema": "v2/TurnInterruptResponse.json",
@@ -5112,7 +5111,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/62",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/TurnInterruptParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/TurnInterrupt",
@@ -5122,7 +5121,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "TurnInterrupt",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -5138,7 +5138,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/49",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/TurnModerationMetadataNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -5164,7 +5164,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/18",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/TurnPlanUpdatedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -5181,7 +5181,6 @@
       "facade_target": "Turns().Start",
       "family": "turn",
       "kind": "request",
-      "facade_status": "generated",
       "method": "turn/start",
       "params_or_payload_schema": "TurnStartParams",
       "response_schema": "v2/TurnStartResponse.json",
@@ -5191,7 +5190,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/60",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/TurnStartParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/TurnStart",
@@ -5201,7 +5200,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "TurnStart",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -5217,7 +5217,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/13",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/TurnStartedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -5234,7 +5234,6 @@
       "facade_target": "Turns().Steer",
       "family": "turn",
       "kind": "request",
-      "facade_status": "generated",
       "method": "turn/steer",
       "params_or_payload_schema": "TurnSteerParams",
       "response_schema": "v2/TurnSteerResponse.json",
@@ -5244,7 +5243,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/61",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/TurnSteerParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/TurnSteer",
@@ -5254,7 +5253,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "TurnSteer",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -5270,7 +5270,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/51",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/WarningNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -5296,7 +5296,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/65",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/WindowsWorldWritableWarningNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -5313,7 +5313,6 @@
       "facade_target": "WindowsSandbox().Readiness",
       "family": "windowsSandbox",
       "kind": "request",
-      "facade_status": "generated",
       "method": "windowsSandbox/readiness",
       "params_or_payload_schema": "",
       "response_schema": "v2/WindowsSandboxReadinessResponse.json",
@@ -5323,7 +5322,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/92",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/WindowsSandboxReadiness",
@@ -5333,7 +5332,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "WindowsSandboxReadiness",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     },
     {
       "direction": "server_to_client",
@@ -5349,7 +5349,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/66",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/WindowsSandboxSetupCompletedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -5366,7 +5366,6 @@
       "facade_target": "WindowsSandbox().SetupStart",
       "family": "windowsSandbox",
       "kind": "request",
-      "facade_status": "generated",
       "method": "windowsSandbox/setupStart",
       "params_or_payload_schema": "WindowsSandboxSetupStartParams",
       "response_schema": "v2/WindowsSandboxSetupStartResponse.json",
@@ -5376,7 +5375,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/91",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+        "baseline_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/WindowsSandboxSetupStartParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/WindowsSandboxSetupStart",
@@ -5386,7 +5385,8 @@
       "source_schema": "ClientRequest.json",
       "source_variant": "WindowsSandboxSetupStart",
       "stability": "stable",
-      "stability_source": "present_in_stable_schema"
+      "stability_source": "present_in_stable_schema",
+      "facade_status": "generated"
     }
   ],
   "surface": [
