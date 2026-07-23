@@ -41,7 +41,7 @@ func run(schemaRootFlag, manifestPathFlag, outDir, stdout, stableSource, complet
 		_, err = io.Copy(writer, bytes.NewReader(methodRegistry))
 		return err
 	case "protocol-types":
-		protocolTypes, err := generateProtocolTypes(schemaRoot)
+		protocolTypes, err := generateProtocolTypes(schemaRoot, manifestPath)
 		if err != nil {
 			return err
 		}
@@ -74,7 +74,7 @@ func run(schemaRootFlag, manifestPathFlag, outDir, stdout, stableSource, complet
 	if err != nil {
 		return err
 	}
-	protocolTypes, err := generateProtocolTypes(schemaRoot)
+	protocolTypes, err := generateProtocolTypes(schemaRoot, manifestPath)
 	if err != nil {
 		return err
 	}
@@ -126,9 +126,16 @@ func generateMethodRegistry(manifestPath string) ([]byte, error) {
 	return protocolgen.GenerateMethodRegistry(manifest)
 }
 
-func generateProtocolTypes(schemaRoot string) ([]byte, error) {
+func generateProtocolTypes(schemaRoot string, manifestPath string) ([]byte, error) {
 	typePlan, err := protocolgen.BuildProtocolTypePlan(schemaRoot)
 	if err != nil {
+		return nil, err
+	}
+	manifest, err := protocolgen.LoadManifest(manifestPath)
+	if err != nil {
+		return nil, err
+	}
+	if err := protocolgen.ApplyWireMessageRoles(&typePlan, manifest); err != nil {
 		return nil, err
 	}
 	return protocolgen.GenerateProtocolTypes(typePlan)

@@ -22,6 +22,18 @@ type TypePlan struct {
 	SchemaPath            string
 	Stability             string
 	TypeName              string
+	WireMessageRoles      WireMessageRoles
+}
+
+type WireMessageRoles uint8
+
+const (
+	WireMessageRoleActionBearingMessage WireMessageRoles = 1 << iota
+	WireMessageRoleServerObservation
+)
+
+func (roles WireMessageRoles) Has(role WireMessageRoles) bool {
+	return roles&role != 0
 }
 
 type TypePlanKind string

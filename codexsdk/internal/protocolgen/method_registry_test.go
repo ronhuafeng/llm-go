@@ -63,6 +63,50 @@ func TestLoadManifestRequiresClassifiedSurfaceSchema(t *testing.T) {
 	}
 }
 
+func TestApplyWireMessageRolesUsesManifestDirectionAndKind(t *testing.T) {
+	plan := ProtocolTypePlan{Types: []TypePlan{
+		{SchemaPath: "ReadResponse.json"},
+		{SchemaPath: "ServerNotification.json"},
+		{SchemaPath: "ClientRequest.json"},
+		{SchemaPath: "ServerRequest.json"},
+		{SchemaPath: "ApprovalResponse.json"},
+	}}
+	manifest := Manifest{Entries: []ManifestEntry{
+		{Direction: "client_to_server", Kind: "request", ResponseSchema: "ReadResponse.json"},
+		{Direction: "server_to_client", Kind: "notification", SourceSchema: "ServerNotification.json"},
+		{Direction: "client_to_server", Kind: "notification", SourceSchema: "ClientRequest.json"},
+		{Direction: "server_to_client", Kind: "request", SourceSchema: "ServerRequest.json", ResponseSchema: "ApprovalResponse.json"},
+	}}
+	if err := ApplyWireMessageRoles(&plan, manifest); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, typ := range plan.Types {
+		want := WireMessageRoleActionBearingMessage
+		if typ.SchemaPath == "ReadResponse.json" || typ.SchemaPath == "ServerNotification.json" {
+			want = WireMessageRoleServerObservation
+		}
+		if typ.WireMessageRoles != want {
+			t.Fatalf("%s wire roles = %b, want %b", typ.SchemaPath, typ.WireMessageRoles, want)
+		}
+	}
+}
+
+func TestApplyWireMessageRolesRecordsEveryPositionForAReusedRoot(t *testing.T) {
+	plan := ProtocolTypePlan{Types: []TypePlan{{SchemaPath: "SharedResponse.json"}}}
+	manifest := Manifest{Entries: []ManifestEntry{
+		{Direction: "client_to_server", Kind: "request", ResponseSchema: "SharedResponse.json"},
+		{Direction: "server_to_client", Kind: "request", ResponseSchema: "SharedResponse.json"},
+	}}
+	if err := ApplyWireMessageRoles(&plan, manifest); err != nil {
+		t.Fatal(err)
+	}
+	roles := plan.Types[0].WireMessageRoles
+	if !roles.Has(WireMessageRoleActionBearingMessage) || !roles.Has(WireMessageRoleServerObservation) {
+		t.Fatalf("SharedResponse wire roles = %b, want action-bearing and server-observation", roles)
+	}
+}
+
 func TestMethodConstNameUsesGoAcronyms(t *testing.T) {
 	cases := map[string]string{
 		"account/chatgptAuthTokens/refresh": "MethodAccountChatGPTAuthTokensRefresh",

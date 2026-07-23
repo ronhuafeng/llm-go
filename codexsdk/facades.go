@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ronhuafeng/llm-go/codexsdk/internal/wirejson"
 	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
 )
 
@@ -228,7 +229,7 @@ func decodeProtocolResponse(method string, result map[string]any, response any) 
 	if err != nil {
 		return fmt.Errorf("codexsdk: decode %s response: %w", method, err)
 	}
-	if err := json.Unmarshal(raw, response); err != nil {
+	if err := wirejson.Unmarshal(raw, response, wirejson.ServerObservation); err != nil {
 		return fmt.Errorf("codexsdk: decode %s response: %w", method, err)
 	}
 	return nil
