@@ -109,11 +109,7 @@ func VerifyModule(root, moduleID, stage string) (Evidence, error) {
 		Stage:  stage,
 	})
 	moduleRoot := filepath.Join(root, filepath.FromSlash(candidate.Dir))
-	runner := commandRunner{directory: moduleRoot, environment: map[string]string{
-		"GOWORK":                  "off",
-		"GOTOOLCHAIN":             "local",
-		"PYTHONDONTWRITEBYTECODE": "1",
-	}}
+	runner := commandRunner{directory: moduleRoot, environment: sourceCleanEnvironment()}
 	run := func(name string, args ...string) error {
 		return recorder.check(name, args, func() error { return runner.run(args...) })
 	}
