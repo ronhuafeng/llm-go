@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "module": "codexsdk",
+  "impact": "patch",
+  "breaking": false,
+  "summary": "Decode known app-server observations forward-compatibly across nested additional members while keeping known contracts exact and action-bearing messages fail-closed.",
+  "issue": 63,
+  "migration": "none"
+}

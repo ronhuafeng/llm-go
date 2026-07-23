@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-07-23
+
+### Fixed
+
+- Made known app-server responses and server notifications forward-compatible
+  with additional object members throughout their nested payloads, while
+  preserving exact validation for known members and fail-closed decoding for
+  action-bearing messages. Unknown server-notification methods are ignored;
+  no field-specific compatibility exception is required.
+- Published callback failures before rejected dispatch fences or fail-closed
+  protocol responses can release exact runs, preventing deadlocks and lost
+  first causes without erasing accepted evidence.
+- Rejected overlapping same-thread turn attachment so early Exact Run evidence
+  always has one structural owner.
+- Made Root Client RPC admission atomic with shutdown so admitted calls cannot
+  escape close or failure terminalization.
+- Bounded inbound app-server JSON-RPC frames and fail oversized or unterminated
+  input with sanitized diagnostics.
+
 ## [0.6.0] - 2026-07-15
 
 ### Changed
