@@ -43,6 +43,26 @@ and experimental classifications. Mixed describes the aggregate; each member
 retains its own classification.
 _Avoid_: partially compatible type, SemVer exception
 
+**Wire Message Role**:
+The protocol position from which a JSON value is decoded; it owns unknown-member
+acceptance independently of generated type reuse or schema-visibility classification.
+_Avoid_: type strictness, experimental decode mode
+
+**Server Observation**:
+A known RPC result or server notification that conveys app-server-authored facts.
+Its known members remain exact while additional unknown members do not invalidate it.
+_Avoid_: permissive payload, server request
+
+**Additional Wire Member**:
+An object member absent from the SDK's checked-in protocol baseline. It is distinct
+from an unknown method, enum value, union variant, or malformed known member.
+_Avoid_: unknown protocol meaning, unvalidated field
+
+**Action-Bearing Message**:
+A client-authored protocol instruction or response, or an app-server request whose
+interpretation can cause or authorize action. Its admission fails closed.
+_Avoid_: Server Observation, strict generated type
+
 **Consumer-Owned Interface**:
 A narrow interface declared by an application at the point where it consumes a
 Lifecycle API or Generated Facade.

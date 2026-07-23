@@ -79,7 +79,8 @@ release reports consume it instead of maintaining handwritten lists.
 - Generated drift that would remove or incompatibly change an exported name
   requires an honest additive compatibility path or the next major version.
 - Runtime `ExperimentalAPI` capability opt-in does not alter compile-time
-  availability or compatibility classification.
+  availability, compatibility classification, or inbound wire acceptance; see
+  [ADR 0003](adr/0003-let-wire-message-roles-own-unknown-member-acceptance.md).
 - A separately versioned experimental module is the only clean boundary for
   post-v1 minor-release source breakage, and is rejected until concrete demand
   justifies its additional complexity.

@@ -38,6 +38,61 @@ func TestUnknownFutureNotificationKindFailsClosed(t *testing.T) {
 	}
 }
 
+func TestNotificationRoutingIgnoresMethodsOutsideKnownServerNotifications(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		method string
+	}{
+		{name: "unknown method", method: "future/server-observation"},
+		{name: "known client request", method: protocolv2.MethodThreadRead},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			c := &Client{
+				ctx:            context.Background(),
+				notifications:  make(chan acceptedNotification, 1),
+				exactStreams:   map[string]map[*exactRunState]struct{}{},
+				exactAttaching: map[string]map[*exactRunState]struct{}{},
+			}
+			c.routeNotification(rpcNotification{
+				method: test.method,
+				params: map[string]any{"future": true},
+			})
+
+			if c.isClosed() {
+				t.Fatalf("unsupported notification method closed the client: %v", c.failure)
+			}
+			select {
+			case accepted := <-c.notifications:
+				t.Fatalf("unsupported notification method reached typed handler queue as %s", accepted.notification.Kind())
+			default:
+			}
+		})
+	}
+}
+
+func TestExactNotificationAcceptsAdditionalMembersRecursively(t *testing.T) {
+	typed, err := exactNotification(rpcNotification{
+		method: protocolv2.MethodAccountRateLimitsUpdated,
+		params: map[string]any{
+			"futureParamsMember": true,
+			"rateLimits": map[string]any{
+				"futureSnapshotMember": true,
+				"secondary": map[string]any{
+					"futureWindowMember": true,
+					"usedPercent":        7,
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated, ok := typed.AsAccountRateLimitsUpdated()
+	if !ok || updated.Params.RateLimits.Secondary == nil || updated.Params.RateLimits.Secondary.Value == nil || updated.Params.RateLimits.Secondary.Value.UsedPercent != 7 {
+		t.Fatalf("decoded account/rateLimits/updated = %#v, ok=%t", updated, ok)
+	}
+}
+
 func TestIdentifierFreeGlobalFamiliesOnlyReachGlobalQueue(t *testing.T) {
 	c := &Client{
 		ctx: context.Background(), notifications: make(chan acceptedNotification, 3),

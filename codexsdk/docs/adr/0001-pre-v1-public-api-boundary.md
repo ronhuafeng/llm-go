@@ -62,14 +62,17 @@ about current upstream support, or the next SDK major version. Release notes
 must identify affected classifications and give migration instructions.
 
 Runtime opt-in and compile-time compatibility are separate. Setting
-`Initialize.Capabilities.ExperimentalAPI` permits experimental calls and
-fields at runtime; it neither changes what Go declarations are compiled nor
-removes exported names from the effective Go surface. The default generated
-package remains complete, so exact protocol users do not need a second package,
-module, build tag, or provider-neutral abstraction. A separately versioned
-experimental module would be the clean way to permit post-v1 minor-release
-source breakage, but its extra generation, dependency, and shared-type boundary
-is rejected until concrete consumer demand justifies it.
+`Initialize.Capabilities.ExperimentalAPI` permits the client to intentionally
+use experimental calls and fields; it neither changes what Go declarations are
+compiled nor guarantees that the app-server omits experimental-only or future
+members from its output. Schema-visibility classification does not own inbound
+wire acceptance; see [ADR 0003](0003-let-wire-message-roles-own-unknown-member-acceptance.md).
+The default generated package remains complete, so exact protocol users do not
+need a second package, module, build tag, or provider-neutral abstraction. A
+separately versioned experimental module would be the clean way to permit
+post-v1 minor-release source breakage, but its extra generation, dependency,
+and shared-type boundary is rejected until concrete consumer demand justifies
+it.
 
 ## Migration timing
 

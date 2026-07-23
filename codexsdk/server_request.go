@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/ronhuafeng/llm-go/codexsdk/internal/wirejson"
 	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
 )
 
@@ -28,7 +29,7 @@ func decodeProtocolServerRequest(message map[string]any) (protocolv2.ServerReque
 		return protocolv2.ServerRequest{}, fmt.Errorf("codexsdk: encode server request for validation: %w", err)
 	}
 	var typed protocolv2.ServerRequest
-	if err := json.Unmarshal(raw, &typed); err != nil {
+	if err := wirejson.Unmarshal(raw, &typed, wirejson.ActionBearingMessage); err != nil {
 		return protocolv2.ServerRequest{}, err
 	}
 	return typed, nil
