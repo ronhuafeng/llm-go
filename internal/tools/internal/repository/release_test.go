@@ -331,6 +331,42 @@ func TestReleaseArchiveDigestBindsTargetVersion(t *testing.T) {
 	}
 }
 
+func TestGeneratedAPIImpactDoesNotDirtyReleaseSource(t *testing.T) {
+	t.Setenv("PYTHONDONTWRITEBYTECODE", "")
+	root := t.TempDir()
+	writeFile(t, root, "codexsdk/scripts/codexsdk_generate_sdk_surface.py", "VALUE = True\n")
+	writeFile(t, root, "codexsdk/scripts/codexsdk_release_report.py", `import codexsdk_generate_sdk_surface
+print('{"release_impact":"metadata-only"}')
+`)
+	writeFile(t, root, "codexsdk/"+codexSDKGeneratedManifestPath, "{}\n")
+
+	commands := [][]string{
+		{"init"},
+		{"add", "."},
+		{"-c", "user.name=Release Test", "-c", "user.email=release@example.com", "commit", "-m", "baseline"},
+		{"tag", "codexsdk/v0.6.0"},
+	}
+	for _, args := range commands {
+		command := exec.Command("git", append([]string{"-C", root}, args...)...)
+		if output, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("git %s: %v: %s", strings.Join(args, " "), err, output)
+		}
+	}
+
+	candidate := module{ID: "codexsdk", Dir: "codexsdk"}
+	if _, _, err := codexSDKGeneratedAPIImpact(root, candidate, "codexsdk/v0.6.0"); err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command("git", "-C", root, "status", "--porcelain")
+	output, err := command.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(output) != 0 {
+		t.Fatalf("generated API impact dirtied release source:\n%s", output)
+	}
+}
+
 func TestCanonicalZipSumIgnoresCompressionButDetectsContent(t *testing.T) {
 	root := t.TempDir()
 	stored := filepath.Join(root, "stored.zip")

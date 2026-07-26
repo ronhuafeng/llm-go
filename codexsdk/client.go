@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
 	"io"
 	"os"
 	"os/exec"
@@ -18,6 +17,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/ronhuafeng/llm-go/codexsdk/internal/wirejson"
+	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
 )
 
 const (
@@ -192,7 +194,7 @@ func validateInitializeResponse(result map[string]any) error {
 		return fmt.Errorf("codexsdk: initialize response invalid: %w", err)
 	}
 	var response protocolv2.InitializeResponse
-	if err := json.Unmarshal(raw, &response); err != nil {
+	if err := wirejson.Unmarshal(raw, &response, wirejson.ServerObservation); err != nil {
 		return fmt.Errorf("codexsdk: initialize response invalid: %w", err)
 	}
 	return nil
@@ -506,6 +508,10 @@ func (c *Client) routeNotification(notification rpcNotification) {
 	if c.isClosed() {
 		return
 	}
+	method, known := protocolv2.LookupMethod(notification.method)
+	if !known || method.Direction != protocolv2.MethodDirectionServerToClient || method.Kind != protocolv2.MethodKindNotification {
+		return
+	}
 	typed, err := exactNotification(notification)
 	if err != nil {
 		c.routeExactNotificationError(notification, err)
@@ -539,7 +545,7 @@ func exactNotification(notification rpcNotification) (protocolv2.ServerNotificat
 		return protocolv2.ServerNotification{}, fmt.Errorf("codexsdk: decode %s notification: %w", notification.method, err)
 	}
 	var typed protocolv2.ServerNotification
-	if err := json.Unmarshal(raw, &typed); err != nil {
+	if err := wirejson.Unmarshal(raw, &typed, wirejson.ServerObservation); err != nil {
 		return protocolv2.ServerNotification{}, fmt.Errorf("codexsdk: decode %s notification: %w", notification.method, err)
 	}
 	return typed, nil

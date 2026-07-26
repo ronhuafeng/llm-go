@@ -6,7 +6,13 @@ import (
 	"os"
 )
 
-const classifiedManifestStatus = "classified-manifest"
+const (
+	classifiedManifestStatus        = "classified-manifest"
+	manifestDirectionClientToServer = "client_to_server"
+	manifestDirectionServerToClient = "server_to_client"
+	manifestKindNotification        = "notification"
+	manifestKindRequest             = "request"
+)
 
 type Manifest struct {
 	Entries       []ManifestEntry `json:"entries"`
@@ -64,11 +70,11 @@ func LoadManifest(path string) (Manifest, error) {
 		}
 		seen[entry.Method] = true
 		switch entry.Kind {
-		case "request":
+		case manifestKindRequest:
 			if entry.ResponseSchema == "" || entry.ResponseSchemaStatus != "declared" {
 				return Manifest{}, fmt.Errorf("request method %q missing declared response schema", entry.Method)
 			}
-		case "notification":
+		case manifestKindNotification:
 			if entry.ResponseSchema != "" || entry.ResponseSchemaStatus != "not_applicable" {
 				return Manifest{}, fmt.Errorf("notification method %q must have response_schema_status=not_applicable", entry.Method)
 			}
@@ -77,4 +83,47 @@ func LoadManifest(path string) (Manifest, error) {
 		}
 	}
 	return manifest, nil
+}
+
+// ApplyWireMessageRoles marks only protocol message roots. Reusable generated
+// value types remain neutral and inherit the role of the root that decodes them.
+func ApplyWireMessageRoles(plan *ProtocolTypePlan, manifest Manifest) error {
+	rolesBySchema := map[string]WireMessageRoles{}
+	setRole := func(schemaPath string, role WireMessageRoles) {
+		if schemaPath == "" {
+			return
+		}
+		rolesBySchema[schemaPath] |= role
+	}
+	for _, entry := range manifest.Entries {
+		switch {
+		case entry.Direction == manifestDirectionClientToServer && entry.Kind == manifestKindRequest:
+			setRole(entry.SourceSchema, WireMessageRoleActionBearingMessage)
+			setRole(entry.ResponseSchema, WireMessageRoleServerObservation)
+		case entry.Direction == manifestDirectionServerToClient && entry.Kind == manifestKindNotification:
+			setRole(entry.SourceSchema, WireMessageRoleServerObservation)
+		case entry.Direction == manifestDirectionClientToServer && entry.Kind == manifestKindNotification,
+			entry.Direction == manifestDirectionServerToClient && entry.Kind == manifestKindRequest:
+			setRole(entry.SourceSchema, WireMessageRoleActionBearingMessage)
+			if entry.Kind == manifestKindRequest {
+				setRole(entry.ResponseSchema, WireMessageRoleActionBearingMessage)
+			}
+		default:
+			return fmt.Errorf("method %q has unsupported wire role direction=%q kind=%q", entry.Method, entry.Direction, entry.Kind)
+		}
+	}
+	for schemaPath, role := range rolesBySchema {
+		found := false
+		for index := range plan.Types {
+			if plan.Types[index].SchemaPath != schemaPath {
+				continue
+			}
+			plan.Types[index].WireMessageRoles = role
+			found = true
+		}
+		if !found {
+			return fmt.Errorf("wire message root schema %q is absent from the protocol type plan", schemaPath)
+		}
+	}
+	return nil
 }

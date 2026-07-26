@@ -201,7 +201,7 @@ func BuildReleasePlan(root, moduleID, targetVersion, requiredCommit, mainRef str
 	}
 	moduleRoot := filepath.Join(root, filepath.FromSlash(candidate.Dir))
 	recorder := newEvidence(EvidenceSubject{Kind: "release_preflight", Commit: commit, Tree: tree, Module: moduleID})
-	runner := commandRunner{directory: moduleRoot, environment: map[string]string{"GOWORK": "off", "GOTOOLCHAIN": "local"}}
+	runner := commandRunner{directory: moduleRoot, environment: sourceCleanEnvironment()}
 	if err := verifyAPISurface(recorder, runner, candidate.ID); err != nil {
 		return ReleasePlan{}, fmt.Errorf("verify canonical API inventory: %w", err)
 	}
@@ -366,7 +366,7 @@ func moduleAPIInventoryImpact(root string, candidate module, inventoryPath strin
 	moduleRoot := filepath.Join(root, filepath.FromSlash(candidate.Dir))
 	command := exec.Command("go", "run", "./internal/cmd/apiinventoryreport", "-baseline", temporaryPath, "-target", inventoryPath)
 	command.Dir = moduleRoot
-	command.Env = overriddenEnvironment(map[string]string{"GOWORK": "off", "GOTOOLCHAIN": "local"})
+	command.Env = overriddenEnvironment(sourceCleanEnvironment())
 	output, err := command.CombinedOutput()
 	if err != nil {
 		return moduleAPIInventoryReport{}, "", fmt.Errorf("module-owned API inventory report: %w: %s", err, strings.TrimSpace(string(output)))
@@ -426,7 +426,10 @@ func codexSDKGeneratedAPIImpact(root string, candidate module, previousTag strin
 	moduleRoot := filepath.Join(root, filepath.FromSlash(candidate.Dir))
 	command := exec.Command("python3", "scripts/codexsdk_release_report.py", "--base-manifest", temporaryPath, "--target-manifest", codexSDKGeneratedManifestPath)
 	command.Dir = moduleRoot
-	command.Env = overriddenEnvironment(map[string]string{"PYTHONNOUSERSITE": "1", "PYTHONPATH": ""})
+	environment := sourceCleanEnvironment()
+	environment["PYTHONNOUSERSITE"] = "1"
+	environment["PYTHONPATH"] = ""
+	command.Env = overriddenEnvironment(environment)
 	output, runErr := command.CombinedOutput()
 	if runErr != nil {
 		var exitErr *exec.ExitError
@@ -448,6 +451,14 @@ func codexSDKGeneratedAPIImpact(root string, candidate module, previousTag strin
 		CurrentSHA256:  sha256Hex(current),
 		Impact:         impact,
 	}, impact, nil
+}
+
+func sourceCleanEnvironment() map[string]string {
+	return map[string]string{
+		"GOWORK":                  "off",
+		"GOTOOLCHAIN":             "local",
+		"PYTHONDONTWRITEBYTECODE": "1",
+	}
 }
 
 func parseAPIInventoryImpact(impact apiInventoryImpact) (apiInventoryImpact, error) {

@@ -10,8 +10,16 @@ import (
 )
 
 func TestGenerateProtocolTypesMatchesCheckedInOutput(t *testing.T) {
-	plan, err := BuildProtocolTypePlan(filepath.Join("..", "protocolschema", "appserver", "v2"))
+	schemaRoot := filepath.Join("..", "protocolschema", "appserver", "v2")
+	plan, err := BuildProtocolTypePlan(schemaRoot)
 	if err != nil {
+		t.Fatal(err)
+	}
+	manifest, err := LoadManifest(filepath.Join(schemaRoot, "manifest.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ApplyWireMessageRoles(&plan, manifest); err != nil {
 		t.Fatal(err)
 	}
 	generated, err := GenerateProtocolTypes(plan)
@@ -775,7 +783,7 @@ func TestGeneratedDefinitionNameResolverSplitsSameNameDifferentShapes(t *testing
 	}
 }
 
-func TestGenerateProtocolTypesEmitsNullableDecoder(t *testing.T) {
+func TestGenerateProtocolTypesEmitsNullableField(t *testing.T) {
 	generated, err := GenerateProtocolTypes(ProtocolTypePlan{Types: []TypePlan{{
 		Kind:       TypePlanObjectStructCandidate,
 		SchemaPath: "Example.json",
@@ -794,13 +802,9 @@ func TestGenerateProtocolTypesEmitsNullableDecoder(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(generated)
-	for _, want := range []string{
-		"ServiceTier *Nullable[string] `json:\"serviceTier,omitempty\"`",
-		`decodeNullableJSONField[string](fields, "serviceTier", "Example.serviceTier", &decoded.ServiceTier)`,
-	} {
-		if !strings.Contains(text, want) {
-			t.Fatalf("generated nullable protocol type does not contain %q:\n%s", want, text)
-		}
+	want := "ServiceTier *Nullable[string] `json:\"serviceTier,omitempty\"`"
+	if !strings.Contains(text, want) {
+		t.Fatalf("generated nullable protocol type does not contain %q:\n%s", want, text)
 	}
 }
 

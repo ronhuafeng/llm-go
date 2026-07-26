@@ -4,7 +4,17 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/ronhuafeng/llm-go/codexsdk/internal/wirejson"
 )
+
+func unmarshalServerObservation(data []byte, target any) error {
+	return wirejson.Unmarshal(data, target, wirejson.ServerObservation)
+}
+
+func unmarshalActionBearingMessage(data []byte, target any) error {
+	return wirejson.Unmarshal(data, target, wirejson.ActionBearingMessage)
+}
 
 func permissionGrantScopePtr(value PermissionGrantScope) *PermissionGrantScope {
 	return &value
@@ -590,7 +600,7 @@ func TestGeneratedThreadLifecycleResponsesProtocolMarshalAndUnmarshal(t *testing
 	}
 
 	var decoded ThreadStartResponse
-	if err := json.Unmarshal(raw, &decoded); err != nil {
+	if err := unmarshalServerObservation(raw, &decoded); err != nil {
 		t.Fatal(err)
 	}
 	if decoded.Thread.ID != "thread-1" || decoded.ActivePermissionProfile == nil || decoded.ActivePermissionProfile.Value == nil {
@@ -709,6 +719,122 @@ func TestGeneratedThreadCoreAdjacentPayloadsProtocolMarshalAndUnmarshal(t *testi
 	}
 }
 
+func TestGeneratedServerObservationAcceptsAdditionalMembers(t *testing.T) {
+	raw, err := json.Marshal(ThreadReadResponse{Thread: sampleGeneratedThread()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var response map[string]any
+	if err := json.Unmarshal(raw, &response); err != nil {
+		t.Fatal(err)
+	}
+	response["futureResponseMember"] = "ignored"
+	thread := response["thread"].(map[string]any)
+	thread["canAcceptDirectInput"] = nil
+	thread["futureThreadMember"] = true
+	thread["status"].(map[string]any)["futureUnionMember"] = true
+	turn := thread["turns"].([]any)[0].(map[string]any)
+	turn["items"].([]any)[0].(map[string]any)["futureItemUnionMember"] = true
+	raw, err = json.Marshal(response)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var decoded ThreadReadResponse
+	if err := unmarshalServerObservation(raw, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Thread.ID != "thread-1" || decoded.Thread.CWD != "/workspace" || decoded.Thread.ModelProvider != "openai" {
+		t.Fatalf("decoded rehome evidence = %#v", decoded.Thread)
+	}
+}
+
+func TestGeneratedServerObservationCarriesItsRoleThroughCollectionsAndNullableValues(t *testing.T) {
+	raw := []byte(`{
+		"futureResponseMember": true,
+		"rateLimits": {"futureSnapshotMember": true},
+		"rateLimitsByLimitId": {
+			"codex": {
+				"futureMappedSnapshotMember": true,
+				"secondary": {"futureWindowMember": true, "usedPercent": 7}
+			}
+		}
+	}`)
+	var decoded GetAccountRateLimitsResponse
+	if err := unmarshalServerObservation(raw, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded.RateLimitsByLimitID == nil || decoded.RateLimitsByLimitID.Value == nil {
+		t.Fatalf("decoded rateLimitsByLimitId = %#v", decoded.RateLimitsByLimitID)
+	}
+	snapshot := (*decoded.RateLimitsByLimitID.Value)["codex"]
+	if snapshot.Secondary == nil || snapshot.Secondary.Value == nil || snapshot.Secondary.Value.UsedPercent != 7 {
+		t.Fatalf("decoded mapped snapshot = %#v", snapshot)
+	}
+}
+
+func TestGeneratedKnownServerObservationMembersRemainExact(t *testing.T) {
+	for _, raw := range []string{
+		`{"thread":{"id":42}}`,
+		`{"futureResponseMember":true}`,
+	} {
+		var response ThreadReadResponse
+		if err := unmarshalServerObservation([]byte(raw), &response); err == nil {
+			t.Fatalf("server observation decode of %s succeeded, want known-member validation error", raw)
+		}
+	}
+
+	raw, err := json.Marshal(ThreadReadResponse{Thread: sampleGeneratedThread()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wire map[string]any
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		t.Fatal(err)
+	}
+	wire["thread"].(map[string]any)["source"] = map[string]any{"futureSourceVariant": true}
+	raw, err = json.Marshal(wire)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var response ThreadReadResponse
+	if err := unmarshalServerObservation(raw, &response); err == nil {
+		t.Fatal("ThreadReadResponse accepted an unknown source union variant")
+	}
+}
+
+func TestGeneratedActionBearingRootsAndStandaloneValuesRejectAdditionalMembers(t *testing.T) {
+	var approval ApplyPatchApprovalResponse
+	if err := unmarshalActionBearingMessage([]byte(`{"decision":"approved","futureResponseMember":true}`), &approval); err == nil {
+		t.Fatal("ApplyPatchApprovalResponse accepted an additional member")
+	} else if !strings.Contains(err.Error(), `unknown field "futureResponseMember"`) {
+		t.Fatalf("ApplyPatchApprovalResponse error = %v", err)
+	}
+
+	var nested RateLimitSnapshot
+	if err := json.Unmarshal([]byte(`{"futureSnapshotMember":true}`), &nested); err == nil {
+		t.Fatal("standalone RateLimitSnapshot accepted an additional member")
+	} else if !strings.Contains(err.Error(), `unknown field "futureSnapshotMember"`) {
+		t.Fatalf("RateLimitSnapshot error = %v", err)
+	}
+}
+
+func TestGeneratedWireRootsCarryTheirRoleThroughOneSharedNestedType(t *testing.T) {
+	const commandAction = `{"command":"cat README.md","future":true,"name":"README.md","path":"/repo/README.md","type":"read"}`
+	observation := `{"method":"item/started","params":{"item":{"command":"cat README.md","commandActions":[` + commandAction + `],"cwd":"/repo","id":"item-1","status":"inProgress","type":"commandExecution"},"startedAtMs":1,"threadId":"thread-1","turnId":"turn-1"}}`
+	var notification ServerNotification
+	if err := unmarshalServerObservation([]byte(observation), &notification); err != nil {
+		t.Fatalf("server observation rejected additional CommandAction member: %v", err)
+	}
+
+	action := `{"id":"approval-1","method":"item/commandExecution/requestApproval","params":{"commandActions":[` + commandAction + `],"itemId":"item-1","startedAtMs":1,"threadId":"thread-1","turnId":"turn-1"}}`
+	var request ServerRequest
+	err := unmarshalActionBearingMessage([]byte(action), &request)
+	if err == nil || !strings.Contains(err.Error(), `unknown field "future"`) {
+		t.Fatalf("action-bearing decode error = %v, want nested CommandAction additional-member rejection", err)
+	}
+}
+
 func TestGeneratedThreadControlPayloadsProtocolMarshalAndUnmarshal(t *testing.T) {
 	goal := sampleGeneratedThreadGoal()
 	goalJSON := `{"createdAt":1000,"objective":"ship sdk","status":"active","threadId":"thread-1","timeUsedSeconds":12,"tokenBudget":100000,"tokensUsed":42,"updatedAt":2000}`
@@ -776,14 +902,11 @@ func TestGeneratedThreadControlPayloadsProtocolMarshalAndUnmarshal(t *testing.T)
 	}
 }
 
-func TestGeneratedThreadControlPayloadsRejectMalformedProtocol(t *testing.T) {
+func TestGeneratedThreadControlPayloadsValidateProtocol(t *testing.T) {
 	var archiveResponse ThreadArchiveResponse
-	err := json.Unmarshal([]byte(`{"extra":true}`), &archiveResponse)
-	if err == nil {
-		t.Fatal("expected unknown empty response field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode ThreadArchiveResponse: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown response field error: %v", err)
+	err := unmarshalServerObservation([]byte(`{"extra":true}`), &archiveResponse)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	var inject ThreadInjectItemsParams
@@ -1012,14 +1135,11 @@ func TestGeneratedThreadRealtimePayloadsProtocolMarshalAndUnmarshal(t *testing.T
 	}
 }
 
-func TestGeneratedThreadRealtimePayloadsRejectMalformedProtocol(t *testing.T) {
+func TestGeneratedThreadRealtimePayloadsValidateProtocol(t *testing.T) {
 	var empty ThreadRealtimeAppendTextResponse
-	err := json.Unmarshal([]byte(`{"extra":true}`), &empty)
-	if err == nil {
-		t.Fatal("expected unknown empty realtime response field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode ThreadRealtimeAppendTextResponse: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown realtime response field error: %v", err)
+	err := unmarshalServerObservation([]byte(`{"extra":true}`), &empty)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	var appendText ThreadRealtimeAppendTextParams
@@ -1885,7 +2005,7 @@ func TestGeneratedAccountNotificationsPreserveNullableEnums(t *testing.T) {
 	}
 }
 
-func TestGeneratedAccountFamilyRejectsMalformedProtocol(t *testing.T) {
+func TestGeneratedAccountFamilyValidatesProtocol(t *testing.T) {
 	var accountResponse GetAccountResponse
 	err := json.Unmarshal([]byte(`{"account":{"type":"apiKey"}}`), &accountResponse)
 	if err == nil {
@@ -1938,12 +2058,9 @@ func TestGeneratedAccountFamilyRejectsMalformedProtocol(t *testing.T) {
 		t.Fatalf("LogoutAccountResponse JSON = %s, want %s", got, want)
 	}
 	var logout LogoutAccountResponse
-	err = json.Unmarshal([]byte(`{"extra":true}`), &logout)
-	if err == nil {
-		t.Fatal("expected unknown LogoutAccountResponse field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode LogoutAccountResponse: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown LogoutAccountResponse field error: %v", err)
+	err = unmarshalServerObservation([]byte(`{"extra":true}`), &logout)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -2037,7 +2154,7 @@ func TestGeneratedFeedbackUploadMarshalAndUnmarshal(t *testing.T) {
 	}
 }
 
-func TestGeneratedFeedbackUploadRejectsMalformedProtocol(t *testing.T) {
+func TestGeneratedFeedbackUploadValidatesProtocol(t *testing.T) {
 	var params FeedbackUploadParams
 	for _, tc := range []struct {
 		name string
@@ -2118,12 +2235,9 @@ func TestGeneratedFeedbackUploadRejectsMalformedProtocol(t *testing.T) {
 		t.Fatalf("unexpected null feedback response threadId error: %v", err)
 	}
 
-	err = json.Unmarshal([]byte(`{"threadId":"thread-1","extra":true}`), &response)
-	if err == nil {
-		t.Fatal("expected unknown feedback response field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode FeedbackUploadResponse: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown feedback response field error: %v", err)
+	err = unmarshalServerObservation([]byte(`{"threadId":"thread-1","extra":true}`), &response)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -2199,7 +2313,7 @@ func TestGeneratedCollaborationModeProtocolMarshalAndUnmarshal(t *testing.T) {
 	}
 }
 
-func TestGeneratedCollaborationModeRejectsMalformedProtocol(t *testing.T) {
+func TestGeneratedCollaborationModeValidatesProtocol(t *testing.T) {
 	var params CollaborationModeListParams
 	err := json.Unmarshal([]byte(`{"extra":true}`), &params)
 	if err == nil {
@@ -2258,20 +2372,14 @@ func TestGeneratedCollaborationModeRejectsMalformedProtocol(t *testing.T) {
 		t.Fatalf("unexpected unknown collaboration mode enum error: %v", err)
 	}
 
-	err = json.Unmarshal([]byte(`{"data":[{"name":"Plan","extra":true}]}`), &response)
-	if err == nil {
-		t.Fatal("expected unknown collaboration mode mask field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode CollaborationModeMask: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown collaboration mode mask field error: %v", err)
+	err = unmarshalServerObservation([]byte(`{"data":[{"name":"Plan","extra":true}]}`), &response)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	err = json.Unmarshal([]byte(`{"data":[],"extra":true}`), &response)
-	if err == nil {
-		t.Fatal("expected unknown collaboration mode response field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode CollaborationModeListResponse: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown collaboration mode response field error: %v", err)
+	err = unmarshalServerObservation([]byte(`{"data":[],"extra":true}`), &response)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	_, err = json.Marshal(CollaborationModeListResponse{})
@@ -2406,7 +2514,7 @@ func TestGeneratedAppListProtocolMarshalAndUnmarshal(t *testing.T) {
 	}
 }
 
-func TestGeneratedAppListRejectsMalformedProtocol(t *testing.T) {
+func TestGeneratedAppListValidatesProtocol(t *testing.T) {
 	var params AppsListParams
 	for _, tc := range []struct {
 		name string
@@ -2486,12 +2594,9 @@ func TestGeneratedAppListRejectsMalformedProtocol(t *testing.T) {
 		t.Fatalf("unexpected app info labels error: %v", err)
 	}
 
-	err = json.Unmarshal([]byte(`{"data":[{"id":"app-1","name":"App One","extra":true}]}`), &response)
-	if err == nil {
-		t.Fatal("expected unknown app info field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode AppInfo: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown app info field error: %v", err)
+	err = unmarshalServerObservation([]byte(`{"data":[{"id":"app-1","name":"App One","extra":true}]}`), &response)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	err = json.Unmarshal([]byte(`{"data":[{"id":"app-1","name":"App One","branding":{}}]}`), &response)
@@ -2502,12 +2607,9 @@ func TestGeneratedAppListRejectsMalformedProtocol(t *testing.T) {
 		t.Fatalf("unexpected missing app branding field error: %v", err)
 	}
 
-	err = json.Unmarshal([]byte(`{"data":[{"id":"app-1","name":"App One","branding":{"isDiscoverableApp":true,"extra":true}}]}`), &response)
-	if err == nil {
-		t.Fatal("expected unknown app branding field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode AppBranding: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown app branding field error: %v", err)
+	err = unmarshalServerObservation([]byte(`{"data":[{"id":"app-1","name":"App One","branding":{"isDiscoverableApp":true,"extra":true}}]}`), &response)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	err = json.Unmarshal([]byte(`{"data":[{"id":"app-1","name":"App One","appMetadata":{"review":{}}}]}`), &response)
@@ -2518,12 +2620,9 @@ func TestGeneratedAppListRejectsMalformedProtocol(t *testing.T) {
 		t.Fatalf("unexpected missing app review status error: %v", err)
 	}
 
-	err = json.Unmarshal([]byte(`{"data":[{"id":"app-1","name":"App One","appMetadata":{"extra":true}}]}`), &response)
-	if err == nil {
-		t.Fatal("expected unknown app metadata field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode AppMetadata: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown app metadata field error: %v", err)
+	err = unmarshalServerObservation([]byte(`{"data":[{"id":"app-1","name":"App One","appMetadata":{"extra":true}}]}`), &response)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	err = json.Unmarshal([]byte(`{"data":[{"id":"app-1","name":"App One","appMetadata":{"screenshots":[{}]}}]}`), &response)
@@ -2534,20 +2633,14 @@ func TestGeneratedAppListRejectsMalformedProtocol(t *testing.T) {
 		t.Fatalf("unexpected missing app screenshot userPrompt error: %v", err)
 	}
 
-	err = json.Unmarshal([]byte(`{"data":[{"id":"app-1","name":"App One","appMetadata":{"screenshots":[{"userPrompt":"show it","extra":true}]}}]}`), &response)
-	if err == nil {
-		t.Fatal("expected unknown app screenshot field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode AppScreenshot: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown app screenshot field error: %v", err)
+	err = unmarshalServerObservation([]byte(`{"data":[{"id":"app-1","name":"App One","appMetadata":{"screenshots":[{"userPrompt":"show it","extra":true}]}}]}`), &response)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	err = json.Unmarshal([]byte(`{"data":[],"extra":true}`), &response)
-	if err == nil {
-		t.Fatal("expected unknown app list response field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode AppsListResponse: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown app list response field error: %v", err)
+	err = unmarshalServerObservation([]byte(`{"data":[],"extra":true}`), &response)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	var notification AppListUpdatedNotification
@@ -2727,7 +2820,7 @@ func TestGeneratedMarketplaceProtocolMarshalAndUnmarshal(t *testing.T) {
 	}
 }
 
-func TestGeneratedMarketplaceRejectsMalformedProtocol(t *testing.T) {
+func TestGeneratedMarketplaceValidatesProtocol(t *testing.T) {
 	var add MarketplaceAddParams
 	for _, tc := range []struct {
 		name string
@@ -2805,12 +2898,9 @@ func TestGeneratedMarketplaceRejectsMalformedProtocol(t *testing.T) {
 		t.Fatalf("unexpected missing add response installedRoot error: %v", err)
 	}
 
-	err = json.Unmarshal([]byte(`{"alreadyAdded":false,"installedRoot":"/repo","marketplaceName":"repo","extra":true}`), &addResponse)
-	if err == nil {
-		t.Fatal("expected unknown add response field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode MarketplaceAddResponse: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown add response field error: %v", err)
+	err = unmarshalServerObservation([]byte(`{"alreadyAdded":false,"installedRoot":"/repo","marketplaceName":"repo","extra":true}`), &addResponse)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	var removeResponse MarketplaceRemoveResponse
@@ -2822,12 +2912,9 @@ func TestGeneratedMarketplaceRejectsMalformedProtocol(t *testing.T) {
 		t.Fatalf("decoded remove response installedRoot = %#v", removeResponse.InstalledRoot)
 	}
 
-	err = json.Unmarshal([]byte(`{"marketplaceName":"repo","extra":true}`), &removeResponse)
-	if err == nil {
-		t.Fatal("expected unknown remove response field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode MarketplaceRemoveResponse: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown remove response field error: %v", err)
+	err = unmarshalServerObservation([]byte(`{"marketplaceName":"repo","extra":true}`), &removeResponse)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	var upgradeParams MarketplaceUpgradeParams
@@ -2872,12 +2959,9 @@ func TestGeneratedMarketplaceRejectsMalformedProtocol(t *testing.T) {
 		t.Fatalf("unexpected null upgrade error marketplace name error: %v", err)
 	}
 
-	err = json.Unmarshal([]byte(`{"errors":[{"marketplaceName":"repo","message":"failed","extra":true}],"selectedMarketplaces":[],"upgradedRoots":[]}`), &upgradeResponse)
-	if err == nil {
-		t.Fatal("expected unknown upgrade error info field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode MarketplaceUpgradeErrorInfo: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown upgrade error info field error: %v", err)
+	err = unmarshalServerObservation([]byte(`{"errors":[{"marketplaceName":"repo","message":"failed","extra":true}],"selectedMarketplaces":[],"upgradedRoots":[]}`), &upgradeResponse)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	err = json.Unmarshal([]byte(`{"errors":[1],"selectedMarketplaces":[],"upgradedRoots":[]}`), &upgradeResponse)
@@ -2888,12 +2972,9 @@ func TestGeneratedMarketplaceRejectsMalformedProtocol(t *testing.T) {
 		t.Fatalf("unexpected non object upgrade error info error: %v", err)
 	}
 
-	err = json.Unmarshal([]byte(`{"errors":[],"selectedMarketplaces":[],"upgradedRoots":[],"extra":true}`), &upgradeResponse)
-	if err == nil {
-		t.Fatal("expected unknown upgrade response field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode MarketplaceUpgradeResponse: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown upgrade response field error: %v", err)
+	err = unmarshalServerObservation([]byte(`{"errors":[],"selectedMarketplaces":[],"upgradedRoots":[],"extra":true}`), &upgradeResponse)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	_, err = json.Marshal(MarketplaceUpgradeResponse{})
@@ -3263,7 +3344,7 @@ func TestGeneratedProcessProtocolMarshalAndUnmarshal(t *testing.T) {
 	}
 }
 
-func TestGeneratedProcessFamilyRejectsMalformedProtocol(t *testing.T) {
+func TestGeneratedProcessFamilyValidatesProtocol(t *testing.T) {
 	var spawn ProcessSpawnParams
 	err := json.Unmarshal([]byte(`{"cwd":"/tmp","processHandle":"proc-1"}`), &spawn)
 	if err == nil {
@@ -3316,12 +3397,9 @@ func TestGeneratedProcessFamilyRejectsMalformedProtocol(t *testing.T) {
 	}
 
 	var killResponse ProcessKillResponse
-	err = json.Unmarshal([]byte(`{"extra":true}`), &killResponse)
-	if err == nil {
-		t.Fatal("expected unknown process response field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode ProcessKillResponse: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown process response error: %v", err)
+	err = unmarshalServerObservation([]byte(`{"extra":true}`), &killResponse)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -3596,7 +3674,7 @@ func TestGeneratedCommandExecProtocolMarshalAndUnmarshal(t *testing.T) {
 	}
 }
 
-func TestGeneratedCommandExecRejectsMalformedProtocol(t *testing.T) {
+func TestGeneratedCommandExecValidatesProtocol(t *testing.T) {
 	var params CommandExecParams
 	for _, tc := range []struct {
 		name string
@@ -3698,12 +3776,9 @@ func TestGeneratedCommandExecRejectsMalformedProtocol(t *testing.T) {
 		t.Fatalf("unexpected missing command exec stderr error: %v", err)
 	}
 
-	err = json.Unmarshal([]byte(`{"exitCode":0,"stderr":"","stdout":"","extra":true}`), &response)
-	if err == nil {
-		t.Fatal("expected unknown CommandExecResponse field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode CommandExecResponse: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown command exec response error: %v", err)
+	err = unmarshalServerObservation([]byte(`{"exitCode":0,"stderr":"","stdout":"","extra":true}`), &response)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	var resize CommandExecResizeParams
@@ -3760,12 +3835,9 @@ func TestGeneratedCommandExecRejectsMalformedProtocol(t *testing.T) {
 	}
 
 	var resizeResponse CommandExecResizeResponse
-	err = json.Unmarshal([]byte(`{"extra":true}`), &resizeResponse)
-	if err == nil {
-		t.Fatal("expected unknown command exec resize response field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode CommandExecResizeResponse: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown command exec resize response error: %v", err)
+	err = unmarshalServerObservation([]byte(`{"extra":true}`), &resizeResponse)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -4563,14 +4635,11 @@ func TestGeneratedConfiguredHookHandlerUnionMarshalAndAccessors(t *testing.T) {
 	}
 }
 
-func TestGeneratedConfigRequirementsRejectsMalformedProtocol(t *testing.T) {
+func TestGeneratedConfigRequirementsValidatesProtocol(t *testing.T) {
 	var response ConfigRequirementsReadResponse
-	err := json.Unmarshal([]byte(`{"extra":true}`), &response)
-	if err == nil {
-		t.Fatal("expected unknown config requirements response field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode ConfigRequirementsReadResponse: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown config requirements response field error: %v", err)
+	err := unmarshalServerObservation([]byte(`{"extra":true}`), &response)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	err = json.Unmarshal([]byte(`{"requirements":{"featureRequirements":{"alpha":"yes"}}}`), &response)
@@ -4797,7 +4866,7 @@ func TestGeneratedWindowsSandboxProtocolMarshalAndUnmarshal(t *testing.T) {
 	}
 }
 
-func TestGeneratedWindowsSandboxRejectsMalformedProtocol(t *testing.T) {
+func TestGeneratedWindowsSandboxValidatesProtocol(t *testing.T) {
 	var readiness WindowsSandboxReadinessResponse
 	err := json.Unmarshal([]byte(`{}`), &readiness)
 	if err == nil {
@@ -4815,12 +4884,9 @@ func TestGeneratedWindowsSandboxRejectsMalformedProtocol(t *testing.T) {
 		t.Fatalf("unexpected invalid readiness status error: %v", err)
 	}
 
-	err = json.Unmarshal([]byte(`{"status":"ready","extra":true}`), &readiness)
-	if err == nil {
-		t.Fatal("expected unknown readiness field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode WindowsSandboxReadinessResponse: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown readiness field error: %v", err)
+	err = unmarshalServerObservation([]byte(`{"status":"ready","extra":true}`), &readiness)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	_, err = json.Marshal(WindowsSandboxSetupMode("unknown"))
@@ -4873,12 +4939,9 @@ func TestGeneratedWindowsSandboxRejectsMalformedProtocol(t *testing.T) {
 		t.Fatalf("unexpected null setup started error: %v", err)
 	}
 
-	err = json.Unmarshal([]byte(`{"started":true,"extra":true}`), &startResponse)
-	if err == nil {
-		t.Fatal("expected unknown setup response field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode WindowsSandboxSetupStartResponse: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown setup response field error: %v", err)
+	err = unmarshalServerObservation([]byte(`{"started":true,"extra":true}`), &startResponse)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	var completed WindowsSandboxSetupCompletedNotification
@@ -5088,7 +5151,7 @@ func TestGeneratedFsResponsesMarshalAndUnmarshal(t *testing.T) {
 	assertEmptyResponse("writeFile", func() ([]byte, error) { return json.Marshal(FsWriteFileResponse{}) })
 }
 
-func TestGeneratedFsRejectsMalformedProtocol(t *testing.T) {
+func TestGeneratedFsValidatesProtocol(t *testing.T) {
 	var copyParams FsCopyParams
 	err := json.Unmarshal([]byte(`{"destinationPath":"/dst"}`), &copyParams)
 	if err == nil {
@@ -5133,16 +5196,13 @@ func TestGeneratedFsRejectsMalformedProtocol(t *testing.T) {
 	}
 
 	var removeResponse FsRemoveResponse
-	err = json.Unmarshal([]byte(`{"extra":true}`), &removeResponse)
-	if err == nil {
-		t.Fatal("expected unknown empty response field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode FsRemoveResponse: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown empty response field error: %v", err)
+	err = unmarshalServerObservation([]byte(`{"extra":true}`), &removeResponse)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
-func TestGeneratedInitializeParamsAndResponseMarshalAndRejectsMalformedProtocol(t *testing.T) {
+func TestGeneratedInitializeParamsAndResponseMarshalAndValidateProtocol(t *testing.T) {
 	paramsRaw, err := json.Marshal(InitializeParams{
 		Capabilities: Value(InitializeCapabilities{
 			ExperimentalAPI:           boolPtr(true),
@@ -5213,12 +5273,9 @@ func TestGeneratedInitializeParamsAndResponseMarshalAndRejectsMalformedProtocol(
 		t.Fatalf("unexpected missing platformOs error: %v", err)
 	}
 
-	err = json.Unmarshal([]byte(`{"codexHome":"/home/codex","platformFamily":"unix","platformOs":"macos","userAgent":"codex-test","extra":true}`), &decoded)
-	if err == nil {
-		t.Fatal("expected unknown InitializeResponse field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode InitializeResponse: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown InitializeResponse field error: %v", err)
+	err = unmarshalServerObservation([]byte(`{"codexHome":"/home/codex","platformFamily":"unix","platformOs":"macos","userAgent":"codex-test","extra":true}`), &decoded)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -5318,7 +5375,7 @@ func TestGeneratedSmallUtilityPayloadsProtocolMarshalAndUnmarshal(t *testing.T) 
 	}
 }
 
-func TestGeneratedSmallUtilityPayloadsRejectMalformedProtocol(t *testing.T) {
+func TestGeneratedSmallUtilityPayloadsValidateProtocol(t *testing.T) {
 	var enablement ExperimentalFeatureEnablementSetParams
 	err := json.Unmarshal([]byte(`{}`), &enablement)
 	if err == nil {
@@ -5416,12 +5473,9 @@ func TestGeneratedSmallUtilityPayloadsRejectMalformedProtocol(t *testing.T) {
 		t.Fatalf("unexpected hook event name error: %v", err)
 	}
 
-	err = json.Unmarshal([]byte(`{"data":[{"cwd":"/repo","errors":[],"hooks":[],"warnings":[],"extra":true}]}`), &hooksList)
-	if err == nil {
-		t.Fatal("expected unknown hooks list entry field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode HooksListEntry: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown hooks list entry field error: %v", err)
+	err = unmarshalServerObservation([]byte(`{"data":[{"cwd":"/repo","errors":[],"hooks":[],"warnings":[],"extra":true}]}`), &hooksList)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	_, err = json.Marshal(ReviewStartParams{
@@ -5505,12 +5559,9 @@ func TestGeneratedSmallUtilityPayloadsRejectMalformedProtocol(t *testing.T) {
 	}
 
 	var interrupt TurnInterruptResponse
-	err = json.Unmarshal([]byte(`{"extra":true}`), &interrupt)
-	if err == nil {
-		t.Fatal("expected unknown turn interrupt response field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode TurnInterruptResponse: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown turn interrupt response error: %v", err)
+	err = unmarshalServerObservation([]byte(`{"extra":true}`), &interrupt)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	var interruptParams TurnInterruptParams
@@ -5733,7 +5784,7 @@ func TestGeneratedFuzzyFileSearchSessionTypes(t *testing.T) {
 	}
 }
 
-func TestGeneratedFuzzyFileSearchRejectsMalformedProtocol(t *testing.T) {
+func TestGeneratedFuzzyFileSearchValidatesProtocol(t *testing.T) {
 	var params FuzzyFileSearchParams
 	err := json.Unmarshal([]byte(`{"roots":["/repo"]}`), &params)
 	if err == nil {
@@ -5768,12 +5819,9 @@ func TestGeneratedFuzzyFileSearchRejectsMalformedProtocol(t *testing.T) {
 		t.Fatalf("unexpected nil files marshal error: %v", err)
 	}
 
-	err = json.Unmarshal([]byte(`{"files":[],"extra":true}`), &response)
-	if err == nil {
-		t.Fatal("expected unknown fuzzy response field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode FuzzyFileSearchResponse: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown response field error: %v", err)
+	err = unmarshalServerObservation([]byte(`{"files":[],"extra":true}`), &response)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	var result FuzzyFileSearchResult
@@ -5800,12 +5848,9 @@ func TestGeneratedFuzzyFileSearchRejectsMalformedProtocol(t *testing.T) {
 	}
 
 	var startResponse FuzzyFileSearchSessionStartResponse
-	err = json.Unmarshal([]byte(`{"extra":true}`), &startResponse)
-	if err == nil {
-		t.Fatal("expected unknown fuzzy start response field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode FuzzyFileSearchSessionStartResponse: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown start response error: %v", err)
+	err = unmarshalServerObservation([]byte(`{"extra":true}`), &startResponse)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	var stopParams FuzzyFileSearchSessionStopParams
@@ -5818,21 +5863,15 @@ func TestGeneratedFuzzyFileSearchRejectsMalformedProtocol(t *testing.T) {
 	}
 
 	var stopResponse FuzzyFileSearchSessionStopResponse
-	err = json.Unmarshal([]byte(`{"extra":true}`), &stopResponse)
-	if err == nil {
-		t.Fatal("expected unknown fuzzy stop response field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode FuzzyFileSearchSessionStopResponse: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown stop response error: %v", err)
+	err = unmarshalServerObservation([]byte(`{"extra":true}`), &stopResponse)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	var updateResponse FuzzyFileSearchSessionUpdateResponse
-	err = json.Unmarshal([]byte(`{"extra":true}`), &updateResponse)
-	if err == nil {
-		t.Fatal("expected unknown fuzzy update response field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode FuzzyFileSearchSessionUpdateResponse: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown update response error: %v", err)
+	err = unmarshalServerObservation([]byte(`{"extra":true}`), &updateResponse)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	var updated FuzzyFileSearchSessionUpdatedNotification
@@ -6147,14 +6186,11 @@ func TestGeneratedMcpPayloadsProtocolMarshalAndUnmarshal(t *testing.T) {
 	}
 }
 
-func TestGeneratedMcpPayloadsRejectMalformedProtocol(t *testing.T) {
+func TestGeneratedMcpPayloadsValidateProtocol(t *testing.T) {
 	var refresh McpServerRefreshResponse
-	err := json.Unmarshal([]byte(`{"extra":true}`), &refresh)
-	if err == nil {
-		t.Fatal("expected unknown refresh response field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode McpServerRefreshResponse: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown refresh response error: %v", err)
+	err := unmarshalServerObservation([]byte(`{"extra":true}`), &refresh)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	var resource McpResourceReadParams
@@ -6350,7 +6386,7 @@ func TestGeneratedPluginPayloadsProtocolMarshalAndUnmarshal(t *testing.T) {
 	}
 }
 
-func TestGeneratedPluginPayloadsRejectMalformedProtocol(t *testing.T) {
+func TestGeneratedPluginPayloadsValidateProtocol(t *testing.T) {
 	var installResponse PluginInstallResponse
 	err := json.Unmarshal([]byte(`{"authPolicy":"ON_INSTALL"}`), &installResponse)
 	if err == nil {
@@ -6449,12 +6485,9 @@ func TestGeneratedPluginPayloadsRejectMalformedProtocol(t *testing.T) {
 	}
 
 	var uninstallResponse PluginUninstallResponse
-	err = json.Unmarshal([]byte(`{"extra":true}`), &uninstallResponse)
-	if err == nil {
-		t.Fatal("expected unknown uninstall response field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode PluginUninstallResponse: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown uninstall response error: %v", err)
+	err = unmarshalServerObservation([]byte(`{"extra":true}`), &uninstallResponse)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -9095,6 +9128,39 @@ func TestGeneratedServerNotificationMarshalAndAccessors(t *testing.T) {
 	}
 }
 
+func TestGeneratedKnownServerNotificationAcceptsAdditionalMembers(t *testing.T) {
+	notification := NewServerNotificationThreadStarted(ServerNotificationThreadStarted{
+		Params: ThreadStartedNotification{Thread: sampleGeneratedThread()},
+	})
+	raw, err := json.Marshal(notification)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wire map[string]any
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		t.Fatal(err)
+	}
+	wire["futureNotificationMember"] = true
+	params := wire["params"].(map[string]any)
+	params["futureParamsMember"] = true
+	thread := params["thread"].(map[string]any)
+	thread["canAcceptDirectInput"] = false
+	thread["futureThreadMember"] = true
+	raw, err = json.Marshal(wire)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var decoded ServerNotification
+	if err := unmarshalServerObservation(raw, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	started, ok := decoded.AsThreadStarted()
+	if !ok || started.Params.Thread.ID != "thread-1" || started.Params.Thread.CWD != "/workspace" {
+		t.Fatalf("decoded thread/started = %#v, ok=%t", started, ok)
+	}
+}
+
 func TestGeneratedServerNotificationRejectsMalformedProtocol(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -9129,16 +9195,6 @@ func TestGeneratedServerNotificationRejectsMalformedProtocol(t *testing.T) {
 			name:    "null params",
 			input:   `{"method":"skills/changed","params":null}`,
 			wantErr: "decode ServerNotification.params: null is not allowed",
-		},
-		{
-			name:    "unexpected top-level field",
-			input:   `{"method":"skills/changed","params":{},"extra":true}`,
-			wantErr: `decode ServerNotification.skills/changed: unknown field "extra"`,
-		},
-		{
-			name:    "nested params unknown field",
-			input:   `{"method":"thread/realtime/sdp","params":{"sdp":"offer","threadId":"thread-1","extra":true}}`,
-			wantErr: `decode ServerNotification.params: decode ThreadRealtimeSdpNotification: unknown field "extra"`,
 		},
 	}
 	for _, tc := range cases {
