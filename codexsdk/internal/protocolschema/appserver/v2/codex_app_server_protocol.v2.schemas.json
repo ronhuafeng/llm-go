@@ -17103,16 +17103,91 @@
         }
       }
     },
-    "FuzzyFileSearchSessionStopParams": {
+    "InitializeParams": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "FuzzyFileSearchSessionStopParams",
+      "title": "InitializeParams",
       "type": "object",
       "required": [
+        "clientInfo"
+      ],
+      "properties": {
+        "capabilities": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/InitializeCapabilities"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "clientInfo": {
+          "$ref": "#/definitions/ClientInfo"
+        }
+      }
+    },
+    "FuzzyFileSearchSessionUpdatedNotification": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "FuzzyFileSearchSessionUpdatedNotification",
+      "type": "object",
+      "required": [
+        "files",
+        "query",
         "sessionId"
       ],
       "properties": {
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/FuzzyFileSearchResult"
+          }
+        },
+        "query": {
+          "type": "string"
+        },
         "sessionId": {
           "type": "string"
+        }
+      }
+    },
+    "FuzzyFileSearchResult": {
+      "description": "Superset of [`codex_file_search::FileMatch`]",
+      "type": "object",
+      "required": [
+        "file_name",
+        "match_type",
+        "path",
+        "root",
+        "score"
+      ],
+      "properties": {
+        "file_name": {
+          "type": "string"
+        },
+        "indices": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          }
+        },
+        "match_type": {
+          "$ref": "#/definitions/FuzzyFileSearchMatchType"
+        },
+        "path": {
+          "type": "string"
+        },
+        "root": {
+          "type": "string"
+        },
+        "score": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
         }
       }
     },
@@ -17123,20 +17198,29 @@
         "directory"
       ]
     },
-    "FuzzyFileSearchSessionUpdateParams": {
+    "FuzzyFileSearchParams": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "FuzzyFileSearchSessionUpdateParams",
+      "title": "FuzzyFileSearchParams",
       "type": "object",
       "required": [
         "query",
-        "sessionId"
+        "roots"
       ],
       "properties": {
+        "cancellationToken": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "query": {
           "type": "string"
         },
-        "sessionId": {
-          "type": "string"
+        "roots": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
@@ -17183,73 +17267,6 @@
         }
       }
     },
-    "FuzzyFileSearchResult": {
-      "description": "Superset of [`codex_file_search::FileMatch`]",
-      "type": "object",
-      "required": [
-        "file_name",
-        "match_type",
-        "path",
-        "root",
-        "score"
-      ],
-      "properties": {
-        "file_name": {
-          "type": "string"
-        },
-        "indices": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "integer",
-            "format": "uint32",
-            "minimum": 0.0
-          }
-        },
-        "match_type": {
-          "$ref": "#/definitions/FuzzyFileSearchMatchType"
-        },
-        "path": {
-          "type": "string"
-        },
-        "root": {
-          "type": "string"
-        },
-        "score": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0.0
-        }
-      }
-    },
-    "FuzzyFileSearchParams": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "FuzzyFileSearchParams",
-      "type": "object",
-      "required": [
-        "query",
-        "roots"
-      ],
-      "properties": {
-        "cancellationToken": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "query": {
-          "type": "string"
-        },
-        "roots": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      }
-    },
     "ClientInfo": {
       "type": "object",
       "required": [
@@ -17271,26 +17288,33 @@
         }
       }
     },
-    "InitializeParams": {
+    "FuzzyFileSearchSessionStopParams": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "InitializeParams",
+      "title": "FuzzyFileSearchSessionStopParams",
       "type": "object",
       "required": [
-        "clientInfo"
+        "sessionId"
       ],
       "properties": {
-        "capabilities": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/InitializeCapabilities"
-            },
-            {
-              "type": "null"
-            }
-          ]
+        "sessionId": {
+          "type": "string"
+        }
+      }
+    },
+    "FuzzyFileSearchSessionUpdateParams": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "FuzzyFileSearchSessionUpdateParams",
+      "type": "object",
+      "required": [
+        "query",
+        "sessionId"
+      ],
+      "properties": {
+        "query": {
+          "type": "string"
         },
-        "clientInfo": {
-          "$ref": "#/definitions/ClientInfo"
+        "sessionId": {
+          "type": "string"
         }
       }
     },
@@ -17308,30 +17332,6 @@
           "items": {
             "type": "string"
           }
-        },
-        "sessionId": {
-          "type": "string"
-        }
-      }
-    },
-    "FuzzyFileSearchSessionUpdatedNotification": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "FuzzyFileSearchSessionUpdatedNotification",
-      "type": "object",
-      "required": [
-        "files",
-        "query",
-        "sessionId"
-      ],
-      "properties": {
-        "files": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/FuzzyFileSearchResult"
-          }
-        },
-        "query": {
-          "type": "string"
         },
         "sessionId": {
           "type": "string"
