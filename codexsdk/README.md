@@ -321,11 +321,11 @@ python3 scripts/codexsdk_sync_tag.py --json
 python3 scripts/codexsdk_sync_tag.py --create --push origin --json
 ```
 
-Stable upstream Codex tags use `upstream-codex-rust-vX.Y.Z`. Existing upstream
-sync tags are never moved; use `--next-suffix` to create
-`upstream-codex-rust-vX.Y.Z-sync.N` for follow-up SDK fixes against the same
-upstream tag. Manual upstream commits and refs intentionally do not get fallback
-sync tags.
+Stable upstream Codex tags use the single canonical name
+`upstream-codex-rust-vX.Y.Z`. Existing upstream sync tags are never moved or
+replaced. If that tag already resolves to another repository commit, the command
+reports both commits and stops; it never creates a fallback tag. Manual upstream
+commits and refs do not get sync tags.
 
 ## Compatibility Policy
 

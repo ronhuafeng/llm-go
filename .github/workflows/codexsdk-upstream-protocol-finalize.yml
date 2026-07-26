@@ -459,11 +459,7 @@ jobs:
           set -euo pipefail
 
           git fetch --tags origin
-          if python3 scripts/codexsdk_sync_tag.py --create --push origin --json > "${CODEXSDK_SYNC_TAG_JSON}"; then
-            :
-          else
-            python3 scripts/codexsdk_sync_tag.py --next-suffix --create --push origin --json > "${CODEXSDK_SYNC_TAG_JSON}"
-          fi
+          python3 scripts/codexsdk_sync_tag.py --create --push origin --json > "${CODEXSDK_SYNC_TAG_JSON}"
           tag_name="$(jq -r '.tag_name' "${CODEXSDK_SYNC_TAG_JSON}")"
           action="$(jq -r '.action' "${CODEXSDK_SYNC_TAG_JSON}")"
           echo "tag_name=${tag_name}" >> "$GITHUB_OUTPUT"

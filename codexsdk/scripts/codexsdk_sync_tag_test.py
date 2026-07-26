@@ -44,37 +44,13 @@ class SyncTagTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "stable_rust_tag"):
             sync_tag.tag_name(metadata)
 
-    def test_existing_base_tag_blocks_without_suffix(self):
+    def test_existing_base_tag_blocks(self):
         choice = sync_tag.choose_tag(
             "upstream-codex-rust-v0.140.0",
-            {"upstream-codex-rust-v0.140.0": SDK_SHA},
+            SDK_SHA,
             "2" * 40,
-            next_suffix=False,
         )
         self.assertEqual(choice.action, "block")
-
-    def test_existing_base_tag_uses_next_suffix(self):
-        choice = sync_tag.choose_tag(
-            "upstream-codex-rust-v0.140.0",
-            {"upstream-codex-rust-v0.140.0": SDK_SHA},
-            "2" * 40,
-            next_suffix=True,
-        )
-        self.assertEqual(choice.action, "create")
-        self.assertEqual(choice.tag_name, "upstream-codex-rust-v0.140.0-sync.2")
-
-    def test_existing_follow_up_tag_reuses_current_commit(self):
-        choice = sync_tag.choose_tag(
-            "upstream-codex-rust-v0.140.0",
-            {
-                "upstream-codex-rust-v0.140.0": SDK_SHA,
-                "upstream-codex-rust-v0.140.0-sync.2": "2" * 40,
-            },
-            "2" * 40,
-            next_suffix=True,
-        )
-        self.assertEqual(choice.action, "exists")
-        self.assertEqual(choice.tag_name, "upstream-codex-rust-v0.140.0-sync.2")
 
     def test_tag_message_includes_upstream_and_sdk_commits(self):
         metadata = {
@@ -106,6 +82,32 @@ class SyncTagTest(unittest.TestCase):
             self.assertEqual(payload["upstream_commit"], UPSTREAM_SHA)
             self.assertEqual(completed.stderr, "")
 
+    def test_cli_reads_metadata_from_module_subdirectory(self):
+        with sync_tag_repo(module_dir="codexsdk") as module:
+            completed = run_sync_tag(module, "--json")
+            payload = json.loads(completed.stdout)
+            self.assertEqual(payload["tag_name"], "upstream-codex-rust-v0.140.0")
+            self.assertEqual(payload["upstream_commit"], UPSTREAM_SHA)
+
+    def test_cli_reports_raw_git_error_with_command_context(self):
+        with sync_tag_repo(module_dir="codexsdk") as module:
+            subprocess.run(["git", "rm", sync_tag.METADATA_PATH], cwd=module, check=True, stdout=subprocess.PIPE)
+            subprocess.run(["git", "commit", "-q", "-m", "remove metadata"], cwd=module, check=True)
+
+            completed = run_sync_tag(module, "--json", check=False)
+
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn("fatal:", completed.stderr)
+            self.assertIn("baseline_metadata.json", completed.stderr)
+            self.assertIn("exit code 128", completed.stderr)
+
+    def test_cli_rejects_fallback_tag_option(self):
+        with sync_tag_repo() as repo:
+            completed = run_sync_tag(repo, "--next-suffix", check=False)
+
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn("--next-suffix", completed.stderr)
+
     def test_cli_dry_run_block_is_quiet_without_json(self):
         with sync_tag_repo() as repo:
             subprocess.run(
@@ -121,26 +123,14 @@ class SyncTagTest(unittest.TestCase):
             self.assertEqual(completed.stdout, "")
             self.assertEqual(completed.stderr, "")
 
-    def test_cli_next_suffix_uses_remote_tags_when_local_tags_are_stale(self):
-        with sync_tag_repo() as repo, tempfile.TemporaryDirectory() as remote_tmp:
-            remote = Path(remote_tmp) / "origin.git"
-            subprocess.run(["git", "init", "--bare", "-q", str(remote)], check=True)
-            subprocess.run(["git", "remote", "add", "origin", str(remote)], cwd=repo, check=True)
+    def test_cli_tag_collision_fails_without_fallback_and_reports_commits(self):
+        base_tag = "upstream-codex-rust-v0.140.0"
+        with sync_tag_repo() as repo:
+            existing_commit = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=repo, check=True, stdout=subprocess.PIPE, text=True
+            ).stdout.strip()
             subprocess.run(
-                ["git", "tag", "-a", "upstream-codex-rust-v0.140.0", "HEAD", "-m", "old"],
-                cwd=repo,
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-            subprocess.run(
-                ["git", "push", "-q", "origin", "refs/tags/upstream-codex-rust-v0.140.0"],
-                cwd=repo,
-                check=True,
-            )
-            subprocess.run(
-                ["git", "tag", "-d", "upstream-codex-rust-v0.140.0"],
+                ["git", "tag", "-a", base_tag, "HEAD", "-m", "old"],
                 cwd=repo,
                 check=True,
                 stdout=subprocess.PIPE,
@@ -148,45 +138,46 @@ class SyncTagTest(unittest.TestCase):
                 text=True,
             )
             subprocess.run(["git", "commit", "--allow-empty", "-q", "-m", "follow-up"], cwd=repo, check=True)
-
-            completed = run_sync_tag(repo, "--next-suffix", "--create", "--push", "origin", "--json")
-            payload = json.loads(completed.stdout)
-
-            self.assertEqual(payload["action"], "created")
-            self.assertEqual(payload["tag_name"], "upstream-codex-rust-v0.140.0-sync.2")
-            self.assertEqual(payload["pushed_remote"], "origin")
-
-            head = subprocess.run(
-                ["git", "rev-parse", "--verify", "HEAD^{commit}"],
-                cwd=repo,
-                check=True,
-                stdout=subprocess.PIPE,
-                text=True,
+            head_commit = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=repo, check=True, stdout=subprocess.PIPE, text=True
             ).stdout.strip()
-            remote_tag = subprocess.run(
-                [
-                    "git",
-                    "ls-remote",
-                    "--tags",
-                    "origin",
-                    "refs/tags/upstream-codex-rust-v0.140.0-sync.2^{}",
-                    "refs/tags/upstream-codex-rust-v0.140.0-sync.2",
-                ],
-                cwd=repo,
-                check=True,
-                stdout=subprocess.PIPE,
-                text=True,
-            ).stdout
-            self.assertIn(head, remote_tag)
+
+            completed = run_sync_tag(repo, "--create", "--json", check=False)
+
+            self.assertEqual(completed.returncode, 1)
+            self.assertIn(base_tag, completed.stderr)
+            self.assertIn(existing_commit, completed.stderr)
+            self.assertIn(head_commit, completed.stderr)
+            tags = subprocess.run(
+                ["git", "tag", "--list", f"{base_tag}*"], cwd=repo, check=True, stdout=subprocess.PIPE, text=True
+            ).stdout.splitlines()
+            self.assertEqual(tags, [base_tag])
+
+    def test_finalize_workflow_invokes_tag_cli_once_and_preserves_stderr(self):
+        workflow = (
+            Path(__file__).resolve().parents[2] / ".github/workflows/codexsdk-upstream-protocol-finalize.yml"
+        ).read_text(encoding="utf-8")
+        invocations = [line.strip() for line in workflow.splitlines() if "scripts/codexsdk_sync_tag.py" in line]
+
+        self.assertEqual(len(invocations), 1)
+        self.assertIn("--create --push origin --json", invocations[0])
+        self.assertNotIn("--next-suffix", workflow)
+        self.assertNotIn("2>", invocations[0])
+        self.assertNotIn("&>", invocations[0])
 
 
 class sync_tag_repo:
+    def __init__(self, module_dir=""):
+        self.module_dir = module_dir
+
     def __enter__(self):
         self.tmp = tempfile.TemporaryDirectory()
-        self.path = Path(self.tmp.name)
-        subprocess.run(["git", "init", "-q"], cwd=self.path, check=True)
-        subprocess.run(["git", "config", "user.email", "codex@example.com"], cwd=self.path, check=True)
-        subprocess.run(["git", "config", "user.name", "Codex"], cwd=self.path, check=True)
+        self.root = Path(self.tmp.name)
+        self.path = self.root / self.module_dir
+        self.path.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True)
+        subprocess.run(["git", "config", "user.email", "codex@example.com"], cwd=self.root, check=True)
+        subprocess.run(["git", "config", "user.name", "Codex"], cwd=self.root, check=True)
         metadata_path = self.path / sync_tag.METADATA_PATH
         metadata_path.parent.mkdir(parents=True, exist_ok=True)
         metadata_path.write_text(
@@ -203,20 +194,20 @@ class sync_tag_repo:
             + "\n",
             encoding="utf-8",
         )
-        subprocess.run(["git", "add", sync_tag.METADATA_PATH], cwd=self.path, check=True)
-        subprocess.run(["git", "commit", "-q", "-m", "baseline"], cwd=self.path, check=True)
+        subprocess.run(["git", "add", "."], cwd=self.root, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "baseline"], cwd=self.root, check=True)
         return self.path
 
     def __exit__(self, exc_type, exc, tb):
         self.tmp.cleanup()
 
 
-def run_sync_tag(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+def run_sync_tag(repo: Path, *args: str, check=True) -> subprocess.CompletedProcess[str]:
     script = Path(__file__).with_name("codexsdk_sync_tag.py")
     return subprocess.run(
         [sys.executable, str(script), *args],
         cwd=repo,
-        check=True,
+        check=check,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
