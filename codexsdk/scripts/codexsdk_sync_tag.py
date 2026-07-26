@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shlex
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -49,7 +50,7 @@ def git_tag_commit(ref: str) -> str | None:
 
 
 def load_head_metadata() -> dict[str, Any]:
-    raw = git_output(["show", f"HEAD:{METADATA_PATH}"])
+    raw = git_output(["show", f"HEAD:./{METADATA_PATH}"])
     return json.loads(raw)
 
 
@@ -83,75 +84,23 @@ def sync_tag_message(metadata: dict[str, Any], codexsdk_commit: str) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def local_sync_tags(base_tag: str) -> dict[str, str]:
-    tags = git_output(["tag", "--list", f"{base_tag}*"]).splitlines()
-    out: dict[str, str] = {}
-    for tag in tags:
-        if is_sync_tag(base_tag, tag):
-            commit = git_tag_commit(f"refs/tags/{tag}")
-            if commit:
-                out[tag] = commit
-    return out
+def local_sync_tag_commit(base_tag: str) -> str | None:
+    return git_tag_commit(f"refs/tags/{base_tag}")
 
 
-def is_sync_tag(base_tag: str, tag: str) -> bool:
-    return tag == base_tag or re.fullmatch(re.escape(base_tag) + r"-sync[.][0-9]+", tag) is not None
-
-
-def remote_sync_tags(remote: str, base_tag: str) -> dict[str, str]:
-    output = git_output(
-        [
-            "ls-remote",
-            "--tags",
-            remote,
-            f"refs/tags/{base_tag}",
-            f"refs/tags/{base_tag}^{{}}",
-            f"refs/tags/{base_tag}-sync.*",
-            f"refs/tags/{base_tag}-sync.*^{{}}",
-        ]
-    )
-    out: dict[str, str] = {}
-    prefix = "refs/tags/"
-    peel_suffix = "^{}"
-    for line in output.splitlines():
-        parts = line.split()
-        if len(parts) != 2:
-            continue
-        sha, ref = parts
-        peeled = ref.endswith(peel_suffix)
-        if peeled:
-            ref = ref[: -len(peel_suffix)]
-        if not ref.startswith(prefix):
-            continue
-        tag = ref[len(prefix) :]
-        if not is_sync_tag(base_tag, tag):
-            continue
-        if peeled or tag not in out:
-            out[tag] = sha
-    return out
-
-
-def choose_tag(base_tag: str, existing_tags: dict[str, str], commit: str, next_suffix: bool) -> TagChoice:
-    existing_commit = existing_tags.get(base_tag)
+def choose_tag(base_tag: str, existing_commit: str | None, commit: str) -> TagChoice:
     if existing_commit is None:
         return TagChoice(base_tag, "create", "base upstream sync tag is available")
     if existing_commit == commit:
         return TagChoice(base_tag, "exists", "base upstream sync tag already points at HEAD")
-    if not next_suffix:
-        return TagChoice(
-            base_tag,
-            "block",
-            "base upstream sync tag already exists at a different commit; use --next-suffix for a follow-up sync tag",
-        )
+    return TagChoice(base_tag, "block", "base upstream sync tag already exists at a different commit")
 
-    for index in range(2, 1000):
-        candidate = f"{base_tag}-sync.{index}"
-        existing_commit = existing_tags.get(candidate)
-        if existing_commit is None:
-            return TagChoice(candidate, "create", "using next follow-up sync tag suffix")
-        if existing_commit == commit:
-            return TagChoice(candidate, "exists", "follow-up upstream sync tag already points at HEAD")
-    raise ValueError(f"too many follow-up sync tags for {base_tag}")
+
+def tag_collision_diagnostic(tag: str, existing_commit: str, requested_commit: str) -> str:
+    return (
+        f"refusing to create {tag}: existing tag resolves to {existing_commit}, "
+        f"but HEAD resolves to {requested_commit}; no fallback tag will be created"
+    )
 
 
 def remote_tag_commit(remote: str, tag: str) -> str | None:
@@ -189,7 +138,6 @@ def push_tag(remote: str, tag: str) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--next-suffix", action="store_true", help="use -sync.N when the base sync tag already exists")
     parser.add_argument("--create", action="store_true", help="create the annotated tag on HEAD")
     parser.add_argument("--push", nargs="?", const="origin", help="push the tag to the given remote; requires --create")
     parser.add_argument("--json", action="store_true", help="print machine-readable output")
@@ -201,10 +149,13 @@ def main() -> int:
     metadata = load_head_metadata()
     commit = head_commit()
     base_tag = tag_name(metadata)
-    existing_tags = local_sync_tags(base_tag)
+    existing_commit = local_sync_tag_commit(base_tag)
+    remote_commit = ""
     if args.push:
-        existing_tags.update(remote_sync_tags(args.push, base_tag))
-    choice = choose_tag(base_tag, existing_tags, commit, args.next_suffix)
+        remote_commit = remote_tag_commit(args.push, base_tag) or ""
+        if remote_commit:
+            existing_commit = remote_commit
+    choice = choose_tag(base_tag, existing_commit, commit)
     message = sync_tag_message(metadata, commit)
 
     payload = {
@@ -218,24 +169,13 @@ def main() -> int:
         "upstream_ref_name": metadata.get("source_ref_name", ""),
     }
 
-    remote_commit = ""
-    if args.push:
-        remote_commit = remote_tag_commit(args.push, choice.tag_name) or ""
-        if remote_commit and remote_commit != commit:
-            payload["action"] = "block"
-            payload["reason"] = "remote upstream sync tag already exists at a different commit"
-            payload["remote_commit"] = remote_commit
-            if args.json:
-                print(json.dumps(payload, indent=2, sort_keys=True))
-            else:
-                print(payload["reason"], file=sys.stderr)
-            return 1
-
     if choice.action == "block":
+        assert existing_commit is not None
+        payload["existing_commit"] = existing_commit
         if args.json:
             print(json.dumps(payload, indent=2, sort_keys=True))
-        elif args.create:
-            print(choice.reason, file=sys.stderr)
+        if args.create:
+            print(tag_collision_diagnostic(choice.tag_name, existing_commit, commit), file=sys.stderr)
         return 1 if args.create else 0
 
     if args.create and choice.action == "create":
@@ -258,6 +198,12 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except (subprocess.CalledProcessError, ValueError) as exc:
+    except subprocess.CalledProcessError as exc:
+        command = shlex.join(str(argument) for argument in exc.cmd)
+        print(f"command failed with exit code {exc.returncode}: {command}", file=sys.stderr)
+        if exc.stderr:
+            print(exc.stderr, file=sys.stderr, end="" if exc.stderr.endswith("\n") else "\n")
+        raise SystemExit(1)
+    except ValueError as exc:
         print(str(exc), file=sys.stderr)
         raise SystemExit(1)
