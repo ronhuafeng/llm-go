@@ -1100,6 +1100,7 @@ func runFakeAppServer(mode string, extra []string) {
 			}
 			if mode == "pending-terminal-protocol-failure" {
 				completeTurn(threadID, turnID)
+				waitForFakePath(extra[0])
 				_, _ = fmt.Fprintln(os.Stdout, "{")
 				return
 			}

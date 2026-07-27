@@ -282,6 +282,22 @@ jobs:
             --drift-status "${DRIFT_STATUS}" \
             --json
 
+      - name: Require Codex credentials
+        if: steps.plan.outputs.needs_agent == 'true'
+        env:
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          CODEX_RESPONSES_API_ENDPOINT: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
+        run: |
+          set -euo pipefail
+
+          missing=()
+          [[ -n "${AZURE_OPENAI_API_KEY}" ]] || missing+=(AZURE_OPENAI_API_KEY)
+          [[ -n "${CODEX_RESPONSES_API_ENDPOINT}" ]] || missing+=(CODEX_RESPONSES_API_ENDPOINT)
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Required Codex Actions secret is not configured: %s\n' "${missing[@]}" >&2
+            exit 1
+          fi
+
       - name: Set up Go
         if: steps.plan.outputs.needs_apply == 'true'
         uses: actions/setup-go@v6
@@ -322,7 +338,7 @@ jobs:
             --phase mechanical \
             --output "${CODEXSDK_AUTO_SYNC_DIR}/mechanical-changes.json"
 
-      - name: Build Codex drift repair prompt
+      - name: Build Codex sync agent prompt
         if: steps.plan.outputs.needs_agent == 'true'
         env:
           CANDIDATE_DIR: ${{ env.CODEXSDK_DRIFT_ARTIFACT_DIR }}
@@ -338,12 +354,12 @@ jobs:
             --auto-sync-dir "codexsdk/${CODEXSDK_AUTO_SYNC_DIR}" \
             --candidate-dir "${CANDIDATE_DIR}" \
             --land-ref "${LAND_REF}" \
-            --phase "fix" \
+            --phase "review-and-fix" \
             --upstream-ref "${UPSTREAM_REF}" \
             --upstream-ref-kind "${UPSTREAM_REF_KIND}" \
             --upstream-sha "${UPSTREAM_SHA}"
 
-      - name: Prepare Go validation cache for Codex repair
+      - name: Prepare Go validation cache for Codex sync
         if: steps.plan.outputs.needs_agent == 'true'
         env:
           GOCACHE: ${{ github.workspace }}/codexsdk/${{ env.CODEXSDK_GO_CACHE_DIR }}
@@ -354,7 +370,7 @@ jobs:
           mkdir -p "${GOCACHE}" "${GOMODCACHE}" "${GOPATH}"
           GOWORK=off go list -deps -test ./... >/dev/null
 
-      - name: Run Codex drift repair agent
+      - name: Run Codex sync agent
         if: steps.plan.outputs.needs_agent == 'true'
         uses: openai/codex-action@v1
         env:
