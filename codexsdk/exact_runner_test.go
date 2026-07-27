@@ -530,10 +530,12 @@ func TestHandlerFailureDiscardsQueuedTerminalWithoutBlockingRun(t *testing.T) {
 
 func TestProtocolCancellationReleasesPendingTerminalHandlerFence(t *testing.T) {
 	handlerCalled := make(chan struct{}, 1)
+	pendingTerminalSeen := make(chan struct{})
+	protocolFailureRelease := filepath.Join(t.TempDir(), "release-protocol-failure")
 	t.Setenv("CODEXSDK_FAKE_RECORD", tempRecord(t))
 	root, err := New(ClientOptions{
 		CWD:     t.TempDir(),
-		Command: fakeCommand("pending-terminal-protocol-failure"),
+		Command: fakeCommand("pending-terminal-protocol-failure", protocolFailureRelease),
 		ServerNotificationHandler: func(context.Context, protocolv2.ServerNotification) error {
 			handlerCalled <- struct{}{}
 			return nil
@@ -542,7 +544,40 @@ func TestProtocolCancellationReleasesPendingTerminalHandlerFence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, runErr := root.ThreadRunner().Start(context.Background(), StartThreadRunRequest{Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}}})
+	root.testPendingExactNotification = func(notification rpcNotification) {
+		if notification.method == protocolv2.MethodTurnCompleted {
+			close(pendingTerminalSeen)
+		}
+	}
+	type outcome struct {
+		result StartedThreadRun
+		err    error
+	}
+	finished := make(chan outcome, 1)
+	go func() {
+		result, runErr := root.ThreadRunner().Start(context.Background(), StartThreadRunRequest{Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}}})
+		finished <- outcome{result: result, err: runErr}
+	}()
+	select {
+	case <-pendingTerminalSeen:
+	case <-time.After(time.Second):
+		t.Fatal("terminal notification did not enter the pending evidence queue")
+	}
+	select {
+	case <-handlerCalled:
+		t.Fatal("pending terminal evidence reached the handler before publication")
+	default:
+	}
+	if err := os.WriteFile(protocolFailureRelease, []byte("release"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var got outcome
+	select {
+	case got = <-finished:
+	case <-time.After(time.Second):
+		t.Fatal("protocol failure did not release the pending terminal handler fence")
+	}
+	result, runErr := got.result, got.err
 	if runErr == nil {
 		t.Fatal("protocol failure did not terminate the run")
 	}
