@@ -12,11 +12,12 @@ Evidence:
 
 Allowed action:
 - Preserve the first actionable error.
-- When a new schema shape is unsupported, update the smallest focused generator rule and test justified by the candidate, run focused tests, restore only partial mechanical outputs recorded by this attempt to their captured pre-apply state, preserve the focused recovery edits, and retry apply once.
+- When a new schema shape is unsupported, update the smallest focused generator rule and test justified by the candidate, run focused tests, restore only partial mechanical outputs recorded by this attempt to their captured pre-apply state, preserve the focused recovery edits, and retry apply.
+- If a later apply or validation attempt exposes a different supported schema incompatibility, repeat from that new evidence. Each iteration must retire the preceding failure and keep the same candidate provenance.
 - Treat provenance mismatch, missing artifacts, or scope escape as a blocker.
 
 Stop:
-- Do not guess schema meaning, broaden handwritten SDK changes without reviewed drift evidence, or loop apply retries.
+- Do not guess schema meaning, broaden handwritten SDK changes without reviewed drift evidence, or repeat an unchanged failure without new evidence.
 
 ## Sync PR `PR verification` Check Is `action_required`
 

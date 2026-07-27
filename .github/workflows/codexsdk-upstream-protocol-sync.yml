@@ -144,6 +144,7 @@ jobs:
             }' /tmp/codexsdk-target.json > .cache/codexsdk-sync/action-inputs.json
 
       - name: Implement target protocol with Codex
+        id: codex
         uses: openai/codex-action@v1
         with:
           openai-api-key: ${{ secrets.AZURE_OPENAI_API_KEY }}
@@ -156,6 +157,26 @@ jobs:
           safety-strategy: drop-sudo
           allow-bots: "true"
           codex-args: '["--ephemeral", "-c", "sandbox_workspace_write.network_access=true"]'
+
+      - name: Require completed Codex implementation
+        id: completion
+        working-directory: codexsdk
+        env:
+          CODEX_FINAL_MESSAGE: ${{ steps.codex.outputs.final-message }}
+        run: |
+          set -euo pipefail
+          first_line="${CODEX_FINAL_MESSAGE%%$'\n'*}"
+          case "${first_line}" in
+            "protocol implementation complete") mode="implemented" ;;
+            "protocol implementation current") mode="current" ;;
+            "protocol comparison clean") mode="comparison" ;;
+            *)
+              echo "Codex stopped before reaching a successful protocol state." >&2
+              printf '%s\n' "${CODEX_FINAL_MESSAGE}" >&2
+              exit 1
+              ;;
+          esac
+          echo "mode=${mode}" >> "${GITHUB_OUTPUT}"
 
       - name: Inspect protocol implementation
         id: implementation
@@ -218,6 +239,7 @@ jobs:
           PY
 
       - name: Validate protocol implementation
+        id: validation
         if: steps.implementation.outputs.publish == 'true'
         working-directory: codexsdk
         env:
@@ -283,7 +305,7 @@ jobs:
             --validated-commit "${VALIDATED_COMMIT}"
 
       - name: Report protocol sync outcome
-        if: always() && steps.implementation.outcome == 'success'
+        if: always() && steps.completion.outcome == 'success' && steps.implementation.outcome == 'success' && (steps.implementation.outputs.publish != 'true' || steps.validation.outcome == 'success')
         env:
           PR_URL: ${{ steps.publish.outputs.pr_url }}
           PUBLISH: ${{ steps.implementation.outputs.publish }}
