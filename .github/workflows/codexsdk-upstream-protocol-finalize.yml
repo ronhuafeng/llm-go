@@ -375,6 +375,22 @@ jobs:
           fi
           exit "${watch_status}"
 
+      - name: Require Codex credentials for failure explanation
+        if: steps.candidate.outputs.dispatch == 'true' && steps.candidate.outputs.dispatch_drift_check == 'true' && steps.verification.outcome != 'success'
+        env:
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          CODEX_RESPONSES_API_ENDPOINT: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
+        run: |
+          set -euo pipefail
+
+          missing=()
+          [[ -n "${AZURE_OPENAI_API_KEY}" ]] || missing+=(AZURE_OPENAI_API_KEY)
+          [[ -n "${CODEX_RESPONSES_API_ENDPOINT}" ]] || missing+=(CODEX_RESPONSES_API_ENDPOINT)
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Required Codex Actions secret is not configured: %s\n' "${missing[@]}" >&2
+            exit 1
+          fi
+
       - name: Prepare drift verification failure explanation prompt
         if: steps.candidate.outputs.dispatch == 'true' && steps.candidate.outputs.dispatch_drift_check == 'true' && steps.verification.outcome != 'success'
         env:
@@ -409,7 +425,6 @@ jobs:
 
       - name: Explain drift verification failure
         if: steps.candidate.outputs.dispatch == 'true' && steps.candidate.outputs.dispatch_drift_check == 'true' && steps.verification.outcome != 'success'
-        continue-on-error: true
         uses: openai/codex-action@v1
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -425,7 +440,7 @@ jobs:
           codex-args: '["--ephemeral"]'
 
       - name: Append drift verification failure explanation
-        if: steps.candidate.outputs.dispatch == 'true' && steps.candidate.outputs.dispatch_drift_check == 'true' && steps.verification.outcome != 'success'
+        if: always() && steps.candidate.outputs.dispatch == 'true' && steps.candidate.outputs.dispatch_drift_check == 'true' && steps.verification.outcome != 'success'
         env:
           RUN_URL: ${{ steps.verification.outputs.run_url }}
         run: |
@@ -441,7 +456,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Fail when drift verification failed
-        if: steps.candidate.outputs.dispatch == 'true' && steps.candidate.outputs.dispatch_drift_check == 'true' && steps.verification.outcome != 'success'
+        if: always() && steps.candidate.outputs.dispatch == 'true' && steps.candidate.outputs.dispatch_drift_check == 'true' && steps.verification.outcome != 'success'
         run: |
           echo "Finalize stopped because drift verification did not pass. See the job summary for the generated explanation." >&2
           exit 1
