@@ -2,6 +2,22 @@
 
 Use recovery recipes before adding automation. Keep recovery on the protected PR path. Never weaken branch protection, bypass required checks, synthesize statuses, force-push `main`, or move/delete tags.
 
+## Candidate Apply Fails Before Agent Review
+
+Trigger:
+- `scripts/codexsdk_apply_sync_candidate.py` stops before producing a valid apply result and mechanical manifest.
+
+Evidence:
+- Apply stderr, compact drift reports, candidate provenance, changed paths, and focused generator tests.
+
+Allowed action:
+- Preserve the first actionable error.
+- When a new schema shape is unsupported, update the smallest focused generator rule and test justified by the candidate, run focused tests, restore only partial mechanical outputs recorded by this attempt to their captured pre-apply state, preserve the focused recovery edits, and retry apply once.
+- Treat provenance mismatch, missing artifacts, or scope escape as a blocker.
+
+Stop:
+- Do not guess schema meaning, broaden handwritten SDK changes without reviewed drift evidence, or loop apply retries.
+
 ## Sync PR `PR verification` Check Is `action_required`
 
 Trigger:
@@ -42,8 +58,8 @@ Evidence:
 
 Allowed action:
 - Recover from the exact landed commit.
-- Create a stable sync tag through `scripts/codexsdk_sync_tag.py`; when pushing, let the script choose suffixes from remote tag state.
-- If the base tag already exists at another commit, use the documented suffix path.
+- Create a stable sync tag through `scripts/codexsdk_sync_tag.py`; when pushing, let the script verify local and remote base-tag state.
+- If the base tag already exists at another commit, stop and report both commits. The helper intentionally has no fallback-tag option.
 - Run caller-owned drift verification after tagging when required.
 
 Stop:
@@ -73,8 +89,8 @@ Evidence:
 - Existing tag target and current landed commit.
 
 Allowed action:
-- Use `scripts/codexsdk_sync_tag.py --next-suffix --create --push origin` for follow-up syncs to the same upstream tag.
-- The script must consider remote tag state before selecting the base tag or the next `-sync.N` suffix.
+- Use `python3 scripts/codexsdk_sync_tag.py --create --push origin --json` to confirm the conflict and preserve its diagnostic.
+- Report that the immutable base tag points at a different commit and that changing tag policy or helper behavior requires a separate explicit change.
 
 Stop:
-- Never move or delete an existing upstream sync tag.
+- Never move/delete the existing tag or invent a fallback tag outside the helper contract.

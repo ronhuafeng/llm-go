@@ -7,13 +7,13 @@ Inputs:
 - Landed ref, landed commit, sync PR, upstream target ref/kind/SHA, optional drift fingerprint metadata, and whether caller requested drift verification.
 
 Tools:
-- `scripts/codexsdk_sync_tag.py`
+- `python3 scripts/codexsdk_sync_tag.py --create --push origin --json`
 - Caller-owned workflow dispatch or CI tooling for drift verification.
 
 Boundaries:
 - Verify the landed commit is the commit being finalized before tagging or dispatching verification.
 - Accept only the repository default branch as the landing/finalize ref unless an explicit future allowlist exists.
-- May create stable upstream sync tags only through the sync tag script, which must choose suffixes from remote tag state when pushing.
+- May create stable upstream sync tags only through the sync tag script, which checks local and remote base-tag state before pushing and blocks on a different existing commit.
 - May run drift verification only when explicitly requested.
 - Must not delete/move tags, tag unmerged PR heads or failed attempts, merge PRs, or report final completion before CI, tag handling, and requested drift verification are complete.
 
@@ -31,4 +31,4 @@ Stop if:
 - Landed baseline metadata does not match the intended target.
 - Drift verification was not run against the same target when requested.
 - Target is manual ref/commit and tagging would be attempted.
-- Tag conflict cannot use the documented suffix path.
+- The base sync tag already exists at a different commit.

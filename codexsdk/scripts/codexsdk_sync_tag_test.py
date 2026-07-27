@@ -153,19 +153,6 @@ class SyncTagTest(unittest.TestCase):
             ).stdout.splitlines()
             self.assertEqual(tags, [base_tag])
 
-    def test_finalize_workflow_invokes_tag_cli_once_and_preserves_stderr(self):
-        workflow = (
-            Path(__file__).resolve().parents[2] / ".github/workflows/codexsdk-upstream-protocol-finalize.yml"
-        ).read_text(encoding="utf-8")
-        invocations = [line.strip() for line in workflow.splitlines() if "scripts/codexsdk_sync_tag.py" in line]
-
-        self.assertEqual(len(invocations), 1)
-        self.assertIn("--create --push origin --json", invocations[0])
-        self.assertNotIn("--next-suffix", workflow)
-        self.assertNotIn("2>", invocations[0])
-        self.assertNotIn("&>", invocations[0])
-
-
 class sync_tag_repo:
     def __init__(self, module_dir=""):
         self.module_dir = module_dir

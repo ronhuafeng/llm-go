@@ -261,7 +261,7 @@ create_or_update_pr() {
   if [[ "${sync_mode}" == "metadata-sync" ]]; then
     fix_description="This PR advances the checked-in upstream provenance to a schema-compatible target, regenerates deterministic SDK artifacts, validates the synchronized baseline, and publishes it through the protected PR path. No Codex repair pass was needed."
   else
-    fix_description="This PR applies the regenerated upstream schema candidate, runs the bounded Codex repair pass for handwritten compatibility, validates the synchronized baseline, and publishes it through the protected PR path."
+    fix_description="This PR contains the Codex-completed protocol implementation for the selected upstream target, including generated output and any evidence-backed handwritten compatibility work. The workflow independently validated the synchronized baseline before publication."
   fi
   body_file="$(mktemp)"
   cat > "${body_file}" <<EOF
