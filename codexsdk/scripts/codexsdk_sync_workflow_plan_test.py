@@ -60,7 +60,7 @@ class SyncWorkflowPlanTest(unittest.TestCase):
         self.assertTrue(plan["should_detect"])
         self.assertFalse(plan["verification_failed"])
 
-    def test_clean_forward_target_plans_metadata_only_sync(self) -> None:
+    def test_clean_forward_target_still_requires_agent_pass(self) -> None:
         plan = run_plan(
             "--policy-decision",
             "allow",
@@ -72,7 +72,7 @@ class SyncWorkflowPlanTest(unittest.TestCase):
 
         self.assertEqual(plan["mode"], "metadata-sync")
         self.assertTrue(plan["needs_apply"])
-        self.assertFalse(plan["needs_agent"])
+        self.assertTrue(plan["needs_agent"])
         self.assertTrue(plan["needs_publish"])
 
     def test_drifted_forward_target_plans_repair_sync(self) -> None:

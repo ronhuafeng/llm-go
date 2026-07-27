@@ -62,6 +62,7 @@ def plan_workflow(
             "metadata-sync",
             should_detect=True,
             needs_apply=True,
+            needs_agent=True,
             needs_publish=True,
         )
     if policy_decision == "allow" and drift_status == "review-required":
