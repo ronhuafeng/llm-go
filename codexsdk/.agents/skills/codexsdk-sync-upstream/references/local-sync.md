@@ -38,14 +38,9 @@ Useful drift evidence:
 
 Preserve compact pre-change evidence before overwriting checked-in clean reports.
 
-## Automation Phases
+## Action Boundary
 
-- Detect: resolve target, run policy, generate drift, record upstream ref/SHA, drift fingerprint, and workflow run URL, then render PR-ready drift analysis.
-- Fix: for an allowed forward target when the run is not `force_compare` verification, apply the generated candidate, then choose `metadata-sync` for clean drift or `repair-sync` plus `repair-applied-candidate` for `review-required` drift. Validate, commit the bounded change manifest, and publish a protected PR automatically.
-- Finalize: after the PR lands, verify the landed commit, create the stable sync tag when applicable, and run forced drift verification when requested.
-
-Do not depend on a `GITHUB_TOKEN` remote event to trigger the fix. The sync workflow should continue directly from drift evidence to protected PR publication when drift requires it.
-Keep upstream target selection flexible, but keep workflow code refs, PR base refs, and finalize refs on the repository default branch unless a future explicit allowlist is added.
+One Codex invocation owns protocol implementation through local validation. It leaves the resulting tracked and untracked changes unstaged and uncommitted. GitHub Workflow steps outside Codex own authentication, commit, publication, and landed finalization.
 
 ## Target Policy
 
@@ -102,32 +97,24 @@ Validation should prove:
 - checked-in reports are clean and sanitized
 - no local absolute paths or cache output paths leaked into checked-in baseline metadata or checked-in reports
 
-After validation passes, use `commit-local-sync` to create the local sync commit before publication. `publish-protected-pr` consumes that committed `HEAD`; it must not create the commit itself.
-
 Capture the mechanical and final change sets with `scripts/codexsdk_sync_changes.py`. The final manifest includes untracked files, rejects paths outside `codexsdk/` and automation-owned cache/skill paths, and is the only source used for staging.
+
+After validation passes, stop with the final manifest. Do not stage or commit it.
 
 When validation fails, inspect the first actionable failure before adding code or abstractions.
 
-## Target Movement And Tags
+## Target Movement
 
 For default scheduled syncs, compare against the latest stable `rust-vX.Y.Z` tag, not `main`.
 
 Do not enter an unbounded loop chasing moving upstream refs. If the target moved, report the exact old/new target and whether remaining drift is real.
 
-Tag only after a successful baseline sync commit exists on the landing ref:
-
-- stable upstream tags use `upstream-codex-rust-vX.Y.Z`
-- manual refs and manual commits do not get upstream sync tags
-- never move or delete existing upstream sync tags
-- follow-up syncs to the same upstream tag use the documented `-sync.N` suffix path, selected from remote tag state when pushing
-
 ## Decision Rules
 
 - If drift is clean and the user only asked to check a target, report no SDK update is needed.
-- If an allowed forward target is clean, update provenance and clean reports through `metadata-sync` without a Codex repair pass or schema-derived Go changes.
+- If an allowed forward target is clean, update provenance and clean reports through `metadata-sync`; the sync agent records that review found no repair or schema-derived Go changes.
 - If target policy returns `block`, stop before drift generation.
-- If a fix PR was published, report `sync PR published` and stop before merge, tag, or drift verification.
-- If a PR has landed, finalize from the landed commit rather than the PR branch head or an unmerged attempt.
+- After local validation and final-manifest capture pass, report `protocol implementation complete` and stop before staging or publication.
 - If generated Go fails because a new schema shape is unsupported, update focused generator rules and tests before regenerating.
 - If a method disappears upstream, preserve compatibility only when safe and intentional; otherwise document the breaking change.
 - If compare-only and full tracking disagree, trust full tracking and investigate candidate provenance before editing checked-in files.

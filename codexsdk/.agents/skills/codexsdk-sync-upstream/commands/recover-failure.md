@@ -1,31 +1,25 @@
 # Command: recover-failure
 
 State:
-- Sync PR check, open sync PR state, finalize step, drift verification, or sync tag operation failed.
+- Candidate apply or local validation failed before protocol implementation completed.
 
 Inputs:
-- Failure type, PR/branch, CI/run ID, target provenance, and landed commit when relevant.
-
-Evidence:
-- `../references/recovery.md`
-- GitHub PR/check/run/tag state when caller owns remote inspection.
+- Failure type, target provenance, apply or validation evidence, and current changed paths.
 
 Boundaries:
 - Preserve useful failure evidence before reruns or cleanup.
-- May inspect remote state and run documented recovery recipes.
-- May rerun an expected `action_required` `GITHUB_TOKEN` PR check when caller owns that recovery.
-- May create documented follow-up commits or suffix sync tags only through protected recipes.
-- Must not weaken protection, bypass checks, introduce tokens, synthesize statuses, force-push `main`, delete/move tags, or add new automation before trying recovery recipes.
+- For candidate apply failures caused by an unsupported schema shape, may update the smallest focused generator rule and tests justified by drift evidence, restore only failed-attempt mechanical outputs to their captured pre-apply state, then return to `apply-candidate` for one retry.
+- For validation failures, inspect and fix the first local implementation error, then rerun the focused failing check before full validation.
+- Must not configure authentication, stage, commit, push, create PRs, tag, dispatch workflows, or inspect remote recovery state.
 
 Checks:
-- Recovery action stays on the protected PR path.
-- Required real checks remain authoritative.
-- Tags and branch protection are unchanged except documented allowed actions.
+- Recovery stays within the reviewed local implementation scope.
+- Candidate provenance and target SHA remain unchanged.
+- Apply is retried at most once.
 
 Output:
-- Failure classification, evidence collected, recovery action taken, remaining blockers, next command, and completion layer.
+- Failure classification, evidence collected, local recovery action, validation result, remaining blockers, and next local command.
 
 Stop if:
-- Recovery would require bypassing protection or moving/deleting tags.
 - Evidence is insufficient to classify the failure.
 - The same blocker persists after documented recovery steps.

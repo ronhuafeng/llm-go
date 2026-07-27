@@ -1,77 +1,76 @@
 ---
 name: codexsdk-sync-upstream
-description: Sync the codexsdk module's checked-in Codex app-server protocol baseline to a selected upstream openai/codex tag, ref, or commit. Use for protocol drift detection, protected sync PR publication, baseline metadata/report refresh, protocolv2 regeneration, validation, upstream sync tagging, and finalize verification.
+description: Implement the codexsdk module's checked-in Codex app-server protocol at a selected upstream openai/codex tag, ref, or commit. Use for protocol drift detection, baseline metadata/report refresh, protocolv2 regeneration, handwritten compatibility work, and local validation.
 ---
 
 # Codex SDK Upstream Sync
 
 ## Contract
 
-The checked-in app-server schema baseline is the source of truth for generated Go. Do not make the SDK implicitly follow a local `codex` binary during normal builds.
+Implement the checked-in app-server protocol completely at the selected upstream version. The checked-in schema baseline remains the source of truth for generated Go; normal builds must not follow a local `codex` binary implicitly.
 
-This skill is context and routing, not orchestration. It gives Codex the domain contract, safety boundaries, command index, and completion language. Inside a selected command, Codex may choose the shortest safe path from current evidence.
+End with a validated local worktree. Leave GitHub publication and landed-finalization operations to the caller.
 
-Use canonical scripts for deterministic work. Use Codex judgment for classification, repair decisions, focused validation choices, and recovery routing.
+All command and source paths are relative to the `codexsdk` module root. In the monorepo checkout, enter `codexsdk/` before running them.
 
-All command and source paths in this skill are relative to the `codexsdk`
-module root. In the monorepo checkout, enter `codexsdk/` before running them.
+## Completion
 
-## Completion Layers
+Report `protocol implementation complete` only when:
 
-Report the highest completed layer precisely:
+- baseline metadata and schemas identify the selected upstream ref, kind, and commit;
+- generated Go and any necessary handwritten compatibility implementation match that baseline;
+- focused checks and `scripts/codexsdk_validate_sync.sh` pass for the same target SHA;
+- the final tracked and untracked change manifest is captured and contains only reviewed `codexsdk/` implementation files;
+- the worktree changes remain unstaged and uncommitted.
 
-- `local sync complete`: files validate locally and any requested local sync commit is complete, but nothing was pushed
-- `sync PR published`: the sync commit was pushed to a PR branch, but protected merge, tag handling, and drift verification are still pending
-- `landed sync finalized`: the landed commit was verified, tags were handled when applicable, and drift verification passed when requested
+For a read-only comparison, report its target provenance and drift result without claiming implementation completion.
 
-Never call a sync finalized at PR publication time.
+## Sync Protocol
 
-## Automation Phases
+When `GITHUB_ACTIONS=true`, use only this protocol. Do not load `references/github-operations.md`.
 
-- Detect resolves the upstream target, runs policy, generates drift evidence, and writes PR-ready drift analysis artifacts.
-- Fix runs in the scheduled/manual sync workflow for an allowed forward target when the run is not `force_compare` verification. Clean drift uses `metadata-sync` to advance provenance without a Codex repair pass; `review-required` drift uses `repair-sync` to apply the candidate and run `repair-applied-candidate`. Both paths validate, commit the bounded local sync, and publish a protected PR. The PR body records the sync mode, drift analysis, fix description, and compact sync metadata.
-- Finalize runs only after the PR landed. The PR-closed trigger is the fast path after a sync PR merges; schedule and manual dispatch are required recovery paths. It verifies the landed commit, creates sync tags when applicable, and dispatches drift verification when requested.
+Read the workflow-resolved `CODEXSDK_TARGET_REF`, `CODEXSDK_TARGET_KIND`, `CODEXSDK_TARGET_SHA`, `CODEXSDK_TARGET_EXPLICIT`, plus `CODEXSDK_ALLOW_DOWNGRADE`, `CODEXSDK_FORCE_COMPARE`, and `CODEXSDK_UPSTREAM_REPO`. First confirm that the automation worktree is clean, then route as follows:
 
-Sync PR metadata records the upstream target, drift fingerprint, sync commit, and base branch needed by finalize. It must not select workflow code refs, landing refs, or finalize refs outside the repository default branch.
+1. Verify that the resolved target fields are complete and use them unchanged throughout the attempt.
+2. Use `detect-drift` to apply target policy and generate candidate evidence.
+3. On policy `block`, stop with the policy reason.
+4. On `skip` without `force_compare`, stop without changing implementation files.
+5. With `force_compare`, finish read-only drift generation and stop. Clean drift passes comparison; remaining drift fails comparison. Never apply or repair in this branch.
+6. On `allow` without `force_compare`, use `apply-candidate`, review and complete the implementation through `repair-applied-candidate`, then use `validate-local`.
+7. If candidate apply fails on a supported recovery case, use `recover-failure` for one evidence-backed local retry.
+8. Capture the final change manifest with `scripts/codexsdk_sync_changes.py capture --repo-root "$GITHUB_WORKSPACE" --phase final --output .cache/codexsdk-sync/final-changes.json`, verify the changes remain unstaged, and stop at `protocol implementation complete`.
+
+Every applied candidate receives agent review. Clean drift requires an explicit no-repair confirmation; review-required drift receives the smallest evidence-backed compatibility implementation.
 
 ## Safety Boundaries
 
-- Do not push directly to protected `main`.
-- Do not introduce a PAT, GitHub App token, bot-token bypass, or synthetic required status.
-- Do not delete or move upstream sync tags.
-- Do not weaken branch protection or merge around failed required checks.
-- Keep `action_required` documented as an expected maintainer rerun gate for sync PRs created by `GITHUB_TOKEN`.
-- Keep checked-in baseline metadata and checked-in reports free of local absolute paths, `.cache` output paths, private repo paths, account data, and raw smoke-test transcripts.
+- Modify only the local protocol implementation and its focused tests or documentation when justified by reviewed drift.
 - Preserve unrelated user changes.
-- Keep merge decisions on the protected PR path. Branch protection, the real required `PR verification` check, and an authorized maintainer decide whether a sync PR lands; repository auto-merge may be enabled separately but is not assumed.
-- Keep workflow control-plane refs and remote landing/finalize refs constrained to the repository default branch unless a future explicit allowlist is added.
+- Keep checked-in metadata and reports free of local absolute paths, cache paths, private repo paths, account data, and raw transcripts.
+- Leave all changes unstaged and uncommitted.
+- Do not configure GitHub authentication or Git identity.
+- Do not stage, commit, push, create or edit PRs, merge, tag, dispatch workflows, or otherwise mutate remote state.
 
 ## Command Index
 
-Commands live under [commands/](commands/). A caller may invoke any single command directly when its state and inputs match. The command-specific boundary wins over any example or prior conversation.
+Commands live under [commands/](commands/). Load only the command selected by current local state.
 
-- [resolve-target](commands/resolve-target.md): resolve an upstream target; caller or target policy owns baseline provenance.
+- [resolve-target](commands/resolve-target.md): resolve an upstream target.
 - [detect-drift](commands/detect-drift.md): run target policy and create local drift artifacts.
 - [apply-candidate](commands/apply-candidate.md): mechanically apply reviewed drift artifacts.
-- [repair-applied-candidate](commands/repair-applied-candidate.md): repair or confirm an already-applied candidate.
-- [validate-local](commands/validate-local.md): validate local sync state.
-- [commit-local-sync](commands/commit-local-sync.md): commit a validated local sync change without publishing.
-- [publish-protected-pr](commands/publish-protected-pr.md): publish through the protected PR path when explicitly owned by the caller; stop at PR publication.
-- [finalize-landed-sync](commands/finalize-landed-sync.md): verify, tag, and drift-check a landed sync when explicitly owned by the caller.
-- [recover-failure](commands/recover-failure.md): recover failed checks, open sync PRs, finalize failures, drift verification failures, or tag conflicts.
+- [repair-applied-candidate](commands/repair-applied-candidate.md): complete or confirm an already-applied implementation.
+- [validate-local](commands/validate-local.md): validate the local protocol implementation.
+- [recover-failure](commands/recover-failure.md): recover one candidate apply or local validation failure.
 
-References are optional context, not required linear playbooks:
+References are loaded only for their named branch:
 
-- [references/automation.md](references/automation.md): current remote workflow phases, invariants, and completion layers.
-- [references/local-sync.md](references/local-sync.md): local sync context and decision rules.
-- [references/recovery.md](references/recovery.md): recovery recipes for known remote failure states.
+- [references/local-sync.md](references/local-sync.md): local synchronization context and implementation decision rules.
+- [references/github-operations.md](references/github-operations.md): user-requested GitHub operations outside GitHub Actions; never load it for the Action protocol.
 
 ## Input Policy
 
-Collect only the inputs needed by the selected command. Do not chase upstream repo paths, generator mode, output workdirs, or target provenance in commands that already receive authoritative artifacts.
-
-If a command needs an upstream target and it cannot be inferred from the request, latest stable tag, or local context, ask before changing files.
+Collect only inputs required by the selected local command. If a target cannot be inferred from the request, latest stable tag, or Action context, ask before changing files.
 
 ## After Run
 
-If execution reveals a concrete improvement to this skill, a helper script, or an environment assumption, mention it briefly and ask whether to update the skill. Do not modify the skill during the original command unless the user explicitly asks.
+Report target provenance, files changed, validation commands and results, blockers, and the highest local completion state. Do not perform caller-owned publication work.

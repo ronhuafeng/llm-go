@@ -1,7 +1,7 @@
 # Command: validate-local
 
 State:
-- Local checked-in sync surface needs validation before commit, publish, or final report.
+- Local checked-in sync surface needs validation before the final implementation report.
 
 Inputs:
 - Candidate schema directory when available.

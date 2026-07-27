@@ -16,19 +16,17 @@ Boundaries:
 - Run policy before drift generation.
 - May write policy output and local drift artifacts.
 - May let tracking fetch the selected target narrowly after policy allows.
-- May dispatch follow-up workflow state only when the caller explicitly owns that side effect.
-- Must not apply a candidate, mutate checked-in sync files, commit, push, tag, create PRs, or publish remote state unless the caller explicitly owns those side effects.
-- Must not rely on a `GITHUB_TOKEN` remote event as the control plane for fixes.
-- When dispatching a follow-up workflow, use the trusted default-branch workflow ref rather than untrusted external metadata.
+- Must not apply a candidate or mutate checked-in sync files.
+- Must not configure authentication, stage, commit, push, tag, create PRs, dispatch workflows, or publish remote state.
 
 Checks:
 - Policy JSON parses and has decision plus reason.
 - On `allow`, compact reports include `SUMMARY.md`, `drift_summary.json`, and `matrix_update_skeleton.json`.
-- Artifact evidence records upstream ref, upstream SHA, drift fingerprint, and run URL when caller-owned automation updates remote state.
+- Artifact evidence records upstream ref, upstream SHA, and drift fingerprint.
 - Checked-in baseline files remain unchanged.
 
 Output:
-- Policy decision, reason, drift status, drift fingerprint, target provenance, artifact directory, run URL, and any caller-owned dispatch action.
+- Policy decision, reason, drift status, drift fingerprint, target provenance, and artifact directory.
 
 Stop if:
 - Policy returns `block`; stop drift generation, and fail a caller-owned `force_compare` verification.
