@@ -23,7 +23,7 @@ func (c *Client) handleExactServerRequest(id any, request protocolv2.ServerReque
 
 func (c *Client) respondToExactServerRequest(ctx context.Context, id any, request protocolv2.ServerRequest) {
 	if c.options.ServerRequestHandler == nil {
-		response, ok := exactFailClosedServerRequestResponse(request)
+		response, ok := exactFailClosedServerRequestResponse(request, "no server request handler is configured")
 		if !ok {
 			failure := &ExactServerRequestError{Kind: request.Kind()}
 			c.failExactServerRequest(id, -32000, failure)
@@ -72,7 +72,7 @@ func (c *Client) failExactServerRequest(id any, code int, failure error) {
 }
 
 func (c *Client) rejectExactServerRequestAfterAdmissionClosed(id any, request protocolv2.ServerRequest) {
-	if response, ok := exactFailClosedServerRequestResponse(request); ok {
+	if response, ok := exactFailClosedServerRequestResponse(request, "callback admission is closed"); ok {
 		_ = c.writeExactServerRequestResponse(id, request, response)
 		return
 	}
@@ -98,7 +98,7 @@ func (c *Client) writeExactServerRequestResponse(id any, request protocolv2.Serv
 	return c.write(map[string]any{"id": id, "result": result})
 }
 
-func exactFailClosedServerRequestResponse(request protocolv2.ServerRequest) (ServerRequestResponse, bool) {
+func exactFailClosedServerRequestResponse(request protocolv2.ServerRequest, rejection string) (ServerRequestResponse, bool) {
 	switch request.Kind() {
 	case protocolv2.ServerRequestKindItemCommandExecutionRequestApproval:
 		return CommandExecutionApprovalResponse(protocolv2.CommandExecutionRequestApprovalResponse{Decision: protocolv2.NewCommandExecutionApprovalDecisionDecline()}), true
@@ -113,9 +113,9 @@ func exactFailClosedServerRequestResponse(request protocolv2.ServerRequest) (Ser
 	case protocolv2.ServerRequestKindCurrentTimeRead:
 		return CurrentTimeResponse(protocolv2.CurrentTimeReadResponse{CurrentTimeAt: time.Now().UnixMilli()}), true
 	case protocolv2.ServerRequestKindApplyPatchApproval:
-		return ApplyPatchApprovalResponse(protocolv2.ApplyPatchApprovalResponse{Decision: protocolv2.NewReviewDecisionDenied()}), true
+		return ApplyPatchApprovalResponse(protocolv2.ApplyPatchApprovalResponse{Decision: protocolv2.NewReviewDecisionDenied(protocolv2.ReviewDecisionDenied{Rejection: rejection})}), true
 	case protocolv2.ServerRequestKindExecCommandApproval:
-		return ExecCommandApprovalResponse(protocolv2.ExecCommandApprovalResponse{Decision: protocolv2.NewReviewDecisionDenied()}), true
+		return ExecCommandApprovalResponse(protocolv2.ExecCommandApprovalResponse{Decision: protocolv2.NewReviewDecisionDenied(protocolv2.ReviewDecisionDenied{Rejection: rejection})}), true
 	case protocolv2.ServerRequestKindItemToolCall,
 		protocolv2.ServerRequestKindAccountChatGPTAuthTokensRefresh,
 		protocolv2.ServerRequestKindAttestationGenerate:

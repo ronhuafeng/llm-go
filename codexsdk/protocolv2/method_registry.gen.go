@@ -55,8 +55,10 @@ const (
 	MethodAccountUpdated                          = "account/updated"
 	MethodAccountUsageRead                        = "account/usage/read"
 	MethodAccountWorkspaceMessagesRead            = "account/workspaceMessages/read"
+	MethodAppInstalled                            = "app/installed"
 	MethodAppList                                 = "app/list"
 	MethodAppListUpdated                          = "app/list/updated"
+	MethodAppRead                                 = "app/read"
 	MethodApplyPatchApproval                      = "applyPatchApproval"
 	MethodAttestationGenerate                     = "attestation/generate"
 	MethodCollaborationModeList                   = "collaborationMode/list"
@@ -75,6 +77,7 @@ const (
 	MethodDeprecationNotice                       = "deprecationNotice"
 	MethodEnvironmentAdd                          = "environment/add"
 	MethodEnvironmentInfo                         = "environment/info"
+	MethodEnvironmentStatus                       = "environment/status"
 	MethodError                                   = "error"
 	MethodExecCommandApproval                     = "execCommandApproval"
 	MethodExperimentalFeatureEnablementSet        = "experimentalFeature/enablement/set"
@@ -187,6 +190,8 @@ const (
 	MethodThreadDecrementElicitation              = "thread/decrement_elicitation"
 	MethodThreadDelete                            = "thread/delete"
 	MethodThreadDeleted                           = "thread/deleted"
+	MethodThreadEnvironmentConnected              = "thread/environment/connected"
+	MethodThreadEnvironmentDisconnected           = "thread/environment/disconnected"
 	MethodThreadFork                              = "thread/fork"
 	MethodThreadGoalClear                         = "thread/goal/clear"
 	MethodThreadGoalCleared                       = "thread/goal/cleared"
@@ -220,6 +225,7 @@ const (
 	MethodThreadResume                            = "thread/resume"
 	MethodThreadRollback                          = "thread/rollback"
 	MethodThreadSearch                            = "thread/search"
+	MethodThreadSearchOccurrences                 = "thread/searchOccurrences"
 	MethodThreadSettingsUpdate                    = "thread/settings/update"
 	MethodThreadSettingsUpdated                   = "thread/settings/updated"
 	MethodThreadShellCommand                      = "thread/shellCommand"
@@ -390,6 +396,17 @@ var methodRegistry = map[string]MethodInfo{
 		FacadeTarget:          "Accounts().WorkspaceMessagesRead",
 		Stability:             MethodStabilityStable,
 	},
+	MethodAppInstalled: {
+		Method:                MethodAppInstalled,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "app",
+		ParamsOrPayloadSchema: "AppsInstalledParams",
+		ResponseSchema:        "v2/AppsInstalledResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Apps().Installed",
+		Stability:             MethodStabilityStable,
+	},
 	MethodAppList: {
 		Method:                MethodAppList,
 		Direction:             MethodDirectionClientToServer,
@@ -410,6 +427,17 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchema:        "",
 		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
 		FacadeTarget:          "ServerNotifications().AppListUpdated",
+		Stability:             MethodStabilityStable,
+	},
+	MethodAppRead: {
+		Method:                MethodAppRead,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "app",
+		ParamsOrPayloadSchema: "AppsReadParams",
+		ResponseSchema:        "v2/AppsReadResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Apps().Read",
 		Stability:             MethodStabilityStable,
 	},
 	MethodApplyPatchApproval: {
@@ -608,6 +636,17 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchema:        "v2/EnvironmentInfoResponse.json",
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "Environments().Info",
+		Stability:             MethodStabilityExperimental,
+	},
+	MethodEnvironmentStatus: {
+		Method:                MethodEnvironmentStatus,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "environment",
+		ParamsOrPayloadSchema: "EnvironmentStatusParams",
+		ResponseSchema:        "v2/EnvironmentStatusResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Environments().Status",
 		Stability:             MethodStabilityExperimental,
 	},
 	MethodError: {
@@ -1842,6 +1881,28 @@ var methodRegistry = map[string]MethodInfo{
 		FacadeTarget:          "ServerNotifications().ThreadDeleted",
 		Stability:             MethodStabilityStable,
 	},
+	MethodThreadEnvironmentConnected: {
+		Method:                MethodThreadEnvironmentConnected,
+		Direction:             MethodDirectionServerToClient,
+		Kind:                  MethodKindNotification,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "EnvironmentConnectionNotification",
+		ResponseSchema:        "",
+		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
+		FacadeTarget:          "ServerNotifications().ThreadEnvironmentConnected",
+		Stability:             MethodStabilityStable,
+	},
+	MethodThreadEnvironmentDisconnected: {
+		Method:                MethodThreadEnvironmentDisconnected,
+		Direction:             MethodDirectionServerToClient,
+		Kind:                  MethodKindNotification,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "EnvironmentConnectionNotification",
+		ResponseSchema:        "",
+		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
+		FacadeTarget:          "ServerNotifications().ThreadEnvironmentDisconnected",
+		Stability:             MethodStabilityStable,
+	},
 	MethodThreadFork: {
 		Method:                MethodThreadFork,
 		Direction:             MethodDirectionClientToServer,
@@ -2203,6 +2264,17 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchema:        "v2/ThreadSearchResponse.json",
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "Threads().Search",
+		Stability:             MethodStabilityExperimental,
+	},
+	MethodThreadSearchOccurrences: {
+		Method:                MethodThreadSearchOccurrences,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadSearchOccurrencesParams",
+		ResponseSchema:        "v2/ThreadSearchOccurrencesResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Threads().SearchOccurrences",
 		Stability:             MethodStabilityExperimental,
 	},
 	MethodThreadSettingsUpdate: {

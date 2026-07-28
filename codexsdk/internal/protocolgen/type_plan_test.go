@@ -161,6 +161,43 @@ func TestBuildProtocolTypePlanClassifiesDynamicJSONFields(t *testing.T) {
 	}
 }
 
+func TestArrayPlannerSupportsOnlyReviewedNullableJSONValueArrays(t *testing.T) {
+	trueSchema := true
+	schema := &Schema{
+		Items: &Schema{Bool: &trueSchema},
+		Type:  SchemaTypeSet{Values: []string{"array", "null"}},
+	}
+	reviewed := CoverageField{
+		Field:     "results",
+		Path:      "v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/11/properties/results",
+		Required:  false,
+		Schema:    "v2/TurnStartResponse.json",
+		Stability: "stable",
+		Status:    "supported-generated",
+		Type:      "WebSearchThreadItem",
+	}
+
+	field, err := planField(reviewed, schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if field.Kind != FieldPlanArrayJSONValue {
+		t.Fatalf("reviewed nullable JSON array kind = %s, want %s", field.Kind, FieldPlanArrayJSONValue)
+	}
+	if field.GoType != "*protocolv2.Nullable[[]protocolv2.JSONValue]" {
+		t.Fatalf("reviewed nullable JSON array GoType = %q", field.GoType)
+	}
+	if !field.WireAllowsNull || !field.WireOmitAllowed {
+		t.Fatal("reviewed nullable JSON array must preserve omit/null/value semantics")
+	}
+
+	unreviewed := reviewed
+	unreviewed.Path = "Example.json#/properties/results"
+	if _, err := planField(unreviewed, schema); err == nil || !strings.Contains(err.Error(), "unreviewed true-schema array items") {
+		t.Fatalf("unreviewed true-schema array error = %v", err)
+	}
+}
+
 func TestBuildProtocolTypePlanSupportsConstrainedIntegerScalars(t *testing.T) {
 	plan, err := BuildProtocolTypePlan(schemaRoot())
 	if err != nil {

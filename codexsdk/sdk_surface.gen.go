@@ -324,10 +324,26 @@ func (f Accounts) WorkspaceMessagesRead(ctx context.Context) (protocolv2.GetWork
 	return response, nil
 }
 
+func (f Apps) Installed(ctx context.Context, params protocolv2.AppsInstalledParams) (protocolv2.AppsInstalledResponse, error) {
+	var response protocolv2.AppsInstalledResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodAppInstalled, params, &response); err != nil {
+		return protocolv2.AppsInstalledResponse{}, err
+	}
+	return response, nil
+}
+
 func (f Apps) List(ctx context.Context, params protocolv2.AppsListParams) (protocolv2.AppsListResponse, error) {
 	var response protocolv2.AppsListResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodAppList, params, &response); err != nil {
 		return protocolv2.AppsListResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Apps) Read(ctx context.Context, params protocolv2.AppsReadParams) (protocolv2.AppsReadResponse, error) {
+	var response protocolv2.AppsReadResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodAppRead, params, &response); err != nil {
+		return protocolv2.AppsReadResponse{}, err
 	}
 	return response, nil
 }
@@ -416,6 +432,14 @@ func (f Environments) Add(ctx context.Context, params protocolv2.EnvironmentAddP
 	var response protocolv2.EnvironmentAddResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodEnvironmentAdd, params, &response); err != nil {
 		return protocolv2.EnvironmentAddResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Environments) Status(ctx context.Context, params protocolv2.EnvironmentStatusParams) (protocolv2.EnvironmentStatusResponse, error) {
+	var response protocolv2.EnvironmentStatusResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodEnvironmentStatus, params, &response); err != nil {
+		return protocolv2.EnvironmentStatusResponse{}, err
 	}
 	return response, nil
 }
@@ -1088,6 +1112,14 @@ func (f Threads) Rollback(ctx context.Context, params protocolv2.ThreadRollbackP
 	var response protocolv2.ThreadRollbackResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadRollback, params, &response); err != nil {
 		return protocolv2.ThreadRollbackResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Threads) SearchOccurrences(ctx context.Context, params protocolv2.ThreadSearchOccurrencesParams) (protocolv2.ThreadSearchOccurrencesResponse, error) {
+	var response protocolv2.ThreadSearchOccurrencesResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadSearchOccurrences, params, &response); err != nil {
+		return protocolv2.ThreadSearchOccurrencesResponse{}, err
 	}
 	return response, nil
 }

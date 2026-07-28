@@ -3,13 +3,13 @@
   "comparison_mode": "canonical-json",
   "target": {
     "source_repo": "https://github.com/openai/codex",
-    "source_ref_name": "rust-v0.144.6",
+    "source_ref_name": "rust-v0.145.0",
     "source_ref_kind": "stable_rust_tag",
-    "source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
-    "codex_version": "codex-cli 0.144.6",
+    "source_commit": "25af12f7e61572b0bc18ddb1008be543b91519b0",
+    "codex_version": "codex-cli 0.145.0",
     "generator": "cargo",
     "generator_detail": "codex app-server generate-json-schema --experimental --out internal/protocolschema/appserver/v2",
-    "schema_bundle_sha256": "1725b584aa2f417560ba7eef0679701800a716b6f840fd7dafe7b4812246d8d6",
+    "schema_bundle_sha256": "422d20829cc2e559b70147bcc847f516052289027a31c139fdf92a75c48f983c",
     "canonical_json_note": "Schema comparisons use canonical JSON; object member ordering is irrelevant."
   },
   "file_diff": {
@@ -39,8 +39,915 @@
   "generated_compatibility": {
     "policy": "go_source_compatibility_with_classification_metadata",
     "compatibility_impact": "additive_or_metadata_only",
-    "release_impact": "metadata-only",
-    "added": [],
+    "release_impact": "additive",
+    "added": [
+      {
+        "kind": "field",
+        "name": "AppToolSummary.Description",
+        "classification": "stable",
+        "signature": "string `json:\"description\"`"
+      },
+      {
+        "kind": "field",
+        "name": "AppToolSummary.Name",
+        "classification": "stable",
+        "signature": "string `json:\"name\"`"
+      },
+      {
+        "kind": "field",
+        "name": "AppToolSummary.Title",
+        "classification": "stable",
+        "signature": "*Nullable[string] `json:\"title,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "AppsInstalledResponse.Apps",
+        "classification": "stable",
+        "signature": "[]InstalledApp `json:\"apps\"`"
+      },
+      {
+        "kind": "field",
+        "name": "AppsReadResponse.Apps",
+        "classification": "stable",
+        "signature": "[]ConnectorMetadata `json:\"apps\"`"
+      },
+      {
+        "kind": "field",
+        "name": "AppsReadResponse.MissingAppIDs",
+        "classification": "stable",
+        "signature": "[]string `json:\"missingAppIds\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ConnectorMetadata.Description",
+        "classification": "stable",
+        "signature": "*Nullable[string] `json:\"description,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ConnectorMetadata.DistributionChannel",
+        "classification": "stable",
+        "signature": "*Nullable[string] `json:\"distributionChannel,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ConnectorMetadata.ID",
+        "classification": "stable",
+        "signature": "string `json:\"id\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ConnectorMetadata.IconURL",
+        "classification": "stable",
+        "signature": "*Nullable[string] `json:\"iconUrl,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ConnectorMetadata.IconURLDark",
+        "classification": "stable",
+        "signature": "*Nullable[string] `json:\"iconUrlDark,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ConnectorMetadata.InstallURL",
+        "classification": "stable",
+        "signature": "*Nullable[string] `json:\"installUrl,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ConnectorMetadata.Name",
+        "classification": "stable",
+        "signature": "string `json:\"name\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ConnectorMetadata.PluginDisplayNames",
+        "classification": "stable",
+        "signature": "*[]string `json:\"pluginDisplayNames,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ConnectorMetadata.ToolSummaries",
+        "classification": "stable",
+        "signature": "*Nullable[[]AppToolSummary] `json:\"toolSummaries,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "EnvironmentStatusResponse.Error",
+        "classification": "experimental",
+        "signature": "*Nullable[string] `json:\"error,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "EnvironmentStatusResponse.Status",
+        "classification": "experimental",
+        "signature": "EnvironmentStatusKind `json:\"status\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ExternalAgentConfigImportHistoriesReadResponse.Connectors",
+        "classification": "stable",
+        "signature": "[]ExternalAgentImportedConnectorCandidate `json:\"connectors\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ExternalAgentConfigImportHistoriesReadResponse.Data",
+        "classification": "stable",
+        "signature": "[]ExternalAgentConfigImportHistory `json:\"data\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ExternalAgentImportedConnectorCandidate.Name",
+        "classification": "stable",
+        "signature": "string `json:\"name\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ExternalAgentImportedConnectorCandidate.SessionCount",
+        "classification": "stable",
+        "signature": "uint32 `json:\"sessionCount\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ExternalAgentImportedConnectorCandidate.Source",
+        "classification": "stable",
+        "signature": "ExternalAgentImportedConnectorSource `json:\"source\"`"
+      },
+      {
+        "kind": "field",
+        "name": "InstalledApp.Callable",
+        "classification": "stable",
+        "signature": "bool `json:\"callable\"`"
+      },
+      {
+        "kind": "field",
+        "name": "InstalledApp.Enabled",
+        "classification": "stable",
+        "signature": "bool `json:\"enabled\"`"
+      },
+      {
+        "kind": "field",
+        "name": "InstalledApp.ID",
+        "classification": "stable",
+        "signature": "string `json:\"id\"`"
+      },
+      {
+        "kind": "field",
+        "name": "InstalledApp.RuntimeName",
+        "classification": "stable",
+        "signature": "*Nullable[string] `json:\"runtimeName,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "PluginDetail.AppTemplates",
+        "classification": "stable",
+        "signature": "[]AppTemplateSummary `json:\"appTemplates\"`"
+      },
+      {
+        "kind": "field",
+        "name": "PluginDetail.Apps",
+        "classification": "stable",
+        "signature": "[]AppSummary `json:\"apps\"`"
+      },
+      {
+        "kind": "field",
+        "name": "PluginDetail.Description",
+        "classification": "stable",
+        "signature": "*Nullable[string] `json:\"description,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "PluginDetail.Hooks",
+        "classification": "stable",
+        "signature": "[]PluginHookSummary `json:\"hooks\"`"
+      },
+      {
+        "kind": "field",
+        "name": "PluginDetail.MCPServers",
+        "classification": "stable",
+        "signature": "[]string `json:\"mcpServers\"`"
+      },
+      {
+        "kind": "field",
+        "name": "PluginDetail.MarketplaceName",
+        "classification": "stable",
+        "signature": "string `json:\"marketplaceName\"`"
+      },
+      {
+        "kind": "field",
+        "name": "PluginDetail.MarketplacePath",
+        "classification": "stable",
+        "signature": "*Nullable[string] `json:\"marketplacePath,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "PluginDetail.ScheduledTasks",
+        "classification": "stable",
+        "signature": "*Nullable[[]ScheduledTaskSummary] `json:\"scheduledTasks,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "PluginDetail.ShareURL",
+        "classification": "stable",
+        "signature": "*Nullable[string] `json:\"shareUrl,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "PluginDetail.Skills",
+        "classification": "stable",
+        "signature": "[]SkillSummary `json:\"skills\"`"
+      },
+      {
+        "kind": "field",
+        "name": "PluginDetail.Summary",
+        "classification": "stable",
+        "signature": "PluginSummary `json:\"summary\"`"
+      },
+      {
+        "kind": "field",
+        "name": "PluginReadResponse.Plugin",
+        "classification": "stable",
+        "signature": "PluginDetail `json:\"plugin\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ScheduledTaskScheduleDaily.Time",
+        "classification": "stable",
+        "signature": "string `json:\"time\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ScheduledTaskScheduleHourly.Days",
+        "classification": "stable",
+        "signature": "*Nullable[[]ScheduledTaskWeekday] `json:\"days,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ScheduledTaskScheduleHourly.IntervalHours",
+        "classification": "stable",
+        "signature": "uint32 `json:\"intervalHours\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ScheduledTaskScheduleWeekdays.Time",
+        "classification": "stable",
+        "signature": "string `json:\"time\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ScheduledTaskScheduleWeekly.Days",
+        "classification": "stable",
+        "signature": "[]ScheduledTaskWeekday `json:\"days\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ScheduledTaskScheduleWeekly.Time",
+        "classification": "stable",
+        "signature": "string `json:\"time\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ScheduledTaskSummary.Key",
+        "classification": "stable",
+        "signature": "string `json:\"key\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ScheduledTaskSummary.Name",
+        "classification": "stable",
+        "signature": "string `json:\"name\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ScheduledTaskSummary.Prompt",
+        "classification": "stable",
+        "signature": "string `json:\"prompt\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ScheduledTaskSummary.Schedule",
+        "classification": "stable",
+        "signature": "ScheduledTaskSchedule `json:\"schedule\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadItemEntry.Item",
+        "classification": "experimental",
+        "signature": "ThreadItem `json:\"item\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadItemEntry.TurnID",
+        "classification": "experimental",
+        "signature": "string `json:\"turnId\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadItemsListResponse.BackwardsCursor",
+        "classification": "experimental",
+        "signature": "*Nullable[string] `json:\"backwardsCursor,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadItemsListResponse.Data",
+        "classification": "experimental",
+        "signature": "[]ThreadItemEntry `json:\"data\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadItemsListResponse.NextCursor",
+        "classification": "experimental",
+        "signature": "*Nullable[string] `json:\"nextCursor,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadRealtimeInitialItem.Role",
+        "classification": "experimental",
+        "signature": "ConversationTextRole `json:\"role\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadRealtimeInitialItem.Text",
+        "classification": "experimental",
+        "signature": "string `json:\"text\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadRealtimeStartParams.ClientManagedHandoffs",
+        "classification": "experimental",
+        "signature": "*Nullable[bool] `json:\"clientManagedHandoffs,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadRealtimeStartParams.CodexResponseHandoffMode",
+        "classification": "experimental",
+        "signature": "*Nullable[CodexResponseHandoffMode] `json:\"codexResponseHandoffMode,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadRealtimeStartParams.CodexResponseItemPrefix",
+        "classification": "experimental",
+        "signature": "*Nullable[string] `json:\"codexResponseItemPrefix,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadRealtimeStartParams.CodexResponsesAsItems",
+        "classification": "experimental",
+        "signature": "*Nullable[bool] `json:\"codexResponsesAsItems,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadRealtimeStartParams.FlushTranscriptTailOnSessionEnd",
+        "classification": "experimental",
+        "signature": "*Nullable[bool] `json:\"flushTranscriptTailOnSessionEnd,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadRealtimeStartParams.IncludeStartupContext",
+        "classification": "experimental",
+        "signature": "*Nullable[bool] `json:\"includeStartupContext,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadRealtimeStartParams.InitialItems",
+        "classification": "experimental",
+        "signature": "*Nullable[[]ThreadRealtimeInitialItem] `json:\"initialItems,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadRealtimeStartParams.Model",
+        "classification": "experimental",
+        "signature": "*Nullable[string] `json:\"model,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadRealtimeStartParams.OutputModality",
+        "classification": "experimental",
+        "signature": "RealtimeOutputModality `json:\"outputModality\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadRealtimeStartParams.Prompt",
+        "classification": "experimental",
+        "signature": "*Nullable[string] `json:\"prompt,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadRealtimeStartParams.RealtimeSessionID",
+        "classification": "experimental",
+        "signature": "*Nullable[string] `json:\"realtimeSessionId,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadRealtimeStartParams.ThreadID",
+        "classification": "experimental",
+        "signature": "string `json:\"threadId\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadRealtimeStartParams.Transport",
+        "classification": "experimental",
+        "signature": "*Nullable[ThreadRealtimeStartTransport] `json:\"transport,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadRealtimeStartParams.Version",
+        "classification": "experimental",
+        "signature": "*Nullable[RealtimeConversationVersion] `json:\"version,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadRealtimeStartParams.Voice",
+        "classification": "experimental",
+        "signature": "*Nullable[RealtimeVoice] `json:\"voice,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadSearchOccurrence.ItemID",
+        "classification": "experimental",
+        "signature": "string `json:\"itemId\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadSearchOccurrence.Snippet",
+        "classification": "experimental",
+        "signature": "string `json:\"snippet\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadSearchOccurrence.SnippetMatchRange",
+        "classification": "experimental",
+        "signature": "ThreadSearchTextRange `json:\"snippetMatchRange\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadSearchOccurrence.TurnCursor",
+        "classification": "experimental",
+        "signature": "string `json:\"turnCursor\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadSearchOccurrence.TurnID",
+        "classification": "experimental",
+        "signature": "string `json:\"turnId\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadSearchOccurrencesResponse.Data",
+        "classification": "experimental",
+        "signature": "[]ThreadSearchOccurrence `json:\"data\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadSearchOccurrencesResponse.NextCursor",
+        "classification": "experimental",
+        "signature": "*Nullable[string] `json:\"nextCursor,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadSearchTextRange.End",
+        "classification": "experimental",
+        "signature": "uint32 `json:\"end\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadSearchTextRange.Start",
+        "classification": "experimental",
+        "signature": "uint32 `json:\"start\"`"
+      },
+      {
+        "kind": "func",
+        "name": "NewScheduledTaskScheduleDaily",
+        "classification": "stable",
+        "signature": "func(payload ScheduledTaskScheduleDaily) ScheduledTaskSchedule"
+      },
+      {
+        "kind": "func",
+        "name": "NewScheduledTaskScheduleHourly",
+        "classification": "stable",
+        "signature": "func(payload ScheduledTaskScheduleHourly) ScheduledTaskSchedule"
+      },
+      {
+        "kind": "func",
+        "name": "NewScheduledTaskScheduleWeekdays",
+        "classification": "stable",
+        "signature": "func(payload ScheduledTaskScheduleWeekdays) ScheduledTaskSchedule"
+      },
+      {
+        "kind": "func",
+        "name": "NewScheduledTaskScheduleWeekly",
+        "classification": "stable",
+        "signature": "func(payload ScheduledTaskScheduleWeekly) ScheduledTaskSchedule"
+      },
+      {
+        "kind": "method",
+        "name": "AppToolSummary.UnmarshalJSON",
+        "classification": "stable",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "AppsInstalledResponse.MarshalJSON",
+        "classification": "stable",
+        "signature": "func() ([]byte, error)"
+      },
+      {
+        "kind": "method",
+        "name": "AppsInstalledResponse.UnmarshalJSON",
+        "classification": "stable",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "AppsReadResponse.MarshalJSON",
+        "classification": "stable",
+        "signature": "func() ([]byte, error)"
+      },
+      {
+        "kind": "method",
+        "name": "AppsReadResponse.UnmarshalJSON",
+        "classification": "stable",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "ConnectorMetadata.UnmarshalJSON",
+        "classification": "stable",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "EnvironmentStatusKind.IsValid",
+        "classification": "experimental",
+        "signature": "func() bool"
+      },
+      {
+        "kind": "method",
+        "name": "EnvironmentStatusKind.MarshalJSON",
+        "classification": "experimental",
+        "signature": "func() ([]byte, error)"
+      },
+      {
+        "kind": "method",
+        "name": "EnvironmentStatusKind.UnmarshalJSON",
+        "classification": "experimental",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "EnvironmentStatusResponse.UnmarshalJSON",
+        "classification": "experimental",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "ExternalAgentConfigImportHistoriesReadResponse.MarshalJSON",
+        "classification": "stable",
+        "signature": "func() ([]byte, error)"
+      },
+      {
+        "kind": "method",
+        "name": "ExternalAgentConfigImportHistoriesReadResponse.UnmarshalJSON",
+        "classification": "stable",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "ExternalAgentImportedConnectorCandidate.UnmarshalJSON",
+        "classification": "stable",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "InstalledApp.UnmarshalJSON",
+        "classification": "stable",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "PluginDetail.MarshalJSON",
+        "classification": "stable",
+        "signature": "func() ([]byte, error)"
+      },
+      {
+        "kind": "method",
+        "name": "PluginDetail.UnmarshalJSON",
+        "classification": "stable",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "PluginReadResponse.UnmarshalJSON",
+        "classification": "stable",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "ScheduledTaskSchedule.AsDaily",
+        "classification": "stable",
+        "signature": "func() (ScheduledTaskScheduleDaily, bool)"
+      },
+      {
+        "kind": "method",
+        "name": "ScheduledTaskSchedule.AsHourly",
+        "classification": "stable",
+        "signature": "func() (ScheduledTaskScheduleHourly, bool)"
+      },
+      {
+        "kind": "method",
+        "name": "ScheduledTaskSchedule.AsWeekdays",
+        "classification": "stable",
+        "signature": "func() (ScheduledTaskScheduleWeekdays, bool)"
+      },
+      {
+        "kind": "method",
+        "name": "ScheduledTaskSchedule.AsWeekly",
+        "classification": "stable",
+        "signature": "func() (ScheduledTaskScheduleWeekly, bool)"
+      },
+      {
+        "kind": "method",
+        "name": "ScheduledTaskSchedule.IsValid",
+        "classification": "stable",
+        "signature": "func() bool"
+      },
+      {
+        "kind": "method",
+        "name": "ScheduledTaskSchedule.Kind",
+        "classification": "stable",
+        "signature": "func() ScheduledTaskScheduleKind"
+      },
+      {
+        "kind": "method",
+        "name": "ScheduledTaskSchedule.MarshalJSON",
+        "classification": "stable",
+        "signature": "func() ([]byte, error)"
+      },
+      {
+        "kind": "method",
+        "name": "ScheduledTaskSchedule.UnmarshalJSON",
+        "classification": "stable",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "ScheduledTaskSummary.UnmarshalJSON",
+        "classification": "stable",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "ThreadItemEntry.UnmarshalJSON",
+        "classification": "experimental",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "ThreadItemsListResponse.MarshalJSON",
+        "classification": "experimental",
+        "signature": "func() ([]byte, error)"
+      },
+      {
+        "kind": "method",
+        "name": "ThreadItemsListResponse.UnmarshalJSON",
+        "classification": "experimental",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "ThreadRealtimeInitialItem.UnmarshalJSON",
+        "classification": "experimental",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "ThreadRealtimeStartParams.UnmarshalJSON",
+        "classification": "experimental",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "ThreadSearchOccurrence.UnmarshalJSON",
+        "classification": "experimental",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "ThreadSearchOccurrencesResponse.MarshalJSON",
+        "classification": "experimental",
+        "signature": "func() ([]byte, error)"
+      },
+      {
+        "kind": "method",
+        "name": "ThreadSearchOccurrencesResponse.UnmarshalJSON",
+        "classification": "experimental",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "ThreadSearchTextRange.UnmarshalJSON",
+        "classification": "experimental",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "type",
+        "name": "AppToolSummary",
+        "classification": "stable",
+        "signature": "struct {\n\tDescription string            `json:\"description\"`\n\tName        string            `json:\"name\"`\n\tTitle       *Nullable[string] `json:\"title,omitempty\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "AppsInstalledResponse",
+        "classification": "stable",
+        "signature": "struct {\n\tApps []InstalledApp `json:\"apps\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "AppsReadResponse",
+        "classification": "stable",
+        "signature": "struct {\n\tApps          []ConnectorMetadata `json:\"apps\"`\n\tMissingAppIDs []string            `json:\"missingAppIds\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ConnectorMetadata",
+        "classification": "stable",
+        "signature": "struct {\n\tDescription         *Nullable[string]           `json:\"description,omitempty\"`\n\tDistributionChannel *Nullable[string]           `json:\"distributionChannel,omitempty\"`\n\tIconURL             *Nullable[string]           `json:\"iconUrl,omitempty\"`\n\tIconURLDark         *Nullable[string]           `json:\"iconUrlDark,omitempty\"`\n\tID                  string                      `json:\"id\"`\n\tInstallURL          *Nullable[string]           `json:\"installUrl,omitempty\"`\n\tName                string                      `json:\"name\"`\n\tPluginDisplayNames  *[]string                   `json:\"pluginDisplayNames,omitempty\"`\n\tToolSummaries       *Nullable[[]AppToolSummary] `json:\"toolSummaries,omitempty\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "EnvironmentStatusKind",
+        "classification": "experimental",
+        "signature": "string"
+      },
+      {
+        "kind": "type",
+        "name": "EnvironmentStatusResponse",
+        "classification": "experimental",
+        "signature": "struct {\n\tError  *Nullable[string]     `json:\"error,omitempty\"`\n\tStatus EnvironmentStatusKind `json:\"status\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ExternalAgentConfigImportHistoriesReadResponse",
+        "classification": "stable",
+        "signature": "struct {\n\tConnectors []ExternalAgentImportedConnectorCandidate `json:\"connectors\"`\n\tData       []ExternalAgentConfigImportHistory        `json:\"data\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ExternalAgentImportedConnectorCandidate",
+        "classification": "stable",
+        "signature": "struct {\n\tName         string                               `json:\"name\"`\n\tSessionCount uint32                               `json:\"sessionCount\"`\n\tSource       ExternalAgentImportedConnectorSource `json:\"source\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "InstalledApp",
+        "classification": "stable",
+        "signature": "struct {\n\tCallable    bool              `json:\"callable\"`\n\tEnabled     bool              `json:\"enabled\"`\n\tID          string            `json:\"id\"`\n\tRuntimeName *Nullable[string] `json:\"runtimeName,omitempty\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "PluginDetail",
+        "classification": "stable",
+        "signature": "struct {\n\tAppTemplates    []AppTemplateSummary              `json:\"appTemplates\"`\n\tApps            []AppSummary                      `json:\"apps\"`\n\tDescription     *Nullable[string]                 `json:\"description,omitempty\"`\n\tHooks           []PluginHookSummary               `json:\"hooks\"`\n\tMarketplaceName string                            `json:\"marketplaceName\"`\n\tMarketplacePath *Nullable[string]                 `json:\"marketplacePath,omitempty\"`\n\tMCPServers      []string                          `json:\"mcpServers\"`\n\tScheduledTasks  *Nullable[[]ScheduledTaskSummary] `json:\"scheduledTasks,omitempty\"`\n\tShareURL        *Nullable[string]                 `json:\"shareUrl,omitempty\"`\n\tSkills          []SkillSummary                    `json:\"skills\"`\n\tSummary         PluginSummary                     `json:\"summary\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "PluginReadResponse",
+        "classification": "stable",
+        "signature": "struct {\n\tPlugin PluginDetail `json:\"plugin\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ScheduledTaskSchedule",
+        "classification": "stable",
+        "signature": "struct {\n\tkind            ScheduledTaskScheduleKind\n\tvariantHourly   *ScheduledTaskScheduleHourly\n\tvariantDaily    *ScheduledTaskScheduleDaily\n\tvariantWeekdays *ScheduledTaskScheduleWeekdays\n\tvariantWeekly   *ScheduledTaskScheduleWeekly\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ScheduledTaskScheduleDaily",
+        "classification": "stable",
+        "signature": "struct {\n\tTime string `json:\"time\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ScheduledTaskScheduleHourly",
+        "classification": "stable",
+        "signature": "struct {\n\tDays          *Nullable[[]ScheduledTaskWeekday] `json:\"days,omitempty\"`\n\tIntervalHours uint32                            `json:\"intervalHours\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ScheduledTaskScheduleKind",
+        "classification": "stable",
+        "signature": "string"
+      },
+      {
+        "kind": "type",
+        "name": "ScheduledTaskScheduleWeekdays",
+        "classification": "stable",
+        "signature": "struct {\n\tTime string `json:\"time\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ScheduledTaskScheduleWeekly",
+        "classification": "stable",
+        "signature": "struct {\n\tDays []ScheduledTaskWeekday `json:\"days\"`\n\tTime string                 `json:\"time\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ScheduledTaskSummary",
+        "classification": "stable",
+        "signature": "struct {\n\tKey      string                `json:\"key\"`\n\tName     string                `json:\"name\"`\n\tPrompt   string                `json:\"prompt\"`\n\tSchedule ScheduledTaskSchedule `json:\"schedule\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ThreadItemEntry",
+        "classification": "experimental",
+        "signature": "struct {\n\tItem   ThreadItem `json:\"item\"`\n\tTurnID string     `json:\"turnId\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ThreadItemsListResponse",
+        "classification": "experimental",
+        "signature": "struct {\n\tBackwardsCursor *Nullable[string] `json:\"backwardsCursor,omitempty\"`\n\tData            []ThreadItemEntry `json:\"data\"`\n\tNextCursor      *Nullable[string] `json:\"nextCursor,omitempty\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ThreadRealtimeInitialItem",
+        "classification": "experimental",
+        "signature": "struct {\n\tRole ConversationTextRole `json:\"role\"`\n\tText string               `json:\"text\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ThreadRealtimeStartParams",
+        "classification": "experimental",
+        "signature": "struct {\n\tClientManagedHandoffs           *Nullable[bool]                         `json:\"clientManagedHandoffs,omitempty\"`\n\tCodexResponseHandoffMode        *Nullable[CodexResponseHandoffMode]     `json:\"codexResponseHandoffMode,omitempty\"`\n\tCodexResponseItemPrefix         *Nullable[string]                       `json:\"codexResponseItemPrefix,omitempty\"`\n\tCodexResponsesAsItems           *Nullable[bool]                         `json:\"codexResponsesAsItems,omitempty\"`\n\tFlushTranscriptTailOnSessionEnd *Nullable[bool]                         `json:\"flushTranscriptTailOnSessionEnd,omitempty\"`\n\tIncludeStartupContext           *Nullable[bool]                         `json:\"includeStartupContext,omitempty\"`\n\tInitialItems                    *Nullable[[]ThreadRealtimeInitialItem]  `json:\"initialItems,omitempty\"`\n\tModel                           *Nullable[string]                       `json:\"model,omitempty\"`\n\tOutputModality                  RealtimeOutputModality                  `json:\"outputModality\"`\n\tPrompt                          *Nullable[string]                       `json:\"prompt,omitempty\"`\n\tRealtimeSessionID               *Nullable[string]                       `json:\"realtimeSessionId,omitempty\"`\n\tThreadID                        string                                  `json:\"threadId\"`\n\tTransport                       *Nullable[ThreadRealtimeStartTransport] `json:\"transport,omitempty\"`\n\tVersion                         *Nullable[RealtimeConversationVersion]  `json:\"version,omitempty\"`\n\tVoice                           *Nullable[RealtimeVoice]                `json:\"voice,omitempty\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ThreadSearchOccurrence",
+        "classification": "experimental",
+        "signature": "struct {\n\tItemID            string                `json:\"itemId\"`\n\tSnippet           string                `json:\"snippet\"`\n\tSnippetMatchRange ThreadSearchTextRange `json:\"snippetMatchRange\"`\n\tTurnCursor        string                `json:\"turnCursor\"`\n\tTurnID            string                `json:\"turnId\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ThreadSearchOccurrencesResponse",
+        "classification": "experimental",
+        "signature": "struct {\n\tData       []ThreadSearchOccurrence `json:\"data\"`\n\tNextCursor *Nullable[string]        `json:\"nextCursor,omitempty\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ThreadSearchTextRange",
+        "classification": "experimental",
+        "signature": "struct {\n\tEnd   uint32 `json:\"end\"`\n\tStart uint32 `json:\"start\"`\n}"
+      },
+      {
+        "kind": "value",
+        "name": "EnvironmentStatusKindDisconnected",
+        "classification": "experimental",
+        "signature": "EnvironmentStatusKind = \"disconnected\""
+      },
+      {
+        "kind": "value",
+        "name": "EnvironmentStatusKindPending",
+        "classification": "experimental",
+        "signature": "EnvironmentStatusKind = \"pending\""
+      },
+      {
+        "kind": "value",
+        "name": "EnvironmentStatusKindReady",
+        "classification": "experimental",
+        "signature": "EnvironmentStatusKind = \"ready\""
+      },
+      {
+        "kind": "value",
+        "name": "EnvironmentStatusKindUnknown",
+        "classification": "experimental",
+        "signature": "EnvironmentStatusKind = \"unknown\""
+      },
+      {
+        "kind": "value",
+        "name": "ScheduledTaskScheduleKindDaily",
+        "classification": "stable",
+        "signature": "ScheduledTaskScheduleKind = \"daily\""
+      },
+      {
+        "kind": "value",
+        "name": "ScheduledTaskScheduleKindHourly",
+        "classification": "stable",
+        "signature": "ScheduledTaskScheduleKind = \"hourly\""
+      },
+      {
+        "kind": "value",
+        "name": "ScheduledTaskScheduleKindWeekdays",
+        "classification": "stable",
+        "signature": "ScheduledTaskScheduleKind = \"weekdays\""
+      },
+      {
+        "kind": "value",
+        "name": "ScheduledTaskScheduleKindWeekly",
+        "classification": "stable",
+        "signature": "ScheduledTaskScheduleKind = \"weekly\""
+      }
+    ],
     "removed": [],
     "reclassified": [],
     "changed": [],
@@ -49,14 +956,14 @@
     "strengthened_support": [],
     "counts_by_classification": {
       "stable": {
-        "added": 0,
+        "added": 92,
         "removed": 0,
         "changed": 0,
         "reclassified_from": 0,
         "reclassified_to": 0
       },
       "experimental": {
-        "added": 0,
+        "added": 59,
         "removed": 0,
         "changed": 0,
         "reclassified_from": 0,
