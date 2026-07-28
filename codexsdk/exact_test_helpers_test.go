@@ -139,15 +139,6 @@ func waitForRecord(t *testing.T, path, kind, method string, timeout time.Duratio
 	return false
 }
 
-func contains(values []string, needle string) bool {
-	for _, value := range values {
-		if value == needle {
-			return true
-		}
-	}
-	return false
-}
-
 func TestHelperProcess(t *testing.T) {
 	if os.Getenv("CODEXSDK_FAKE_RECORD") == "" {
 		return
