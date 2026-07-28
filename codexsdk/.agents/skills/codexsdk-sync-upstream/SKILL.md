@@ -45,7 +45,7 @@ Read `.cache/codexsdk-sync/action-inputs.json`, the workflow-owned input documen
 4. On `skip` without `force_compare`, stop without changing implementation files.
 5. With `force_compare`, finish read-only drift generation and stop. Clean drift passes comparison; remaining drift fails comparison. Never apply or repair in this branch.
 6. On `allow` without `force_compare`, use `apply-candidate`, review and complete the implementation through `repair-applied-candidate`, then use `validate-local`.
-7. If candidate apply or validation exposes a supported local compatibility defect, use `recover-failure`, then return to apply, repair, or validation as directed. Continue while each iteration fixes a newly evidenced failure and the focused check advances; stop on an external blocker or when the same failure repeats without progress.
+7. If candidate apply or validation exposes a supported local compatibility defect, use `recover-failure` and follow its progress and stop contract before returning to apply, repair, or validation as directed.
 8. Capture the final change manifest with `scripts/codexsdk_sync_changes.py capture --repo-root "$GITHUB_WORKSPACE" --phase final --output .cache/codexsdk-sync/final-changes.json`, verify the changes remain unstaged, and stop at `protocol implementation complete`.
 
 Every applied candidate receives agent review. Clean drift requires an explicit no-repair confirmation; review-required drift receives the smallest evidence-backed compatibility implementation.
