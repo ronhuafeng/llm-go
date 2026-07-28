@@ -238,8 +238,8 @@ func TestLLMKitImportBoundaries(t *testing.T) {
 		{
 			dir: "llmschema",
 			forbidden: []string{
-				"github.com/ronhuafeng/codexsdk-go",
-				"github.com/ronhuafeng/llmcaller-codex-go",
+				"github.com/ronhuafeng/llm-go/codexsdk",
+				"github.com/ronhuafeng/llm-go/llmcaller/codex",
 				"smart-contract",
 			},
 			violationLabel: "llmschema must remain provider- and business-independent",
@@ -247,8 +247,8 @@ func TestLLMKitImportBoundaries(t *testing.T) {
 		{
 			dir: "llmadapter",
 			forbidden: []string{
-				"github.com/ronhuafeng/codexsdk-go",
-				"github.com/ronhuafeng/llmcaller-codex-go",
+				"github.com/ronhuafeng/llm-go/codexsdk",
+				"github.com/ronhuafeng/llm-go/llmcaller/codex",
 				"smart-contract",
 			},
 			violationLabel: "llmadapter must not bind to a concrete provider SDK or business package",
