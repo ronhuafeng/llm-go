@@ -23,13 +23,21 @@ Report `protocol implementation complete` only when:
 - the final tracked and untracked change manifest is captured and contains only reviewed `codexsdk/` implementation files;
 - the worktree changes remain unstaged and uncommitted.
 
+Start successful Action reports with exactly one of these machine-readable first lines:
+
+- `protocol implementation complete` after an applied implementation passes full validation and final-manifest capture;
+- `protocol implementation current` when policy skips because the selected target is already the checked-in baseline;
+- `protocol comparison clean` when `force_compare` completes read-only and finds no drift.
+
+Do not include any of these exact lowercase lines in an incomplete, blocked, or drift-found final response.
+
 For a read-only comparison, report its target provenance and drift result without claiming implementation completion.
 
 ## Sync Protocol
 
 When `GITHUB_ACTIONS=true`, use only this protocol. Do not load `references/github-operations.md`.
 
-Read the workflow-resolved `CODEXSDK_TARGET_REF`, `CODEXSDK_TARGET_KIND`, `CODEXSDK_TARGET_SHA`, `CODEXSDK_TARGET_EXPLICIT`, plus `CODEXSDK_ALLOW_DOWNGRADE`, `CODEXSDK_FORCE_COMPARE`, and `CODEXSDK_UPSTREAM_REPO`. First confirm that the automation worktree is clean, then route as follows:
+Read `.cache/codexsdk-sync/action-inputs.json`, the workflow-owned input document containing `target_ref`, `target_kind`, `target_sha`, `target_explicit`, `allow_downgrade`, `force_compare`, and `upstream_repo`. Do not infer or replace missing Action inputs. First confirm that the automation worktree has no tracked or unignored untracked changes, then route as follows:
 
 1. Verify that the resolved target fields are complete and use them unchanged throughout the attempt.
 2. Use `detect-drift` to apply target policy and generate candidate evidence.
@@ -37,7 +45,7 @@ Read the workflow-resolved `CODEXSDK_TARGET_REF`, `CODEXSDK_TARGET_KIND`, `CODEX
 4. On `skip` without `force_compare`, stop without changing implementation files.
 5. With `force_compare`, finish read-only drift generation and stop. Clean drift passes comparison; remaining drift fails comparison. Never apply or repair in this branch.
 6. On `allow` without `force_compare`, use `apply-candidate`, review and complete the implementation through `repair-applied-candidate`, then use `validate-local`.
-7. If candidate apply fails on a supported recovery case, use `recover-failure` for one evidence-backed local retry.
+7. If candidate apply or validation exposes a supported local compatibility defect, use `recover-failure` and follow its progress and stop contract before returning to apply, repair, or validation as directed.
 8. Capture the final change manifest with `scripts/codexsdk_sync_changes.py capture --repo-root "$GITHUB_WORKSPACE" --phase final --output .cache/codexsdk-sync/final-changes.json`, verify the changes remain unstaged, and stop at `protocol implementation complete`.
 
 Every applied candidate receives agent review. Clean drift requires an explicit no-repair confirmation; review-required drift receives the smallest evidence-backed compatibility implementation.
@@ -73,4 +81,4 @@ Collect only inputs required by the selected local command. If a target cannot b
 
 ## After Run
 
-Report target provenance, files changed, validation commands and results, blockers, and the highest local completion state. Do not perform caller-owned publication work.
+Start a successful Action final report with the exact line for its applied, current, or clean-comparison state, then report target provenance, files changed, and validation commands and results. For incomplete, blocked, or drift-found work, report blockers and the highest local completion state without a successful state line. Do not perform caller-owned publication work.

@@ -2,21 +2,9 @@
 
 Use recovery recipes before adding automation. Keep recovery on the protected PR path. Never weaken branch protection, bypass required checks, synthesize statuses, force-push `main`, or move/delete tags.
 
-## Candidate Apply Fails Before Agent Review
-
-Trigger:
-- `scripts/codexsdk_apply_sync_candidate.py` stops before producing a valid apply result and mechanical manifest.
-
-Evidence:
-- Apply stderr, compact drift reports, candidate provenance, changed paths, and focused generator tests.
-
-Allowed action:
-- Preserve the first actionable error.
-- When a new schema shape is unsupported, update the smallest focused generator rule and test justified by the candidate, run focused tests, restore only partial mechanical outputs recorded by this attempt to their captured pre-apply state, preserve the focused recovery edits, and retry apply once.
-- Treat provenance mismatch, missing artifacts, or scope escape as a blocker.
-
-Stop:
-- Do not guess schema meaning, broaden handwritten SDK changes without reviewed drift evidence, or loop apply retries.
+Local candidate apply and validation failures are owned by
+[`recover-failure`](../commands/recover-failure.md). This reference covers only
+caller-owned remote recovery after the local implementation boundary.
 
 ## Sync PR `PR verification` Check Is `action_required`
 

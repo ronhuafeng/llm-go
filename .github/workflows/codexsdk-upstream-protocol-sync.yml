@@ -20,6 +20,11 @@ on:
         required: false
         type: boolean
         default: false
+      validation_only:
+        description: "Run Codex and local validation from the current open PR without committing or publishing protocol changes."
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: codex-upstream-protocol-sync
@@ -39,10 +44,31 @@ jobs:
       - name: Guard control-plane ref
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VALIDATION_ONLY: ${{ inputs.validation_only || false }}
         run: |
           set -euo pipefail
-          if [[ "${GITHUB_REF_NAME}" != "${DEFAULT_BRANCH}" ]]; then
-            echo "Refusing to run protocol sync from ${GITHUB_REF_NAME}; use ${DEFAULT_BRANCH}." >&2
+
+          if [[ "${GITHUB_REF_NAME}" == "${DEFAULT_BRANCH}" ]]; then
+            exit 0
+          fi
+          if [[ "${GITHUB_EVENT_NAME}" != "workflow_dispatch" || "${VALIDATION_ONLY}" != "true" ]]; then
+            echo "Refusing to run protocol sync from ${GITHUB_REF_NAME}; use ${DEFAULT_BRANCH} or validation_only from an open PR." >&2
+            exit 1
+          fi
+
+          matching_prs="$(
+            gh pr list \
+              --repo "${GH_REPO}" \
+              --state open \
+              --base "${DEFAULT_BRANCH}" \
+              --head "${GITHUB_REF_NAME}" \
+              --json headRefOid,headRepository \
+              --jq '[.[] | select(.headRefOid == env.GITHUB_SHA and .headRepository.nameWithOwner == env.GH_REPO)] | length'
+          )"
+          if [[ "${matching_prs}" != "1" ]]; then
+            echo "validation_only requires exactly one open same-repository PR from ${GITHUB_REF_NAME} at ${GITHUB_SHA}." >&2
             exit 1
           fi
 
@@ -82,6 +108,8 @@ jobs:
         id: target
         working-directory: codexsdk
         env:
+          ALLOW_DOWNGRADE: ${{ inputs.allow_downgrade || false }}
+          FORCE_COMPARE: ${{ inputs.force_compare || false }}
           REQUESTED_REF: ${{ inputs.upstream_ref || '' }}
           UPSTREAM_REPO: https://github.com/openai/codex.git
         run: |
@@ -100,16 +128,24 @@ jobs:
             echo "explicit=$(jq -r '.target_explicit' /tmp/codexsdk-target.json)"
           } >> "${GITHUB_OUTPUT}"
 
+          mkdir -p .cache/codexsdk-sync
+          jq \
+            --arg allow_downgrade "${ALLOW_DOWNGRADE}" \
+            --arg force_compare "${FORCE_COMPARE}" \
+            --arg upstream_repo "${UPSTREAM_REPO}" \
+            '{
+              target_ref: .ref_name,
+              target_kind: .ref_kind,
+              target_sha: .peeled_commit_sha,
+              target_explicit: .target_explicit,
+              allow_downgrade: ($allow_downgrade == "true"),
+              force_compare: ($force_compare == "true"),
+              upstream_repo: $upstream_repo
+            }' /tmp/codexsdk-target.json > .cache/codexsdk-sync/action-inputs.json
+
       - name: Implement target protocol with Codex
+        id: codex
         uses: openai/codex-action@v1
-        env:
-          CODEXSDK_ALLOW_DOWNGRADE: ${{ inputs.allow_downgrade || false }}
-          CODEXSDK_FORCE_COMPARE: ${{ inputs.force_compare || false }}
-          CODEXSDK_TARGET_EXPLICIT: ${{ steps.target.outputs.explicit }}
-          CODEXSDK_TARGET_KIND: ${{ steps.target.outputs.kind }}
-          CODEXSDK_TARGET_REF: ${{ steps.target.outputs.ref }}
-          CODEXSDK_TARGET_SHA: ${{ steps.target.outputs.sha }}
-          CODEXSDK_UPSTREAM_REPO: https://github.com/openai/codex.git
         with:
           openai-api-key: ${{ secrets.AZURE_OPENAI_API_KEY }}
           responses-api-endpoint: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
@@ -122,10 +158,31 @@ jobs:
           allow-bots: "true"
           codex-args: '["--ephemeral", "-c", "sandbox_workspace_write.network_access=true"]'
 
+      - name: Require completed Codex implementation
+        id: completion
+        working-directory: codexsdk
+        env:
+          CODEX_FINAL_MESSAGE: ${{ steps.codex.outputs.final-message }}
+        run: |
+          set -euo pipefail
+          first_line="${CODEX_FINAL_MESSAGE%%$'\n'*}"
+          case "${first_line}" in
+            "protocol implementation complete") mode="implemented" ;;
+            "protocol implementation current") mode="current" ;;
+            "protocol comparison clean") mode="comparison" ;;
+            *)
+              echo "Codex stopped before reaching a successful protocol state." >&2
+              printf '%s\n' "${CODEX_FINAL_MESSAGE}" >&2
+              exit 1
+              ;;
+          esac
+          echo "mode=${mode}" >> "${GITHUB_OUTPUT}"
+
       - name: Inspect protocol implementation
         id: implementation
         working-directory: codexsdk
         env:
+          COMPLETION_MODE: ${{ steps.completion.outputs.mode }}
           FORCE_COMPARE: ${{ inputs.force_compare || false }}
           RESOLVED_TARGET_KIND: ${{ steps.target.outputs.kind }}
           RESOLVED_TARGET_REF: ${{ steps.target.outputs.ref }}
@@ -145,9 +202,26 @@ jobs:
               stdout=subprocess.PIPE,
               text=True,
           ).stdout.strip()
+          completion_mode = os.environ["COMPLETION_MODE"]
           force_compare = os.environ["FORCE_COMPARE"].lower() == "true"
-          if force_compare and changed:
-              raise SystemExit("force_compare must leave the protocol worktree unchanged")
+          if force_compare:
+              if completion_mode != "comparison":
+                  raise SystemExit(
+                      f"force_compare requires completion mode 'comparison', got {completion_mode!r}"
+                  )
+              if changed:
+                  raise SystemExit("force_compare must leave the protocol worktree unchanged")
+          elif changed:
+              if completion_mode != "implemented":
+                  raise SystemExit(
+                      f"changed protocol implementation requires completion mode 'implemented', "
+                      f"got {completion_mode!r}"
+                  )
+          elif completion_mode != "current":
+              raise SystemExit(
+                  f"unchanged protocol implementation requires completion mode 'current', "
+                  f"got {completion_mode!r}"
+              )
 
           values = {"publish": "false"}
           if changed:
@@ -183,6 +257,7 @@ jobs:
           PY
 
       - name: Validate protocol implementation
+        id: validation
         if: steps.implementation.outputs.publish == 'true'
         working-directory: codexsdk
         env:
@@ -201,7 +276,7 @@ jobs:
 
       - name: Commit validated protocol implementation
         id: commit
-        if: steps.implementation.outputs.publish == 'true'
+        if: steps.implementation.outputs.publish == 'true' && inputs.validation_only != true
         working-directory: codexsdk
         env:
           TARGET_KIND: ${{ steps.implementation.outputs.target_kind }}
@@ -224,7 +299,7 @@ jobs:
 
       - name: Publish protected sync PR
         id: publish
-        if: steps.implementation.outputs.publish == 'true'
+        if: steps.implementation.outputs.publish == 'true' && inputs.validation_only != true
         working-directory: codexsdk
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -248,12 +323,21 @@ jobs:
             --validated-commit "${VALIDATED_COMMIT}"
 
       - name: Report protocol sync outcome
-        if: always() && steps.implementation.outcome == 'success'
+        if: >-
+          always() &&
+          steps.completion.outcome == 'success' &&
+          steps.implementation.outcome == 'success' &&
+          (steps.implementation.outputs.publish != 'true' || steps.validation.outcome == 'success') &&
+          (inputs.validation_only == true ||
+           steps.implementation.outputs.publish != 'true' ||
+           (steps.commit.outcome == 'success' && steps.publish.outcome == 'success'))
         env:
+          COMPLETION_MODE: ${{ steps.completion.outputs.mode }}
           PR_URL: ${{ steps.publish.outputs.pr_url }}
           PUBLISH: ${{ steps.implementation.outputs.publish }}
-          TARGET_REF: ${{ steps.implementation.outputs.target_ref }}
-          TARGET_SHA: ${{ steps.implementation.outputs.target_sha }}
+          TARGET_REF: ${{ steps.target.outputs.ref }}
+          TARGET_SHA: ${{ steps.target.outputs.sha }}
+          VALIDATION_ONLY: ${{ inputs.validation_only || false }}
         run: |
           {
             echo
@@ -263,8 +347,20 @@ jobs:
               echo "- Codex completion: \`protocol implementation complete\`"
               echo "- Upstream target: \`${TARGET_REF}\`"
               echo "- Upstream commit: \`${TARGET_SHA}\`"
-              echo "- Workflow publication: ${PR_URL}"
+              if [[ "${VALIDATION_ONLY}" == "true" ]]; then
+                echo "- PR validation: protocol implementation validated; commit and publication intentionally skipped."
+              else
+                echo "- Workflow publication: ${PR_URL}"
+              fi
+            elif [[ "${COMPLETION_MODE}" == "comparison" ]]; then
+              echo "- Codex completion: \`protocol comparison clean\`"
+              echo "- Upstream target: \`${TARGET_REF}\`"
+              echo "- Upstream commit: \`${TARGET_SHA}\`"
+              echo "- Read-only comparison found no protocol drift."
             else
-              echo "- No protocol implementation changes required."
+              echo "- Codex completion: \`protocol implementation current\`"
+              echo "- Upstream target: \`${TARGET_REF}\`"
+              echo "- Upstream commit: \`${TARGET_SHA}\`"
+              echo "- Checked-in protocol implementation is already current."
             fi
           } >> "${GITHUB_STEP_SUMMARY}"
