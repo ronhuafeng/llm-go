@@ -417,7 +417,10 @@ func TestGeneratedTurnResponseCoreAdjacentPayloadsProtocolMarshalAndUnmarshal(t 
 	}
 
 	itemsListRaw, err := json.Marshal(ThreadItemsListResponse{
-		Data: []ThreadItem{item},
+		Data: []ThreadItemEntry{{
+			Item:   item,
+			TurnID: "turn-1",
+		}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -426,7 +429,7 @@ func TestGeneratedTurnResponseCoreAdjacentPayloadsProtocolMarshalAndUnmarshal(t 
 	if err := json.Unmarshal(itemsListRaw, &decodedItemsList); err != nil {
 		t.Fatal(err)
 	}
-	if len(decodedItemsList.Data) != 1 || decodedItemsList.Data[0].Kind() != ThreadItemKindAgentMessage {
+	if len(decodedItemsList.Data) != 1 || decodedItemsList.Data[0].TurnID != "turn-1" || decodedItemsList.Data[0].Item.Kind() != ThreadItemKindAgentMessage {
 		t.Fatalf("decoded thread turn items list response = %#v", decodedItemsList)
 	}
 
@@ -1238,11 +1241,11 @@ func TestGeneratedThreadRealtimePayloadsValidateProtocol(t *testing.T) {
 	}
 
 	var started ThreadRealtimeStartedNotification
-	err = json.Unmarshal([]byte(`{"threadId":"thread-1","version":"v3"}`), &started)
+	err = json.Unmarshal([]byte(`{"threadId":"thread-1","version":"future"}`), &started)
 	if err == nil {
 		t.Fatal("expected invalid realtime version to fail")
 	}
-	if !strings.Contains(err.Error(), `invalid RealtimeConversationVersion enum value "v3"`) {
+	if !strings.Contains(err.Error(), `invalid RealtimeConversationVersion enum value "future"`) {
 		t.Fatalf("unexpected invalid realtime version error: %v", err)
 	}
 }
@@ -1636,11 +1639,11 @@ func TestGeneratedThreadTurnLifecycleParamsRejectMalformedProtocol(t *testing.T)
 	}
 
 	var input UserInput
-	err = json.Unmarshal([]byte(`{"type":"audio","url":"https://example.test/audio.wav"}`), &input)
+	err = json.Unmarshal([]byte(`{"type":"futureInput","url":"https://example.test/input"}`), &input)
 	if err == nil {
 		t.Fatal("expected unknown user input variant to fail")
 	}
-	if !strings.Contains(err.Error(), `decode UserInput.type: unknown variant "audio"`) {
+	if !strings.Contains(err.Error(), `decode UserInput.type: unknown variant "futureInput"`) {
 		t.Fatalf("unexpected unknown user input variant error: %v", err)
 	}
 
@@ -3168,19 +3171,19 @@ func TestGeneratedModelFamilyRejectsMalformedProtocol(t *testing.T) {
 	}
 
 	var model Model
-	err = json.Unmarshal([]byte(`{"defaultReasoningEffort":"medium","description":"desc","displayName":"GPT","hidden":false,"id":"model-1","inputModalities":["audio"],"isDefault":true,"model":"gpt-test","supportedReasoningEfforts":[]}`), &model)
+	err = json.Unmarshal([]byte(`{"defaultReasoningEffort":"medium","description":"desc","displayName":"GPT","hidden":false,"id":"model-1","inputModalities":["future"],"isDefault":true,"model":"gpt-test","supportedReasoningEfforts":[]}`), &model)
 	if err == nil {
 		t.Fatal("expected invalid input modality to fail")
 	}
-	if !strings.Contains(err.Error(), `invalid InputModality enum value "audio"`) {
+	if !strings.Contains(err.Error(), `invalid InputModality enum value "future"`) {
 		t.Fatalf("unexpected invalid input modality error: %v", err)
 	}
 
-	_, err = json.Marshal(InputModality("audio"))
+	_, err = json.Marshal(InputModality("future"))
 	if err == nil {
 		t.Fatal("expected invalid input modality marshal to fail")
 	}
-	if !strings.Contains(err.Error(), `invalid InputModality enum value "audio"`) {
+	if !strings.Contains(err.Error(), `invalid InputModality enum value "future"`) {
 		t.Fatalf("unexpected invalid input modality marshal error: %v", err)
 	}
 
@@ -6716,11 +6719,11 @@ func TestGeneratedDynamicToolCallResponseRejectsMalformedProtocol(t *testing.T) 
 	}
 
 	var item DynamicToolCallOutputContentItem
-	err = json.Unmarshal([]byte(`{"type":"inputAudio","text":"hello"}`), &item)
+	err = json.Unmarshal([]byte(`{"type":"futureContent","text":"hello"}`), &item)
 	if err == nil {
 		t.Fatal("expected unknown content item variant to fail")
 	}
-	if !strings.Contains(err.Error(), `decode DynamicToolCallOutputContentItem.type: unknown variant "inputAudio"`) {
+	if !strings.Contains(err.Error(), `decode DynamicToolCallOutputContentItem.type: unknown variant "futureContent"`) {
 		t.Fatalf("unexpected unknown content item variant error: %v", err)
 	}
 
@@ -6896,9 +6899,11 @@ func TestGeneratedApprovalResponsesMarshalReviewDecision(t *testing.T) {
 		{
 			name: "exec command denied",
 			value: ExecCommandApprovalResponse{
-				Decision: NewReviewDecisionDenied(),
+				Decision: NewReviewDecisionDenied(ReviewDecisionDenied{
+					Rejection: "not allowed",
+				}),
 			},
-			want: `{"decision":"denied"}`,
+			want: `{"decision":{"denied":{"rejection":"not allowed"}}}`,
 		},
 		{
 			name: "apply patch exec policy amendment",

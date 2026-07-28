@@ -1300,7 +1300,8 @@ func isJSONValueArrayPath(path string) bool {
 		"v2/ThreadResumeParams.json#/definitions/ResponseItem#/oneOf/8/properties/tools",
 		"v2/ThreadResumeParams.json#/definitions/ResponseItem#/oneOf/9/properties/tools",
 		"v2/ThreadInjectItemsParams.json#/properties/items",
-		"v2/TurnStartResponse.json#/definitions/McpToolCallResult/properties/content":
+		"v2/TurnStartResponse.json#/definitions/McpToolCallResult/properties/content",
+		"v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/11/properties/results":
 		return true
 	default:
 		return false

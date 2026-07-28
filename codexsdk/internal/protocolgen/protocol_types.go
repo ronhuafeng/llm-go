@@ -2010,6 +2010,8 @@ func isGeneratedDefinitionStringEnumCheckpoint(schemaPath string, name string) b
 		}
 	case "v2/ExperimentalFeatureListResponse.json":
 		return name == "ExperimentalFeatureStage"
+	case "v2/EnvironmentStatusResponse.json":
+		return name == "EnvironmentStatusKind"
 	case "v2/GetWorkspaceMessagesResponse.json":
 		return name == "WorkspaceMessageType"
 	case "v2/ListMcpServerStatusResponse.json":
@@ -2081,6 +2083,15 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 			"AppMetadata",
 			"AppReview",
 			"AppScreenshot":
+			return true
+		default:
+			return false
+		}
+	case "v2/AppsInstalledResponse.json":
+		return name == "InstalledApp"
+	case "v2/AppsReadResponse.json":
+		switch name {
+		case "AppToolSummary", "ConnectorMetadata":
 			return true
 		default:
 			return false
@@ -2159,7 +2170,12 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 			return false
 		}
 	case "v2/ExternalAgentConfigImportHistoriesReadResponse.json":
-		return name == "ExternalAgentConfigImportHistory"
+		switch name {
+		case "ExternalAgentConfigImportHistory", "ExternalAgentImportedConnectorCandidate":
+			return true
+		default:
+			return false
+		}
 	case "v2/ExternalAgentConfigImportCompletedNotification.json":
 		switch name {
 		case "ExternalAgentConfigImportItemTypeFailure",
@@ -2208,8 +2224,19 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 		default:
 			return false
 		}
+	case "v2/ThreadRealtimeStartParams.json":
+		return name == "ThreadRealtimeInitialItem"
 	case "v2/ThreadRealtimeListVoicesResponse.json":
 		return name == "RealtimeVoicesList"
+	case "v2/ThreadItemsListResponse.json":
+		return name == "ThreadItemEntry"
+	case "v2/ThreadSearchOccurrencesResponse.json":
+		switch name {
+		case "ThreadSearchOccurrence", "ThreadSearchTextRange":
+			return true
+		default:
+			return false
+		}
 	case "v1/InitializeParams.json":
 		switch name {
 		case "ClientInfo", "InitializeCapabilities":
@@ -2249,6 +2276,7 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 			"AppTemplateSummary",
 			"PluginDetail",
 			"PluginHookSummary",
+			"ScheduledTaskSummary",
 			"SkillInterface",
 			"SkillSummary":
 			return true
@@ -2465,6 +2493,8 @@ func isGeneratedDefinitionTaggedUnionCheckpoint(schemaPath string, name string) 
 		}
 	case "v2/PluginListResponse.json":
 		return name == "PluginSource"
+	case "v2/PluginReadResponse.json":
+		return name == "ScheduledTaskSchedule"
 	case "v2/ReviewStartParams.json":
 		return name == "ReviewTarget"
 	case "v2/ThreadResumeParams.json":

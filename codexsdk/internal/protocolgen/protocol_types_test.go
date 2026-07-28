@@ -606,6 +606,80 @@ func TestGeneratedDefinitionClassifierUsesSchemaShape(t *testing.T) {
 	}
 }
 
+func TestFirstPassTypesIncludeReviewedRPCDependencies(t *testing.T) {
+	plan, err := BuildProtocolTypePlan(filepath.Join("..", "protocolschema", "appserver", "v2"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	types, err := SelectFirstPassGeneratedTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated := map[string]bool{}
+	for _, typ := range types {
+		generated[typ.TypeName] = true
+	}
+	for _, name := range []string{
+		"AppsInstalledResponse",
+		"InstalledApp",
+		"AppsReadResponse",
+		"AppToolSummary",
+		"ConnectorMetadata",
+		"EnvironmentStatusResponse",
+		"ExternalAgentConfigImportHistoriesReadResponse",
+		"ExternalAgentImportedConnectorCandidate",
+		"PluginReadResponse",
+		"PluginDetail",
+		"ScheduledTaskSummary",
+		"ThreadItemsListResponse",
+		"ThreadItemEntry",
+		"ThreadRealtimeStartParams",
+		"ThreadRealtimeInitialItem",
+		"ThreadSearchOccurrencesResponse",
+		"ThreadSearchOccurrence",
+		"ThreadSearchTextRange",
+	} {
+		if !generated[name] {
+			t.Errorf("first-pass generated types do not include new RPC type dependency %s", name)
+		}
+	}
+	enums, err := SelectGeneratedEnums(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantEnums := map[string]bool{
+		"EnvironmentStatusKind":                false,
+		"ExternalAgentImportedConnectorSource": false,
+		"ScheduledTaskWeekday":                 false,
+		"CodexResponseHandoffMode":             false,
+		"ConversationTextRole":                 false,
+	}
+	for _, enum := range enums {
+		if _, ok := wantEnums[enum.TypeName]; ok {
+			wantEnums[enum.TypeName] = true
+		}
+	}
+	for name, found := range wantEnums {
+		if !found {
+			t.Errorf("generated enums do not include %s", name)
+		}
+	}
+	taggedUnions, err := SelectGeneratedTaggedUnions(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundScheduledTaskSchedule := false
+	for _, union := range taggedUnions {
+		if union.TypeName == "ScheduledTaskSchedule" {
+			foundScheduledTaskSchedule = true
+			break
+		}
+	}
+	if !foundScheduledTaskSchedule {
+		t.Error("generated tagged unions do not include ScheduledTaskSchedule")
+	}
+}
+
 func TestGeneratedDefinitionSelectionFollowsSchemaShape(t *testing.T) {
 	objectParent := TypePlan{
 		SchemaPath: "v2/ThreadStartParams.json",

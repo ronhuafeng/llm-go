@@ -910,8 +910,11 @@ func runFakeAppServer(mode string, extra []string) {
 			}
 			sendProtocolResult(id, protocolv2.ThreadItemsListResponse{
 				BackwardsCursor: protocolv2.Null[string](),
-				Data:            []protocolv2.ThreadItem{facadeThreadAgentMessageItem("item-agent-1", "final text")},
-				NextCursor:      protocolv2.Value("next-item"),
+				Data: []protocolv2.ThreadItemEntry{{
+					Item:   facadeThreadAgentMessageItem("item-agent-1", "final text"),
+					TurnID: "turn-list-1",
+				}},
+				NextCursor: protocolv2.Value("next-item"),
 			})
 		case "thread/turns/list":
 			if mode == "thread-turns-malformed-response" {
