@@ -2,6 +2,16 @@
 
 Use this file as context for local sync decisions. It is not a linear playbook. Commands and scripts own execution details; this reference preserves the domain rules that are easy to lose.
 
+- [Baseline And Provenance](#baseline-and-provenance)
+- [Artifacts](#artifacts)
+- [Action Boundary](#action-boundary)
+- [Target Policy](#target-policy)
+- [Drift Review](#drift-review)
+- [Apply And Repair](#apply-and-repair)
+- [Validation](#validation)
+- [Target Movement](#target-movement)
+- [Decision Rules](#decision-rules)
+
 ## Baseline And Provenance
 
 Source of truth:
@@ -21,13 +31,17 @@ Do not check in local absolute paths, `.cache/...` output paths, private repo pa
 
 ## Artifacts
 
-Recommended disposable locations:
+Use one module-local cache layout for both local and GitHub Actions runs:
 
-- upstream clone: `.cache/openai-codex`
+- upstream repository: `.cache/openai-codex`
 - sync output: `.cache/codexsdk-upstream-<short-sha>`
 - Rust build cache: `.cache/cargo-target/codex`
 
-These are caller-chosen locations, not all script defaults. In normal generation mode, `scripts/codexsdk_track_upstream.sh` requires `--codex-repo` or `CODEXSDK_CODEX_REPO`; in `--compare-only` mode it needs only a resolved `--commit`, checked-in baseline, and candidate schema directory. When `--out` is omitted it creates a temporary `/tmp/codexsdk-upstream.*` directory.
+These paths keep disposable state inside the ignored `codexsdk/.cache/` tree. GitHub Actions treats them as ordinary job-local workspace directories: they persist between steps in the same job, but not automatically across jobs or workflow runs. Do not assume that the directory uses the GitHub Actions cache service unless the workflow explicitly adds one.
+
+In GitHub Actions, use the canonical paths and the workflow-owned `upstream_repo` URL. Outside GitHub Actions, use the same paths by default so local and automated runs have the same layout; honor an explicitly supplied existing repository or output path when the caller chooses one.
+
+In normal generation mode, `scripts/codexsdk_track_upstream.sh` requires `--codex-repo` or `CODEXSDK_CODEX_REPO`; in `--compare-only` mode it needs only a resolved `--commit`, checked-in baseline, and candidate schema directory. When `--out` is omitted it creates a temporary `/tmp/codexsdk-upstream.*` directory.
 
 Useful drift evidence:
 

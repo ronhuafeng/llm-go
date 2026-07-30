@@ -5,12 +5,52 @@ State:
 
 Inputs:
 - Target ref, ref kind, target SHA, target explicit/default status, policy mode, and downgrade policy.
-- Generation mode: upstream Codex repo path and output directory.
+- Generation mode: upstream Codex repo URL, plus any caller-supplied repo path or output directory outside GitHub Actions.
 - Compare-only mode: candidate schema directory, checked-in baseline, resolved target SHA, and output directory; no upstream repo path is required.
 
 Tools:
 - `scripts/codexsdk_target_policy.py`
 - `scripts/codexsdk_track_upstream.sh`
+
+Repository preparation:
+- Run target policy first. Prepare or fetch an upstream repository only after policy returns `allow`, or returns `skip` while `force_compare` requires generation.
+- In GitHub Actions, read the upstream URL only from `.cache/codexsdk-sync/action-inputs.json`. Use `.cache/openai-codex` as the repository and `.cache/codexsdk-upstream-<target-sha-prefix>` as the output directory.
+- Outside GitHub Actions, use the same module-local cache paths by default. Honor an explicitly supplied local repository or output path instead of replacing it.
+- Bind `upstream_repo` to the already-read input value. Initialize or verify the selected repository without fetching all refs:
+
+  ```sh
+  set -euo pipefail
+  codex_repo=.cache/openai-codex
+  mkdir -p .cache
+  if [[ -e "$codex_repo" ]]; then
+    if [[ ! -d "$codex_repo/.git" ]]; then
+      echo "cached Codex path is not a Git repository: $codex_repo" >&2
+      exit 1
+    fi
+    actual_origin="$(git -C "$codex_repo" remote get-url origin)"
+    if [[ "$actual_origin" != "$upstream_repo" ]]; then
+      echo "cached Codex origin $actual_origin does not match $upstream_repo" >&2
+      exit 1
+    fi
+  else
+    git init --quiet "$codex_repo"
+    git -C "$codex_repo" remote add origin "$upstream_repo"
+  fi
+  ```
+
+- Require an existing path to be a Git repository whose `origin` URL exactly matches `upstream_repo`; stop on missing or mismatched provenance.
+- Do not discover the repository by searching the runner, reading README files, or reusing sibling checkouts. Those sources are not bound to the workflow-owned upstream URL and may select unrelated or stale Codex source.
+- Let `scripts/codexsdk_track_upstream.sh` fetch the exact resolved target after policy allows it. Do not perform a separate broad clone or fetch:
+
+  ```sh
+  scripts/codexsdk_track_upstream.sh \
+    --codex-repo .cache/openai-codex \
+    --commit "$target_sha" \
+    --source-ref "$target_ref" \
+    --source-ref-kind "$target_kind" \
+    --out ".cache/codexsdk-upstream-${target_sha:0:12}" \
+    --json
+  ```
 
 Boundaries:
 - Run policy before drift generation.
@@ -21,8 +61,9 @@ Boundaries:
 
 Checks:
 - Policy JSON parses and has decision plus reason.
+- Generation uses the selected repository path and its verified `origin`, without searching for another checkout.
 - On `allow`, compact reports include `SUMMARY.md`, `drift_summary.json`, and `matrix_update_skeleton.json`.
-- Artifact evidence records upstream ref, upstream SHA, and drift fingerprint.
+- Artifact evidence records upstream ref, upstream SHA, and drift fingerprint; its `source_commit` equals the resolved target SHA.
 - Checked-in baseline files remain unchanged.
 
 Output:
@@ -31,4 +72,5 @@ Output:
 Stop if:
 - Policy returns `block`; stop drift generation, and fail a caller-owned `force_compare` verification.
 - Policy returns `skip` and the caller did not request `force_compare`; forced comparison may continue read-only drift generation.
+- The cached repository is missing Git metadata, its `origin` differs from `upstream_repo`, or tracking resolves a commit other than the target SHA.
 - Candidate provenance is missing or drift generation fails.
