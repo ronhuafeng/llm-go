@@ -87,6 +87,7 @@ const (
 	MethodExternalAgentConfigImportCompleted      = "externalAgentConfig/import/completed"
 	MethodExternalAgentConfigImportProgress       = "externalAgentConfig/import/progress"
 	MethodExternalAgentConfigImportReadHistories  = "externalAgentConfig/import/readHistories"
+	MethodExternalAgentConfigImportRecordHistory  = "externalAgentConfig/import/recordHistory"
 	MethodFeedbackUpload                          = "feedback/upload"
 	MethodFSChanged                               = "fs/changed"
 	MethodFSCopy                                  = "fs/copy"
@@ -746,6 +747,17 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchema:        "v2/ExternalAgentConfigImportHistoriesReadResponse.json",
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "ExternalAgentConfigs().ImportReadHistories",
+		Stability:             MethodStabilityStable,
+	},
+	MethodExternalAgentConfigImportRecordHistory: {
+		Method:                MethodExternalAgentConfigImportRecordHistory,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "externalAgentConfig",
+		ParamsOrPayloadSchema: "ExternalAgentConfigImportHistoryRecordParams",
+		ResponseSchema:        "v2/ExternalAgentConfigImportHistoryRecordResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "ExternalAgentConfigs().ImportRecordHistory",
 		Stability:             MethodStabilityStable,
 	},
 	MethodFeedbackUpload: {

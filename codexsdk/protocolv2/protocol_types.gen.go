@@ -95,6 +95,8 @@ func decodeWireProtocolValue(data []byte, target any, role wirejson.Role) error 
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *ExternalAgentConfigImportHistoriesReadResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
+	case *ExternalAgentConfigImportHistoryRecordResponse:
+		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *ExternalAgentConfigImportResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *FeedbackUploadResponse:
@@ -3538,6 +3540,7 @@ const (
 	PlanTypeTeam                        PlanType = "team"
 	PlanTypeSelfServeBusinessUsageBased PlanType = "self_serve_business_usage_based"
 	PlanTypeBusiness                    PlanType = "business"
+	PlanTypeEnt26                       PlanType = "ent26"
 	PlanTypeEnterpriseCbpUsageBased     PlanType = "enterprise_cbp_usage_based"
 	PlanTypeEnterprise                  PlanType = "enterprise"
 	PlanTypeEdu                         PlanType = "edu"
@@ -3561,6 +3564,8 @@ func (value PlanType) IsValid() bool {
 	case PlanTypeSelfServeBusinessUsageBased:
 		return true
 	case PlanTypeBusiness:
+		return true
+	case PlanTypeEnt26:
 		return true
 	case PlanTypeEnterpriseCbpUsageBased:
 		return true
@@ -6140,7 +6145,6 @@ type AppMetadata struct {
 	Categories                 *Nullable[[]string]        `json:"categories,omitempty"`
 	Developer                  *Nullable[string]          `json:"developer,omitempty"`
 	FirstPartyRequiresInstall  *Nullable[bool]            `json:"firstPartyRequiresInstall,omitempty"`
-	FirstPartyType             *Nullable[string]          `json:"firstPartyType,omitempty"`
 	Review                     *Nullable[AppReview]       `json:"review,omitempty"`
 	Screenshots                *Nullable[[]AppScreenshot] `json:"screenshots,omitempty"`
 	SeoDescription             *Nullable[string]          `json:"seoDescription,omitempty"`
@@ -6170,10 +6174,6 @@ func (value *AppMetadata) unmarshalJSON(data []byte, mode wireDecodeMode) error 
 		return err
 	}
 	_, err = decodeNullableJSONField[bool](fields, "firstPartyRequiresInstall", "AppMetadata.firstPartyRequiresInstall", mode, decodeWireValue[bool], &decoded.FirstPartyRequiresInstall)
-	if err != nil {
-		return err
-	}
-	_, err = decodeNullableJSONField[string](fields, "firstPartyType", "AppMetadata.firstPartyType", mode, decodeWireValue[string], &decoded.FirstPartyType)
 	if err != nil {
 		return err
 	}
@@ -6446,9 +6446,12 @@ func (value *AppToolConfig) unmarshalJSON(data []byte, mode wireDecodeMode) erro
 }
 
 type AppToolSummary struct {
-	Description string            `json:"description"`
-	Name        string            `json:"name"`
-	Title       *Nullable[string] `json:"title,omitempty"`
+	Description    string            `json:"description"`
+	DisabledReason *Nullable[string] `json:"disabledReason,omitempty"`
+	IsEnabled      *bool             `json:"isEnabled,omitempty"`
+	IsReadOnly     *bool             `json:"isReadOnly,omitempty"`
+	Name           string            `json:"name"`
+	Title          *Nullable[string] `json:"title,omitempty"`
 }
 
 func (value *AppToolSummary) UnmarshalJSON(data []byte) error {
@@ -6467,6 +6470,18 @@ func (value *AppToolSummary) unmarshalJSON(data []byte, mode wireDecodeMode) err
 	}
 	if !seenDescription {
 		return missingRequiredField("AppToolSummary.description")
+	}
+	_, err = decodeNullableJSONField[string](fields, "disabledReason", "AppToolSummary.disabledReason", mode, decodeWireValue[string], &decoded.DisabledReason)
+	if err != nil {
+		return err
+	}
+	_, err = decodeJSONField(fields, "isEnabled", "AppToolSummary.isEnabled", false, mode, wirePointerDecoder(decodeWireValue[bool]), &decoded.IsEnabled)
+	if err != nil {
+		return err
+	}
+	_, err = decodeJSONField(fields, "isReadOnly", "AppToolSummary.isReadOnly", false, mode, wirePointerDecoder(decodeWireValue[bool]), &decoded.IsReadOnly)
+	if err != nil {
+		return err
 	}
 	seenName, err := decodeJSONField(fields, "name", "AppToolSummary.name", false, mode, decodeWireValue[string], &decoded.Name)
 	if err != nil {
@@ -6939,6 +6954,31 @@ func (value *AttestationGenerateResponse) unmarshalJSON(data []byte, mode wireDe
 		return missingRequiredField("AttestationGenerateResponse.token")
 	}
 	if err := rejectUnexpectedFieldsForMode(fields, "AttestationGenerateResponse", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type BrowserUseRequirements struct {
+	DisableAutoReview *Nullable[bool] `json:"disableAutoReview,omitempty"`
+}
+
+func (value *BrowserUseRequirements) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *BrowserUseRequirements) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "BrowserUseRequirements")
+	if err != nil {
+		return err
+	}
+	var decoded BrowserUseRequirements
+	_, err = decodeNullableJSONField[bool](fields, "disableAutoReview", "BrowserUseRequirements.disableAutoReview", mode, decodeWireValue[bool], &decoded.DisableAutoReview)
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "BrowserUseRequirements", mode); err != nil {
 		return err
 	}
 	*value = decoded
@@ -8479,6 +8519,7 @@ func (value *ConfigReadResponse) unmarshalJSON(data []byte, mode wireDecodeMode)
 
 type ConfigRequirements struct {
 	AllowAppshots                        *Nullable[bool]                      `json:"allowAppshots,omitempty"`
+	AllowLoginShell                      *Nullable[bool]                      `json:"allowLoginShell,omitempty"`
 	AllowManagedHooksOnly                *Nullable[bool]                      `json:"allowManagedHooksOnly,omitempty"`
 	AllowRemoteControl                   *Nullable[bool]                      `json:"allowRemoteControl,omitempty"`
 	AllowedApprovalPolicies              *Nullable[[]AskForApproval]          `json:"allowedApprovalPolicies,omitempty"`
@@ -8487,13 +8528,20 @@ type ConfigRequirements struct {
 	AllowedSandboxModes                  *Nullable[[]SandboxMode]             `json:"allowedSandboxModes,omitempty"`
 	AllowedWebSearchModes                *Nullable[[]WebSearchMode]           `json:"allowedWebSearchModes,omitempty"`
 	AllowedWindowsSandboxImplementations *Nullable[[]WindowsSandboxSetupMode] `json:"allowedWindowsSandboxImplementations,omitempty"`
+	BrowserUse                           *Nullable[BrowserUseRequirements]    `json:"browserUse,omitempty"`
+	CheckForUpdateOnStartup              *Nullable[bool]                      `json:"checkForUpdateOnStartup,omitempty"`
 	ComputerUse                          *Nullable[ComputerUseRequirements]   `json:"computerUse,omitempty"`
 	DefaultPermissions                   *Nullable[string]                    `json:"defaultPermissions,omitempty"`
 	EnforceResidency                     *Nullable[ResidencyRequirement]      `json:"enforceResidency,omitempty"`
 	FeatureRequirements                  *Nullable[map[string]bool]           `json:"featureRequirements,omitempty"`
+	Feedback                             *Nullable[FeedbackRequirements]      `json:"feedback,omitempty"`
 	Hooks                                *Nullable[ManagedHooksRequirements]  `json:"hooks,omitempty"`
+	LogDir                               *Nullable[string]                    `json:"logDir,omitempty"`
+	ModelCatalogJSON                     *Nullable[string]                    `json:"modelCatalogJson,omitempty"`
 	Models                               *Nullable[ModelsRequirements]        `json:"models,omitempty"`
 	Network                              *Nullable[NetworkRequirements]       `json:"network,omitempty"`
+	SqliteHome                           *Nullable[string]                    `json:"sqliteHome,omitempty"`
+	WindowsSandboxPrivateDesktop         *Nullable[bool]                      `json:"windowsSandboxPrivateDesktop,omitempty"`
 }
 
 func (value *ConfigRequirements) UnmarshalJSON(data []byte) error {
@@ -8507,6 +8555,10 @@ func (value *ConfigRequirements) unmarshalJSON(data []byte, mode wireDecodeMode)
 	}
 	var decoded ConfigRequirements
 	_, err = decodeNullableJSONField[bool](fields, "allowAppshots", "ConfigRequirements.allowAppshots", mode, decodeWireValue[bool], &decoded.AllowAppshots)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[bool](fields, "allowLoginShell", "ConfigRequirements.allowLoginShell", mode, decodeWireValue[bool], &decoded.AllowLoginShell)
 	if err != nil {
 		return err
 	}
@@ -8542,6 +8594,14 @@ func (value *ConfigRequirements) unmarshalJSON(data []byte, mode wireDecodeMode)
 	if err != nil {
 		return err
 	}
+	_, err = decodeNullableJSONField[BrowserUseRequirements](fields, "browserUse", "ConfigRequirements.browserUse", mode, decodeWireValue[BrowserUseRequirements], &decoded.BrowserUse)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[bool](fields, "checkForUpdateOnStartup", "ConfigRequirements.checkForUpdateOnStartup", mode, decodeWireValue[bool], &decoded.CheckForUpdateOnStartup)
+	if err != nil {
+		return err
+	}
 	_, err = decodeNullableJSONField[ComputerUseRequirements](fields, "computerUse", "ConfigRequirements.computerUse", mode, decodeWireValue[ComputerUseRequirements], &decoded.ComputerUse)
 	if err != nil {
 		return err
@@ -8558,7 +8618,19 @@ func (value *ConfigRequirements) unmarshalJSON(data []byte, mode wireDecodeMode)
 	if err != nil {
 		return err
 	}
+	_, err = decodeNullableJSONField[FeedbackRequirements](fields, "feedback", "ConfigRequirements.feedback", mode, decodeWireValue[FeedbackRequirements], &decoded.Feedback)
+	if err != nil {
+		return err
+	}
 	_, err = decodeNullableJSONField[ManagedHooksRequirements](fields, "hooks", "ConfigRequirements.hooks", mode, decodeWireValue[ManagedHooksRequirements], &decoded.Hooks)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[string](fields, "logDir", "ConfigRequirements.logDir", mode, decodeWireValue[string], &decoded.LogDir)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[string](fields, "modelCatalogJson", "ConfigRequirements.modelCatalogJson", mode, decodeWireValue[string], &decoded.ModelCatalogJSON)
 	if err != nil {
 		return err
 	}
@@ -8567,6 +8639,14 @@ func (value *ConfigRequirements) unmarshalJSON(data []byte, mode wireDecodeMode)
 		return err
 	}
 	_, err = decodeNullableJSONField[NetworkRequirements](fields, "network", "ConfigRequirements.network", mode, decodeWireValue[NetworkRequirements], &decoded.Network)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[string](fields, "sqliteHome", "ConfigRequirements.sqliteHome", mode, decodeWireValue[string], &decoded.SqliteHome)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[bool](fields, "windowsSandboxPrivateDesktop", "ConfigRequirements.windowsSandboxPrivateDesktop", mode, decodeWireValue[bool], &decoded.WindowsSandboxPrivateDesktop)
 	if err != nil {
 		return err
 	}
@@ -9757,10 +9837,12 @@ func (value *ExperimentalFeatureListResponse) unmarshalJSON(data []byte, mode wi
 }
 
 type ExternalAgentConfigDetectParams struct {
-	CWDs            *Nullable[[]string] `json:"cwds,omitempty"`
-	IncludeHome     *bool               `json:"includeHome,omitempty"`
-	MigrationSource *Nullable[string]   `json:"migrationSource,omitempty"`
-	Source          *Nullable[string]   `json:"source,omitempty"`
+	CWDs              *Nullable[[]string] `json:"cwds,omitempty"`
+	IncludeHome       *bool               `json:"includeHome,omitempty"`
+	MaxSessionAgeDays *Nullable[uint32]   `json:"maxSessionAgeDays,omitempty"`
+	MaxSessions       *Nullable[uint32]   `json:"maxSessions,omitempty"`
+	MigrationSource   *Nullable[string]   `json:"migrationSource,omitempty"`
+	Source            *Nullable[string]   `json:"source,omitempty"`
 }
 
 func (value *ExternalAgentConfigDetectParams) UnmarshalJSON(data []byte) error {
@@ -9778,6 +9860,14 @@ func (value *ExternalAgentConfigDetectParams) unmarshalJSON(data []byte, mode wi
 		return err
 	}
 	_, err = decodeJSONField(fields, "includeHome", "ExternalAgentConfigDetectParams.includeHome", false, mode, wirePointerDecoder(decodeWireValue[bool]), &decoded.IncludeHome)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[uint32](fields, "maxSessionAgeDays", "ExternalAgentConfigDetectParams.maxSessionAgeDays", mode, decodeWireValue[uint32], &decoded.MaxSessionAgeDays)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[uint32](fields, "maxSessions", "ExternalAgentConfigDetectParams.maxSessions", mode, decodeWireValue[uint32], &decoded.MaxSessions)
 	if err != nil {
 		return err
 	}
@@ -9927,6 +10017,7 @@ type ExternalAgentConfigImportHistory struct {
 	CompletedAtMS int64                                      `json:"completedAtMs"`
 	Failures      []ExternalAgentConfigImportItemTypeFailure `json:"failures"`
 	ImportID      string                                     `json:"importId"`
+	ProviderID    *Nullable[string]                          `json:"providerId,omitempty"`
 	Successes     []ExternalAgentConfigImportItemTypeSuccess `json:"successes"`
 }
 
@@ -9972,6 +10063,10 @@ func (value *ExternalAgentConfigImportHistory) unmarshalJSON(data []byte, mode w
 	if !seenImportID {
 		return missingRequiredField("ExternalAgentConfigImportHistory.importId")
 	}
+	_, err = decodeNullableJSONField[string](fields, "providerId", "ExternalAgentConfigImportHistory.providerId", mode, decodeWireValue[string], &decoded.ProviderID)
+	if err != nil {
+		return err
+	}
 	seenSuccesses, err := decodeJSONField(fields, "successes", "ExternalAgentConfigImportHistory.successes", false, mode, wireSliceDecoder(decodeWireValue[ExternalAgentConfigImportItemTypeSuccess]), &decoded.Successes)
 	if err != nil {
 		return err
@@ -9980,6 +10075,78 @@ func (value *ExternalAgentConfigImportHistory) unmarshalJSON(data []byte, mode w
 		return missingRequiredField("ExternalAgentConfigImportHistory.successes")
 	}
 	if err := rejectUnexpectedFieldsForMode(fields, "ExternalAgentConfigImportHistory", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ExternalAgentConfigImportHistoryRecordParams struct {
+	ItemTypeResults []ExternalAgentConfigImportTypeResult `json:"itemTypeResults"`
+	ProviderID      string                                `json:"providerId"`
+}
+
+func (value ExternalAgentConfigImportHistoryRecordParams) MarshalJSON() ([]byte, error) {
+	if value.ItemTypeResults == nil {
+		return nil, fmt.Errorf("encode ExternalAgentConfigImportHistoryRecordParams.itemTypeResults: nil is not allowed")
+	}
+	type wire ExternalAgentConfigImportHistoryRecordParams
+	return json.Marshal(wire(value))
+}
+
+func (value *ExternalAgentConfigImportHistoryRecordParams) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ExternalAgentConfigImportHistoryRecordParams) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ExternalAgentConfigImportHistoryRecordParams")
+	if err != nil {
+		return err
+	}
+	var decoded ExternalAgentConfigImportHistoryRecordParams
+	seenItemTypeResults, err := decodeJSONField(fields, "itemTypeResults", "ExternalAgentConfigImportHistoryRecordParams.itemTypeResults", false, mode, wireSliceDecoder(decodeWireValue[ExternalAgentConfigImportTypeResult]), &decoded.ItemTypeResults)
+	if err != nil {
+		return err
+	}
+	if !seenItemTypeResults {
+		return missingRequiredField("ExternalAgentConfigImportHistoryRecordParams.itemTypeResults")
+	}
+	seenProviderID, err := decodeJSONField(fields, "providerId", "ExternalAgentConfigImportHistoryRecordParams.providerId", false, mode, decodeWireValue[string], &decoded.ProviderID)
+	if err != nil {
+		return err
+	}
+	if !seenProviderID {
+		return missingRequiredField("ExternalAgentConfigImportHistoryRecordParams.providerId")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ExternalAgentConfigImportHistoryRecordParams", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ExternalAgentConfigImportHistoryRecordResponse struct {
+	ImportID string `json:"importId"`
+}
+
+func (value *ExternalAgentConfigImportHistoryRecordResponse) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ExternalAgentConfigImportHistoryRecordResponse) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ExternalAgentConfigImportHistoryRecordResponse")
+	if err != nil {
+		return err
+	}
+	var decoded ExternalAgentConfigImportHistoryRecordResponse
+	seenImportID, err := decodeJSONField(fields, "importId", "ExternalAgentConfigImportHistoryRecordResponse.importId", false, mode, decodeWireValue[string], &decoded.ImportID)
+	if err != nil {
+		return err
+	}
+	if !seenImportID {
+		return missingRequiredField("ExternalAgentConfigImportHistoryRecordResponse.importId")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ExternalAgentConfigImportHistoryRecordResponse", mode); err != nil {
 		return err
 	}
 	*value = decoded
@@ -10096,6 +10263,7 @@ func (value *ExternalAgentConfigImportItemTypeSuccess) unmarshalJSON(data []byte
 type ExternalAgentConfigImportParams struct {
 	MigrationItems  []ExternalAgentConfigMigrationItem `json:"migrationItems"`
 	MigrationSource *Nullable[string]                  `json:"migrationSource,omitempty"`
+	ProviderID      *Nullable[string]                  `json:"providerId,omitempty"`
 	Source          *Nullable[string]                  `json:"source,omitempty"`
 }
 
@@ -10125,6 +10293,10 @@ func (value *ExternalAgentConfigImportParams) unmarshalJSON(data []byte, mode wi
 		return missingRequiredField("ExternalAgentConfigImportParams.migrationItems")
 	}
 	_, err = decodeNullableJSONField[string](fields, "migrationSource", "ExternalAgentConfigImportParams.migrationSource", mode, decodeWireValue[string], &decoded.MigrationSource)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[string](fields, "providerId", "ExternalAgentConfigImportParams.providerId", mode, decodeWireValue[string], &decoded.ProviderID)
 	if err != nil {
 		return err
 	}
@@ -10350,6 +10522,31 @@ func (value *ExternalAgentImportedConnectorCandidate) unmarshalJSON(data []byte,
 		return missingRequiredField("ExternalAgentImportedConnectorCandidate.source")
 	}
 	if err := rejectUnexpectedFieldsForMode(fields, "ExternalAgentImportedConnectorCandidate", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type FeedbackRequirements struct {
+	Enabled *Nullable[bool] `json:"enabled,omitempty"`
+}
+
+func (value *FeedbackRequirements) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *FeedbackRequirements) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "FeedbackRequirements")
+	if err != nil {
+		return err
+	}
+	var decoded FeedbackRequirements
+	_, err = decodeNullableJSONField[bool](fields, "enabled", "FeedbackRequirements.enabled", mode, decodeWireValue[bool], &decoded.Enabled)
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "FeedbackRequirements", mode); err != nil {
 		return err
 	}
 	*value = decoded
@@ -16165,6 +16362,7 @@ func (value *PluginInterface) unmarshalJSON(data []byte, mode wireDecodeMode) er
 
 type PluginListParams struct {
 	CWDs             *Nullable[[]string]                    `json:"cwds,omitempty"`
+	ForceRefetch     *bool                                  `json:"forceRefetch,omitempty"`
 	MarketplaceKinds *Nullable[[]PluginListMarketplaceKind] `json:"marketplaceKinds,omitempty"`
 }
 
@@ -16179,6 +16377,10 @@ func (value *PluginListParams) unmarshalJSON(data []byte, mode wireDecodeMode) e
 	}
 	var decoded PluginListParams
 	_, err = decodeNullableJSONField[[]string](fields, "cwds", "PluginListParams.cwds", mode, wireSliceDecoder(decodeWireValue[string]), &decoded.CWDs)
+	if err != nil {
+		return err
+	}
+	_, err = decodeJSONField(fields, "forceRefetch", "PluginListParams.forceRefetch", false, mode, wirePointerDecoder(decodeWireValue[bool]), &decoded.ForceRefetch)
 	if err != nil {
 		return err
 	}
@@ -16461,13 +16663,14 @@ func (value *PluginShareCheckoutResponse) unmarshalJSON(data []byte, mode wireDe
 }
 
 type PluginShareContext struct {
-	CreatorAccountUserID *Nullable[string]                     `json:"creatorAccountUserId,omitempty"`
-	CreatorName          *Nullable[string]                     `json:"creatorName,omitempty"`
-	Discoverability      *Nullable[PluginShareDiscoverability] `json:"discoverability,omitempty"`
-	RemotePluginID       string                                `json:"remotePluginId"`
-	RemoteVersion        *Nullable[string]                     `json:"remoteVersion,omitempty"`
-	SharePrincipals      *Nullable[[]PluginSharePrincipal]     `json:"sharePrincipals,omitempty"`
-	ShareURL             *Nullable[string]                     `json:"shareUrl,omitempty"`
+	CanPublishToWorkspace *Nullable[bool]                       `json:"canPublishToWorkspace,omitempty"`
+	CreatorAccountUserID  *Nullable[string]                     `json:"creatorAccountUserId,omitempty"`
+	CreatorName           *Nullable[string]                     `json:"creatorName,omitempty"`
+	Discoverability       *Nullable[PluginShareDiscoverability] `json:"discoverability,omitempty"`
+	RemotePluginID        string                                `json:"remotePluginId"`
+	RemoteVersion         *Nullable[string]                     `json:"remoteVersion,omitempty"`
+	SharePrincipals       *Nullable[[]PluginSharePrincipal]     `json:"sharePrincipals,omitempty"`
+	ShareURL              *Nullable[string]                     `json:"shareUrl,omitempty"`
 }
 
 func (value *PluginShareContext) UnmarshalJSON(data []byte) error {
@@ -16480,6 +16683,10 @@ func (value *PluginShareContext) unmarshalJSON(data []byte, mode wireDecodeMode)
 		return err
 	}
 	var decoded PluginShareContext
+	_, err = decodeNullableJSONField[bool](fields, "canPublishToWorkspace", "PluginShareContext.canPublishToWorkspace", mode, decodeWireValue[bool], &decoded.CanPublishToWorkspace)
+	if err != nil {
+		return err
+	}
 	_, err = decodeNullableJSONField[string](fields, "creatorAccountUserId", "PluginShareContext.creatorAccountUserId", mode, decodeWireValue[string], &decoded.CreatorAccountUserID)
 	if err != nil {
 		return err
@@ -16747,8 +16954,9 @@ func (value *PluginShareSaveParams) unmarshalJSON(data []byte, mode wireDecodeMo
 }
 
 type PluginShareSaveResponse struct {
-	RemotePluginID string `json:"remotePluginId"`
-	ShareURL       string `json:"shareUrl"`
+	CanPublishToWorkspace *Nullable[bool] `json:"canPublishToWorkspace,omitempty"`
+	RemotePluginID        string          `json:"remotePluginId"`
+	ShareURL              string          `json:"shareUrl"`
 }
 
 func (value *PluginShareSaveResponse) UnmarshalJSON(data []byte) error {
@@ -16761,6 +16969,10 @@ func (value *PluginShareSaveResponse) unmarshalJSON(data []byte, mode wireDecode
 		return err
 	}
 	var decoded PluginShareSaveResponse
+	_, err = decodeNullableJSONField[bool](fields, "canPublishToWorkspace", "PluginShareSaveResponse.canPublishToWorkspace", mode, decodeWireValue[bool], &decoded.CanPublishToWorkspace)
+	if err != nil {
+		return err
+	}
 	seenRemotePluginID, err := decodeJSONField(fields, "remotePluginId", "PluginShareSaveResponse.remotePluginId", false, mode, decodeWireValue[string], &decoded.RemotePluginID)
 	if err != nil {
 		return err
@@ -19271,7 +19483,9 @@ type SkillInterface struct {
 	DefaultPrompt    *Nullable[string] `json:"defaultPrompt,omitempty"`
 	DisplayName      *Nullable[string] `json:"displayName,omitempty"`
 	IconLarge        *Nullable[string] `json:"iconLarge,omitempty"`
+	IconLargeURL     *Nullable[string] `json:"iconLargeUrl,omitempty"`
 	IconSmall        *Nullable[string] `json:"iconSmall,omitempty"`
+	IconSmallURL     *Nullable[string] `json:"iconSmallUrl,omitempty"`
 	ShortDescription *Nullable[string] `json:"shortDescription,omitempty"`
 }
 
@@ -19301,7 +19515,15 @@ func (value *SkillInterface) unmarshalJSON(data []byte, mode wireDecodeMode) err
 	if err != nil {
 		return err
 	}
+	_, err = decodeNullableJSONField[string](fields, "iconLargeUrl", "SkillInterface.iconLargeUrl", mode, decodeWireValue[string], &decoded.IconLargeURL)
+	if err != nil {
+		return err
+	}
 	_, err = decodeNullableJSONField[string](fields, "iconSmall", "SkillInterface.iconSmall", mode, decodeWireValue[string], &decoded.IconSmall)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[string](fields, "iconSmallUrl", "SkillInterface.iconSmallUrl", mode, decodeWireValue[string], &decoded.IconSmallURL)
 	if err != nil {
 		return err
 	}
@@ -20051,6 +20273,7 @@ type Thread struct {
 	GitInfo              *Nullable[GitInfo]      `json:"gitInfo,omitempty"`
 	HistoryMode          *ThreadHistoryMode      `json:"historyMode,omitempty"`
 	ID                   string                  `json:"id"`
+	IsPinned             *bool                   `json:"isPinned,omitempty"`
 	ModelProvider        string                  `json:"modelProvider"`
 	Name                 *Nullable[string]       `json:"name,omitempty"`
 	ParentThreadID       *Nullable[string]       `json:"parentThreadId,omitempty"`
@@ -20145,6 +20368,10 @@ func (value *Thread) unmarshalJSON(data []byte, mode wireDecodeMode) error {
 	}
 	if !seenID {
 		return missingRequiredField("Thread.id")
+	}
+	_, err = decodeJSONField(fields, "isPinned", "Thread.isPinned", false, mode, wirePointerDecoder(decodeWireValue[bool]), &decoded.IsPinned)
+	if err != nil {
+		return err
 	}
 	seenModelProvider, err := decodeJSONField(fields, "modelProvider", "Thread.modelProvider", false, mode, decodeWireValue[string], &decoded.ModelProvider)
 	if err != nil {
@@ -21548,6 +21775,7 @@ type ThreadListParams struct {
 	Archived         *Nullable[bool]                `json:"archived,omitempty"`
 	Cursor           *Nullable[string]              `json:"cursor,omitempty"`
 	CWD              *Nullable[ThreadListCwdFilter] `json:"cwd,omitempty"`
+	IsPinned         *Nullable[bool]                `json:"isPinned,omitempty"`
 	Limit            *Nullable[uint32]              `json:"limit,omitempty"`
 	ModelProviders   *Nullable[[]string]            `json:"modelProviders,omitempty"`
 	ParentThreadID   *Nullable[string]              `json:"parentThreadId,omitempty"`
@@ -21581,6 +21809,10 @@ func (value *ThreadListParams) unmarshalJSON(data []byte, mode wireDecodeMode) e
 		return err
 	}
 	_, err = decodeNullableJSONField[ThreadListCwdFilter](fields, "cwd", "ThreadListParams.cwd", mode, decodeWireValue[ThreadListCwdFilter], &decoded.CWD)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[bool](fields, "isPinned", "ThreadListParams.isPinned", mode, decodeWireValue[bool], &decoded.IsPinned)
 	if err != nil {
 		return err
 	}
@@ -21831,6 +22063,7 @@ func (value *ThreadMetadataGitInfoUpdateParams) unmarshalJSON(data []byte, mode 
 
 type ThreadMetadataUpdateParams struct {
 	GitInfo  *Nullable[ThreadMetadataGitInfoUpdateParams] `json:"gitInfo,omitempty"`
+	IsPinned *Nullable[bool]                              `json:"isPinned,omitempty"`
 	ThreadID string                                       `json:"threadId"`
 }
 
@@ -21845,6 +22078,10 @@ func (value *ThreadMetadataUpdateParams) unmarshalJSON(data []byte, mode wireDec
 	}
 	var decoded ThreadMetadataUpdateParams
 	_, err = decodeNullableJSONField[ThreadMetadataGitInfoUpdateParams](fields, "gitInfo", "ThreadMetadataUpdateParams.gitInfo", mode, decodeWireValue[ThreadMetadataGitInfoUpdateParams], &decoded.GitInfo)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[bool](fields, "isPinned", "ThreadMetadataUpdateParams.isPinned", mode, decodeWireValue[bool], &decoded.IsPinned)
 	if err != nil {
 		return err
 	}
@@ -22465,21 +22702,22 @@ func (value *ThreadRealtimeSdpNotification) unmarshalJSON(data []byte, mode wire
 }
 
 type ThreadRealtimeStartParams struct {
-	ClientManagedHandoffs           *Nullable[bool]                         `json:"clientManagedHandoffs,omitempty"`
-	CodexResponseHandoffMode        *Nullable[CodexResponseHandoffMode]     `json:"codexResponseHandoffMode,omitempty"`
-	CodexResponseItemPrefix         *Nullable[string]                       `json:"codexResponseItemPrefix,omitempty"`
-	CodexResponsesAsItems           *Nullable[bool]                         `json:"codexResponsesAsItems,omitempty"`
-	FlushTranscriptTailOnSessionEnd *Nullable[bool]                         `json:"flushTranscriptTailOnSessionEnd,omitempty"`
-	IncludeStartupContext           *Nullable[bool]                         `json:"includeStartupContext,omitempty"`
-	InitialItems                    *Nullable[[]ThreadRealtimeInitialItem]  `json:"initialItems,omitempty"`
-	Model                           *Nullable[string]                       `json:"model,omitempty"`
-	OutputModality                  RealtimeOutputModality                  `json:"outputModality"`
-	Prompt                          *Nullable[string]                       `json:"prompt,omitempty"`
-	RealtimeSessionID               *Nullable[string]                       `json:"realtimeSessionId,omitempty"`
-	ThreadID                        string                                  `json:"threadId"`
-	Transport                       *Nullable[ThreadRealtimeStartTransport] `json:"transport,omitempty"`
-	Version                         *Nullable[RealtimeConversationVersion]  `json:"version,omitempty"`
-	Voice                           *Nullable[RealtimeVoice]                `json:"voice,omitempty"`
+	ClientManagedHandoffs               *Nullable[bool]                         `json:"clientManagedHandoffs,omitempty"`
+	CodexResponseHandoffChannelPrefixes *Nullable[map[string][]string]          `json:"codexResponseHandoffChannelPrefixes,omitempty"`
+	CodexResponseHandoffMode            *Nullable[CodexResponseHandoffMode]     `json:"codexResponseHandoffMode,omitempty"`
+	CodexResponseItemPrefix             *Nullable[string]                       `json:"codexResponseItemPrefix,omitempty"`
+	CodexResponsesAsItems               *Nullable[bool]                         `json:"codexResponsesAsItems,omitempty"`
+	FlushTranscriptTailOnSessionEnd     *Nullable[bool]                         `json:"flushTranscriptTailOnSessionEnd,omitempty"`
+	IncludeStartupContext               *Nullable[bool]                         `json:"includeStartupContext,omitempty"`
+	InitialItems                        *Nullable[[]ThreadRealtimeInitialItem]  `json:"initialItems,omitempty"`
+	Model                               *Nullable[string]                       `json:"model,omitempty"`
+	OutputModality                      RealtimeOutputModality                  `json:"outputModality"`
+	Prompt                              *Nullable[string]                       `json:"prompt,omitempty"`
+	RealtimeSessionID                   *Nullable[string]                       `json:"realtimeSessionId,omitempty"`
+	ThreadID                            string                                  `json:"threadId"`
+	Transport                           *Nullable[ThreadRealtimeStartTransport] `json:"transport,omitempty"`
+	Version                             *Nullable[RealtimeConversationVersion]  `json:"version,omitempty"`
+	Voice                               *Nullable[RealtimeVoice]                `json:"voice,omitempty"`
 }
 
 func (value *ThreadRealtimeStartParams) UnmarshalJSON(data []byte) error {
@@ -22493,6 +22731,10 @@ func (value *ThreadRealtimeStartParams) unmarshalJSON(data []byte, mode wireDeco
 	}
 	var decoded ThreadRealtimeStartParams
 	_, err = decodeNullableJSONField[bool](fields, "clientManagedHandoffs", "ThreadRealtimeStartParams.clientManagedHandoffs", mode, decodeWireValue[bool], &decoded.ClientManagedHandoffs)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[map[string][]string](fields, "codexResponseHandoffChannelPrefixes", "ThreadRealtimeStartParams.codexResponseHandoffChannelPrefixes", mode, wireMapDecoder(wireSliceDecoder(decodeWireValue[string])), &decoded.CodexResponseHandoffChannelPrefixes)
 	if err != nil {
 		return err
 	}
@@ -29070,6 +29312,7 @@ const (
 	ClientRequestKindConfigRead                             ClientRequestKind = "config/read"
 	ClientRequestKindExternalAgentConfigDetect              ClientRequestKind = "externalAgentConfig/detect"
 	ClientRequestKindExternalAgentConfigImport              ClientRequestKind = "externalAgentConfig/import"
+	ClientRequestKindExternalAgentConfigImportRecordHistory ClientRequestKind = "externalAgentConfig/import/recordHistory"
 	ClientRequestKindExternalAgentConfigImportReadHistories ClientRequestKind = "externalAgentConfig/import/readHistories"
 	ClientRequestKindConfigValueWrite                       ClientRequestKind = "config/value/write"
 	ClientRequestKindConfigBatchWrite                       ClientRequestKind = "config/batchWrite"
@@ -29200,6 +29443,7 @@ type ClientRequest struct {
 	variantConfigRead                             *ClientRequestConfigRead
 	variantExternalAgentConfigDetect              *ClientRequestExternalAgentConfigDetect
 	variantExternalAgentConfigImport              *ClientRequestExternalAgentConfigImport
+	variantExternalAgentConfigImportRecordHistory *ClientRequestExternalAgentConfigImportRecordHistory
 	variantExternalAgentConfigImportReadHistories *ClientRequestExternalAgentConfigImportReadHistories
 	variantConfigValueWrite                       *ClientRequestConfigValueWrite
 	variantConfigBatchWrite                       *ClientRequestConfigBatchWrite
@@ -29788,6 +30032,11 @@ type ClientRequestExternalAgentConfigImport struct {
 	Params ExternalAgentConfigImportParams `json:"params"`
 }
 
+type ClientRequestExternalAgentConfigImportRecordHistory struct {
+	ID     RequestId                                    `json:"id"`
+	Params ExternalAgentConfigImportHistoryRecordParams `json:"params"`
+}
+
 type ClientRequestExternalAgentConfigImportReadHistories struct {
 	ID RequestId `json:"id"`
 }
@@ -30299,6 +30548,10 @@ func NewClientRequestExternalAgentConfigImport(payload ClientRequestExternalAgen
 	return ClientRequest{kind: ClientRequestKindExternalAgentConfigImport, variantExternalAgentConfigImport: &payload}
 }
 
+func NewClientRequestExternalAgentConfigImportRecordHistory(payload ClientRequestExternalAgentConfigImportRecordHistory) ClientRequest {
+	return ClientRequest{kind: ClientRequestKindExternalAgentConfigImportRecordHistory, variantExternalAgentConfigImportRecordHistory: &payload}
+}
+
 func NewClientRequestExternalAgentConfigImportReadHistories(payload ClientRequestExternalAgentConfigImportReadHistories) ClientRequest {
 	return ClientRequest{kind: ClientRequestKindExternalAgentConfigImportReadHistories, variantExternalAgentConfigImportReadHistories: &payload}
 }
@@ -30575,6 +30828,8 @@ func (value ClientRequest) IsValid() bool {
 		return value.variantExternalAgentConfigDetect != nil
 	case ClientRequestKindExternalAgentConfigImport:
 		return value.variantExternalAgentConfigImport != nil
+	case ClientRequestKindExternalAgentConfigImportRecordHistory:
+		return value.variantExternalAgentConfigImportRecordHistory != nil
 	case ClientRequestKindExternalAgentConfigImportReadHistories:
 		return value.variantExternalAgentConfigImportReadHistories != nil
 	case ClientRequestKindConfigValueWrite:
@@ -31415,6 +31670,13 @@ func (value ClientRequest) AsExternalAgentConfigImport() (ClientRequestExternalA
 		return ClientRequestExternalAgentConfigImport{}, false
 	}
 	return *value.variantExternalAgentConfigImport, true
+}
+
+func (value ClientRequest) AsExternalAgentConfigImportRecordHistory() (ClientRequestExternalAgentConfigImportRecordHistory, bool) {
+	if value.kind != ClientRequestKindExternalAgentConfigImportRecordHistory || value.variantExternalAgentConfigImportRecordHistory == nil {
+		return ClientRequestExternalAgentConfigImportRecordHistory{}, false
+	}
+	return *value.variantExternalAgentConfigImportRecordHistory, true
 }
 
 func (value ClientRequest) AsExternalAgentConfigImportReadHistories() (ClientRequestExternalAgentConfigImportReadHistories, bool) {
@@ -32986,6 +33248,19 @@ func (value ClientRequest) MarshalJSON() ([]byte, error) {
 			ID:     value.variantExternalAgentConfigImport.ID,
 			Method: "externalAgentConfig/import",
 			Params: value.variantExternalAgentConfigImport.Params,
+		})
+	case ClientRequestKindExternalAgentConfigImportRecordHistory:
+		if value.variantExternalAgentConfigImportRecordHistory == nil {
+			return nil, invalidUnionVariant("ClientRequest", "externalAgentConfig/import/recordHistory")
+		}
+		return json.Marshal(struct {
+			ID     RequestId                                    `json:"id"`
+			Method string                                       `json:"method"`
+			Params ExternalAgentConfigImportHistoryRecordParams `json:"params"`
+		}{
+			ID:     value.variantExternalAgentConfigImportRecordHistory.ID,
+			Method: "externalAgentConfig/import/recordHistory",
+			Params: value.variantExternalAgentConfigImportRecordHistory.Params,
 		})
 	case ClientRequestKindExternalAgentConfigImportReadHistories:
 		if value.variantExternalAgentConfigImportReadHistories == nil {
@@ -35569,6 +35844,27 @@ func (value *ClientRequest) unmarshalJSON(data []byte, mode wireDecodeMode) erro
 			return err
 		}
 		*value = ClientRequest{kind: ClientRequestKindExternalAgentConfigImport, variantExternalAgentConfigImport: &decoded}
+		return nil
+	case "externalAgentConfig/import/recordHistory":
+		var decoded ClientRequestExternalAgentConfigImportRecordHistory
+		seenID, err := decodeJSONField(fields, "id", "ClientRequest.id", false, mode, decodeWireValue[RequestId], &decoded.ID)
+		if err != nil {
+			return err
+		}
+		if !seenID {
+			return missingRequiredField("ClientRequest.id")
+		}
+		seenParams, err := decodeJSONField(fields, "params", "ClientRequest.params", false, mode, decodeWireValue[ExternalAgentConfigImportHistoryRecordParams], &decoded.Params)
+		if err != nil {
+			return err
+		}
+		if !seenParams {
+			return missingRequiredField("ClientRequest.params")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ClientRequest.externalAgentConfig/import/recordHistory", mode); err != nil {
+			return err
+		}
+		*value = ClientRequest{kind: ClientRequestKindExternalAgentConfigImportRecordHistory, variantExternalAgentConfigImportRecordHistory: &decoded}
 		return nil
 	case "externalAgentConfig/import/readHistories":
 		var decoded ClientRequestExternalAgentConfigImportReadHistories
@@ -46129,7 +46425,9 @@ type ThreadItemCommandExecution struct {
 	DurationMS       *Nullable[int64]        `json:"durationMs,omitempty"`
 	ExitCode         *Nullable[int32]        `json:"exitCode,omitempty"`
 	ID               string                  `json:"id"`
+	PluginID         *Nullable[string]       `json:"pluginId,omitempty"`
 	ProcessID        *Nullable[string]       `json:"processId,omitempty"`
+	ScriptPath       *Nullable[string]       `json:"scriptPath,omitempty"`
 	Source           *CommandExecutionSource `json:"source,omitempty"`
 	Status           CommandExecutionStatus  `json:"status"`
 }
@@ -46564,7 +46862,9 @@ func (value ThreadItem) MarshalJSON() ([]byte, error) {
 			DurationMS       *Nullable[int64]        `json:"durationMs,omitempty"`
 			ExitCode         *Nullable[int32]        `json:"exitCode,omitempty"`
 			ID               string                  `json:"id"`
+			PluginID         *Nullable[string]       `json:"pluginId,omitempty"`
 			ProcessID        *Nullable[string]       `json:"processId,omitempty"`
+			ScriptPath       *Nullable[string]       `json:"scriptPath,omitempty"`
 			Source           *CommandExecutionSource `json:"source,omitempty"`
 			Status           CommandExecutionStatus  `json:"status"`
 			Type             string                  `json:"type"`
@@ -46576,7 +46876,9 @@ func (value ThreadItem) MarshalJSON() ([]byte, error) {
 			DurationMS:       value.variantCommandExecution.DurationMS,
 			ExitCode:         value.variantCommandExecution.ExitCode,
 			ID:               value.variantCommandExecution.ID,
+			PluginID:         value.variantCommandExecution.PluginID,
 			ProcessID:        value.variantCommandExecution.ProcessID,
+			ScriptPath:       value.variantCommandExecution.ScriptPath,
 			Source:           value.variantCommandExecution.Source,
 			Status:           value.variantCommandExecution.Status,
 			Type:             "commandExecution",
@@ -46983,7 +47285,15 @@ func (value *ThreadItem) unmarshalJSON(data []byte, mode wireDecodeMode) error {
 		if !seenID {
 			return missingRequiredField("ThreadItem.id")
 		}
+		_, err = decodeNullableJSONField[string](fields, "pluginId", "ThreadItem.pluginId", mode, decodeWireValue[string], &decoded.PluginID)
+		if err != nil {
+			return err
+		}
 		_, err = decodeNullableJSONField[string](fields, "processId", "ThreadItem.processId", mode, decodeWireValue[string], &decoded.ProcessID)
+		if err != nil {
+			return err
+		}
+		_, err = decodeNullableJSONField[string](fields, "scriptPath", "ThreadItem.scriptPath", mode, decodeWireValue[string], &decoded.ScriptPath)
 		if err != nil {
 			return err
 		}

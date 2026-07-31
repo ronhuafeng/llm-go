@@ -280,6 +280,40 @@ func TestBuildProtocolTypePlanPreservesNullableTypedMapValues(t *testing.T) {
 	}
 }
 
+func TestPlanFieldSupportsStringSliceMapValues(t *testing.T) {
+	coverage := CoverageField{
+		Field:     "prefixes",
+		Path:      "Example.json#/properties/prefixes",
+		Required:  false,
+		Schema:    "Example.json",
+		Stability: "experimental",
+		Status:    "supported-generated",
+		Type:      "Example",
+	}
+	field, err := planField(coverage, &Schema{
+		AdditionalProperties: AdditionalProperties{
+			Present: true,
+			Schema: &Schema{
+				Items: &Schema{Type: SchemaTypeSet{Values: []string{"string"}}},
+				Type:  SchemaTypeSet{Values: []string{"array"}},
+			},
+		},
+		Type: SchemaTypeSet{Values: []string{"object", "null"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if field.Kind != FieldPlanTypedMap {
+		t.Fatalf("string slice map kind = %s, want %s", field.Kind, FieldPlanTypedMap)
+	}
+	if field.GoType != "*protocolv2.Nullable[map[string][]string]" {
+		t.Fatalf("string slice map GoType = %q", field.GoType)
+	}
+	if !field.WireAllowsNull || !field.WireOmitAllowed {
+		t.Fatal("nullable string slice map must preserve omit/null/value semantics")
+	}
+}
+
 func TestPlanFieldSupportsUint16ConstrainedInteger(t *testing.T) {
 	coverage := CoverageField{
 		Field:     "cols",

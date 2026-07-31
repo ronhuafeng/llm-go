@@ -2862,6 +2862,32 @@
       "type": "ExternalAgentConfigDetectParams"
     },
     {
+      "exit_condition": "Regenerate if upstream schema drift changes ExternalAgentConfigDetectParams.maxSessionAgeDays semantics.",
+      "field": "maxSessionAgeDays",
+      "owner": "codex-go-sdk",
+      "path": "v2/ExternalAgentConfigDetectParams.json#/properties/maxSessionAgeDays",
+      "reason": "Generated as a strict typed ExternalAgentConfigDetectParams field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ExternalAgentConfigDetectParams.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "ExternalAgentConfigDetectParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes ExternalAgentConfigDetectParams.maxSessions semantics.",
+      "field": "maxSessions",
+      "owner": "codex-go-sdk",
+      "path": "v2/ExternalAgentConfigDetectParams.json#/properties/maxSessions",
+      "reason": "Generated as a strict typed ExternalAgentConfigDetectParams field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ExternalAgentConfigDetectParams.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "ExternalAgentConfigDetectParams"
+    },
+    {
       "exit_condition": "Regenerate if upstream schema drift changes ExternalAgentConfigDetectParams.migrationSource semantics.",
       "field": "migrationSource",
       "owner": "codex-go-sdk",
@@ -2953,6 +2979,45 @@
       "type": "ExternalAgentConfigImportHistoriesReadResponse"
     },
     {
+      "exit_condition": "Regenerate if upstream schema drift changes ExternalAgentConfigImportHistoryRecordParams.itemTypeResults semantics.",
+      "field": "itemTypeResults",
+      "owner": "codex-go-sdk",
+      "path": "v2/ExternalAgentConfigImportHistoryRecordParams.json#/properties/itemTypeResults",
+      "reason": "Generated as a strict typed ExternalAgentConfigImportHistoryRecordParams field.",
+      "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ExternalAgentConfigImportHistoryRecordParams.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "ExternalAgentConfigImportHistoryRecordParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes ExternalAgentConfigImportHistoryRecordParams.providerId semantics.",
+      "field": "providerId",
+      "owner": "codex-go-sdk",
+      "path": "v2/ExternalAgentConfigImportHistoryRecordParams.json#/properties/providerId",
+      "reason": "Generated as a strict typed ExternalAgentConfigImportHistoryRecordParams field.",
+      "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ExternalAgentConfigImportHistoryRecordParams.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "ExternalAgentConfigImportHistoryRecordParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes ExternalAgentConfigImportHistoryRecordResponse.importId semantics.",
+      "field": "importId",
+      "owner": "codex-go-sdk",
+      "path": "v2/ExternalAgentConfigImportHistoryRecordResponse.json#/properties/importId",
+      "reason": "Generated as a strict typed ExternalAgentConfigImportHistoryRecordResponse field.",
+      "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ExternalAgentConfigImportHistoryRecordResponse.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "ExternalAgentConfigImportHistoryRecordResponse"
+    },
+    {
       "exit_condition": "Regenerate if upstream external agent config migration item shape, nested migration details, or required list semantics change.",
       "field": "migrationItems",
       "owner": "codex-go-sdk",
@@ -2970,6 +3035,19 @@
       "field": "migrationSource",
       "owner": "codex-go-sdk",
       "path": "v2/ExternalAgentConfigImportParams.json#/properties/migrationSource",
+      "reason": "Generated as a strict typed ExternalAgentConfigImportParams field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ExternalAgentConfigImportParams.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "ExternalAgentConfigImportParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes ExternalAgentConfigImportParams.providerId semantics.",
+      "field": "providerId",
+      "owner": "codex-go-sdk",
+      "path": "v2/ExternalAgentConfigImportParams.json#/properties/providerId",
       "reason": "Generated as a strict typed ExternalAgentConfigImportParams field.",
       "required": false,
       "revisit_trigger": "protocolv2 generation or upstream schema drift",
@@ -5358,6 +5436,19 @@
       "type": "PluginListParams"
     },
     {
+      "exit_condition": "Regenerate if upstream schema drift changes PluginListParams.forceRefetch semantics.",
+      "field": "forceRefetch",
+      "owner": "codex-go-sdk",
+      "path": "v2/PluginListParams.json#/properties/forceRefetch",
+      "reason": "Generated as a strict typed PluginListParams field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/PluginListParams.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "PluginListParams"
+    },
+    {
       "exit_condition": "Regenerate if upstream schema drift changes PluginListParams.marketplaceKinds semantics.",
       "field": "marketplaceKinds",
       "owner": "codex-go-sdk",
@@ -5642,6 +5733,19 @@
       "stability": "stable",
       "status": "supported-generated",
       "type": "PluginShareSaveParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes PluginShareSaveResponse.canPublishToWorkspace semantics.",
+      "field": "canPublishToWorkspace",
+      "owner": "codex-go-sdk",
+      "path": "v2/PluginShareSaveResponse.json#/properties/canPublishToWorkspace",
+      "reason": "Generated as a strict typed PluginShareSaveResponse field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/PluginShareSaveResponse.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "PluginShareSaveResponse"
     },
     {
       "exit_condition": "Regenerate if upstream plugin field drift changes type, requiredness, or omit/null/value semantics.",
@@ -8192,6 +8296,19 @@
       "type": "ThreadListParams"
     },
     {
+      "exit_condition": "Regenerate if upstream schema drift changes ThreadListParams.isPinned semantics.",
+      "field": "isPinned",
+      "owner": "codex-go-sdk",
+      "path": "v2/ThreadListParams.json#/properties/isPinned",
+      "reason": "Generated as a strict typed ThreadListParams field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadListParams.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "ThreadListParams"
+    },
+    {
       "exit_condition": "Regenerate if upstream schema drift changes field names, requiredness, union shape, or omit/null/value semantics.",
       "field": "limit",
       "owner": "codex-go-sdk",
@@ -8418,6 +8535,19 @@
       "owner": "codex-go-sdk",
       "path": "v2/ThreadMetadataUpdateParams.json#/properties/gitInfo",
       "reason": "Generated as Nullable[ThreadMetadataGitInfoUpdateParams], preserving omitted/null/value Git metadata patch semantics.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadMetadataUpdateParams.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "ThreadMetadataUpdateParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes ThreadMetadataUpdateParams.isPinned semantics.",
+      "field": "isPinned",
+      "owner": "codex-go-sdk",
+      "path": "v2/ThreadMetadataUpdateParams.json#/properties/isPinned",
+      "reason": "Generated as a strict typed ThreadMetadataUpdateParams field.",
       "required": false,
       "revisit_trigger": "protocolv2 generation or upstream schema drift",
       "schema": "v2/ThreadMetadataUpdateParams.json",
@@ -8755,6 +8885,19 @@
       "field": "clientManagedHandoffs",
       "owner": "codex-go-sdk",
       "path": "v2/ThreadRealtimeStartParams.json#/properties/clientManagedHandoffs",
+      "reason": "Generated as a strict typed ThreadRealtimeStartParams field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadRealtimeStartParams.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "ThreadRealtimeStartParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes ThreadRealtimeStartParams.codexResponseHandoffChannelPrefixes semantics.",
+      "field": "codexResponseHandoffChannelPrefixes",
+      "owner": "codex-go-sdk",
+      "path": "v2/ThreadRealtimeStartParams.json#/properties/codexResponseHandoffChannelPrefixes",
       "reason": "Generated as a strict typed ThreadRealtimeStartParams field.",
       "required": false,
       "revisit_trigger": "protocolv2 generation or upstream schema drift",
@@ -12024,6 +12167,18 @@
     },
     {
       "direction": "client_to_server",
+      "exit_condition": "Regenerate method registry and add handwritten facade coverage only if this upstream method becomes part of the public SDK surface.",
+      "kind": "request",
+      "method": "externalAgentConfig/import/recordHistory",
+      "owner": "codex-go-sdk",
+      "reason": "Generated protocolv2 method registry coverage for client_to_server request method; no handwritten facade is claimed until explicitly added.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "source_schema": "ClientRequest.json",
+      "stability": "stable",
+      "status": "supported-generated"
+    },
+    {
+      "direction": "client_to_server",
       "exit_condition": "Keep the typed feedback facade aligned with protocolv2 generation and upstream schema drift.",
       "kind": "request",
       "method": "feedback/upload",
@@ -14971,6 +15126,26 @@
       "stability": "stable",
       "status": "supported-generated",
       "type": "ExternalAgentConfigImportHistoriesReadResponse"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes this generated protocol type.",
+      "owner": "codex-go-sdk",
+      "reason": "Generated from the checked-in upstream app-server schema baseline.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ExternalAgentConfigImportHistoryRecordParams.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "ExternalAgentConfigImportHistoryRecordParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes this generated protocol type.",
+      "owner": "codex-go-sdk",
+      "reason": "Generated from the checked-in upstream app-server schema baseline.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ExternalAgentConfigImportHistoryRecordResponse.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "ExternalAgentConfigImportHistoryRecordResponse"
     },
     {
       "exit_condition": "Regenerate if upstream ExternalAgentConfigImportParams or shared migration definitions change.",
