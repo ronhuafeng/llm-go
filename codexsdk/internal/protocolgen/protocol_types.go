@@ -2141,9 +2141,11 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 		}
 	case "v2/ConfigRequirementsReadResponse.json":
 		switch name {
-		case "ComputerUseRequirements",
+		case "BrowserUseRequirements",
+			"ComputerUseRequirements",
 			"ConfigRequirements",
 			"ConfiguredHookMatcherGroup",
+			"FeedbackRequirements",
 			"ManagedHooksRequirements",
 			"ModelsRequirements",
 			"NewThreadModelDefaults",

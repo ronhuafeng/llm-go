@@ -484,6 +484,14 @@ func (f ExternalAgentConfigs) ImportReadHistories(ctx context.Context) (protocol
 	return response, nil
 }
 
+func (f ExternalAgentConfigs) ImportRecordHistory(ctx context.Context, params protocolv2.ExternalAgentConfigImportHistoryRecordParams) (protocolv2.ExternalAgentConfigImportHistoryRecordResponse, error) {
+	var response protocolv2.ExternalAgentConfigImportHistoryRecordResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodExternalAgentConfigImportRecordHistory, params, &response); err != nil {
+		return protocolv2.ExternalAgentConfigImportHistoryRecordResponse{}, err
+	}
+	return response, nil
+}
+
 func (f FS) Copy(ctx context.Context, params protocolv2.FsCopyParams) (protocolv2.FsCopyResponse, error) {
 	var response protocolv2.FsCopyResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodFSCopy, params, &response); err != nil {

@@ -973,6 +973,8 @@ func mapValueType(path string, schemaPath string, schema *Schema) (string, strin
 	case schema.Type.Only("integer"):
 		goType, err := scalarGoType(schema, "integer")
 		return goType, "", err
+	case schema.Type.Only("array") && plainStringArraySchema(schema):
+		return "[]string", "", nil
 	case schema.Type.Has("null"):
 		nonNull, ok := schema.Type.NullableSingle()
 		if !ok {
@@ -993,6 +995,25 @@ func mapValueType(path string, schemaPath string, schema *Schema) (string, strin
 	default:
 		return "", "", fmt.Errorf("field %s has unsupported additionalProperties schema", path)
 	}
+}
+
+func plainStringArraySchema(schema *Schema) bool {
+	return schema != nil &&
+		schema.Items != nil &&
+		schema.Items.Type.Only("string") &&
+		len(unmodeledKeywords(schema)) == 0 &&
+		!schema.Default.Present &&
+		!schema.Items.Default.Present &&
+		schema.Ref == "" &&
+		len(schema.Properties) == 0 &&
+		len(schema.OneOf) == 0 &&
+		len(schema.AnyOf) == 0 &&
+		len(schema.AllOf) == 0 &&
+		len(schema.Enum) == 0 &&
+		len(schema.Definitions) == 0 &&
+		len(schema.Required) == 0 &&
+		!schema.AdditionalProperties.Present &&
+		!hasNonTypeShape(schema.Items)
 }
 
 func nullableUnionInner(variants []*Schema) (*Schema, bool) {

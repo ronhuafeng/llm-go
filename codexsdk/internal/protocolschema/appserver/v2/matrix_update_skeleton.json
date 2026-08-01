@@ -13,914 +13,422 @@
   "generated_compatibility_updates": {
     "added": [
       {
-        "kind": "field",
-        "name": "AppToolSummary.Description",
+        "kind": "const",
+        "name": "MethodExternalAgentConfigImportRecordHistory",
         "classification": "stable",
-        "signature": "string `json:\"description\"`"
+        "signature": "implicit = \"externalAgentConfig/import/recordHistory\""
       },
       {
         "kind": "field",
-        "name": "AppToolSummary.Name",
+        "name": "AppToolSummary.DisabledReason",
         "classification": "stable",
-        "signature": "string `json:\"name\"`"
+        "signature": "*Nullable[string] `json:\"disabledReason,omitempty\"`"
       },
       {
         "kind": "field",
-        "name": "AppToolSummary.Title",
+        "name": "AppToolSummary.IsEnabled",
         "classification": "stable",
-        "signature": "*Nullable[string] `json:\"title,omitempty\"`"
+        "signature": "*bool `json:\"isEnabled,omitempty\"`"
       },
       {
         "kind": "field",
-        "name": "AppsInstalledResponse.Apps",
+        "name": "AppToolSummary.IsReadOnly",
         "classification": "stable",
-        "signature": "[]InstalledApp `json:\"apps\"`"
+        "signature": "*bool `json:\"isReadOnly,omitempty\"`"
       },
       {
         "kind": "field",
-        "name": "AppsReadResponse.Apps",
+        "name": "BrowserUseRequirements.DisableAutoReview",
         "classification": "stable",
-        "signature": "[]ConnectorMetadata `json:\"apps\"`"
+        "signature": "*Nullable[bool] `json:\"disableAutoReview,omitempty\"`"
       },
       {
         "kind": "field",
-        "name": "AppsReadResponse.MissingAppIDs",
+        "name": "ClientRequestExternalAgentConfigImportRecordHistory.ID",
         "classification": "stable",
-        "signature": "[]string `json:\"missingAppIds\"`"
+        "signature": "RequestId `json:\"id\"`"
       },
       {
         "kind": "field",
-        "name": "ConnectorMetadata.Description",
+        "name": "ClientRequestExternalAgentConfigImportRecordHistory.Params",
         "classification": "stable",
-        "signature": "*Nullable[string] `json:\"description,omitempty\"`"
+        "signature": "ExternalAgentConfigImportHistoryRecordParams `json:\"params\"`"
       },
       {
         "kind": "field",
-        "name": "ConnectorMetadata.DistributionChannel",
+        "name": "ConfigRequirements.AllowLoginShell",
         "classification": "stable",
-        "signature": "*Nullable[string] `json:\"distributionChannel,omitempty\"`"
+        "signature": "*Nullable[bool] `json:\"allowLoginShell,omitempty\"`"
       },
       {
         "kind": "field",
-        "name": "ConnectorMetadata.ID",
+        "name": "ConfigRequirements.BrowserUse",
         "classification": "stable",
-        "signature": "string `json:\"id\"`"
+        "signature": "*Nullable[BrowserUseRequirements] `json:\"browserUse,omitempty\"`"
       },
       {
         "kind": "field",
-        "name": "ConnectorMetadata.IconURL",
+        "name": "ConfigRequirements.CheckForUpdateOnStartup",
         "classification": "stable",
-        "signature": "*Nullable[string] `json:\"iconUrl,omitempty\"`"
+        "signature": "*Nullable[bool] `json:\"checkForUpdateOnStartup,omitempty\"`"
       },
       {
         "kind": "field",
-        "name": "ConnectorMetadata.IconURLDark",
+        "name": "ConfigRequirements.Feedback",
         "classification": "stable",
-        "signature": "*Nullable[string] `json:\"iconUrlDark,omitempty\"`"
+        "signature": "*Nullable[FeedbackRequirements] `json:\"feedback,omitempty\"`"
       },
       {
         "kind": "field",
-        "name": "ConnectorMetadata.InstallURL",
+        "name": "ConfigRequirements.LogDir",
         "classification": "stable",
-        "signature": "*Nullable[string] `json:\"installUrl,omitempty\"`"
+        "signature": "*Nullable[string] `json:\"logDir,omitempty\"`"
       },
       {
         "kind": "field",
-        "name": "ConnectorMetadata.Name",
+        "name": "ConfigRequirements.ModelCatalogJSON",
         "classification": "stable",
-        "signature": "string `json:\"name\"`"
+        "signature": "*Nullable[string] `json:\"modelCatalogJson,omitempty\"`"
       },
       {
         "kind": "field",
-        "name": "ConnectorMetadata.PluginDisplayNames",
+        "name": "ConfigRequirements.SqliteHome",
         "classification": "stable",
-        "signature": "*[]string `json:\"pluginDisplayNames,omitempty\"`"
+        "signature": "*Nullable[string] `json:\"sqliteHome,omitempty\"`"
       },
       {
         "kind": "field",
-        "name": "ConnectorMetadata.ToolSummaries",
+        "name": "ConfigRequirements.WindowsSandboxPrivateDesktop",
         "classification": "stable",
-        "signature": "*Nullable[[]AppToolSummary] `json:\"toolSummaries,omitempty\"`"
+        "signature": "*Nullable[bool] `json:\"windowsSandboxPrivateDesktop,omitempty\"`"
       },
       {
         "kind": "field",
-        "name": "EnvironmentStatusResponse.Error",
+        "name": "ExternalAgentConfigDetectParams.MaxSessionAgeDays",
+        "classification": "stable",
+        "signature": "*Nullable[uint32] `json:\"maxSessionAgeDays,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ExternalAgentConfigDetectParams.MaxSessions",
+        "classification": "stable",
+        "signature": "*Nullable[uint32] `json:\"maxSessions,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ExternalAgentConfigImportHistory.ProviderID",
+        "classification": "stable",
+        "signature": "*Nullable[string] `json:\"providerId,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ExternalAgentConfigImportHistoryRecordParams.ItemTypeResults",
+        "classification": "stable",
+        "signature": "[]ExternalAgentConfigImportTypeResult `json:\"itemTypeResults\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ExternalAgentConfigImportHistoryRecordParams.ProviderID",
+        "classification": "stable",
+        "signature": "string `json:\"providerId\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ExternalAgentConfigImportHistoryRecordResponse.ImportID",
+        "classification": "stable",
+        "signature": "string `json:\"importId\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ExternalAgentConfigImportParams.ProviderID",
+        "classification": "stable",
+        "signature": "*Nullable[string] `json:\"providerId,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "FeedbackRequirements.Enabled",
+        "classification": "stable",
+        "signature": "*Nullable[bool] `json:\"enabled,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "PluginListParams.ForceRefetch",
+        "classification": "stable",
+        "signature": "*bool `json:\"forceRefetch,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "PluginShareContext.CanPublishToWorkspace",
+        "classification": "stable",
+        "signature": "*Nullable[bool] `json:\"canPublishToWorkspace,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "PluginShareSaveResponse.CanPublishToWorkspace",
+        "classification": "stable",
+        "signature": "*Nullable[bool] `json:\"canPublishToWorkspace,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "SkillInterface.IconLargeURL",
+        "classification": "stable",
+        "signature": "*Nullable[string] `json:\"iconLargeUrl,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "SkillInterface.IconSmallURL",
+        "classification": "stable",
+        "signature": "*Nullable[string] `json:\"iconSmallUrl,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "Thread.IsPinned",
+        "classification": "stable",
+        "signature": "*bool `json:\"isPinned,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadItemCommandExecution.PluginID",
+        "classification": "stable",
+        "signature": "*Nullable[string] `json:\"pluginId,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadItemCommandExecution.ScriptPath",
+        "classification": "stable",
+        "signature": "*Nullable[string] `json:\"scriptPath,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadListParams.IsPinned",
+        "classification": "stable",
+        "signature": "*Nullable[bool] `json:\"isPinned,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadMetadataUpdateParams.IsPinned",
+        "classification": "stable",
+        "signature": "*Nullable[bool] `json:\"isPinned,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadRealtimeStartParams.CodexResponseHandoffChannelPrefixes",
         "classification": "experimental",
-        "signature": "*Nullable[string] `json:\"error,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "EnvironmentStatusResponse.Status",
-        "classification": "experimental",
-        "signature": "EnvironmentStatusKind `json:\"status\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ExternalAgentConfigImportHistoriesReadResponse.Connectors",
-        "classification": "stable",
-        "signature": "[]ExternalAgentImportedConnectorCandidate `json:\"connectors\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ExternalAgentConfigImportHistoriesReadResponse.Data",
-        "classification": "stable",
-        "signature": "[]ExternalAgentConfigImportHistory `json:\"data\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ExternalAgentImportedConnectorCandidate.Name",
-        "classification": "stable",
-        "signature": "string `json:\"name\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ExternalAgentImportedConnectorCandidate.SessionCount",
-        "classification": "stable",
-        "signature": "uint32 `json:\"sessionCount\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ExternalAgentImportedConnectorCandidate.Source",
-        "classification": "stable",
-        "signature": "ExternalAgentImportedConnectorSource `json:\"source\"`"
-      },
-      {
-        "kind": "field",
-        "name": "InstalledApp.Callable",
-        "classification": "stable",
-        "signature": "bool `json:\"callable\"`"
-      },
-      {
-        "kind": "field",
-        "name": "InstalledApp.Enabled",
-        "classification": "stable",
-        "signature": "bool `json:\"enabled\"`"
-      },
-      {
-        "kind": "field",
-        "name": "InstalledApp.ID",
-        "classification": "stable",
-        "signature": "string `json:\"id\"`"
-      },
-      {
-        "kind": "field",
-        "name": "InstalledApp.RuntimeName",
-        "classification": "stable",
-        "signature": "*Nullable[string] `json:\"runtimeName,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "PluginDetail.AppTemplates",
-        "classification": "stable",
-        "signature": "[]AppTemplateSummary `json:\"appTemplates\"`"
-      },
-      {
-        "kind": "field",
-        "name": "PluginDetail.Apps",
-        "classification": "stable",
-        "signature": "[]AppSummary `json:\"apps\"`"
-      },
-      {
-        "kind": "field",
-        "name": "PluginDetail.Description",
-        "classification": "stable",
-        "signature": "*Nullable[string] `json:\"description,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "PluginDetail.Hooks",
-        "classification": "stable",
-        "signature": "[]PluginHookSummary `json:\"hooks\"`"
-      },
-      {
-        "kind": "field",
-        "name": "PluginDetail.MCPServers",
-        "classification": "stable",
-        "signature": "[]string `json:\"mcpServers\"`"
-      },
-      {
-        "kind": "field",
-        "name": "PluginDetail.MarketplaceName",
-        "classification": "stable",
-        "signature": "string `json:\"marketplaceName\"`"
-      },
-      {
-        "kind": "field",
-        "name": "PluginDetail.MarketplacePath",
-        "classification": "stable",
-        "signature": "*Nullable[string] `json:\"marketplacePath,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "PluginDetail.ScheduledTasks",
-        "classification": "stable",
-        "signature": "*Nullable[[]ScheduledTaskSummary] `json:\"scheduledTasks,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "PluginDetail.ShareURL",
-        "classification": "stable",
-        "signature": "*Nullable[string] `json:\"shareUrl,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "PluginDetail.Skills",
-        "classification": "stable",
-        "signature": "[]SkillSummary `json:\"skills\"`"
-      },
-      {
-        "kind": "field",
-        "name": "PluginDetail.Summary",
-        "classification": "stable",
-        "signature": "PluginSummary `json:\"summary\"`"
-      },
-      {
-        "kind": "field",
-        "name": "PluginReadResponse.Plugin",
-        "classification": "stable",
-        "signature": "PluginDetail `json:\"plugin\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ScheduledTaskScheduleDaily.Time",
-        "classification": "stable",
-        "signature": "string `json:\"time\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ScheduledTaskScheduleHourly.Days",
-        "classification": "stable",
-        "signature": "*Nullable[[]ScheduledTaskWeekday] `json:\"days,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ScheduledTaskScheduleHourly.IntervalHours",
-        "classification": "stable",
-        "signature": "uint32 `json:\"intervalHours\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ScheduledTaskScheduleWeekdays.Time",
-        "classification": "stable",
-        "signature": "string `json:\"time\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ScheduledTaskScheduleWeekly.Days",
-        "classification": "stable",
-        "signature": "[]ScheduledTaskWeekday `json:\"days\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ScheduledTaskScheduleWeekly.Time",
-        "classification": "stable",
-        "signature": "string `json:\"time\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ScheduledTaskSummary.Key",
-        "classification": "stable",
-        "signature": "string `json:\"key\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ScheduledTaskSummary.Name",
-        "classification": "stable",
-        "signature": "string `json:\"name\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ScheduledTaskSummary.Prompt",
-        "classification": "stable",
-        "signature": "string `json:\"prompt\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ScheduledTaskSummary.Schedule",
-        "classification": "stable",
-        "signature": "ScheduledTaskSchedule `json:\"schedule\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadItemEntry.Item",
-        "classification": "experimental",
-        "signature": "ThreadItem `json:\"item\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadItemEntry.TurnID",
-        "classification": "experimental",
-        "signature": "string `json:\"turnId\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadItemsListResponse.BackwardsCursor",
-        "classification": "experimental",
-        "signature": "*Nullable[string] `json:\"backwardsCursor,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadItemsListResponse.Data",
-        "classification": "experimental",
-        "signature": "[]ThreadItemEntry `json:\"data\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadItemsListResponse.NextCursor",
-        "classification": "experimental",
-        "signature": "*Nullable[string] `json:\"nextCursor,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadRealtimeInitialItem.Role",
-        "classification": "experimental",
-        "signature": "ConversationTextRole `json:\"role\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadRealtimeInitialItem.Text",
-        "classification": "experimental",
-        "signature": "string `json:\"text\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadRealtimeStartParams.ClientManagedHandoffs",
-        "classification": "experimental",
-        "signature": "*Nullable[bool] `json:\"clientManagedHandoffs,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadRealtimeStartParams.CodexResponseHandoffMode",
-        "classification": "experimental",
-        "signature": "*Nullable[CodexResponseHandoffMode] `json:\"codexResponseHandoffMode,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadRealtimeStartParams.CodexResponseItemPrefix",
-        "classification": "experimental",
-        "signature": "*Nullable[string] `json:\"codexResponseItemPrefix,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadRealtimeStartParams.CodexResponsesAsItems",
-        "classification": "experimental",
-        "signature": "*Nullable[bool] `json:\"codexResponsesAsItems,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadRealtimeStartParams.FlushTranscriptTailOnSessionEnd",
-        "classification": "experimental",
-        "signature": "*Nullable[bool] `json:\"flushTranscriptTailOnSessionEnd,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadRealtimeStartParams.IncludeStartupContext",
-        "classification": "experimental",
-        "signature": "*Nullable[bool] `json:\"includeStartupContext,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadRealtimeStartParams.InitialItems",
-        "classification": "experimental",
-        "signature": "*Nullable[[]ThreadRealtimeInitialItem] `json:\"initialItems,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadRealtimeStartParams.Model",
-        "classification": "experimental",
-        "signature": "*Nullable[string] `json:\"model,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadRealtimeStartParams.OutputModality",
-        "classification": "experimental",
-        "signature": "RealtimeOutputModality `json:\"outputModality\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadRealtimeStartParams.Prompt",
-        "classification": "experimental",
-        "signature": "*Nullable[string] `json:\"prompt,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadRealtimeStartParams.RealtimeSessionID",
-        "classification": "experimental",
-        "signature": "*Nullable[string] `json:\"realtimeSessionId,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadRealtimeStartParams.ThreadID",
-        "classification": "experimental",
-        "signature": "string `json:\"threadId\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadRealtimeStartParams.Transport",
-        "classification": "experimental",
-        "signature": "*Nullable[ThreadRealtimeStartTransport] `json:\"transport,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadRealtimeStartParams.Version",
-        "classification": "experimental",
-        "signature": "*Nullable[RealtimeConversationVersion] `json:\"version,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadRealtimeStartParams.Voice",
-        "classification": "experimental",
-        "signature": "*Nullable[RealtimeVoice] `json:\"voice,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadSearchOccurrence.ItemID",
-        "classification": "experimental",
-        "signature": "string `json:\"itemId\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadSearchOccurrence.Snippet",
-        "classification": "experimental",
-        "signature": "string `json:\"snippet\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadSearchOccurrence.SnippetMatchRange",
-        "classification": "experimental",
-        "signature": "ThreadSearchTextRange `json:\"snippetMatchRange\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadSearchOccurrence.TurnCursor",
-        "classification": "experimental",
-        "signature": "string `json:\"turnCursor\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadSearchOccurrence.TurnID",
-        "classification": "experimental",
-        "signature": "string `json:\"turnId\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadSearchOccurrencesResponse.Data",
-        "classification": "experimental",
-        "signature": "[]ThreadSearchOccurrence `json:\"data\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadSearchOccurrencesResponse.NextCursor",
-        "classification": "experimental",
-        "signature": "*Nullable[string] `json:\"nextCursor,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadSearchTextRange.End",
-        "classification": "experimental",
-        "signature": "uint32 `json:\"end\"`"
-      },
-      {
-        "kind": "field",
-        "name": "ThreadSearchTextRange.Start",
-        "classification": "experimental",
-        "signature": "uint32 `json:\"start\"`"
+        "signature": "*Nullable[map[string][]string] `json:\"codexResponseHandoffChannelPrefixes,omitempty\"`"
       },
       {
         "kind": "func",
-        "name": "NewScheduledTaskScheduleDaily",
+        "name": "NewClientRequestExternalAgentConfigImportRecordHistory",
         "classification": "stable",
-        "signature": "func(payload ScheduledTaskScheduleDaily) ScheduledTaskSchedule"
-      },
-      {
-        "kind": "func",
-        "name": "NewScheduledTaskScheduleHourly",
-        "classification": "stable",
-        "signature": "func(payload ScheduledTaskScheduleHourly) ScheduledTaskSchedule"
-      },
-      {
-        "kind": "func",
-        "name": "NewScheduledTaskScheduleWeekdays",
-        "classification": "stable",
-        "signature": "func(payload ScheduledTaskScheduleWeekdays) ScheduledTaskSchedule"
-      },
-      {
-        "kind": "func",
-        "name": "NewScheduledTaskScheduleWeekly",
-        "classification": "stable",
-        "signature": "func(payload ScheduledTaskScheduleWeekly) ScheduledTaskSchedule"
+        "signature": "func(payload ClientRequestExternalAgentConfigImportRecordHistory) ClientRequest"
       },
       {
         "kind": "method",
-        "name": "AppToolSummary.UnmarshalJSON",
+        "name": "BrowserUseRequirements.UnmarshalJSON",
         "classification": "stable",
         "signature": "func(data []byte) error"
       },
       {
         "kind": "method",
-        "name": "AppsInstalledResponse.MarshalJSON",
+        "name": "ClientRequest.AsExternalAgentConfigImportRecordHistory",
+        "classification": "stable",
+        "signature": "func() (ClientRequestExternalAgentConfigImportRecordHistory, bool)"
+      },
+      {
+        "kind": "method",
+        "name": "ExternalAgentConfigImportHistoryRecordParams.MarshalJSON",
         "classification": "stable",
         "signature": "func() ([]byte, error)"
       },
       {
         "kind": "method",
-        "name": "AppsInstalledResponse.UnmarshalJSON",
+        "name": "ExternalAgentConfigImportHistoryRecordParams.UnmarshalJSON",
         "classification": "stable",
         "signature": "func(data []byte) error"
       },
       {
         "kind": "method",
-        "name": "AppsReadResponse.MarshalJSON",
-        "classification": "stable",
-        "signature": "func() ([]byte, error)"
-      },
-      {
-        "kind": "method",
-        "name": "AppsReadResponse.UnmarshalJSON",
+        "name": "ExternalAgentConfigImportHistoryRecordResponse.UnmarshalJSON",
         "classification": "stable",
         "signature": "func(data []byte) error"
       },
       {
         "kind": "method",
-        "name": "ConnectorMetadata.UnmarshalJSON",
+        "name": "FeedbackRequirements.UnmarshalJSON",
         "classification": "stable",
         "signature": "func(data []byte) error"
       },
       {
         "kind": "method",
-        "name": "EnvironmentStatusKind.IsValid",
-        "classification": "experimental",
-        "signature": "func() bool"
-      },
-      {
-        "kind": "method",
-        "name": "EnvironmentStatusKind.MarshalJSON",
-        "classification": "experimental",
-        "signature": "func() ([]byte, error)"
-      },
-      {
-        "kind": "method",
-        "name": "EnvironmentStatusKind.UnmarshalJSON",
-        "classification": "experimental",
-        "signature": "func(data []byte) error"
-      },
-      {
-        "kind": "method",
-        "name": "EnvironmentStatusResponse.UnmarshalJSON",
-        "classification": "experimental",
-        "signature": "func(data []byte) error"
-      },
-      {
-        "kind": "method",
-        "name": "ExternalAgentConfigImportHistoriesReadResponse.MarshalJSON",
+        "name": "codexsdk.ExternalAgentConfigs.ImportRecordHistory",
         "classification": "stable",
-        "signature": "func() ([]byte, error)"
+        "signature": "func(context.Context, protocolv2.ExternalAgentConfigImportHistoryRecordParams) (protocolv2.ExternalAgentConfigImportHistoryRecordResponse, error)"
       },
       {
-        "kind": "method",
-        "name": "ExternalAgentConfigImportHistoriesReadResponse.UnmarshalJSON",
+        "kind": "type",
+        "name": "BrowserUseRequirements",
         "classification": "stable",
-        "signature": "func(data []byte) error"
+        "signature": "struct {\n\tDisableAutoReview *Nullable[bool] `json:\"disableAutoReview,omitempty\"`\n}"
       },
       {
-        "kind": "method",
-        "name": "ExternalAgentImportedConnectorCandidate.UnmarshalJSON",
+        "kind": "type",
+        "name": "ClientRequestExternalAgentConfigImportRecordHistory",
         "classification": "stable",
-        "signature": "func(data []byte) error"
+        "signature": "struct {\n\tID     RequestId                                    `json:\"id\"`\n\tParams ExternalAgentConfigImportHistoryRecordParams `json:\"params\"`\n}"
       },
       {
-        "kind": "method",
-        "name": "InstalledApp.UnmarshalJSON",
+        "kind": "type",
+        "name": "ExternalAgentConfigImportHistoryRecordParams",
         "classification": "stable",
-        "signature": "func(data []byte) error"
+        "signature": "struct {\n\tItemTypeResults []ExternalAgentConfigImportTypeResult `json:\"itemTypeResults\"`\n\tProviderID      string                                `json:\"providerId\"`\n}"
       },
       {
-        "kind": "method",
-        "name": "PluginDetail.MarshalJSON",
+        "kind": "type",
+        "name": "ExternalAgentConfigImportHistoryRecordResponse",
         "classification": "stable",
-        "signature": "func() ([]byte, error)"
+        "signature": "struct {\n\tImportID string `json:\"importId\"`\n}"
       },
       {
-        "kind": "method",
-        "name": "PluginDetail.UnmarshalJSON",
+        "kind": "type",
+        "name": "FeedbackRequirements",
         "classification": "stable",
-        "signature": "func(data []byte) error"
+        "signature": "struct {\n\tEnabled *Nullable[bool] `json:\"enabled,omitempty\"`\n}"
       },
       {
-        "kind": "method",
-        "name": "PluginReadResponse.UnmarshalJSON",
+        "kind": "value",
+        "name": "ClientRequestKindExternalAgentConfigImportRecordHistory",
         "classification": "stable",
-        "signature": "func(data []byte) error"
+        "signature": "ClientRequestKind = \"externalAgentConfig/import/recordHistory\""
       },
       {
-        "kind": "method",
-        "name": "ScheduledTaskSchedule.AsDaily",
+        "kind": "value",
+        "name": "PlanTypeEnt26",
         "classification": "stable",
-        "signature": "func() (ScheduledTaskScheduleDaily, bool)"
-      },
+        "signature": "PlanType = \"ent26\""
+      }
+    ],
+    "removed": [
       {
-        "kind": "method",
-        "name": "ScheduledTaskSchedule.AsHourly",
+        "kind": "field",
+        "name": "AppMetadata.FirstPartyType",
         "classification": "stable",
-        "signature": "func() (ScheduledTaskScheduleHourly, bool)"
-      },
+        "signature": "*Nullable[string] `json:\"firstPartyType,omitempty\"`"
+      }
+    ],
+    "reclassified": [],
+    "changed": [
       {
-        "kind": "method",
-        "name": "ScheduledTaskSchedule.AsWeekdays",
+        "kind": "type",
+        "name": "AppMetadata",
         "classification": "stable",
-        "signature": "func() (ScheduledTaskScheduleWeekdays, bool)"
-      },
-      {
-        "kind": "method",
-        "name": "ScheduledTaskSchedule.AsWeekly",
-        "classification": "stable",
-        "signature": "func() (ScheduledTaskScheduleWeekly, bool)"
-      },
-      {
-        "kind": "method",
-        "name": "ScheduledTaskSchedule.IsValid",
-        "classification": "stable",
-        "signature": "func() bool"
-      },
-      {
-        "kind": "method",
-        "name": "ScheduledTaskSchedule.Kind",
-        "classification": "stable",
-        "signature": "func() ScheduledTaskScheduleKind"
-      },
-      {
-        "kind": "method",
-        "name": "ScheduledTaskSchedule.MarshalJSON",
-        "classification": "stable",
-        "signature": "func() ([]byte, error)"
-      },
-      {
-        "kind": "method",
-        "name": "ScheduledTaskSchedule.UnmarshalJSON",
-        "classification": "stable",
-        "signature": "func(data []byte) error"
-      },
-      {
-        "kind": "method",
-        "name": "ScheduledTaskSummary.UnmarshalJSON",
-        "classification": "stable",
-        "signature": "func(data []byte) error"
-      },
-      {
-        "kind": "method",
-        "name": "ThreadItemEntry.UnmarshalJSON",
-        "classification": "experimental",
-        "signature": "func(data []byte) error"
-      },
-      {
-        "kind": "method",
-        "name": "ThreadItemsListResponse.MarshalJSON",
-        "classification": "experimental",
-        "signature": "func() ([]byte, error)"
-      },
-      {
-        "kind": "method",
-        "name": "ThreadItemsListResponse.UnmarshalJSON",
-        "classification": "experimental",
-        "signature": "func(data []byte) error"
-      },
-      {
-        "kind": "method",
-        "name": "ThreadRealtimeInitialItem.UnmarshalJSON",
-        "classification": "experimental",
-        "signature": "func(data []byte) error"
-      },
-      {
-        "kind": "method",
-        "name": "ThreadRealtimeStartParams.UnmarshalJSON",
-        "classification": "experimental",
-        "signature": "func(data []byte) error"
-      },
-      {
-        "kind": "method",
-        "name": "ThreadSearchOccurrence.UnmarshalJSON",
-        "classification": "experimental",
-        "signature": "func(data []byte) error"
-      },
-      {
-        "kind": "method",
-        "name": "ThreadSearchOccurrencesResponse.MarshalJSON",
-        "classification": "experimental",
-        "signature": "func() ([]byte, error)"
-      },
-      {
-        "kind": "method",
-        "name": "ThreadSearchOccurrencesResponse.UnmarshalJSON",
-        "classification": "experimental",
-        "signature": "func(data []byte) error"
-      },
-      {
-        "kind": "method",
-        "name": "ThreadSearchTextRange.UnmarshalJSON",
-        "classification": "experimental",
-        "signature": "func(data []byte) error"
+        "from_signature": "struct {\n\tCategories                 *Nullable[[]string]        `json:\"categories,omitempty\"`\n\tDeveloper                  *Nullable[string]          `json:\"developer,omitempty\"`\n\tFirstPartyRequiresInstall  *Nullable[bool]            `json:\"firstPartyRequiresInstall,omitempty\"`\n\tFirstPartyType             *Nullable[string]          `json:\"firstPartyType,omitempty\"`\n\tReview                     *Nullable[AppReview]       `json:\"review,omitempty\"`\n\tScreenshots                *Nullable[[]AppScreenshot] `json:\"screenshots,omitempty\"`\n\tSeoDescription             *Nullable[string]          `json:\"seoDescription,omitempty\"`\n\tShowInComposerWhenUnlinked *Nullable[bool]            `json:\"showInComposerWhenUnlinked,omitempty\"`\n\tSubCategories              *Nullable[[]string]        `json:\"subCategories,omitempty\"`\n\tVersion                    *Nullable[string]          `json:\"version,omitempty\"`\n\tVersionID                  *Nullable[string]          `json:\"versionId,omitempty\"`\n\tVersionNotes               *Nullable[string]          `json:\"versionNotes,omitempty\"`\n}",
+        "to_signature": "struct {\n\tCategories                 *Nullable[[]string]        `json:\"categories,omitempty\"`\n\tDeveloper                  *Nullable[string]          `json:\"developer,omitempty\"`\n\tFirstPartyRequiresInstall  *Nullable[bool]            `json:\"firstPartyRequiresInstall,omitempty\"`\n\tReview                     *Nullable[AppReview]       `json:\"review,omitempty\"`\n\tScreenshots                *Nullable[[]AppScreenshot] `json:\"screenshots,omitempty\"`\n\tSeoDescription             *Nullable[string]          `json:\"seoDescription,omitempty\"`\n\tShowInComposerWhenUnlinked *Nullable[bool]            `json:\"showInComposerWhenUnlinked,omitempty\"`\n\tSubCategories              *Nullable[[]string]        `json:\"subCategories,omitempty\"`\n\tVersion                    *Nullable[string]          `json:\"version,omitempty\"`\n\tVersionID                  *Nullable[string]          `json:\"versionId,omitempty\"`\n\tVersionNotes               *Nullable[string]          `json:\"versionNotes,omitempty\"`\n}"
       },
       {
         "kind": "type",
         "name": "AppToolSummary",
         "classification": "stable",
-        "signature": "struct {\n\tDescription string            `json:\"description\"`\n\tName        string            `json:\"name\"`\n\tTitle       *Nullable[string] `json:\"title,omitempty\"`\n}"
+        "from_signature": "struct {\n\tDescription string            `json:\"description\"`\n\tName        string            `json:\"name\"`\n\tTitle       *Nullable[string] `json:\"title,omitempty\"`\n}",
+        "to_signature": "struct {\n\tDescription    string            `json:\"description\"`\n\tDisabledReason *Nullable[string] `json:\"disabledReason,omitempty\"`\n\tIsEnabled      *bool             `json:\"isEnabled,omitempty\"`\n\tIsReadOnly     *bool             `json:\"isReadOnly,omitempty\"`\n\tName           string            `json:\"name\"`\n\tTitle          *Nullable[string] `json:\"title,omitempty\"`\n}"
       },
       {
         "kind": "type",
-        "name": "AppsInstalledResponse",
+        "name": "ClientRequest",
+        "classification": "mixed",
+        "from_signature": "struct {\n\tkind                                          ClientRequestKind\n\tvariantInitialize                             *ClientRequestInitialize\n\tvariantThreadStart                            *ClientRequestThreadStart\n\tvariantThreadResume                           *ClientRequestThreadResume\n\tvariantThreadFork                             *ClientRequestThreadFork\n\tvariantThreadArchive                          *ClientRequestThreadArchive\n\tvariantThreadDelete                           *ClientRequestThreadDelete\n\tvariantThreadUnsubscribe                      *ClientRequestThreadUnsubscribe\n\tvariantThreadIncrementElicitation             *ClientRequestThreadIncrementElicitation\n\tvariantThreadDecrementElicitation             *ClientRequestThreadDecrementElicitation\n\tvariantThreadNameSet                          *ClientRequestThreadNameSet\n\tvariantThreadGoalSet                          *ClientRequestThreadGoalSet\n\tvariantThreadGoalGet                          *ClientRequestThreadGoalGet\n\tvariantThreadGoalClear                        *ClientRequestThreadGoalClear\n\tvariantThreadMetadataUpdate                   *ClientRequestThreadMetadataUpdate\n\tvariantThreadSettingsUpdate                   *ClientRequestThreadSettingsUpdate\n\tvariantThreadMemoryModeSet                    *ClientRequestThreadMemoryModeSet\n\tvariantMemoryReset                            *ClientRequestMemoryReset\n\tvariantThreadUnarchive                        *ClientRequestThreadUnarchive\n\tvariantThreadCompactStart                     *ClientRequestThreadCompactStart\n\tvariantThreadShellCommand                     *ClientRequestThreadShellCommand\n\tvariantThreadApproveGuardianDeniedAction      *ClientRequestThreadApproveGuardianDeniedAction\n\tvariantThreadBackgroundTerminalsClean         *ClientRequestThreadBackgroundTerminalsClean\n\tvariantThreadBackgroundTerminalsList          *ClientRequestThreadBackgroundTerminalsList\n\tvariantThreadBackgroundTerminalsTerminate     *ClientRequestThreadBackgroundTerminalsTerminate\n\tvariantThreadRollback                         *ClientRequestThreadRollback\n\tvariantThreadList                             *ClientRequestThreadList\n\tvariantThreadSearch                           *ClientRequestThreadSearch\n\tvariantThreadSearchOccurrences                *ClientRequestThreadSearchOccurrences\n\tvariantThreadLoadedList                       *ClientRequestThreadLoadedList\n\tvariantThreadRead                             *ClientRequestThreadRead\n\tvariantThreadTurnsList                        *ClientRequestThreadTurnsList\n\tvariantThreadItemsList                        *ClientRequestThreadItemsList\n\tvariantThreadInjectItems                      *ClientRequestThreadInjectItems\n\tvariantSkillsList                             *ClientRequestSkillsList\n\tvariantSkillsExtraRootsSet                    *ClientRequestSkillsExtraRootsSet\n\tvariantHooksList                              *ClientRequestHooksList\n\tvariantMarketplaceAdd                         *ClientRequestMarketplaceAdd\n\tvariantMarketplaceRemove                      *ClientRequestMarketplaceRemove\n\tvariantMarketplaceUpgrade                     *ClientRequestMarketplaceUpgrade\n\tvariantPluginList                             *ClientRequestPluginList\n\tvariantPluginInstalled                        *ClientRequestPluginInstalled\n\tvariantPluginRead                             *ClientRequestPluginRead\n\tvariantPluginSkillRead                        *ClientRequestPluginSkillRead\n\tvariantPluginShareSave                        *ClientRequestPluginShareSave\n\tvariantPluginShareUpdateTargets               *ClientRequestPluginShareUpdateTargets\n\tvariantPluginShareList                        *ClientRequestPluginShareList\n\tvariantPluginShareCheckout                    *ClientRequestPluginShareCheckout\n\tvariantPluginShareDelete                      *ClientRequestPluginShareDelete\n\tvariantAppRead                                *ClientRequestAppRead\n\tvariantAppList                                *ClientRequestAppList\n\tvariantAppInstalled                           *ClientRequestAppInstalled\n\tvariantFSReadFile                             *ClientRequestFSReadFile\n\tvariantFSWriteFile                            *ClientRequestFSWriteFile\n\tvariantFSCreateDirectory                      *ClientRequestFSCreateDirectory\n\tvariantFSGetMetadata                          *ClientRequestFSGetMetadata\n\tvariantFSReadDirectory                        *ClientRequestFSReadDirectory\n\tvariantFSRemove                               *ClientRequestFSRemove\n\tvariantFSCopy                                 *ClientRequestFSCopy\n\tvariantFSWatch                                *ClientRequestFSWatch\n\tvariantFSUnwatch                              *ClientRequestFSUnwatch\n\tvariantSkillsConfigWrite                      *ClientRequestSkillsConfigWrite\n\tvariantPluginInstall                          *ClientRequestPluginInstall\n\tvariantPluginUninstall                        *ClientRequestPluginUninstall\n\tvariantTurnStart                              *ClientRequestTurnStart\n\tvariantTurnSteer                              *ClientRequestTurnSteer\n\tvariantTurnInterrupt                          *ClientRequestTurnInterrupt\n\tvariantThreadRealtimeStart                    *ClientRequestThreadRealtimeStart\n\tvariantThreadRealtimeAppendAudio              *ClientRequestThreadRealtimeAppendAudio\n\tvariantThreadRealtimeAppendText               *ClientRequestThreadRealtimeAppendText\n\tvariantThreadRealtimeAppendSpeech             *ClientRequestThreadRealtimeAppendSpeech\n\tvariantThreadRealtimeStop                     *ClientRequestThreadRealtimeStop\n\tvariantThreadRealtimeListVoices               *ClientRequestThreadRealtimeListVoices\n\tvariantReviewStart                            *ClientRequestReviewStart\n\tvariantModelList                              *ClientRequestModelList\n\tvariantModelProviderCapabilitiesRead          *ClientRequestModelProviderCapabilitiesRead\n\tvariantExperimentalFeatureList                *ClientRequestExperimentalFeatureList\n\tvariantPermissionProfileList                  *ClientRequestPermissionProfileList\n\tvariantExperimentalFeatureEnablementSet       *ClientRequestExperimentalFeatureEnablementSet\n\tvariantRemoteControlEnable                    *ClientRequestRemoteControlEnable\n\tvariantRemoteControlDisable                   *ClientRequestRemoteControlDisable\n\tvariantRemoteControlStatusRead                *ClientRequestRemoteControlStatusRead\n\tvariantRemoteControlPairingStart              *ClientRequestRemoteControlPairingStart\n\tvariantRemoteControlPairingStatus             *ClientRequestRemoteControlPairingStatus\n\tvariantRemoteControlClientList                *ClientRequestRemoteControlClientList\n\tvariantRemoteControlClientRevoke              *ClientRequestRemoteControlClientRevoke\n\tvariantCollaborationModeList                  *ClientRequestCollaborationModeList\n\tvariantMockExperimentalMethod                 *ClientRequestMockExperimentalMethod\n\tvariantEnvironmentAdd                         *ClientRequestEnvironmentAdd\n\tvariantEnvironmentInfo                        *ClientRequestEnvironmentInfo\n\tvariantEnvironmentStatus                      *ClientRequestEnvironmentStatus\n\tvariantMCPServerOAuthLogin                    *ClientRequestMCPServerOAuthLogin\n\tvariantConfigMCPServerReload                  *ClientRequestConfigMCPServerReload\n\tvariantMCPServerStatusList                    *ClientRequestMCPServerStatusList\n\tvariantMCPServerResourceRead                  *ClientRequestMCPServerResourceRead\n\tvariantMCPServerToolCall                      *ClientRequestMCPServerToolCall\n\tvariantWindowsSandboxSetupStart               *ClientRequestWindowsSandboxSetupStart\n\tvariantWindowsSandboxReadiness                *ClientRequestWindowsSandboxReadiness\n\tvariantAccountLoginStart                      *ClientRequestAccountLoginStart\n\tvariantAccountLoginCancel                     *ClientRequestAccountLoginCancel\n\tvariantAccountLogout                          *ClientRequestAccountLogout\n\tvariantAccountRateLimitsRead                  *ClientRequestAccountRateLimitsRead\n\tvariantAccountRateLimitResetCreditConsume     *ClientRequestAccountRateLimitResetCreditConsume\n\tvariantAccountUsageRead                       *ClientRequestAccountUsageRead\n\tvariantAccountWorkspaceMessagesRead           *ClientRequestAccountWorkspaceMessagesRead\n\tvariantAccountSendAddCreditsNudgeEmail        *ClientRequestAccountSendAddCreditsNudgeEmail\n\tvariantFeedbackUpload                         *ClientRequestFeedbackUpload\n\tvariantCommandExec                            *ClientRequestCommandExec\n\tvariantCommandExecWrite                       *ClientRequestCommandExecWrite\n\tvariantCommandExecTerminate                   *ClientRequestCommandExecTerminate\n\tvariantCommandExecResize                      *ClientRequestCommandExecResize\n\tvariantProcessSpawn                           *ClientRequestProcessSpawn\n\tvariantProcessWriteStdin                      *ClientRequestProcessWriteStdin\n\tvariantProcessKill                            *ClientRequestProcessKill\n\tvariantProcessResizePTY                       *ClientRequestProcessResizePTY\n\tvariantConfigRead                             *ClientRequestConfigRead\n\tvariantExternalAgentConfigDetect              *ClientRequestExternalAgentConfigDetect\n\tvariantExternalAgentConfigImport              *ClientRequestExternalAgentConfigImport\n\tvariantExternalAgentConfigImportReadHistories *ClientRequestExternalAgentConfigImportReadHistories\n\tvariantConfigValueWrite                       *ClientRequestConfigValueWrite\n\tvariantConfigBatchWrite                       *ClientRequestConfigBatchWrite\n\tvariantConfigRequirementsRead                 *ClientRequestConfigRequirementsRead\n\tvariantAccountRead                            *ClientRequestAccountRead\n\tvariantFuzzyFileSearch                        *ClientRequestFuzzyFileSearch\n\tvariantFuzzyFileSearchSessionStart            *ClientRequestFuzzyFileSearchSessionStart\n\tvariantFuzzyFileSearchSessionUpdate           *ClientRequestFuzzyFileSearchSessionUpdate\n\tvariantFuzzyFileSearchSessionStop             *ClientRequestFuzzyFileSearchSessionStop\n}",
+        "to_signature": "struct {\n\tkind                                          ClientRequestKind\n\tvariantInitialize                             *ClientRequestInitialize\n\tvariantThreadStart                            *ClientRequestThreadStart\n\tvariantThreadResume                           *ClientRequestThreadResume\n\tvariantThreadFork                             *ClientRequestThreadFork\n\tvariantThreadArchive                          *ClientRequestThreadArchive\n\tvariantThreadDelete                           *ClientRequestThreadDelete\n\tvariantThreadUnsubscribe                      *ClientRequestThreadUnsubscribe\n\tvariantThreadIncrementElicitation             *ClientRequestThreadIncrementElicitation\n\tvariantThreadDecrementElicitation             *ClientRequestThreadDecrementElicitation\n\tvariantThreadNameSet                          *ClientRequestThreadNameSet\n\tvariantThreadGoalSet                          *ClientRequestThreadGoalSet\n\tvariantThreadGoalGet                          *ClientRequestThreadGoalGet\n\tvariantThreadGoalClear                        *ClientRequestThreadGoalClear\n\tvariantThreadMetadataUpdate                   *ClientRequestThreadMetadataUpdate\n\tvariantThreadSettingsUpdate                   *ClientRequestThreadSettingsUpdate\n\tvariantThreadMemoryModeSet                    *ClientRequestThreadMemoryModeSet\n\tvariantMemoryReset                            *ClientRequestMemoryReset\n\tvariantThreadUnarchive                        *ClientRequestThreadUnarchive\n\tvariantThreadCompactStart                     *ClientRequestThreadCompactStart\n\tvariantThreadShellCommand                     *ClientRequestThreadShellCommand\n\tvariantThreadApproveGuardianDeniedAction      *ClientRequestThreadApproveGuardianDeniedAction\n\tvariantThreadBackgroundTerminalsClean         *ClientRequestThreadBackgroundTerminalsClean\n\tvariantThreadBackgroundTerminalsList          *ClientRequestThreadBackgroundTerminalsList\n\tvariantThreadBackgroundTerminalsTerminate     *ClientRequestThreadBackgroundTerminalsTerminate\n\tvariantThreadRollback                         *ClientRequestThreadRollback\n\tvariantThreadList                             *ClientRequestThreadList\n\tvariantThreadSearch                           *ClientRequestThreadSearch\n\tvariantThreadSearchOccurrences                *ClientRequestThreadSearchOccurrences\n\tvariantThreadLoadedList                       *ClientRequestThreadLoadedList\n\tvariantThreadRead                             *ClientRequestThreadRead\n\tvariantThreadTurnsList                        *ClientRequestThreadTurnsList\n\tvariantThreadItemsList                        *ClientRequestThreadItemsList\n\tvariantThreadInjectItems                      *ClientRequestThreadInjectItems\n\tvariantSkillsList                             *ClientRequestSkillsList\n\tvariantSkillsExtraRootsSet                    *ClientRequestSkillsExtraRootsSet\n\tvariantHooksList                              *ClientRequestHooksList\n\tvariantMarketplaceAdd                         *ClientRequestMarketplaceAdd\n\tvariantMarketplaceRemove                      *ClientRequestMarketplaceRemove\n\tvariantMarketplaceUpgrade                     *ClientRequestMarketplaceUpgrade\n\tvariantPluginList                             *ClientRequestPluginList\n\tvariantPluginInstalled                        *ClientRequestPluginInstalled\n\tvariantPluginRead                             *ClientRequestPluginRead\n\tvariantPluginSkillRead                        *ClientRequestPluginSkillRead\n\tvariantPluginShareSave                        *ClientRequestPluginShareSave\n\tvariantPluginShareUpdateTargets               *ClientRequestPluginShareUpdateTargets\n\tvariantPluginShareList                        *ClientRequestPluginShareList\n\tvariantPluginShareCheckout                    *ClientRequestPluginShareCheckout\n\tvariantPluginShareDelete                      *ClientRequestPluginShareDelete\n\tvariantAppRead                                *ClientRequestAppRead\n\tvariantAppList                                *ClientRequestAppList\n\tvariantAppInstalled                           *ClientRequestAppInstalled\n\tvariantFSReadFile                             *ClientRequestFSReadFile\n\tvariantFSWriteFile                            *ClientRequestFSWriteFile\n\tvariantFSCreateDirectory                      *ClientRequestFSCreateDirectory\n\tvariantFSGetMetadata                          *ClientRequestFSGetMetadata\n\tvariantFSReadDirectory                        *ClientRequestFSReadDirectory\n\tvariantFSRemove                               *ClientRequestFSRemove\n\tvariantFSCopy                                 *ClientRequestFSCopy\n\tvariantFSWatch                                *ClientRequestFSWatch\n\tvariantFSUnwatch                              *ClientRequestFSUnwatch\n\tvariantSkillsConfigWrite                      *ClientRequestSkillsConfigWrite\n\tvariantPluginInstall                          *ClientRequestPluginInstall\n\tvariantPluginUninstall                        *ClientRequestPluginUninstall\n\tvariantTurnStart                              *ClientRequestTurnStart\n\tvariantTurnSteer                              *ClientRequestTurnSteer\n\tvariantTurnInterrupt                          *ClientRequestTurnInterrupt\n\tvariantThreadRealtimeStart                    *ClientRequestThreadRealtimeStart\n\tvariantThreadRealtimeAppendAudio              *ClientRequestThreadRealtimeAppendAudio\n\tvariantThreadRealtimeAppendText               *ClientRequestThreadRealtimeAppendText\n\tvariantThreadRealtimeAppendSpeech             *ClientRequestThreadRealtimeAppendSpeech\n\tvariantThreadRealtimeStop                     *ClientRequestThreadRealtimeStop\n\tvariantThreadRealtimeListVoices               *ClientRequestThreadRealtimeListVoices\n\tvariantReviewStart                            *ClientRequestReviewStart\n\tvariantModelList                              *ClientRequestModelList\n\tvariantModelProviderCapabilitiesRead          *ClientRequestModelProviderCapabilitiesRead\n\tvariantExperimentalFeatureList                *ClientRequestExperimentalFeatureList\n\tvariantPermissionProfileList                  *ClientRequestPermissionProfileList\n\tvariantExperimentalFeatureEnablementSet       *ClientRequestExperimentalFeatureEnablementSet\n\tvariantRemoteControlEnable                    *ClientRequestRemoteControlEnable\n\tvariantRemoteControlDisable                   *ClientRequestRemoteControlDisable\n\tvariantRemoteControlStatusRead                *ClientRequestRemoteControlStatusRead\n\tvariantRemoteControlPairingStart              *ClientRequestRemoteControlPairingStart\n\tvariantRemoteControlPairingStatus             *ClientRequestRemoteControlPairingStatus\n\tvariantRemoteControlClientList                *ClientRequestRemoteControlClientList\n\tvariantRemoteControlClientRevoke              *ClientRequestRemoteControlClientRevoke\n\tvariantCollaborationModeList                  *ClientRequestCollaborationModeList\n\tvariantMockExperimentalMethod                 *ClientRequestMockExperimentalMethod\n\tvariantEnvironmentAdd                         *ClientRequestEnvironmentAdd\n\tvariantEnvironmentInfo                        *ClientRequestEnvironmentInfo\n\tvariantEnvironmentStatus                      *ClientRequestEnvironmentStatus\n\tvariantMCPServerOAuthLogin                    *ClientRequestMCPServerOAuthLogin\n\tvariantConfigMCPServerReload                  *ClientRequestConfigMCPServerReload\n\tvariantMCPServerStatusList                    *ClientRequestMCPServerStatusList\n\tvariantMCPServerResourceRead                  *ClientRequestMCPServerResourceRead\n\tvariantMCPServerToolCall                      *ClientRequestMCPServerToolCall\n\tvariantWindowsSandboxSetupStart               *ClientRequestWindowsSandboxSetupStart\n\tvariantWindowsSandboxReadiness                *ClientRequestWindowsSandboxReadiness\n\tvariantAccountLoginStart                      *ClientRequestAccountLoginStart\n\tvariantAccountLoginCancel                     *ClientRequestAccountLoginCancel\n\tvariantAccountLogout                          *ClientRequestAccountLogout\n\tvariantAccountRateLimitsRead                  *ClientRequestAccountRateLimitsRead\n\tvariantAccountRateLimitResetCreditConsume     *ClientRequestAccountRateLimitResetCreditConsume\n\tvariantAccountUsageRead                       *ClientRequestAccountUsageRead\n\tvariantAccountWorkspaceMessagesRead           *ClientRequestAccountWorkspaceMessagesRead\n\tvariantAccountSendAddCreditsNudgeEmail        *ClientRequestAccountSendAddCreditsNudgeEmail\n\tvariantFeedbackUpload                         *ClientRequestFeedbackUpload\n\tvariantCommandExec                            *ClientRequestCommandExec\n\tvariantCommandExecWrite                       *ClientRequestCommandExecWrite\n\tvariantCommandExecTerminate                   *ClientRequestCommandExecTerminate\n\tvariantCommandExecResize                      *ClientRequestCommandExecResize\n\tvariantProcessSpawn                           *ClientRequestProcessSpawn\n\tvariantProcessWriteStdin                      *ClientRequestProcessWriteStdin\n\tvariantProcessKill                            *ClientRequestProcessKill\n\tvariantProcessResizePTY                       *ClientRequestProcessResizePTY\n\tvariantConfigRead                             *ClientRequestConfigRead\n\tvariantExternalAgentConfigDetect              *ClientRequestExternalAgentConfigDetect\n\tvariantExternalAgentConfigImport              *ClientRequestExternalAgentConfigImport\n\tvariantExternalAgentConfigImportRecordHistory *ClientRequestExternalAgentConfigImportRecordHistory\n\tvariantExternalAgentConfigImportReadHistories *ClientRequestExternalAgentConfigImportReadHistories\n\tvariantConfigValueWrite                       *ClientRequestConfigValueWrite\n\tvariantConfigBatchWrite                       *ClientRequestConfigBatchWrite\n\tvariantConfigRequirementsRead                 *ClientRequestConfigRequirementsRead\n\tvariantAccountRead                            *ClientRequestAccountRead\n\tvariantFuzzyFileSearch                        *ClientRequestFuzzyFileSearch\n\tvariantFuzzyFileSearchSessionStart            *ClientRequestFuzzyFileSearchSessionStart\n\tvariantFuzzyFileSearchSessionUpdate           *ClientRequestFuzzyFileSearchSessionUpdate\n\tvariantFuzzyFileSearchSessionStop             *ClientRequestFuzzyFileSearchSessionStop\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ConfigRequirements",
+        "classification": "mixed",
+        "from_signature": "struct {\n\tAllowAppshots                        *Nullable[bool]                      `json:\"allowAppshots,omitempty\"`\n\tAllowManagedHooksOnly                *Nullable[bool]                      `json:\"allowManagedHooksOnly,omitempty\"`\n\tAllowRemoteControl                   *Nullable[bool]                      `json:\"allowRemoteControl,omitempty\"`\n\tAllowedApprovalPolicies              *Nullable[[]AskForApproval]          `json:\"allowedApprovalPolicies,omitempty\"`\n\tAllowedApprovalsReviewers            *Nullable[[]ApprovalsReviewer]       `json:\"allowedApprovalsReviewers,omitempty\"`\n\tAllowedPermissionProfiles            *Nullable[map[string]bool]           `json:\"allowedPermissionProfiles,omitempty\"`\n\tAllowedSandboxModes                  *Nullable[[]SandboxMode]             `json:\"allowedSandboxModes,omitempty\"`\n\tAllowedWebSearchModes                *Nullable[[]WebSearchMode]           `json:\"allowedWebSearchModes,omitempty\"`\n\tAllowedWindowsSandboxImplementations *Nullable[[]WindowsSandboxSetupMode] `json:\"allowedWindowsSandboxImplementations,omitempty\"`\n\tComputerUse                          *Nullable[ComputerUseRequirements]   `json:\"computerUse,omitempty\"`\n\tDefaultPermissions                   *Nullable[string]                    `json:\"defaultPermissions,omitempty\"`\n\tEnforceResidency                     *Nullable[ResidencyRequirement]      `json:\"enforceResidency,omitempty\"`\n\tFeatureRequirements                  *Nullable[map[string]bool]           `json:\"featureRequirements,omitempty\"`\n\tHooks                                *Nullable[ManagedHooksRequirements]  `json:\"hooks,omitempty\"`\n\tModels                               *Nullable[ModelsRequirements]        `json:\"models,omitempty\"`\n\tNetwork                              *Nullable[NetworkRequirements]       `json:\"network,omitempty\"`\n}",
+        "to_signature": "struct {\n\tAllowAppshots                        *Nullable[bool]                      `json:\"allowAppshots,omitempty\"`\n\tAllowLoginShell                      *Nullable[bool]                      `json:\"allowLoginShell,omitempty\"`\n\tAllowManagedHooksOnly                *Nullable[bool]                      `json:\"allowManagedHooksOnly,omitempty\"`\n\tAllowRemoteControl                   *Nullable[bool]                      `json:\"allowRemoteControl,omitempty\"`\n\tAllowedApprovalPolicies              *Nullable[[]AskForApproval]          `json:\"allowedApprovalPolicies,omitempty\"`\n\tAllowedApprovalsReviewers            *Nullable[[]ApprovalsReviewer]       `json:\"allowedApprovalsReviewers,omitempty\"`\n\tAllowedPermissionProfiles            *Nullable[map[string]bool]           `json:\"allowedPermissionProfiles,omitempty\"`\n\tAllowedSandboxModes                  *Nullable[[]SandboxMode]             `json:\"allowedSandboxModes,omitempty\"`\n\tAllowedWebSearchModes                *Nullable[[]WebSearchMode]           `json:\"allowedWebSearchModes,omitempty\"`\n\tAllowedWindowsSandboxImplementations *Nullable[[]WindowsSandboxSetupMode] `json:\"allowedWindowsSandboxImplementations,omitempty\"`\n\tBrowserUse                           *Nullable[BrowserUseRequirements]    `json:\"browserUse,omitempty\"`\n\tCheckForUpdateOnStartup              *Nullable[bool]                      `json:\"checkForUpdateOnStartup,omitempty\"`\n\tComputerUse                          *Nullable[ComputerUseRequirements]   `json:\"computerUse,omitempty\"`\n\tDefaultPermissions                   *Nullable[string]                    `json:\"defaultPermissions,omitempty\"`\n\tEnforceResidency                     *Nullable[ResidencyRequirement]      `json:\"enforceResidency,omitempty\"`\n\tFeatureRequirements                  *Nullable[map[string]bool]           `json:\"featureRequirements,omitempty\"`\n\tFeedback                             *Nullable[FeedbackRequirements]      `json:\"feedback,omitempty\"`\n\tHooks                                *Nullable[ManagedHooksRequirements]  `json:\"hooks,omitempty\"`\n\tLogDir                               *Nullable[string]                    `json:\"logDir,omitempty\"`\n\tModelCatalogJSON                     *Nullable[string]                    `json:\"modelCatalogJson,omitempty\"`\n\tModels                               *Nullable[ModelsRequirements]        `json:\"models,omitempty\"`\n\tNetwork                              *Nullable[NetworkRequirements]       `json:\"network,omitempty\"`\n\tSqliteHome                           *Nullable[string]                    `json:\"sqliteHome,omitempty\"`\n\tWindowsSandboxPrivateDesktop         *Nullable[bool]                      `json:\"windowsSandboxPrivateDesktop,omitempty\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ExternalAgentConfigDetectParams",
         "classification": "stable",
-        "signature": "struct {\n\tApps []InstalledApp `json:\"apps\"`\n}"
+        "from_signature": "struct {\n\tCWDs            *Nullable[[]string] `json:\"cwds,omitempty\"`\n\tIncludeHome     *bool               `json:\"includeHome,omitempty\"`\n\tMigrationSource *Nullable[string]   `json:\"migrationSource,omitempty\"`\n\tSource          *Nullable[string]   `json:\"source,omitempty\"`\n}",
+        "to_signature": "struct {\n\tCWDs              *Nullable[[]string] `json:\"cwds,omitempty\"`\n\tIncludeHome       *bool               `json:\"includeHome,omitempty\"`\n\tMaxSessionAgeDays *Nullable[uint32]   `json:\"maxSessionAgeDays,omitempty\"`\n\tMaxSessions       *Nullable[uint32]   `json:\"maxSessions,omitempty\"`\n\tMigrationSource   *Nullable[string]   `json:\"migrationSource,omitempty\"`\n\tSource            *Nullable[string]   `json:\"source,omitempty\"`\n}"
       },
       {
         "kind": "type",
-        "name": "AppsReadResponse",
+        "name": "ExternalAgentConfigImportHistory",
         "classification": "stable",
-        "signature": "struct {\n\tApps          []ConnectorMetadata `json:\"apps\"`\n\tMissingAppIDs []string            `json:\"missingAppIds\"`\n}"
+        "from_signature": "struct {\n\tCompletedAtMS int64                                      `json:\"completedAtMs\"`\n\tFailures      []ExternalAgentConfigImportItemTypeFailure `json:\"failures\"`\n\tImportID      string                                     `json:\"importId\"`\n\tSuccesses     []ExternalAgentConfigImportItemTypeSuccess `json:\"successes\"`\n}",
+        "to_signature": "struct {\n\tCompletedAtMS int64                                      `json:\"completedAtMs\"`\n\tFailures      []ExternalAgentConfigImportItemTypeFailure `json:\"failures\"`\n\tImportID      string                                     `json:\"importId\"`\n\tProviderID    *Nullable[string]                          `json:\"providerId,omitempty\"`\n\tSuccesses     []ExternalAgentConfigImportItemTypeSuccess `json:\"successes\"`\n}"
       },
       {
         "kind": "type",
-        "name": "ConnectorMetadata",
+        "name": "ExternalAgentConfigImportParams",
         "classification": "stable",
-        "signature": "struct {\n\tDescription         *Nullable[string]           `json:\"description,omitempty\"`\n\tDistributionChannel *Nullable[string]           `json:\"distributionChannel,omitempty\"`\n\tIconURL             *Nullable[string]           `json:\"iconUrl,omitempty\"`\n\tIconURLDark         *Nullable[string]           `json:\"iconUrlDark,omitempty\"`\n\tID                  string                      `json:\"id\"`\n\tInstallURL          *Nullable[string]           `json:\"installUrl,omitempty\"`\n\tName                string                      `json:\"name\"`\n\tPluginDisplayNames  *[]string                   `json:\"pluginDisplayNames,omitempty\"`\n\tToolSummaries       *Nullable[[]AppToolSummary] `json:\"toolSummaries,omitempty\"`\n}"
+        "from_signature": "struct {\n\tMigrationItems  []ExternalAgentConfigMigrationItem `json:\"migrationItems\"`\n\tMigrationSource *Nullable[string]                  `json:\"migrationSource,omitempty\"`\n\tSource          *Nullable[string]                  `json:\"source,omitempty\"`\n}",
+        "to_signature": "struct {\n\tMigrationItems  []ExternalAgentConfigMigrationItem `json:\"migrationItems\"`\n\tMigrationSource *Nullable[string]                  `json:\"migrationSource,omitempty\"`\n\tProviderID      *Nullable[string]                  `json:\"providerId,omitempty\"`\n\tSource          *Nullable[string]                  `json:\"source,omitempty\"`\n}"
       },
       {
         "kind": "type",
-        "name": "EnvironmentStatusKind",
-        "classification": "experimental",
-        "signature": "string"
-      },
-      {
-        "kind": "type",
-        "name": "EnvironmentStatusResponse",
-        "classification": "experimental",
-        "signature": "struct {\n\tError  *Nullable[string]     `json:\"error,omitempty\"`\n\tStatus EnvironmentStatusKind `json:\"status\"`\n}"
-      },
-      {
-        "kind": "type",
-        "name": "ExternalAgentConfigImportHistoriesReadResponse",
+        "name": "PluginListParams",
         "classification": "stable",
-        "signature": "struct {\n\tConnectors []ExternalAgentImportedConnectorCandidate `json:\"connectors\"`\n\tData       []ExternalAgentConfigImportHistory        `json:\"data\"`\n}"
+        "from_signature": "struct {\n\tCWDs             *Nullable[[]string]                    `json:\"cwds,omitempty\"`\n\tMarketplaceKinds *Nullable[[]PluginListMarketplaceKind] `json:\"marketplaceKinds,omitempty\"`\n}",
+        "to_signature": "struct {\n\tCWDs             *Nullable[[]string]                    `json:\"cwds,omitempty\"`\n\tForceRefetch     *bool                                  `json:\"forceRefetch,omitempty\"`\n\tMarketplaceKinds *Nullable[[]PluginListMarketplaceKind] `json:\"marketplaceKinds,omitempty\"`\n}"
       },
       {
         "kind": "type",
-        "name": "ExternalAgentImportedConnectorCandidate",
+        "name": "PluginShareContext",
         "classification": "stable",
-        "signature": "struct {\n\tName         string                               `json:\"name\"`\n\tSessionCount uint32                               `json:\"sessionCount\"`\n\tSource       ExternalAgentImportedConnectorSource `json:\"source\"`\n}"
+        "from_signature": "struct {\n\tCreatorAccountUserID *Nullable[string]                     `json:\"creatorAccountUserId,omitempty\"`\n\tCreatorName          *Nullable[string]                     `json:\"creatorName,omitempty\"`\n\tDiscoverability      *Nullable[PluginShareDiscoverability] `json:\"discoverability,omitempty\"`\n\tRemotePluginID       string                                `json:\"remotePluginId\"`\n\tRemoteVersion        *Nullable[string]                     `json:\"remoteVersion,omitempty\"`\n\tSharePrincipals      *Nullable[[]PluginSharePrincipal]     `json:\"sharePrincipals,omitempty\"`\n\tShareURL             *Nullable[string]                     `json:\"shareUrl,omitempty\"`\n}",
+        "to_signature": "struct {\n\tCanPublishToWorkspace *Nullable[bool]                       `json:\"canPublishToWorkspace,omitempty\"`\n\tCreatorAccountUserID  *Nullable[string]                     `json:\"creatorAccountUserId,omitempty\"`\n\tCreatorName           *Nullable[string]                     `json:\"creatorName,omitempty\"`\n\tDiscoverability       *Nullable[PluginShareDiscoverability] `json:\"discoverability,omitempty\"`\n\tRemotePluginID        string                                `json:\"remotePluginId\"`\n\tRemoteVersion         *Nullable[string]                     `json:\"remoteVersion,omitempty\"`\n\tSharePrincipals       *Nullable[[]PluginSharePrincipal]     `json:\"sharePrincipals,omitempty\"`\n\tShareURL              *Nullable[string]                     `json:\"shareUrl,omitempty\"`\n}"
       },
       {
         "kind": "type",
-        "name": "InstalledApp",
+        "name": "PluginShareSaveResponse",
         "classification": "stable",
-        "signature": "struct {\n\tCallable    bool              `json:\"callable\"`\n\tEnabled     bool              `json:\"enabled\"`\n\tID          string            `json:\"id\"`\n\tRuntimeName *Nullable[string] `json:\"runtimeName,omitempty\"`\n}"
+        "from_signature": "struct {\n\tRemotePluginID string `json:\"remotePluginId\"`\n\tShareURL       string `json:\"shareUrl\"`\n}",
+        "to_signature": "struct {\n\tCanPublishToWorkspace *Nullable[bool] `json:\"canPublishToWorkspace,omitempty\"`\n\tRemotePluginID        string          `json:\"remotePluginId\"`\n\tShareURL              string          `json:\"shareUrl\"`\n}"
       },
       {
         "kind": "type",
-        "name": "PluginDetail",
+        "name": "SkillInterface",
         "classification": "stable",
-        "signature": "struct {\n\tAppTemplates    []AppTemplateSummary              `json:\"appTemplates\"`\n\tApps            []AppSummary                      `json:\"apps\"`\n\tDescription     *Nullable[string]                 `json:\"description,omitempty\"`\n\tHooks           []PluginHookSummary               `json:\"hooks\"`\n\tMarketplaceName string                            `json:\"marketplaceName\"`\n\tMarketplacePath *Nullable[string]                 `json:\"marketplacePath,omitempty\"`\n\tMCPServers      []string                          `json:\"mcpServers\"`\n\tScheduledTasks  *Nullable[[]ScheduledTaskSummary] `json:\"scheduledTasks,omitempty\"`\n\tShareURL        *Nullable[string]                 `json:\"shareUrl,omitempty\"`\n\tSkills          []SkillSummary                    `json:\"skills\"`\n\tSummary         PluginSummary                     `json:\"summary\"`\n}"
+        "from_signature": "struct {\n\tBrandColor       *Nullable[string] `json:\"brandColor,omitempty\"`\n\tDefaultPrompt    *Nullable[string] `json:\"defaultPrompt,omitempty\"`\n\tDisplayName      *Nullable[string] `json:\"displayName,omitempty\"`\n\tIconLarge        *Nullable[string] `json:\"iconLarge,omitempty\"`\n\tIconSmall        *Nullable[string] `json:\"iconSmall,omitempty\"`\n\tShortDescription *Nullable[string] `json:\"shortDescription,omitempty\"`\n}",
+        "to_signature": "struct {\n\tBrandColor       *Nullable[string] `json:\"brandColor,omitempty\"`\n\tDefaultPrompt    *Nullable[string] `json:\"defaultPrompt,omitempty\"`\n\tDisplayName      *Nullable[string] `json:\"displayName,omitempty\"`\n\tIconLarge        *Nullable[string] `json:\"iconLarge,omitempty\"`\n\tIconLargeURL     *Nullable[string] `json:\"iconLargeUrl,omitempty\"`\n\tIconSmall        *Nullable[string] `json:\"iconSmall,omitempty\"`\n\tIconSmallURL     *Nullable[string] `json:\"iconSmallUrl,omitempty\"`\n\tShortDescription *Nullable[string] `json:\"shortDescription,omitempty\"`\n}"
       },
       {
         "kind": "type",
-        "name": "PluginReadResponse",
+        "name": "Thread",
+        "classification": "mixed",
+        "from_signature": "struct {\n\tAgentNickname        *Nullable[string]       `json:\"agentNickname,omitempty\"`\n\tAgentRole            *Nullable[string]       `json:\"agentRole,omitempty\"`\n\tCanAcceptDirectInput *Nullable[bool]         `json:\"canAcceptDirectInput,omitempty\"`\n\tCliVersion           string                  `json:\"cliVersion\"`\n\tCreatedAt            int64                   `json:\"createdAt\"`\n\tCWD                  string                  `json:\"cwd\"`\n\tEphemeral            bool                    `json:\"ephemeral\"`\n\tExtra                *Nullable[ThreadExtra]  `json:\"extra,omitempty\"`\n\tForkedFromID         *Nullable[string]       `json:\"forkedFromId,omitempty\"`\n\tGitInfo              *Nullable[GitInfo]      `json:\"gitInfo,omitempty\"`\n\tHistoryMode          *ThreadHistoryMode      `json:\"historyMode,omitempty\"`\n\tID                   string                  `json:\"id\"`\n\tModelProvider        string                  `json:\"modelProvider\"`\n\tName                 *Nullable[string]       `json:\"name,omitempty\"`\n\tParentThreadID       *Nullable[string]       `json:\"parentThreadId,omitempty\"`\n\tPath                 *Nullable[string]       `json:\"path,omitempty\"`\n\tPreview              string                  `json:\"preview\"`\n\tRecencyAt            *Nullable[int64]        `json:\"recencyAt,omitempty\"`\n\tSessionID            string                  `json:\"sessionId\"`\n\tSource               SessionSource           `json:\"source\"`\n\tStatus               ThreadStatus            `json:\"status\"`\n\tThreadSource         *Nullable[ThreadSource] `json:\"threadSource,omitempty\"`\n\tTurns                []Turn                  `json:\"turns\"`\n\tUpdatedAt            int64                   `json:\"updatedAt\"`\n}",
+        "to_signature": "struct {\n\tAgentNickname        *Nullable[string]       `json:\"agentNickname,omitempty\"`\n\tAgentRole            *Nullable[string]       `json:\"agentRole,omitempty\"`\n\tCanAcceptDirectInput *Nullable[bool]         `json:\"canAcceptDirectInput,omitempty\"`\n\tCliVersion           string                  `json:\"cliVersion\"`\n\tCreatedAt            int64                   `json:\"createdAt\"`\n\tCWD                  string                  `json:\"cwd\"`\n\tEphemeral            bool                    `json:\"ephemeral\"`\n\tExtra                *Nullable[ThreadExtra]  `json:\"extra,omitempty\"`\n\tForkedFromID         *Nullable[string]       `json:\"forkedFromId,omitempty\"`\n\tGitInfo              *Nullable[GitInfo]      `json:\"gitInfo,omitempty\"`\n\tHistoryMode          *ThreadHistoryMode      `json:\"historyMode,omitempty\"`\n\tID                   string                  `json:\"id\"`\n\tIsPinned             *bool                   `json:\"isPinned,omitempty\"`\n\tModelProvider        string                  `json:\"modelProvider\"`\n\tName                 *Nullable[string]       `json:\"name,omitempty\"`\n\tParentThreadID       *Nullable[string]       `json:\"parentThreadId,omitempty\"`\n\tPath                 *Nullable[string]       `json:\"path,omitempty\"`\n\tPreview              string                  `json:\"preview\"`\n\tRecencyAt            *Nullable[int64]        `json:\"recencyAt,omitempty\"`\n\tSessionID            string                  `json:\"sessionId\"`\n\tSource               SessionSource           `json:\"source\"`\n\tStatus               ThreadStatus            `json:\"status\"`\n\tThreadSource         *Nullable[ThreadSource] `json:\"threadSource,omitempty\"`\n\tTurns                []Turn                  `json:\"turns\"`\n\tUpdatedAt            int64                   `json:\"updatedAt\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ThreadItemCommandExecution",
         "classification": "stable",
-        "signature": "struct {\n\tPlugin PluginDetail `json:\"plugin\"`\n}"
+        "from_signature": "struct {\n\tAggregatedOutput *Nullable[string]       `json:\"aggregatedOutput,omitempty\"`\n\tCommand          string                  `json:\"command\"`\n\tCommandActions   []CommandAction         `json:\"commandActions\"`\n\tCWD              string                  `json:\"cwd\"`\n\tDurationMS       *Nullable[int64]        `json:\"durationMs,omitempty\"`\n\tExitCode         *Nullable[int32]        `json:\"exitCode,omitempty\"`\n\tID               string                  `json:\"id\"`\n\tProcessID        *Nullable[string]       `json:\"processId,omitempty\"`\n\tSource           *CommandExecutionSource `json:\"source,omitempty\"`\n\tStatus           CommandExecutionStatus  `json:\"status\"`\n}",
+        "to_signature": "struct {\n\tAggregatedOutput *Nullable[string]       `json:\"aggregatedOutput,omitempty\"`\n\tCommand          string                  `json:\"command\"`\n\tCommandActions   []CommandAction         `json:\"commandActions\"`\n\tCWD              string                  `json:\"cwd\"`\n\tDurationMS       *Nullable[int64]        `json:\"durationMs,omitempty\"`\n\tExitCode         *Nullable[int32]        `json:\"exitCode,omitempty\"`\n\tID               string                  `json:\"id\"`\n\tPluginID         *Nullable[string]       `json:\"pluginId,omitempty\"`\n\tProcessID        *Nullable[string]       `json:\"processId,omitempty\"`\n\tScriptPath       *Nullable[string]       `json:\"scriptPath,omitempty\"`\n\tSource           *CommandExecutionSource `json:\"source,omitempty\"`\n\tStatus           CommandExecutionStatus  `json:\"status\"`\n}"
       },
       {
         "kind": "type",
-        "name": "ScheduledTaskSchedule",
+        "name": "ThreadListParams",
+        "classification": "mixed",
+        "from_signature": "struct {\n\tAncestorThreadID *Nullable[string]              `json:\"ancestorThreadId,omitempty\"`\n\tArchived         *Nullable[bool]                `json:\"archived,omitempty\"`\n\tCursor           *Nullable[string]              `json:\"cursor,omitempty\"`\n\tCWD              *Nullable[ThreadListCwdFilter] `json:\"cwd,omitempty\"`\n\tLimit            *Nullable[uint32]              `json:\"limit,omitempty\"`\n\tModelProviders   *Nullable[[]string]            `json:\"modelProviders,omitempty\"`\n\tParentThreadID   *Nullable[string]              `json:\"parentThreadId,omitempty\"`\n\tSearchTerm       *Nullable[string]              `json:\"searchTerm,omitempty\"`\n\tSortDirection    *Nullable[SortDirection]       `json:\"sortDirection,omitempty\"`\n\tSortKey          *Nullable[ThreadSortKey]       `json:\"sortKey,omitempty\"`\n\tSourceKinds      *Nullable[[]ThreadSourceKind]  `json:\"sourceKinds,omitempty\"`\n\tUseStateDbOnly   *bool                          `json:\"useStateDbOnly,omitempty\"`\n}",
+        "to_signature": "struct {\n\tAncestorThreadID *Nullable[string]              `json:\"ancestorThreadId,omitempty\"`\n\tArchived         *Nullable[bool]                `json:\"archived,omitempty\"`\n\tCursor           *Nullable[string]              `json:\"cursor,omitempty\"`\n\tCWD              *Nullable[ThreadListCwdFilter] `json:\"cwd,omitempty\"`\n\tIsPinned         *Nullable[bool]                `json:\"isPinned,omitempty\"`\n\tLimit            *Nullable[uint32]              `json:\"limit,omitempty\"`\n\tModelProviders   *Nullable[[]string]            `json:\"modelProviders,omitempty\"`\n\tParentThreadID   *Nullable[string]              `json:\"parentThreadId,omitempty\"`\n\tSearchTerm       *Nullable[string]              `json:\"searchTerm,omitempty\"`\n\tSortDirection    *Nullable[SortDirection]       `json:\"sortDirection,omitempty\"`\n\tSortKey          *Nullable[ThreadSortKey]       `json:\"sortKey,omitempty\"`\n\tSourceKinds      *Nullable[[]ThreadSourceKind]  `json:\"sourceKinds,omitempty\"`\n\tUseStateDbOnly   *bool                          `json:\"useStateDbOnly,omitempty\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ThreadMetadataUpdateParams",
         "classification": "stable",
-        "signature": "struct {\n\tkind            ScheduledTaskScheduleKind\n\tvariantHourly   *ScheduledTaskScheduleHourly\n\tvariantDaily    *ScheduledTaskScheduleDaily\n\tvariantWeekdays *ScheduledTaskScheduleWeekdays\n\tvariantWeekly   *ScheduledTaskScheduleWeekly\n}"
-      },
-      {
-        "kind": "type",
-        "name": "ScheduledTaskScheduleDaily",
-        "classification": "stable",
-        "signature": "struct {\n\tTime string `json:\"time\"`\n}"
-      },
-      {
-        "kind": "type",
-        "name": "ScheduledTaskScheduleHourly",
-        "classification": "stable",
-        "signature": "struct {\n\tDays          *Nullable[[]ScheduledTaskWeekday] `json:\"days,omitempty\"`\n\tIntervalHours uint32                            `json:\"intervalHours\"`\n}"
-      },
-      {
-        "kind": "type",
-        "name": "ScheduledTaskScheduleKind",
-        "classification": "stable",
-        "signature": "string"
-      },
-      {
-        "kind": "type",
-        "name": "ScheduledTaskScheduleWeekdays",
-        "classification": "stable",
-        "signature": "struct {\n\tTime string `json:\"time\"`\n}"
-      },
-      {
-        "kind": "type",
-        "name": "ScheduledTaskScheduleWeekly",
-        "classification": "stable",
-        "signature": "struct {\n\tDays []ScheduledTaskWeekday `json:\"days\"`\n\tTime string                 `json:\"time\"`\n}"
-      },
-      {
-        "kind": "type",
-        "name": "ScheduledTaskSummary",
-        "classification": "stable",
-        "signature": "struct {\n\tKey      string                `json:\"key\"`\n\tName     string                `json:\"name\"`\n\tPrompt   string                `json:\"prompt\"`\n\tSchedule ScheduledTaskSchedule `json:\"schedule\"`\n}"
-      },
-      {
-        "kind": "type",
-        "name": "ThreadItemEntry",
-        "classification": "experimental",
-        "signature": "struct {\n\tItem   ThreadItem `json:\"item\"`\n\tTurnID string     `json:\"turnId\"`\n}"
-      },
-      {
-        "kind": "type",
-        "name": "ThreadItemsListResponse",
-        "classification": "experimental",
-        "signature": "struct {\n\tBackwardsCursor *Nullable[string] `json:\"backwardsCursor,omitempty\"`\n\tData            []ThreadItemEntry `json:\"data\"`\n\tNextCursor      *Nullable[string] `json:\"nextCursor,omitempty\"`\n}"
-      },
-      {
-        "kind": "type",
-        "name": "ThreadRealtimeInitialItem",
-        "classification": "experimental",
-        "signature": "struct {\n\tRole ConversationTextRole `json:\"role\"`\n\tText string               `json:\"text\"`\n}"
+        "from_signature": "struct {\n\tGitInfo  *Nullable[ThreadMetadataGitInfoUpdateParams] `json:\"gitInfo,omitempty\"`\n\tThreadID string                                       `json:\"threadId\"`\n}",
+        "to_signature": "struct {\n\tGitInfo  *Nullable[ThreadMetadataGitInfoUpdateParams] `json:\"gitInfo,omitempty\"`\n\tIsPinned *Nullable[bool]                              `json:\"isPinned,omitempty\"`\n\tThreadID string                                       `json:\"threadId\"`\n}"
       },
       {
         "kind": "type",
         "name": "ThreadRealtimeStartParams",
         "classification": "experimental",
-        "signature": "struct {\n\tClientManagedHandoffs           *Nullable[bool]                         `json:\"clientManagedHandoffs,omitempty\"`\n\tCodexResponseHandoffMode        *Nullable[CodexResponseHandoffMode]     `json:\"codexResponseHandoffMode,omitempty\"`\n\tCodexResponseItemPrefix         *Nullable[string]                       `json:\"codexResponseItemPrefix,omitempty\"`\n\tCodexResponsesAsItems           *Nullable[bool]                         `json:\"codexResponsesAsItems,omitempty\"`\n\tFlushTranscriptTailOnSessionEnd *Nullable[bool]                         `json:\"flushTranscriptTailOnSessionEnd,omitempty\"`\n\tIncludeStartupContext           *Nullable[bool]                         `json:\"includeStartupContext,omitempty\"`\n\tInitialItems                    *Nullable[[]ThreadRealtimeInitialItem]  `json:\"initialItems,omitempty\"`\n\tModel                           *Nullable[string]                       `json:\"model,omitempty\"`\n\tOutputModality                  RealtimeOutputModality                  `json:\"outputModality\"`\n\tPrompt                          *Nullable[string]                       `json:\"prompt,omitempty\"`\n\tRealtimeSessionID               *Nullable[string]                       `json:\"realtimeSessionId,omitempty\"`\n\tThreadID                        string                                  `json:\"threadId\"`\n\tTransport                       *Nullable[ThreadRealtimeStartTransport] `json:\"transport,omitempty\"`\n\tVersion                         *Nullable[RealtimeConversationVersion]  `json:\"version,omitempty\"`\n\tVoice                           *Nullable[RealtimeVoice]                `json:\"voice,omitempty\"`\n}"
-      },
-      {
-        "kind": "type",
-        "name": "ThreadSearchOccurrence",
-        "classification": "experimental",
-        "signature": "struct {\n\tItemID            string                `json:\"itemId\"`\n\tSnippet           string                `json:\"snippet\"`\n\tSnippetMatchRange ThreadSearchTextRange `json:\"snippetMatchRange\"`\n\tTurnCursor        string                `json:\"turnCursor\"`\n\tTurnID            string                `json:\"turnId\"`\n}"
-      },
-      {
-        "kind": "type",
-        "name": "ThreadSearchOccurrencesResponse",
-        "classification": "experimental",
-        "signature": "struct {\n\tData       []ThreadSearchOccurrence `json:\"data\"`\n\tNextCursor *Nullable[string]        `json:\"nextCursor,omitempty\"`\n}"
-      },
-      {
-        "kind": "type",
-        "name": "ThreadSearchTextRange",
-        "classification": "experimental",
-        "signature": "struct {\n\tEnd   uint32 `json:\"end\"`\n\tStart uint32 `json:\"start\"`\n}"
-      },
-      {
-        "kind": "value",
-        "name": "EnvironmentStatusKindDisconnected",
-        "classification": "experimental",
-        "signature": "EnvironmentStatusKind = \"disconnected\""
-      },
-      {
-        "kind": "value",
-        "name": "EnvironmentStatusKindPending",
-        "classification": "experimental",
-        "signature": "EnvironmentStatusKind = \"pending\""
-      },
-      {
-        "kind": "value",
-        "name": "EnvironmentStatusKindReady",
-        "classification": "experimental",
-        "signature": "EnvironmentStatusKind = \"ready\""
-      },
-      {
-        "kind": "value",
-        "name": "EnvironmentStatusKindUnknown",
-        "classification": "experimental",
-        "signature": "EnvironmentStatusKind = \"unknown\""
-      },
-      {
-        "kind": "value",
-        "name": "ScheduledTaskScheduleKindDaily",
-        "classification": "stable",
-        "signature": "ScheduledTaskScheduleKind = \"daily\""
-      },
-      {
-        "kind": "value",
-        "name": "ScheduledTaskScheduleKindHourly",
-        "classification": "stable",
-        "signature": "ScheduledTaskScheduleKind = \"hourly\""
-      },
-      {
-        "kind": "value",
-        "name": "ScheduledTaskScheduleKindWeekdays",
-        "classification": "stable",
-        "signature": "ScheduledTaskScheduleKind = \"weekdays\""
-      },
-      {
-        "kind": "value",
-        "name": "ScheduledTaskScheduleKindWeekly",
-        "classification": "stable",
-        "signature": "ScheduledTaskScheduleKind = \"weekly\""
+        "from_signature": "struct {\n\tClientManagedHandoffs           *Nullable[bool]                         `json:\"clientManagedHandoffs,omitempty\"`\n\tCodexResponseHandoffMode        *Nullable[CodexResponseHandoffMode]     `json:\"codexResponseHandoffMode,omitempty\"`\n\tCodexResponseItemPrefix         *Nullable[string]                       `json:\"codexResponseItemPrefix,omitempty\"`\n\tCodexResponsesAsItems           *Nullable[bool]                         `json:\"codexResponsesAsItems,omitempty\"`\n\tFlushTranscriptTailOnSessionEnd *Nullable[bool]                         `json:\"flushTranscriptTailOnSessionEnd,omitempty\"`\n\tIncludeStartupContext           *Nullable[bool]                         `json:\"includeStartupContext,omitempty\"`\n\tInitialItems                    *Nullable[[]ThreadRealtimeInitialItem]  `json:\"initialItems,omitempty\"`\n\tModel                           *Nullable[string]                       `json:\"model,omitempty\"`\n\tOutputModality                  RealtimeOutputModality                  `json:\"outputModality\"`\n\tPrompt                          *Nullable[string]                       `json:\"prompt,omitempty\"`\n\tRealtimeSessionID               *Nullable[string]                       `json:\"realtimeSessionId,omitempty\"`\n\tThreadID                        string                                  `json:\"threadId\"`\n\tTransport                       *Nullable[ThreadRealtimeStartTransport] `json:\"transport,omitempty\"`\n\tVersion                         *Nullable[RealtimeConversationVersion]  `json:\"version,omitempty\"`\n\tVoice                           *Nullable[RealtimeVoice]                `json:\"voice,omitempty\"`\n}",
+        "to_signature": "struct {\n\tClientManagedHandoffs               *Nullable[bool]                         `json:\"clientManagedHandoffs,omitempty\"`\n\tCodexResponseHandoffChannelPrefixes *Nullable[map[string][]string]          `json:\"codexResponseHandoffChannelPrefixes,omitempty\"`\n\tCodexResponseHandoffMode            *Nullable[CodexResponseHandoffMode]     `json:\"codexResponseHandoffMode,omitempty\"`\n\tCodexResponseItemPrefix             *Nullable[string]                       `json:\"codexResponseItemPrefix,omitempty\"`\n\tCodexResponsesAsItems               *Nullable[bool]                         `json:\"codexResponsesAsItems,omitempty\"`\n\tFlushTranscriptTailOnSessionEnd     *Nullable[bool]                         `json:\"flushTranscriptTailOnSessionEnd,omitempty\"`\n\tIncludeStartupContext               *Nullable[bool]                         `json:\"includeStartupContext,omitempty\"`\n\tInitialItems                        *Nullable[[]ThreadRealtimeInitialItem]  `json:\"initialItems,omitempty\"`\n\tModel                               *Nullable[string]                       `json:\"model,omitempty\"`\n\tOutputModality                      RealtimeOutputModality                  `json:\"outputModality\"`\n\tPrompt                              *Nullable[string]                       `json:\"prompt,omitempty\"`\n\tRealtimeSessionID                   *Nullable[string]                       `json:\"realtimeSessionId,omitempty\"`\n\tThreadID                            string                                  `json:\"threadId\"`\n\tTransport                           *Nullable[ThreadRealtimeStartTransport] `json:\"transport,omitempty\"`\n\tVersion                             *Nullable[RealtimeConversationVersion]  `json:\"version,omitempty\"`\n\tVoice                               *Nullable[RealtimeVoice]                `json:\"voice,omitempty\"`\n}"
       }
-    ],
-    "removed": [],
-    "reclassified": [],
-    "changed": []
+    ]
   }
 }
