@@ -20,17 +20,27 @@ Repository preparation:
 
   ```bash
   set -euo pipefail
+  module_root="$PWD"
   target_prefix="${target_sha:0:12}"
   if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
-    codex_repo=.cache/openai-codex
-    sync_out=".cache/codexsdk-upstream-$target_prefix"
+    codex_repo="$module_root/.cache/openai-codex"
+    sync_out="$module_root/.cache/codexsdk-upstream-$target_prefix"
   else
-    codex_repo="${CODEXSDK_CODEX_REPO:-.cache/openai-codex}"
-    sync_out="${CODEXSDK_SYNC_OUT:-.cache/codexsdk-upstream-$target_prefix}"
+    codex_repo="${CODEXSDK_CODEX_REPO:-$module_root/.cache/openai-codex}"
+    sync_out="${CODEXSDK_SYNC_OUT:-$module_root/.cache/codexsdk-upstream-$target_prefix}"
+    [[ "$codex_repo" == /* ]] || codex_repo="$module_root/${codex_repo#./}"
+    [[ "$sync_out" == /* ]] || sync_out="$module_root/${sync_out#./}"
   fi
-  cargo_target="$PWD/.cache/cargo-target/codex"
+  rustup_home="$module_root/.cache/rustup"
+  cargo_home="$module_root/.cache/cargo-home"
+  cargo_target="$module_root/.cache/cargo-target/codex"
 
-  mkdir -p "$(dirname "$codex_repo")" "$(dirname "$sync_out")" "$cargo_target"
+  mkdir -p \
+    "$(dirname "$codex_repo")" \
+    "$(dirname "$sync_out")" \
+    "$rustup_home" \
+    "$cargo_home" \
+    "$cargo_target"
   if [[ -e "$codex_repo" ]]; then
     if [[ ! -d "$codex_repo/.git" ]]; then
       echo "cached Codex path is not a Git repository: $codex_repo" >&2
@@ -46,7 +56,10 @@ Repository preparation:
     git -C "$codex_repo" remote add origin "$upstream_repo"
   fi
 
-  CARGO_TARGET_DIR="$cargo_target" scripts/codexsdk_track_upstream.sh \
+  RUSTUP_HOME="$rustup_home" \
+  CARGO_HOME="$cargo_home" \
+  CARGO_TARGET_DIR="$cargo_target" \
+  scripts/codexsdk_track_upstream.sh \
     --codex-repo "$codex_repo" \
     --commit "$target_sha" \
     --source-ref "$target_ref" \
@@ -55,6 +68,8 @@ Repository preparation:
     --json
   ```
 
+- Pass absolute repository and output paths to tracking; `git -C` resolves relative worktree paths from the repository rather than the module root.
+- Keep Rustup, Cargo registry, and Cargo build state inside the writable module cache because the sandbox may expose the runner home read-only.
 - Require an existing path to be a Git repository whose `origin` URL exactly matches `upstream_repo`; stop on missing or mismatched provenance.
 - Do not discover the repository by searching the runner, reading README files, or reusing sibling checkouts. Those sources are not bound to the workflow-owned upstream URL and may select unrelated or stale Codex source.
 - Let `scripts/codexsdk_track_upstream.sh` fetch the exact resolved target after policy allows it. Do not perform a separate broad clone or fetch.
@@ -68,7 +83,7 @@ Boundaries:
 
 Checks:
 - Policy JSON parses and has decision plus reason.
-- Generation uses the selected repository path and its verified `origin`, without searching for another checkout.
+- Generation uses absolute repository and output paths, writable module-local Rust homes, and the selected repository's verified `origin`, without searching for another checkout.
 - On `allow`, compact reports include `SUMMARY.md`, `drift_summary.json`, and `matrix_update_skeleton.json`.
 - Artifact evidence records upstream ref, upstream SHA, and drift fingerprint; its `source_commit` equals the resolved target SHA.
 - Checked-in baseline files remain unchanged.

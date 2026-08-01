@@ -35,7 +35,7 @@ Use one ignored, module-local cache layout for both local and GitHub Actions run
 
 The shared layout keeps disposable state organized and gives local and automated runs the same starting assumptions. It is valid GitHub Actions workspace storage because the checkout is writable and the workflow runs Codex from `codexsdk/`. The `.cache` name has no GitHub-specific behavior: directories persist between steps in the same job, but not automatically across jobs or workflow runs. Do not assume GitHub's cross-run cache service is in use unless the workflow explicitly adds it.
 
-Keep Rust build output outside the disposable upstream worktree so replacing a target checkout does not discard the build cache.
+Keep Rustup, Cargo registry, and Rust build state outside the disposable upstream worktree so replacing a target checkout does not discard them. Module-local homes also remain writable when a sandbox exposes the caller's home read-only.
 
 In normal generation mode, `scripts/codexsdk_track_upstream.sh` requires `--codex-repo` or `CODEXSDK_CODEX_REPO`; in `--compare-only` mode it needs only a resolved `--commit`, checked-in baseline, and candidate schema directory. When `--out` is omitted it creates a temporary `/tmp/codexsdk-upstream.*` directory.
 
