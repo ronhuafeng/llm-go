@@ -5,7 +5,7 @@ State:
 
 Inputs:
 - Target ref, ref kind, target SHA, target explicit/default status, policy mode, and downgrade policy.
-- Generation mode: upstream Codex repo URL, plus any caller-supplied repo path or output directory outside GitHub Actions.
+- Generation mode: upstream Codex repo URL, plus optional `CODEXSDK_CODEX_REPO` and `CODEXSDK_SYNC_OUT` overrides outside GitHub Actions.
 - Compare-only mode: candidate schema directory, checked-in baseline, resolved target SHA, and output directory; no upstream repo path is required.
 
 Tools:
@@ -15,13 +15,22 @@ Tools:
 Repository preparation:
 - Run target policy first. Prepare or fetch an upstream repository only after policy returns `allow`, or returns `skip` while `force_compare` requires generation.
 - In GitHub Actions, read the upstream URL only from `.cache/codexsdk-sync/action-inputs.json`. Use `.cache/openai-codex` as the repository and `.cache/codexsdk-upstream-<target-sha-prefix>` as the output directory.
-- Outside GitHub Actions, use the same module-local cache paths by default. Honor an explicitly supplied local repository or output path instead of replacing it.
-- Bind `upstream_repo` to the already-read input value. Initialize or verify the selected repository without fetching all refs:
+- Outside GitHub Actions, use the same module-local cache paths by default. Honor `CODEXSDK_CODEX_REPO` or `CODEXSDK_SYNC_OUT` when the caller explicitly supplies one.
+- Bind `upstream_repo` to the already-read input value. Resolve the selected paths before creating directories, then initialize or verify the repository without fetching all refs. Run tracking in the same shell so it consumes those exact paths:
 
-  ```sh
+  ```bash
   set -euo pipefail
-  codex_repo=.cache/openai-codex
-  mkdir -p .cache
+  target_prefix="${target_sha:0:12}"
+  if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+    codex_repo=.cache/openai-codex
+    sync_out=".cache/codexsdk-upstream-$target_prefix"
+  else
+    codex_repo="${CODEXSDK_CODEX_REPO:-.cache/openai-codex}"
+    sync_out="${CODEXSDK_SYNC_OUT:-.cache/codexsdk-upstream-$target_prefix}"
+  fi
+  cargo_target="$PWD/.cache/cargo-target/codex"
+
+  mkdir -p "$(dirname "$codex_repo")" "$(dirname "$sync_out")" "$cargo_target"
   if [[ -e "$codex_repo" ]]; then
     if [[ ! -d "$codex_repo/.git" ]]; then
       echo "cached Codex path is not a Git repository: $codex_repo" >&2
@@ -36,21 +45,19 @@ Repository preparation:
     git init --quiet "$codex_repo"
     git -C "$codex_repo" remote add origin "$upstream_repo"
   fi
+
+  CARGO_TARGET_DIR="$cargo_target" scripts/codexsdk_track_upstream.sh \
+    --codex-repo "$codex_repo" \
+    --commit "$target_sha" \
+    --source-ref "$target_ref" \
+    --source-ref-kind "$target_kind" \
+    --out "$sync_out" \
+    --json
   ```
 
 - Require an existing path to be a Git repository whose `origin` URL exactly matches `upstream_repo`; stop on missing or mismatched provenance.
 - Do not discover the repository by searching the runner, reading README files, or reusing sibling checkouts. Those sources are not bound to the workflow-owned upstream URL and may select unrelated or stale Codex source.
-- Let `scripts/codexsdk_track_upstream.sh` fetch the exact resolved target after policy allows it. Do not perform a separate broad clone or fetch:
-
-  ```sh
-  scripts/codexsdk_track_upstream.sh \
-    --codex-repo .cache/openai-codex \
-    --commit "$target_sha" \
-    --source-ref "$target_ref" \
-    --source-ref-kind "$target_kind" \
-    --out ".cache/codexsdk-upstream-${target_sha:0:12}" \
-    --json
-  ```
+- Let `scripts/codexsdk_track_upstream.sh` fetch the exact resolved target after policy allows it. Do not perform a separate broad clone or fetch.
 
 Boundaries:
 - Run policy before drift generation.
