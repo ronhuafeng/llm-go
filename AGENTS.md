@@ -24,5 +24,7 @@ Issues live in this repository's GitHub Issues. See `docs/agents/issue-tracker.m
 
 ### Domain docs
 
-This is a multi-context repository. Start with `CONTEXT-MAP.md` and follow the
-module context and ADR links described in `docs/agents/domain.md`.
+This is a multi-context repository. Resolve the paths below from the repository
+root containing this `AGENTS.md`, not from the current working directory. Start
+with `CONTEXT-MAP.md` and follow the module context and ADR links described in
+`docs/agents/domain.md`.
