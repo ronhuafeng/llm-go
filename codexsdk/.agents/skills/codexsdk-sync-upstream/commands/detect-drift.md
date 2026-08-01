@@ -12,6 +12,28 @@ Tools:
 - `scripts/codexsdk_target_policy.py`
 - `scripts/codexsdk_track_upstream.sh`
 
+Policy gate:
+- In GitHub Actions, derive policy mode only from the event name and pass the baseline metadata file, not its schema directory:
+
+  ```bash
+  set -euo pipefail
+  module_root="${GITHUB_WORKSPACE:?}/codexsdk"
+  cd "$module_root"
+  policy_mode=manual
+  if [[ "${GITHUB_EVENT_NAME:-}" == "schedule" ]]; then
+    policy_mode=scheduled
+  fi
+  python3 scripts/codexsdk_target_policy.py \
+    --baseline internal/protocolschema/appserver/v2/baseline_metadata.json \
+    --target-ref "$target_ref" \
+    --target-kind "$target_kind" \
+    --target-sha "$target_sha" \
+    --target-explicit "$target_explicit" \
+    --mode "$policy_mode" \
+    --allow-downgrade "$allow_downgrade" \
+    --json
+  ```
+
 Repository preparation:
 - Run target policy first. Prepare or fetch an upstream repository only after policy returns `allow`, or returns `skip` while `force_compare` requires generation.
 - In GitHub Actions, read the upstream URL only from `.cache/codexsdk-sync/action-inputs.json`. Use `.cache/openai-codex` as the repository and `.cache/codexsdk-upstream-<target-sha-prefix>` as the output directory.
@@ -20,7 +42,12 @@ Repository preparation:
 
   ```bash
   set -euo pipefail
-  module_root="$PWD"
+  if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+    module_root="${GITHUB_WORKSPACE:?}/codexsdk"
+  else
+    module_root="$PWD"
+  fi
+  cd "$module_root"
   target_prefix="${target_sha:0:12}"
   if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
     codex_repo="$module_root/.cache/openai-codex"
