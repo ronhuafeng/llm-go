@@ -1,0 +1,146 @@
+name: Run Codex task
+description: Run a sandboxed Codex task through a Responses API proxy with capacity-only session recovery.
+
+inputs:
+  api-key:
+    description: API key passed only to the Responses API proxy.
+    required: true
+  responses-api-endpoint:
+    description: Upstream Responses API endpoint used by the proxy.
+    required: true
+  working-directory:
+    description: Repository-relative directory where Codex runs.
+    required: true
+  prompt:
+    description: Task prompt passed to Codex.
+    required: true
+
+outputs:
+  final-message-path:
+    description: Absolute path to the final Codex message.
+    value: ${{ steps.codex.outputs.final-message-path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v6
+      with:
+        node-version: "24"
+
+    - name: Install latest Codex CLI
+      shell: bash
+      run: |
+        set -euo pipefail
+        npm install --global \
+          @openai/codex@latest \
+          @openai/codex-responses-api-proxy@latest
+        codex --version
+
+    - name: Enable Codex sandbox
+      shell: bash
+      run: |
+        set -euo pipefail
+        sudo sysctl -w kernel.unprivileged_userns_clone=1
+        sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+    - name: Start Codex Responses API proxy
+      id: proxy
+      shell: bash
+      env:
+        PROXY_API_KEY: ${{ inputs.api-key }}
+        SERVER_INFO_FILE: ${{ runner.temp }}/codex-responses-proxy-${{ github.run_id }}-${{ github.run_attempt }}.json
+        UPSTREAM_URL: ${{ inputs.responses-api-endpoint }}
+      run: |
+        set -euo pipefail
+        : "${PROXY_API_KEY:?api-key is required}"
+        : "${UPSTREAM_URL:?responses-api-endpoint is required}"
+
+        (
+          printenv PROXY_API_KEY |
+            env -u PROXY_API_KEY -u UPSTREAM_URL \
+              codex-responses-api-proxy \
+              --server-info "${SERVER_INFO_FILE}" \
+              --upstream-url "${UPSTREAM_URL}"
+        ) &
+        proxy_pid=$!
+
+        for _ in {1..100}; do
+          if jq -e '.port | numbers' "${SERVER_INFO_FILE}" >/dev/null 2>&1; then
+            break
+          fi
+          sleep 0.1
+        done
+        proxy_port="$(jq -er '.port | numbers' "${SERVER_INFO_FILE}")"
+        {
+          echo "pid=${proxy_pid}"
+          echo "port=${proxy_port}"
+        } >> "${GITHUB_OUTPUT}"
+
+    - name: Run Codex
+      id: codex
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        PROMPT: ${{ inputs.prompt }}
+        PROXY_PORT: ${{ steps.proxy.outputs.port }}
+      run: |
+        set -euo pipefail
+        capacity_error='Selected model is at capacity. Please try a different model.'
+        final_message="${PWD}/.cache/codex-exec/final-message.md"
+        mkdir -p "$(dirname "${final_message}")"
+
+        codex_args=(
+          exec
+          --output-last-message "${final_message}"
+          --model gpt-5.6-sol
+          --config 'model_reasoning_effort="high"'
+          --config 'model_provider="codex-responses-proxy"'
+          --config "model_providers.codex-responses-proxy={ name = 'Codex Responses Proxy', base_url = 'http://127.0.0.1:${PROXY_PORT}/v1', wire_api = 'responses' }"
+          --config 'sandbox_workspace_write.network_access=true'
+          --sandbox workspace-write
+          --json
+        )
+        command_args=("${PROMPT}")
+
+        for attempt in 1 2 3; do
+          attempt_log=".cache/codex-exec/attempt-${attempt}.log"
+          set +e
+          setpriv --no-new-privs \
+            codex "${codex_args[@]}" "${command_args[@]}" 2>&1 | tee "${attempt_log}"
+          codex_status="${PIPESTATUS[0]}"
+          set -e
+
+          if (( codex_status == 0 )); then
+            echo "final-message-path=${final_message}" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          terminal_error="$(
+            jq -Rr '
+              fromjson?
+              | select(.type == "error" or .type == "turn.failed")
+              | .message // .error.message // empty
+            ' "${attempt_log}" | tail -n 1
+          )"
+          if [[ "${terminal_error}" != "${capacity_error}" || "${attempt}" == "3" ]]; then
+            exit "${codex_status}"
+          fi
+
+          delay=$((attempt == 1 ? 60 : 180))
+          echo "Codex is at capacity; resuming the same session in ${delay}s." >&2
+          sleep "${delay}"
+          command_args=(
+            resume --last
+            "Continue the previous task from where it stopped. ${PROMPT}"
+          )
+        done
+
+    - name: Stop Codex Responses API proxy
+      if: ${{ always() }}
+      shell: bash
+      env:
+        PROXY_PID: ${{ steps.proxy.outputs.pid }}
+      run: |
+        if [[ -n "${PROXY_PID}" ]] && kill -0 "${PROXY_PID}" 2>/dev/null; then
+          kill "${PROXY_PID}"
+        fi

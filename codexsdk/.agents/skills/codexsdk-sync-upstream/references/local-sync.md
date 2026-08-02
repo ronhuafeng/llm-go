@@ -2,6 +2,16 @@
 
 Use this file as context for local sync decisions. It is not a linear playbook. Commands and scripts own execution details; this reference preserves the domain rules that are easy to lose.
 
+- [Baseline And Provenance](#baseline-and-provenance)
+- [Artifacts](#artifacts)
+- [Action Boundary](#action-boundary)
+- [Target Policy](#target-policy)
+- [Drift Review](#drift-review)
+- [Apply And Repair](#apply-and-repair)
+- [Validation](#validation)
+- [Target Movement](#target-movement)
+- [Decision Rules](#decision-rules)
+
 ## Baseline And Provenance
 
 Source of truth:
@@ -21,13 +31,13 @@ Do not check in local absolute paths, `.cache/...` output paths, private repo pa
 
 ## Artifacts
 
-Recommended disposable locations:
+Use one ignored, module-local cache layout for both local and GitHub Actions runs. Follow the canonical paths, local override policy, provenance checks, and Cargo target setup in [Detect Drift](../commands/detect-drift.md#repository-preparation); that command owns the executable defaults.
 
-- upstream clone: `.cache/openai-codex`
-- sync output: `.cache/codexsdk-upstream-<short-sha>`
-- Rust build cache: `.cache/cargo-target/codex`
+The shared layout keeps disposable state organized and gives local and automated runs the same starting assumptions. It is valid GitHub Actions workspace storage because the checkout is writable and the workflow runs Codex from `codexsdk/`. The `.cache` name has no GitHub-specific behavior: directories persist between steps in the same job, but not automatically across jobs or workflow runs. Do not assume GitHub's cross-run cache service is in use unless the workflow explicitly adds it.
 
-These are caller-chosen locations, not all script defaults. In normal generation mode, `scripts/codexsdk_track_upstream.sh` requires `--codex-repo` or `CODEXSDK_CODEX_REPO`; in `--compare-only` mode it needs only a resolved `--commit`, checked-in baseline, and candidate schema directory. When `--out` is omitted it creates a temporary `/tmp/codexsdk-upstream.*` directory.
+Keep Rustup, Cargo registry, and Rust build state outside the disposable upstream worktree so replacing a target checkout does not discard them. Module-local homes also remain writable when a sandbox exposes the caller's home read-only.
+
+In normal generation mode, `scripts/codexsdk_track_upstream.sh` requires `--codex-repo` or `CODEXSDK_CODEX_REPO`; in `--compare-only` mode it needs only a resolved `--commit`, checked-in baseline, and candidate schema directory. When `--out` is omitted it creates a temporary `/tmp/codexsdk-upstream.*` directory.
 
 Useful drift evidence:
 

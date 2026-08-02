@@ -145,26 +145,25 @@ jobs:
 
       - name: Implement target protocol with Codex
         id: codex
-        uses: openai/codex-action@v1
+        uses: ./.github/actions/codex-exec
         with:
-          openai-api-key: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          api-key: ${{ secrets.AZURE_OPENAI_API_KEY }}
           responses-api-endpoint: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
-          model: gpt-5.6-sol
-          effort: high
-          prompt: Use $codexsdk-sync-upstream.
           working-directory: codexsdk
-          sandbox: workspace-write
-          safety-strategy: drop-sudo
-          allow-bots: "true"
-          codex-args: '["--ephemeral", "-c", "sandbox_workspace_write.network_access=true"]'
+          prompt: 'Use $codexsdk-sync-upstream.'
 
       - name: Require completed Codex implementation
         id: completion
         working-directory: codexsdk
         env:
-          CODEX_FINAL_MESSAGE: ${{ steps.codex.outputs.final-message }}
+          CODEX_FINAL_MESSAGE_PATH: ${{ steps.codex.outputs.final-message-path }}
         run: |
           set -euo pipefail
+          if [[ ! -s "${CODEX_FINAL_MESSAGE_PATH}" ]]; then
+            echo "Codex did not write a final message." >&2
+            exit 1
+          fi
+          CODEX_FINAL_MESSAGE="$(< "${CODEX_FINAL_MESSAGE_PATH}")"
           first_line="${CODEX_FINAL_MESSAGE%%$'\n'*}"
           case "${first_line}" in
             "protocol implementation complete") mode="implemented" ;;

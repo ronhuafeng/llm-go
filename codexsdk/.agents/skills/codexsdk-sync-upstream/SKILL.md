@@ -37,7 +37,7 @@ For a read-only comparison, report its target provenance and drift result withou
 
 When `GITHUB_ACTIONS=true`, use only this protocol. Do not load `references/github-operations.md`.
 
-Read `.cache/codexsdk-sync/action-inputs.json`, the workflow-owned input document containing `target_ref`, `target_kind`, `target_sha`, `target_explicit`, `allow_downgrade`, `force_compare`, and `upstream_repo`. Do not infer or replace missing Action inputs. First confirm that the automation worktree has no tracked or unignored untracked changes, then route as follows:
+Set the module root to `$GITHUB_WORKSPACE/codexsdk` and use it as the working directory for every Action shell command. Read `$GITHUB_WORKSPACE/codexsdk/.cache/codexsdk-sync/action-inputs.json`, the workflow-owned input document containing `target_ref`, `target_kind`, `target_sha`, `target_explicit`, `allow_downgrade`, `force_compare`, and `upstream_repo`. Do not search for, infer, or replace missing Action inputs. First confirm that the automation worktree has no tracked or unignored untracked changes, then route as follows:
 
 1. Verify that the resolved target fields are complete and use them unchanged throughout the attempt.
 2. Use `detect-drift` to apply target policy and generate candidate evidence.
