@@ -14884,6 +14884,7 @@ type Model struct {
 	InputModalities           *[]InputModality                `json:"inputModalities,omitempty"`
 	IsDefault                 bool                            `json:"isDefault"`
 	Model                     string                          `json:"model"`
+	ModelSpecialty            *Nullable[string]               `json:"modelSpecialty,omitempty"`
 	ServiceTiers              *[]ModelServiceTier             `json:"serviceTiers,omitempty"`
 	SupportedReasoningEfforts []ReasoningEffortOption         `json:"supportedReasoningEfforts"`
 	SupportsPersonality       *bool                           `json:"supportsPersonality,omitempty"`
@@ -14973,6 +14974,10 @@ func (value *Model) unmarshalJSON(data []byte, mode wireDecodeMode) error {
 	}
 	if !seenModel {
 		return missingRequiredField("Model.model")
+	}
+	_, err = decodeNullableJSONField[string](fields, "modelSpecialty", "Model.modelSpecialty", mode, decodeWireValue[string], &decoded.ModelSpecialty)
+	if err != nil {
+		return err
 	}
 	_, err = decodeJSONField(fields, "serviceTiers", "Model.serviceTiers", false, mode, wirePointerDecoder(wireSliceDecoder(decodeWireValue[ModelServiceTier])), &decoded.ServiceTiers)
 	if err != nil {

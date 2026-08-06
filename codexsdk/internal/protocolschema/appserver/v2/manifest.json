@@ -29,7 +29,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerRequest.json#/oneOf/6",
         "aggregate_schema": "ServerRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "ChatgptAuthTokensRefreshParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#server_request_definitions/ChatgptAuthTokensRefresh",
@@ -55,7 +55,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/98",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/CancelLoginAccountParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/CancelLoginAccount",
@@ -82,7 +82,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/69",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/AccountLoginCompletedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -108,7 +108,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/97",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/LoginAccountParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/LoginAccount",
@@ -135,7 +135,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/99",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/LogoutAccount",
@@ -162,7 +162,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/101",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ConsumeAccountRateLimitResetCreditParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ConsumeAccountRateLimitResetCredit",
@@ -189,7 +189,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/100",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/GetAccountRateLimits",
@@ -216,7 +216,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/39",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/AccountRateLimitsUpdatedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -242,7 +242,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/122",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/GetAccountParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/GetAccount",
@@ -269,7 +269,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/104",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/SendAddCreditsNudgeEmailParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/SendAddCreditsNudgeEmail",
@@ -296,7 +296,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/38",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/AccountUpdatedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -322,7 +322,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/102",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/GetAccountTokenUsage",
@@ -349,7 +349,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/103",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/GetWorkspaceMessages",
@@ -376,7 +376,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/50",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/AppsInstalledParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/AppsInstalled",
@@ -403,7 +403,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/49",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/AppsListParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/AppsList",
@@ -430,7 +430,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/40",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/AppListUpdatedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -456,7 +456,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/48",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/AppsReadParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/AppsRead",
@@ -483,7 +483,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerRequest.json#/oneOf/9",
         "aggregate_schema": "ServerRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "ApplyPatchApprovalParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#server_request_definitions/ApplyPatchApproval",
@@ -509,7 +509,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerRequest.json#/oneOf/7",
         "aggregate_schema": "ServerRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "AttestationGenerateParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#server_request_definitions/AttestationGenerate",
@@ -535,7 +535,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/85",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/CollaborationModeListParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/CollaborationModeList",
@@ -562,7 +562,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/106",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/CommandExecParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/OneOffCommandExec",
@@ -589,7 +589,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/27",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/CommandExecOutputDeltaNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -615,7 +615,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/109",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/CommandExecResizeParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/CommandExecResize",
@@ -642,7 +642,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/108",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/CommandExecTerminateParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/CommandExecTerminate",
@@ -669,7 +669,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/107",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/CommandExecWriteParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/CommandExecWrite",
@@ -696,7 +696,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/120",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ConfigBatchWriteParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ConfigBatchWrite",
@@ -723,7 +723,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/91",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/McpServerRefresh",
@@ -750,7 +750,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/114",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ConfigReadParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ConfigRead",
@@ -777,7 +777,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/119",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ConfigValueWriteParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ConfigValueWrite",
@@ -804,7 +804,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/121",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ConfigRequirementsRead",
@@ -831,7 +831,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/56",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ConfigWarningNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -857,7 +857,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerRequest.json#/oneOf/8",
         "aggregate_schema": "ServerRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "CurrentTimeReadParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#server_request_definitions/CurrentTimeRead",
@@ -883,7 +883,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/55",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/DeprecationNoticeNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -909,7 +909,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/87",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/EnvironmentAddParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/EnvironmentAdd",
@@ -936,7 +936,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/88",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/EnvironmentInfoParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/EnvironmentInfo",
@@ -963,7 +963,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/89",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/EnvironmentStatusParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/EnvironmentStatus",
@@ -990,7 +990,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/0",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ErrorNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1016,7 +1016,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerRequest.json#/oneOf/10",
         "aggregate_schema": "ServerRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "ExecCommandApprovalParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#server_request_definitions/ExecCommandApproval",
@@ -1042,7 +1042,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/77",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ExperimentalFeatureEnablementSetParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ExperimentalFeatureEnablementSet",
@@ -1069,7 +1069,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/75",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ExperimentalFeatureListParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ExperimentalFeatureList",
@@ -1096,7 +1096,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/115",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ExternalAgentConfigDetectParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ExternalAgentConfigDetect",
@@ -1123,7 +1123,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/116",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ExternalAgentConfigImportParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ExternalAgentConfigImport",
@@ -1150,7 +1150,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/43",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ExternalAgentConfigImportCompletedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1176,7 +1176,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/42",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ExternalAgentConfigImportProgressNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1202,7 +1202,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/118",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ExternalAgentConfigImportHistoriesRead",
@@ -1229,7 +1229,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/117",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ExternalAgentConfigImportHistoryRecordParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ExternalAgentConfigImportHistoryRecord",
@@ -1256,7 +1256,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/105",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/FeedbackUploadParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/FeedbackUpload",
@@ -1283,7 +1283,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/44",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/FsChangedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1309,7 +1309,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/57",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/FsCopyParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/FsCopy",
@@ -1336,7 +1336,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/53",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/FsCreateDirectoryParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/FsCreateDirectory",
@@ -1363,7 +1363,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/54",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/FsGetMetadataParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/FsGetMetadata",
@@ -1390,7 +1390,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/55",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/FsReadDirectoryParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/FsReadDirectory",
@@ -1417,7 +1417,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/51",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/FsReadFileParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/FsReadFile",
@@ -1444,7 +1444,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/56",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/FsRemoveParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/FsRemove",
@@ -1471,7 +1471,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/59",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/FsUnwatchParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/FsUnwatch",
@@ -1498,7 +1498,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/58",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/FsWatchParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/FsWatch",
@@ -1525,7 +1525,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/52",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/FsWriteFileParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/FsWriteFile",
@@ -1552,7 +1552,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/123",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "FuzzyFileSearchParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/FuzzyFileSearch",
@@ -1579,7 +1579,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/58",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "FuzzyFileSearchSessionCompletedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1605,7 +1605,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/124",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "FuzzyFileSearchSessionStartParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/FuzzyFileSearchSessionStart",
@@ -1632,7 +1632,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/126",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "FuzzyFileSearchSessionStopParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/FuzzyFileSearchSessionStop",
@@ -1659,7 +1659,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/125",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "FuzzyFileSearchSessionUpdateParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/FuzzyFileSearchSessionUpdate",
@@ -1686,7 +1686,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/57",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "FuzzyFileSearchSessionUpdatedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1712,7 +1712,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/54",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/GuardianWarningNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1738,7 +1738,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/18",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/HookCompletedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1764,7 +1764,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/16",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/HookStartedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1790,7 +1790,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/35",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/HooksListParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/HooksList",
@@ -1817,7 +1817,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/0",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v1/InitializeParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/Initialize",
@@ -1843,7 +1843,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientNotification.json#/oneOf/0",
         "aggregate_schema": "ClientNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1869,7 +1869,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/25",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/AgentMessageDeltaNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1895,7 +1895,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/23",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ItemGuardianApprovalReviewCompletedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1921,7 +1921,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/22",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ItemGuardianApprovalReviewStartedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1947,7 +1947,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/30",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/CommandExecutionOutputDeltaNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -1973,7 +1973,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerRequest.json#/oneOf/0",
         "aggregate_schema": "ServerRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "CommandExecutionRequestApprovalParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#server_request_definitions/CommandExecutionRequestApproval",
@@ -1999,7 +1999,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/31",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/TerminalInteractionNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -2025,7 +2025,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/24",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ItemCompletedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -2051,7 +2051,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/32",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/FileChangeOutputDeltaNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -2077,7 +2077,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/33",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/FileChangePatchUpdatedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -2103,7 +2103,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerRequest.json#/oneOf/1",
         "aggregate_schema": "ServerRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "FileChangeRequestApprovalParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#server_request_definitions/FileChangeRequestApproval",
@@ -2129,7 +2129,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/35",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/McpToolCallProgressNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -2155,7 +2155,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerRequest.json#/oneOf/4",
         "aggregate_schema": "ServerRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "PermissionsRequestApprovalParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#server_request_definitions/PermissionsRequestApproval",
@@ -2181,7 +2181,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/26",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/PlanDeltaNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -2207,7 +2207,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/46",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ReasoningSummaryPartAddedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -2233,7 +2233,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/45",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ReasoningSummaryTextDeltaNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -2259,7 +2259,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/47",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ReasoningTextDeltaNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -2285,7 +2285,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/21",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ItemStartedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -2311,7 +2311,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerRequest.json#/oneOf/5",
         "aggregate_schema": "ServerRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "DynamicToolCallParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#server_request_definitions/DynamicToolCall",
@@ -2337,7 +2337,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerRequest.json#/oneOf/2",
         "aggregate_schema": "ServerRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "ToolRequestUserInputParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#server_request_definitions/ToolRequestUserInput",
@@ -2363,7 +2363,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/36",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/MarketplaceAddParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/MarketplaceAdd",
@@ -2390,7 +2390,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/37",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/MarketplaceRemoveParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/MarketplaceRemove",
@@ -2417,7 +2417,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/38",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/MarketplaceUpgradeParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/MarketplaceUpgrade",
@@ -2444,7 +2444,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerRequest.json#/oneOf/3",
         "aggregate_schema": "ServerRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "McpServerElicitationRequestParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#server_request_definitions/McpServerElicitationRequest",
@@ -2470,7 +2470,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/90",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/McpServerOauthLoginParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/McpServerOauthLogin",
@@ -2497,7 +2497,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/36",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/McpServerOauthLoginCompletedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -2523,7 +2523,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/93",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/McpResourceReadParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/McpResourceRead",
@@ -2550,7 +2550,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/37",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/McpServerStatusUpdatedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -2576,7 +2576,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/94",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/McpServerToolCallParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/McpServerToolCall",
@@ -2603,7 +2603,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/92",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ListMcpServerStatusParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/McpServerStatusList",
@@ -2630,7 +2630,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/16",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/MemoryReset",
@@ -2657,7 +2657,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/86",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/MockExperimentalMethodParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/MockExperimentalMethod",
@@ -2684,7 +2684,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/73",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ModelListParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ModelList",
@@ -2711,7 +2711,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/49",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ModelReroutedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -2737,7 +2737,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/52",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ModelSafetyBufferingUpdatedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -2763,7 +2763,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/50",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ModelVerificationNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -2789,7 +2789,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/74",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ModelProviderCapabilitiesReadParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ModelProviderCapabilitiesRead",
@@ -2816,7 +2816,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/76",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/PermissionProfileListParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/PermissionProfileList",
@@ -2843,7 +2843,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/61",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/PluginInstallParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/PluginInstall",
@@ -2870,7 +2870,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/40",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/PluginInstalledParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/PluginInstalled",
@@ -2897,7 +2897,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/39",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/PluginListParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/PluginList",
@@ -2924,7 +2924,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/41",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/PluginReadParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/PluginRead",
@@ -2951,7 +2951,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/46",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/PluginShareCheckoutParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/PluginShareCheckout",
@@ -2978,7 +2978,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/47",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/PluginShareDeleteParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/PluginShareDelete",
@@ -3005,7 +3005,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/45",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/PluginShareListParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/PluginShareList",
@@ -3032,7 +3032,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/43",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/PluginShareSaveParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/PluginShareSave",
@@ -3059,7 +3059,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/44",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/PluginShareUpdateTargetsParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/PluginShareUpdateTargets",
@@ -3086,7 +3086,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/42",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/PluginSkillReadParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/PluginSkillRead",
@@ -3113,7 +3113,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/62",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/PluginUninstallParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/PluginUninstall",
@@ -3140,7 +3140,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/29",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ProcessExitedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -3166,7 +3166,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/112",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ProcessKillParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ProcessKill",
@@ -3193,7 +3193,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/28",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ProcessOutputDeltaNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -3219,7 +3219,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/113",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ProcessResizePtyParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ProcessResizePty",
@@ -3246,7 +3246,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/110",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ProcessSpawnParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ProcessSpawn",
@@ -3273,7 +3273,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/111",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ProcessWriteStdinParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ProcessWriteStdin",
@@ -3300,7 +3300,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/83",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/RemoteControlClientsListParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/RemoteControlClientsList",
@@ -3327,7 +3327,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/84",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/RemoteControlClientsRevokeParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/RemoteControlClientsRevoke",
@@ -3354,7 +3354,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/79",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/RemoteControlDisable",
@@ -3381,7 +3381,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/78",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/RemoteControlEnable",
@@ -3408,7 +3408,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/81",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/RemoteControlPairingStartParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/RemoteControlPairingStart",
@@ -3435,7 +3435,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/82",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/RemoteControlPairingStatusParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/RemoteControlPairingStatus",
@@ -3462,7 +3462,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/41",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/RemoteControlStatusChangedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -3488,7 +3488,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/80",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/RemoteControlStatusRead",
@@ -3515,7 +3515,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/72",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ReviewStartParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ReviewStart",
@@ -3542,7 +3542,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/34",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ServerRequestResolvedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -3568,7 +3568,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/7",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/SkillsChangedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -3594,7 +3594,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/60",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/SkillsConfigWriteParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/SkillsConfigWrite",
@@ -3621,7 +3621,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/34",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/SkillsExtraRootsSetParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/SkillsExtraRootsSet",
@@ -3648,7 +3648,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/33",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/SkillsListParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/SkillsList",
@@ -3675,7 +3675,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/20",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadApproveGuardianDeniedActionParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadApproveGuardianDeniedAction",
@@ -3702,7 +3702,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/4",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadArchiveParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadArchive",
@@ -3729,7 +3729,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/3",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadArchivedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -3755,7 +3755,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/21",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadBackgroundTerminalsCleanParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadBackgroundTerminalsClean",
@@ -3782,7 +3782,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/22",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadBackgroundTerminalsListParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadBackgroundTerminalsList",
@@ -3809,7 +3809,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/23",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadBackgroundTerminalsTerminateParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadBackgroundTerminalsTerminate",
@@ -3836,7 +3836,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/6",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadClosedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -3862,7 +3862,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/18",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadCompactStartParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadCompactStart",
@@ -3889,7 +3889,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/48",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ContextCompactedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -3915,7 +3915,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/8",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadDecrementElicitationParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadDecrementElicitation",
@@ -3942,7 +3942,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/5",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadDeleteParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadDelete",
@@ -3969,7 +3969,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/4",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadDeletedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -3995,7 +3995,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/11",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/EnvironmentConnectionNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -4021,7 +4021,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/12",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/EnvironmentConnectionNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -4047,7 +4047,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/3",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadForkParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadFork",
@@ -4074,7 +4074,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/12",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadGoalClearParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadGoalClear",
@@ -4101,7 +4101,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/10",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadGoalClearedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -4127,7 +4127,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/11",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadGoalGetParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadGoalGet",
@@ -4154,7 +4154,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/10",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadGoalSetParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadGoalSet",
@@ -4181,7 +4181,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/9",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadGoalUpdatedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -4207,7 +4207,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/7",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadIncrementElicitationParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadIncrementElicitation",
@@ -4234,7 +4234,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/32",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadInjectItemsParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadInjectItems",
@@ -4261,7 +4261,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/31",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadItemsListParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadItemsList",
@@ -4288,7 +4288,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/25",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadListParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadList",
@@ -4315,7 +4315,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/28",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadLoadedListParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadLoadedList",
@@ -4342,7 +4342,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/15",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadMemoryModeSetParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadMemoryModeSet",
@@ -4369,7 +4369,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/13",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadMetadataUpdateParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadMetadataUpdate",
@@ -4396,7 +4396,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/9",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadSetNameParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadSetName",
@@ -4423,7 +4423,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/8",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadNameUpdatedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -4449,7 +4449,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/29",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadReadParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadRead",
@@ -4476,7 +4476,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/67",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadRealtimeAppendAudioParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadRealtimeAppendAudio",
@@ -4503,7 +4503,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/69",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadRealtimeAppendSpeechParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadRealtimeAppendSpeech",
@@ -4530,7 +4530,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/68",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadRealtimeAppendTextParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadRealtimeAppendText",
@@ -4557,7 +4557,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/66",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadRealtimeClosedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -4583,7 +4583,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/65",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadRealtimeErrorNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -4609,7 +4609,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/60",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadRealtimeItemAddedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -4635,7 +4635,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/71",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadRealtimeListVoicesParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadRealtimeListVoices",
@@ -4662,7 +4662,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/63",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadRealtimeOutputAudioDeltaNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -4688,7 +4688,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/64",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadRealtimeSdpNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -4714,7 +4714,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/66",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadRealtimeStartParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadRealtimeStart",
@@ -4741,7 +4741,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/59",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadRealtimeStartedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -4767,7 +4767,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/70",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadRealtimeStopParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadRealtimeStop",
@@ -4794,7 +4794,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/61",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadRealtimeTranscriptDeltaNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -4820,7 +4820,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/62",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadRealtimeTranscriptDoneNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -4846,7 +4846,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/2",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadResumeParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadResume",
@@ -4873,7 +4873,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/24",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadRollbackParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadRollback",
@@ -4900,7 +4900,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/26",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadSearchParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadSearch",
@@ -4927,7 +4927,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/27",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadSearchOccurrencesParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadSearchOccurrences",
@@ -4954,7 +4954,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/14",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadSettingsUpdateParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadSettingsUpdate",
@@ -4981,7 +4981,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/13",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadSettingsUpdatedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -5007,7 +5007,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/19",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadShellCommandParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadShellCommand",
@@ -5034,7 +5034,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/1",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadStartParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadStart",
@@ -5061,7 +5061,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/1",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadStartedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -5087,7 +5087,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/2",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadStatusChangedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -5113,7 +5113,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/14",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadTokenUsageUpdatedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -5139,7 +5139,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/30",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadTurnsListParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadTurnsList",
@@ -5166,7 +5166,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/17",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadUnarchiveParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadUnarchive",
@@ -5193,7 +5193,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/5",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadUnarchivedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -5219,7 +5219,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/6",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/ThreadUnsubscribeParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/ThreadUnsubscribe",
@@ -5246,7 +5246,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/17",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/TurnCompletedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -5272,7 +5272,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/19",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/TurnDiffUpdatedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -5298,7 +5298,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/65",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/TurnInterruptParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/TurnInterrupt",
@@ -5325,7 +5325,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/51",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/TurnModerationMetadataNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -5351,7 +5351,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/20",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/TurnPlanUpdatedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -5377,7 +5377,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/63",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/TurnStartParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/TurnStart",
@@ -5404,7 +5404,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/15",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/TurnStartedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -5430,7 +5430,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/64",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/TurnSteerParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/TurnSteer",
@@ -5457,7 +5457,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/53",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/WarningNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -5483,7 +5483,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/67",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/WindowsWorldWritableWarningNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -5509,7 +5509,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/96",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/WindowsSandboxReadiness",
@@ -5536,7 +5536,7 @@
       "source_ref": {
         "aggregate_pointer": "ServerNotification.json#/oneOf/68",
         "aggregate_schema": "ServerNotification.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/WindowsSandboxSetupCompletedNotification.json",
         "response_mapping": "not_applicable:notification_does_not_expect_response",
@@ -5562,7 +5562,7 @@
       "source_ref": {
         "aggregate_pointer": "ClientRequest.json#/oneOf/95",
         "aggregate_schema": "ClientRequest.json",
-        "baseline_source_commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+        "baseline_source_commit": "79b4f03d35962b005b007a015113b38930711665",
         "facade_rule": "manifest_generation.json#facade_target_rule",
         "params_or_payload_schema": "v2/WindowsSandboxSetupStartParams.json",
         "response_mapping": "codex-rs/app-server-protocol/src/protocol/common.rs#client_request_definitions/WindowsSandboxSetupStart",
@@ -25833,7 +25833,7 @@
     {
       "kind": "type",
       "name": "Model",
-      "signature": "struct {\n\tAdditionalSpeedTiers      *[]string                       `json:\"additionalSpeedTiers,omitempty\"`\n\tAvailabilityNux           *Nullable[ModelAvailabilityNux] `json:\"availabilityNux,omitempty\"`\n\tDefaultReasoningEffort    ReasoningEffort                 `json:\"defaultReasoningEffort\"`\n\tDefaultServiceTier        *Nullable[string]               `json:\"defaultServiceTier,omitempty\"`\n\tDescription               string                          `json:\"description\"`\n\tDisplayName               string                          `json:\"displayName\"`\n\tHidden                    bool                            `json:\"hidden\"`\n\tID                        string                          `json:\"id\"`\n\tInputModalities           *[]InputModality                `json:\"inputModalities,omitempty\"`\n\tIsDefault                 bool                            `json:\"isDefault\"`\n\tModel                     string                          `json:\"model\"`\n\tServiceTiers              *[]ModelServiceTier             `json:\"serviceTiers,omitempty\"`\n\tSupportedReasoningEfforts []ReasoningEffortOption         `json:\"supportedReasoningEfforts\"`\n\tSupportsPersonality       *bool                           `json:\"supportsPersonality,omitempty\"`\n\tUpgrade                   *Nullable[string]               `json:\"upgrade,omitempty\"`\n\tUpgradeInfo               *Nullable[ModelUpgradeInfo]     `json:\"upgradeInfo,omitempty\"`\n}",
+      "signature": "struct {\n\tAdditionalSpeedTiers      *[]string                       `json:\"additionalSpeedTiers,omitempty\"`\n\tAvailabilityNux           *Nullable[ModelAvailabilityNux] `json:\"availabilityNux,omitempty\"`\n\tDefaultReasoningEffort    ReasoningEffort                 `json:\"defaultReasoningEffort\"`\n\tDefaultServiceTier        *Nullable[string]               `json:\"defaultServiceTier,omitempty\"`\n\tDescription               string                          `json:\"description\"`\n\tDisplayName               string                          `json:\"displayName\"`\n\tHidden                    bool                            `json:\"hidden\"`\n\tID                        string                          `json:\"id\"`\n\tInputModalities           *[]InputModality                `json:\"inputModalities,omitempty\"`\n\tIsDefault                 bool                            `json:\"isDefault\"`\n\tModel                     string                          `json:\"model\"`\n\tModelSpecialty            *Nullable[string]               `json:\"modelSpecialty,omitempty\"`\n\tServiceTiers              *[]ModelServiceTier             `json:\"serviceTiers,omitempty\"`\n\tSupportedReasoningEfforts []ReasoningEffortOption         `json:\"supportedReasoningEfforts\"`\n\tSupportsPersonality       *bool                           `json:\"supportsPersonality,omitempty\"`\n\tUpgrade                   *Nullable[string]               `json:\"upgrade,omitempty\"`\n\tUpgradeInfo               *Nullable[ModelUpgradeInfo]     `json:\"upgradeInfo,omitempty\"`\n}",
       "stability": "stable"
     },
     {
@@ -25918,6 +25918,13 @@
       "name": "Model.Model",
       "owner": "Model",
       "signature": "string `json:\"model\"`",
+      "stability": "stable"
+    },
+    {
+      "kind": "field",
+      "name": "Model.ModelSpecialty",
+      "owner": "Model",
+      "signature": "*Nullable[string] `json:\"modelSpecialty,omitempty\"`",
       "stability": "stable"
     },
     {
