@@ -1168,7 +1168,7 @@ func runFakeAppServer(mode string, extra []string) {
 			case "file-approval":
 				send(map[string]any{"id": "server-file-1", "method": "item/fileChange/requestApproval", "params": map[string]any{"itemId": "item-file", "startedAtMs": 1, "threadId": threadID, "turnId": turnID}})
 			case "user-input":
-				send(map[string]any{"id": "server-input-1", "method": "item/tool/requestUserInput", "params": map[string]any{"itemId": "item-input", "questions": []map[string]any{{"header": "Choice", "id": "choice", "question": "Choose"}}, "threadId": threadID, "turnId": turnID}})
+				send(map[string]any{"id": "server-input-1", "method": "item/tool/requestUserInput", "params": map[string]any{"isBlocking": false, "itemId": "item-input", "questions": []map[string]any{{"header": "Choice", "id": "choice", "question": "Choose"}}, "threadId": threadID, "turnId": turnID}})
 			case "auth-refresh-after-notification":
 				notificationAccepted := extra[0]
 				send(map[string]any{"method": "item/completed", "params": map[string]any{"completedAtMs": 1, "threadId": threadID, "turnId": turnID, "item": map[string]any{"id": "item-before-auth", "type": "agentMessage", "text": "partial", "phase": "commentary"}}})

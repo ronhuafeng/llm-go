@@ -179,6 +179,8 @@ func decodeWireProtocolValue(data []byte, target any, role wirejson.Role) error 
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *PluginReadResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
+	case *PluginSearchResponse:
+		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *PluginShareCheckoutResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *PluginShareDeleteResponse:
@@ -282,6 +284,16 @@ func decodeWireProtocolValue(data []byte, target any, role wirejson.Role) error 
 	case *ThreadRollbackResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *ThreadSearchOccurrencesResponse:
+		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
+	case *ThreadSectionCreateResponse:
+		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
+	case *ThreadSectionDeleteResponse:
+		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
+	case *ThreadSectionListResponse:
+		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
+	case *ThreadSectionMoveResponse:
+		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
+	case *ThreadSectionUpdateResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *ThreadSetNameResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
@@ -1411,6 +1423,41 @@ func (value *ConversationTextRole) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+type DesktopOnboardingEntrypoint string
+
+const (
+	DesktopOnboardingEntrypointLifeSciences DesktopOnboardingEntrypoint = "life_sciences"
+)
+
+func (value DesktopOnboardingEntrypoint) IsValid() bool {
+	switch value {
+	case DesktopOnboardingEntrypointLifeSciences:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value DesktopOnboardingEntrypoint) MarshalJSON() ([]byte, error) {
+	if !value.IsValid() {
+		return nil, invalidEnumValue("DesktopOnboardingEntrypoint", string(value))
+	}
+	return json.Marshal(string(value))
+}
+
+func (value *DesktopOnboardingEntrypoint) UnmarshalJSON(data []byte) error {
+	var raw string
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	parsed := DesktopOnboardingEntrypoint(raw)
+	if !parsed.IsValid() {
+		return invalidEnumValue("DesktopOnboardingEntrypoint", raw)
+	}
+	*value = parsed
+	return nil
+}
+
 type DynamicToolCallStatus string
 
 const (
@@ -1600,6 +1647,44 @@ func (value *ExternalAgentConfigMigrationItemType) UnmarshalJSON(data []byte) er
 	parsed := ExternalAgentConfigMigrationItemType(raw)
 	if !parsed.IsValid() {
 		return invalidEnumValue("ExternalAgentConfigMigrationItemType", raw)
+	}
+	*value = parsed
+	return nil
+}
+
+type ExternalAgentDetectedConnectorSource string
+
+const (
+	ExternalAgentDetectedConnectorSourceRemoteMCPServersConfig ExternalAgentDetectedConnectorSource = "remoteMcpServersConfig"
+	ExternalAgentDetectedConnectorSourceSessionToolUse         ExternalAgentDetectedConnectorSource = "sessionToolUse"
+)
+
+func (value ExternalAgentDetectedConnectorSource) IsValid() bool {
+	switch value {
+	case ExternalAgentDetectedConnectorSourceRemoteMCPServersConfig:
+		return true
+	case ExternalAgentDetectedConnectorSourceSessionToolUse:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value ExternalAgentDetectedConnectorSource) MarshalJSON() ([]byte, error) {
+	if !value.IsValid() {
+		return nil, invalidEnumValue("ExternalAgentDetectedConnectorSource", string(value))
+	}
+	return json.Marshal(string(value))
+}
+
+func (value *ExternalAgentDetectedConnectorSource) UnmarshalJSON(data []byte) error {
+	var raw string
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	parsed := ExternalAgentDetectedConnectorSource(raw)
+	if !parsed.IsValid() {
+		return invalidEnumValue("ExternalAgentDetectedConnectorSource", raw)
 	}
 	*value = parsed
 	return nil
@@ -2526,6 +2611,7 @@ func (value *LoginAppBrand) UnmarshalJSON(data []byte) error {
 type McpAuthStatus string
 
 const (
+	McpAuthStatusUnknown     McpAuthStatus = "unknown"
 	McpAuthStatusUnsupported McpAuthStatus = "unsupported"
 	McpAuthStatusNotLoggedIn McpAuthStatus = "notLoggedIn"
 	McpAuthStatusBearerToken McpAuthStatus = "bearerToken"
@@ -2534,6 +2620,8 @@ const (
 
 func (value McpAuthStatus) IsValid() bool {
 	switch value {
+	case McpAuthStatusUnknown:
+		return true
 	case McpAuthStatusUnsupported:
 		return true
 	case McpAuthStatusNotLoggedIn:
@@ -3538,9 +3626,11 @@ const (
 	PlanTypePro                         PlanType = "pro"
 	PlanTypeProlite                     PlanType = "prolite"
 	PlanTypeTeam                        PlanType = "team"
+	PlanTypeSelfServeBusinessProlite    PlanType = "self_serve_business_prolite"
 	PlanTypeSelfServeBusinessUsageBased PlanType = "self_serve_business_usage_based"
 	PlanTypeBusiness                    PlanType = "business"
 	PlanTypeEnt26                       PlanType = "ent26"
+	PlanTypeEnterpriseCbpAutomation     PlanType = "enterprise_cbp_automation"
 	PlanTypeEnterpriseCbpUsageBased     PlanType = "enterprise_cbp_usage_based"
 	PlanTypeEnterprise                  PlanType = "enterprise"
 	PlanTypeEdu                         PlanType = "edu"
@@ -3561,11 +3651,15 @@ func (value PlanType) IsValid() bool {
 		return true
 	case PlanTypeTeam:
 		return true
+	case PlanTypeSelfServeBusinessProlite:
+		return true
 	case PlanTypeSelfServeBusinessUsageBased:
 		return true
 	case PlanTypeBusiness:
 		return true
 	case PlanTypeEnt26:
+		return true
+	case PlanTypeEnterpriseCbpAutomation:
 		return true
 	case PlanTypeEnterpriseCbpUsageBased:
 		return true
@@ -3671,6 +3765,50 @@ func (value *PluginAvailability) UnmarshalJSON(data []byte) error {
 	parsed := PluginAvailability(raw)
 	if !parsed.IsValid() {
 		return invalidEnumValue("PluginAvailability", raw)
+	}
+	*value = parsed
+	return nil
+}
+
+type PluginDisabledReason string
+
+const (
+	PluginDisabledReasonDisabledByAdmin        PluginDisabledReason = "disabled_by_admin"
+	PluginDisabledReasonPlanNotEligible        PluginDisabledReason = "plan_not_eligible"
+	PluginDisabledReasonRequiredAppUnavailable PluginDisabledReason = "required_app_unavailable"
+	PluginDisabledReasonUnknown                PluginDisabledReason = "unknown"
+)
+
+func (value PluginDisabledReason) IsValid() bool {
+	switch value {
+	case PluginDisabledReasonDisabledByAdmin:
+		return true
+	case PluginDisabledReasonPlanNotEligible:
+		return true
+	case PluginDisabledReasonRequiredAppUnavailable:
+		return true
+	case PluginDisabledReasonUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value PluginDisabledReason) MarshalJSON() ([]byte, error) {
+	if !value.IsValid() {
+		return nil, invalidEnumValue("PluginDisabledReason", string(value))
+	}
+	return json.Marshal(string(value))
+}
+
+func (value *PluginDisabledReason) UnmarshalJSON(data []byte) error {
+	var raw string
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	parsed := PluginDisabledReason(raw)
+	if !parsed.IsValid() {
+		return invalidEnumValue("PluginDisabledReason", raw)
 	}
 	*value = parsed
 	return nil
@@ -3797,6 +3935,47 @@ func (value *PluginListMarketplaceKind) UnmarshalJSON(data []byte) error {
 	parsed := PluginListMarketplaceKind(raw)
 	if !parsed.IsValid() {
 		return invalidEnumValue("PluginListMarketplaceKind", raw)
+	}
+	*value = parsed
+	return nil
+}
+
+type PluginSearchScope string
+
+const (
+	PluginSearchScopeGlobal    PluginSearchScope = "global"
+	PluginSearchScopeWorkspace PluginSearchScope = "workspace"
+	PluginSearchScopePersonal  PluginSearchScope = "personal"
+)
+
+func (value PluginSearchScope) IsValid() bool {
+	switch value {
+	case PluginSearchScopeGlobal:
+		return true
+	case PluginSearchScopeWorkspace:
+		return true
+	case PluginSearchScopePersonal:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value PluginSearchScope) MarshalJSON() ([]byte, error) {
+	if !value.IsValid() {
+		return nil, invalidEnumValue("PluginSearchScope", string(value))
+	}
+	return json.Marshal(string(value))
+}
+
+func (value *PluginSearchScope) UnmarshalJSON(data []byte) error {
+	var raw string
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	parsed := PluginSearchScope(raw)
+	if !parsed.IsValid() {
+		return invalidEnumValue("PluginSearchScope", raw)
 	}
 	*value = parsed
 	return nil
@@ -4919,12 +5098,54 @@ func (value *ThreadMemoryMode) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+type ThreadSearchSortKey string
+
+const (
+	ThreadSearchSortKeyCreatedAt ThreadSearchSortKey = "created_at"
+	ThreadSearchSortKeyUpdatedAt ThreadSearchSortKey = "updated_at"
+	ThreadSearchSortKeyRecencyAt ThreadSearchSortKey = "recency_at"
+)
+
+func (value ThreadSearchSortKey) IsValid() bool {
+	switch value {
+	case ThreadSearchSortKeyCreatedAt:
+		return true
+	case ThreadSearchSortKeyUpdatedAt:
+		return true
+	case ThreadSearchSortKeyRecencyAt:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value ThreadSearchSortKey) MarshalJSON() ([]byte, error) {
+	if !value.IsValid() {
+		return nil, invalidEnumValue("ThreadSearchSortKey", string(value))
+	}
+	return json.Marshal(string(value))
+}
+
+func (value *ThreadSearchSortKey) UnmarshalJSON(data []byte) error {
+	var raw string
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	parsed := ThreadSearchSortKey(raw)
+	if !parsed.IsValid() {
+		return invalidEnumValue("ThreadSearchSortKey", raw)
+	}
+	*value = parsed
+	return nil
+}
+
 type ThreadSortKey string
 
 const (
-	ThreadSortKeyCreatedAt ThreadSortKey = "created_at"
-	ThreadSortKeyUpdatedAt ThreadSortKey = "updated_at"
-	ThreadSortKeyRecencyAt ThreadSortKey = "recency_at"
+	ThreadSortKeyCreatedAt       ThreadSortKey = "created_at"
+	ThreadSortKeyUpdatedAt       ThreadSortKey = "updated_at"
+	ThreadSortKeyRecencyAt       ThreadSortKey = "recency_at"
+	ThreadSortKeySectionPosition ThreadSortKey = "section_position"
 )
 
 func (value ThreadSortKey) IsValid() bool {
@@ -4934,6 +5155,8 @@ func (value ThreadSortKey) IsValid() bool {
 	case ThreadSortKeyUpdatedAt:
 		return true
 	case ThreadSortKeyRecencyAt:
+		return true
+	case ThreadSortKeySectionPosition:
 		return true
 	default:
 		return false
@@ -5516,9 +5739,10 @@ type ReasoningEffort string
 type ThreadSource string
 
 type AccountLoginCompletedNotification struct {
-	Error   *Nullable[string] `json:"error,omitempty"`
-	LoginID *Nullable[string] `json:"loginId,omitempty"`
-	Success bool              `json:"success"`
+	Error                *Nullable[string]                      `json:"error,omitempty"`
+	LoginID              *Nullable[string]                      `json:"loginId,omitempty"`
+	OnboardingEntrypoint *Nullable[DesktopOnboardingEntrypoint] `json:"onboardingEntrypoint,omitempty"`
+	Success              bool                                   `json:"success"`
 }
 
 func (value *AccountLoginCompletedNotification) UnmarshalJSON(data []byte) error {
@@ -5536,6 +5760,10 @@ func (value *AccountLoginCompletedNotification) unmarshalJSON(data []byte, mode 
 		return err
 	}
 	_, err = decodeNullableJSONField[string](fields, "loginId", "AccountLoginCompletedNotification.loginId", mode, decodeWireValue[string], &decoded.LoginID)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[DesktopOnboardingEntrypoint](fields, "onboardingEntrypoint", "AccountLoginCompletedNotification.onboardingEntrypoint", mode, decodeWireValue[DesktopOnboardingEntrypoint], &decoded.OnboardingEntrypoint)
 	if err != nil {
 		return err
 	}
@@ -9887,7 +10115,8 @@ func (value *ExternalAgentConfigDetectParams) unmarshalJSON(data []byte, mode wi
 }
 
 type ExternalAgentConfigDetectResponse struct {
-	Items []ExternalAgentConfigMigrationItem `json:"items"`
+	Connectors *[]ExternalAgentDetectedConnectorCandidate `json:"connectors,omitempty"`
+	Items      []ExternalAgentConfigMigrationItem         `json:"items"`
 }
 
 func (value ExternalAgentConfigDetectResponse) MarshalJSON() ([]byte, error) {
@@ -9908,6 +10137,10 @@ func (value *ExternalAgentConfigDetectResponse) unmarshalJSON(data []byte, mode 
 		return err
 	}
 	var decoded ExternalAgentConfigDetectResponse
+	_, err = decodeJSONField(fields, "connectors", "ExternalAgentConfigDetectResponse.connectors", false, mode, wirePointerDecoder(wireSliceDecoder(decodeWireValue[ExternalAgentDetectedConnectorCandidate])), &decoded.Connectors)
+	if err != nil {
+		return err
+	}
 	seenItems, err := decodeJSONField(fields, "items", "ExternalAgentConfigDetectResponse.items", false, mode, wireSliceDecoder(decodeWireValue[ExternalAgentConfigMigrationItem]), &decoded.Items)
 	if err != nil {
 		return err
@@ -10082,8 +10315,8 @@ func (value *ExternalAgentConfigImportHistory) unmarshalJSON(data []byte, mode w
 }
 
 type ExternalAgentConfigImportHistoryRecordParams struct {
-	ItemTypeResults []ExternalAgentConfigImportTypeResult `json:"itemTypeResults"`
-	ProviderID      string                                `json:"providerId"`
+	ItemTypeResults []ExternalAgentConfigImportHistoryRecordTypeResultParams `json:"itemTypeResults"`
+	ProviderID      string                                                   `json:"providerId"`
 }
 
 func (value ExternalAgentConfigImportHistoryRecordParams) MarshalJSON() ([]byte, error) {
@@ -10104,7 +10337,7 @@ func (value *ExternalAgentConfigImportHistoryRecordParams) unmarshalJSON(data []
 		return err
 	}
 	var decoded ExternalAgentConfigImportHistoryRecordParams
-	seenItemTypeResults, err := decodeJSONField(fields, "itemTypeResults", "ExternalAgentConfigImportHistoryRecordParams.itemTypeResults", false, mode, wireSliceDecoder(decodeWireValue[ExternalAgentConfigImportTypeResult]), &decoded.ItemTypeResults)
+	seenItemTypeResults, err := decodeJSONField(fields, "itemTypeResults", "ExternalAgentConfigImportHistoryRecordParams.itemTypeResults", false, mode, wireSliceDecoder(decodeWireValue[ExternalAgentConfigImportHistoryRecordTypeResultParams]), &decoded.ItemTypeResults)
 	if err != nil {
 		return err
 	}
@@ -10147,6 +10380,109 @@ func (value *ExternalAgentConfigImportHistoryRecordResponse) unmarshalJSON(data 
 		return missingRequiredField("ExternalAgentConfigImportHistoryRecordResponse.importId")
 	}
 	if err := rejectUnexpectedFieldsForMode(fields, "ExternalAgentConfigImportHistoryRecordResponse", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ExternalAgentConfigImportHistoryRecordSuccessParams struct {
+	CWD      *Nullable[string]                    `json:"cwd,omitempty"`
+	ItemType ExternalAgentConfigMigrationItemType `json:"itemType"`
+	Source   *Nullable[string]                    `json:"source,omitempty"`
+	Target   *Nullable[string]                    `json:"target,omitempty"`
+	Title    *Nullable[string]                    `json:"title,omitempty"`
+}
+
+func (value *ExternalAgentConfigImportHistoryRecordSuccessParams) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ExternalAgentConfigImportHistoryRecordSuccessParams) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ExternalAgentConfigImportHistoryRecordSuccessParams")
+	if err != nil {
+		return err
+	}
+	var decoded ExternalAgentConfigImportHistoryRecordSuccessParams
+	_, err = decodeNullableJSONField[string](fields, "cwd", "ExternalAgentConfigImportHistoryRecordSuccessParams.cwd", mode, decodeWireValue[string], &decoded.CWD)
+	if err != nil {
+		return err
+	}
+	seenItemType, err := decodeJSONField(fields, "itemType", "ExternalAgentConfigImportHistoryRecordSuccessParams.itemType", false, mode, decodeWireValue[ExternalAgentConfigMigrationItemType], &decoded.ItemType)
+	if err != nil {
+		return err
+	}
+	if !seenItemType {
+		return missingRequiredField("ExternalAgentConfigImportHistoryRecordSuccessParams.itemType")
+	}
+	_, err = decodeNullableJSONField[string](fields, "source", "ExternalAgentConfigImportHistoryRecordSuccessParams.source", mode, decodeWireValue[string], &decoded.Source)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[string](fields, "target", "ExternalAgentConfigImportHistoryRecordSuccessParams.target", mode, decodeWireValue[string], &decoded.Target)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[string](fields, "title", "ExternalAgentConfigImportHistoryRecordSuccessParams.title", mode, decodeWireValue[string], &decoded.Title)
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ExternalAgentConfigImportHistoryRecordSuccessParams", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ExternalAgentConfigImportHistoryRecordTypeResultParams struct {
+	Failures  []ExternalAgentConfigImportItemTypeFailure            `json:"failures"`
+	ItemType  ExternalAgentConfigMigrationItemType                  `json:"itemType"`
+	Successes []ExternalAgentConfigImportHistoryRecordSuccessParams `json:"successes"`
+}
+
+func (value ExternalAgentConfigImportHistoryRecordTypeResultParams) MarshalJSON() ([]byte, error) {
+	if value.Failures == nil {
+		return nil, fmt.Errorf("encode ExternalAgentConfigImportHistoryRecordTypeResultParams.failures: nil is not allowed")
+	}
+	if value.Successes == nil {
+		return nil, fmt.Errorf("encode ExternalAgentConfigImportHistoryRecordTypeResultParams.successes: nil is not allowed")
+	}
+	type wire ExternalAgentConfigImportHistoryRecordTypeResultParams
+	return json.Marshal(wire(value))
+}
+
+func (value *ExternalAgentConfigImportHistoryRecordTypeResultParams) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ExternalAgentConfigImportHistoryRecordTypeResultParams) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ExternalAgentConfigImportHistoryRecordTypeResultParams")
+	if err != nil {
+		return err
+	}
+	var decoded ExternalAgentConfigImportHistoryRecordTypeResultParams
+	seenFailures, err := decodeJSONField(fields, "failures", "ExternalAgentConfigImportHistoryRecordTypeResultParams.failures", false, mode, wireSliceDecoder(decodeWireValue[ExternalAgentConfigImportItemTypeFailure]), &decoded.Failures)
+	if err != nil {
+		return err
+	}
+	if !seenFailures {
+		return missingRequiredField("ExternalAgentConfigImportHistoryRecordTypeResultParams.failures")
+	}
+	seenItemType, err := decodeJSONField(fields, "itemType", "ExternalAgentConfigImportHistoryRecordTypeResultParams.itemType", false, mode, decodeWireValue[ExternalAgentConfigMigrationItemType], &decoded.ItemType)
+	if err != nil {
+		return err
+	}
+	if !seenItemType {
+		return missingRequiredField("ExternalAgentConfigImportHistoryRecordTypeResultParams.itemType")
+	}
+	seenSuccesses, err := decodeJSONField(fields, "successes", "ExternalAgentConfigImportHistoryRecordTypeResultParams.successes", false, mode, wireSliceDecoder(decodeWireValue[ExternalAgentConfigImportHistoryRecordSuccessParams]), &decoded.Successes)
+	if err != nil {
+		return err
+	}
+	if !seenSuccesses {
+		return missingRequiredField("ExternalAgentConfigImportHistoryRecordTypeResultParams.successes")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ExternalAgentConfigImportHistoryRecordTypeResultParams", mode); err != nil {
 		return err
 	}
 	*value = decoded
@@ -10222,6 +10558,7 @@ type ExternalAgentConfigImportItemTypeSuccess struct {
 	ItemType ExternalAgentConfigMigrationItemType `json:"itemType"`
 	Source   *Nullable[string]                    `json:"source,omitempty"`
 	Target   *Nullable[string]                    `json:"target,omitempty"`
+	Title    *Nullable[string]                    `json:"title,omitempty"`
 }
 
 func (value *ExternalAgentConfigImportItemTypeSuccess) UnmarshalJSON(data []byte) error {
@@ -10250,6 +10587,10 @@ func (value *ExternalAgentConfigImportItemTypeSuccess) unmarshalJSON(data []byte
 		return err
 	}
 	_, err = decodeNullableJSONField[string](fields, "target", "ExternalAgentConfigImportItemTypeSuccess.target", mode, decodeWireValue[string], &decoded.Target)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[string](fields, "title", "ExternalAgentConfigImportItemTypeSuccess.title", mode, decodeWireValue[string], &decoded.Title)
 	if err != nil {
 		return err
 	}
@@ -10478,6 +10819,50 @@ func (value *ExternalAgentConfigMigrationItem) unmarshalJSON(data []byte, mode w
 		return missingRequiredField("ExternalAgentConfigMigrationItem.itemType")
 	}
 	if err := rejectUnexpectedFieldsForMode(fields, "ExternalAgentConfigMigrationItem", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ExternalAgentDetectedConnectorCandidate struct {
+	Name         string                               `json:"name"`
+	SessionCount uint32                               `json:"sessionCount"`
+	Source       ExternalAgentDetectedConnectorSource `json:"source"`
+}
+
+func (value *ExternalAgentDetectedConnectorCandidate) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ExternalAgentDetectedConnectorCandidate) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ExternalAgentDetectedConnectorCandidate")
+	if err != nil {
+		return err
+	}
+	var decoded ExternalAgentDetectedConnectorCandidate
+	seenName, err := decodeJSONField(fields, "name", "ExternalAgentDetectedConnectorCandidate.name", false, mode, decodeWireValue[string], &decoded.Name)
+	if err != nil {
+		return err
+	}
+	if !seenName {
+		return missingRequiredField("ExternalAgentDetectedConnectorCandidate.name")
+	}
+	seenSessionCount, err := decodeJSONField(fields, "sessionCount", "ExternalAgentDetectedConnectorCandidate.sessionCount", false, mode, decodeWireValue[uint32], &decoded.SessionCount)
+	if err != nil {
+		return err
+	}
+	if !seenSessionCount {
+		return missingRequiredField("ExternalAgentDetectedConnectorCandidate.sessionCount")
+	}
+	seenSource, err := decodeJSONField(fields, "source", "ExternalAgentDetectedConnectorCandidate.source", false, mode, decodeWireValue[ExternalAgentDetectedConnectorSource], &decoded.Source)
+	if err != nil {
+		return err
+	}
+	if !seenSource {
+		return missingRequiredField("ExternalAgentDetectedConnectorCandidate.source")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ExternalAgentDetectedConnectorCandidate", mode); err != nil {
 		return err
 	}
 	*value = decoded
@@ -12825,10 +13210,11 @@ func (value *HooksListResponse) unmarshalJSON(data []byte, mode wireDecodeMode) 
 }
 
 type InitializeCapabilities struct {
-	ExperimentalAPI                *bool               `json:"experimentalApi,omitempty"`
-	MCPServerOpenaiFormElicitation *bool               `json:"mcpServerOpenaiFormElicitation,omitempty"`
-	OptOutNotificationMethods      *Nullable[[]string] `json:"optOutNotificationMethods,omitempty"`
-	RequestAttestation             *bool               `json:"requestAttestation,omitempty"`
+	ExperimentalAPI                *bool                           `json:"experimentalApi,omitempty"`
+	Extensions                     *Nullable[map[string]JSONValue] `json:"extensions,omitempty"`
+	MCPServerOpenaiFormElicitation *bool                           `json:"mcpServerOpenaiFormElicitation,omitempty"`
+	OptOutNotificationMethods      *Nullable[[]string]             `json:"optOutNotificationMethods,omitempty"`
+	RequestAttestation             *bool                           `json:"requestAttestation,omitempty"`
 }
 
 func (value *InitializeCapabilities) UnmarshalJSON(data []byte) error {
@@ -12842,6 +13228,10 @@ func (value *InitializeCapabilities) unmarshalJSON(data []byte, mode wireDecodeM
 	}
 	var decoded InitializeCapabilities
 	_, err = decodeJSONField(fields, "experimentalApi", "InitializeCapabilities.experimentalApi", false, mode, wirePointerDecoder(decodeWireValue[bool]), &decoded.ExperimentalAPI)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[map[string]JSONValue](fields, "extensions", "InitializeCapabilities.extensions", mode, wireMapDecoder(decodeWireValue[JSONValue]), &decoded.Extensions)
 	if err != nil {
 		return err
 	}
@@ -16566,6 +16956,136 @@ func (value *PluginReadResponse) unmarshalJSON(data []byte, mode wireDecodeMode)
 	return nil
 }
 
+type PluginSearchParams struct {
+	Cursor     *Nullable[string]            `json:"cursor,omitempty"`
+	CWDs       *Nullable[[]string]          `json:"cwds,omitempty"`
+	Limit      *Nullable[uint32]            `json:"limit,omitempty"`
+	Scope      *Nullable[PluginSearchScope] `json:"scope,omitempty"`
+	SearchTerm string                       `json:"searchTerm"`
+}
+
+func (value *PluginSearchParams) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *PluginSearchParams) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "PluginSearchParams")
+	if err != nil {
+		return err
+	}
+	var decoded PluginSearchParams
+	_, err = decodeNullableJSONField[string](fields, "cursor", "PluginSearchParams.cursor", mode, decodeWireValue[string], &decoded.Cursor)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[[]string](fields, "cwds", "PluginSearchParams.cwds", mode, wireSliceDecoder(decodeWireValue[string]), &decoded.CWDs)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[uint32](fields, "limit", "PluginSearchParams.limit", mode, decodeWireValue[uint32], &decoded.Limit)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[PluginSearchScope](fields, "scope", "PluginSearchParams.scope", mode, decodeWireValue[PluginSearchScope], &decoded.Scope)
+	if err != nil {
+		return err
+	}
+	seenSearchTerm, err := decodeJSONField(fields, "searchTerm", "PluginSearchParams.searchTerm", false, mode, decodeWireValue[string], &decoded.SearchTerm)
+	if err != nil {
+		return err
+	}
+	if !seenSearchTerm {
+		return missingRequiredField("PluginSearchParams.searchTerm")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "PluginSearchParams", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type PluginSearchResponse struct {
+	Data       []PluginSearchResult `json:"data"`
+	NextCursor *Nullable[string]    `json:"nextCursor,omitempty"`
+}
+
+func (value PluginSearchResponse) MarshalJSON() ([]byte, error) {
+	if value.Data == nil {
+		return nil, fmt.Errorf("encode PluginSearchResponse.data: nil is not allowed")
+	}
+	type wire PluginSearchResponse
+	return json.Marshal(wire(value))
+}
+
+func (value *PluginSearchResponse) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *PluginSearchResponse) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "PluginSearchResponse")
+	if err != nil {
+		return err
+	}
+	var decoded PluginSearchResponse
+	seenData, err := decodeJSONField(fields, "data", "PluginSearchResponse.data", false, mode, wireSliceDecoder(decodeWireValue[PluginSearchResult]), &decoded.Data)
+	if err != nil {
+		return err
+	}
+	if !seenData {
+		return missingRequiredField("PluginSearchResponse.data")
+	}
+	_, err = decodeNullableJSONField[string](fields, "nextCursor", "PluginSearchResponse.nextCursor", mode, decodeWireValue[string], &decoded.NextCursor)
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "PluginSearchResponse", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type PluginSearchResult struct {
+	MarketplaceName string            `json:"marketplaceName"`
+	MarketplacePath *Nullable[string] `json:"marketplacePath,omitempty"`
+	Plugin          PluginSummary     `json:"plugin"`
+}
+
+func (value *PluginSearchResult) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *PluginSearchResult) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "PluginSearchResult")
+	if err != nil {
+		return err
+	}
+	var decoded PluginSearchResult
+	seenMarketplaceName, err := decodeJSONField(fields, "marketplaceName", "PluginSearchResult.marketplaceName", false, mode, decodeWireValue[string], &decoded.MarketplaceName)
+	if err != nil {
+		return err
+	}
+	if !seenMarketplaceName {
+		return missingRequiredField("PluginSearchResult.marketplaceName")
+	}
+	_, err = decodeNullableJSONField[string](fields, "marketplacePath", "PluginSearchResult.marketplacePath", mode, decodeWireValue[string], &decoded.MarketplacePath)
+	if err != nil {
+		return err
+	}
+	seenPlugin, err := decodeJSONField(fields, "plugin", "PluginSearchResult.plugin", false, mode, decodeWireValue[PluginSummary], &decoded.Plugin)
+	if err != nil {
+		return err
+	}
+	if !seenPlugin {
+		return missingRequiredField("PluginSearchResult.plugin")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "PluginSearchResult", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
 type PluginShareCheckoutParams struct {
 	RemotePluginID string `json:"remotePluginId"`
 }
@@ -17211,11 +17731,14 @@ func (value *PluginSkillReadResponse) unmarshalJSON(data []byte, mode wireDecode
 type PluginSummary struct {
 	AuthPolicy                       PluginAuthPolicy                     `json:"authPolicy"`
 	Availability                     *PluginAvailability                  `json:"availability,omitempty"`
+	DisabledReason                   *Nullable[PluginDisabledReason]      `json:"disabledReason,omitempty"`
+	EligiblePlanTypes                *Nullable[[]string]                  `json:"eligiblePlanTypes,omitempty"`
 	Enabled                          bool                                 `json:"enabled"`
 	ID                               string                               `json:"id"`
 	InstallPolicy                    PluginInstallPolicy                  `json:"installPolicy"`
 	InstallPolicySource              *Nullable[PluginInstallPolicySource] `json:"installPolicySource,omitempty"`
 	Installed                        bool                                 `json:"installed"`
+	InstalledAt                      *Nullable[int64]                     `json:"installedAt,omitempty"`
 	Interface                        *Nullable[PluginInterface]           `json:"interface,omitempty"`
 	Keywords                         *[]string                            `json:"keywords,omitempty"`
 	LocalVersion                     *Nullable[string]                    `json:"localVersion,omitempty"`
@@ -17245,6 +17768,14 @@ func (value *PluginSummary) unmarshalJSON(data []byte, mode wireDecodeMode) erro
 		return missingRequiredField("PluginSummary.authPolicy")
 	}
 	_, err = decodeJSONField(fields, "availability", "PluginSummary.availability", false, mode, wirePointerDecoder(decodeWireValue[PluginAvailability]), &decoded.Availability)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[PluginDisabledReason](fields, "disabledReason", "PluginSummary.disabledReason", mode, decodeWireValue[PluginDisabledReason], &decoded.DisabledReason)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[[]string](fields, "eligiblePlanTypes", "PluginSummary.eligiblePlanTypes", mode, wireSliceDecoder(decodeWireValue[string]), &decoded.EligiblePlanTypes)
 	if err != nil {
 		return err
 	}
@@ -17279,6 +17810,10 @@ func (value *PluginSummary) unmarshalJSON(data []byte, mode wireDecodeMode) erro
 	}
 	if !seenInstalled {
 		return missingRequiredField("PluginSummary.installed")
+	}
+	_, err = decodeNullableJSONField[int64](fields, "installedAt", "PluginSummary.installedAt", mode, decodeWireValue[int64], &decoded.InstalledAt)
+	if err != nil {
+		return err
 	}
 	_, err = decodeNullableJSONField[PluginInterface](fields, "interface", "PluginSummary.interface", mode, decodeWireValue[PluginInterface], &decoded.Interface)
 	if err != nil {
@@ -20266,31 +20801,32 @@ func (value *TextRange) unmarshalJSON(data []byte, mode wireDecodeMode) error {
 }
 
 type Thread struct {
-	AgentNickname        *Nullable[string]       `json:"agentNickname,omitempty"`
-	AgentRole            *Nullable[string]       `json:"agentRole,omitempty"`
-	CanAcceptDirectInput *Nullable[bool]         `json:"canAcceptDirectInput,omitempty"`
-	CliVersion           string                  `json:"cliVersion"`
-	CreatedAt            int64                   `json:"createdAt"`
-	CWD                  string                  `json:"cwd"`
-	Ephemeral            bool                    `json:"ephemeral"`
-	Extra                *Nullable[ThreadExtra]  `json:"extra,omitempty"`
-	ForkedFromID         *Nullable[string]       `json:"forkedFromId,omitempty"`
-	GitInfo              *Nullable[GitInfo]      `json:"gitInfo,omitempty"`
-	HistoryMode          *ThreadHistoryMode      `json:"historyMode,omitempty"`
-	ID                   string                  `json:"id"`
-	IsPinned             *bool                   `json:"isPinned,omitempty"`
-	ModelProvider        string                  `json:"modelProvider"`
-	Name                 *Nullable[string]       `json:"name,omitempty"`
-	ParentThreadID       *Nullable[string]       `json:"parentThreadId,omitempty"`
-	Path                 *Nullable[string]       `json:"path,omitempty"`
-	Preview              string                  `json:"preview"`
-	RecencyAt            *Nullable[int64]        `json:"recencyAt,omitempty"`
-	SessionID            string                  `json:"sessionId"`
-	Source               SessionSource           `json:"source"`
-	Status               ThreadStatus            `json:"status"`
-	ThreadSource         *Nullable[ThreadSource] `json:"threadSource,omitempty"`
-	Turns                []Turn                  `json:"turns"`
-	UpdatedAt            int64                   `json:"updatedAt"`
+	AgentNickname        *Nullable[string]        `json:"agentNickname,omitempty"`
+	AgentRole            *Nullable[string]        `json:"agentRole,omitempty"`
+	CanAcceptDirectInput *Nullable[bool]          `json:"canAcceptDirectInput,omitempty"`
+	CliVersion           string                   `json:"cliVersion"`
+	CreatedAt            int64                    `json:"createdAt"`
+	CWD                  string                   `json:"cwd"`
+	Ephemeral            bool                     `json:"ephemeral"`
+	Extra                *Nullable[ThreadExtra]   `json:"extra,omitempty"`
+	ForkedFromID         *Nullable[string]        `json:"forkedFromId,omitempty"`
+	GitInfo              *Nullable[GitInfo]       `json:"gitInfo,omitempty"`
+	HistoryMode          *ThreadHistoryMode       `json:"historyMode,omitempty"`
+	ID                   string                   `json:"id"`
+	ModelProvider        string                   `json:"modelProvider"`
+	Name                 *Nullable[string]        `json:"name,omitempty"`
+	ParentThreadID       *Nullable[string]        `json:"parentThreadId,omitempty"`
+	Path                 *Nullable[string]        `json:"path,omitempty"`
+	Preview              string                   `json:"preview"`
+	RecencyAt            *Nullable[int64]         `json:"recencyAt,omitempty"`
+	Section              *Nullable[ThreadSection] `json:"section,omitempty"`
+	SectionEnteredAt     *Nullable[int64]         `json:"sectionEnteredAt,omitempty"`
+	SessionID            string                   `json:"sessionId"`
+	Source               SessionSource            `json:"source"`
+	Status               ThreadStatus             `json:"status"`
+	ThreadSource         *Nullable[ThreadSource]  `json:"threadSource,omitempty"`
+	Turns                []Turn                   `json:"turns"`
+	UpdatedAt            int64                    `json:"updatedAt"`
 }
 
 func (value Thread) MarshalJSON() ([]byte, error) {
@@ -20374,10 +20910,6 @@ func (value *Thread) unmarshalJSON(data []byte, mode wireDecodeMode) error {
 	if !seenID {
 		return missingRequiredField("Thread.id")
 	}
-	_, err = decodeJSONField(fields, "isPinned", "Thread.isPinned", false, mode, wirePointerDecoder(decodeWireValue[bool]), &decoded.IsPinned)
-	if err != nil {
-		return err
-	}
 	seenModelProvider, err := decodeJSONField(fields, "modelProvider", "Thread.modelProvider", false, mode, decodeWireValue[string], &decoded.ModelProvider)
 	if err != nil {
 		return err
@@ -20405,6 +20937,14 @@ func (value *Thread) unmarshalJSON(data []byte, mode wireDecodeMode) error {
 		return missingRequiredField("Thread.preview")
 	}
 	_, err = decodeNullableJSONField[int64](fields, "recencyAt", "Thread.recencyAt", mode, decodeWireValue[int64], &decoded.RecencyAt)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[ThreadSection](fields, "section", "Thread.section", mode, decodeWireValue[ThreadSection], &decoded.Section)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[int64](fields, "sectionEnteredAt", "Thread.sectionEnteredAt", mode, decodeWireValue[int64], &decoded.SectionEnteredAt)
 	if err != nil {
 		return err
 	}
@@ -21780,11 +22320,11 @@ type ThreadListParams struct {
 	Archived         *Nullable[bool]                `json:"archived,omitempty"`
 	Cursor           *Nullable[string]              `json:"cursor,omitempty"`
 	CWD              *Nullable[ThreadListCwdFilter] `json:"cwd,omitempty"`
-	IsPinned         *Nullable[bool]                `json:"isPinned,omitempty"`
 	Limit            *Nullable[uint32]              `json:"limit,omitempty"`
 	ModelProviders   *Nullable[[]string]            `json:"modelProviders,omitempty"`
 	ParentThreadID   *Nullable[string]              `json:"parentThreadId,omitempty"`
 	SearchTerm       *Nullable[string]              `json:"searchTerm,omitempty"`
+	SectionID        *Nullable[string]              `json:"sectionId,omitempty"`
 	SortDirection    *Nullable[SortDirection]       `json:"sortDirection,omitempty"`
 	SortKey          *Nullable[ThreadSortKey]       `json:"sortKey,omitempty"`
 	SourceKinds      *Nullable[[]ThreadSourceKind]  `json:"sourceKinds,omitempty"`
@@ -21817,10 +22357,6 @@ func (value *ThreadListParams) unmarshalJSON(data []byte, mode wireDecodeMode) e
 	if err != nil {
 		return err
 	}
-	_, err = decodeNullableJSONField[bool](fields, "isPinned", "ThreadListParams.isPinned", mode, decodeWireValue[bool], &decoded.IsPinned)
-	if err != nil {
-		return err
-	}
 	_, err = decodeNullableJSONField[uint32](fields, "limit", "ThreadListParams.limit", mode, decodeWireValue[uint32], &decoded.Limit)
 	if err != nil {
 		return err
@@ -21834,6 +22370,10 @@ func (value *ThreadListParams) unmarshalJSON(data []byte, mode wireDecodeMode) e
 		return err
 	}
 	_, err = decodeNullableJSONField[string](fields, "searchTerm", "ThreadListParams.searchTerm", mode, decodeWireValue[string], &decoded.SearchTerm)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[string](fields, "sectionId", "ThreadListParams.sectionId", mode, decodeWireValue[string], &decoded.SectionID)
 	if err != nil {
 		return err
 	}
@@ -22068,7 +22608,6 @@ func (value *ThreadMetadataGitInfoUpdateParams) unmarshalJSON(data []byte, mode 
 
 type ThreadMetadataUpdateParams struct {
 	GitInfo  *Nullable[ThreadMetadataGitInfoUpdateParams] `json:"gitInfo,omitempty"`
-	IsPinned *Nullable[bool]                              `json:"isPinned,omitempty"`
 	ThreadID string                                       `json:"threadId"`
 }
 
@@ -22083,10 +22622,6 @@ func (value *ThreadMetadataUpdateParams) unmarshalJSON(data []byte, mode wireDec
 	}
 	var decoded ThreadMetadataUpdateParams
 	_, err = decodeNullableJSONField[ThreadMetadataGitInfoUpdateParams](fields, "gitInfo", "ThreadMetadataUpdateParams.gitInfo", mode, decodeWireValue[ThreadMetadataGitInfoUpdateParams], &decoded.GitInfo)
-	if err != nil {
-		return err
-	}
-	_, err = decodeNullableJSONField[bool](fields, "isPinned", "ThreadMetadataUpdateParams.isPinned", mode, decodeWireValue[bool], &decoded.IsPinned)
 	if err != nil {
 		return err
 	}
@@ -22712,13 +23247,16 @@ type ThreadRealtimeStartParams struct {
 	CodexResponseHandoffMode            *Nullable[CodexResponseHandoffMode]     `json:"codexResponseHandoffMode,omitempty"`
 	CodexResponseItemPrefix             *Nullable[string]                       `json:"codexResponseItemPrefix,omitempty"`
 	CodexResponsesAsItems               *Nullable[bool]                         `json:"codexResponsesAsItems,omitempty"`
+	DelegationAckFiller                 *Nullable[bool]                         `json:"delegationAckFiller,omitempty"`
 	FlushTranscriptTailOnSessionEnd     *Nullable[bool]                         `json:"flushTranscriptTailOnSessionEnd,omitempty"`
 	IncludeStartupContext               *Nullable[bool]                         `json:"includeStartupContext,omitempty"`
 	InitialItems                        *Nullable[[]ThreadRealtimeInitialItem]  `json:"initialItems,omitempty"`
 	Model                               *Nullable[string]                       `json:"model,omitempty"`
 	OutputModality                      RealtimeOutputModality                  `json:"outputModality"`
 	Prompt                              *Nullable[string]                       `json:"prompt,omitempty"`
+	RealtimeEndInstructions             *Nullable[string]                       `json:"realtimeEndInstructions,omitempty"`
 	RealtimeSessionID                   *Nullable[string]                       `json:"realtimeSessionId,omitempty"`
+	RealtimeStartInstructions           *Nullable[string]                       `json:"realtimeStartInstructions,omitempty"`
 	ThreadID                            string                                  `json:"threadId"`
 	Transport                           *Nullable[ThreadRealtimeStartTransport] `json:"transport,omitempty"`
 	Version                             *Nullable[RealtimeConversationVersion]  `json:"version,omitempty"`
@@ -22755,6 +23293,10 @@ func (value *ThreadRealtimeStartParams) unmarshalJSON(data []byte, mode wireDeco
 	if err != nil {
 		return err
 	}
+	_, err = decodeNullableJSONField[bool](fields, "delegationAckFiller", "ThreadRealtimeStartParams.delegationAckFiller", mode, decodeWireValue[bool], &decoded.DelegationAckFiller)
+	if err != nil {
+		return err
+	}
 	_, err = decodeNullableJSONField[bool](fields, "flushTranscriptTailOnSessionEnd", "ThreadRealtimeStartParams.flushTranscriptTailOnSessionEnd", mode, decodeWireValue[bool], &decoded.FlushTranscriptTailOnSessionEnd)
 	if err != nil {
 		return err
@@ -22782,7 +23324,15 @@ func (value *ThreadRealtimeStartParams) unmarshalJSON(data []byte, mode wireDeco
 	if err != nil {
 		return err
 	}
+	_, err = decodeNullableJSONField[string](fields, "realtimeEndInstructions", "ThreadRealtimeStartParams.realtimeEndInstructions", mode, decodeWireValue[string], &decoded.RealtimeEndInstructions)
+	if err != nil {
+		return err
+	}
 	_, err = decodeNullableJSONField[string](fields, "realtimeSessionId", "ThreadRealtimeStartParams.realtimeSessionId", mode, decodeWireValue[string], &decoded.RealtimeSessionID)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[string](fields, "realtimeStartInstructions", "ThreadRealtimeStartParams.realtimeStartInstructions", mode, decodeWireValue[string], &decoded.RealtimeStartInstructions)
 	if err != nil {
 		return err
 	}
@@ -23486,13 +24036,13 @@ func (value *ThreadSearchOccurrencesResponse) unmarshalJSON(data []byte, mode wi
 }
 
 type ThreadSearchParams struct {
-	Archived      *Nullable[bool]               `json:"archived,omitempty"`
-	Cursor        *Nullable[string]             `json:"cursor,omitempty"`
-	Limit         *Nullable[uint32]             `json:"limit,omitempty"`
-	SearchTerm    string                        `json:"searchTerm"`
-	SortDirection *Nullable[SortDirection]      `json:"sortDirection,omitempty"`
-	SortKey       *Nullable[ThreadSortKey]      `json:"sortKey,omitempty"`
-	SourceKinds   *Nullable[[]ThreadSourceKind] `json:"sourceKinds,omitempty"`
+	Archived      *Nullable[bool]                `json:"archived,omitempty"`
+	Cursor        *Nullable[string]              `json:"cursor,omitempty"`
+	Limit         *Nullable[uint32]              `json:"limit,omitempty"`
+	SearchTerm    string                         `json:"searchTerm"`
+	SortDirection *Nullable[SortDirection]       `json:"sortDirection,omitempty"`
+	SortKey       *Nullable[ThreadSearchSortKey] `json:"sortKey,omitempty"`
+	SourceKinds   *Nullable[[]ThreadSourceKind]  `json:"sourceKinds,omitempty"`
 }
 
 func (value *ThreadSearchParams) UnmarshalJSON(data []byte) error {
@@ -23528,7 +24078,7 @@ func (value *ThreadSearchParams) unmarshalJSON(data []byte, mode wireDecodeMode)
 	if err != nil {
 		return err
 	}
-	_, err = decodeNullableJSONField[ThreadSortKey](fields, "sortKey", "ThreadSearchParams.sortKey", mode, decodeWireValue[ThreadSortKey], &decoded.SortKey)
+	_, err = decodeNullableJSONField[ThreadSearchSortKey](fields, "sortKey", "ThreadSearchParams.sortKey", mode, decodeWireValue[ThreadSearchSortKey], &decoded.SortKey)
 	if err != nil {
 		return err
 	}
@@ -23573,6 +24123,338 @@ func (value *ThreadSearchTextRange) unmarshalJSON(data []byte, mode wireDecodeMo
 		return missingRequiredField("ThreadSearchTextRange.start")
 	}
 	if err := rejectUnexpectedFieldsForMode(fields, "ThreadSearchTextRange", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ThreadSection struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+func (value *ThreadSection) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ThreadSection) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ThreadSection")
+	if err != nil {
+		return err
+	}
+	var decoded ThreadSection
+	seenID, err := decodeJSONField(fields, "id", "ThreadSection.id", false, mode, decodeWireValue[string], &decoded.ID)
+	if err != nil {
+		return err
+	}
+	if !seenID {
+		return missingRequiredField("ThreadSection.id")
+	}
+	seenName, err := decodeJSONField(fields, "name", "ThreadSection.name", false, mode, decodeWireValue[string], &decoded.Name)
+	if err != nil {
+		return err
+	}
+	if !seenName {
+		return missingRequiredField("ThreadSection.name")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ThreadSection", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ThreadSectionCreateParams struct {
+	Name string `json:"name"`
+}
+
+func (value *ThreadSectionCreateParams) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ThreadSectionCreateParams) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ThreadSectionCreateParams")
+	if err != nil {
+		return err
+	}
+	var decoded ThreadSectionCreateParams
+	seenName, err := decodeJSONField(fields, "name", "ThreadSectionCreateParams.name", false, mode, decodeWireValue[string], &decoded.Name)
+	if err != nil {
+		return err
+	}
+	if !seenName {
+		return missingRequiredField("ThreadSectionCreateParams.name")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ThreadSectionCreateParams", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ThreadSectionCreateResponse struct {
+	Section ThreadSection `json:"section"`
+}
+
+func (value *ThreadSectionCreateResponse) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ThreadSectionCreateResponse) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ThreadSectionCreateResponse")
+	if err != nil {
+		return err
+	}
+	var decoded ThreadSectionCreateResponse
+	seenSection, err := decodeJSONField(fields, "section", "ThreadSectionCreateResponse.section", false, mode, decodeWireValue[ThreadSection], &decoded.Section)
+	if err != nil {
+		return err
+	}
+	if !seenSection {
+		return missingRequiredField("ThreadSectionCreateResponse.section")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ThreadSectionCreateResponse", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ThreadSectionDeleteParams struct {
+	SectionID string `json:"sectionId"`
+}
+
+func (value *ThreadSectionDeleteParams) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ThreadSectionDeleteParams) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ThreadSectionDeleteParams")
+	if err != nil {
+		return err
+	}
+	var decoded ThreadSectionDeleteParams
+	seenSectionID, err := decodeJSONField(fields, "sectionId", "ThreadSectionDeleteParams.sectionId", false, mode, decodeWireValue[string], &decoded.SectionID)
+	if err != nil {
+		return err
+	}
+	if !seenSectionID {
+		return missingRequiredField("ThreadSectionDeleteParams.sectionId")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ThreadSectionDeleteParams", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ThreadSectionDeleteResponse struct{}
+
+func (value *ThreadSectionDeleteResponse) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ThreadSectionDeleteResponse) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ThreadSectionDeleteResponse")
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ThreadSectionDeleteResponse", mode); err != nil {
+		return err
+	}
+	*value = ThreadSectionDeleteResponse{}
+	return nil
+}
+
+type ThreadSectionListParams struct {
+	Cursor *Nullable[string] `json:"cursor,omitempty"`
+	Limit  *Nullable[uint32] `json:"limit,omitempty"`
+}
+
+func (value *ThreadSectionListParams) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ThreadSectionListParams) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ThreadSectionListParams")
+	if err != nil {
+		return err
+	}
+	var decoded ThreadSectionListParams
+	_, err = decodeNullableJSONField[string](fields, "cursor", "ThreadSectionListParams.cursor", mode, decodeWireValue[string], &decoded.Cursor)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[uint32](fields, "limit", "ThreadSectionListParams.limit", mode, decodeWireValue[uint32], &decoded.Limit)
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ThreadSectionListParams", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ThreadSectionListResponse struct {
+	Data       []ThreadSection   `json:"data"`
+	NextCursor *Nullable[string] `json:"nextCursor,omitempty"`
+}
+
+func (value ThreadSectionListResponse) MarshalJSON() ([]byte, error) {
+	if value.Data == nil {
+		return nil, fmt.Errorf("encode ThreadSectionListResponse.data: nil is not allowed")
+	}
+	type wire ThreadSectionListResponse
+	return json.Marshal(wire(value))
+}
+
+func (value *ThreadSectionListResponse) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ThreadSectionListResponse) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ThreadSectionListResponse")
+	if err != nil {
+		return err
+	}
+	var decoded ThreadSectionListResponse
+	seenData, err := decodeJSONField(fields, "data", "ThreadSectionListResponse.data", false, mode, wireSliceDecoder(decodeWireValue[ThreadSection]), &decoded.Data)
+	if err != nil {
+		return err
+	}
+	if !seenData {
+		return missingRequiredField("ThreadSectionListResponse.data")
+	}
+	_, err = decodeNullableJSONField[string](fields, "nextCursor", "ThreadSectionListResponse.nextCursor", mode, decodeWireValue[string], &decoded.NextCursor)
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ThreadSectionListResponse", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ThreadSectionMoveParams struct {
+	BeforeThreadID *Nullable[string] `json:"beforeThreadId,omitempty"`
+	SectionID      Nullable[string]  `json:"sectionId"`
+	ThreadID       string            `json:"threadId"`
+}
+
+func (value *ThreadSectionMoveParams) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ThreadSectionMoveParams) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ThreadSectionMoveParams")
+	if err != nil {
+		return err
+	}
+	var decoded ThreadSectionMoveParams
+	_, err = decodeNullableJSONField[string](fields, "beforeThreadId", "ThreadSectionMoveParams.beforeThreadId", mode, decodeWireValue[string], &decoded.BeforeThreadID)
+	if err != nil {
+		return err
+	}
+	seenSectionID, err := decodeRequiredNullableJSONField[string](fields, "sectionId", "ThreadSectionMoveParams.sectionId", mode, decodeWireValue[string], &decoded.SectionID)
+	if err != nil {
+		return err
+	}
+	if !seenSectionID {
+		return missingRequiredField("ThreadSectionMoveParams.sectionId")
+	}
+	seenThreadID, err := decodeJSONField(fields, "threadId", "ThreadSectionMoveParams.threadId", false, mode, decodeWireValue[string], &decoded.ThreadID)
+	if err != nil {
+		return err
+	}
+	if !seenThreadID {
+		return missingRequiredField("ThreadSectionMoveParams.threadId")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ThreadSectionMoveParams", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ThreadSectionMoveResponse struct{}
+
+func (value *ThreadSectionMoveResponse) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ThreadSectionMoveResponse) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ThreadSectionMoveResponse")
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ThreadSectionMoveResponse", mode); err != nil {
+		return err
+	}
+	*value = ThreadSectionMoveResponse{}
+	return nil
+}
+
+type ThreadSectionUpdateParams struct {
+	Name      string `json:"name"`
+	SectionID string `json:"sectionId"`
+}
+
+func (value *ThreadSectionUpdateParams) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ThreadSectionUpdateParams) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ThreadSectionUpdateParams")
+	if err != nil {
+		return err
+	}
+	var decoded ThreadSectionUpdateParams
+	seenName, err := decodeJSONField(fields, "name", "ThreadSectionUpdateParams.name", false, mode, decodeWireValue[string], &decoded.Name)
+	if err != nil {
+		return err
+	}
+	if !seenName {
+		return missingRequiredField("ThreadSectionUpdateParams.name")
+	}
+	seenSectionID, err := decodeJSONField(fields, "sectionId", "ThreadSectionUpdateParams.sectionId", false, mode, decodeWireValue[string], &decoded.SectionID)
+	if err != nil {
+		return err
+	}
+	if !seenSectionID {
+		return missingRequiredField("ThreadSectionUpdateParams.sectionId")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ThreadSectionUpdateParams", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ThreadSectionUpdateResponse struct {
+	Section ThreadSection `json:"section"`
+}
+
+func (value *ThreadSectionUpdateResponse) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ThreadSectionUpdateResponse) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ThreadSectionUpdateResponse")
+	if err != nil {
+		return err
+	}
+	var decoded ThreadSectionUpdateResponse
+	seenSection, err := decodeJSONField(fields, "section", "ThreadSectionUpdateResponse.section", false, mode, decodeWireValue[ThreadSection], &decoded.Section)
+	if err != nil {
+		return err
+	}
+	if !seenSection {
+		return missingRequiredField("ThreadSectionUpdateResponse.section")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ThreadSectionUpdateResponse", mode); err != nil {
 		return err
 	}
 	*value = decoded
@@ -24774,6 +25656,7 @@ func (value *ToolRequestUserInputOption) unmarshalJSON(data []byte, mode wireDec
 
 type ToolRequestUserInputParams struct {
 	AutoResolutionMS *Nullable[uint64]              `json:"autoResolutionMs,omitempty"`
+	IsBlocking       bool                           `json:"isBlocking"`
 	ItemID           string                         `json:"itemId"`
 	Questions        []ToolRequestUserInputQuestion `json:"questions"`
 	ThreadID         string                         `json:"threadId"`
@@ -24801,6 +25684,13 @@ func (value *ToolRequestUserInputParams) unmarshalJSON(data []byte, mode wireDec
 	_, err = decodeNullableJSONField[uint64](fields, "autoResolutionMs", "ToolRequestUserInputParams.autoResolutionMs", mode, decodeWireValue[uint64], &decoded.AutoResolutionMS)
 	if err != nil {
 		return err
+	}
+	seenIsBlocking, err := decodeJSONField(fields, "isBlocking", "ToolRequestUserInputParams.isBlocking", false, mode, decodeWireValue[bool], &decoded.IsBlocking)
+	if err != nil {
+		return err
+	}
+	if !seenIsBlocking {
+		return missingRequiredField("ToolRequestUserInputParams.isBlocking")
 	}
 	seenItemID, err := decodeJSONField(fields, "itemId", "ToolRequestUserInputParams.itemId", false, mode, decodeWireValue[string], &decoded.ItemID)
 	if err != nil {
@@ -29214,6 +30104,7 @@ const (
 	ClientRequestKindThreadGoalGet                          ClientRequestKind = "thread/goal/get"
 	ClientRequestKindThreadGoalClear                        ClientRequestKind = "thread/goal/clear"
 	ClientRequestKindThreadMetadataUpdate                   ClientRequestKind = "thread/metadata/update"
+	ClientRequestKindThreadSectionMove                      ClientRequestKind = "thread/section/move"
 	ClientRequestKindThreadSettingsUpdate                   ClientRequestKind = "thread/settings/update"
 	ClientRequestKindThreadMemoryModeSet                    ClientRequestKind = "thread/memoryMode/set"
 	ClientRequestKindMemoryReset                            ClientRequestKind = "memory/reset"
@@ -29226,6 +30117,10 @@ const (
 	ClientRequestKindThreadBackgroundTerminalsTerminate     ClientRequestKind = "thread/backgroundTerminals/terminate"
 	ClientRequestKindThreadRollback                         ClientRequestKind = "thread/rollback"
 	ClientRequestKindThreadList                             ClientRequestKind = "thread/list"
+	ClientRequestKindThreadSectionList                      ClientRequestKind = "threadSection/list"
+	ClientRequestKindThreadSectionCreate                    ClientRequestKind = "threadSection/create"
+	ClientRequestKindThreadSectionUpdate                    ClientRequestKind = "threadSection/update"
+	ClientRequestKindThreadSectionDelete                    ClientRequestKind = "threadSection/delete"
 	ClientRequestKindThreadSearch                           ClientRequestKind = "thread/search"
 	ClientRequestKindThreadSearchOccurrences                ClientRequestKind = "thread/searchOccurrences"
 	ClientRequestKindThreadLoadedList                       ClientRequestKind = "thread/loaded/list"
@@ -29240,6 +30135,7 @@ const (
 	ClientRequestKindMarketplaceRemove                      ClientRequestKind = "marketplace/remove"
 	ClientRequestKindMarketplaceUpgrade                     ClientRequestKind = "marketplace/upgrade"
 	ClientRequestKindPluginList                             ClientRequestKind = "plugin/list"
+	ClientRequestKindPluginSearch                           ClientRequestKind = "plugin/search"
 	ClientRequestKindPluginInstalled                        ClientRequestKind = "plugin/installed"
 	ClientRequestKindPluginRead                             ClientRequestKind = "plugin/read"
 	ClientRequestKindPluginSkillRead                        ClientRequestKind = "plugin/skill/read"
@@ -29345,6 +30241,7 @@ type ClientRequest struct {
 	variantThreadGoalGet                          *ClientRequestThreadGoalGet
 	variantThreadGoalClear                        *ClientRequestThreadGoalClear
 	variantThreadMetadataUpdate                   *ClientRequestThreadMetadataUpdate
+	variantThreadSectionMove                      *ClientRequestThreadSectionMove
 	variantThreadSettingsUpdate                   *ClientRequestThreadSettingsUpdate
 	variantThreadMemoryModeSet                    *ClientRequestThreadMemoryModeSet
 	variantMemoryReset                            *ClientRequestMemoryReset
@@ -29357,6 +30254,10 @@ type ClientRequest struct {
 	variantThreadBackgroundTerminalsTerminate     *ClientRequestThreadBackgroundTerminalsTerminate
 	variantThreadRollback                         *ClientRequestThreadRollback
 	variantThreadList                             *ClientRequestThreadList
+	variantThreadSectionList                      *ClientRequestThreadSectionList
+	variantThreadSectionCreate                    *ClientRequestThreadSectionCreate
+	variantThreadSectionUpdate                    *ClientRequestThreadSectionUpdate
+	variantThreadSectionDelete                    *ClientRequestThreadSectionDelete
 	variantThreadSearch                           *ClientRequestThreadSearch
 	variantThreadSearchOccurrences                *ClientRequestThreadSearchOccurrences
 	variantThreadLoadedList                       *ClientRequestThreadLoadedList
@@ -29371,6 +30272,7 @@ type ClientRequest struct {
 	variantMarketplaceRemove                      *ClientRequestMarketplaceRemove
 	variantMarketplaceUpgrade                     *ClientRequestMarketplaceUpgrade
 	variantPluginList                             *ClientRequestPluginList
+	variantPluginSearch                           *ClientRequestPluginSearch
 	variantPluginInstalled                        *ClientRequestPluginInstalled
 	variantPluginRead                             *ClientRequestPluginRead
 	variantPluginSkillRead                        *ClientRequestPluginSkillRead
@@ -29530,6 +30432,11 @@ type ClientRequestThreadMetadataUpdate struct {
 	Params ThreadMetadataUpdateParams `json:"params"`
 }
 
+type ClientRequestThreadSectionMove struct {
+	ID     RequestId               `json:"id"`
+	Params ThreadSectionMoveParams `json:"params"`
+}
+
 type ClientRequestThreadSettingsUpdate struct {
 	ID     RequestId                  `json:"id"`
 	Params ThreadSettingsUpdateParams `json:"params"`
@@ -29587,6 +30494,26 @@ type ClientRequestThreadRollback struct {
 type ClientRequestThreadList struct {
 	ID     RequestId        `json:"id"`
 	Params ThreadListParams `json:"params"`
+}
+
+type ClientRequestThreadSectionList struct {
+	ID     RequestId               `json:"id"`
+	Params ThreadSectionListParams `json:"params"`
+}
+
+type ClientRequestThreadSectionCreate struct {
+	ID     RequestId                 `json:"id"`
+	Params ThreadSectionCreateParams `json:"params"`
+}
+
+type ClientRequestThreadSectionUpdate struct {
+	ID     RequestId                 `json:"id"`
+	Params ThreadSectionUpdateParams `json:"params"`
+}
+
+type ClientRequestThreadSectionDelete struct {
+	ID     RequestId                 `json:"id"`
+	Params ThreadSectionDeleteParams `json:"params"`
 }
 
 type ClientRequestThreadSearch struct {
@@ -29657,6 +30584,11 @@ type ClientRequestMarketplaceUpgrade struct {
 type ClientRequestPluginList struct {
 	ID     RequestId        `json:"id"`
 	Params PluginListParams `json:"params"`
+}
+
+type ClientRequestPluginSearch struct {
+	ID     RequestId          `json:"id"`
+	Params PluginSearchParams `json:"params"`
 }
 
 type ClientRequestPluginInstalled struct {
@@ -30141,6 +31073,10 @@ func NewClientRequestThreadMetadataUpdate(payload ClientRequestThreadMetadataUpd
 	return ClientRequest{kind: ClientRequestKindThreadMetadataUpdate, variantThreadMetadataUpdate: &payload}
 }
 
+func NewClientRequestThreadSectionMove(payload ClientRequestThreadSectionMove) ClientRequest {
+	return ClientRequest{kind: ClientRequestKindThreadSectionMove, variantThreadSectionMove: &payload}
+}
+
 func NewClientRequestThreadSettingsUpdate(payload ClientRequestThreadSettingsUpdate) ClientRequest {
 	return ClientRequest{kind: ClientRequestKindThreadSettingsUpdate, variantThreadSettingsUpdate: &payload}
 }
@@ -30187,6 +31123,22 @@ func NewClientRequestThreadRollback(payload ClientRequestThreadRollback) ClientR
 
 func NewClientRequestThreadList(payload ClientRequestThreadList) ClientRequest {
 	return ClientRequest{kind: ClientRequestKindThreadList, variantThreadList: &payload}
+}
+
+func NewClientRequestThreadSectionList(payload ClientRequestThreadSectionList) ClientRequest {
+	return ClientRequest{kind: ClientRequestKindThreadSectionList, variantThreadSectionList: &payload}
+}
+
+func NewClientRequestThreadSectionCreate(payload ClientRequestThreadSectionCreate) ClientRequest {
+	return ClientRequest{kind: ClientRequestKindThreadSectionCreate, variantThreadSectionCreate: &payload}
+}
+
+func NewClientRequestThreadSectionUpdate(payload ClientRequestThreadSectionUpdate) ClientRequest {
+	return ClientRequest{kind: ClientRequestKindThreadSectionUpdate, variantThreadSectionUpdate: &payload}
+}
+
+func NewClientRequestThreadSectionDelete(payload ClientRequestThreadSectionDelete) ClientRequest {
+	return ClientRequest{kind: ClientRequestKindThreadSectionDelete, variantThreadSectionDelete: &payload}
 }
 
 func NewClientRequestThreadSearch(payload ClientRequestThreadSearch) ClientRequest {
@@ -30243,6 +31195,10 @@ func NewClientRequestMarketplaceUpgrade(payload ClientRequestMarketplaceUpgrade)
 
 func NewClientRequestPluginList(payload ClientRequestPluginList) ClientRequest {
 	return ClientRequest{kind: ClientRequestKindPluginList, variantPluginList: &payload}
+}
+
+func NewClientRequestPluginSearch(payload ClientRequestPluginSearch) ClientRequest {
+	return ClientRequest{kind: ClientRequestKindPluginSearch, variantPluginSearch: &payload}
 }
 
 func NewClientRequestPluginInstalled(payload ClientRequestPluginInstalled) ClientRequest {
@@ -30627,6 +31583,8 @@ func (value ClientRequest) IsValid() bool {
 		return value.variantThreadGoalClear != nil
 	case ClientRequestKindThreadMetadataUpdate:
 		return value.variantThreadMetadataUpdate != nil
+	case ClientRequestKindThreadSectionMove:
+		return value.variantThreadSectionMove != nil
 	case ClientRequestKindThreadSettingsUpdate:
 		return value.variantThreadSettingsUpdate != nil
 	case ClientRequestKindThreadMemoryModeSet:
@@ -30651,6 +31609,14 @@ func (value ClientRequest) IsValid() bool {
 		return value.variantThreadRollback != nil
 	case ClientRequestKindThreadList:
 		return value.variantThreadList != nil
+	case ClientRequestKindThreadSectionList:
+		return value.variantThreadSectionList != nil
+	case ClientRequestKindThreadSectionCreate:
+		return value.variantThreadSectionCreate != nil
+	case ClientRequestKindThreadSectionUpdate:
+		return value.variantThreadSectionUpdate != nil
+	case ClientRequestKindThreadSectionDelete:
+		return value.variantThreadSectionDelete != nil
 	case ClientRequestKindThreadSearch:
 		return value.variantThreadSearch != nil
 	case ClientRequestKindThreadSearchOccurrences:
@@ -30679,6 +31645,8 @@ func (value ClientRequest) IsValid() bool {
 		return value.variantMarketplaceUpgrade != nil
 	case ClientRequestKindPluginList:
 		return value.variantPluginList != nil
+	case ClientRequestKindPluginSearch:
+		return value.variantPluginSearch != nil
 	case ClientRequestKindPluginInstalled:
 		return value.variantPluginInstalled != nil
 	case ClientRequestKindPluginRead:
@@ -30956,6 +31924,13 @@ func (value ClientRequest) AsThreadMetadataUpdate() (ClientRequestThreadMetadata
 	return *value.variantThreadMetadataUpdate, true
 }
 
+func (value ClientRequest) AsThreadSectionMove() (ClientRequestThreadSectionMove, bool) {
+	if value.kind != ClientRequestKindThreadSectionMove || value.variantThreadSectionMove == nil {
+		return ClientRequestThreadSectionMove{}, false
+	}
+	return *value.variantThreadSectionMove, true
+}
+
 func (value ClientRequest) AsThreadSettingsUpdate() (ClientRequestThreadSettingsUpdate, bool) {
 	if value.kind != ClientRequestKindThreadSettingsUpdate || value.variantThreadSettingsUpdate == nil {
 		return ClientRequestThreadSettingsUpdate{}, false
@@ -31038,6 +32013,34 @@ func (value ClientRequest) AsThreadList() (ClientRequestThreadList, bool) {
 		return ClientRequestThreadList{}, false
 	}
 	return *value.variantThreadList, true
+}
+
+func (value ClientRequest) AsThreadSectionList() (ClientRequestThreadSectionList, bool) {
+	if value.kind != ClientRequestKindThreadSectionList || value.variantThreadSectionList == nil {
+		return ClientRequestThreadSectionList{}, false
+	}
+	return *value.variantThreadSectionList, true
+}
+
+func (value ClientRequest) AsThreadSectionCreate() (ClientRequestThreadSectionCreate, bool) {
+	if value.kind != ClientRequestKindThreadSectionCreate || value.variantThreadSectionCreate == nil {
+		return ClientRequestThreadSectionCreate{}, false
+	}
+	return *value.variantThreadSectionCreate, true
+}
+
+func (value ClientRequest) AsThreadSectionUpdate() (ClientRequestThreadSectionUpdate, bool) {
+	if value.kind != ClientRequestKindThreadSectionUpdate || value.variantThreadSectionUpdate == nil {
+		return ClientRequestThreadSectionUpdate{}, false
+	}
+	return *value.variantThreadSectionUpdate, true
+}
+
+func (value ClientRequest) AsThreadSectionDelete() (ClientRequestThreadSectionDelete, bool) {
+	if value.kind != ClientRequestKindThreadSectionDelete || value.variantThreadSectionDelete == nil {
+		return ClientRequestThreadSectionDelete{}, false
+	}
+	return *value.variantThreadSectionDelete, true
 }
 
 func (value ClientRequest) AsThreadSearch() (ClientRequestThreadSearch, bool) {
@@ -31136,6 +32139,13 @@ func (value ClientRequest) AsPluginList() (ClientRequestPluginList, bool) {
 		return ClientRequestPluginList{}, false
 	}
 	return *value.variantPluginList, true
+}
+
+func (value ClientRequest) AsPluginSearch() (ClientRequestPluginSearch, bool) {
+	if value.kind != ClientRequestKindPluginSearch || value.variantPluginSearch == nil {
+		return ClientRequestPluginSearch{}, false
+	}
+	return *value.variantPluginSearch, true
 }
 
 func (value ClientRequest) AsPluginInstalled() (ClientRequestPluginInstalled, bool) {
@@ -31931,6 +32941,19 @@ func (value ClientRequest) MarshalJSON() ([]byte, error) {
 			Method: "thread/metadata/update",
 			Params: value.variantThreadMetadataUpdate.Params,
 		})
+	case ClientRequestKindThreadSectionMove:
+		if value.variantThreadSectionMove == nil {
+			return nil, invalidUnionVariant("ClientRequest", "thread/section/move")
+		}
+		return json.Marshal(struct {
+			ID     RequestId               `json:"id"`
+			Method string                  `json:"method"`
+			Params ThreadSectionMoveParams `json:"params"`
+		}{
+			ID:     value.variantThreadSectionMove.ID,
+			Method: "thread/section/move",
+			Params: value.variantThreadSectionMove.Params,
+		})
 	case ClientRequestKindThreadSettingsUpdate:
 		if value.variantThreadSettingsUpdate == nil {
 			return nil, invalidUnionVariant("ClientRequest", "thread/settings/update")
@@ -32084,6 +33107,58 @@ func (value ClientRequest) MarshalJSON() ([]byte, error) {
 			ID:     value.variantThreadList.ID,
 			Method: "thread/list",
 			Params: value.variantThreadList.Params,
+		})
+	case ClientRequestKindThreadSectionList:
+		if value.variantThreadSectionList == nil {
+			return nil, invalidUnionVariant("ClientRequest", "threadSection/list")
+		}
+		return json.Marshal(struct {
+			ID     RequestId               `json:"id"`
+			Method string                  `json:"method"`
+			Params ThreadSectionListParams `json:"params"`
+		}{
+			ID:     value.variantThreadSectionList.ID,
+			Method: "threadSection/list",
+			Params: value.variantThreadSectionList.Params,
+		})
+	case ClientRequestKindThreadSectionCreate:
+		if value.variantThreadSectionCreate == nil {
+			return nil, invalidUnionVariant("ClientRequest", "threadSection/create")
+		}
+		return json.Marshal(struct {
+			ID     RequestId                 `json:"id"`
+			Method string                    `json:"method"`
+			Params ThreadSectionCreateParams `json:"params"`
+		}{
+			ID:     value.variantThreadSectionCreate.ID,
+			Method: "threadSection/create",
+			Params: value.variantThreadSectionCreate.Params,
+		})
+	case ClientRequestKindThreadSectionUpdate:
+		if value.variantThreadSectionUpdate == nil {
+			return nil, invalidUnionVariant("ClientRequest", "threadSection/update")
+		}
+		return json.Marshal(struct {
+			ID     RequestId                 `json:"id"`
+			Method string                    `json:"method"`
+			Params ThreadSectionUpdateParams `json:"params"`
+		}{
+			ID:     value.variantThreadSectionUpdate.ID,
+			Method: "threadSection/update",
+			Params: value.variantThreadSectionUpdate.Params,
+		})
+	case ClientRequestKindThreadSectionDelete:
+		if value.variantThreadSectionDelete == nil {
+			return nil, invalidUnionVariant("ClientRequest", "threadSection/delete")
+		}
+		return json.Marshal(struct {
+			ID     RequestId                 `json:"id"`
+			Method string                    `json:"method"`
+			Params ThreadSectionDeleteParams `json:"params"`
+		}{
+			ID:     value.variantThreadSectionDelete.ID,
+			Method: "threadSection/delete",
+			Params: value.variantThreadSectionDelete.Params,
 		})
 	case ClientRequestKindThreadSearch:
 		if value.variantThreadSearch == nil {
@@ -32266,6 +33341,19 @@ func (value ClientRequest) MarshalJSON() ([]byte, error) {
 			ID:     value.variantPluginList.ID,
 			Method: "plugin/list",
 			Params: value.variantPluginList.Params,
+		})
+	case ClientRequestKindPluginSearch:
+		if value.variantPluginSearch == nil {
+			return nil, invalidUnionVariant("ClientRequest", "plugin/search")
+		}
+		return json.Marshal(struct {
+			ID     RequestId          `json:"id"`
+			Method string             `json:"method"`
+			Params PluginSearchParams `json:"params"`
+		}{
+			ID:     value.variantPluginSearch.ID,
+			Method: "plugin/search",
+			Params: value.variantPluginSearch.Params,
 		})
 	case ClientRequestKindPluginInstalled:
 		if value.variantPluginInstalled == nil {
@@ -33693,6 +34781,27 @@ func (value *ClientRequest) unmarshalJSON(data []byte, mode wireDecodeMode) erro
 		}
 		*value = ClientRequest{kind: ClientRequestKindThreadMetadataUpdate, variantThreadMetadataUpdate: &decoded}
 		return nil
+	case "thread/section/move":
+		var decoded ClientRequestThreadSectionMove
+		seenID, err := decodeJSONField(fields, "id", "ClientRequest.id", false, mode, decodeWireValue[RequestId], &decoded.ID)
+		if err != nil {
+			return err
+		}
+		if !seenID {
+			return missingRequiredField("ClientRequest.id")
+		}
+		seenParams, err := decodeJSONField(fields, "params", "ClientRequest.params", false, mode, decodeWireValue[ThreadSectionMoveParams], &decoded.Params)
+		if err != nil {
+			return err
+		}
+		if !seenParams {
+			return missingRequiredField("ClientRequest.params")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ClientRequest.thread/section/move", mode); err != nil {
+			return err
+		}
+		*value = ClientRequest{kind: ClientRequestKindThreadSectionMove, variantThreadSectionMove: &decoded}
+		return nil
 	case "thread/settings/update":
 		var decoded ClientRequestThreadSettingsUpdate
 		seenID, err := decodeJSONField(fields, "id", "ClientRequest.id", false, mode, decodeWireValue[RequestId], &decoded.ID)
@@ -33944,6 +35053,90 @@ func (value *ClientRequest) unmarshalJSON(data []byte, mode wireDecodeMode) erro
 			return err
 		}
 		*value = ClientRequest{kind: ClientRequestKindThreadList, variantThreadList: &decoded}
+		return nil
+	case "threadSection/list":
+		var decoded ClientRequestThreadSectionList
+		seenID, err := decodeJSONField(fields, "id", "ClientRequest.id", false, mode, decodeWireValue[RequestId], &decoded.ID)
+		if err != nil {
+			return err
+		}
+		if !seenID {
+			return missingRequiredField("ClientRequest.id")
+		}
+		seenParams, err := decodeJSONField(fields, "params", "ClientRequest.params", false, mode, decodeWireValue[ThreadSectionListParams], &decoded.Params)
+		if err != nil {
+			return err
+		}
+		if !seenParams {
+			return missingRequiredField("ClientRequest.params")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ClientRequest.threadSection/list", mode); err != nil {
+			return err
+		}
+		*value = ClientRequest{kind: ClientRequestKindThreadSectionList, variantThreadSectionList: &decoded}
+		return nil
+	case "threadSection/create":
+		var decoded ClientRequestThreadSectionCreate
+		seenID, err := decodeJSONField(fields, "id", "ClientRequest.id", false, mode, decodeWireValue[RequestId], &decoded.ID)
+		if err != nil {
+			return err
+		}
+		if !seenID {
+			return missingRequiredField("ClientRequest.id")
+		}
+		seenParams, err := decodeJSONField(fields, "params", "ClientRequest.params", false, mode, decodeWireValue[ThreadSectionCreateParams], &decoded.Params)
+		if err != nil {
+			return err
+		}
+		if !seenParams {
+			return missingRequiredField("ClientRequest.params")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ClientRequest.threadSection/create", mode); err != nil {
+			return err
+		}
+		*value = ClientRequest{kind: ClientRequestKindThreadSectionCreate, variantThreadSectionCreate: &decoded}
+		return nil
+	case "threadSection/update":
+		var decoded ClientRequestThreadSectionUpdate
+		seenID, err := decodeJSONField(fields, "id", "ClientRequest.id", false, mode, decodeWireValue[RequestId], &decoded.ID)
+		if err != nil {
+			return err
+		}
+		if !seenID {
+			return missingRequiredField("ClientRequest.id")
+		}
+		seenParams, err := decodeJSONField(fields, "params", "ClientRequest.params", false, mode, decodeWireValue[ThreadSectionUpdateParams], &decoded.Params)
+		if err != nil {
+			return err
+		}
+		if !seenParams {
+			return missingRequiredField("ClientRequest.params")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ClientRequest.threadSection/update", mode); err != nil {
+			return err
+		}
+		*value = ClientRequest{kind: ClientRequestKindThreadSectionUpdate, variantThreadSectionUpdate: &decoded}
+		return nil
+	case "threadSection/delete":
+		var decoded ClientRequestThreadSectionDelete
+		seenID, err := decodeJSONField(fields, "id", "ClientRequest.id", false, mode, decodeWireValue[RequestId], &decoded.ID)
+		if err != nil {
+			return err
+		}
+		if !seenID {
+			return missingRequiredField("ClientRequest.id")
+		}
+		seenParams, err := decodeJSONField(fields, "params", "ClientRequest.params", false, mode, decodeWireValue[ThreadSectionDeleteParams], &decoded.Params)
+		if err != nil {
+			return err
+		}
+		if !seenParams {
+			return missingRequiredField("ClientRequest.params")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ClientRequest.threadSection/delete", mode); err != nil {
+			return err
+		}
+		*value = ClientRequest{kind: ClientRequestKindThreadSectionDelete, variantThreadSectionDelete: &decoded}
 		return nil
 	case "thread/search":
 		var decoded ClientRequestThreadSearch
@@ -34238,6 +35431,27 @@ func (value *ClientRequest) unmarshalJSON(data []byte, mode wireDecodeMode) erro
 			return err
 		}
 		*value = ClientRequest{kind: ClientRequestKindPluginList, variantPluginList: &decoded}
+		return nil
+	case "plugin/search":
+		var decoded ClientRequestPluginSearch
+		seenID, err := decodeJSONField(fields, "id", "ClientRequest.id", false, mode, decodeWireValue[RequestId], &decoded.ID)
+		if err != nil {
+			return err
+		}
+		if !seenID {
+			return missingRequiredField("ClientRequest.id")
+		}
+		seenParams, err := decodeJSONField(fields, "params", "ClientRequest.params", false, mode, decodeWireValue[PluginSearchParams], &decoded.Params)
+		if err != nil {
+			return err
+		}
+		if !seenParams {
+			return missingRequiredField("ClientRequest.params")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ClientRequest.plugin/search", mode); err != nil {
+			return err
+		}
+		*value = ClientRequest{kind: ClientRequestKindPluginSearch, variantPluginSearch: &decoded}
 		return nil
 	case "plugin/installed":
 		var decoded ClientRequestPluginInstalled
@@ -40593,6 +41807,7 @@ type ResponseItemLocalShellCall struct {
 type ResponseItemFunctionCall struct {
 	Arguments                              string                                            `json:"arguments"`
 	CallID                                 string                                            `json:"call_id"`
+	EncryptedFunctionArgs                  *Nullable[[]string]                               `json:"encrypted_function_args,omitempty"`
 	ID                                     *Nullable[string]                                 `json:"id,omitempty"`
 	InternalChatMessageMetadataPassthrough *Nullable[InternalChatMessageMetadataPassthrough] `json:"internal_chat_message_metadata_passthrough,omitempty"`
 	Name                                   string                                            `json:"name"`
@@ -40988,6 +42203,7 @@ func (value ResponseItem) MarshalJSON() ([]byte, error) {
 		return json.Marshal(struct {
 			Arguments                              string                                            `json:"arguments"`
 			CallID                                 string                                            `json:"call_id"`
+			EncryptedFunctionArgs                  *Nullable[[]string]                               `json:"encrypted_function_args,omitempty"`
 			ID                                     *Nullable[string]                                 `json:"id,omitempty"`
 			InternalChatMessageMetadataPassthrough *Nullable[InternalChatMessageMetadataPassthrough] `json:"internal_chat_message_metadata_passthrough,omitempty"`
 			Name                                   string                                            `json:"name"`
@@ -40996,6 +42212,7 @@ func (value ResponseItem) MarshalJSON() ([]byte, error) {
 		}{
 			Arguments:                              value.variantFunctionCall.Arguments,
 			CallID:                                 value.variantFunctionCall.CallID,
+			EncryptedFunctionArgs:                  value.variantFunctionCall.EncryptedFunctionArgs,
 			ID:                                     value.variantFunctionCall.ID,
 			InternalChatMessageMetadataPassthrough: value.variantFunctionCall.InternalChatMessageMetadataPassthrough,
 			Name:                                   value.variantFunctionCall.Name,
@@ -41356,6 +42573,10 @@ func (value *ResponseItem) unmarshalJSON(data []byte, mode wireDecodeMode) error
 		}
 		if !seenCallID {
 			return missingRequiredField("ResponseItem.call_id")
+		}
+		_, err = decodeNullableJSONField[[]string](fields, "encrypted_function_args", "ResponseItem.encrypted_function_args", mode, wireSliceDecoder(decodeWireValue[string]), &decoded.EncryptedFunctionArgs)
+		if err != nil {
+			return err
 		}
 		_, err = decodeNullableJSONField[string](fields, "id", "ResponseItem.id", mode, decodeWireValue[string], &decoded.ID)
 		if err != nil {
@@ -46451,6 +47672,7 @@ type ThreadItemMCPToolCall struct {
 	ID                string                           `json:"id"`
 	MCPAppResourceURI *Nullable[string]                `json:"mcpAppResourceUri,omitempty"`
 	PluginID          *Nullable[string]                `json:"pluginId,omitempty"`
+	ReadOnlyHint      *Nullable[bool]                  `json:"readOnlyHint,omitempty"`
 	Result            *Nullable[McpToolCallResult]     `json:"result,omitempty"`
 	Server            string                           `json:"server"`
 	Status            McpToolCallStatus                `json:"status"`
@@ -46505,11 +47727,12 @@ type ThreadItemSleep struct {
 }
 
 type ThreadItemImageGeneration struct {
-	ID            string            `json:"id"`
-	Result        string            `json:"result"`
-	RevisedPrompt *Nullable[string] `json:"revisedPrompt,omitempty"`
-	SavedPath     *Nullable[string] `json:"savedPath,omitempty"`
-	Status        string            `json:"status"`
+	ID                    string            `json:"id"`
+	Result                string            `json:"result"`
+	RevisedPrompt         *Nullable[string] `json:"revisedPrompt,omitempty"`
+	SavedPath             *Nullable[string] `json:"savedPath,omitempty"`
+	Status                string            `json:"status"`
+	TransparentBackground *Nullable[bool]   `json:"transparentBackground,omitempty"`
 }
 
 type ThreadItemEnteredReviewMode struct {
@@ -46918,6 +48141,7 @@ func (value ThreadItem) MarshalJSON() ([]byte, error) {
 			ID                string                           `json:"id"`
 			MCPAppResourceURI *Nullable[string]                `json:"mcpAppResourceUri,omitempty"`
 			PluginID          *Nullable[string]                `json:"pluginId,omitempty"`
+			ReadOnlyHint      *Nullable[bool]                  `json:"readOnlyHint,omitempty"`
 			Result            *Nullable[McpToolCallResult]     `json:"result,omitempty"`
 			Server            string                           `json:"server"`
 			Status            McpToolCallStatus                `json:"status"`
@@ -46931,6 +48155,7 @@ func (value ThreadItem) MarshalJSON() ([]byte, error) {
 			ID:                value.variantMCPToolCall.ID,
 			MCPAppResourceURI: value.variantMCPToolCall.MCPAppResourceURI,
 			PluginID:          value.variantMCPToolCall.PluginID,
+			ReadOnlyHint:      value.variantMCPToolCall.ReadOnlyHint,
 			Result:            value.variantMCPToolCall.Result,
 			Server:            value.variantMCPToolCall.Server,
 			Status:            value.variantMCPToolCall.Status,
@@ -47060,19 +48285,21 @@ func (value ThreadItem) MarshalJSON() ([]byte, error) {
 			return nil, invalidUnionVariant("ThreadItem", "imageGeneration")
 		}
 		return json.Marshal(struct {
-			ID            string            `json:"id"`
-			Result        string            `json:"result"`
-			RevisedPrompt *Nullable[string] `json:"revisedPrompt,omitempty"`
-			SavedPath     *Nullable[string] `json:"savedPath,omitempty"`
-			Status        string            `json:"status"`
-			Type          string            `json:"type"`
+			ID                    string            `json:"id"`
+			Result                string            `json:"result"`
+			RevisedPrompt         *Nullable[string] `json:"revisedPrompt,omitempty"`
+			SavedPath             *Nullable[string] `json:"savedPath,omitempty"`
+			Status                string            `json:"status"`
+			TransparentBackground *Nullable[bool]   `json:"transparentBackground,omitempty"`
+			Type                  string            `json:"type"`
 		}{
-			ID:            value.variantImageGeneration.ID,
-			Result:        value.variantImageGeneration.Result,
-			RevisedPrompt: value.variantImageGeneration.RevisedPrompt,
-			SavedPath:     value.variantImageGeneration.SavedPath,
-			Status:        value.variantImageGeneration.Status,
-			Type:          "imageGeneration",
+			ID:                    value.variantImageGeneration.ID,
+			Result:                value.variantImageGeneration.Result,
+			RevisedPrompt:         value.variantImageGeneration.RevisedPrompt,
+			SavedPath:             value.variantImageGeneration.SavedPath,
+			Status:                value.variantImageGeneration.Status,
+			TransparentBackground: value.variantImageGeneration.TransparentBackground,
+			Type:                  "imageGeneration",
 		})
 	case ThreadItemKindEnteredReviewMode:
 		if value.variantEnteredReviewMode == nil {
@@ -47382,6 +48609,10 @@ func (value *ThreadItem) unmarshalJSON(data []byte, mode wireDecodeMode) error {
 		if err != nil {
 			return err
 		}
+		_, err = decodeNullableJSONField[bool](fields, "readOnlyHint", "ThreadItem.readOnlyHint", mode, decodeWireValue[bool], &decoded.ReadOnlyHint)
+		if err != nil {
+			return err
+		}
 		_, err = decodeNullableJSONField[McpToolCallResult](fields, "result", "ThreadItem.result", mode, decodeWireValue[McpToolCallResult], &decoded.Result)
 		if err != nil {
 			return err
@@ -47660,6 +48891,10 @@ func (value *ThreadItem) unmarshalJSON(data []byte, mode wireDecodeMode) error {
 		}
 		if !seenStatus {
 			return missingRequiredField("ThreadItem.status")
+		}
+		_, err = decodeNullableJSONField[bool](fields, "transparentBackground", "ThreadItem.transparentBackground", mode, decodeWireValue[bool], &decoded.TransparentBackground)
+		if err != nil {
+			return err
 		}
 		if err := rejectUnexpectedFieldsForMode(fields, "ThreadItem.imageGeneration", mode); err != nil {
 			return err
