@@ -8340,9 +8340,10 @@ func TestGeneratedChatgptAuthTokensRefreshResponseRejectsMalformedProtocol(t *te
 func TestGeneratedToolRequestUserInputParamsMarshal(t *testing.T) {
 	isOther := true
 	params := ToolRequestUserInputParams{
-		ItemID:   "item-1",
-		ThreadID: "thread-1",
-		TurnID:   "turn-1",
+		IsBlocking: false,
+		ItemID:     "item-1",
+		ThreadID:   "thread-1",
+		TurnID:     "turn-1",
 		Questions: []ToolRequestUserInputQuestion{{
 			Header:  "Auth",
 			ID:      "token",
@@ -8358,7 +8359,7 @@ func TestGeneratedToolRequestUserInputParamsMarshal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `{"itemId":"item-1","questions":[{"header":"Auth","id":"token","isOther":true,"options":[{"description":"Use the configured account.","label":"Configured"}],"question":"Which account should be used?"}],"threadId":"thread-1","turnId":"turn-1"}`
+	want := `{"isBlocking":false,"itemId":"item-1","questions":[{"header":"Auth","id":"token","isOther":true,"options":[{"description":"Use the configured account.","label":"Configured"}],"question":"Which account should be used?"}],"threadId":"thread-1","turnId":"turn-1"}`
 	if got := string(raw); got != want {
 		t.Fatalf("ToolRequestUserInputParams JSON = %s, want %s", got, want)
 	}
@@ -8401,7 +8402,7 @@ func TestGeneratedToolRequestUserInputQuestionPreservesNullableOptions(t *testin
 
 func TestGeneratedToolRequestUserInputParamsRejectsMalformedProtocol(t *testing.T) {
 	var params ToolRequestUserInputParams
-	err := json.Unmarshal([]byte(`{"itemId":"item-1","threadId":"thread-1","turnId":"turn-1"}`), &params)
+	err := json.Unmarshal([]byte(`{"isBlocking":false,"itemId":"item-1","threadId":"thread-1","turnId":"turn-1"}`), &params)
 	if err == nil {
 		t.Fatal("expected missing questions to fail")
 	}
@@ -8409,7 +8410,7 @@ func TestGeneratedToolRequestUserInputParamsRejectsMalformedProtocol(t *testing.
 		t.Fatalf("unexpected missing questions error: %v", err)
 	}
 
-	err = json.Unmarshal([]byte(`{"itemId":"item-1","questions":[],"threadId":"thread-1","turnId":"turn-1","extra":true}`), &params)
+	err = json.Unmarshal([]byte(`{"isBlocking":false,"itemId":"item-1","questions":[],"threadId":"thread-1","turnId":"turn-1","extra":true}`), &params)
 	if err == nil {
 		t.Fatal("expected unknown field to fail")
 	}

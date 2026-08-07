@@ -2160,6 +2160,7 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 		switch name {
 		case "CommandMigration",
 			"ExternalAgentConfigMigrationItem",
+			"ExternalAgentDetectedConnectorCandidate",
 			"HookMigration",
 			"McpServerMigration",
 			"MigrationDetails",
@@ -2174,6 +2175,14 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 	case "v2/ExternalAgentConfigImportHistoriesReadResponse.json":
 		switch name {
 		case "ExternalAgentConfigImportHistory", "ExternalAgentImportedConnectorCandidate":
+			return true
+		default:
+			return false
+		}
+	case "v2/ExternalAgentConfigImportHistoryRecordParams.json":
+		switch name {
+		case "ExternalAgentConfigImportHistoryRecordSuccessParams",
+			"ExternalAgentConfigImportHistoryRecordTypeResultParams":
 			return true
 		default:
 			return false
@@ -2285,6 +2294,8 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 		default:
 			return false
 		}
+	case "v2/PluginSearchResponse.json":
+		return name == "PluginSearchResult"
 	case "v2/PluginShareListResponse.json":
 		return name == "PluginShareListItem"
 	case "v2/PluginShareSaveParams.json":
@@ -2338,7 +2349,8 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 		case "ActivePermissionProfile",
 			"GitInfo",
 			"Thread",
-			"ThreadExtra":
+			"ThreadExtra",
+			"ThreadSection":
 			return true
 		default:
 			return false

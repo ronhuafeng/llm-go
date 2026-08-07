@@ -3,13 +3,13 @@
   "comparison_mode": "canonical-json",
   "target": {
     "source_repo": "https://github.com/openai/codex",
-    "source_ref_name": "rust-v0.146.1",
+    "source_ref_name": "rust-v0.147.0",
     "source_ref_kind": "stable_rust_tag",
-    "source_commit": "79b4f03d35962b005b007a015113b38930711665",
-    "codex_version": "codex-cli 0.146.1",
+    "source_commit": "be6e8eac029b183056b7e4402879f15d2c85f61b",
+    "codex_version": "codex-cli 0.147.0",
     "generator": "cargo",
     "generator_detail": "codex app-server generate-json-schema --experimental --out internal/protocolschema/appserver/v2",
-    "schema_bundle_sha256": "06a7789118b9379fc064d986437e53fa0ea697bedfd0374adcbb4d3537335207",
+    "schema_bundle_sha256": "75b03c2ce67775d0062357a0128358da22b307501a8c9e4d8a65f30a90134a82",
     "canonical_json_note": "Schema comparisons use canonical JSON; object member ordering is irrelevant."
   },
   "file_diff": {
@@ -38,47 +38,711 @@
   "matrix_update_skeleton": "matrix_update_skeleton.json",
   "generated_compatibility": {
     "policy": "go_source_compatibility_with_classification_metadata",
-    "compatibility_impact": "incompatible",
-    "release_impact": "breaking",
+    "compatibility_impact": "additive_or_metadata_only",
+    "release_impact": "additive",
     "added": [
       {
         "kind": "field",
-        "name": "Model.ModelSpecialty",
+        "name": "Thread.AgentNickname",
         "classification": "stable",
-        "signature": "*Nullable[string] `json:\"modelSpecialty,omitempty\"`"
+        "signature": "*Nullable[string] `json:\"agentNickname,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "Thread.AgentRole",
+        "classification": "stable",
+        "signature": "*Nullable[string] `json:\"agentRole,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "Thread.CWD",
+        "classification": "stable",
+        "signature": "string `json:\"cwd\"`"
+      },
+      {
+        "kind": "field",
+        "name": "Thread.CanAcceptDirectInput",
+        "classification": "experimental",
+        "signature": "*Nullable[bool] `json:\"canAcceptDirectInput,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "Thread.CliVersion",
+        "classification": "stable",
+        "signature": "string `json:\"cliVersion\"`"
+      },
+      {
+        "kind": "field",
+        "name": "Thread.CreatedAt",
+        "classification": "stable",
+        "signature": "int64 `json:\"createdAt\"`"
+      },
+      {
+        "kind": "field",
+        "name": "Thread.Ephemeral",
+        "classification": "stable",
+        "signature": "bool `json:\"ephemeral\"`"
+      },
+      {
+        "kind": "field",
+        "name": "Thread.Extra",
+        "classification": "experimental",
+        "signature": "*Nullable[ThreadExtra] `json:\"extra,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "Thread.ForkedFromID",
+        "classification": "stable",
+        "signature": "*Nullable[string] `json:\"forkedFromId,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "Thread.GitInfo",
+        "classification": "stable",
+        "signature": "*Nullable[GitInfo] `json:\"gitInfo,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "Thread.HistoryMode",
+        "classification": "experimental",
+        "signature": "*ThreadHistoryMode `json:\"historyMode,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "Thread.ID",
+        "classification": "stable",
+        "signature": "string `json:\"id\"`"
+      },
+      {
+        "kind": "field",
+        "name": "Thread.ModelProvider",
+        "classification": "stable",
+        "signature": "string `json:\"modelProvider\"`"
+      },
+      {
+        "kind": "field",
+        "name": "Thread.Name",
+        "classification": "stable",
+        "signature": "*Nullable[string] `json:\"name,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "Thread.ParentThreadID",
+        "classification": "stable",
+        "signature": "*Nullable[string] `json:\"parentThreadId,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "Thread.Path",
+        "classification": "stable",
+        "signature": "*Nullable[string] `json:\"path,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "Thread.Preview",
+        "classification": "stable",
+        "signature": "string `json:\"preview\"`"
+      },
+      {
+        "kind": "field",
+        "name": "Thread.RecencyAt",
+        "classification": "stable",
+        "signature": "*Nullable[int64] `json:\"recencyAt,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "Thread.Section",
+        "classification": "stable",
+        "signature": "*Nullable[ThreadSection] `json:\"section,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "Thread.SectionEnteredAt",
+        "classification": "stable",
+        "signature": "*Nullable[int64] `json:\"sectionEnteredAt,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "Thread.SessionID",
+        "classification": "stable",
+        "signature": "string `json:\"sessionId\"`"
+      },
+      {
+        "kind": "field",
+        "name": "Thread.Source",
+        "classification": "stable",
+        "signature": "SessionSource `json:\"source\"`"
+      },
+      {
+        "kind": "field",
+        "name": "Thread.Status",
+        "classification": "stable",
+        "signature": "ThreadStatus `json:\"status\"`"
+      },
+      {
+        "kind": "field",
+        "name": "Thread.ThreadSource",
+        "classification": "stable",
+        "signature": "*Nullable[ThreadSource] `json:\"threadSource,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "Thread.Turns",
+        "classification": "stable",
+        "signature": "[]Turn `json:\"turns\"`"
+      },
+      {
+        "kind": "field",
+        "name": "Thread.UpdatedAt",
+        "classification": "stable",
+        "signature": "int64 `json:\"updatedAt\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadForkResponse.ActivePermissionProfile",
+        "classification": "experimental",
+        "signature": "*Nullable[ActivePermissionProfile] `json:\"activePermissionProfile,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadForkResponse.ApprovalPolicy",
+        "classification": "stable",
+        "signature": "AskForApproval `json:\"approvalPolicy\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadForkResponse.ApprovalsReviewer",
+        "classification": "stable",
+        "signature": "ApprovalsReviewer `json:\"approvalsReviewer\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadForkResponse.CWD",
+        "classification": "stable",
+        "signature": "string `json:\"cwd\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadForkResponse.InstructionSources",
+        "classification": "stable",
+        "signature": "*[]string `json:\"instructionSources,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadForkResponse.Model",
+        "classification": "stable",
+        "signature": "string `json:\"model\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadForkResponse.ModelProvider",
+        "classification": "stable",
+        "signature": "string `json:\"modelProvider\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadForkResponse.MultiAgentMode",
+        "classification": "experimental",
+        "signature": "*MultiAgentMode `json:\"multiAgentMode,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadForkResponse.ReasoningEffort",
+        "classification": "stable",
+        "signature": "*Nullable[ReasoningEffort] `json:\"reasoningEffort,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadForkResponse.RuntimeWorkspaceRoots",
+        "classification": "experimental",
+        "signature": "*[]string `json:\"runtimeWorkspaceRoots,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadForkResponse.Sandbox",
+        "classification": "stable",
+        "signature": "SandboxPolicy `json:\"sandbox\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadForkResponse.ServiceTier",
+        "classification": "stable",
+        "signature": "*Nullable[string] `json:\"serviceTier,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadForkResponse.Thread",
+        "classification": "stable",
+        "signature": "Thread `json:\"thread\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadListResponse.BackwardsCursor",
+        "classification": "stable",
+        "signature": "*Nullable[string] `json:\"backwardsCursor,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadListResponse.Data",
+        "classification": "stable",
+        "signature": "[]Thread `json:\"data\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadListResponse.NextCursor",
+        "classification": "stable",
+        "signature": "*Nullable[string] `json:\"nextCursor,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadMetadataUpdateResponse.Thread",
+        "classification": "stable",
+        "signature": "Thread `json:\"thread\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadReadResponse.Thread",
+        "classification": "stable",
+        "signature": "Thread `json:\"thread\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadResumeResponse.ActivePermissionProfile",
+        "classification": "experimental",
+        "signature": "*Nullable[ActivePermissionProfile] `json:\"activePermissionProfile,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadResumeResponse.ApprovalPolicy",
+        "classification": "stable",
+        "signature": "AskForApproval `json:\"approvalPolicy\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadResumeResponse.ApprovalsReviewer",
+        "classification": "stable",
+        "signature": "ApprovalsReviewer `json:\"approvalsReviewer\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadResumeResponse.CWD",
+        "classification": "stable",
+        "signature": "string `json:\"cwd\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadResumeResponse.InitialTurnsPage",
+        "classification": "experimental",
+        "signature": "*Nullable[TurnsPage] `json:\"initialTurnsPage,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadResumeResponse.InstructionSources",
+        "classification": "stable",
+        "signature": "*[]string `json:\"instructionSources,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadResumeResponse.ItemsBackwardsCursor",
+        "classification": "experimental",
+        "signature": "*Nullable[string] `json:\"itemsBackwardsCursor,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadResumeResponse.Model",
+        "classification": "stable",
+        "signature": "string `json:\"model\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadResumeResponse.ModelProvider",
+        "classification": "stable",
+        "signature": "string `json:\"modelProvider\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadResumeResponse.MultiAgentMode",
+        "classification": "experimental",
+        "signature": "*MultiAgentMode `json:\"multiAgentMode,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadResumeResponse.ReasoningEffort",
+        "classification": "stable",
+        "signature": "*Nullable[ReasoningEffort] `json:\"reasoningEffort,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadResumeResponse.RuntimeWorkspaceRoots",
+        "classification": "experimental",
+        "signature": "*[]string `json:\"runtimeWorkspaceRoots,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadResumeResponse.Sandbox",
+        "classification": "stable",
+        "signature": "SandboxPolicy `json:\"sandbox\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadResumeResponse.ServiceTier",
+        "classification": "stable",
+        "signature": "*Nullable[string] `json:\"serviceTier,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadResumeResponse.Thread",
+        "classification": "stable",
+        "signature": "Thread `json:\"thread\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadResumeResponse.TurnsBackwardsCursor",
+        "classification": "experimental",
+        "signature": "*Nullable[string] `json:\"turnsBackwardsCursor,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadRollbackResponse.Thread",
+        "classification": "stable",
+        "signature": "Thread `json:\"thread\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadSection.ID",
+        "classification": "stable",
+        "signature": "string `json:\"id\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadSection.Name",
+        "classification": "stable",
+        "signature": "string `json:\"name\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadSectionCreateResponse.Section",
+        "classification": "stable",
+        "signature": "ThreadSection `json:\"section\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadSectionListResponse.Data",
+        "classification": "stable",
+        "signature": "[]ThreadSection `json:\"data\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadSectionListResponse.NextCursor",
+        "classification": "stable",
+        "signature": "*Nullable[string] `json:\"nextCursor,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadSectionUpdateResponse.Section",
+        "classification": "stable",
+        "signature": "ThreadSection `json:\"section\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadStartResponse.ActivePermissionProfile",
+        "classification": "experimental",
+        "signature": "*Nullable[ActivePermissionProfile] `json:\"activePermissionProfile,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadStartResponse.ApprovalPolicy",
+        "classification": "stable",
+        "signature": "AskForApproval `json:\"approvalPolicy\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadStartResponse.ApprovalsReviewer",
+        "classification": "stable",
+        "signature": "ApprovalsReviewer `json:\"approvalsReviewer\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadStartResponse.CWD",
+        "classification": "stable",
+        "signature": "string `json:\"cwd\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadStartResponse.InstructionSources",
+        "classification": "stable",
+        "signature": "*[]string `json:\"instructionSources,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadStartResponse.Model",
+        "classification": "stable",
+        "signature": "string `json:\"model\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadStartResponse.ModelProvider",
+        "classification": "stable",
+        "signature": "string `json:\"modelProvider\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadStartResponse.MultiAgentMode",
+        "classification": "experimental",
+        "signature": "*MultiAgentMode `json:\"multiAgentMode,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadStartResponse.ReasoningEffort",
+        "classification": "stable",
+        "signature": "*Nullable[ReasoningEffort] `json:\"reasoningEffort,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadStartResponse.RuntimeWorkspaceRoots",
+        "classification": "experimental",
+        "signature": "*[]string `json:\"runtimeWorkspaceRoots,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadStartResponse.Sandbox",
+        "classification": "stable",
+        "signature": "SandboxPolicy `json:\"sandbox\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadStartResponse.ServiceTier",
+        "classification": "stable",
+        "signature": "*Nullable[string] `json:\"serviceTier,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadStartResponse.Thread",
+        "classification": "stable",
+        "signature": "Thread `json:\"thread\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadStartedNotification.Thread",
+        "classification": "stable",
+        "signature": "Thread `json:\"thread\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadUnarchiveResponse.Thread",
+        "classification": "stable",
+        "signature": "Thread `json:\"thread\"`"
+      },
+      {
+        "kind": "method",
+        "name": "Thread.MarshalJSON",
+        "classification": "stable",
+        "signature": "func() ([]byte, error)"
+      },
+      {
+        "kind": "method",
+        "name": "Thread.UnmarshalJSON",
+        "classification": "stable",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "ThreadForkResponse.UnmarshalJSON",
+        "classification": "stable",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "ThreadListResponse.MarshalJSON",
+        "classification": "stable",
+        "signature": "func() ([]byte, error)"
+      },
+      {
+        "kind": "method",
+        "name": "ThreadListResponse.UnmarshalJSON",
+        "classification": "stable",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "ThreadMetadataUpdateResponse.UnmarshalJSON",
+        "classification": "stable",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "ThreadReadResponse.UnmarshalJSON",
+        "classification": "stable",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "ThreadResumeResponse.UnmarshalJSON",
+        "classification": "stable",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "ThreadRollbackResponse.UnmarshalJSON",
+        "classification": "stable",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "ThreadSection.UnmarshalJSON",
+        "classification": "stable",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "ThreadSectionCreateResponse.UnmarshalJSON",
+        "classification": "stable",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "ThreadSectionListResponse.MarshalJSON",
+        "classification": "stable",
+        "signature": "func() ([]byte, error)"
+      },
+      {
+        "kind": "method",
+        "name": "ThreadSectionListResponse.UnmarshalJSON",
+        "classification": "stable",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "ThreadSectionUpdateResponse.UnmarshalJSON",
+        "classification": "stable",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "ThreadStartResponse.UnmarshalJSON",
+        "classification": "stable",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "ThreadStartedNotification.UnmarshalJSON",
+        "classification": "stable",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "ThreadUnarchiveResponse.UnmarshalJSON",
+        "classification": "stable",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "type",
+        "name": "Thread",
+        "classification": "mixed",
+        "signature": "struct {\n\tAgentNickname        *Nullable[string]        `json:\"agentNickname,omitempty\"`\n\tAgentRole            *Nullable[string]        `json:\"agentRole,omitempty\"`\n\tCanAcceptDirectInput *Nullable[bool]          `json:\"canAcceptDirectInput,omitempty\"`\n\tCliVersion           string                   `json:\"cliVersion\"`\n\tCreatedAt            int64                    `json:\"createdAt\"`\n\tCWD                  string                   `json:\"cwd\"`\n\tEphemeral            bool                     `json:\"ephemeral\"`\n\tExtra                *Nullable[ThreadExtra]   `json:\"extra,omitempty\"`\n\tForkedFromID         *Nullable[string]        `json:\"forkedFromId,omitempty\"`\n\tGitInfo              *Nullable[GitInfo]       `json:\"gitInfo,omitempty\"`\n\tHistoryMode          *ThreadHistoryMode       `json:\"historyMode,omitempty\"`\n\tID                   string                   `json:\"id\"`\n\tModelProvider        string                   `json:\"modelProvider\"`\n\tName                 *Nullable[string]        `json:\"name,omitempty\"`\n\tParentThreadID       *Nullable[string]        `json:\"parentThreadId,omitempty\"`\n\tPath                 *Nullable[string]        `json:\"path,omitempty\"`\n\tPreview              string                   `json:\"preview\"`\n\tRecencyAt            *Nullable[int64]         `json:\"recencyAt,omitempty\"`\n\tSection              *Nullable[ThreadSection] `json:\"section,omitempty\"`\n\tSectionEnteredAt     *Nullable[int64]         `json:\"sectionEnteredAt,omitempty\"`\n\tSessionID            string                   `json:\"sessionId\"`\n\tSource               SessionSource            `json:\"source\"`\n\tStatus               ThreadStatus             `json:\"status\"`\n\tThreadSource         *Nullable[ThreadSource]  `json:\"threadSource,omitempty\"`\n\tTurns                []Turn                   `json:\"turns\"`\n\tUpdatedAt            int64                    `json:\"updatedAt\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ThreadForkResponse",
+        "classification": "mixed",
+        "signature": "struct {\n\tActivePermissionProfile *Nullable[ActivePermissionProfile] `json:\"activePermissionProfile,omitempty\"`\n\tApprovalPolicy          AskForApproval                     `json:\"approvalPolicy\"`\n\tApprovalsReviewer       ApprovalsReviewer                  `json:\"approvalsReviewer\"`\n\tCWD                     string                             `json:\"cwd\"`\n\tInstructionSources      *[]string                          `json:\"instructionSources,omitempty\"`\n\tModel                   string                             `json:\"model\"`\n\tModelProvider           string                             `json:\"modelProvider\"`\n\tMultiAgentMode          *MultiAgentMode                    `json:\"multiAgentMode,omitempty\"`\n\tReasoningEffort         *Nullable[ReasoningEffort]         `json:\"reasoningEffort,omitempty\"`\n\tRuntimeWorkspaceRoots   *[]string                          `json:\"runtimeWorkspaceRoots,omitempty\"`\n\tSandbox                 SandboxPolicy                      `json:\"sandbox\"`\n\tServiceTier             *Nullable[string]                  `json:\"serviceTier,omitempty\"`\n\tThread                  Thread                             `json:\"thread\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ThreadListResponse",
+        "classification": "stable",
+        "signature": "struct {\n\tBackwardsCursor *Nullable[string] `json:\"backwardsCursor,omitempty\"`\n\tData            []Thread          `json:\"data\"`\n\tNextCursor      *Nullable[string] `json:\"nextCursor,omitempty\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ThreadMetadataUpdateResponse",
+        "classification": "stable",
+        "signature": "struct {\n\tThread Thread `json:\"thread\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ThreadReadResponse",
+        "classification": "stable",
+        "signature": "struct {\n\tThread Thread `json:\"thread\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ThreadResumeResponse",
+        "classification": "mixed",
+        "signature": "struct {\n\tActivePermissionProfile *Nullable[ActivePermissionProfile] `json:\"activePermissionProfile,omitempty\"`\n\tApprovalPolicy          AskForApproval                     `json:\"approvalPolicy\"`\n\tApprovalsReviewer       ApprovalsReviewer                  `json:\"approvalsReviewer\"`\n\tCWD                     string                             `json:\"cwd\"`\n\tInitialTurnsPage        *Nullable[TurnsPage]               `json:\"initialTurnsPage,omitempty\"`\n\tInstructionSources      *[]string                          `json:\"instructionSources,omitempty\"`\n\tItemsBackwardsCursor    *Nullable[string]                  `json:\"itemsBackwardsCursor,omitempty\"`\n\tModel                   string                             `json:\"model\"`\n\tModelProvider           string                             `json:\"modelProvider\"`\n\tMultiAgentMode          *MultiAgentMode                    `json:\"multiAgentMode,omitempty\"`\n\tReasoningEffort         *Nullable[ReasoningEffort]         `json:\"reasoningEffort,omitempty\"`\n\tRuntimeWorkspaceRoots   *[]string                          `json:\"runtimeWorkspaceRoots,omitempty\"`\n\tSandbox                 SandboxPolicy                      `json:\"sandbox\"`\n\tServiceTier             *Nullable[string]                  `json:\"serviceTier,omitempty\"`\n\tThread                  Thread                             `json:\"thread\"`\n\tTurnsBackwardsCursor    *Nullable[string]                  `json:\"turnsBackwardsCursor,omitempty\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ThreadRollbackResponse",
+        "classification": "stable",
+        "signature": "struct {\n\tThread Thread `json:\"thread\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ThreadSection",
+        "classification": "stable",
+        "signature": "struct {\n\tID   string `json:\"id\"`\n\tName string `json:\"name\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ThreadSectionCreateResponse",
+        "classification": "stable",
+        "signature": "struct {\n\tSection ThreadSection `json:\"section\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ThreadSectionListResponse",
+        "classification": "stable",
+        "signature": "struct {\n\tData       []ThreadSection   `json:\"data\"`\n\tNextCursor *Nullable[string] `json:\"nextCursor,omitempty\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ThreadSectionUpdateResponse",
+        "classification": "stable",
+        "signature": "struct {\n\tSection ThreadSection `json:\"section\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ThreadStartResponse",
+        "classification": "mixed",
+        "signature": "struct {\n\tActivePermissionProfile *Nullable[ActivePermissionProfile] `json:\"activePermissionProfile,omitempty\"`\n\tApprovalPolicy          AskForApproval                     `json:\"approvalPolicy\"`\n\tApprovalsReviewer       ApprovalsReviewer                  `json:\"approvalsReviewer\"`\n\tCWD                     string                             `json:\"cwd\"`\n\tInstructionSources      *[]string                          `json:\"instructionSources,omitempty\"`\n\tModel                   string                             `json:\"model\"`\n\tModelProvider           string                             `json:\"modelProvider\"`\n\tMultiAgentMode          *MultiAgentMode                    `json:\"multiAgentMode,omitempty\"`\n\tReasoningEffort         *Nullable[ReasoningEffort]         `json:\"reasoningEffort,omitempty\"`\n\tRuntimeWorkspaceRoots   *[]string                          `json:\"runtimeWorkspaceRoots,omitempty\"`\n\tSandbox                 SandboxPolicy                      `json:\"sandbox\"`\n\tServiceTier             *Nullable[string]                  `json:\"serviceTier,omitempty\"`\n\tThread                  Thread                             `json:\"thread\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ThreadStartedNotification",
+        "classification": "stable",
+        "signature": "struct {\n\tThread Thread `json:\"thread\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ThreadUnarchiveResponse",
+        "classification": "stable",
+        "signature": "struct {\n\tThread Thread `json:\"thread\"`\n}"
       }
     ],
     "removed": [],
     "reclassified": [],
-    "changed": [
-      {
-        "kind": "type",
-        "name": "Model",
-        "classification": "stable",
-        "from_signature": "struct {\n\tAdditionalSpeedTiers      *[]string                       `json:\"additionalSpeedTiers,omitempty\"`\n\tAvailabilityNux           *Nullable[ModelAvailabilityNux] `json:\"availabilityNux,omitempty\"`\n\tDefaultReasoningEffort    ReasoningEffort                 `json:\"defaultReasoningEffort\"`\n\tDefaultServiceTier        *Nullable[string]               `json:\"defaultServiceTier,omitempty\"`\n\tDescription               string                          `json:\"description\"`\n\tDisplayName               string                          `json:\"displayName\"`\n\tHidden                    bool                            `json:\"hidden\"`\n\tID                        string                          `json:\"id\"`\n\tInputModalities           *[]InputModality                `json:\"inputModalities,omitempty\"`\n\tIsDefault                 bool                            `json:\"isDefault\"`\n\tModel                     string                          `json:\"model\"`\n\tServiceTiers              *[]ModelServiceTier             `json:\"serviceTiers,omitempty\"`\n\tSupportedReasoningEfforts []ReasoningEffortOption         `json:\"supportedReasoningEfforts\"`\n\tSupportsPersonality       *bool                           `json:\"supportsPersonality,omitempty\"`\n\tUpgrade                   *Nullable[string]               `json:\"upgrade,omitempty\"`\n\tUpgradeInfo               *Nullable[ModelUpgradeInfo]     `json:\"upgradeInfo,omitempty\"`\n}",
-        "to_signature": "struct {\n\tAdditionalSpeedTiers      *[]string                       `json:\"additionalSpeedTiers,omitempty\"`\n\tAvailabilityNux           *Nullable[ModelAvailabilityNux] `json:\"availabilityNux,omitempty\"`\n\tDefaultReasoningEffort    ReasoningEffort                 `json:\"defaultReasoningEffort\"`\n\tDefaultServiceTier        *Nullable[string]               `json:\"defaultServiceTier,omitempty\"`\n\tDescription               string                          `json:\"description\"`\n\tDisplayName               string                          `json:\"displayName\"`\n\tHidden                    bool                            `json:\"hidden\"`\n\tID                        string                          `json:\"id\"`\n\tInputModalities           *[]InputModality                `json:\"inputModalities,omitempty\"`\n\tIsDefault                 bool                            `json:\"isDefault\"`\n\tModel                     string                          `json:\"model\"`\n\tModelSpecialty            *Nullable[string]               `json:\"modelSpecialty,omitempty\"`\n\tServiceTiers              *[]ModelServiceTier             `json:\"serviceTiers,omitempty\"`\n\tSupportedReasoningEfforts []ReasoningEffortOption         `json:\"supportedReasoningEfforts\"`\n\tSupportsPersonality       *bool                           `json:\"supportsPersonality,omitempty\"`\n\tUpgrade                   *Nullable[string]               `json:\"upgrade,omitempty\"`\n\tUpgradeInfo               *Nullable[ModelUpgradeInfo]     `json:\"upgradeInfo,omitempty\"`\n}"
-      }
-    ],
+    "changed": [],
     "external_implementation_obligations": [],
     "weakened_support": [],
     "strengthened_support": [],
     "counts_by_classification": {
       "stable": {
-        "added": 1,
+        "added": 94,
         "removed": 0,
-        "changed": 1,
+        "changed": 0,
         "reclassified_from": 0,
         "reclassified_to": 0
       },
       "experimental": {
-        "added": 0,
+        "added": 15,
         "removed": 0,
         "changed": 0,
         "reclassified_from": 0,
         "reclassified_to": 0
       },
       "mixed": {
-        "added": 0,
+        "added": 4,
         "removed": 0,
         "changed": 0,
         "reclassified_from": 0,

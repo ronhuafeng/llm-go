@@ -152,6 +152,7 @@ const (
 	MethodPluginInstalled                         = "plugin/installed"
 	MethodPluginList                              = "plugin/list"
 	MethodPluginRead                              = "plugin/read"
+	MethodPluginSearch                            = "plugin/search"
 	MethodPluginShareCheckout                     = "plugin/share/checkout"
 	MethodPluginShareDelete                       = "plugin/share/delete"
 	MethodPluginShareList                         = "plugin/share/list"
@@ -227,6 +228,7 @@ const (
 	MethodThreadRollback                          = "thread/rollback"
 	MethodThreadSearch                            = "thread/search"
 	MethodThreadSearchOccurrences                 = "thread/searchOccurrences"
+	MethodThreadSectionMove                       = "thread/section/move"
 	MethodThreadSettingsUpdate                    = "thread/settings/update"
 	MethodThreadSettingsUpdated                   = "thread/settings/updated"
 	MethodThreadShellCommand                      = "thread/shellCommand"
@@ -238,6 +240,10 @@ const (
 	MethodThreadUnarchive                         = "thread/unarchive"
 	MethodThreadUnarchived                        = "thread/unarchived"
 	MethodThreadUnsubscribe                       = "thread/unsubscribe"
+	MethodThreadSectionCreate                     = "threadSection/create"
+	MethodThreadSectionDelete                     = "threadSection/delete"
+	MethodThreadSectionList                       = "threadSection/list"
+	MethodThreadSectionUpdate                     = "threadSection/update"
 	MethodTurnCompleted                           = "turn/completed"
 	MethodTurnDiffUpdated                         = "turn/diff/updated"
 	MethodTurnInterrupt                           = "turn/interrupt"
@@ -1464,6 +1470,17 @@ var methodRegistry = map[string]MethodInfo{
 		FacadeTarget:          "Plugins().Read",
 		Stability:             MethodStabilityStable,
 	},
+	MethodPluginSearch: {
+		Method:                MethodPluginSearch,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "plugin",
+		ParamsOrPayloadSchema: "PluginSearchParams",
+		ResponseSchema:        "v2/PluginSearchResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Plugins().Search",
+		Stability:             MethodStabilityExperimental,
+	},
 	MethodPluginShareCheckout: {
 		Method:                MethodPluginShareCheckout,
 		Direction:             MethodDirectionClientToServer,
@@ -2289,6 +2306,17 @@ var methodRegistry = map[string]MethodInfo{
 		FacadeTarget:          "Threads().SearchOccurrences",
 		Stability:             MethodStabilityExperimental,
 	},
+	MethodThreadSectionMove: {
+		Method:                MethodThreadSectionMove,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadSectionMoveParams",
+		ResponseSchema:        "v2/ThreadSectionMoveResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Threads().SectionMove",
+		Stability:             MethodStabilityStable,
+	},
 	MethodThreadSettingsUpdate: {
 		Method:                MethodThreadSettingsUpdate,
 		Direction:             MethodDirectionClientToServer,
@@ -2408,6 +2436,50 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchema:        "v2/ThreadUnsubscribeResponse.json",
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "Threads().Unsubscribe",
+		Stability:             MethodStabilityStable,
+	},
+	MethodThreadSectionCreate: {
+		Method:                MethodThreadSectionCreate,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "threadSection",
+		ParamsOrPayloadSchema: "ThreadSectionCreateParams",
+		ResponseSchema:        "v2/ThreadSectionCreateResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "ThreadSection().Create",
+		Stability:             MethodStabilityStable,
+	},
+	MethodThreadSectionDelete: {
+		Method:                MethodThreadSectionDelete,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "threadSection",
+		ParamsOrPayloadSchema: "ThreadSectionDeleteParams",
+		ResponseSchema:        "v2/ThreadSectionDeleteResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "ThreadSection().Delete",
+		Stability:             MethodStabilityStable,
+	},
+	MethodThreadSectionList: {
+		Method:                MethodThreadSectionList,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "threadSection",
+		ParamsOrPayloadSchema: "ThreadSectionListParams",
+		ResponseSchema:        "v2/ThreadSectionListResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "ThreadSection().List",
+		Stability:             MethodStabilityStable,
+	},
+	MethodThreadSectionUpdate: {
+		Method:                MethodThreadSectionUpdate,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "threadSection",
+		ParamsOrPayloadSchema: "ThreadSectionUpdateParams",
+		ResponseSchema:        "v2/ThreadSectionUpdateResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "ThreadSection().Update",
 		Stability:             MethodStabilityStable,
 	},
 	MethodTurnCompleted: {

@@ -233,6 +233,15 @@ func (c *Client) Skills() Skills {
 	return Skills{client: c}
 }
 
+// ThreadSection is an opaque generated facade for exact Codex operations.
+type ThreadSection struct {
+	client *Client
+}
+
+func (c *Client) ThreadSection() ThreadSection {
+	return ThreadSection{client: c}
+}
+
 // Threads is an opaque generated facade for exact Codex operations.
 type Threads struct {
 	client *Client
@@ -732,6 +741,14 @@ func (f Plugins) Read(ctx context.Context, params protocolv2.PluginReadParams) (
 	return response, nil
 }
 
+func (f Plugins) Search(ctx context.Context, params protocolv2.PluginSearchParams) (protocolv2.PluginSearchResponse, error) {
+	var response protocolv2.PluginSearchResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodPluginSearch, params, &response); err != nil {
+		return protocolv2.PluginSearchResponse{}, err
+	}
+	return response, nil
+}
+
 func (f Plugins) ShareCheckout(ctx context.Context, params protocolv2.PluginShareCheckoutParams) (protocolv2.PluginShareCheckoutResponse, error) {
 	var response protocolv2.PluginShareCheckoutResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodPluginShareCheckout, params, &response); err != nil {
@@ -896,6 +913,38 @@ func (f Skills) List(ctx context.Context, params protocolv2.SkillsListParams) (p
 	var response protocolv2.SkillsListResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodSkillsList, params, &response); err != nil {
 		return protocolv2.SkillsListResponse{}, err
+	}
+	return response, nil
+}
+
+func (f ThreadSection) Create(ctx context.Context, params protocolv2.ThreadSectionCreateParams) (protocolv2.ThreadSectionCreateResponse, error) {
+	var response protocolv2.ThreadSectionCreateResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadSectionCreate, params, &response); err != nil {
+		return protocolv2.ThreadSectionCreateResponse{}, err
+	}
+	return response, nil
+}
+
+func (f ThreadSection) Delete(ctx context.Context, params protocolv2.ThreadSectionDeleteParams) (protocolv2.ThreadSectionDeleteResponse, error) {
+	var response protocolv2.ThreadSectionDeleteResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadSectionDelete, params, &response); err != nil {
+		return protocolv2.ThreadSectionDeleteResponse{}, err
+	}
+	return response, nil
+}
+
+func (f ThreadSection) List(ctx context.Context, params protocolv2.ThreadSectionListParams) (protocolv2.ThreadSectionListResponse, error) {
+	var response protocolv2.ThreadSectionListResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadSectionList, params, &response); err != nil {
+		return protocolv2.ThreadSectionListResponse{}, err
+	}
+	return response, nil
+}
+
+func (f ThreadSection) Update(ctx context.Context, params protocolv2.ThreadSectionUpdateParams) (protocolv2.ThreadSectionUpdateResponse, error) {
+	var response protocolv2.ThreadSectionUpdateResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadSectionUpdate, params, &response); err != nil {
+		return protocolv2.ThreadSectionUpdateResponse{}, err
 	}
 	return response, nil
 }
@@ -1128,6 +1177,14 @@ func (f Threads) SearchOccurrences(ctx context.Context, params protocolv2.Thread
 	var response protocolv2.ThreadSearchOccurrencesResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadSearchOccurrences, params, &response); err != nil {
 		return protocolv2.ThreadSearchOccurrencesResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Threads) SectionMove(ctx context.Context, params protocolv2.ThreadSectionMoveParams) (protocolv2.ThreadSectionMoveResponse, error) {
+	var response protocolv2.ThreadSectionMoveResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadSectionMove, params, &response); err != nil {
+		return protocolv2.ThreadSectionMoveResponse{}, err
 	}
 	return response, nil
 }

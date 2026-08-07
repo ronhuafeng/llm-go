@@ -1302,7 +1302,8 @@ func isJSONValueFieldPath(path string) bool {
 
 func isJSONValueMapPath(path string) bool {
 	switch path {
-	case "v2/ConfigReadResponse.json#/definitions/Config/properties/desktop",
+	case "v1/InitializeParams.json#/definitions/InitializeCapabilities/properties/extensions",
+		"v2/ConfigReadResponse.json#/definitions/Config/properties/desktop",
 		"v2/ThreadForkParams.json#/properties/config",
 		"v2/ThreadResumeParams.json#/properties/config",
 		"v2/ThreadStartParams.json#/properties/config":

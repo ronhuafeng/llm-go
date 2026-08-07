@@ -81,6 +81,7 @@ func TestBuildProtocolTypePlanAppliesReviewedOverlays(t *testing.T) {
 	}
 
 	for _, path := range []string{
+		"v1/InitializeParams.json#/definitions/InitializeCapabilities/properties/extensions",
 		"v2/ThreadForkParams.json#/properties/config",
 		"v2/ThreadResumeParams.json#/properties/config",
 		"v2/ThreadStartParams.json#/properties/config",
