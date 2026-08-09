@@ -66,6 +66,11 @@ Root GitHub workflows own scheduling and platform permissions for upstream
 protocol sync. They invoke these module-owned commands; they do not reproduce
 schema or generation policy.
 
+Automatic protocol finalization treats a remote annotated
+`upstream-codex-rust-vX.Y.Z` tag peeled to the current landed commit as its
+completion marker and does not dispatch drift verification again. Explicit
+finalize inputs bypass that sweep filter for operator-directed recovery.
+
 ## Preflight and publication
 
 Pull-request verification runs the module independently with `GOWORK=off` on
