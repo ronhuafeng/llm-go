@@ -135,6 +135,19 @@ jobs:
             exit 0
           fi
 
+          git ls-remote --tags origin 'refs/tags/upstream-codex-*^{}' |
+            jq -Rn '
+              [
+                inputs
+                | split("\t")
+                | {
+                    key: (.[1] | sub("^refs/tags/"; "") | sub("\\^\\{\\}$"; "")),
+                    value: .[0]
+                  }
+              ]
+              | from_entries
+            ' > /tmp/codexsdk-finalized-tags.json
+
           if [[ "${EVENT_NAME}" == "pull_request" ]]; then
             default_head="$(gh api "repos/${GITHUB_REPOSITORY}/branches/${DEFAULT_BRANCH}" --jq '.commit.sha')"
             printf '[]\n' > /tmp/codexsdk-active-finalize-runs.json
@@ -146,6 +159,7 @@ jobs:
               --active-runs-json /tmp/codexsdk-active-finalize-runs.json \
               --default-branch "${DEFAULT_BRANCH}" \
               --default-head "${default_head}" \
+              --finalized-tags-json /tmp/codexsdk-finalized-tags.json \
               --merged-prs-json /tmp/codexsdk-merged-prs.json
             exit 0
           fi
@@ -162,6 +176,7 @@ jobs:
             --active-runs-json /tmp/codexsdk-active-finalize-runs.json \
             --default-branch "${DEFAULT_BRANCH}" \
             --default-head "${default_head}" \
+            --finalized-tags-json /tmp/codexsdk-finalized-tags.json \
             --merged-prs-json /tmp/codexsdk-merged-prs.json
 
       - name: Resolve finalize metadata

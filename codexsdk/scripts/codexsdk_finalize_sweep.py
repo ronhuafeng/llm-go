@@ -11,6 +11,9 @@ from pathlib import Path
 from typing import Any
 
 
+SYNC_TAG_PREFIX = "upstream-codex"
+
+
 def metadata_from_body(body: str) -> dict[str, str]:
     match = re.search(r"<!--\s*codexsdk-upstream-sync\s*(.*?)-->", body or "", re.S)
     if match is None:
@@ -52,6 +55,7 @@ def select_candidate(
     active_runs: list[dict[str, Any]],
     default_branch: str,
     default_head: str,
+    finalized_tags: dict[str, str],
     prs: list[dict[str, Any]],
 ) -> tuple[dict[str, str], list[str]]:
     skipped: list[str] = []
@@ -71,6 +75,12 @@ def select_candidate(
         merge_commit = (pr.get("mergeCommit") or {}).get("oid", "")
         if merge_commit != default_head:
             skipped.append(f"PR #{number}: merge commit is not current {default_branch} head")
+            continue
+        tag_name = ""
+        if metadata.get("upstream_ref_kind") == "stable_rust_tag":
+            tag_name = f"{SYNC_TAG_PREFIX}-{metadata.get('upstream_ref', '')}"
+        if tag_name and finalized_tags.get(tag_name) == merge_commit:
+            skipped.append(f"PR #{number}: {tag_name} already points at the merge commit")
             continue
         candidates.append((pr, metadata))
 
@@ -114,6 +124,7 @@ def main() -> int:
     parser.add_argument("--active-runs-json", type=Path)
     parser.add_argument("--default-branch", required=True)
     parser.add_argument("--default-head")
+    parser.add_argument("--finalized-tags-json", type=Path)
     parser.add_argument("--github-output", default=os.environ.get("GITHUB_OUTPUT", ""))
     parser.add_argument("--input-drift-sha", default="")
     parser.add_argument("--input-landed-commit", default="")
@@ -148,16 +159,26 @@ def main() -> int:
         print(json.dumps({"result": result}, indent=2, sort_keys=True))
         return 0
 
-    if args.active_runs_json is None or args.default_head is None or args.merged_prs_json is None:
-        parser.error("--active-runs-json, --default-head, and --merged-prs-json are required unless --sync-pr-json is used")
+    if (
+        args.active_runs_json is None
+        or args.default_head is None
+        or args.finalized_tags_json is None
+        or args.merged_prs_json is None
+    ):
+        parser.error(
+            "--active-runs-json, --default-head, --finalized-tags-json, and "
+            "--merged-prs-json are required unless --sync-pr-json is used"
+        )
 
     active_runs = read_json(args.active_runs_json)
+    finalized_tags = read_json(args.finalized_tags_json)
     prs = read_json(args.merged_prs_json)
 
     result, skipped = select_candidate(
         active_runs=active_runs,
         default_branch=args.default_branch,
         default_head=args.default_head,
+        finalized_tags=finalized_tags,
         prs=prs,
     )
     write_outputs(args.github_output, result)
