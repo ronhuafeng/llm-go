@@ -70,6 +70,8 @@ Automatic protocol finalization treats a remote annotated
 `upstream-codex-rust-vX.Y.Z` tag peeled to the current landed commit as its
 completion marker and does not dispatch drift verification again. Explicit
 finalize inputs bypass that sweep filter for operator-directed recovery.
+Merged sync PRs trigger finalization immediately; one daily scheduled sweep
+provides best-effort recovery without continuously creating empty Action runs.
 
 ## Preflight and publication
 
