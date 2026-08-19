@@ -199,6 +199,45 @@ func TestArrayPlannerSupportsOnlyReviewedNullableJSONValueArrays(t *testing.T) {
 	}
 }
 
+func TestObjectPlannerSupportsReviewedDynamicHookInput(t *testing.T) {
+	const path = "v2/ConfigRequirementsReadResponse.json#/definitions/ConfiguredHookHandler#/oneOf/1/properties/input"
+	coverage := CoverageField{
+		Field:     "input",
+		Path:      path,
+		Required:  true,
+		Schema:    "v2/ConfigRequirementsReadResponse.json",
+		Stability: "stable",
+		Status:    "supported-generated",
+		Type:      "ConfiguredHookHandler",
+	}
+
+	field, err := planField(coverage, mustParseSchema(t, `{
+		"type": "object",
+		"additionalProperties": true
+	}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if field.Kind != FieldPlanJSONValueMap || field.GoType != "map[string]protocolv2.JSONValue" {
+		t.Fatalf("dynamic hook input field = %#v", field)
+	}
+	if field.WireAllowsNull || field.WireOmitAllowed {
+		t.Fatal("required dynamic hook input must preserve a non-null object contract")
+	}
+
+	_, err = planField(coverage, mustParseSchema(t, `{
+		"type": "object",
+		"properties": {"command": {"type": "string"}},
+		"additionalProperties": true
+	}`))
+	if err == nil {
+		t.Fatal("planField accepted drifted dynamic hook input with named properties")
+	}
+	if !strings.Contains(err.Error(), path) {
+		t.Fatalf("error %q does not identify %s", err, path)
+	}
+}
+
 func TestBuildProtocolTypePlanSupportsConstrainedIntegerScalars(t *testing.T) {
 	plan, err := BuildProtocolTypePlan(schemaRoot())
 	if err != nil {
@@ -725,6 +764,83 @@ func TestProtocolTypePlanFailsClosedForRequestIdScalarUnionDrift(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), "RequestId.json") {
 				t.Fatalf("error %q does not include RequestId.json", err)
+			}
+		})
+	}
+}
+
+func TestProtocolTypePlanSupportsReviewedNullableParamsWrapper(t *testing.T) {
+	const schemaPath = "v2/NullableGetAccountTokenUsageParams.json"
+	cases := map[string]struct {
+		variants string
+		wantErr  bool
+	}{
+		"ref or null": {
+			variants: `[
+				{"$ref": "#/definitions/GetAccountTokenUsageParams"},
+				{"type": "null"}
+			]`,
+		},
+		"ref or string": {
+			variants: `[
+				{"$ref": "#/definitions/GetAccountTokenUsageParams"},
+				{"type": "string"}
+			]`,
+			wantErr: true,
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			if err := os.MkdirAll(filepath.Join(root, "v2"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			coverage := `{
+				"status": "classified-manifest",
+				"types": [{
+					"schema": "v2/NullableGetAccountTokenUsageParams.json",
+					"stability": "stable",
+					"status": "deferred",
+					"type": "NullableGetAccountTokenUsageParams"
+				}],
+				"fields": []
+			}`
+			if err := os.WriteFile(filepath.Join(root, "coverage_matrix.json"), []byte(coverage), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			schema := `{
+				"title": "Nullable_GetAccountTokenUsageParams",
+				"anyOf": ` + tc.variants + `,
+				"definitions": {
+					"GetAccountTokenUsageParams": {
+						"type": "object",
+						"properties": {
+							"threadId": {"type": ["string", "null"]}
+						}
+					}
+				}
+			}`
+			if err := os.WriteFile(filepath.Join(root, schemaPath), []byte(schema), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			plan, err := BuildProtocolTypePlan(root)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("BuildProtocolTypePlan accepted a reviewed nullable params wrapper without a null branch")
+				}
+				if !strings.Contains(err.Error(), schemaPath) {
+					t.Fatalf("error %q does not identify %s", err, schemaPath)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			typ, ok := plan.TypeBySchema(schemaPath)
+			if !ok || typ.Kind != TypePlanAnyOfDeferred {
+				t.Fatalf("nullable params wrapper kind = %s, ok=%v; want %s", typ.Kind, ok, TypePlanAnyOfDeferred)
 			}
 		})
 	}

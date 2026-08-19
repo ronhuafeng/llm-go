@@ -250,8 +250,6 @@ func classifyGeneratedDefinition(schema *Schema) generatedDefinitionKind {
 	switch {
 	case schema == nil:
 		return generatedDefinitionUnsupported
-	case isObjectStructDefinitionSchema(schema):
-		return generatedDefinitionStruct
 	case isScalarAliasDefinitionSchema(schema):
 		return generatedDefinitionScalarAlias
 	case isScalarUnionDefinitionSchema(schema):
@@ -260,6 +258,8 @@ func classifyGeneratedDefinition(schema *Schema) generatedDefinitionKind {
 		return generatedDefinitionStringEnum
 	case isTaggedUnionDefinitionSchema(schema):
 		return generatedDefinitionTaggedUnion
+	case isObjectStructDefinitionSchema(schema):
+		return generatedDefinitionStruct
 	case isMixedUnionDefinitionSchema(schema):
 		return generatedDefinitionMixedUnion
 	case isUntaggedObjectUnionDefinitionSchema(schema):
@@ -1623,7 +1623,7 @@ func variantDiscriminator(schema *Schema) (fieldName string, value string, err e
 			continue
 		}
 		switch name {
-		case "type", "method", "kind", "mode":
+		case "type", "method", "kind", "mode", "handlerType":
 			candidates = append(candidates, name)
 		}
 	}
@@ -1637,8 +1637,23 @@ func variantDiscriminator(schema *Schema) (fieldName string, value string, err e
 
 func taggedUnionVariantFields(typ TypePlan, variant *Schema, discriminator string, variantIndex int, generatedNamedTypes map[string]bool, resolver generatedDefinitionNameResolver) ([]FieldPlan, []NullFieldPlan, error) {
 	required := variant.RequiredSet()
+	for name := range typ.Schema.RequiredSet() {
+		required[name] = true
+	}
+	properties := make(map[string]*Schema, len(typ.Schema.Properties)+len(variant.Properties))
+	shared := make(map[string]bool, len(typ.Schema.Properties))
+	for name, property := range typ.Schema.Properties {
+		properties[name] = property
+		shared[name] = true
+	}
+	for name, property := range variant.Properties {
+		if shared[name] {
+			return nil, nil, fmt.Errorf("tagged union %s variant %d field %s appears in both shared and variant properties", typ.SchemaPath, variantIndex, name)
+		}
+		properties[name] = property
+	}
 	var fieldNames []string
-	for name := range variant.Properties {
+	for name := range properties {
 		if name == discriminator {
 			continue
 		}
@@ -1649,7 +1664,7 @@ func taggedUnionVariantFields(typ TypePlan, variant *Schema, discriminator strin
 	fields := make([]FieldPlan, 0, len(fieldNames))
 	var nullFields []NullFieldPlan
 	for _, name := range fieldNames {
-		property := variant.Properties[name]
+		property := properties[name]
 		if property.Type.Only("null") {
 			if required[name] {
 				return nil, nil, fmt.Errorf("tagged union %s variant %d field %s is a required null field", typ.SchemaPath, variantIndex, name)
@@ -1657,9 +1672,13 @@ func taggedUnionVariantFields(typ TypePlan, variant *Schema, discriminator strin
 			nullFields = append(nullFields, NullFieldPlan{FieldName: name, Required: required[name]})
 			continue
 		}
+		fieldPath := fmt.Sprintf("%s#/oneOf/%d/properties/%s", typ.SchemaPath, variantIndex, name)
+		if shared[name] {
+			fieldPath = fmt.Sprintf("%s#/properties/%s", typ.SchemaPath, name)
+		}
 		field, err := planField(CoverageField{
 			Field:     name,
-			Path:      fmt.Sprintf("%s#/oneOf/%d/properties/%s", typ.SchemaPath, variantIndex, name),
+			Path:      fieldPath,
 			Required:  required[name],
 			Schema:    typ.SchemaPath,
 			Stability: typ.Stability,
@@ -2056,7 +2075,7 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 		return name == "NetworkPolicyAmendment"
 	case "ClientRequest.json":
 		switch name {
-		case "RemoteControlDisableParams", "RemoteControlEnableParams":
+		case "GetAccountTokenUsageParams", "RemoteControlDisableParams", "RemoteControlEnableParams":
 			return true
 		default:
 			return false
@@ -2141,7 +2160,8 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 		}
 	case "v2/ConfigRequirementsReadResponse.json":
 		switch name {
-		case "BrowserUseRequirements",
+		case "AutoReviewRequirements",
+			"BrowserUseRequirements",
 			"ComputerUseRequirements",
 			"ConfigRequirements",
 			"ConfiguredHookMatcherGroup",
@@ -2241,6 +2261,8 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 		return name == "RealtimeVoicesList"
 	case "v2/ThreadItemsListResponse.json":
 		return name == "ThreadItemEntry"
+	case "v2/ThreadQueueAddResponse.json":
+		return name == "QueuedSubmission"
 	case "v2/ThreadSearchOccurrencesResponse.json":
 		switch name {
 		case "ThreadSearchOccurrence", "ThreadSearchTextRange":
@@ -2315,6 +2337,13 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 		return name == "MarketplaceUpgradeErrorInfo"
 	case "v2/ProcessSpawnParams.json":
 		return name == "ProcessTerminalSize"
+	case "v2/ServerDiagnosticsResponse.json":
+		switch name {
+		case "ServerDiagnosticsGauge", "ServerDiagnosticsProcess":
+			return true
+		default:
+			return false
+		}
 	case "v2/ThreadTokenUsageUpdatedNotification.json":
 		switch name {
 		case "ThreadTokenUsage", "TokenUsageBreakdown":
@@ -2350,7 +2379,8 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 			"GitInfo",
 			"Thread",
 			"ThreadExtra",
-			"ThreadSection":
+			"ThreadSection",
+			"ThreadSectionAppearance":
 			return true
 		default:
 			return false
@@ -2527,7 +2557,7 @@ func isGeneratedDefinitionTaggedUnionCheckpoint(schemaPath string, name string) 
 		}
 	case "v2/TurnStartResponse.json":
 		switch name {
-		case "PatchChangeKind", "ThreadItem", "WebSearchAction":
+		case "ImageGenerationFailure", "PatchChangeKind", "ThreadItem", "WebSearchAction":
 			return true
 		default:
 			return false

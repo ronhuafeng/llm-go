@@ -1515,13 +1515,12 @@ func facadeHooksListResponse() protocolv2.HooksListResponse {
 				Message: "missing command",
 				Path:    "/repo/.codex/hooks.json",
 			}},
-			Hooks: []protocolv2.HookMetadata{{
-				Command:       protocolv2.Null[string](),
+			Hooks: []protocolv2.HookMetadata{protocolv2.NewHookMetadataCommand(protocolv2.HookMetadataCommand{
+				Command:       "echo hook",
 				CurrentHash:   "hash-1",
 				DisplayOrder:  1,
 				Enabled:       true,
 				EventName:     protocolv2.HookEventNamePreToolUse,
-				HandlerType:   protocolv2.HookHandlerTypeCommand,
 				IsManaged:     false,
 				Key:           "hook-1",
 				Matcher:       protocolv2.Value("shell"),
@@ -1531,7 +1530,7 @@ func facadeHooksListResponse() protocolv2.HooksListResponse {
 				StatusMessage: protocolv2.Value("trusted"),
 				TimeoutSec:    10,
 				TrustStatus:   protocolv2.HookTrustStatusTrusted,
-			}},
+			})},
 			Warnings: []string{"review hook"},
 		}},
 	}

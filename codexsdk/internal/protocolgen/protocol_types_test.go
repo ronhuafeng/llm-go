@@ -523,6 +523,129 @@ func TestSelectGeneratedTaggedUnions(t *testing.T) {
 	}
 }
 
+func TestSelectGeneratedTaggedUnionsSupportsOptionalNullableParams(t *testing.T) {
+	schema := mustParseSchema(t, `{
+		"definitions": {
+			"GetAccountTokenUsageParams": {
+				"type": "object",
+				"properties": {
+					"threadId": {"type": ["string", "null"]}
+				}
+			}
+		},
+		"oneOf": [{
+			"type": "object",
+			"title": "Account/usage/readRequest",
+			"required": ["method"],
+			"properties": {
+				"method": {"type": "string", "enum": ["account/usage/read"]},
+				"params": {
+					"anyOf": [
+						{"$ref": "#/definitions/GetAccountTokenUsageParams"},
+						{"type": "null"}
+					]
+				}
+			}
+		}]
+	}`)
+	plan := ProtocolTypePlan{Types: []TypePlan{{
+		Kind:       TypePlanTaggedUnionCandidate,
+		Schema:     schema,
+		SchemaPath: "ClientRequest.json",
+		Stability:  "stable",
+		TypeName:   "ClientRequest",
+	}}}
+
+	unions, err := SelectGeneratedTaggedUnions(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(unions) != 1 || len(unions[0].Variants) != 1 {
+		t.Fatalf("generated tagged unions = %#v", unions)
+	}
+	fields := unions[0].Variants[0].Fields
+	if len(fields) != 1 {
+		t.Fatalf("account usage request fields = %#v", fields)
+	}
+	params := fields[0]
+	if params.FieldName != "params" || params.Kind != FieldPlanNullableRef || params.GoType != "*protocolv2.Nullable[GetAccountTokenUsageParams]" {
+		t.Fatalf("account usage params field = %#v", params)
+	}
+	if !params.WireAllowsNull || !params.WireOmitAllowed {
+		t.Fatal("optional nullable params must preserve omitted, null, and concrete object states")
+	}
+}
+
+func TestSelectGeneratedTaggedUnionsSupportsNullableTaggedUnionDependency(t *testing.T) {
+	parent := TypePlan{
+		SchemaPath: "v2/TurnStartResponse.json",
+		Stability:  "stable",
+		TypeName:   "TurnStartResponse",
+		Schema: &Schema{Definitions: map[string]*Schema{
+			"ImageGenerationFailure": mustParseSchema(t, `{
+				"oneOf": [{
+					"type": "object",
+					"title": "UsageLimitExceededImageGenerationFailure",
+					"required": ["limitId", "type"],
+					"properties": {
+						"limitId": {"type": "string"},
+						"type": {"type": "string", "enum": ["usageLimitExceeded"]}
+					}
+				}]
+			}`),
+			"ThreadItem": mustParseSchema(t, `{
+				"oneOf": [{
+					"type": "object",
+					"title": "ImageGenerationThreadItem",
+					"required": ["id", "type"],
+					"properties": {
+						"failure": {
+							"anyOf": [
+								{"$ref": "#/definitions/ImageGenerationFailure"},
+								{"type": "null"}
+							]
+						},
+						"id": {"type": "string"},
+						"type": {"type": "string", "enum": ["imageGeneration"]}
+					}
+				}]
+			}`),
+		}},
+	}
+
+	unions, err := SelectGeneratedTaggedUnions(ProtocolTypePlan{Types: []TypePlan{parent}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	byName := map[string]TaggedUnionPlan{}
+	for _, union := range unions {
+		byName[union.TypeName] = union
+	}
+	if _, ok := byName["ImageGenerationFailure"]; !ok {
+		t.Fatal("generated tagged unions omit ImageGenerationFailure dependency")
+	}
+	threadItem, ok := byName["ThreadItem"]
+	if !ok || len(threadItem.Variants) != 1 {
+		t.Fatalf("generated ThreadItem union = %#v, ok=%v", threadItem, ok)
+	}
+	fields := threadItem.Variants[0].Fields
+	if len(fields) != 2 {
+		t.Fatalf("image generation item fields = %#v", fields)
+	}
+	var failure FieldPlan
+	for _, field := range fields {
+		if field.FieldName == "failure" {
+			failure = field
+		}
+	}
+	if failure.Kind != FieldPlanNullableRef || failure.GoType != "*protocolv2.Nullable[ImageGenerationFailure]" {
+		t.Fatalf("image generation failure field = %#v", failure)
+	}
+	if !failure.WireAllowsNull || !failure.WireOmitAllowed {
+		t.Fatal("image generation failure must preserve omitted, null, and concrete failure states")
+	}
+}
+
 func TestGeneratedDefinitionClassifierUsesSchemaShape(t *testing.T) {
 	cases := map[string]struct {
 		schema string
@@ -566,6 +689,22 @@ func TestGeneratedDefinitionClassifierUsesSchemaShape(t *testing.T) {
 			}`,
 			kind: generatedDefinitionTaggedUnion,
 		},
+		"tagged union with shared object fields": {
+			schema: `{
+				"type":"object",
+				"required":["enabled"],
+				"properties":{"enabled":{"type":"boolean"}},
+				"oneOf":[{
+					"type":"object",
+					"required":["command","handlerType"],
+					"properties":{
+						"command":{"type":"string"},
+						"handlerType":{"type":"string","enum":["command"]}
+					}
+				}]
+			}`,
+			kind: generatedDefinitionTaggedUnion,
+		},
 		"mixed union": {
 			schema: `{
 				"oneOf": [
@@ -603,6 +742,73 @@ func TestGeneratedDefinitionClassifierUsesSchemaShape(t *testing.T) {
 				t.Fatalf("classifyGeneratedDefinition() = %s, want %s", got, tt.kind)
 			}
 		})
+	}
+}
+
+func TestSelectGeneratedTaggedUnionsMergesReviewedSharedProperties(t *testing.T) {
+	parent := TypePlan{
+		SchemaPath: "v2/HooksListResponse.json",
+		Stability:  "stable",
+		TypeName:   "HooksListResponse",
+		Schema: &Schema{Definitions: map[string]*Schema{
+			"HookMetadata": mustParseSchema(t, `{
+				"type": "object",
+				"required": ["currentHash", "enabled"],
+				"properties": {
+					"currentHash": {"type": "string"},
+					"enabled": {"type": "boolean"}
+				},
+				"oneOf": [
+					{
+						"type": "object",
+						"title": "CommandHookMetadata",
+						"required": ["command", "handlerType"],
+						"properties": {
+							"command": {"type": "string"},
+							"handlerType": {"type": "string", "enum": ["command"]}
+						}
+					},
+					{
+						"type": "object",
+						"title": "McpToolHookMetadata",
+						"required": ["handlerType", "server", "tool"],
+						"properties": {
+							"handlerType": {"type": "string", "enum": ["mcpTool"]},
+							"server": {"type": "string"},
+							"tool": {"type": "string"}
+						}
+					}
+				]
+			}`),
+		}},
+	}
+
+	unions, err := SelectGeneratedTaggedUnions(ProtocolTypePlan{Types: []TypePlan{parent}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(unions) != 1 || len(unions[0].Variants) != 2 {
+		t.Fatalf("generated HookMetadata union = %#v", unions)
+	}
+	variants := taggedVariantByValue(unions[0].Variants)
+	for value, wantFields := range map[string][]string{
+		"command": {"command", "currentHash", "enabled"},
+		"mcpTool": {"currentHash", "enabled", "server", "tool"},
+	} {
+		variant, ok := variants[value]
+		if !ok {
+			t.Fatalf("HookMetadata union is missing %s variant", value)
+		}
+		var got []string
+		for _, field := range variant.Fields {
+			got = append(got, field.FieldName)
+			if !field.Required {
+				t.Errorf("HookMetadata %s field %s is not required", value, field.FieldName)
+			}
+		}
+		if !sameStrings(got, wantFields) {
+			t.Errorf("HookMetadata %s fields = %v, want %v", value, got, wantFields)
+		}
 	}
 }
 
@@ -690,6 +896,362 @@ func TestFirstPassTypesIncludeReviewedRPCDependencies(t *testing.T) {
 	}
 	if !foundScheduledTaskSchedule {
 		t.Error("generated tagged unions do not include ScheduledTaskSchedule")
+	}
+}
+
+func TestFirstPassTypesIncludeNewReviewedDependencyChain(t *testing.T) {
+	const schemaPath = "v2/ConfigRequirementsReadResponse.json"
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "v2"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	coverage := `{
+		"status": "classified-manifest",
+		"types": [{
+			"schema": "v2/ConfigRequirementsReadResponse.json",
+			"stability": "stable",
+			"status": "supported-generated",
+			"type": "ConfigRequirementsReadResponse"
+		}],
+		"fields": [{
+			"field": "requirements",
+			"path": "v2/ConfigRequirementsReadResponse.json#/properties/requirements",
+			"required": true,
+			"schema": "v2/ConfigRequirementsReadResponse.json",
+			"stability": "stable",
+			"status": "supported-generated",
+			"type": "ConfigRequirementsReadResponse"
+		}]
+	}`
+	if err := os.WriteFile(filepath.Join(root, "coverage_matrix.json"), []byte(coverage), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	schema := `{
+			"title": "ConfigRequirementsReadResponse",
+			"type": "object",
+			"required": ["requirements"],
+			"properties": {
+				"requirements": {"$ref": "#/definitions/ConfigRequirements"}
+			},
+			"definitions": {
+				"AutoReviewRequirements": {
+					"type": "object",
+					"properties": {
+						"ignoreRules": {"type": ["array", "null"], "items": {"type": "string"}},
+						"requiredOnModels": {"type": ["array", "null"], "items": {"type": "string"}}
+					}
+				},
+				"ConfigRequirements": {
+					"type": "object",
+					"properties": {
+						"autoReview": {
+							"anyOf": [
+								{"$ref": "#/definitions/AutoReviewRequirements"},
+								{"type": "null"}
+							]
+						}
+					}
+				}
+			}
+		}`
+	if err := os.WriteFile(filepath.Join(root, schemaPath), []byte(schema), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := BuildProtocolTypePlan(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	types, err := SelectFirstPassGeneratedTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated := map[string]bool{}
+	for _, typ := range types {
+		generated[typ.TypeName] = true
+	}
+	for _, name := range []string{"AutoReviewRequirements", "ConfigRequirements", "ConfigRequirementsReadResponse"} {
+		if !generated[name] {
+			t.Errorf("first-pass generated types omit dependency-chain type %s", name)
+		}
+	}
+}
+
+func TestFirstPassTypesIncludeServerDiagnosticsDependencies(t *testing.T) {
+	const schemaPath = "v2/ServerDiagnosticsResponse.json"
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "v2"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	coverage := `{
+		"status": "classified-manifest",
+		"types": [{
+			"schema": "v2/ServerDiagnosticsResponse.json",
+			"stability": "stable",
+			"status": "supported-generated",
+			"type": "ServerDiagnosticsResponse"
+		}],
+		"fields": [
+			{
+				"field": "gauges",
+				"path": "v2/ServerDiagnosticsResponse.json#/properties/gauges",
+				"required": true,
+				"schema": "v2/ServerDiagnosticsResponse.json",
+				"stability": "stable",
+				"status": "supported-generated",
+				"type": "ServerDiagnosticsResponse"
+			},
+			{
+				"field": "process",
+				"path": "v2/ServerDiagnosticsResponse.json#/properties/process",
+				"required": true,
+				"schema": "v2/ServerDiagnosticsResponse.json",
+				"stability": "stable",
+				"status": "supported-generated",
+				"type": "ServerDiagnosticsResponse"
+			}
+		]
+	}`
+	if err := os.WriteFile(filepath.Join(root, "coverage_matrix.json"), []byte(coverage), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	schema := `{
+		"title": "ServerDiagnosticsResponse",
+		"type": "object",
+		"required": ["gauges", "process"],
+		"properties": {
+			"gauges": {"type": "array", "items": {"$ref": "#/definitions/ServerDiagnosticsGauge"}},
+			"process": {"$ref": "#/definitions/ServerDiagnosticsProcess"}
+		},
+		"definitions": {
+			"ServerDiagnosticsGauge": {
+				"type": "object",
+				"required": ["name", "value"],
+				"properties": {
+					"name": {"type": "string"},
+					"value": {"type": "integer", "format": "uint64", "minimum": 0}
+				}
+			},
+			"ServerDiagnosticsProcess": {
+				"type": "object",
+				"required": ["id"],
+				"properties": {
+					"id": {"type": "integer", "format": "uint32", "minimum": 0},
+					"residentMemoryBytes": {"type": ["integer", "null"], "format": "uint64", "minimum": 0}
+				}
+			}
+		}
+	}`
+	if err := os.WriteFile(filepath.Join(root, schemaPath), []byte(schema), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := BuildProtocolTypePlan(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	types, err := SelectFirstPassGeneratedTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated := map[string]bool{}
+	for _, typ := range types {
+		generated[typ.TypeName] = true
+	}
+	for _, name := range []string{"ServerDiagnosticsGauge", "ServerDiagnosticsProcess", "ServerDiagnosticsResponse"} {
+		if !generated[name] {
+			t.Errorf("first-pass generated types omit server diagnostics type %s", name)
+		}
+	}
+}
+
+func TestFirstPassTypesIncludeThreadSectionAppearanceDependency(t *testing.T) {
+	const schemaPath = "v2/ThreadStartResponse.json"
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "v2"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	coverage := `{
+		"status": "classified-manifest",
+		"types": [{
+			"schema": "v2/ThreadStartResponse.json",
+			"stability": "stable",
+			"status": "supported-generated",
+			"type": "ThreadStartResponse"
+		}],
+		"fields": [{
+			"field": "thread",
+			"path": "v2/ThreadStartResponse.json#/properties/thread",
+			"required": true,
+			"schema": "v2/ThreadStartResponse.json",
+			"stability": "stable",
+			"status": "supported-generated",
+			"type": "ThreadStartResponse"
+		}]
+	}`
+	if err := os.WriteFile(filepath.Join(root, "coverage_matrix.json"), []byte(coverage), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	schema := `{
+		"title": "ThreadStartResponse",
+		"type": "object",
+		"required": ["thread"],
+		"properties": {"thread": {"$ref": "#/definitions/Thread"}},
+		"definitions": {
+			"Thread": {
+				"type": "object",
+				"properties": {
+					"sections": {"type": "array", "items": {"$ref": "#/definitions/ThreadSection"}}
+				}
+			},
+			"ThreadSection": {
+				"type": "object",
+				"required": ["id", "name"],
+				"properties": {
+					"appearance": {
+						"anyOf": [
+							{"$ref": "#/definitions/ThreadSectionAppearance"},
+							{"type": "null"}
+						]
+					},
+					"id": {"type": "string"},
+					"name": {"type": "string"}
+				}
+			},
+			"ThreadSectionAppearance": {
+				"type": "object",
+				"properties": {
+					"color": {"type": ["string", "null"]},
+					"icon": {"type": ["string", "null"]}
+				}
+			}
+		}
+	}`
+	if err := os.WriteFile(filepath.Join(root, schemaPath), []byte(schema), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := BuildProtocolTypePlan(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	types, err := SelectFirstPassGeneratedTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated := map[string]bool{}
+	for _, typ := range types {
+		generated[typ.TypeName] = true
+	}
+	for _, name := range []string{"ThreadSectionAppearance", "ThreadSection", "Thread", "ThreadStartResponse"} {
+		if !generated[name] {
+			t.Errorf("first-pass generated types omit thread section dependency %s", name)
+		}
+	}
+}
+
+func TestFirstPassTypesIncludeQueuedSubmissionDependency(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "v2"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	coverage := `{
+		"status": "classified-manifest",
+		"types": [
+			{
+				"schema": "v2/ThreadQueueAddResponse.json",
+				"stability": "stable",
+				"status": "supported-generated",
+				"type": "ThreadQueueAddResponse"
+			},
+			{
+				"schema": "v2/TurnStartParams.json",
+				"stability": "stable",
+				"status": "supported-generated",
+				"type": "TurnStartParams"
+			}
+		],
+		"fields": [{
+			"field": "queuedSubmission",
+			"path": "v2/ThreadQueueAddResponse.json#/properties/queuedSubmission",
+			"required": true,
+			"schema": "v2/ThreadQueueAddResponse.json",
+			"stability": "stable",
+			"status": "supported-generated",
+			"type": "ThreadQueueAddResponse"
+		}]
+	}`
+	if err := os.WriteFile(filepath.Join(root, "coverage_matrix.json"), []byte(coverage), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	queueSchema := `{
+		"title": "ThreadQueueAddResponse",
+		"type": "object",
+		"required": ["queuedSubmission"],
+		"properties": {"queuedSubmission": {"$ref": "#/definitions/QueuedSubmission"}},
+		"definitions": {
+			"QueuedSubmission": {
+				"type": "object",
+				"required": ["clientUserMessageId", "id", "input"],
+				"properties": {
+					"clientUserMessageId": {"type": "string"},
+					"id": {"type": "string"},
+					"input": {"type": "array", "items": {"$ref": "#/definitions/UserInput"}}
+				}
+			},
+			"UserInput": {
+				"oneOf": [{
+					"type": "object",
+					"title": "TextUserInput",
+					"required": ["text", "type"],
+					"properties": {
+						"text": {"type": "string"},
+						"type": {"type": "string", "enum": ["text"]}
+					}
+				}]
+			}
+		}
+	}`
+	startSchema := `{
+		"title": "TurnStartParams",
+		"type": "object",
+		"definitions": {
+			"UserInput": {
+				"oneOf": [{
+					"type": "object",
+					"title": "TextUserInput",
+					"required": ["text", "type"],
+					"properties": {
+						"text": {"type": "string"},
+						"type": {"type": "string", "enum": ["text"]}
+					}
+				}]
+			}
+		}
+	}`
+	if err := os.WriteFile(filepath.Join(root, "v2", "ThreadQueueAddResponse.json"), []byte(queueSchema), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "v2", "TurnStartParams.json"), []byte(startSchema), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := BuildProtocolTypePlan(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	types, err := SelectFirstPassGeneratedTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated := map[string]bool{}
+	for _, typ := range types {
+		generated[typ.TypeName] = true
+	}
+	for _, name := range []string{"QueuedSubmission", "ThreadQueueAddResponse"} {
+		if !generated[name] {
+			t.Errorf("first-pass generated types omit thread queue type %s", name)
+		}
 	}
 }
 

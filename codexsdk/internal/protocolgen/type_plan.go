@@ -402,7 +402,9 @@ func planType(file SchemaFile) (TypePlan, error) {
 
 func isReviewedTopLevelNullableParamsWrapper(path string, variants []*Schema) bool {
 	switch path {
-	case "v2/NullableRemoteControlDisableParams.json", "v2/NullableRemoteControlEnableParams.json":
+	case "v2/NullableGetAccountTokenUsageParams.json",
+		"v2/NullableRemoteControlDisableParams.json",
+		"v2/NullableRemoteControlEnableParams.json":
 	default:
 		return false
 	}
@@ -1303,6 +1305,7 @@ func isJSONValueFieldPath(path string) bool {
 func isJSONValueMapPath(path string) bool {
 	switch path {
 	case "v1/InitializeParams.json#/definitions/InitializeCapabilities/properties/extensions",
+		"v2/ConfigRequirementsReadResponse.json#/definitions/ConfiguredHookHandler#/oneOf/1/properties/input",
 		"v2/ConfigReadResponse.json#/definitions/Config/properties/desktop",
 		"v2/ThreadForkParams.json#/properties/config",
 		"v2/ThreadResumeParams.json#/properties/config",

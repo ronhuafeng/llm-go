@@ -5312,13 +5312,12 @@ func TestGeneratedSmallUtilityPayloadsProtocolMarshalAndUnmarshal(t *testing.T) 
 		{name: "hooks list response", value: HooksListResponse{Data: []HooksListEntry{{
 			CWD:    "/repo",
 			Errors: []HookErrorInfo{{Message: "missing command", Path: "/repo/.codex/hooks.json"}},
-			Hooks: []HookMetadata{{
-				Command:       Null[string](),
+			Hooks: []HookMetadata{NewHookMetadataCommand(HookMetadataCommand{
+				Command:       "echo hook",
 				CurrentHash:   "hash-1",
 				DisplayOrder:  1,
 				Enabled:       true,
 				EventName:     HookEventNamePreToolUse,
-				HandlerType:   HookHandlerTypeCommand,
 				IsManaged:     false,
 				Key:           "hook-1",
 				Matcher:       Value("shell"),
@@ -5328,9 +5327,9 @@ func TestGeneratedSmallUtilityPayloadsProtocolMarshalAndUnmarshal(t *testing.T) 
 				StatusMessage: Value("trusted"),
 				TimeoutSec:    10,
 				TrustStatus:   HookTrustStatusTrusted,
-			}},
+			})},
 			Warnings: []string{"review hook"},
-		}}}, target: &HooksListResponse{}, want: `{"data":[{"cwd":"/repo","errors":[{"message":"missing command","path":"/repo/.codex/hooks.json"}],"hooks":[{"command":null,"currentHash":"hash-1","displayOrder":1,"enabled":true,"eventName":"preToolUse","handlerType":"command","isManaged":false,"key":"hook-1","matcher":"shell","pluginId":null,"source":"project","sourcePath":"/repo/.codex/hooks.json","statusMessage":"trusted","timeoutSec":10,"trustStatus":"trusted"}],"warnings":["review hook"]}]}`},
+		}}}, target: &HooksListResponse{}, want: `{"data":[{"cwd":"/repo","errors":[{"message":"missing command","path":"/repo/.codex/hooks.json"}],"hooks":[{"command":"echo hook","currentHash":"hash-1","displayOrder":1,"enabled":true,"eventName":"preToolUse","handlerType":"command","isManaged":false,"key":"hook-1","matcher":"shell","pluginId":null,"source":"project","sourcePath":"/repo/.codex/hooks.json","statusMessage":"trusted","timeoutSec":10,"trustStatus":"trusted"}],"warnings":["review hook"]}]}`},
 		{name: "skills config write response", value: SkillsConfigWriteResponse{EffectiveEnabled: true}, target: &SkillsConfigWriteResponse{}, want: `{"effectiveEnabled":true}`},
 		{name: "skills list params", value: SkillsListParams{CWDs: &[]string{"/repo"}, ForceReload: boolPtr(true)}, target: &SkillsListParams{}, want: `{"cwds":["/repo"],"forceReload":true}`},
 		{name: "skills list response", value: SkillsListResponse{Data: []SkillsListEntry{{
@@ -5468,7 +5467,7 @@ func TestGeneratedSmallUtilityPayloadsValidateProtocol(t *testing.T) {
 	}
 
 	var hooksList HooksListResponse
-	err = json.Unmarshal([]byte(`{"data":[{"cwd":"/repo","errors":[],"hooks":[{"currentHash":"hash-1","displayOrder":1,"enabled":true,"eventName":"unknown","handlerType":"command","isManaged":false,"key":"hook-1","source":"project","sourcePath":"/repo/.codex/hooks.json","timeoutSec":10,"trustStatus":"trusted"}],"warnings":[]}]}`), &hooksList)
+	err = json.Unmarshal([]byte(`{"data":[{"cwd":"/repo","errors":[],"hooks":[{"command":"echo hook","currentHash":"hash-1","displayOrder":1,"enabled":true,"eventName":"unknown","handlerType":"command","isManaged":false,"key":"hook-1","source":"project","sourcePath":"/repo/.codex/hooks.json","timeoutSec":10,"trustStatus":"trusted"}],"warnings":[]}]}`), &hooksList)
 	if err == nil {
 		t.Fatal("expected unknown hook event name to fail")
 	}
