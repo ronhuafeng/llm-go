@@ -48,7 +48,8 @@ var notificationAttribution = func() map[protocolv2.ServerNotificationKind]notif
 		"thread/goal/updated", "thread/name/updated", "thread/realtime/closed",
 		"thread/realtime/error", "thread/realtime/itemAdded", "thread/realtime/outputAudio/delta",
 		"thread/realtime/sdp", "thread/realtime/started", "thread/realtime/transcript/delta",
-		"thread/realtime/transcript/done", "thread/settings/updated", "thread/status/changed",
+		"thread/realtime/transcript/done", "thread/queue/changed", "thread/reverted",
+		"thread/settings/updated", "thread/status/changed",
 		"thread/environment/connected", "thread/environment/disconnected", "thread/unarchived",
 	)
 	add(notificationAttributionGlobal,

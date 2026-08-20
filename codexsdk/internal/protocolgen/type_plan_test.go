@@ -35,6 +35,37 @@ func TestBuildProtocolTypePlanClassifiesBaseline(t *testing.T) {
 	if got, ok := plan.TypeBySchema("RequestId.json"); !ok || got.Kind != TypePlanScalarUnionCandidate {
 		t.Fatalf("RequestId kind = %v, ok=%v; want %s", got.Kind, ok, TypePlanScalarUnionCandidate)
 	}
+	if got, ok := plan.TypeBySchema("v2/NullableGetAccountTokenUsageParams.json"); !ok || got.Kind != TypePlanAnyOfDeferred {
+		t.Fatalf("NullableGetAccountTokenUsageParams kind = %v, ok=%v; want %s", got.Kind, ok, TypePlanAnyOfDeferred)
+	}
+}
+
+func TestPlanTypeRequiresExactReviewedNullableParamsWrapperShape(t *testing.T) {
+	valid := SchemaFile{
+		Path:      "v2/NullableGetAccountTokenUsageParams.json",
+		Stability: "stable",
+		TypeName:  "NullableGetAccountTokenUsageParams",
+		Schema: &Schema{AnyOf: []*Schema{
+			{Ref: "#/definitions/GetAccountTokenUsageParams"},
+			{Type: SchemaTypeSet{Values: []string{"null"}}},
+		}},
+	}
+	plan, err := planType(valid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Kind != TypePlanAnyOfDeferred {
+		t.Fatalf("valid nullable params wrapper kind = %s, want %s", plan.Kind, TypePlanAnyOfDeferred)
+	}
+
+	drifted := valid
+	drifted.Schema = &Schema{AnyOf: []*Schema{
+		{Ref: "#/definitions/GetAccountTokenUsageParams"},
+		{Type: SchemaTypeSet{Values: []string{"string"}}},
+	}}
+	if _, err := planType(drifted); err == nil || !strings.Contains(err.Error(), "no reviewed generation policy") {
+		t.Fatalf("drifted nullable params wrapper error = %v", err)
+	}
 }
 
 func TestBuildProtocolTypePlanAppliesReviewedOverlays(t *testing.T) {
@@ -312,6 +343,34 @@ func TestPlanFieldSupportsStringSliceMapValues(t *testing.T) {
 	}
 	if !field.WireAllowsNull || !field.WireOmitAllowed {
 		t.Fatal("nullable string slice map must preserve omit/null/value semantics")
+	}
+}
+
+func TestPlanFieldSupportsConfiguredHookDynamicInput(t *testing.T) {
+	trueValue := true
+	field, err := planField(CoverageField{
+		Field:     "input",
+		Path:      "v2/ConfigRequirementsReadResponse.json#/definitions/ConfiguredHookHandler#/oneOf/1/properties/input",
+		Required:  true,
+		Schema:    "v2/ConfigRequirementsReadResponse.json#/definitions/ConfiguredHookHandler",
+		Stability: "stable",
+		Status:    "supported-generated",
+		Type:      "ConfiguredHookHandler",
+	}, &Schema{
+		AdditionalProperties: AdditionalProperties{Present: true, Bool: &trueValue},
+		Type:                 SchemaTypeSet{Values: []string{"object"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if field.Kind != FieldPlanJSONValueMap {
+		t.Fatalf("configured hook input kind = %s, want %s", field.Kind, FieldPlanJSONValueMap)
+	}
+	if field.GoType != "map[string]protocolv2.JSONValue" {
+		t.Fatalf("configured hook input GoType = %q, want map[string]protocolv2.JSONValue", field.GoType)
+	}
+	if field.WireAllowsNull || field.WireOmitAllowed {
+		t.Fatal("required configured hook input must preserve required non-null object semantics")
 	}
 }
 

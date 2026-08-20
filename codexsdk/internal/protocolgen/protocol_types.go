@@ -1113,7 +1113,120 @@ func definitionObjectTypePlan(parent TypePlan, name string, schema *Schema, reso
 		field = resolver.ResolveField(field)
 		typ.Fields = append(typ.Fields, field)
 	}
+	if parent.SchemaPath == "v2/HooksListResponse.json" && name == "HookMetadata" {
+		overlay, err := hookMetadataVariantOverlayFields(typ.SchemaPath, schema)
+		if err != nil {
+			return TypePlan{}, err
+		}
+		typ.Fields = append(typ.Fields, overlay...)
+	}
 	return typ, nil
+}
+
+func hookMetadataVariantOverlayFields(schemaPath string, schema *Schema) ([]FieldPlan, error) {
+	if !hookMetadataVariantSchemaMatches(schema) {
+		return nil, fmt.Errorf("definition HookMetadata in v2/HooksListResponse.json no longer matches reviewed handlerType variant shape")
+	}
+	field := func(name, goType string, kind FieldPlanKind, variant int, required, nullable bool) FieldPlan {
+		return FieldPlan{
+			FieldName:       name,
+			GoType:          goType,
+			Kind:            kind,
+			Path:            fmt.Sprintf("%s/oneOf/%d/properties/%s", schemaPath, variant, name),
+			Required:        required,
+			Reason:          "reviewed HookMetadata handlerType variant field",
+			SchemaPath:      "v2/HooksListResponse.json",
+			Stability:       "stable",
+			TypeName:        "HookMetadata",
+			WireAllowsNull:  nullable,
+			WireOmitAllowed: !required,
+		}
+	}
+	return []FieldPlan{
+		field("async", "*bool", FieldPlanBool, 0, false, false),
+		// Preserve the pre-v0.148 public signature while rejecting null on the
+		// wire for the command variant, as required by the new schema.
+		field("command", "*protocolv2.Nullable[string]", FieldPlanNullableScalar, 0, false, true),
+		field("handlerType", "HookHandlerType", FieldPlanRef, 0, true, false),
+		field("server", "*string", FieldPlanScalar, 1, false, false),
+		field("tool", "*string", FieldPlanScalar, 1, false, false),
+	}, nil
+}
+
+func hookMetadataVariantSchemaMatches(schema *Schema) bool {
+	if schema == nil || !schema.Type.Only("object") || len(schema.OneOf) != 4 {
+		return false
+	}
+	want := map[string]struct {
+		properties map[string]string
+		required   []string
+	}{
+		"command": {
+			properties: map[string]string{"async": "boolean", "command": "string", "handlerType": "string"},
+			required:   []string{"command", "handlerType"},
+		},
+		"mcpTool": {
+			properties: map[string]string{"handlerType": "string", "server": "string", "tool": "string"},
+			required:   []string{"handlerType", "server", "tool"},
+		},
+		"prompt": {
+			properties: map[string]string{"handlerType": "string"},
+			required:   []string{"handlerType"},
+		},
+		"agent": {
+			properties: map[string]string{"handlerType": "string"},
+			required:   []string{"handlerType"},
+		},
+	}
+	seen := map[string]bool{}
+	for _, variant := range schema.OneOf {
+		if variant == nil || !variant.Type.Only("object") || len(variant.Properties) == 0 ||
+			len(variant.OneOf) != 0 || len(variant.AnyOf) != 0 || len(variant.AllOf) != 0 ||
+			variant.Ref != "" || variant.Items != nil || variant.AdditionalProperties.Present ||
+			len(unmodeledKeywords(variant)) != 0 {
+			return false
+		}
+		discriminator := variant.Properties["handlerType"]
+		if discriminator == nil || !discriminator.Type.Only("string") || len(discriminator.Enum) != 1 {
+			return false
+		}
+		value := discriminator.Enum[0]
+		expected, ok := want[value]
+		if !ok || seen[value] || !sameStringSet(variant.Required, expected.required) || len(variant.Properties) != len(expected.properties) {
+			return false
+		}
+		seen[value] = true
+		for name, fieldType := range expected.properties {
+			property := variant.Properties[name]
+			if property == nil || !property.Type.Only(fieldType) || property.Ref != "" ||
+				len(property.Enum) != 0 && name != "handlerType" ||
+				len(property.Properties) != 0 || len(property.OneOf) != 0 || len(property.AnyOf) != 0 ||
+				len(property.AllOf) != 0 || property.Items != nil || property.AdditionalProperties.Present ||
+				len(unmodeledKeywords(property)) != 0 {
+				return false
+			}
+		}
+		if async := variant.Properties["async"]; async != nil && !async.Default.Present {
+			return false
+		}
+	}
+	return len(seen) == len(want)
+}
+
+func sameStringSet(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	seen := make(map[string]bool, len(left))
+	for _, value := range left {
+		seen[value] = true
+	}
+	for _, value := range right {
+		if !seen[value] {
+			return false
+		}
+	}
+	return true
 }
 
 func isGeneratedDefinitionOpenDynamicPropertiesCheckpoint(schemaPath string, name string) bool {
@@ -2056,7 +2169,7 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 		return name == "NetworkPolicyAmendment"
 	case "ClientRequest.json":
 		switch name {
-		case "RemoteControlDisableParams", "RemoteControlEnableParams":
+		case "GetAccountTokenUsageParams", "RemoteControlDisableParams", "RemoteControlEnableParams":
 			return true
 		default:
 			return false
@@ -2141,7 +2254,8 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 		}
 	case "v2/ConfigRequirementsReadResponse.json":
 		switch name {
-		case "BrowserUseRequirements",
+		case "AutoReviewRequirements",
+			"BrowserUseRequirements",
 			"ComputerUseRequirements",
 			"ConfigRequirements",
 			"ConfiguredHookMatcherGroup",
@@ -2315,6 +2429,13 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 		return name == "MarketplaceUpgradeErrorInfo"
 	case "v2/ProcessSpawnParams.json":
 		return name == "ProcessTerminalSize"
+	case "v2/ServerDiagnosticsResponse.json":
+		switch name {
+		case "ServerDiagnosticsGauge", "ServerDiagnosticsProcess":
+			return true
+		default:
+			return false
+		}
 	case "v2/ThreadTokenUsageUpdatedNotification.json":
 		switch name {
 		case "ThreadTokenUsage", "TokenUsageBreakdown":
@@ -2324,6 +2445,8 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 		}
 	case "v2/ThreadRealtimeOutputAudioDeltaNotification.json":
 		return name == "ThreadRealtimeAudioChunk"
+	case "v2/ThreadQueueAddResponse.json":
+		return name == "QueuedSubmission"
 	case "v2/ThreadGoalUpdatedNotification.json":
 		return name == "ThreadGoal"
 	case "v2/TurnPlanUpdatedNotification.json":
@@ -2350,7 +2473,8 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 			"GitInfo",
 			"Thread",
 			"ThreadExtra",
-			"ThreadSection":
+			"ThreadSection",
+			"ThreadSectionAppearance":
 			return true
 		default:
 			return false
@@ -2527,7 +2651,7 @@ func isGeneratedDefinitionTaggedUnionCheckpoint(schemaPath string, name string) 
 		}
 	case "v2/TurnStartResponse.json":
 		switch name {
-		case "PatchChangeKind", "ThreadItem", "WebSearchAction":
+		case "ImageGenerationFailure", "PatchChangeKind", "ThreadItem", "WebSearchAction":
 			return true
 		default:
 			return false
@@ -2600,8 +2724,69 @@ func writeStructType(out *bytes.Buffer, typ TypePlan) {
 		out.WriteString("\tDynamicProperties map[string]JSONValue\n")
 	}
 	out.WriteString("}\n")
+	if isHookMetadataVariantOverlay(typ) {
+		writeHookMetadataVariantValidation(out)
+	}
 	writeStructMarshal(out, typ, fields)
 	writeStructDecoder(out, typ, fields)
+}
+
+func isHookMetadataVariantOverlay(typ TypePlan) bool {
+	return typ.SchemaPath == "v2/HooksListResponse.json#/definitions/HookMetadata"
+}
+
+func writeHookMetadataVariantValidation(out *bytes.Buffer) {
+	out.WriteString(`
+func (value HookMetadata) validateHandlerVariant(operation string) error {
+	unexpected := func(field string) error {
+		return fmt.Errorf("%s HookMetadata.%s: field is not allowed for handlerType %q", operation, field, value.HandlerType)
+	}
+	switch value.HandlerType {
+	case HookHandlerTypeCommand:
+		if value.Command == nil {
+			return fmt.Errorf("%s HookMetadata.command: missing required field for handlerType %q", operation, value.HandlerType)
+		}
+		if value.Command.Value == nil {
+			return fmt.Errorf("%s HookMetadata.command: null is not allowed for handlerType %q", operation, value.HandlerType)
+		}
+		if value.Server != nil {
+			return unexpected("server")
+		}
+		if value.Tool != nil {
+			return unexpected("tool")
+		}
+	case HookHandlerTypeMCPTool:
+		if value.Server == nil {
+			return fmt.Errorf("%s HookMetadata.server: missing required field for handlerType %q", operation, value.HandlerType)
+		}
+		if value.Tool == nil {
+			return fmt.Errorf("%s HookMetadata.tool: missing required field for handlerType %q", operation, value.HandlerType)
+		}
+		if value.Command != nil {
+			return unexpected("command")
+		}
+		if value.Async != nil {
+			return unexpected("async")
+		}
+	case HookHandlerTypePrompt, HookHandlerTypeAgent:
+		if value.Command != nil {
+			return unexpected("command")
+		}
+		if value.Async != nil {
+			return unexpected("async")
+		}
+		if value.Server != nil {
+			return unexpected("server")
+		}
+		if value.Tool != nil {
+			return unexpected("tool")
+		}
+	default:
+		return fmt.Errorf("%s HookMetadata.handlerType: invalid variant %q", operation, value.HandlerType)
+	}
+	return nil
+}
+`)
 }
 
 func writeStructMarshal(out *bytes.Buffer, typ TypePlan, fields []FieldPlan) {
@@ -2619,11 +2804,16 @@ func writeStructMarshal(out *bytes.Buffer, typ TypePlan, fields []FieldPlan) {
 			minimumFields = append(minimumFields, field)
 		}
 	}
-	if len(guardedFields) == 0 && len(minItemsFields) == 0 && len(minimumFields) == 0 && !typ.OpenDynamicProperties {
+	if len(guardedFields) == 0 && len(minItemsFields) == 0 && len(minimumFields) == 0 && !typ.OpenDynamicProperties && !isHookMetadataVariantOverlay(typ) {
 		return
 	}
 	out.WriteString("\n")
 	fmt.Fprintf(out, "func (value %s) MarshalJSON() ([]byte, error) {\n", typ.TypeName)
+	if isHookMetadataVariantOverlay(typ) {
+		out.WriteString("\tif err := value.validateHandlerVariant(\"encode\"); err != nil {\n")
+		out.WriteString("\t\treturn nil, err\n")
+		out.WriteString("\t}\n")
+	}
 	for _, field := range guardedFields {
 		fmt.Fprintf(out, "\tif value.%s == nil {\n", fieldGoName(field.FieldName))
 		fmt.Fprintf(out, "\t\treturn nil, fmt.Errorf(\"encode %s.%s: nil is not allowed\")\n", typ.TypeName, field.FieldName)
@@ -3795,6 +3985,11 @@ func writeStructDecoder(out *bytes.Buffer, typ TypePlan, fields []FieldPlan) {
 		out.WriteString("\tdecoded.DynamicProperties = cloneJSONValueMap(fields)\n")
 	} else {
 		fmt.Fprintf(out, "\tif err := rejectUnexpectedFieldsForMode(fields, %q, mode); err != nil {\n", typ.TypeName)
+		out.WriteString("\t\treturn err\n")
+		out.WriteString("\t}\n")
+	}
+	if isHookMetadataVariantOverlay(typ) {
+		out.WriteString("\tif err := decoded.validateHandlerVariant(\"decode\"); err != nil {\n")
 		out.WriteString("\t\treturn err\n")
 		out.WriteString("\t}\n")
 	}

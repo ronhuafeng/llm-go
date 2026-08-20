@@ -627,6 +627,7 @@ func TestFirstPassTypesIncludeReviewedRPCDependencies(t *testing.T) {
 		"ConnectorMetadata",
 		"ConfigRequirementsReadResponse",
 		"ConfigRequirements",
+		"AutoReviewRequirements",
 		"BrowserUseRequirements",
 		"FeedbackRequirements",
 		"EnvironmentStatusResponse",
@@ -643,9 +644,17 @@ func TestFirstPassTypesIncludeReviewedRPCDependencies(t *testing.T) {
 		"PluginReadResponse",
 		"PluginDetail",
 		"ScheduledTaskSummary",
+		"ServerDiagnosticsResponse",
+		"ServerDiagnosticsGauge",
+		"ServerDiagnosticsProcess",
 		"ThreadItemsListResponse",
 		"ThreadItemEntry",
+		"ThreadQueueAddResponse",
+		"ThreadQueueListResponse",
+		"ThreadQueueUpdateResponse",
+		"QueuedSubmission",
 		"ThreadSection",
+		"ThreadSectionAppearance",
 		"ThreadRealtimeStartParams",
 		"ThreadRealtimeInitialItem",
 		"ThreadSearchOccurrencesResponse",
@@ -797,6 +806,82 @@ func TestGeneratedDefinitionSelectionFollowsSchemaShape(t *testing.T) {
 	}
 }
 
+func TestHookMetadataVariantOverlayPreservesCompatibleFieldsAndRejectsSchemaDrift(t *testing.T) {
+	const schemaJSON = `{
+		"type":"object",
+		"properties":{"currentHash":{"type":"string"}},
+		"required":["currentHash"],
+		"oneOf":[
+			{
+				"type":"object",
+				"properties":{
+					"async":{"type":"boolean","default":false},
+					"command":{"type":"string"},
+					"handlerType":{"type":"string","enum":["command"]}
+				},
+				"required":["command","handlerType"]
+			},
+			{
+				"type":"object",
+				"properties":{
+					"handlerType":{"type":"string","enum":["mcpTool"]},
+					"server":{"type":"string"},
+					"tool":{"type":"string"}
+				},
+				"required":["handlerType","server","tool"]
+			},
+			{
+				"type":"object",
+				"properties":{"handlerType":{"type":"string","enum":["prompt"]}},
+				"required":["handlerType"]
+			},
+			{
+				"type":"object",
+				"properties":{"handlerType":{"type":"string","enum":["agent"]}},
+				"required":["handlerType"]
+			}
+		]
+	}`
+	metadata := mustParseSchema(t, schemaJSON)
+	parent := TypePlan{
+		SchemaPath: "v2/HooksListResponse.json",
+		Stability:  "stable",
+		TypeName:   "HooksListResponse",
+		Schema:     &Schema{Definitions: map[string]*Schema{"HookMetadata": metadata}},
+	}
+	resolver := mustGeneratedDefinitionNameResolver(t, parent)
+	typ, err := definitionObjectTypePlan(parent, "HookMetadata", metadata, resolver)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fields := map[string]FieldPlan{}
+	for _, field := range typ.Fields {
+		fields[field.FieldName] = field
+	}
+	for name, wantType := range map[string]string{
+		"async":       "*bool",
+		"command":     "*protocolv2.Nullable[string]",
+		"handlerType": "HookHandlerType",
+		"server":      "*string",
+		"tool":        "*string",
+	} {
+		field, ok := fields[name]
+		if !ok || field.GoType != wantType {
+			t.Fatalf("HookMetadata field %s = %#v, want Go type %s", name, field, wantType)
+		}
+	}
+	if !fields["handlerType"].Required || fields["command"].Required {
+		t.Fatalf("HookMetadata compatibility requiredness = handlerType:%t command:%t", fields["handlerType"].Required, fields["command"].Required)
+	}
+
+	drifted := mustParseSchema(t, schemaJSON)
+	delete(drifted.OneOf[1].Properties, "tool")
+	if _, err := hookMetadataVariantOverlayFields("v2/HooksListResponse.json#/definitions/HookMetadata", drifted); err == nil ||
+		!strings.Contains(err.Error(), "no longer matches reviewed handlerType variant shape") {
+		t.Fatalf("HookMetadata drift error = %v", err)
+	}
+}
+
 func TestGeneratedDefinitionNameResolverReusesSameNameSameShape(t *testing.T) {
 	schema := mustParseSchema(t, `{
 		"type": "string",
@@ -895,6 +980,28 @@ func TestGenerateProtocolTypesEmitsNullableField(t *testing.T) {
 	}
 }
 
+func TestGenerateProtocolTypesEmitsNullableRequestParamsWrapper(t *testing.T) {
+	plan, err := BuildProtocolTypePlan(filepath.Join("..", "protocolschema", "appserver", "v2"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated, err := GenerateProtocolTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(generated)
+	for _, want := range []string{
+		"type GetAccountTokenUsageParams struct {",
+		"ThreadID *Nullable[string] `json:\"threadId,omitempty\"`",
+		"type ClientRequestAccountUsageRead struct {",
+		"Params *Nullable[GetAccountTokenUsageParams] `json:\"params,omitempty\"`",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("generated nullable request params output does not contain %q", want)
+		}
+	}
+}
+
 func TestGenerateProtocolTypesEmitsRequiredCollectionMarshalGuards(t *testing.T) {
 	minItems := uint64(1)
 	generated, err := GenerateProtocolTypes(ProtocolTypePlan{Types: []TypePlan{{
@@ -988,6 +1095,10 @@ func TestGenerateProtocolTypesEmitsTaggedUnionBoundary(t *testing.T) {
 		"func NewSandboxPolicyWorkspaceWrite(payload SandboxPolicyWorkspaceWrite) SandboxPolicy",
 		"func (value SandboxPolicy) AsReadOnly() (SandboxPolicyReadOnly, bool)",
 		`return unknownUnionVariant("SandboxPolicy", "type", variant)`,
+		"type ImageGenerationFailure struct {\n\tkind",
+		"func NewImageGenerationFailureUsageLimitExceeded(payload ImageGenerationFailureUsageLimitExceeded) ImageGenerationFailure",
+		"func (value ImageGenerationFailure) AsUsageLimitExceeded() (ImageGenerationFailureUsageLimitExceeded, bool)",
+		`return unknownUnionVariant("ImageGenerationFailure", "type", variant)`,
 		"type ConfigLayerSource struct {\n\tkind",
 		"func NewConfigLayerSourceMdm(payload ConfigLayerSourceMdm) ConfigLayerSource",
 		"func (value ConfigLayerSource) AsSessionFlags() (ConfigLayerSourceSessionFlags, bool)",

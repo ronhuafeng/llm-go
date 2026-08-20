@@ -24,6 +24,27 @@ func boolPtr(value bool) *bool {
 	return &value
 }
 
+func stringPtr(value string) *string {
+	return &value
+}
+
+func sampleHookMetadata(handlerType HookHandlerType) HookMetadata {
+	return HookMetadata{
+		CurrentHash:  "hash-1",
+		DisplayOrder: 1,
+		Enabled:      true,
+		EventName:    HookEventNamePreToolUse,
+		HandlerType:  handlerType,
+		IsManaged:    false,
+		Key:          "hook-1",
+		PluginID:     Null[string](),
+		Source:       HookSourceProject,
+		SourcePath:   "/repo/.codex/hooks.json",
+		TimeoutSec:   10,
+		TrustStatus:  HookTrustStatusTrusted,
+	}
+}
+
 func sampleGeneratedHookRunSummary() HookRunSummary {
 	return HookRunSummary{
 		DisplayOrder: 1,
@@ -5294,6 +5315,109 @@ func TestGeneratedExperimentalFeatureEnablementSetParamsMarshalMap(t *testing.T)
 	}
 }
 
+func TestGeneratedHookMetadataHandlerVariants(t *testing.T) {
+	command := sampleHookMetadata(HookHandlerTypeCommand)
+	command.Async = boolPtr(true)
+	command.Command = Value("echo hook")
+	mcpTool := sampleHookMetadata(HookHandlerTypeMCPTool)
+	mcpTool.Server = stringPtr("filesystem")
+	mcpTool.Tool = stringPtr("read_file")
+
+	for _, tc := range []struct {
+		name  string
+		value HookMetadata
+	}{
+		{name: "command", value: command},
+		{name: "MCP tool", value: mcpTool},
+		{name: "prompt", value: sampleHookMetadata(HookHandlerTypePrompt)},
+		{name: "agent", value: sampleHookMetadata(HookHandlerTypeAgent)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			raw, err := json.Marshal(tc.value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var decoded HookMetadata
+			if err := json.Unmarshal(raw, &decoded); err != nil {
+				t.Fatal(err)
+			}
+			if decoded.HandlerType != tc.value.HandlerType {
+				t.Fatalf("decoded handlerType = %q, want %q", decoded.HandlerType, tc.value.HandlerType)
+			}
+			// These assignments protect the pre-v0.148 exported field signatures.
+			var compatibleCommand *Nullable[string] = decoded.Command
+			var compatibleHandlerType HookHandlerType = decoded.HandlerType
+			_, _ = compatibleCommand, compatibleHandlerType
+		})
+	}
+
+	invalidMarshal := []struct {
+		name string
+		edit func(*HookMetadata)
+		want string
+	}{
+		{name: "command missing command", edit: func(value *HookMetadata) {}, want: "missing required field"},
+		{name: "command null command", edit: func(value *HookMetadata) { value.Command = Null[string]() }, want: "null is not allowed"},
+		{name: "command with MCP field", edit: func(value *HookMetadata) { value.Command = Value("echo"); value.Server = stringPtr("filesystem") }, want: "field is not allowed"},
+		{name: "MCP tool missing server", edit: func(value *HookMetadata) {
+			value.HandlerType = HookHandlerTypeMCPTool
+			value.Tool = stringPtr("read_file")
+		}, want: "missing required field"},
+		{name: "MCP tool with async", edit: func(value *HookMetadata) {
+			value.HandlerType = HookHandlerTypeMCPTool
+			value.Server = stringPtr("filesystem")
+			value.Tool = stringPtr("read_file")
+			value.Async = boolPtr(true)
+		}, want: "field is not allowed"},
+		{name: "prompt with command", edit: func(value *HookMetadata) { value.HandlerType = HookHandlerTypePrompt; value.Command = Value("echo") }, want: "field is not allowed"},
+	}
+	for _, tc := range invalidMarshal {
+		t.Run(tc.name, func(t *testing.T) {
+			value := sampleHookMetadata(HookHandlerTypeCommand)
+			tc.edit(&value)
+			_, err := json.Marshal(value)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("marshal error = %v, want %q", err, tc.want)
+			}
+		})
+	}
+
+	commandRaw, err := json.Marshal(command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var commandObject map[string]any
+	if err := json.Unmarshal(commandRaw, &commandObject); err != nil {
+		t.Fatal(err)
+	}
+	delete(commandObject, "command")
+	missingCommandRaw, err := json.Marshal(commandObject)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded HookMetadata
+	if err := json.Unmarshal(missingCommandRaw, &decoded); err == nil || !strings.Contains(err.Error(), "decode HookMetadata.command: missing required field") {
+		t.Fatalf("missing command decode error = %v", err)
+	}
+
+	promptRaw, err := json.Marshal(sampleHookMetadata(HookHandlerTypePrompt))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var promptObject map[string]any
+	if err := json.Unmarshal(promptRaw, &promptObject); err != nil {
+		t.Fatal(err)
+	}
+	promptObject["command"] = "echo"
+	forbiddenCommandRaw, err := json.Marshal(promptObject)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(forbiddenCommandRaw, &decoded); err == nil || !strings.Contains(err.Error(), "decode HookMetadata.command: field is not allowed") {
+		t.Fatalf("forbidden command decode error = %v", err)
+	}
+}
+
 func TestGeneratedSmallUtilityPayloadsProtocolMarshalAndUnmarshal(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
@@ -5313,7 +5437,7 @@ func TestGeneratedSmallUtilityPayloadsProtocolMarshalAndUnmarshal(t *testing.T) 
 			CWD:    "/repo",
 			Errors: []HookErrorInfo{{Message: "missing command", Path: "/repo/.codex/hooks.json"}},
 			Hooks: []HookMetadata{{
-				Command:       Null[string](),
+				Command:       Value("echo hook"),
 				CurrentHash:   "hash-1",
 				DisplayOrder:  1,
 				Enabled:       true,
@@ -5330,7 +5454,7 @@ func TestGeneratedSmallUtilityPayloadsProtocolMarshalAndUnmarshal(t *testing.T) 
 				TrustStatus:   HookTrustStatusTrusted,
 			}},
 			Warnings: []string{"review hook"},
-		}}}, target: &HooksListResponse{}, want: `{"data":[{"cwd":"/repo","errors":[{"message":"missing command","path":"/repo/.codex/hooks.json"}],"hooks":[{"command":null,"currentHash":"hash-1","displayOrder":1,"enabled":true,"eventName":"preToolUse","handlerType":"command","isManaged":false,"key":"hook-1","matcher":"shell","pluginId":null,"source":"project","sourcePath":"/repo/.codex/hooks.json","statusMessage":"trusted","timeoutSec":10,"trustStatus":"trusted"}],"warnings":["review hook"]}]}`},
+		}}}, target: &HooksListResponse{}, want: `{"data":[{"cwd":"/repo","errors":[{"message":"missing command","path":"/repo/.codex/hooks.json"}],"hooks":[{"command":"echo hook","currentHash":"hash-1","displayOrder":1,"enabled":true,"eventName":"preToolUse","handlerType":"command","isManaged":false,"key":"hook-1","matcher":"shell","pluginId":null,"source":"project","sourcePath":"/repo/.codex/hooks.json","statusMessage":"trusted","timeoutSec":10,"trustStatus":"trusted"}],"warnings":["review hook"]}]}`},
 		{name: "skills config write response", value: SkillsConfigWriteResponse{EffectiveEnabled: true}, target: &SkillsConfigWriteResponse{}, want: `{"effectiveEnabled":true}`},
 		{name: "skills list params", value: SkillsListParams{CWDs: &[]string{"/repo"}, ForceReload: boolPtr(true)}, target: &SkillsListParams{}, want: `{"cwds":["/repo"],"forceReload":true}`},
 		{name: "skills list response", value: SkillsListResponse{Data: []SkillsListEntry{{
