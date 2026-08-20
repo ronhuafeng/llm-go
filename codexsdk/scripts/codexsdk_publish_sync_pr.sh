@@ -19,8 +19,9 @@ Options:
 
 The script assumes HEAD is the committed sync change. It verifies caller-owned
 validation evidence when provided, rebases onto the current remote landing ref,
-validates the rebased tree, pushes a target-SHA-bound sync branch without
-overwriting a different remote commit, then creates a PR against the landing ref.
+validates the rebased tree, reuses an existing open PR for the same landing ref
+and upstream commit when present, otherwise pushes a target-SHA-bound sync
+branch without overwriting a different remote commit and creates a PR.
 EOF
 }
 
@@ -201,6 +202,29 @@ fetch_landing_ref() {
   git fetch "${remote}" "refs/heads/${land_ref}:refs/remotes/${remote}/${land_ref}"
 }
 
+find_existing_target_pr() {
+  if ! command -v gh >/dev/null 2>&1; then
+    echo "gh is required to find an existing sync PR" >&2
+    return 1
+  fi
+
+  gh pr list \
+    --base "${land_ref}" \
+    --state open \
+    --limit 100 \
+    --json number,url,body |
+    jq -r \
+      --arg marker '<!-- codexsdk-upstream-sync' \
+      --arg commit "upstream_commit: ${target_sha}" \
+      '.[]
+       | select(.body != null)
+       | select(.body | contains($marker))
+       | select(.body | contains($commit))
+       | [.number, .url]
+       | @tsv' |
+    head -n 1
+}
+
 sync_branch_name() {
   python3 - "$branch_prefix" "$target_ref" "$target_sha" <<'PY'
 import re
@@ -344,6 +368,15 @@ fetch_landing_ref
 git rebase "${remote}/${land_ref}"
 confirm_target_still_points_at_sha
 validate_sync
+
+existing_pr="$(find_existing_target_pr)"
+if [[ -n "${existing_pr}" ]]; then
+  IFS=$'\t' read -r pr_number pr_url <<< "${existing_pr}"
+  write_output "pr_number" "${pr_number}"
+  write_output "pr_url" "${pr_url}"
+  printf '%s\n' "${pr_url}"
+  exit 0
+fi
 
 sync_branch="$(sync_branch_name)"
 sync_commit="$(git rev-parse HEAD)"
