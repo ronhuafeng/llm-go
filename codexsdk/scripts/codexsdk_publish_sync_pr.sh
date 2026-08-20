@@ -216,13 +216,12 @@ find_existing_target_pr() {
     jq -r \
       --arg marker '<!-- codexsdk-upstream-sync' \
       --arg commit "upstream_commit: ${target_sha}" \
-      '.[]
-       | select(.body != null)
-       | select(.body | contains($marker))
-       | select(.body | contains($commit))
-       | [.number, .url]
-       | @tsv' |
-    head -n 1
+      '[.[]
+        | select(.body != null)
+        | select(.body | contains($marker))
+        | select(.body | contains($commit))
+        | [.number, .url]
+        | @tsv][0] // empty'
 }
 
 sync_branch_name() {
