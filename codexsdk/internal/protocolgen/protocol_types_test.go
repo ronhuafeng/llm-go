@@ -523,6 +523,622 @@ func TestSelectGeneratedTaggedUnions(t *testing.T) {
 	}
 }
 
+func TestSelectGeneratedTaggedUnionsSupportsReviewedNullableRefPayload(t *testing.T) {
+	schema := mustParseSchema(t, `{
+		"oneOf": [{
+			"type": "object",
+			"required": ["method"],
+			"properties": {
+				"method": {"type": "string", "enum": ["account/usage/read"]},
+				"params": {
+					"anyOf": [
+						{"$ref": "#/definitions/GetAccountTokenUsageParams"},
+						{"type": "null"}
+					]
+				}
+			}
+		}],
+		"definitions": {
+			"GetAccountTokenUsageParams": {
+				"type": "object",
+				"properties": {"threadId": {"type": ["string", "null"]}}
+			}
+		}
+	}`)
+	plan := ProtocolTypePlan{Types: []TypePlan{{
+		Kind:       TypePlanTaggedUnionCandidate,
+		Schema:     schema,
+		SchemaPath: "ClientRequest.json",
+		Stability:  "stable",
+		TypeName:   "ClientRequest",
+	}}}
+
+	unions, err := SelectGeneratedTaggedUnions(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(unions) != 1 || len(unions[0].Variants) != 1 || len(unions[0].Variants[0].Fields) != 1 {
+		t.Fatalf("nullable-ref tagged union plan = %#v", unions)
+	}
+	field := unions[0].Variants[0].Fields[0]
+	if field.Kind != FieldPlanNullableRef || field.GoType != "*protocolv2.Nullable[GetAccountTokenUsageParams]" {
+		t.Fatalf("nullable-ref params field = kind %s GoType %q", field.Kind, field.GoType)
+	}
+	if !field.WireAllowsNull || !field.WireOmitAllowed {
+		t.Fatal("optional nullable-ref params must preserve omit/null/value semantics")
+	}
+}
+
+func TestSelectGeneratedTaggedUnionsSupportsReviewedDynamicJSONField(t *testing.T) {
+	schema := mustParseSchema(t, `{
+		"definitions": {
+			"ConfiguredHookHandler": {
+				"oneOf": [
+					{
+						"type": "object",
+						"required": ["type"],
+						"properties": {"type": {"type": "string", "enum": ["command"]}}
+					},
+					{
+						"type": "object",
+						"required": ["input", "type"],
+						"properties": {
+							"type": {"type": "string", "enum": ["mcp_tool"]},
+							"input": {"type": "object", "additionalProperties": true}
+						}
+					}
+				]
+			}
+		}
+	}`)
+	plan := ProtocolTypePlan{Types: []TypePlan{{
+		Schema:     schema,
+		SchemaPath: "v2/ConfigRequirementsReadResponse.json",
+		Stability:  "stable",
+		TypeName:   "ConfigRequirementsReadResponse",
+	}}}
+
+	unions, err := SelectGeneratedTaggedUnions(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(unions) != 1 {
+		t.Fatalf("configured hook tagged unions = %#v", unions)
+	}
+	mcpTool, ok := taggedVariantByValue(unions[0].Variants)["mcp_tool"]
+	if !ok || len(mcpTool.Fields) != 1 {
+		t.Fatalf("mcp_tool configured hook variant = %#v, ok=%v", mcpTool, ok)
+	}
+	field := mcpTool.Fields[0]
+	if field.Kind != FieldPlanJSONValueMap || field.GoType != "map[string]protocolv2.JSONValue" || !field.Required {
+		t.Fatalf("configured hook input field = kind %s GoType %q required=%v", field.Kind, field.GoType, field.Required)
+	}
+}
+
+func TestSelectGeneratedTaggedUnionsSupportsReviewedNestedNullableUnion(t *testing.T) {
+	schema := mustParseSchema(t, `{
+		"definitions": {
+			"ThreadItem": {
+				"oneOf": [{
+					"type": "object",
+					"required": ["type"],
+					"properties": {
+						"type": {"type": "string", "enum": ["imageGeneration"]},
+						"failure": {
+							"anyOf": [
+								{"$ref": "#/definitions/ImageGenerationFailure"},
+								{"type": "null"}
+							]
+						}
+					}
+				}]
+			},
+			"ImageGenerationFailure": {
+				"oneOf": [{
+					"type": "object",
+					"required": ["limitId", "type"],
+					"properties": {
+						"type": {"type": "string", "enum": ["usageLimitExceeded"]},
+						"limitId": {"type": "string"}
+					}
+				}]
+			}
+		}
+	}`)
+	plan := ProtocolTypePlan{Types: []TypePlan{{
+		Schema:     schema,
+		SchemaPath: "v2/TurnStartResponse.json",
+		Stability:  "stable",
+		TypeName:   "TurnStartResponse",
+	}}}
+
+	unions, err := SelectGeneratedTaggedUnions(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var threadItem TaggedUnionPlan
+	for _, union := range unions {
+		if union.TypeName == "ThreadItem" {
+			threadItem = union
+			break
+		}
+	}
+	if len(threadItem.Variants) != 1 || len(threadItem.Variants[0].Fields) != 1 {
+		t.Fatalf("ThreadItem tagged union plan = %#v", threadItem)
+	}
+	field := threadItem.Variants[0].Fields[0]
+	if field.Kind != FieldPlanNullableRef || field.GoType != "*protocolv2.Nullable[ImageGenerationFailure]" {
+		t.Fatalf("image generation failure field = kind %s GoType %q", field.Kind, field.GoType)
+	}
+	if !field.WireAllowsNull || !field.WireOmitAllowed {
+		t.Fatal("optional image generation failure must preserve omit/null/value semantics")
+	}
+}
+
+func TestSelectGeneratedTaggedUnionsIncludesReviewedBedrockSetupParams(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "v2"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	coverage := `{
+		"status": "classified-manifest",
+		"types": [{
+			"schema": "v2/BedrockSetupParams.json",
+			"stability": "experimental",
+			"status": "supported-generated",
+			"type": "BedrockSetupParams"
+		}],
+		"fields": []
+	}`
+	schema := `{
+		"title": "BedrockSetupParams",
+		"oneOf": [
+			{
+				"type": "object",
+				"required": ["profile", "region", "type"],
+				"properties": {
+					"type": {"type": "string", "enum": ["profile"]},
+					"profile": {"type": "string"},
+					"region": {"type": "string"}
+				}
+			},
+			{
+				"type": "object",
+				"required": ["region", "type"],
+				"properties": {
+					"type": {"type": "string", "enum": ["environment"]},
+					"region": {"type": "string"}
+				}
+			}
+		]
+	}`
+	if err := os.WriteFile(filepath.Join(root, "coverage_matrix.json"), []byte(coverage), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "v2", "BedrockSetupParams.json"), []byte(schema), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	plan, err := BuildProtocolTypePlan(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unions, err := SelectGeneratedTaggedUnions(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(unions) != 1 || unions[0].TypeName != "BedrockSetupParams" || unions[0].Discriminator != "type" {
+		t.Fatalf("Bedrock setup tagged unions = %#v", unions)
+	}
+	variants := taggedVariantByValue(unions[0].Variants)
+	if len(variants) != 2 {
+		t.Fatalf("Bedrock setup variants = %#v", variants)
+	}
+	if _, ok := variants["profile"]; !ok {
+		t.Fatal("Bedrock setup union is missing profile variant")
+	}
+	if _, ok := variants["environment"]; !ok {
+		t.Fatal("Bedrock setup union is missing environment variant")
+	}
+}
+
+func TestSelectFirstPassGeneratedTypesIncludesReviewedBedrockDiscoverResponse(t *testing.T) {
+	schema := mustParseSchema(t, `{
+		"definitions": {
+			"AwsCredentialType": {"type": "string", "enum": ["accessKeys", "bedrockApiKey"]},
+			"BedrockAwsProfile": {
+				"type": "object",
+				"required": ["name"],
+				"properties": {
+					"name": {"type": "string"},
+					"region": {"type": ["string", "null"]}
+				}
+			},
+			"BedrockEnvironmentCredential": {
+				"type": "object",
+				"required": ["type"],
+				"properties": {
+					"region": {"type": ["string", "null"]},
+					"type": {"$ref": "#/definitions/AwsCredentialType"}
+				}
+			}
+		}
+	}`)
+	plan := ProtocolTypePlan{Types: []TypePlan{{
+		Fields: []FieldPlan{
+			{
+				FieldName:  "environmentCredentials",
+				GoType:     "[]BedrockEnvironmentCredential",
+				Kind:       FieldPlanArrayRef,
+				Path:       "v2/BedrockDiscoverResponse.json#/properties/environmentCredentials",
+				RefPath:    "v2/BedrockDiscoverResponse.json#/definitions/BedrockEnvironmentCredential",
+				Required:   true,
+				SchemaPath: "v2/BedrockDiscoverResponse.json",
+				Stability:  "experimental",
+				TypeName:   "BedrockDiscoverResponse",
+			},
+			{
+				FieldName:  "profiles",
+				GoType:     "[]BedrockAwsProfile",
+				Kind:       FieldPlanArrayRef,
+				Path:       "v2/BedrockDiscoverResponse.json#/properties/profiles",
+				RefPath:    "v2/BedrockDiscoverResponse.json#/definitions/BedrockAwsProfile",
+				Required:   true,
+				SchemaPath: "v2/BedrockDiscoverResponse.json",
+				Stability:  "experimental",
+				TypeName:   "BedrockDiscoverResponse",
+			},
+		},
+		Kind:       TypePlanObjectStructCandidate,
+		Schema:     schema,
+		SchemaPath: "v2/BedrockDiscoverResponse.json",
+		Stability:  "experimental",
+		TypeName:   "BedrockDiscoverResponse",
+	}}}
+
+	selected, err := SelectFirstPassGeneratedTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selectedNames := map[string]bool{}
+	for _, typ := range selected {
+		selectedNames[typ.TypeName] = true
+	}
+	for _, name := range []string{"BedrockAwsProfile", "BedrockDiscoverResponse", "BedrockEnvironmentCredential"} {
+		if !selectedNames[name] {
+			t.Fatalf("selected Bedrock discover types %v do not include %s", selectedNames, name)
+		}
+	}
+}
+
+func TestSelectFirstPassGeneratedTypesIncludesReviewedAutoReviewRequirements(t *testing.T) {
+	schema := mustParseSchema(t, `{
+		"definitions": {
+			"AutoReviewRequirements": {
+				"type": "object",
+				"properties": {
+					"ignoreRules": {"type": ["array", "null"], "items": {"type": "string"}},
+					"requiredOnModels": {"type": ["array", "null"], "items": {"type": "string"}}
+				}
+			},
+			"ConfigRequirements": {
+				"type": "object",
+				"properties": {
+					"autoReview": {
+						"anyOf": [
+							{"$ref": "#/definitions/AutoReviewRequirements"},
+							{"type": "null"}
+						]
+					}
+				}
+			}
+		}
+	}`)
+	plan := ProtocolTypePlan{Types: []TypePlan{{
+		Fields: []FieldPlan{{
+			FieldName:       "requirements",
+			GoType:          "*protocolv2.Nullable[ConfigRequirements]",
+			Kind:            FieldPlanNullableRef,
+			Path:            "v2/ConfigRequirementsReadResponse.json#/properties/requirements",
+			RefPath:         "v2/ConfigRequirementsReadResponse.json#/definitions/ConfigRequirements",
+			SchemaPath:      "v2/ConfigRequirementsReadResponse.json",
+			Stability:       "stable",
+			TypeName:        "ConfigRequirementsReadResponse",
+			WireAllowsNull:  true,
+			WireOmitAllowed: true,
+		}},
+		Kind:       TypePlanObjectStructCandidate,
+		Schema:     schema,
+		SchemaPath: "v2/ConfigRequirementsReadResponse.json",
+		Stability:  "stable",
+		TypeName:   "ConfigRequirementsReadResponse",
+	}}}
+
+	selected, err := SelectFirstPassGeneratedTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selectedNames := map[string]bool{}
+	for _, typ := range selected {
+		selectedNames[typ.TypeName] = true
+	}
+	for _, name := range []string{"AutoReviewRequirements", "ConfigRequirements", "ConfigRequirementsReadResponse"} {
+		if !selectedNames[name] {
+			t.Fatalf("selected config requirements types %v do not include %s", selectedNames, name)
+		}
+	}
+}
+
+func TestSelectFirstPassGeneratedTypesIncludesReviewedProjectModels(t *testing.T) {
+	responseSchema := mustParseSchema(t, `{
+		"definitions": {
+			"AbsolutePathBuf": {"type": "string"},
+			"ProjectRoot": {
+				"type": "object",
+				"required": ["path"],
+				"properties": {"path": {"$ref": "#/definitions/AbsolutePathBuf"}}
+			},
+			"Project": {
+				"type": "object",
+				"required": ["id", "metadata", "roots"],
+				"properties": {
+					"id": {"type": "string"},
+					"metadata": {"type": "object", "additionalProperties": {"type": "string"}},
+					"roots": {"type": "array", "items": {"$ref": "#/definitions/ProjectRoot"}}
+				}
+			}
+		}
+	}`)
+	plan := ProtocolTypePlan{Types: []TypePlan{
+		{
+			Fields: []FieldPlan{{
+				FieldName:  "roots",
+				GoType:     "[]ProjectRoot",
+				Kind:       FieldPlanArrayRef,
+				Path:       "v2/ProjectCreateParams.json#/properties/roots",
+				RefPath:    "v2/ProjectCreateParams.json#/definitions/ProjectRoot",
+				Required:   true,
+				SchemaPath: "v2/ProjectCreateParams.json",
+				Stability:  "experimental",
+				TypeName:   "ProjectCreateParams",
+			}},
+			Kind:       TypePlanObjectStructCandidate,
+			Schema:     mustParseSchema(t, `{"type":"object"}`),
+			SchemaPath: "v2/ProjectCreateParams.json",
+			Stability:  "experimental",
+			TypeName:   "ProjectCreateParams",
+		},
+		{
+			Fields: []FieldPlan{{
+				FieldName:  "project",
+				GoType:     "Project",
+				Kind:       FieldPlanRef,
+				Path:       "v2/ProjectCreateResponse.json#/properties/project",
+				RefPath:    "v2/ProjectCreateResponse.json#/definitions/Project",
+				Required:   true,
+				SchemaPath: "v2/ProjectCreateResponse.json",
+				Stability:  "experimental",
+				TypeName:   "ProjectCreateResponse",
+			}},
+			Kind:       TypePlanObjectStructCandidate,
+			Schema:     responseSchema,
+			SchemaPath: "v2/ProjectCreateResponse.json",
+			Stability:  "experimental",
+			TypeName:   "ProjectCreateResponse",
+		},
+	}}
+
+	selected, err := SelectFirstPassGeneratedTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selectedNames := map[string]bool{}
+	for _, typ := range selected {
+		selectedNames[typ.TypeName] = true
+	}
+	for _, name := range []string{"ProjectRoot", "Project", "ProjectCreateParams", "ProjectCreateResponse"} {
+		if !selectedNames[name] {
+			t.Fatalf("selected project types %v do not include %s", selectedNames, name)
+		}
+	}
+}
+
+func TestSelectFirstPassGeneratedTypesIncludesReviewedServerDiagnosticsModels(t *testing.T) {
+	schema := mustParseSchema(t, `{
+		"definitions": {
+			"ServerDiagnosticsGauge": {
+				"type": "object",
+				"required": ["name", "value"],
+				"properties": {
+					"name": {"type": "string"},
+					"value": {"type": "integer", "format": "uint64", "minimum": 0}
+				}
+			},
+			"ServerDiagnosticsProcess": {
+				"type": "object",
+				"required": ["id"],
+				"properties": {
+					"id": {"type": "integer", "format": "uint32", "minimum": 0},
+					"residentMemoryBytes": {"type": ["integer", "null"], "format": "uint64", "minimum": 0}
+				}
+			}
+		}
+	}`)
+	plan := ProtocolTypePlan{Types: []TypePlan{{
+		Fields: []FieldPlan{
+			{
+				FieldName:  "gauges",
+				GoType:     "[]ServerDiagnosticsGauge",
+				Kind:       FieldPlanArrayRef,
+				Path:       "v2/ServerDiagnosticsResponse.json#/properties/gauges",
+				RefPath:    "v2/ServerDiagnosticsResponse.json#/definitions/ServerDiagnosticsGauge",
+				Required:   true,
+				SchemaPath: "v2/ServerDiagnosticsResponse.json",
+				Stability:  "experimental",
+				TypeName:   "ServerDiagnosticsResponse",
+			},
+			{
+				FieldName:  "process",
+				GoType:     "ServerDiagnosticsProcess",
+				Kind:       FieldPlanRef,
+				Path:       "v2/ServerDiagnosticsResponse.json#/properties/process",
+				RefPath:    "v2/ServerDiagnosticsResponse.json#/definitions/ServerDiagnosticsProcess",
+				Required:   true,
+				SchemaPath: "v2/ServerDiagnosticsResponse.json",
+				Stability:  "experimental",
+				TypeName:   "ServerDiagnosticsResponse",
+			},
+		},
+		Kind:       TypePlanObjectStructCandidate,
+		Schema:     schema,
+		SchemaPath: "v2/ServerDiagnosticsResponse.json",
+		Stability:  "experimental",
+		TypeName:   "ServerDiagnosticsResponse",
+	}}}
+
+	selected, err := SelectFirstPassGeneratedTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selectedNames := map[string]bool{}
+	for _, typ := range selected {
+		selectedNames[typ.TypeName] = true
+	}
+	for _, name := range []string{"ServerDiagnosticsGauge", "ServerDiagnosticsProcess", "ServerDiagnosticsResponse"} {
+		if !selectedNames[name] {
+			t.Fatalf("selected server diagnostics types %v do not include %s", selectedNames, name)
+		}
+	}
+}
+
+func TestSelectFirstPassGeneratedTypesIncludesReviewedThreadSectionAppearance(t *testing.T) {
+	schema := mustParseSchema(t, `{
+		"definitions": {
+			"ThreadSectionAppearance": {
+				"type": "object",
+				"properties": {
+					"color": {"type": ["string", "null"]},
+					"icon": {"type": ["string", "null"]}
+				}
+			},
+			"ThreadSection": {
+				"type": "object",
+				"required": ["id", "name"],
+				"properties": {
+					"id": {"type": "string"},
+					"name": {"type": "string"},
+					"appearance": {
+						"anyOf": [
+							{"$ref": "#/definitions/ThreadSectionAppearance"},
+							{"type": "null"}
+						]
+					}
+				}
+			},
+			"Thread": {
+				"type": "object",
+				"properties": {
+					"section": {
+						"anyOf": [
+							{"$ref": "#/definitions/ThreadSection"},
+							{"type": "null"}
+						]
+					}
+				}
+			}
+		}
+	}`)
+	plan := ProtocolTypePlan{Types: []TypePlan{{
+		Fields: []FieldPlan{{
+			FieldName:  "thread",
+			GoType:     "Thread",
+			Kind:       FieldPlanRef,
+			Path:       "v2/ThreadStartResponse.json#/properties/thread",
+			RefPath:    "v2/ThreadStartResponse.json#/definitions/Thread",
+			Required:   true,
+			SchemaPath: "v2/ThreadStartResponse.json",
+			Stability:  "stable",
+			TypeName:   "ThreadStartResponse",
+		}},
+		Kind:       TypePlanObjectStructCandidate,
+		Schema:     schema,
+		SchemaPath: "v2/ThreadStartResponse.json",
+		Stability:  "stable",
+		TypeName:   "ThreadStartResponse",
+	}}}
+
+	selected, err := SelectFirstPassGeneratedTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selectedNames := map[string]bool{}
+	for _, typ := range selected {
+		selectedNames[typ.TypeName] = true
+	}
+	for _, name := range []string{"ThreadSectionAppearance", "ThreadSection", "Thread", "ThreadStartResponse"} {
+		if !selectedNames[name] {
+			t.Fatalf("selected thread section types %v do not include %s", selectedNames, name)
+		}
+	}
+}
+
+func TestSelectFirstPassGeneratedTypesIncludesReviewedQueuedSubmission(t *testing.T) {
+	schema := mustParseSchema(t, `{
+		"definitions": {
+			"QueuedSubmission": {
+				"type": "object",
+				"required": ["clientUserMessageId", "id", "input"],
+				"properties": {
+					"clientUserMessageId": {"type": "string"},
+					"id": {"type": "string"},
+					"input": {"type": "array", "items": {"$ref": "#/definitions/UserInput"}}
+				}
+			}
+		}
+	}`)
+	plan := ProtocolTypePlan{Types: []TypePlan{
+		{
+			Kind:       TypePlanEmptyStructCandidate,
+			Schema:     mustParseSchema(t, `{"type":"object"}`),
+			SchemaPath: "v2/UserInputFixture.json",
+			Stability:  "experimental",
+			TypeName:   "UserInput",
+		},
+		{
+			Fields: []FieldPlan{{
+				FieldName:  "queuedSubmission",
+				GoType:     "QueuedSubmission",
+				Kind:       FieldPlanRef,
+				Path:       "v2/ThreadQueueAddResponse.json#/properties/queuedSubmission",
+				RefPath:    "v2/ThreadQueueAddResponse.json#/definitions/QueuedSubmission",
+				Required:   true,
+				SchemaPath: "v2/ThreadQueueAddResponse.json",
+				Stability:  "experimental",
+				TypeName:   "ThreadQueueAddResponse",
+			}},
+			Kind:       TypePlanObjectStructCandidate,
+			Schema:     schema,
+			SchemaPath: "v2/ThreadQueueAddResponse.json",
+			Stability:  "experimental",
+			TypeName:   "ThreadQueueAddResponse",
+		},
+	}}
+
+	selected, err := SelectFirstPassGeneratedTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selectedNames := map[string]bool{}
+	for _, typ := range selected {
+		selectedNames[typ.TypeName] = true
+	}
+	for _, name := range []string{"UserInput", "QueuedSubmission", "ThreadQueueAddResponse"} {
+		if !selectedNames[name] {
+			t.Fatalf("selected queue types %v do not include %s", selectedNames, name)
+		}
+	}
+}
+
 func TestGeneratedDefinitionClassifierUsesSchemaShape(t *testing.T) {
 	cases := map[string]struct {
 		schema string

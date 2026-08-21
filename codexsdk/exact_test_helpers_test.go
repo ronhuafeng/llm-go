@@ -1516,12 +1516,10 @@ func facadeHooksListResponse() protocolv2.HooksListResponse {
 				Path:    "/repo/.codex/hooks.json",
 			}},
 			Hooks: []protocolv2.HookMetadata{{
-				Command:       protocolv2.Null[string](),
 				CurrentHash:   "hash-1",
 				DisplayOrder:  1,
 				Enabled:       true,
 				EventName:     protocolv2.HookEventNamePreToolUse,
-				HandlerType:   protocolv2.HookHandlerTypeCommand,
 				IsManaged:     false,
 				Key:           "hook-1",
 				Matcher:       protocolv2.Value("shell"),

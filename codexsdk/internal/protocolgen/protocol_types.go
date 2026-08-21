@@ -1918,7 +1918,7 @@ func enumConstName(typeName, value string) string {
 func isGeneratedTaggedUnionCheckpoint(path string) bool {
 	switch path {
 	case "ClientNotification.json", "ClientRequest.json", "ServerNotification.json", "ServerRequest.json",
-		"v2/LoginAccountParams.json", "v2/LoginAccountResponse.json":
+		"v2/BedrockSetupParams.json", "v2/LoginAccountParams.json", "v2/LoginAccountResponse.json":
 		return true
 	default:
 		return false
@@ -2056,7 +2056,7 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 		return name == "NetworkPolicyAmendment"
 	case "ClientRequest.json":
 		switch name {
-		case "RemoteControlDisableParams", "RemoteControlEnableParams":
+		case "GetAccountTokenUsageParams", "RemoteControlDisableParams", "RemoteControlEnableParams":
 			return true
 		default:
 			return false
@@ -2074,6 +2074,13 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 		}
 	case "FuzzyFileSearchResponse.json":
 		return name == "FuzzyFileSearchResult"
+	case "v2/BedrockDiscoverResponse.json":
+		switch name {
+		case "BedrockAwsProfile", "BedrockEnvironmentCredential":
+			return true
+		default:
+			return false
+		}
 	case "v2/CollaborationModeListResponse.json":
 		return name == "CollaborationModeMask"
 	case "v2/AppsListResponse.json":
@@ -2141,7 +2148,8 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 		}
 	case "v2/ConfigRequirementsReadResponse.json":
 		switch name {
-		case "BrowserUseRequirements",
+		case "AutoReviewRequirements",
+			"BrowserUseRequirements",
 			"ComputerUseRequirements",
 			"ConfigRequirements",
 			"ConfiguredHookMatcherGroup",
@@ -2315,6 +2323,20 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 		return name == "MarketplaceUpgradeErrorInfo"
 	case "v2/ProcessSpawnParams.json":
 		return name == "ProcessTerminalSize"
+	case "v2/ProjectCreateResponse.json":
+		switch name {
+		case "Project", "ProjectRoot":
+			return true
+		default:
+			return false
+		}
+	case "v2/ServerDiagnosticsResponse.json":
+		switch name {
+		case "ServerDiagnosticsGauge", "ServerDiagnosticsProcess":
+			return true
+		default:
+			return false
+		}
 	case "v2/ThreadTokenUsageUpdatedNotification.json":
 		switch name {
 		case "ThreadTokenUsage", "TokenUsageBreakdown":
@@ -2324,6 +2346,8 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 		}
 	case "v2/ThreadRealtimeOutputAudioDeltaNotification.json":
 		return name == "ThreadRealtimeAudioChunk"
+	case "v2/ThreadQueueAddResponse.json":
+		return name == "QueuedSubmission"
 	case "v2/ThreadGoalUpdatedNotification.json":
 		return name == "ThreadGoal"
 	case "v2/TurnPlanUpdatedNotification.json":
@@ -2350,7 +2374,8 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 			"GitInfo",
 			"Thread",
 			"ThreadExtra",
-			"ThreadSection":
+			"ThreadSection",
+			"ThreadSectionAppearance":
 			return true
 		default:
 			return false
@@ -2527,7 +2552,7 @@ func isGeneratedDefinitionTaggedUnionCheckpoint(schemaPath string, name string) 
 		}
 	case "v2/TurnStartResponse.json":
 		switch name {
-		case "PatchChangeKind", "ThreadItem", "WebSearchAction":
+		case "ImageGenerationFailure", "PatchChangeKind", "ThreadItem", "WebSearchAction":
 			return true
 		default:
 			return false

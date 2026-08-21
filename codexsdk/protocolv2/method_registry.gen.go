@@ -42,6 +42,8 @@ type MethodInfo struct {
 }
 
 const (
+	MethodAccountBedrockDiscover                  = "account/bedrock/discover"
+	MethodAccountBedrockSetup                     = "account/bedrock/setup"
 	MethodAccountChatGPTAuthTokensRefresh         = "account/chatgptAuthTokens/refresh"
 	MethodAccountLoginCancel                      = "account/login/cancel"
 	MethodAccountLoginCompleted                   = "account/login/completed"
@@ -61,6 +63,7 @@ const (
 	MethodAppRead                                 = "app/read"
 	MethodApplyPatchApproval                      = "applyPatchApproval"
 	MethodAttestationGenerate                     = "attestation/generate"
+	MethodAutoApprovalReviewStrictReviewRequired  = "autoApprovalReview/strictReviewRequired"
 	MethodCollaborationModeList                   = "collaborationMode/list"
 	MethodCommandExec                             = "command/exec"
 	MethodCommandExecOutputDelta                  = "command/exec/outputDelta"
@@ -166,6 +169,14 @@ const (
 	MethodProcessResizePTY                        = "process/resizePty"
 	MethodProcessSpawn                            = "process/spawn"
 	MethodProcessWriteStdin                       = "process/writeStdin"
+	MethodProjectChanged                          = "project/changed"
+	MethodProjectCreate                           = "project/create"
+	MethodProjectDelete                           = "project/delete"
+	MethodProjectImport                           = "project/import"
+	MethodProjectList                             = "project/list"
+	MethodProjectMove                             = "project/move"
+	MethodProjectRead                             = "project/read"
+	MethodProjectUpdate                           = "project/update"
 	MethodRemoteControlClientList                 = "remoteControl/client/list"
 	MethodRemoteControlClientRevoke               = "remoteControl/client/revoke"
 	MethodRemoteControlDisable                    = "remoteControl/disable"
@@ -175,6 +186,7 @@ const (
 	MethodRemoteControlStatusChanged              = "remoteControl/status/changed"
 	MethodRemoteControlStatusRead                 = "remoteControl/status/read"
 	MethodReviewStart                             = "review/start"
+	MethodServerDiagnostics                       = "server/diagnostics"
 	MethodServerRequestResolved                   = "serverRequest/resolved"
 	MethodSkillsChanged                           = "skills/changed"
 	MethodSkillsConfigWrite                       = "skills/config/write"
@@ -209,6 +221,14 @@ const (
 	MethodThreadMetadataUpdate                    = "thread/metadata/update"
 	MethodThreadNameSet                           = "thread/name/set"
 	MethodThreadNameUpdated                       = "thread/name/updated"
+	MethodThreadProjectUpdated                    = "thread/project/updated"
+	MethodThreadQueueAdd                          = "thread/queue/add"
+	MethodThreadQueueChanged                      = "thread/queue/changed"
+	MethodThreadQueueDelete                       = "thread/queue/delete"
+	MethodThreadQueueList                         = "thread/queue/list"
+	MethodThreadQueueReorder                      = "thread/queue/reorder"
+	MethodThreadQueueStart                        = "thread/queue/start"
+	MethodThreadQueueUpdate                       = "thread/queue/update"
 	MethodThreadRead                              = "thread/read"
 	MethodThreadRealtimeAppendAudio               = "thread/realtime/appendAudio"
 	MethodThreadRealtimeAppendSpeech              = "thread/realtime/appendSpeech"
@@ -225,6 +245,8 @@ const (
 	MethodThreadRealtimeTranscriptDelta           = "thread/realtime/transcript/delta"
 	MethodThreadRealtimeTranscriptDone            = "thread/realtime/transcript/done"
 	MethodThreadResume                            = "thread/resume"
+	MethodThreadRevert                            = "thread/revert"
+	MethodThreadReverted                          = "thread/reverted"
 	MethodThreadRollback                          = "thread/rollback"
 	MethodThreadSearch                            = "thread/search"
 	MethodThreadSearchOccurrences                 = "thread/searchOccurrences"
@@ -260,6 +282,28 @@ const (
 )
 
 var methodRegistry = map[string]MethodInfo{
+	MethodAccountBedrockDiscover: {
+		Method:                MethodAccountBedrockDiscover,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "account",
+		ParamsOrPayloadSchema: "BedrockDiscoverParams",
+		ResponseSchema:        "v2/BedrockDiscoverResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Accounts().BedrockDiscover",
+		Stability:             MethodStabilityExperimental,
+	},
+	MethodAccountBedrockSetup: {
+		Method:                MethodAccountBedrockSetup,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "account",
+		ParamsOrPayloadSchema: "BedrockSetupParams",
+		ResponseSchema:        "v2/BedrockSetupResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Accounts().BedrockSetup",
+		Stability:             MethodStabilityExperimental,
+	},
 	MethodAccountChatGPTAuthTokensRefresh: {
 		Method:                MethodAccountChatGPTAuthTokensRefresh,
 		Direction:             MethodDirectionServerToClient,
@@ -467,6 +511,17 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchema:        "AttestationGenerateResponse.json",
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "ServerRequests().AttestationGenerate",
+		Stability:             MethodStabilityStable,
+	},
+	MethodAutoApprovalReviewStrictReviewRequired: {
+		Method:                MethodAutoApprovalReviewStrictReviewRequired,
+		Direction:             MethodDirectionServerToClient,
+		Kind:                  MethodKindNotification,
+		Family:                "autoApprovalReview",
+		ParamsOrPayloadSchema: "StrictReviewRequiredNotification",
+		ResponseSchema:        "",
+		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
+		FacadeTarget:          "ServerNotifications().AutoApprovalReviewStrictReviewRequired",
 		Stability:             MethodStabilityStable,
 	},
 	MethodCollaborationModeList: {
@@ -1624,6 +1679,94 @@ var methodRegistry = map[string]MethodInfo{
 		FacadeTarget:          "Processes().WriteStdin",
 		Stability:             MethodStabilityExperimental,
 	},
+	MethodProjectChanged: {
+		Method:                MethodProjectChanged,
+		Direction:             MethodDirectionServerToClient,
+		Kind:                  MethodKindNotification,
+		Family:                "project",
+		ParamsOrPayloadSchema: "ProjectChangedNotification",
+		ResponseSchema:        "",
+		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
+		FacadeTarget:          "ServerNotifications().ProjectChanged",
+		Stability:             MethodStabilityStable,
+	},
+	MethodProjectCreate: {
+		Method:                MethodProjectCreate,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "project",
+		ParamsOrPayloadSchema: "ProjectCreateParams",
+		ResponseSchema:        "v2/ProjectCreateResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Project().Create",
+		Stability:             MethodStabilityExperimental,
+	},
+	MethodProjectDelete: {
+		Method:                MethodProjectDelete,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "project",
+		ParamsOrPayloadSchema: "ProjectDeleteParams",
+		ResponseSchema:        "v2/ProjectDeleteResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Project().Delete",
+		Stability:             MethodStabilityExperimental,
+	},
+	MethodProjectImport: {
+		Method:                MethodProjectImport,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "project",
+		ParamsOrPayloadSchema: "ProjectImportParams",
+		ResponseSchema:        "v2/ProjectImportResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Project().Import",
+		Stability:             MethodStabilityExperimental,
+	},
+	MethodProjectList: {
+		Method:                MethodProjectList,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "project",
+		ParamsOrPayloadSchema: "ProjectListParams",
+		ResponseSchema:        "v2/ProjectListResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Project().List",
+		Stability:             MethodStabilityExperimental,
+	},
+	MethodProjectMove: {
+		Method:                MethodProjectMove,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "project",
+		ParamsOrPayloadSchema: "ProjectMoveParams",
+		ResponseSchema:        "v2/ProjectMoveResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Project().Move",
+		Stability:             MethodStabilityExperimental,
+	},
+	MethodProjectRead: {
+		Method:                MethodProjectRead,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "project",
+		ParamsOrPayloadSchema: "ProjectReadParams",
+		ResponseSchema:        "v2/ProjectReadResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Project().Read",
+		Stability:             MethodStabilityExperimental,
+	},
+	MethodProjectUpdate: {
+		Method:                MethodProjectUpdate,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "project",
+		ParamsOrPayloadSchema: "ProjectUpdateParams",
+		ResponseSchema:        "v2/ProjectUpdateResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Project().Update",
+		Stability:             MethodStabilityExperimental,
+	},
 	MethodRemoteControlClientList: {
 		Method:                MethodRemoteControlClientList,
 		Direction:             MethodDirectionClientToServer,
@@ -1722,6 +1865,17 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "Reviews().Start",
 		Stability:             MethodStabilityStable,
+	},
+	MethodServerDiagnostics: {
+		Method:                MethodServerDiagnostics,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "server",
+		ParamsOrPayloadSchema: "ServerDiagnosticsParams",
+		ResponseSchema:        "v2/ServerDiagnosticsResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Server().Diagnostics",
+		Stability:             MethodStabilityExperimental,
 	},
 	MethodServerRequestResolved: {
 		Method:                MethodServerRequestResolved,
@@ -2097,6 +2251,94 @@ var methodRegistry = map[string]MethodInfo{
 		FacadeTarget:          "ServerNotifications().ThreadNameUpdated",
 		Stability:             MethodStabilityStable,
 	},
+	MethodThreadProjectUpdated: {
+		Method:                MethodThreadProjectUpdated,
+		Direction:             MethodDirectionServerToClient,
+		Kind:                  MethodKindNotification,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadProjectUpdatedNotification",
+		ResponseSchema:        "",
+		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
+		FacadeTarget:          "ServerNotifications().ThreadProjectUpdated",
+		Stability:             MethodStabilityStable,
+	},
+	MethodThreadQueueAdd: {
+		Method:                MethodThreadQueueAdd,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadQueueAddParams",
+		ResponseSchema:        "v2/ThreadQueueAddResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Threads().QueueAdd",
+		Stability:             MethodStabilityExperimental,
+	},
+	MethodThreadQueueChanged: {
+		Method:                MethodThreadQueueChanged,
+		Direction:             MethodDirectionServerToClient,
+		Kind:                  MethodKindNotification,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadQueueChangedNotification",
+		ResponseSchema:        "",
+		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
+		FacadeTarget:          "ServerNotifications().ThreadQueueChanged",
+		Stability:             MethodStabilityStable,
+	},
+	MethodThreadQueueDelete: {
+		Method:                MethodThreadQueueDelete,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadQueueDeleteParams",
+		ResponseSchema:        "v2/ThreadQueueDeleteResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Threads().QueueDelete",
+		Stability:             MethodStabilityExperimental,
+	},
+	MethodThreadQueueList: {
+		Method:                MethodThreadQueueList,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadQueueListParams",
+		ResponseSchema:        "v2/ThreadQueueListResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Threads().QueueList",
+		Stability:             MethodStabilityExperimental,
+	},
+	MethodThreadQueueReorder: {
+		Method:                MethodThreadQueueReorder,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadQueueReorderParams",
+		ResponseSchema:        "v2/ThreadQueueReorderResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Threads().QueueReorder",
+		Stability:             MethodStabilityExperimental,
+	},
+	MethodThreadQueueStart: {
+		Method:                MethodThreadQueueStart,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadQueueStartParams",
+		ResponseSchema:        "v2/ThreadQueueStartResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Threads().QueueStart",
+		Stability:             MethodStabilityExperimental,
+	},
+	MethodThreadQueueUpdate: {
+		Method:                MethodThreadQueueUpdate,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadQueueUpdateParams",
+		ResponseSchema:        "v2/ThreadQueueUpdateResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Threads().QueueUpdate",
+		Stability:             MethodStabilityExperimental,
+	},
 	MethodThreadRead: {
 		Method:                MethodThreadRead,
 		Direction:             MethodDirectionClientToServer,
@@ -2271,6 +2513,28 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchema:        "v2/ThreadResumeResponse.json",
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "Threads().Resume",
+		Stability:             MethodStabilityStable,
+	},
+	MethodThreadRevert: {
+		Method:                MethodThreadRevert,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadRevertParams",
+		ResponseSchema:        "v2/ThreadRevertResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Threads().Revert",
+		Stability:             MethodStabilityExperimental,
+	},
+	MethodThreadReverted: {
+		Method:                MethodThreadReverted,
+		Direction:             MethodDirectionServerToClient,
+		Kind:                  MethodKindNotification,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadRevertedNotification",
+		ResponseSchema:        "",
+		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
+		FacadeTarget:          "ServerNotifications().ThreadReverted",
 		Stability:             MethodStabilityStable,
 	},
 	MethodThreadRollback: {
