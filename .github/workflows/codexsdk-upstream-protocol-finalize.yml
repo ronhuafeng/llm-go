@@ -37,12 +37,6 @@ on:
         description: "Optional drift fingerprint from the detect/fix phase for audit metadata."
         required: false
         type: string
-      dispatch_drift_check:
-        description: "Dispatch drift workflow with force_compare=true and wait for it before finalizing."
-        required: false
-        type: boolean
-        default: true
-
 defaults:
   run:
     shell: bash
@@ -62,7 +56,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     permissions:
-      actions: write
       contents: write
       pull-requests: read
 
@@ -93,7 +86,6 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           EVENT_PR_NUMBER: ${{ github.event.pull_request.number || '' }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          INPUT_DISPATCH_DRIFT_CHECK: ${{ github.event_name != 'workflow_dispatch' || inputs.dispatch_drift_check }}
           INPUT_DRIFT_SHA: ${{ inputs.drift_sha || '' }}
           INPUT_LANDED_COMMIT: ${{ inputs.landed_commit || '' }}
           INPUT_LANDED_REF: ${{ inputs.landed_ref || '' }}
@@ -103,8 +95,6 @@ jobs:
           INPUT_UPSTREAM_SHA: ${{ inputs.upstream_sha || '' }}
         run: |
           set -euo pipefail
-          echo "dispatch_drift_check=${INPUT_DISPATCH_DRIFT_CHECK:-true}" >> "${GITHUB_OUTPUT}"
-
           explicit=false
           for value in \
             "${INPUT_DRIFT_SHA}" \
@@ -273,54 +263,6 @@ jobs:
               output.write(f"upstream_ref_kind={metadata.get('source_ref_kind', '')}\n")
               output.write(f"upstream_sha={metadata.get('source_commit', '')}\n")
           PY
-
-      - name: Dispatch drift verification
-        id: verification
-        if: steps.candidate.outputs.dispatch == 'true' && steps.candidate.outputs.dispatch_drift_check == 'true'
-        continue-on-error: true
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          LANDED_COMMIT: ${{ steps.landed.outputs.landed_commit }}
-          UPSTREAM_REF: ${{ steps.baseline.outputs.upstream_ref }}
-        run: |
-          set -euo pipefail
-          dispatch_started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          gh workflow run codexsdk-upstream-protocol-sync.yml \
-            --ref "${DEFAULT_BRANCH}" \
-            -f "upstream_ref=${UPSTREAM_REF}" \
-            -f "force_compare=true"
-
-          run_id=""
-          for _ in $(seq 1 24); do
-            run_id="$(
-              gh run list \
-                --workflow codexsdk-upstream-protocol-sync.yml \
-                --branch "${DEFAULT_BRANCH}" \
-                --limit 20 \
-                --json databaseId,createdAt,event,headSha \
-                --jq ".[] | select(.headSha == \"${LANDED_COMMIT}\" and .event == \"workflow_dispatch\" and .createdAt >= \"${dispatch_started}\") | .databaseId" |
-                head -n 1
-            )"
-            [[ -z "${run_id}" ]] || break
-            sleep 5
-          done
-          if [[ -z "${run_id}" ]]; then
-            echo "Unable to find dispatched drift verification run." >&2
-            exit 1
-          fi
-          run_url="$(gh run view "${run_id}" --json url --jq '.url')"
-          echo "run_url=${run_url}" >> "${GITHUB_OUTPUT}"
-          gh run watch "${run_id}" --exit-status
-          echo "verification_status=passed" >> "${GITHUB_OUTPUT}"
-
-      - name: Require successful drift verification
-        if: always() && steps.candidate.outputs.dispatch == 'true' && steps.candidate.outputs.dispatch_drift_check == 'true' && steps.verification.outcome != 'success'
-        env:
-          RUN_URL: ${{ steps.verification.outputs.run_url }}
-        run: |
-          echo "Drift verification failed: ${RUN_URL:-run unavailable}" >&2
-          exit 1
 
       - name: Create stable upstream sync tag
         id: tag
