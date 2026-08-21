@@ -555,10 +555,14 @@ func canaryWaitForFile(path string, timeout time.Duration) bool {
 }
 
 func canaryThreadStart() map[string]any {
+	thread := map[string]any{"agentNickname": nil, "agentRole": nil, "cliVersion": "canary", "createdAt": 1, "cwd": "/workspace", "ephemeral": true, "forkedFromId": nil, "gitInfo": nil, "id": "thread-1", "modelProvider": "openai", "name": nil, "path": nil, "preview": "", "sessionId": "session-1", "source": "appServer", "status": map[string]any{"type": "idle"}, "threadSource": "user", "turns": []any{}, "updatedAt": 1}
+	if _, ok := reflect.TypeOf(protocolv2.Thread{}).FieldByName("ProjectID"); ok {
+		thread["projectId"] = nil
+	}
 	return map[string]any{
 		"approvalPolicy": "never", "approvalsReviewer": "user", "cwd": "/workspace", "model": "canary-start", "modelProvider": "openai",
 		"sandbox": map[string]any{"type": "readOnly"},
-		"thread":  map[string]any{"agentNickname": nil, "agentRole": nil, "cliVersion": "canary", "createdAt": 1, "cwd": "/workspace", "ephemeral": true, "forkedFromId": nil, "gitInfo": nil, "id": "thread-1", "modelProvider": "openai", "name": nil, "path": nil, "preview": "", "sessionId": "session-1", "source": "appServer", "status": map[string]any{"type": "idle"}, "threadSource": "user", "turns": []any{}, "updatedAt": 1},
+		"thread":  thread,
 	}
 }
 
