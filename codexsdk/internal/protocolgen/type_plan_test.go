@@ -37,6 +37,95 @@ func TestBuildProtocolTypePlanClassifiesBaseline(t *testing.T) {
 	}
 }
 
+func TestBuildProtocolTypePlanClassifiesReviewedNullableTokenUsageParams(t *testing.T) {
+	const coverage = `{
+		"status": "classified-manifest",
+		"types": [{
+			"schema": "v2/NullableGetAccountTokenUsageParams.json",
+			"stability": "stable",
+			"status": "deferred",
+			"type": "NullableGetAccountTokenUsageParams"
+		}],
+		"fields": []
+	}`
+	cases := map[string]struct {
+		schema  string
+		wantErr bool
+	}{
+		"reviewed local ref or null": {
+			schema: `{
+				"title": "Nullable_GetAccountTokenUsageParams",
+				"anyOf": [
+					{"$ref": "#/definitions/GetAccountTokenUsageParams"},
+					{"type": "null"}
+				],
+				"definitions": {
+					"GetAccountTokenUsageParams": {"type": "object"}
+				}
+			}`,
+		},
+		"missing null branch": {
+			schema: `{
+				"title": "Nullable_GetAccountTokenUsageParams",
+				"anyOf": [
+					{"$ref": "#/definitions/GetAccountTokenUsageParams"}
+				],
+				"definitions": {
+					"GetAccountTokenUsageParams": {"type": "object"}
+				}
+			}`,
+			wantErr: true,
+		},
+		"additional branch": {
+			schema: `{
+				"title": "Nullable_GetAccountTokenUsageParams",
+				"anyOf": [
+					{"$ref": "#/definitions/GetAccountTokenUsageParams"},
+					{"type": "null"},
+					{"type": "string"}
+				],
+				"definitions": {
+					"GetAccountTokenUsageParams": {"type": "object"}
+				}
+			}`,
+			wantErr: true,
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			if err := os.MkdirAll(filepath.Join(root, "v2"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(root, "coverage_matrix.json"), []byte(coverage), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(root, "v2", "NullableGetAccountTokenUsageParams.json"), []byte(tc.schema), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			plan, err := BuildProtocolTypePlan(root)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("BuildProtocolTypePlan accepted drifted nullable params wrapper")
+				}
+				if !strings.Contains(err.Error(), "NullableGetAccountTokenUsageParams.json") {
+					t.Fatalf("error %q does not name the drifted schema", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			typePlan, ok := plan.TypeBySchema("v2/NullableGetAccountTokenUsageParams.json")
+			if !ok || typePlan.Kind != TypePlanAnyOfDeferred {
+				t.Fatalf("nullable params wrapper kind = %v, ok=%v; want %s", typePlan.Kind, ok, TypePlanAnyOfDeferred)
+			}
+		})
+	}
+}
+
 func TestBuildProtocolTypePlanAppliesReviewedOverlays(t *testing.T) {
 	plan, err := BuildProtocolTypePlan(schemaRoot())
 	if err != nil {

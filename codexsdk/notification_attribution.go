@@ -32,7 +32,7 @@ var notificationAttribution = func() map[protocolv2.ServerNotificationKind]notif
 		}
 	}
 	add(notificationAttributionTurn,
-		"error", "item/agentMessage/delta",
+		"autoApprovalReview/strictReviewRequired", "error", "item/agentMessage/delta",
 		"item/autoApprovalReview/completed", "item/autoApprovalReview/started",
 		"item/commandExecution/outputDelta", "item/commandExecution/terminalInteraction",
 		"item/completed", "item/fileChange/outputDelta", "item/fileChange/patchUpdated",
@@ -48,7 +48,8 @@ var notificationAttribution = func() map[protocolv2.ServerNotificationKind]notif
 		"thread/goal/updated", "thread/name/updated", "thread/realtime/closed",
 		"thread/realtime/error", "thread/realtime/itemAdded", "thread/realtime/outputAudio/delta",
 		"thread/realtime/sdp", "thread/realtime/started", "thread/realtime/transcript/delta",
-		"thread/realtime/transcript/done", "thread/settings/updated", "thread/status/changed",
+		"thread/realtime/transcript/done", "thread/project/updated", "thread/queue/changed",
+		"thread/reverted", "thread/settings/updated", "thread/status/changed",
 		"thread/environment/connected", "thread/environment/disconnected", "thread/unarchived",
 	)
 	add(notificationAttributionGlobal,
@@ -57,7 +58,7 @@ var notificationAttribution = func() map[protocolv2.ServerNotificationKind]notif
 		"externalAgentConfig/import/completed", "externalAgentConfig/import/progress", "fs/changed",
 		"fuzzyFileSearch/sessionCompleted", "fuzzyFileSearch/sessionUpdated",
 		"mcpServer/oauthLogin/completed", "mcpServer/startupStatus/updated", "process/exited", "process/outputDelta",
-		"remoteControl/status/changed", "skills/changed", "thread/started", "warning",
+		"project/changed", "remoteControl/status/changed", "skills/changed", "thread/started", "warning",
 		"windows/worldWritableWarning", "windowsSandbox/setupCompleted",
 	)
 	return classes

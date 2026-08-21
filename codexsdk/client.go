@@ -916,11 +916,11 @@ func (c *Client) failAll(err error) {
 	for _, notification := range replayingEvidence {
 		_ = notification.resolveReplayingEvidence()
 	}
-	for _, call := range pendingCalls {
-		call.response <- rpcResponse{err: err}
-	}
 	for _, stream := range exactStreams {
 		stream.finish(err)
+	}
+	for _, call := range pendingCalls {
+		call.response <- rpcResponse{err: err}
 	}
 }
 

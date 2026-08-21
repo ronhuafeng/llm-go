@@ -206,6 +206,15 @@ func (c *Client) Processes() Processes {
 	return Processes{client: c}
 }
 
+// Project is an opaque generated facade for exact Codex operations.
+type Project struct {
+	client *Client
+}
+
+func (c *Client) Project() Project {
+	return Project{client: c}
+}
+
 // RemoteControl is an opaque generated facade for exact Codex operations.
 type RemoteControl struct {
 	client *Client
@@ -222,6 +231,15 @@ type Reviews struct {
 
 func (c *Client) Reviews() Reviews {
 	return Reviews{client: c}
+}
+
+// Server is an opaque generated facade for exact Codex operations.
+type Server struct {
+	client *Client
+}
+
+func (c *Client) Server() Server {
+	return Server{client: c}
 }
 
 // Skills is an opaque generated facade for exact Codex operations.
@@ -267,6 +285,22 @@ type WindowsSandbox struct {
 
 func (c *Client) WindowsSandbox() WindowsSandbox {
 	return WindowsSandbox{client: c}
+}
+
+func (f Accounts) BedrockDiscover(ctx context.Context, params protocolv2.BedrockDiscoverParams) (protocolv2.BedrockDiscoverResponse, error) {
+	var response protocolv2.BedrockDiscoverResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodAccountBedrockDiscover, params, &response); err != nil {
+		return protocolv2.BedrockDiscoverResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Accounts) BedrockSetup(ctx context.Context, params protocolv2.BedrockSetupParams) (protocolv2.BedrockSetupResponse, error) {
+	var response protocolv2.BedrockSetupResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodAccountBedrockSetup, params, &response); err != nil {
+		return protocolv2.BedrockSetupResponse{}, err
+	}
+	return response, nil
 }
 
 func (f Accounts) LoginCancel(ctx context.Context, params protocolv2.CancelLoginAccountParams) (protocolv2.CancelLoginAccountResponse, error) {
@@ -837,6 +871,62 @@ func (f Processes) WriteStdin(ctx context.Context, params protocolv2.ProcessWrit
 	return response, nil
 }
 
+func (f Project) Create(ctx context.Context, params protocolv2.ProjectCreateParams) (protocolv2.ProjectCreateResponse, error) {
+	var response protocolv2.ProjectCreateResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodProjectCreate, params, &response); err != nil {
+		return protocolv2.ProjectCreateResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Project) Delete(ctx context.Context, params protocolv2.ProjectDeleteParams) (protocolv2.ProjectDeleteResponse, error) {
+	var response protocolv2.ProjectDeleteResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodProjectDelete, params, &response); err != nil {
+		return protocolv2.ProjectDeleteResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Project) Import(ctx context.Context, params protocolv2.ProjectImportParams) (protocolv2.ProjectImportResponse, error) {
+	var response protocolv2.ProjectImportResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodProjectImport, params, &response); err != nil {
+		return protocolv2.ProjectImportResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Project) List(ctx context.Context, params protocolv2.ProjectListParams) (protocolv2.ProjectListResponse, error) {
+	var response protocolv2.ProjectListResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodProjectList, params, &response); err != nil {
+		return protocolv2.ProjectListResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Project) Move(ctx context.Context, params protocolv2.ProjectMoveParams) (protocolv2.ProjectMoveResponse, error) {
+	var response protocolv2.ProjectMoveResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodProjectMove, params, &response); err != nil {
+		return protocolv2.ProjectMoveResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Project) Read(ctx context.Context, params protocolv2.ProjectReadParams) (protocolv2.ProjectReadResponse, error) {
+	var response protocolv2.ProjectReadResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodProjectRead, params, &response); err != nil {
+		return protocolv2.ProjectReadResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Project) Update(ctx context.Context, params protocolv2.ProjectUpdateParams) (protocolv2.ProjectUpdateResponse, error) {
+	var response protocolv2.ProjectUpdateResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodProjectUpdate, params, &response); err != nil {
+		return protocolv2.ProjectUpdateResponse{}, err
+	}
+	return response, nil
+}
+
 func (f RemoteControl) ClientRevoke(ctx context.Context, params protocolv2.RemoteControlClientsRevokeParams) (protocolv2.RemoteControlClientsRevokeResponse, error) {
 	var response protocolv2.RemoteControlClientsRevokeResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodRemoteControlClientRevoke, params, &response); err != nil {
@@ -889,6 +979,14 @@ func (f Reviews) Start(ctx context.Context, params protocolv2.ReviewStartParams)
 	var response protocolv2.ReviewStartResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodReviewStart, params, &response); err != nil {
 		return protocolv2.ReviewStartResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Server) Diagnostics(ctx context.Context, params protocolv2.ServerDiagnosticsParams) (protocolv2.ServerDiagnosticsResponse, error) {
+	var response protocolv2.ServerDiagnosticsResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodServerDiagnostics, params, &response); err != nil {
+		return protocolv2.ServerDiagnosticsResponse{}, err
 	}
 	return response, nil
 }
@@ -1101,6 +1199,54 @@ func (f Threads) NameSet(ctx context.Context, params protocolv2.ThreadSetNamePar
 	return response, nil
 }
 
+func (f Threads) QueueAdd(ctx context.Context, params protocolv2.ThreadQueueAddParams) (protocolv2.ThreadQueueAddResponse, error) {
+	var response protocolv2.ThreadQueueAddResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadQueueAdd, params, &response); err != nil {
+		return protocolv2.ThreadQueueAddResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Threads) QueueDelete(ctx context.Context, params protocolv2.ThreadQueueDeleteParams) (protocolv2.ThreadQueueDeleteResponse, error) {
+	var response protocolv2.ThreadQueueDeleteResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadQueueDelete, params, &response); err != nil {
+		return protocolv2.ThreadQueueDeleteResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Threads) QueueList(ctx context.Context, params protocolv2.ThreadQueueListParams) (protocolv2.ThreadQueueListResponse, error) {
+	var response protocolv2.ThreadQueueListResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadQueueList, params, &response); err != nil {
+		return protocolv2.ThreadQueueListResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Threads) QueueReorder(ctx context.Context, params protocolv2.ThreadQueueReorderParams) (protocolv2.ThreadQueueReorderResponse, error) {
+	var response protocolv2.ThreadQueueReorderResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadQueueReorder, params, &response); err != nil {
+		return protocolv2.ThreadQueueReorderResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Threads) QueueStart(ctx context.Context, params protocolv2.ThreadQueueStartParams) (protocolv2.ThreadQueueStartResponse, error) {
+	var response protocolv2.ThreadQueueStartResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadQueueStart, params, &response); err != nil {
+		return protocolv2.ThreadQueueStartResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Threads) QueueUpdate(ctx context.Context, params protocolv2.ThreadQueueUpdateParams) (protocolv2.ThreadQueueUpdateResponse, error) {
+	var response protocolv2.ThreadQueueUpdateResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadQueueUpdate, params, &response); err != nil {
+		return protocolv2.ThreadQueueUpdateResponse{}, err
+	}
+	return response, nil
+}
+
 func (f Threads) Read(ctx context.Context, params protocolv2.ThreadReadParams) (protocolv2.ThreadReadResponse, error) {
 	var response protocolv2.ThreadReadResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadRead, params, &response); err != nil {
@@ -1161,6 +1307,14 @@ func (f Threads) Resume(ctx context.Context, params protocolv2.ThreadResumeParam
 	var response protocolv2.ThreadResumeResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadResume, params, &response); err != nil {
 		return protocolv2.ThreadResumeResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Threads) Revert(ctx context.Context, params protocolv2.ThreadRevertParams) (protocolv2.ThreadRevertResponse, error) {
+	var response protocolv2.ThreadRevertResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadRevert, params, &response); err != nil {
+		return protocolv2.ThreadRevertResponse{}, err
 	}
 	return response, nil
 }

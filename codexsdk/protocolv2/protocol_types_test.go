@@ -5313,12 +5313,10 @@ func TestGeneratedSmallUtilityPayloadsProtocolMarshalAndUnmarshal(t *testing.T) 
 			CWD:    "/repo",
 			Errors: []HookErrorInfo{{Message: "missing command", Path: "/repo/.codex/hooks.json"}},
 			Hooks: []HookMetadata{{
-				Command:       Null[string](),
 				CurrentHash:   "hash-1",
 				DisplayOrder:  1,
 				Enabled:       true,
 				EventName:     HookEventNamePreToolUse,
-				HandlerType:   HookHandlerTypeCommand,
 				IsManaged:     false,
 				Key:           "hook-1",
 				Matcher:       Value("shell"),
@@ -5330,7 +5328,7 @@ func TestGeneratedSmallUtilityPayloadsProtocolMarshalAndUnmarshal(t *testing.T) 
 				TrustStatus:   HookTrustStatusTrusted,
 			}},
 			Warnings: []string{"review hook"},
-		}}}, target: &HooksListResponse{}, want: `{"data":[{"cwd":"/repo","errors":[{"message":"missing command","path":"/repo/.codex/hooks.json"}],"hooks":[{"command":null,"currentHash":"hash-1","displayOrder":1,"enabled":true,"eventName":"preToolUse","handlerType":"command","isManaged":false,"key":"hook-1","matcher":"shell","pluginId":null,"source":"project","sourcePath":"/repo/.codex/hooks.json","statusMessage":"trusted","timeoutSec":10,"trustStatus":"trusted"}],"warnings":["review hook"]}]}`},
+		}}}, target: &HooksListResponse{}, want: `{"data":[{"cwd":"/repo","errors":[{"message":"missing command","path":"/repo/.codex/hooks.json"}],"hooks":[{"currentHash":"hash-1","displayOrder":1,"enabled":true,"eventName":"preToolUse","isManaged":false,"key":"hook-1","matcher":"shell","pluginId":null,"source":"project","sourcePath":"/repo/.codex/hooks.json","statusMessage":"trusted","timeoutSec":10,"trustStatus":"trusted"}],"warnings":["review hook"]}]}`},
 		{name: "skills config write response", value: SkillsConfigWriteResponse{EffectiveEnabled: true}, target: &SkillsConfigWriteResponse{}, want: `{"effectiveEnabled":true}`},
 		{name: "skills list params", value: SkillsListParams{CWDs: &[]string{"/repo"}, ForceReload: boolPtr(true)}, target: &SkillsListParams{}, want: `{"cwds":["/repo"],"forceReload":true}`},
 		{name: "skills list response", value: SkillsListResponse{Data: []SkillsListEntry{{
