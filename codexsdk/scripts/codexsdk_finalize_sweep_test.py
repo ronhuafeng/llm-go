@@ -22,11 +22,9 @@ Automated upstream protocol sync.
 
 
 class FinalizeSweepTest(unittest.TestCase):
-    def test_selects_current_default_branch_sync_pr(self) -> None:
+    def test_selects_historical_default_branch_sync_pr(self) -> None:
         result, skipped = select_candidate(
             active_runs=[],
-            default_branch="main",
-            default_head="c" * 40,
             finalized_tags={},
             prs=[
                 {
@@ -44,8 +42,6 @@ class FinalizeSweepTest(unittest.TestCase):
     def test_skips_sync_pr_when_upstream_tag_already_points_at_merge_commit(self) -> None:
         result, skipped = select_candidate(
             active_runs=[],
-            default_branch="main",
-            default_head="c" * 40,
             finalized_tags={"upstream-codex-rust-v0.141.0": "c" * 40},
             prs=[
                 {
@@ -69,8 +65,6 @@ class FinalizeSweepTest(unittest.TestCase):
         )
         result, skipped = select_candidate(
             active_runs=[],
-            default_branch="main",
-            default_head="c" * 40,
             finalized_tags={"upstream-codex-main": "c" * 40},
             prs=[
                 {

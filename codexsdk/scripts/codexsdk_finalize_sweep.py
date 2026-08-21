@@ -53,8 +53,6 @@ def resolve_metadata(*, pr: dict[str, Any], inputs: dict[str, str], default_bran
 def select_candidate(
     *,
     active_runs: list[dict[str, Any]],
-    default_branch: str,
-    default_head: str,
     finalized_tags: dict[str, str],
     prs: list[dict[str, Any]],
 ) -> tuple[dict[str, str], list[str]]:
@@ -73,9 +71,6 @@ def select_candidate(
             skipped.append(f"PR #{number}: sync metadata phase is not fix")
             continue
         merge_commit = (pr.get("mergeCommit") or {}).get("oid", "")
-        if merge_commit != default_head:
-            skipped.append(f"PR #{number}: merge commit is not current {default_branch} head")
-            continue
         tag_name = ""
         if metadata.get("upstream_ref_kind") == "stable_rust_tag":
             tag_name = f"{SYNC_TAG_PREFIX}-{metadata.get('upstream_ref', '')}"
@@ -116,7 +111,7 @@ def write_summary(path: str | None, default_branch: str, default_head: str, resu
                 f"\nSelected finalize candidate PR #{result['pr_number']}.\n"
             )
         else:
-            summary.write("\nNo merged sync PR matched the current default branch head.\n")
+            summary.write("\nNo unfinalized merged sync PR was found.\n")
 
 
 def main() -> int:
@@ -176,8 +171,6 @@ def main() -> int:
 
     result, skipped = select_candidate(
         active_runs=active_runs,
-        default_branch=args.default_branch,
-        default_head=args.default_head,
         finalized_tags=finalized_tags,
         prs=prs,
     )

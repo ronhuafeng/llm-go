@@ -52,7 +52,7 @@ concurrency:
 jobs:
   finalize:
     name: Finalize landed sync
-    if: github.event_name != 'pull_request' || (github.event.pull_request.merged == true && github.event.pull_request.base.ref == github.event.repository.default_branch)
+    if: github.event_name != 'pull_request' || (github.event.pull_request.merged == true && github.event.pull_request.base.ref == github.event.repository.default_branch && startsWith(github.event.pull_request.head.ref, 'codex/sync-upstream/'))
     runs-on: ubuntu-latest
     timeout-minutes: 120
     permissions:
@@ -229,8 +229,8 @@ jobs:
           git fetch origin "refs/heads/${LANDED_REF}:refs/remotes/origin/${LANDED_REF}" --tags
           landing_head="$(git rev-parse "refs/remotes/origin/${LANDED_REF}")"
           landed_commit="${LANDED_COMMIT:-${landing_head}}"
-          if [[ "${landed_commit}" != "${landing_head}" ]]; then
-            echo "Refusing to finalize ${landed_commit}; ${LANDED_REF} is ${landing_head}." >&2
+          if ! git merge-base --is-ancestor "${landed_commit}" "${landing_head}"; then
+            echo "Refusing to finalize ${landed_commit}; it is not contained in ${LANDED_REF}." >&2
             exit 1
           fi
           git checkout --detach "${landed_commit}"
