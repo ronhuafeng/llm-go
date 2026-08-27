@@ -663,6 +663,22 @@ func (f MCPServerStatus) List(ctx context.Context, params protocolv2.ListMcpServ
 	return response, nil
 }
 
+func (f MCPServers) EventStreamStart(ctx context.Context, params protocolv2.McpServerEventStreamStartParams) (protocolv2.McpServerEventStreamStartResponse, error) {
+	var response protocolv2.McpServerEventStreamStartResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodMCPServerEventStreamStart, params, &response); err != nil {
+		return protocolv2.McpServerEventStreamStartResponse{}, err
+	}
+	return response, nil
+}
+
+func (f MCPServers) EventStreamStop(ctx context.Context, params protocolv2.McpServerEventStreamStopParams) (protocolv2.McpServerEventStreamStopResponse, error) {
+	var response protocolv2.McpServerEventStreamStopResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodMCPServerEventStreamStop, params, &response); err != nil {
+		return protocolv2.McpServerEventStreamStopResponse{}, err
+	}
+	return response, nil
+}
+
 func (f MCPServers) OAuthLogin(ctx context.Context, params protocolv2.McpServerOauthLoginParams) (protocolv2.McpServerOauthLoginResponse, error) {
 	var response protocolv2.McpServerOauthLoginResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodMCPServerOAuthLogin, params, &response); err != nil {

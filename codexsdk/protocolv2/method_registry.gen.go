@@ -137,6 +137,9 @@ const (
 	MethodMarketplaceRemove                       = "marketplace/remove"
 	MethodMarketplaceUpgrade                      = "marketplace/upgrade"
 	MethodMCPServerElicitationRequest             = "mcpServer/elicitation/request"
+	MethodMCPServerEventStreamNotification        = "mcpServer/event/stream/notification"
+	MethodMCPServerEventStreamStart               = "mcpServer/event/stream/start"
+	MethodMCPServerEventStreamStop                = "mcpServer/event/stream/stop"
 	MethodMCPServerOAuthLogin                     = "mcpServer/oauth/login"
 	MethodMCPServerOAuthLoginCompleted            = "mcpServer/oauthLogin/completed"
 	MethodMCPServerResourceRead                   = "mcpServer/resource/read"
@@ -235,6 +238,9 @@ const (
 	MethodThreadRealtimeAppendText                = "thread/realtime/appendText"
 	MethodThreadRealtimeClosed                    = "thread/realtime/closed"
 	MethodThreadRealtimeError                     = "thread/realtime/error"
+	MethodThreadRealtimeItemCompleted             = "thread/realtime/item/completed"
+	MethodThreadRealtimeItemStarted               = "thread/realtime/item/started"
+	MethodThreadRealtimeItemTranscriptDelta       = "thread/realtime/item/transcript/delta"
 	MethodThreadRealtimeItemAdded                 = "thread/realtime/itemAdded"
 	MethodThreadRealtimeListVoices                = "thread/realtime/listVoices"
 	MethodThreadRealtimeOutputAudioDelta          = "thread/realtime/outputAudio/delta"
@@ -257,6 +263,7 @@ const (
 	MethodThreadStart                             = "thread/start"
 	MethodThreadStarted                           = "thread/started"
 	MethodThreadStatusChanged                     = "thread/status/changed"
+	MethodThreadTimelineList                      = "thread/timeline/list"
 	MethodThreadTokenUsageUpdated                 = "thread/tokenUsage/updated"
 	MethodThreadTurnsList                         = "thread/turns/list"
 	MethodThreadUnarchive                         = "thread/unarchive"
@@ -1326,6 +1333,39 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "ServerRequests().McpServerElicitationRequest",
 		Stability:             MethodStabilityStable,
+	},
+	MethodMCPServerEventStreamNotification: {
+		Method:                MethodMCPServerEventStreamNotification,
+		Direction:             MethodDirectionServerToClient,
+		Kind:                  MethodKindNotification,
+		Family:                "mcpServer",
+		ParamsOrPayloadSchema: "McpServerEventStreamNotification",
+		ResponseSchema:        "",
+		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
+		FacadeTarget:          "ServerNotifications().McpServerEventStreamNotification",
+		Stability:             MethodStabilityStable,
+	},
+	MethodMCPServerEventStreamStart: {
+		Method:                MethodMCPServerEventStreamStart,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "mcpServer",
+		ParamsOrPayloadSchema: "McpServerEventStreamStartParams",
+		ResponseSchema:        "v2/McpServerEventStreamStartResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "MCPServers().EventStreamStart",
+		Stability:             MethodStabilityExperimental,
+	},
+	MethodMCPServerEventStreamStop: {
+		Method:                MethodMCPServerEventStreamStop,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "mcpServer",
+		ParamsOrPayloadSchema: "McpServerEventStreamStopParams",
+		ResponseSchema:        "v2/McpServerEventStreamStopResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "MCPServers().EventStreamStop",
+		Stability:             MethodStabilityExperimental,
 	},
 	MethodMCPServerOAuthLogin: {
 		Method:                MethodMCPServerOAuthLogin,
@@ -2405,6 +2445,39 @@ var methodRegistry = map[string]MethodInfo{
 		FacadeTarget:          "ServerNotifications().ThreadRealtimeError",
 		Stability:             MethodStabilityStable,
 	},
+	MethodThreadRealtimeItemCompleted: {
+		Method:                MethodThreadRealtimeItemCompleted,
+		Direction:             MethodDirectionServerToClient,
+		Kind:                  MethodKindNotification,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadRealtimeItemCompletedNotification",
+		ResponseSchema:        "",
+		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
+		FacadeTarget:          "ServerNotifications().ThreadRealtimeItemCompleted",
+		Stability:             MethodStabilityStable,
+	},
+	MethodThreadRealtimeItemStarted: {
+		Method:                MethodThreadRealtimeItemStarted,
+		Direction:             MethodDirectionServerToClient,
+		Kind:                  MethodKindNotification,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadRealtimeItemStartedNotification",
+		ResponseSchema:        "",
+		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
+		FacadeTarget:          "ServerNotifications().ThreadRealtimeItemStarted",
+		Stability:             MethodStabilityStable,
+	},
+	MethodThreadRealtimeItemTranscriptDelta: {
+		Method:                MethodThreadRealtimeItemTranscriptDelta,
+		Direction:             MethodDirectionServerToClient,
+		Kind:                  MethodKindNotification,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadRealtimeItemTranscriptDeltaNotification",
+		ResponseSchema:        "",
+		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
+		FacadeTarget:          "ServerNotifications().ThreadRealtimeItemTranscriptDelta",
+		Stability:             MethodStabilityStable,
+	},
 	MethodThreadRealtimeItemAdded: {
 		Method:                MethodThreadRealtimeItemAdded,
 		Direction:             MethodDirectionServerToClient,
@@ -2646,6 +2719,17 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
 		FacadeTarget:          "ServerNotifications().ThreadStatusChanged",
 		Stability:             MethodStabilityStable,
+	},
+	MethodThreadTimelineList: {
+		Method:                MethodThreadTimelineList,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadTimelineListParams",
+		ResponseSchema:        "v2/ThreadTimelineListResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Threads().TimelineList",
+		Stability:             MethodStabilityExperimental,
 	},
 	MethodThreadTokenUsageUpdated: {
 		Method:                MethodThreadTokenUsageUpdated,
