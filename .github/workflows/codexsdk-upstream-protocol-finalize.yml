@@ -218,6 +218,15 @@ jobs:
           fi
           echo "landed_ref=${landed_ref}" >> "${GITHUB_OUTPUT}"
 
+      - name: Preserve control-plane tagger
+        if: steps.candidate.outputs.dispatch == 'true'
+        env:
+          RUNNER_TEMP: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/codexsdk-control-plane"
+          cp scripts/codexsdk_sync_tag.py "${RUNNER_TEMP}/codexsdk-control-plane/codexsdk_sync_tag.py"
+
       - name: Check out exact landed commit
         id: landed
         if: steps.candidate.outputs.dispatch == 'true'
@@ -275,7 +284,7 @@ jobs:
           gh auth setup-git
           git config user.name "codexsdk-sync-bot"
           git config user.email "codexsdk-sync-bot@users.noreply.github.com"
-          python3 scripts/codexsdk_sync_tag.py --create --push origin --json > /tmp/codexsdk-sync-tag.json
+          python3 "${RUNNER_TEMP}/codexsdk-control-plane/codexsdk_sync_tag.py" --create --push origin --json > /tmp/codexsdk-sync-tag.json
           echo "tag_name=$(jq -r '.tag_name' /tmp/codexsdk-sync-tag.json)" >> "${GITHUB_OUTPUT}"
 
       - name: Report final sync outcome

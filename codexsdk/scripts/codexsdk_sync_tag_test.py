@@ -89,6 +89,13 @@ class SyncTagTest(unittest.TestCase):
             self.assertEqual(payload["tag_name"], "upstream-codex-rust-v0.140.0")
             self.assertEqual(payload["upstream_commit"], UPSTREAM_SHA)
 
+    def test_cli_reads_metadata_from_repo_root_codexsdk_path(self):
+        with sync_tag_repo(module_dir="codexsdk") as module:
+            completed = run_sync_tag(module.parent, "--json")
+            payload = json.loads(completed.stdout)
+            self.assertEqual(payload["tag_name"], "upstream-codex-rust-v0.140.0")
+            self.assertEqual(payload["upstream_commit"], UPSTREAM_SHA)
+
     def test_cli_reports_raw_git_error_with_command_context(self):
         with sync_tag_repo(module_dir="codexsdk") as module:
             subprocess.run(["git", "rm", sync_tag.METADATA_PATH], cwd=module, check=True, stdout=subprocess.PIPE)
