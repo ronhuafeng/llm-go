@@ -6,6 +6,20 @@ This project follows Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-30
+
+### Changed
+
+- **Breaking semantic change (pre-v1):** require legacy tuple schemas to declare
+  Draft 7 explicitly and default every unversioned schema to Draft 2020-12. See
+  [Migrating to v0.6](docs/migration/v0.6.0.md).
+- Require the published `llmkit v0.7.0` and `codexsdk v0.6.1` modules.
+
+### Fixed
+
+- Publish Provider details from one isolated Exact Run snapshot and omit
+  unisolated reference evidence when snapshotting fails.
+
 ## [0.5.0] - 2026-07-15
 
 ### Changed
