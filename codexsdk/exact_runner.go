@@ -198,6 +198,10 @@ func drainExactStream[R any](ctx context.Context, stream *Stream[R]) (R, error) 
 	return result, stream.Err()
 }
 
+// Next advances this Exact Run History Cursor over the immutable
+// notification history. Context cancellation stops only this cursor
+// and does not cancel the shared Exact Run; use Close for Shared Run
+// Cancellation.
 func (s *Stream[R]) Next(ctx context.Context) bool {
 	if s == nil || s.state == nil {
 		return false
@@ -224,7 +228,8 @@ func (s *Stream[R]) Next(ctx context.Context) bool {
 		select {
 		case <-updated:
 		case <-ctx.Done():
-			s.state.cancel(ctx.Err())
+			// Context cancellation stops only this cursor. Use Close for
+			// Shared Run Cancellation.
 			return false
 		case <-s.state.done:
 		}
