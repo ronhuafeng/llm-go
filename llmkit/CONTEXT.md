@@ -26,3 +26,12 @@ _Avoid_: Sanitized feedback
 The sanitizer-owned, iteration-stamped feedback eligible for the next prompt
 render, published separately from the validation decision.
 _Avoid_: Validator output
+
+**Settle loop**:
+Bounded retry owned by `settle` until a terminal validation decision or error.
+_Avoid_: Adapter retry
+
+**Schema decode**:
+`llmschema` compilation of caller types and decode of generic typed output.
+_Avoid_: Provider schema
+

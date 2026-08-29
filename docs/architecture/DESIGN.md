@@ -41,7 +41,6 @@ github.com/ronhuafeng/llm-go
 │   └── architecture/                North Star, context map, ADRs
 ├── module-registry.json             minimal release-unit registry
 ├── go.work                          committed development workspace
-├── go.work.sum
 ├── llmkit/                          public Go module
 │   ├── go.mod
 │   ├── README.md
@@ -57,7 +56,9 @@ github.com/ronhuafeng/llm-go
 │   ├── CHANGELOG.md
 │   ├── .changes/
 │   ├── protocolv2/
-│   └── internal/cmd/protocolv2gen/
+│   └── internal/
+│       ├── cmd/protocolv2gen/
+│       └── protocolgen/
 ├── llmcaller/codex/                 public Go module and root package
 │   ├── go.mod
 │   ├── README.md
@@ -168,7 +169,7 @@ artifact tests belong in `internal/tools`.
 - Run race tests.
 - Run relevant workspace composition canaries.
 - Verify module graph boundaries, API inventories, generators, change
-  fragments, documentation locations, and repository metadata.
+  fragments, and repository metadata.
 - Run an ephemeral checkout-source consumer, labeled as source evidence.
 
 ### Release preflight

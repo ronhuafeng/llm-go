@@ -22,6 +22,12 @@ When a user correction, repeated friction, or failed validation suggests a reusa
 
 Issues live in this repository's GitHub Issues. See `docs/agents/issue-tracker.md`.
 
+
+### Repository skills
+
+The remaining repository-owned skill is [`codexsdk-sync-upstream`](.agents/skills/codexsdk-sync-upstream/SKILL.md).
+Use it to synchronize the Codex SDK protocol baseline to an upstream openai/codex tag, ref, or commit.
+
 ### Domain docs
 
 This is a multi-context repository. Resolve the paths below from the repository
