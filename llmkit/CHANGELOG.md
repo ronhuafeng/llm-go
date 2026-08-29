@@ -7,6 +7,23 @@ changes may occur in minor releases, but they must be documented here.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-30
+
+### Changed
+
+- **Breaking semantic change (pre-v1):** require an explicit sanitizer before
+  free-form retry feedback can be sent to a model. When `Step.Sanitizer` is
+  nil, a non-empty `Feedback.Summary` on an attempt that can retry is now a
+  sanitize-stage error wrapping `llmstep.ErrUnsafeFeedback`. See
+  [Migrating to v0.7](docs/migration/v0.7.0.md).
+
+### Fixed
+
+- Stamp model-facing retry feedback with the framework-assigned iteration.
+- Return context cancellation observed after successful retry phases while
+  preserving partial evidence.
+- Reject typed-nil step callers before prompt rendering begins.
+
 ## [0.6.0] - 2026-07-14
 
 ### Changed
