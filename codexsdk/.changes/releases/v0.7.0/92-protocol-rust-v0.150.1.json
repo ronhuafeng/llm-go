@@ -4,6 +4,5 @@
   "impact": "minor",
   "breaking": true,
   "summary": "Publish the rust-v0.150.1 generated protocol surface, including additive stable members and breaking stable removals and mixed Generated Facades.",
-  "issue": 92,
-  "migration": "docs/migration/v0.7.0.md"
+  "issue": 92
 }

@@ -4,6 +4,5 @@
   "impact": "patch",
   "breaking": false,
   "summary": "Keep Exact Run History Cursor cancellation caller-local so Next cannot terminate a shared Exact Run.",
-  "issue": 88,
-  "migration": "none"
+  "issue": 88
 }

@@ -2,21 +2,23 @@
 
 Exact control of one local Codex app-server. Destination:
 [NORTHSTAR.md](../NORTHSTAR.md). Language: [CONTEXT.md](CONTEXT.md).
-Upgrade notes: [UPGRADE.md](UPGRADE.md).
 
 This project is unofficial and experimental. It is not an OpenAI product.
 Use it to talk to a locally launched Codex app-server over stdio.
 
 ## Packages
 
-- `codexsdk`: stdio client, generated typed facades, exact `ThreadRunner`, exact
-  notification streaming, and generated server-request handling.
-- `protocolv2`: generated app-server v2 params, responses,
-  notifications, enums, unions, JSON helpers, and method registry.
-- `internal/protocolgen`: generator internals for the checked-in schema
-  baseline.
-- `internal/protocolschema/appserver/v2`: reviewed schema baseline,
-  classified manifest, coverage matrix, drift report, and provenance metadata.
+Public import paths:
+
+- `github.com/ronhuafeng/llm-go/codexsdk`: stdio client, generated typed
+  facades, exact `ThreadRunner`, exact notification streaming, and generated
+  server-request handling.
+- `github.com/ronhuafeng/llm-go/codexsdk/protocolv2`: generated app-server v2
+  params, responses, notifications, enums, unions, JSON helpers, and method
+  registry.
+
+Generator sources, schema fixtures, and inventory commands live under
+`internal/` and are not importable API.
 
 Inbound app-server JSON-RPC frames are limited to 16 MiB, including the newline
 delimiter. Oversized or unterminated frames fail the Root Client with sanitized
@@ -25,7 +27,7 @@ internal transport limit.
 
 ## Installation
 
-Install the verified replacement release with:
+Install the current release with:
 
 ```sh
 go get github.com/ronhuafeng/llm-go/codexsdk@v0.7.0
@@ -144,22 +146,22 @@ func main() {
 }
 ```
 
-`StartStream` and `ResumeStream` expose every exact
-`protocolv2.ServerNotification`; `Result` remains available on failures and
-contains the latest immutable partial snapshot. More compile-checked examples
-live in `examples_test.go`.
+`StartStream` and `ResumeStream` expose attributable generated
+`protocolv2.ServerNotification`s for that Exact Run. Client/global facts never
+enter per-run history. `Result` remains available on failures and contains the
+latest immutable partial snapshot. More compile-checked examples live in
+`examples_test.go`.
 
 Call `Stream.Wait` when multiple consumers need to observe the same run without
 coordinating ownership of `Next`. Any number of waiters can block independently
 and each receives an immutable result snapshot plus the run's stable terminal
 error. A waiter's context bounds only that call: cancellation returns the latest
 partial snapshot with `ctx.Err()` without canceling the run or changing
-`Stream.Err`. Use `Stream.Close` for explicit shared run cancellation. `Next`
-uses a cursor over the same immutable ordered history retained by `Result`, so
-`Wait` does not need to consume notifications and cannot cause per-run
-backpressure. `Next` context cancellation retains its shared-run cancellation
-semantics. The separately configurable global notification-handler queue
-remains bounded.
+`Stream.Err`. Use `Stream.Close` for Shared Run Cancellation. `Next` uses a
+cursor over the same immutable ordered history retained by `Result`, so `Wait`
+does not need to consume notifications and cannot cause per-run backpressure.
+`Next` context cancellation stops only that Exact Run History Cursor. The
+separately configurable global notification-handler queue remains bounded.
 
 For one thread, only one Exact Run may be waiting for `turn/start` to return its
 turn identity. An overlapping start fails before sending another `turn/start`.
@@ -171,8 +173,9 @@ response data. With no handler, the
 SDK immediately returns a generated fail-closed response for requests that
 have a safe denial or empty-answer form. Requests requiring application data,
 including authentication refresh, dynamic tool output, and attestation, return
-a JSON-RPC error and fail the exact run with `ErrExactServerRequest`; partial
-notifications and run evidence remain available in the result.
+a JSON-RPC error and fail the Root Client with `ErrExactServerRequest`. The
+first cause is published to active Exact Runs; partial notifications and run
+evidence remain available.
 
 Callback admission is atomic with client shutdown. Once `Close` or failure
 shutdown closes admission, no new server-request or notification handler is
@@ -181,13 +184,6 @@ every callback accepted before that boundary before transport teardown;
 failure shutdown cancels accepted callbacks immediately while preserving the
 first failure cause and partial run evidence. Handlers must return when their
 context is canceled and must not call `Close` reentrantly.
-
-## Testing
-
-```sh
-GOWORK=off go test ./...
-GOWORK=off go vet ./...
-```
 
 Protocol sync uses
 [`codexsdk-sync-upstream`](../.agents/skills/codexsdk-sync-upstream/SKILL.md).

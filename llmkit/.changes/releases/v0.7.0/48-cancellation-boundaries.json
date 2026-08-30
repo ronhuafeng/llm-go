@@ -4,6 +4,5 @@
   "impact": "patch",
   "breaking": false,
   "summary": "Return context cancellation observed after successful retry phases while preserving partial evidence.",
-  "issue": 48,
-  "migration": "none"
+  "issue": 48
 }

@@ -1,201 +1,57 @@
 # Protected release operation
 
-Public module tags are created only by the manually dispatched
-`Release public module` GitHub Actions workflow. It accepts the exact next
-stable SemVer for any registered public module. The release plan compares the
-current module-owned canonical API inventory with the inventory committed at
-the latest stable module tag. Each module's private inventory-report command
-classifies the handwritten mechanical impact as metadata-only, additive, or
-breaking; `repoctl` validates and aggregates the typed reports. Structured
-change fragments may declare a higher behavior impact but cannot understate
-that mechanical floor. The SDK scope adds its owner-specific generated-facade
-report and exact-lifecycle gates. The adapter scope reads its direct upstream
-tuple from the proxy artifact's own `go.mod`, compares it with the fresh
-consumer's resolved graph, and runs a typed three-layer call.
+Tags are created only by the manually dispatched `Release public module`
+workflow. It accepts the next stable SemVer for one registered public module.
 
-## Hosted GitHub configuration
+The plan diffs the module's canonical API inventory against the latest stable
+tag. Fragments may raise impact; they cannot lower the mechanical floor.
+The adapter's published `go.mod` owns the `llmkit`/`codexsdk` tuple.
 
-Keep all of the following repository-hosted controls in place:
+Seams: `release-plan` → `finalize-release` → Environment approval →
+`authorize-tag` → empty-expectation tag create → Draft Release → `verify-tag`
+against the public proxy.
 
-1. Keep exactly one repository Deploy Key. It must be dedicated to this release
-   workflow and have write access. Do not retain unrelated read-only or write
-   Deploy Keys in this repository.
-2. Store its private key only as the `RELEASE_DEPLOY_KEY` secret on the
-   `production-release` Environment. Do not make it a repository or
-   organization secret, write it to the repository, or print it in setup or
-   diagnostic output.
-3. Configure the Environment with `protected_branches=true` and require the
-   repository owner, `ronhuafeng`, as reviewer. GitHub's setting admits any
-   protected branch rather than naming only `main`, so the workflow separately
-   fails unless `workflow_dispatch` originated from `refs/heads/main`. This
-   personal repository has a single maintainer, so `prevent_self_review=false`
-   is an explicitly accepted exception: the approval is an audit and intent
-   boundary, not independent separation of duties.
-4. Keep two active tag rulesets with identical formal-module tag targets:
-   - a **creation-only** ruleset containing only the tag-creation restriction.
-     Its bypass list contains exactly one entry: `DeployKey`, represented by
-     `actor_id: null`, with `bypass_mode: always`;
-   - an **immutability** ruleset containing tag deletion and
-     `non_fast_forward`, with an empty bypass list.
+## Hosted identity
 
-Hosted ruleset `18935608` owns the creation-only restriction. Hosted ruleset
-`18924050` owns deletion and `non_fast_forward` protection. Never add a bypass
-actor to the immutability ruleset. Both rulesets must remain active and target
-the same formal tag prefixes.
+Inspect these before every dispatch. A workflow file cannot prove them.
 
-GitHub represents the `DeployKey` bypass with `actor_id: null`, so it applies
-to every Deploy Key in the repository rather than selecting the dedicated key.
-The exactly-one-key rule above is therefore part of the security boundary.
-Because the bypass exists only on the creation-only ruleset, the release key
-may create an absent formal tag but cannot update, force-move, or delete an
-existing one.
+1. Exactly one repository Deploy Key, write-capable, dedicated to this
+   workflow. GitHub's `DeployKey` bypass uses `actor_id: null`, so it matches
+   every Deploy Key. Extra keys enlarge the tag-create identity.
+2. Private key only as `RELEASE_DEPLOY_KEY` on the `production-release`
+   Environment. Never a repository or organization secret.
+3. Environment: `protected_branches=true`, reviewer `ronhuafeng`,
+   `prevent_self_review=false` (single maintainer). The workflow still rejects
+   any ref other than `refs/heads/main`.
+4. Two active tag rulesets on the same formal prefixes:
+   - creation-only `18935608`: `DeployKey` bypass, `bypass_mode: always`
+   - immutability `18924050`: delete + `non_fast_forward`, empty bypass
 
-GitHub rejected the GitHub Actions Integration (`actor_id: 15368`) for this
-personal-repository ruleset with HTTP 422: the Integration must be part of the
-ruleset source or owner organization. A PAT/user bypass, removing the ruleset,
-or deactivating its enforcement is not an approved substitute. The dedicated
-repository-scoped Deploy Key is the narrow release identity chosen for this
-constraint.
+The release key may create an absent tag. It cannot move or delete one.
 
-The workflow's default permission remains read-only. The protected tag job
-also keeps `GITHUB_TOKEN` at `contents: read`; only the Draft Release and final
-publish jobs receive `contents: write`. After Environment approval,
-`actions/checkout` installs the Deploy Key into the job-local Git
-configuration with strict SSH host checking, the workflow pins `origin` to the
-SSH repository URL, and checkout removes the credential during post-job
-cleanup. A missing or invalid Environment secret fails before tag creation.
+Rotate by stopping dispatches, deleting the old key first, then installing a
+new pair. On compromise, delete the key and secret; never move a tag.
 
-GitHub's `${{ secrets.RELEASE_DEPLOY_KEY }}` expression does not expose which
-secret scope supplied the value. If the Environment secret were absent, a
-forbidden repository or organization secret with the same name could be used
-as fallback. The workflow can fail closed for an empty value or invalid SSH
-key, but proving Environment-only scope is a hosted-configuration precondition:
-inspect all three secret scopes and ensure the name exists only on
-`production-release` before dispatch.
+## Transaction
 
-Do not dispatch a production release until the Environment, sole Deploy Key,
-Environment secret, creation-only bypass, and bypass-free immutability ruleset
-have all been inspected. A workflow file cannot prove or substitute for
-repository-hosted settings.
+1. Archive `.changes` fragments and give `CHANGELOG.md` a `## [version]`
+   section.
+2. Dispatch from `main` with module ID, version, and current commit.
+3. Approve the authorization digest that hashes the plan plus
+   minimum/current/race/checkout evidence.
+4. After approval, `authorize-tag` re-derives the plan on freshly fetched
+   `main`. Git cannot make tag create conditional on `main` staying still
+   without updating `main`; the job reads `main` and creates the tag with an
+   empty-expectation lease instead.
+5. `verify-tag` binds the immutable tag to the proxy artifact, official sums,
+   and an isolated consumer. The GitHub Release stays Draft until that
+   evidence is uploaded.
 
-### Key rotation and revocation
+## Failure
 
-Treat key rotation as one maintenance transaction and prefer release
-unavailability over overlapping identities:
+Before the tag exists: fix source and run a new preflight. An old digest never
+authorizes a new plan.
 
-1. stop new release dispatches and let any active tag job finish or cancel it;
-2. delete the old Deploy Key first, making tag pushes fail closed;
-3. generate a new key pair offline, add only its public key as the sole
-   write-enabled Deploy Key, and replace the `production-release` Environment's
-   `RELEASE_DEPLOY_KEY` secret with the matching private key;
-4. inspect the Environment scope and both formal-tag rulesets again, including
-   the immutability ruleset's empty bypass list, then securely destroy the
-   retired private key.
-
-On suspected compromise, immediately cancel active release jobs, delete the
-Deploy Key, and delete the Environment secret. Preserve audit logs and do not
-move or recreate any tag. Restore release capability only through the rotation
-procedure with a new pair. Never expose either old or new private key material
-in an issue, pull request, workflow artifact, command line, or log.
-
-## Release transaction
-
-1. Prepare the module changelog and archive its reviewed fragments under
-   `<module>/.changes/releases/<version>/` in the release commit.
-2. Dispatch the workflow with the module ID, exact stable version, and exact
-   current `main` commit.
-3. Inspect the uploaded release plan, the minimum/current/race/checkout JSON
-   evidence, and the final release-authorization digest that hashes all five
-   artifacts. Approve that authorization digest in the protected tag job.
-4. The workflow first requires that dispatch originated from `main`. The tag
-   job then re-runs authorization against current `origin/main`. Any main
-   advance observed before tag push or any changed evidence invalidates the
-   approval. The job builds `repoctl` before this boundary, fetches `main`
-   immediately before authorization, fetches it again afterwards, and checks
-   the remote head once more immediately before pushing.
-5. CI creates the one authorized annotated path-prefixed tag through the
-   creation-only bypass. The bypass-free immutability ruleset prevents that key
-   from moving or deleting the tag. CI then creates a Draft GitHub Release. A
-   rerun discovers releases through the authenticated, fully paginated
-   Releases list because GitHub's get-by-tag endpoint returns 404 for Draft
-   Releases. Zero exact tag matches permits creation; one is reusable only when
-   it is Draft, not a prerelease, and its `target_commitish` equals the
-   authorized commit. Duplicate matches, a published release, or a mismatched
-   target fail closed. After creation CI lists and validates again. The remote
-   annotated tag's peeled ref remains the independent immutable commit evidence
-   and is checked before and after Draft lookup or creation. GitHub may return
-   successfully from Draft creation before the authenticated paginated Releases
-   list exposes that Draft. Only after a successful create, CI therefore retries
-   that list-and-validate observation for a short bounded interval. Only the
-   typed not-found result is retryable; malformed, duplicate, published,
-   prerelease, or wrong-target observations fail immediately, and creation is
-   never repeated inside the retry.
-6. Post-tag verification waits for public-proxy propagation with bounded
-   retries. Every retry uses a disposable probe cache; artifact validation and
-   the external typed consumer use separate fresh caches. Module caches are
-   writable solely so teardown is reliable, and a cleanup failure fails the
-   evidence rather than silently leaving reusable state behind. The SDK
-   consumer exercises a generated facade and the exact `ThreadRunner`
-   lifecycle through their public fail-closed zero-client contract. The
-   adapter consumer additionally requires its proxy artifact to directly
-   declare the exact `llmkit` and `codexsdk` versions bound by the release plan,
-   requires the fresh resolved graph to contain that exact tuple with official
-   sums and no replacements, exclusions, prereleases, or pseudo-versions. Go's
-   lazy module loading can put a dependency in that build list before its module
-   zip has been fetched,
-   so the consumer first runs `go mod download -json all` through the same
-   exclusive public Proxy. Every versioned build-list module must have both an
-   official module sum and `go.mod` sum in the download result, and the complete
-   downloaded set must exactly match the subsequently listed graph. These
-   bounded public-network commands receive five minutes each. The consumer
-   then proves typed neutral evidence retains the complete exact SDK result.
-   The adapter `go.mod` is the compatibility owner; there is no second
-   compatibility manifest.
-7. CI attaches the plan, release authorization, and published evidence before
-   changing the GitHub Release from Draft to `verified`.
-
-The plan is deterministic and binds the commit, tree, module identity, target
-version, tag, declared requirements, latest-tag API baseline, SDK generated
-compatibility when applicable, change fragments, module archive, and release
-inputs. Human-readable notes are rendered from the same archived fragments.
-
-The authorization envelope binds the plan digest and the exact SHA-256 of all
-four preflight evidence files. The module archive's canonical `h1:` content sum
-is the cross-stage packaging identity. Raw zip SHA-256 values are retained as
-observations only because equivalent ZIP compression and metadata can produce
-different bytes.
-
-Git cannot atomically make creation of one ref conditional on an unrelated ref
-remaining unchanged without also attempting to update that unrelated ref. The
-workflow therefore does not push or no-op-update protected `main`: it minimizes
-the remaining host-level observation window with repeated authoritative reads,
-then creates the tag with an empty-expectation lease so concurrent creation or
-reuse of that tag fails closed. Repository branch protection remains the owner
-of `main`; release automation never weakens it to manufacture a cross-ref
-transaction.
-
-## Failure and recovery
-
-Before tag creation, fix the source or configuration and run a new preflight.
-An approval for an older digest never authorizes the replacement plan.
-
-After tag creation, never delete, move, or recreate the tag. A failed post-tag
-job leaves the GitHub Release Draft. A transient observation failure may be
-rechecked against that same immutable artifact, but it does not authorize a tag
-write. Any source, archive, checksum, provenance, or behavior defect is fixed
-with a new patch or minor version. The failed version remains visibly
-unverified; it is never made to point at the correction.
-
-If Draft creation succeeds but its client loses the response, rerun the failed
-Draft job. Paginated exact-tag discovery finds and validates that Draft even
-though GitHub's get-by-tag endpoint hides it; it never attempts a second
-release or turns an already published Release back into mutable state.
-If a newly created Draft remains absent after the bounded visibility window,
-the job fails with the immutable tag and Draft left in place. Rerun the failed
-job so its initial exact lookup can reuse the now-visible Draft; do not create,
-delete, or move any release tag by hand.
-
-The repository keeps no standing incident-recovery workflow or mutation
-command. A future verifier or observation incident requires a separately
-reviewed, incident-specific path under ADR-0019; completed incidents do not
-remain available as reusable release entry points.
+After the tag exists: never delete, move, or recreate it. Defects get a new
+version. A lost Draft response is recovered by rerunning the Draft job; do
+not create a second release.

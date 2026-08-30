@@ -18,7 +18,6 @@ var allowedExternalImportPrefixes = []string{
 }
 
 var forbiddenImportPrefixes = []string{
-	"smart-contract",
 	"github.com/ronhuafeng/llm-go/llmkit/llmschema",
 	"github.com/ronhuafeng/llm-go/llmkit/settle",
 }
@@ -43,7 +42,7 @@ func TestCodexCallerImportBoundary(t *testing.T) {
 				return err
 			}
 			if isForbiddenImport(importPath) {
-				t.Fatalf("Codex caller must not own schema projection, loop semantics, or business deps: %s imports %q", relPath(root, path), importPath)
+				t.Fatalf("Codex caller must not own schema projection or settle: %s imports %q", relPath(root, path), importPath)
 			}
 			if isStdlibImport(importPath) {
 				continue
@@ -67,8 +66,6 @@ func TestImportBoundaryClassifiesStdlibAndBusinessImports(t *testing.T) {
 	}
 
 	for _, importPath := range []string{
-		"smart-contract",
-		"smart-contract/internal/companyfacts",
 		"github.com/ronhuafeng/llm-go/llmkit/llmschema",
 		"github.com/ronhuafeng/llm-go/llmkit/llmschema/internal",
 		"github.com/ronhuafeng/llm-go/llmkit/settle",

@@ -4,6 +4,5 @@
   "impact": "patch",
   "breaking": false,
   "summary": "Publish Provider details from one isolated Exact Run snapshot and omit unisolated reference evidence when snapshotting fails.",
-  "issue": 57,
-  "migration": "none"
+  "issue": 57
 }

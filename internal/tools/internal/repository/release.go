@@ -70,12 +70,11 @@ type ReleaseGeneratedAPIEvidence struct {
 }
 
 type ReleaseFragment struct {
-	Path      string `json:"path"`
-	Impact    string `json:"impact"`
-	Breaking  bool   `json:"breaking"`
-	Summary   string `json:"summary"`
-	Issue     int    `json:"issue"`
-	Migration string `json:"migration"`
+	Path     string `json:"path"`
+	Impact   string `json:"impact"`
+	Breaking bool   `json:"breaking"`
+	Summary  string `json:"summary"`
+	Issue    int    `json:"issue"`
 }
 
 type ReleaseDependency struct {
@@ -101,7 +100,6 @@ type changeFragment struct {
 	Breaking      bool   `json:"breaking"`
 	Summary       string `json:"summary"`
 	Issue         int    `json:"issue"`
-	Migration     string `json:"migration"`
 }
 
 type githubRelease struct {
@@ -191,7 +189,7 @@ func BuildReleasePlan(root, moduleID, targetVersion, requiredCommit, mainRef str
 	if want := nextVersion(previousVersion, declaredImpact); targetVersion != want {
 		return ReleasePlan{}, fmt.Errorf("target %s skips the next %s version %s after %s", targetVersion, declaredImpact, want, previousVersion)
 	}
-	if err := validateReleaseDocumentation(root, candidate, targetVersion, fragments); err != nil {
+	if err := validateReleaseDocumentation(root, candidate, targetVersion); err != nil {
 		return ReleasePlan{}, err
 	}
 
@@ -225,11 +223,6 @@ func BuildReleasePlan(root, moduleID, targetVersion, requiredCommit, mainRef str
 		inputPaths = append(inputPaths, filepath.ToSlash(filepath.Join(candidate.Dir, codexSDKGeneratedManifestPath)))
 	}
 	inputPaths = append(inputPaths, fragmentInputs...)
-	for _, fragment := range fragments {
-		if fragment.Migration != "none" {
-			inputPaths = append(inputPaths, filepath.ToSlash(filepath.Join(candidate.Dir, fragment.Migration)))
-		}
-	}
 	inputs, err := digestInputs(root, inputPaths)
 	if err != nil {
 		return ReleasePlan{}, err
@@ -609,9 +602,6 @@ func loadReleaseFragments(root string, candidate module, targetVersion string) (
 		if fragment.FormatVersion != 1 || fragment.Module != candidate.ID || releaseImpactRank(fragment.Impact) == 0 || strings.TrimSpace(fragment.Summary) == "" || fragment.Issue <= 0 {
 			return nil, nil, "", false, fmt.Errorf("change fragment %s is incomplete or invalid", filepath.Base(path))
 		}
-		if fragment.Breaking && (fragment.Migration == "" || fragment.Migration == "none") {
-			return nil, nil, "", false, fmt.Errorf("breaking change fragment %s must name module-local migration guidance", filepath.Base(path))
-		}
 		if fragment.Breaking && fragment.Impact == "patch" {
 			return nil, nil, "", false, fmt.Errorf("breaking pre-v1 change fragment %s must require at least a minor release", filepath.Base(path))
 		}
@@ -626,14 +616,14 @@ func loadReleaseFragments(root string, candidate module, targetVersion string) (
 		relative = filepath.ToSlash(relative)
 		fragments = append(fragments, ReleaseFragment{
 			Path: relative, Impact: fragment.Impact, Breaking: fragment.Breaking, Summary: fragment.Summary,
-			Issue: fragment.Issue, Migration: fragment.Migration,
+			Issue: fragment.Issue,
 		})
 		inputs = append(inputs, relative)
 	}
 	return fragments, inputs, declared, breaking, nil
 }
 
-func validateReleaseDocumentation(root string, candidate module, targetVersion string, fragments []ReleaseFragment) error {
+func validateReleaseDocumentation(root string, candidate module, targetVersion string) error {
 	changelogPath := filepath.Join(root, filepath.FromSlash(candidate.Dir), "CHANGELOG.md")
 	changelog, err := os.ReadFile(changelogPath)
 	if err != nil {
@@ -641,19 +631,6 @@ func validateReleaseDocumentation(root string, candidate module, targetVersion s
 	}
 	if !bytes.Contains(changelog, []byte("## ["+strings.TrimPrefix(targetVersion, "v")+"]")) {
 		return fmt.Errorf("CHANGELOG.md has no release section for %s", targetVersion)
-	}
-	for _, fragment := range fragments {
-		if fragment.Migration == "none" {
-			continue
-		}
-		clean := filepath.ToSlash(filepath.Clean(fragment.Migration))
-		if clean != fragment.Migration || filepath.IsAbs(fragment.Migration) || clean == ".." || strings.HasPrefix(clean, "../") {
-			return fmt.Errorf("fragment %s has invalid migration path %q", fragment.Path, fragment.Migration)
-		}
-		path := filepath.Join(root, filepath.FromSlash(candidate.Dir), filepath.FromSlash(clean))
-		if info, err := os.Stat(path); err != nil || info.IsDir() {
-			return fmt.Errorf("fragment %s migration document %s is unavailable", fragment.Path, fragment.Migration)
-		}
 	}
 	return nil
 }

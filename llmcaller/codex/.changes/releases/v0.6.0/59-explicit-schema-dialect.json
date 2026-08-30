@@ -4,6 +4,5 @@
   "impact": "minor",
   "breaking": true,
   "summary": "Require legacy tuple schemas to declare Draft 7 explicitly and default every unversioned schema to Draft 2020-12.",
-  "issue": 59,
-  "migration": "docs/migration/v0.6.0.md"
+  "issue": 59
 }

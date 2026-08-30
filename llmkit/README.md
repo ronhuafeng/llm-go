@@ -2,7 +2,7 @@
 
 Provider-neutral typed structured output, with complete stage-owned evidence,
 and with no provider SDK. Destination: [NORTHSTAR.md](../NORTHSTAR.md).
-Language: [CONTEXT.md](CONTEXT.md). Upgrade notes: [UPGRADE.md](UPGRADE.md).
+Language: [CONTEXT.md](CONTEXT.md).
 
 ## Packages
 
@@ -13,13 +13,13 @@ Language: [CONTEXT.md](CONTEXT.md). Upgrade notes: [UPGRADE.md](UPGRADE.md).
 | `github.com/ronhuafeng/llm-go/llmkit/llmadapter` | Build one typed request, preserve provider-neutral execution evidence, and decode the final value. | Depends on `llmschema`; no concrete provider SDK. |
 | `github.com/ronhuafeng/llm-go/llmkit/llmstep` | Run typed validation-feedback retries while preserving every request/call/decode/validation stage. | Depends on `llmadapter` and `settle`; no concrete provider SDK. |
 
-The `internal/` tree contains repository tests and is not public API.
+The `internal/` tree is not public API.
 
 ## Installation
 
 Requires Go 1.23 or newer.
 
-Install the verified replacement release with:
+Install the current release with:
 
 ```sh
 go get github.com/ronhuafeng/llm-go/llmkit@v0.7.0
@@ -145,51 +145,14 @@ failure. Provider-specific exact facts remain available through typed
 
 ## Ownership and snapshots
 
-Detailed APIs publish owned, isolated snapshots of toolkit-owned state. This is
-an aliasing guarantee for state whose representation the toolkit owns, not a
-promise that every returned Go value is deeply immutable.
+Detailed APIs publish isolated snapshots of toolkit-owned state. This is not a
+promise that every generic output is deeply immutable.
 
-- `llmadapter.Request.OutputSchema` is cloned before caller invocation. Callers
-  may use or mutate their copy during `Call`, but must not retain and later
-  mutate toolkit-owned request state in a way that affects another call.
-- `llmadapter.ValueDetailed` preserves available response evidence on call and
-  decode errors and clones `Execution.Usage` before publication.
-- Provider adapters own `ProviderDetails` cloning. When details are provided,
-  they must be an isolated, non-nil typed value whose provider identity matches
-  neutral execution evidence; they must not alias mutable transport or SDK
-  state.
-- `ValueResult.Value`, `settle.Result.Output`, attempt candidates, and
-  `llmstep.Result.Output` follow ordinary Go value semantics. Maps, slices,
-  pointers, and custom mutable fields are not generically deep-copied.
-- `settle` attempt slices and `llmstep` attempt, validation, feedback, code, and
-  location slices are copied before publication.
-
-An adapter should copy provider-owned reference fields while constructing its
-details value. For example, `details{Headers: maps.Clone(response.Headers)}` is
-safe; `details{Headers: response.Headers}` is unsafe if the transport may later
-mutate that map. Applications requiring deeply immutable generic outputs should
-use immutable domain types or explicitly clone their values.
-
-Detailed field ownership is summarized below. Scalar strings, booleans,
-integers, stages, and errors are copied by normal Go assignment.
-
-| Published field | Ownership and aliasing contract |
-| --- | --- |
-| `Request.Prompt` | Go string value. |
-| `Request.OutputSchema` | Toolkit-owned bytes cloned before `Caller.Call`. |
-| `Response.FinalResponse` | Go string value, preserved when available on call/decode failure. |
-| `Response.Execution` | Provider-neutral value; its `Usage` pointer is cloned by `ValueDetailed`. |
-| `Response.ProviderDetails` | Adapter-owned isolated typed value; the adapter must remove mutable runtime aliases. |
-| `ValueResult.Value` | Generic value with ordinary Go semantics; reference fields may alias. |
-| `ValueResult.Response` | Available response evidence preserved on call/decode errors with the ownership rules above. |
-| `settle.Result.Output` and `Attempt.Output` | Generic values with ordinary Go semantics; the latest result and recorded candidate may share reference fields. |
-| `settle.Result.Attempts` | Toolkit-owned slice snapshot; scalar attempt fields and errors use normal Go assignment. |
-| `llmstep.Result.Output` and `Attempt.Call.Value` | Generic values with ordinary Go semantics; reference fields may alias. |
-| `llmstep.Result.Attempts` | Toolkit-owned slice snapshot. |
-| `llmstep.Attempt.Feedback` | Toolkit-owned snapshot of the prior retry feedback supplied to this attempt's `Render`. |
-| `llmstep.Attempt.Validation` | Validator decision exactly as returned, including nil-versus-empty slice shape, published as a toolkit-owned isolated snapshot including nested feedback slices. |
-| `llmstep.Attempt.RetryFeedback` | Sanitizer-owned, iteration-stamped model-facing feedback published as a toolkit-owned isolated snapshot only when a subsequent retry exists. |
-| `llmstep.Attempt.Call.Response` | Response evidence following the `llmadapter.Response` rules above. |
+- Clone toolkit-owned schema bytes and usage before publication.
+- Copy settle/llmstep attempt, validation, and feedback slices.
+- Generic outputs use ordinary Go value semantics.
+- Adapters own `ProviderDetails`: isolated, non-nil, matching provider identity,
+  no mutable transport aliases.
 
 ### llmstep
 
@@ -197,34 +160,15 @@ Use `llmstep` when one typed structured-output call needs deterministic
 validation and bounded retries with sanitized validation feedback.
 
 `RunDetailed` records the validator's exact decision in `Attempt.Validation`
-and records sanitized, stamped feedback separately in `Attempt.RetryFeedback`.
-Only `RetryFeedback` is eligible for the next `Render`; it is produced only
-when that render will run. A final unsettled attempt keeps `RetryFeedback` nil
-and returns an error wrapping `settle.ErrUnsettled`, even if its validation
-feedback would fail sanitization. Sanitization never rewrites the validation
-record.
+and sanitized, stamped text in `Attempt.RetryFeedback`. Only `RetryFeedback`
+goes to the next `Render`, and only when that render will run. A final
+unsettled attempt keeps `RetryFeedback` nil and returns `settle.ErrUnsettled`
+without invoking the sanitizer.
 
-Validator decisions are detailed evidence and may be retained, logged, or
-serialized by applications. A validator must not return raw credentials,
-private content, or other secrets unless that retention is explicitly intended.
-When sensitive source material is involved, the application should return an
-already-redacted decision (for example, a classification code and abstract
-location), or omit the sensitive value. If correlation is required, the
-application may substitute a threat-model-reviewed keyed, domain-separated
-pseudonymous fingerprint, such as an HMAC whose key is kept outside validator
-evidence. A plain hash of a low-entropy or guessable value is not redaction.
-Fingerprints remain potentially sensitive and linkable. `llmstep` treats them
-as opaque: it does not compute, key, verify, or promise their security. The
-sanitizer independently determines whether a redacted or fingerprinted fact may
-be sent to the model.
-
-When `Step.Sanitizer` is nil, `StrictFeedbackSanitizer` rejects every non-empty
-free-form `Summary` and permits only identifier-oriented `Codes` and
-`Locations`. To intentionally send a free-form summary, configure a custom
-sanitizer and treat its output as application-owned model-facing policy. The
-default sanitizer is not DLP, secret scanning, or a privacy guarantee; values
-placed in structured fields can still be sensitive, so applications remain
-responsible for redaction.
+When `Step.Sanitizer` is nil, `StrictFeedbackSanitizer` rejects non-empty
+`Summary` and allows identifier-oriented `Codes` and `Locations`. Put secrets
+in neither field. A custom sanitizer is application-owned model-facing policy,
+not DLP.
 
 ```go
 result, err := llmstep.Run(ctx, llmstep.Step[ReviewInput, ReviewResult]{
@@ -254,20 +198,4 @@ other cooperative Go context APIs.
 Changelog: [CHANGELOG.md](CHANGELOG.md). License: [LICENSE](LICENSE).
 Notices: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-## Testing
-
-Run the same checks used by CI:
-
-```sh
-test -z "$(gofmt -l $(find . -name '*.go' -not -path './vendor/*'))"
-GOWORK=off go mod tidy -diff
-GOWORK=off go vet ./...
-GOWORK=off go test ./...
-GOWORK=off go test -race ./...
-```
-
-`GOWORK=off` is required even when the repository workspace is available;
-these checks prove that the published module is independently consumable.
-
-See repository [CONTRIBUTING.md](../CONTRIBUTING.md) and
-[SECURITY.md](../SECURITY.md).
+See [CONTRIBUTING.md](../CONTRIBUTING.md) and [SECURITY.md](../SECURITY.md).

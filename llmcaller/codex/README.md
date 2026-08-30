@@ -2,7 +2,7 @@
 
 A lossless join: toolkit-shaped calls, exact Codex facts, and adapter-owned
 Codex policy only. Destination: [NORTHSTAR.md](../../NORTHSTAR.md).
-Language: [CONTEXT.md](CONTEXT.md). Upgrade notes: [UPGRADE.md](UPGRADE.md).
+Language: [CONTEXT.md](CONTEXT.md).
 
 ## Install
 
@@ -10,7 +10,8 @@ Language: [CONTEXT.md](CONTEXT.md). Upgrade notes: [UPGRADE.md](UPGRADE.md).
 go get github.com/ronhuafeng/llm-go/llmcaller/codex@v0.6.0
 ```
 
-Go 1.23 or newer is required.
+Go 1.23 or newer is required. This tag's `llmkit` and `codexsdk` versions are
+the requirements in this module's `go.mod`.
 
 ## Typed Call
 
@@ -66,7 +67,7 @@ roots, and all other non-profile generated defaults remain caller-controlled.
 - `CallStream` returns an adapter-owned exact stream wrapper and uses the same
   request builder. `Stream.SDKStream` is the adjacent typed SDK escape hatch.
 
-`Call` places an immutable exact run in `codexcaller.Details`. Notifications,
+`Call` places an isolated Exact Run snapshot in `codexcaller.Details`. Notifications,
 diagnostics, IDs, exact usage, sandbox, approval, service tier, and generated
 configuration remain available there. If the SDK returns a partial run and an
 error, the adapter returns both the available response evidence and the same
@@ -180,7 +181,8 @@ with the listed stable error.
 | `boolean-schema-has-codex-limitation` — `true` or `false` schema | Limitation: accepted unchanged by this policy; no object normalization or Codex acceptance guarantee |
 | `draft-2020-12-preserved` — explicit draft 2020-12 | Preserved using draft 2020-12 semantics |
 | `draft-7-ref-sibling-limitation` — explicit draft-07 `$ref` with siblings | Limitation: accepted using draft-07 semantics, where `$ref` siblings are ignored |
-| `unversioned-legacy-tuple-fails-closed` — tuple-form `items` without `$schema` | Fail-closed: `invalid_schema` under the default draft 2020-12 semantics |
+| `unversioned-tuple-fails-closed` — tuple-form `items` without `$schema` | Fail-closed: `invalid_schema` under the default draft 2020-12 semantics |
+| `annotation-data-does-not-select-draft-7` — annotation payload containing tuple-form `items` without `$schema` | Fail-closed: `optional_non_nullable` at `/properties/value`; annotation data MUST NOT select Draft 7 |
 | `unsupported-draft-fails-closed` — unknown explicit draft identifier | Fail-closed: `invalid_schema` at the root path |
 | `unknown-annotation-preserved` — unknown annotation keyword | Preserved by decoded JSON value semantics |
 | `unknown-assertion-has-validation-limitation` — unknown assertion keyword | Limitation: value preserved, enforcement not guaranteed |
@@ -193,20 +195,9 @@ with the listed stable error.
 | `unresolvable-ref-fails-closed` — missing local target | Fail-closed: `unresolvable_ref` at `/$ref` |
 | `dynamic-ref-fails-closed` — `$dynamicRef` | Fail-closed: `unsupported_dynamic_ref` at `/$dynamicRef` |
 
-Schemas without an explicit `$schema` always use draft 2020-12. Legacy
-tuple-form `items` requires an explicit draft-07 `$schema`. Explicit dialects
-other than the documented draft-07 and draft 2020-12 identifiers fail closed
-until added to this contract and matrix.
-
-See [UPGRADE.md](UPGRADE.md) for dialect admission from v0.5.
-
-## Testing
-
-```sh
-GOWORK=off go test ./...
-GOWORK=off go vet ./...
-GOWORK=off go test -race ./...
-```
+Schemas without an explicit `$schema` always use draft 2020-12. Tuple-form
+`items` without `$schema` fail closed. Explicit dialects other than draft-07
+and draft 2020-12 fail closed until added to this contract and matrix.
 
 Changelog: [CHANGELOG.md](CHANGELOG.md). Notices:
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). See repository
