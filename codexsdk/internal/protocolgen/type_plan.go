@@ -688,6 +688,24 @@ func overlayFieldPlan(plan FieldPlan, schema *Schema) (FieldPlan, bool, error) {
 		plan.GoType = optionalGoType(plan.Required, "protocolv2.JSONValue")
 		plan.Reason = "reviewed MCP elicitation dynamic JSON value"
 		return plan, true, nil
+	case plan.Path == "v2/ThreadRealtimeItemCompletedNotification.json#/properties/item" ||
+		plan.Path == "v2/ThreadRealtimeItemStartedNotification.json#/properties/item":
+		if schema.Ref != "#/definitions/ThreadRealtimeItem" ||
+			len(schema.Type.Values) > 0 ||
+			len(schema.Properties) > 0 ||
+			len(schema.OneOf) > 0 ||
+			len(schema.AnyOf) > 0 ||
+			len(schema.AllOf) > 0 ||
+			len(schema.Enum) > 0 ||
+			schema.Items != nil ||
+			schema.AdditionalProperties.Present ||
+			len(unmodeledKeywords(schema)) > 0 {
+			return FieldPlan{}, true, fmt.Errorf("field %s realtime item JSONValue overlay no longer matches ThreadRealtimeItem ref shape", plan.Path)
+		}
+		plan.Kind = FieldPlanJSONValue
+		plan.GoType = optionalGoType(plan.Required, "protocolv2.JSONValue")
+		plan.Reason = "reviewed experimental realtime item preserved as protocol-native JSON"
+		return plan, true, nil
 	case plan.Path == "v2/CommandExecParams.json#/properties/command":
 		if !commandExecCommandSchemaMatchesReviewedMinItems(schema) {
 			return FieldPlan{}, true, fmt.Errorf("field %s command overlay no longer matches reviewed non-empty argv schema shape", plan.Path)
@@ -1281,6 +1299,9 @@ func isJSONValueFieldPath(path string) bool {
 		"v2/ListMcpServerStatusResponse.json#/definitions/Tool/properties/outputSchema",
 		"v2/McpResourceReadResponse.json#/definitions/ResourceContent#/anyOf/0/properties/_meta",
 		"v2/McpResourceReadResponse.json#/definitions/ResourceContent#/anyOf/1/properties/_meta",
+		"v2/McpServerEventStreamNotification.json#/definitions/McpServerEventNotification/properties/params",
+		"v2/McpServerEventStreamStartParams.json#/properties/_meta",
+		"v2/McpServerEventStreamStartParams.json#/properties/arguments",
 		"v2/McpServerToolCallParams.json#/properties/_meta",
 		"v2/McpServerToolCallParams.json#/properties/arguments",
 		"v2/McpServerToolCallResponse.json#/properties/_meta",

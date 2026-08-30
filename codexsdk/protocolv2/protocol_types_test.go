@@ -196,7 +196,7 @@ func TestGeneratedThreadTurnLifecycleParamsProtocolMarshalAndUnmarshal(t *testin
 			Role:  "user",
 		}),
 		NewResponseItemFunctionCallOutput(ResponseItemFunctionCallOutput{
-			CallID: "call-1",
+			CallID: Value("call-1"),
 			Output: NewFunctionCallOutputBodyArray([]FunctionCallOutputContentItem{
 				NewFunctionCallOutputContentItemInputText(FunctionCallOutputContentItemInputText{Text: "ok"}),
 			}),

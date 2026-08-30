@@ -230,12 +230,17 @@ func TestBuildProtocolTypePlanClassifiesDynamicJSONFields(t *testing.T) {
 		"McpServerElicitationRequestResponse.json#/properties/_meta",
 		"McpServerElicitationRequestResponse.json#/properties/content",
 		"v2/ConfigValueWriteParams.json#/properties/value",
+		"v2/McpServerEventStreamNotification.json#/definitions/McpServerEventNotification/properties/params",
+		"v2/McpServerEventStreamStartParams.json#/properties/_meta",
+		"v2/McpServerEventStreamStartParams.json#/properties/arguments",
 		"v2/McpServerToolCallParams.json#/properties/_meta",
 		"v2/McpServerToolCallParams.json#/properties/arguments",
 		"v2/McpServerToolCallResponse.json#/properties/_meta",
 		"v2/McpServerToolCallResponse.json#/properties/structuredContent",
 		"v2/ThreadApproveGuardianDeniedActionParams.json#/properties/event",
 		"v2/ThreadRealtimeItemAddedNotification.json#/properties/item",
+		"v2/ThreadRealtimeItemCompletedNotification.json#/properties/item",
+		"v2/ThreadRealtimeItemStartedNotification.json#/properties/item",
 		"v2/TurnModerationMetadataNotification.json#/properties/metadata",
 	} {
 		field, ok := optionalField(plan, path)

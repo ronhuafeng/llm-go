@@ -159,6 +159,10 @@ func decodeWireProtocolValue(data []byte, target any, role wirejson.Role) error 
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *McpServerElicitationRequestResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleActionBearing)
+	case *McpServerEventStreamStartResponse:
+		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
+	case *McpServerEventStreamStopResponse:
+		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *McpServerOauthLoginResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *McpServerRefreshResponse:
@@ -777,6 +781,44 @@ func (value *AgentMessageDelivery) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+type AllowDenyRequirement string
+
+const (
+	AllowDenyRequirementAllow AllowDenyRequirement = "allow"
+	AllowDenyRequirementDeny  AllowDenyRequirement = "deny"
+)
+
+func (value AllowDenyRequirement) IsValid() bool {
+	switch value {
+	case AllowDenyRequirementAllow:
+		return true
+	case AllowDenyRequirementDeny:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value AllowDenyRequirement) MarshalJSON() ([]byte, error) {
+	if !value.IsValid() {
+		return nil, invalidEnumValue("AllowDenyRequirement", string(value))
+	}
+	return json.Marshal(string(value))
+}
+
+func (value *AllowDenyRequirement) UnmarshalJSON(data []byte) error {
+	var raw string
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	parsed := AllowDenyRequirement(raw)
+	if !parsed.IsValid() {
+		return invalidEnumValue("AllowDenyRequirement", raw)
+	}
+	*value = parsed
+	return nil
+}
+
 type AppTemplateUnavailableReason string
 
 const (
@@ -910,6 +952,7 @@ const (
 	AuthModeAgentIdentity       AuthMode = "agentIdentity"
 	AuthModePersonalAccessToken AuthMode = "personalAccessToken"
 	AuthModeBedrockAPIKey       AuthMode = "bedrockApiKey"
+	AuthModeBedrockAccessKeys   AuthMode = "bedrockAccessKeys"
 )
 
 func (value AuthMode) IsValid() bool {
@@ -927,6 +970,8 @@ func (value AuthMode) IsValid() bool {
 	case AuthModePersonalAccessToken:
 		return true
 	case AuthModeBedrockAPIKey:
+		return true
+	case AuthModeBedrockAccessKeys:
 		return true
 	default:
 		return false
@@ -1059,6 +1104,44 @@ func (value *AwsCredentialType) UnmarshalJSON(data []byte) error {
 	parsed := AwsCredentialType(raw)
 	if !parsed.IsValid() {
 		return invalidEnumValue("AwsCredentialType", raw)
+	}
+	*value = parsed
+	return nil
+}
+
+type BrowserUseAccessApprovalLifetime string
+
+const (
+	BrowserUseAccessApprovalLifetimeTurn   BrowserUseAccessApprovalLifetime = "turn"
+	BrowserUseAccessApprovalLifetimeThread BrowserUseAccessApprovalLifetime = "thread"
+)
+
+func (value BrowserUseAccessApprovalLifetime) IsValid() bool {
+	switch value {
+	case BrowserUseAccessApprovalLifetimeTurn:
+		return true
+	case BrowserUseAccessApprovalLifetimeThread:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value BrowserUseAccessApprovalLifetime) MarshalJSON() ([]byte, error) {
+	if !value.IsValid() {
+		return nil, invalidEnumValue("BrowserUseAccessApprovalLifetime", string(value))
+	}
+	return json.Marshal(string(value))
+}
+
+func (value *BrowserUseAccessApprovalLifetime) UnmarshalJSON(data []byte) error {
+	var raw string
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	parsed := BrowserUseAccessApprovalLifetime(raw)
+	if !parsed.IsValid() {
+		return invalidEnumValue("BrowserUseAccessApprovalLifetime", raw)
 	}
 	*value = parsed
 	return nil
@@ -1278,11 +1361,15 @@ func (value *CollabAgentStatus) UnmarshalJSON(data []byte) error {
 type CollabAgentTool string
 
 const (
-	CollabAgentToolSpawnAgent  CollabAgentTool = "spawnAgent"
-	CollabAgentToolSendInput   CollabAgentTool = "sendInput"
-	CollabAgentToolResumeAgent CollabAgentTool = "resumeAgent"
-	CollabAgentToolWait        CollabAgentTool = "wait"
-	CollabAgentToolCloseAgent  CollabAgentTool = "closeAgent"
+	CollabAgentToolSpawnAgent     CollabAgentTool = "spawnAgent"
+	CollabAgentToolSendInput      CollabAgentTool = "sendInput"
+	CollabAgentToolResumeAgent    CollabAgentTool = "resumeAgent"
+	CollabAgentToolWait           CollabAgentTool = "wait"
+	CollabAgentToolCloseAgent     CollabAgentTool = "closeAgent"
+	CollabAgentToolSendMessage    CollabAgentTool = "sendMessage"
+	CollabAgentToolFollowupTask   CollabAgentTool = "followupTask"
+	CollabAgentToolInterruptAgent CollabAgentTool = "interruptAgent"
+	CollabAgentToolListAgents     CollabAgentTool = "listAgents"
 )
 
 func (value CollabAgentTool) IsValid() bool {
@@ -1296,6 +1383,14 @@ func (value CollabAgentTool) IsValid() bool {
 	case CollabAgentToolWait:
 		return true
 	case CollabAgentToolCloseAgent:
+		return true
+	case CollabAgentToolSendMessage:
+		return true
+	case CollabAgentToolFollowupTask:
+		return true
+	case CollabAgentToolInterruptAgent:
+		return true
+	case CollabAgentToolListAgents:
 		return true
 	default:
 		return false
@@ -1325,9 +1420,10 @@ func (value *CollabAgentTool) UnmarshalJSON(data []byte) error {
 type CollabAgentToolCallStatus string
 
 const (
-	CollabAgentToolCallStatusInProgress CollabAgentToolCallStatus = "inProgress"
-	CollabAgentToolCallStatusCompleted  CollabAgentToolCallStatus = "completed"
-	CollabAgentToolCallStatusFailed     CollabAgentToolCallStatus = "failed"
+	CollabAgentToolCallStatusInProgress  CollabAgentToolCallStatus = "inProgress"
+	CollabAgentToolCallStatusCompleted   CollabAgentToolCallStatus = "completed"
+	CollabAgentToolCallStatusFailed      CollabAgentToolCallStatus = "failed"
+	CollabAgentToolCallStatusInterrupted CollabAgentToolCallStatus = "interrupted"
 )
 
 func (value CollabAgentToolCallStatus) IsValid() bool {
@@ -1337,6 +1433,8 @@ func (value CollabAgentToolCallStatus) IsValid() bool {
 	case CollabAgentToolCallStatusCompleted:
 		return true
 	case CollabAgentToolCallStatusFailed:
+		return true
+	case CollabAgentToolCallStatusInterrupted:
 		return true
 	default:
 		return false
@@ -1396,6 +1494,44 @@ func (value *CommandExecOutputStream) UnmarshalJSON(data []byte) error {
 	parsed := CommandExecOutputStream(raw)
 	if !parsed.IsValid() {
 		return invalidEnumValue("CommandExecOutputStream", raw)
+	}
+	*value = parsed
+	return nil
+}
+
+type CommandExecutionApprovalKind string
+
+const (
+	CommandExecutionApprovalKindCommand    CommandExecutionApprovalKind = "command"
+	CommandExecutionApprovalKindWriteStdin CommandExecutionApprovalKind = "writeStdin"
+)
+
+func (value CommandExecutionApprovalKind) IsValid() bool {
+	switch value {
+	case CommandExecutionApprovalKindCommand:
+		return true
+	case CommandExecutionApprovalKindWriteStdin:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value CommandExecutionApprovalKind) MarshalJSON() ([]byte, error) {
+	if !value.IsValid() {
+		return nil, invalidEnumValue("CommandExecutionApprovalKind", string(value))
+	}
+	return json.Marshal(string(value))
+}
+
+func (value *CommandExecutionApprovalKind) UnmarshalJSON(data []byte) error {
+	var raw string
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	parsed := CommandExecutionApprovalKind(raw)
+	if !parsed.IsValid() {
+		return invalidEnumValue("CommandExecutionApprovalKind", raw)
 	}
 	*value = parsed
 	return nil
@@ -2224,6 +2360,7 @@ const (
 	HookEventNameSubagentStart     HookEventName = "subagentStart"
 	HookEventNameSubagentStop      HookEventName = "subagentStop"
 	HookEventNameStop              HookEventName = "stop"
+	HookEventNameInterrupt         HookEventName = "interrupt"
 )
 
 func (value HookEventName) IsValid() bool {
@@ -2249,6 +2386,8 @@ func (value HookEventName) IsValid() bool {
 	case HookEventNameSubagentStop:
 		return true
 	case HookEventNameStop:
+		return true
+	case HookEventNameInterrupt:
 		return true
 	default:
 		return false
@@ -3026,6 +3165,59 @@ func (value *McpElicitationStringType) UnmarshalJSON(data []byte) error {
 	parsed := McpElicitationStringType(raw)
 	if !parsed.IsValid() {
 		return invalidEnumValue("McpElicitationStringType", raw)
+	}
+	*value = parsed
+	return nil
+}
+
+type McpServerConnectionStatus string
+
+const (
+	McpServerConnectionStatusNotStarted             McpServerConnectionStatus = "notStarted"
+	McpServerConnectionStatusStarting               McpServerConnectionStatus = "starting"
+	McpServerConnectionStatusConnected              McpServerConnectionStatus = "connected"
+	McpServerConnectionStatusAuthenticationRequired McpServerConnectionStatus = "authenticationRequired"
+	McpServerConnectionStatusFailed                 McpServerConnectionStatus = "failed"
+	McpServerConnectionStatusCancelled              McpServerConnectionStatus = "cancelled"
+	McpServerConnectionStatusDisabled               McpServerConnectionStatus = "disabled"
+)
+
+func (value McpServerConnectionStatus) IsValid() bool {
+	switch value {
+	case McpServerConnectionStatusNotStarted:
+		return true
+	case McpServerConnectionStatusStarting:
+		return true
+	case McpServerConnectionStatusConnected:
+		return true
+	case McpServerConnectionStatusAuthenticationRequired:
+		return true
+	case McpServerConnectionStatusFailed:
+		return true
+	case McpServerConnectionStatusCancelled:
+		return true
+	case McpServerConnectionStatusDisabled:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value McpServerConnectionStatus) MarshalJSON() ([]byte, error) {
+	if !value.IsValid() {
+		return nil, invalidEnumValue("McpServerConnectionStatus", string(value))
+	}
+	return json.Marshal(string(value))
+}
+
+func (value *McpServerConnectionStatus) UnmarshalJSON(data []byte) error {
+	var raw string
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	parsed := McpServerConnectionStatus(raw)
+	if !parsed.IsValid() {
+		return invalidEnumValue("McpServerConnectionStatus", raw)
 	}
 	*value = parsed
 	return nil
@@ -5182,6 +5374,7 @@ const (
 	SubAgentActivityKindStarted     SubAgentActivityKind = "started"
 	SubAgentActivityKindInteracted  SubAgentActivityKind = "interacted"
 	SubAgentActivityKindInterrupted SubAgentActivityKind = "interrupted"
+	SubAgentActivityKindCompleted   SubAgentActivityKind = "completed"
 )
 
 func (value SubAgentActivityKind) IsValid() bool {
@@ -5191,6 +5384,8 @@ func (value SubAgentActivityKind) IsValid() bool {
 	case SubAgentActivityKindInteracted:
 		return true
 	case SubAgentActivityKindInterrupted:
+		return true
+	case SubAgentActivityKindCompleted:
 		return true
 	default:
 		return false
@@ -5376,6 +5571,82 @@ func (value *ThreadMemoryMode) UnmarshalJSON(data []byte) error {
 	parsed := ThreadMemoryMode(raw)
 	if !parsed.IsValid() {
 		return invalidEnumValue("ThreadMemoryMode", raw)
+	}
+	*value = parsed
+	return nil
+}
+
+type ThreadRealtimeSessionOutcome string
+
+const (
+	ThreadRealtimeSessionOutcomeEnded  ThreadRealtimeSessionOutcome = "ended"
+	ThreadRealtimeSessionOutcomeFailed ThreadRealtimeSessionOutcome = "failed"
+)
+
+func (value ThreadRealtimeSessionOutcome) IsValid() bool {
+	switch value {
+	case ThreadRealtimeSessionOutcomeEnded:
+		return true
+	case ThreadRealtimeSessionOutcomeFailed:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value ThreadRealtimeSessionOutcome) MarshalJSON() ([]byte, error) {
+	if !value.IsValid() {
+		return nil, invalidEnumValue("ThreadRealtimeSessionOutcome", string(value))
+	}
+	return json.Marshal(string(value))
+}
+
+func (value *ThreadRealtimeSessionOutcome) UnmarshalJSON(data []byte) error {
+	var raw string
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	parsed := ThreadRealtimeSessionOutcome(raw)
+	if !parsed.IsValid() {
+		return invalidEnumValue("ThreadRealtimeSessionOutcome", raw)
+	}
+	*value = parsed
+	return nil
+}
+
+type ThreadRealtimeTranscriptRole string
+
+const (
+	ThreadRealtimeTranscriptRoleUser      ThreadRealtimeTranscriptRole = "user"
+	ThreadRealtimeTranscriptRoleAssistant ThreadRealtimeTranscriptRole = "assistant"
+)
+
+func (value ThreadRealtimeTranscriptRole) IsValid() bool {
+	switch value {
+	case ThreadRealtimeTranscriptRoleUser:
+		return true
+	case ThreadRealtimeTranscriptRoleAssistant:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value ThreadRealtimeTranscriptRole) MarshalJSON() ([]byte, error) {
+	if !value.IsValid() {
+		return nil, invalidEnumValue("ThreadRealtimeTranscriptRole", string(value))
+	}
+	return json.Marshal(string(value))
+}
+
+func (value *ThreadRealtimeTranscriptRole) UnmarshalJSON(data []byte) error {
+	var raw string
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	parsed := ThreadRealtimeTranscriptRole(raw)
+	if !parsed.IsValid() {
+		return invalidEnumValue("ThreadRealtimeTranscriptRole", raw)
 	}
 	*value = parsed
 	return nil
@@ -7655,8 +7926,142 @@ func (value *BedrockSetupResponse) unmarshalJSON(data []byte, mode wireDecodeMod
 	return nil
 }
 
+type BrowserUseConfig struct {
+	AllowHistoryAccess  *Nullable[bool]                                    `json:"allow_history_access,omitempty"`
+	DefaultOriginPolicy *Nullable[BrowserUseOriginPolicyConfig]            `json:"default_origin_policy,omitempty"`
+	Origins             *Nullable[map[string]BrowserUseOriginPolicyConfig] `json:"origins,omitempty"`
+}
+
+func (value *BrowserUseConfig) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *BrowserUseConfig) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "BrowserUseConfig")
+	if err != nil {
+		return err
+	}
+	var decoded BrowserUseConfig
+	_, err = decodeNullableJSONField[bool](fields, "allow_history_access", "BrowserUseConfig.allow_history_access", mode, decodeWireValue[bool], &decoded.AllowHistoryAccess)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[BrowserUseOriginPolicyConfig](fields, "default_origin_policy", "BrowserUseConfig.default_origin_policy", mode, decodeWireValue[BrowserUseOriginPolicyConfig], &decoded.DefaultOriginPolicy)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[map[string]BrowserUseOriginPolicyConfig](fields, "origins", "BrowserUseConfig.origins", mode, wireMapDecoder(decodeWireValue[BrowserUseOriginPolicyConfig]), &decoded.Origins)
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "BrowserUseConfig", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type BrowserUseOriginPolicy struct {
+	Access                 *Nullable[AllowDenyRequirement]             `json:"access,omitempty"`
+	AccessApprovalLifetime *Nullable[BrowserUseAccessApprovalLifetime] `json:"accessApprovalLifetime,omitempty"`
+	AutoReview             *Nullable[AllowDenyRequirement]             `json:"autoReview,omitempty"`
+	Downloads              *Nullable[AllowDenyRequirement]             `json:"downloads,omitempty"`
+	FullCdpAccess          *Nullable[AllowDenyRequirement]             `json:"fullCdpAccess,omitempty"`
+	PersistentApproval     *Nullable[bool]                             `json:"persistentApproval,omitempty"`
+	Uploads                *Nullable[AllowDenyRequirement]             `json:"uploads,omitempty"`
+}
+
+func (value *BrowserUseOriginPolicy) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *BrowserUseOriginPolicy) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "BrowserUseOriginPolicy")
+	if err != nil {
+		return err
+	}
+	var decoded BrowserUseOriginPolicy
+	_, err = decodeNullableJSONField[AllowDenyRequirement](fields, "access", "BrowserUseOriginPolicy.access", mode, decodeWireValue[AllowDenyRequirement], &decoded.Access)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[BrowserUseAccessApprovalLifetime](fields, "accessApprovalLifetime", "BrowserUseOriginPolicy.accessApprovalLifetime", mode, decodeWireValue[BrowserUseAccessApprovalLifetime], &decoded.AccessApprovalLifetime)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[AllowDenyRequirement](fields, "autoReview", "BrowserUseOriginPolicy.autoReview", mode, decodeWireValue[AllowDenyRequirement], &decoded.AutoReview)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[AllowDenyRequirement](fields, "downloads", "BrowserUseOriginPolicy.downloads", mode, decodeWireValue[AllowDenyRequirement], &decoded.Downloads)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[AllowDenyRequirement](fields, "fullCdpAccess", "BrowserUseOriginPolicy.fullCdpAccess", mode, decodeWireValue[AllowDenyRequirement], &decoded.FullCdpAccess)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[bool](fields, "persistentApproval", "BrowserUseOriginPolicy.persistentApproval", mode, decodeWireValue[bool], &decoded.PersistentApproval)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[AllowDenyRequirement](fields, "uploads", "BrowserUseOriginPolicy.uploads", mode, decodeWireValue[AllowDenyRequirement], &decoded.Uploads)
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "BrowserUseOriginPolicy", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type BrowserUseOriginPolicyConfig struct {
+	Access        *Nullable[AllowDenyRequirement] `json:"access,omitempty"`
+	Downloads     *Nullable[AllowDenyRequirement] `json:"downloads,omitempty"`
+	FullCdpAccess *Nullable[AllowDenyRequirement] `json:"full_cdp_access,omitempty"`
+	Uploads       *Nullable[AllowDenyRequirement] `json:"uploads,omitempty"`
+}
+
+func (value *BrowserUseOriginPolicyConfig) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *BrowserUseOriginPolicyConfig) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "BrowserUseOriginPolicyConfig")
+	if err != nil {
+		return err
+	}
+	var decoded BrowserUseOriginPolicyConfig
+	_, err = decodeNullableJSONField[AllowDenyRequirement](fields, "access", "BrowserUseOriginPolicyConfig.access", mode, decodeWireValue[AllowDenyRequirement], &decoded.Access)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[AllowDenyRequirement](fields, "downloads", "BrowserUseOriginPolicyConfig.downloads", mode, decodeWireValue[AllowDenyRequirement], &decoded.Downloads)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[AllowDenyRequirement](fields, "full_cdp_access", "BrowserUseOriginPolicyConfig.full_cdp_access", mode, decodeWireValue[AllowDenyRequirement], &decoded.FullCdpAccess)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[AllowDenyRequirement](fields, "uploads", "BrowserUseOriginPolicyConfig.uploads", mode, decodeWireValue[AllowDenyRequirement], &decoded.Uploads)
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "BrowserUseOriginPolicyConfig", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
 type BrowserUseRequirements struct {
-	DisableAutoReview *Nullable[bool] `json:"disableAutoReview,omitempty"`
+	AllowGlobalPersistentApproval *Nullable[bool]                              `json:"allowGlobalPersistentApproval,omitempty"`
+	AllowHistoryAccess            *Nullable[bool]                              `json:"allowHistoryAccess,omitempty"`
+	DefaultOriginPolicy           *Nullable[BrowserUseOriginPolicy]            `json:"defaultOriginPolicy,omitempty"`
+	DisableAutoReview             *Nullable[bool]                              `json:"disableAutoReview,omitempty"`
+	Origins                       *Nullable[map[string]BrowserUseOriginPolicy] `json:"origins,omitempty"`
 }
 
 func (value *BrowserUseRequirements) UnmarshalJSON(data []byte) error {
@@ -7669,7 +8074,23 @@ func (value *BrowserUseRequirements) unmarshalJSON(data []byte, mode wireDecodeM
 		return err
 	}
 	var decoded BrowserUseRequirements
+	_, err = decodeNullableJSONField[bool](fields, "allowGlobalPersistentApproval", "BrowserUseRequirements.allowGlobalPersistentApproval", mode, decodeWireValue[bool], &decoded.AllowGlobalPersistentApproval)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[bool](fields, "allowHistoryAccess", "BrowserUseRequirements.allowHistoryAccess", mode, decodeWireValue[bool], &decoded.AllowHistoryAccess)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[BrowserUseOriginPolicy](fields, "defaultOriginPolicy", "BrowserUseRequirements.defaultOriginPolicy", mode, decodeWireValue[BrowserUseOriginPolicy], &decoded.DefaultOriginPolicy)
+	if err != nil {
+		return err
+	}
 	_, err = decodeNullableJSONField[bool](fields, "disableAutoReview", "BrowserUseRequirements.disableAutoReview", mode, decodeWireValue[bool], &decoded.DisableAutoReview)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[map[string]BrowserUseOriginPolicy](fields, "origins", "BrowserUseRequirements.origins", mode, wireMapDecoder(decodeWireValue[BrowserUseOriginPolicy]), &decoded.Origins)
 	if err != nil {
 		return err
 	}
@@ -8509,6 +8930,7 @@ type CommandExecutionRequestApprovalParams struct {
 	CWD                             *Nullable[string]                             `json:"cwd,omitempty"`
 	EnvironmentID                   *Nullable[string]                             `json:"environmentId,omitempty"`
 	ItemID                          string                                        `json:"itemId"`
+	Kind                            *CommandExecutionApprovalKind                 `json:"kind,omitempty"`
 	NetworkApprovalContext          *Nullable[NetworkApprovalContext]             `json:"networkApprovalContext,omitempty"`
 	ProposedExecpolicyAmendment     *Nullable[[]string]                           `json:"proposedExecpolicyAmendment,omitempty"`
 	ProposedNetworkPolicyAmendments *Nullable[[]NetworkPolicyAmendment]           `json:"proposedNetworkPolicyAmendments,omitempty"`
@@ -8562,6 +8984,10 @@ func (value *CommandExecutionRequestApprovalParams) unmarshalJSON(data []byte, m
 	}
 	if !seenItemID {
 		return missingRequiredField("CommandExecutionRequestApprovalParams.itemId")
+	}
+	_, err = decodeJSONField(fields, "kind", "CommandExecutionRequestApprovalParams.kind", false, mode, wirePointerDecoder(decodeWireValue[CommandExecutionApprovalKind]), &decoded.Kind)
+	if err != nil {
+		return err
 	}
 	_, err = decodeNullableJSONField[NetworkApprovalContext](fields, "networkApprovalContext", "CommandExecutionRequestApprovalParams.networkApprovalContext", mode, decodeWireValue[NetworkApprovalContext], &decoded.NetworkApprovalContext)
 	if err != nil {
@@ -8663,8 +9089,97 @@ func (value *CommandMigration) unmarshalJSON(data []byte, mode wireDecodeMode) e
 	return nil
 }
 
+type ComputerUseConfig struct {
+	DefaultAppAccess *Nullable[AllowDenyRequirement]     `json:"default_app_access,omitempty"`
+	Macos            *Nullable[ComputerUseMacosConfig]   `json:"macos,omitempty"`
+	Windows          *Nullable[ComputerUseWindowsConfig] `json:"windows,omitempty"`
+}
+
+func (value *ComputerUseConfig) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ComputerUseConfig) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ComputerUseConfig")
+	if err != nil {
+		return err
+	}
+	var decoded ComputerUseConfig
+	_, err = decodeNullableJSONField[AllowDenyRequirement](fields, "default_app_access", "ComputerUseConfig.default_app_access", mode, decodeWireValue[AllowDenyRequirement], &decoded.DefaultAppAccess)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[ComputerUseMacosConfig](fields, "macos", "ComputerUseConfig.macos", mode, decodeWireValue[ComputerUseMacosConfig], &decoded.Macos)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[ComputerUseWindowsConfig](fields, "windows", "ComputerUseConfig.windows", mode, decodeWireValue[ComputerUseWindowsConfig], &decoded.Windows)
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ComputerUseConfig", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ComputerUseMacosConfig struct {
+	BundleIDs *Nullable[map[string]AllowDenyRequirement] `json:"bundle_ids,omitempty"`
+}
+
+func (value *ComputerUseMacosConfig) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ComputerUseMacosConfig) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ComputerUseMacosConfig")
+	if err != nil {
+		return err
+	}
+	var decoded ComputerUseMacosConfig
+	_, err = decodeNullableJSONField[map[string]AllowDenyRequirement](fields, "bundle_ids", "ComputerUseMacosConfig.bundle_ids", mode, wireMapDecoder(decodeWireValue[AllowDenyRequirement]), &decoded.BundleIDs)
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ComputerUseMacosConfig", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ComputerUseMacosRequirements struct {
+	BundleIDs *Nullable[map[string]AllowDenyRequirement] `json:"bundleIds,omitempty"`
+}
+
+func (value *ComputerUseMacosRequirements) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ComputerUseMacosRequirements) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ComputerUseMacosRequirements")
+	if err != nil {
+		return err
+	}
+	var decoded ComputerUseMacosRequirements
+	_, err = decodeNullableJSONField[map[string]AllowDenyRequirement](fields, "bundleIds", "ComputerUseMacosRequirements.bundleIds", mode, wireMapDecoder(decodeWireValue[AllowDenyRequirement]), &decoded.BundleIDs)
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ComputerUseMacosRequirements", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
 type ComputerUseRequirements struct {
-	AllowLockedComputerUse *Nullable[bool] `json:"allowLockedComputerUse,omitempty"`
+	AllowLockedComputerUse  *Nullable[bool]                           `json:"allowLockedComputerUse,omitempty"`
+	AllowPersistentApproval *Nullable[bool]                           `json:"allowPersistentApproval,omitempty"`
+	DefaultAppAccess        *Nullable[AllowDenyRequirement]           `json:"defaultAppAccess,omitempty"`
+	Macos                   *Nullable[ComputerUseMacosRequirements]   `json:"macos,omitempty"`
+	Windows                 *Nullable[ComputerUseWindowsRequirements] `json:"windows,omitempty"`
 }
 
 func (value *ComputerUseRequirements) UnmarshalJSON(data []byte) error {
@@ -8681,7 +9196,181 @@ func (value *ComputerUseRequirements) unmarshalJSON(data []byte, mode wireDecode
 	if err != nil {
 		return err
 	}
+	_, err = decodeNullableJSONField[bool](fields, "allowPersistentApproval", "ComputerUseRequirements.allowPersistentApproval", mode, decodeWireValue[bool], &decoded.AllowPersistentApproval)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[AllowDenyRequirement](fields, "defaultAppAccess", "ComputerUseRequirements.defaultAppAccess", mode, decodeWireValue[AllowDenyRequirement], &decoded.DefaultAppAccess)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[ComputerUseMacosRequirements](fields, "macos", "ComputerUseRequirements.macos", mode, decodeWireValue[ComputerUseMacosRequirements], &decoded.Macos)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[ComputerUseWindowsRequirements](fields, "windows", "ComputerUseRequirements.windows", mode, decodeWireValue[ComputerUseWindowsRequirements], &decoded.Windows)
+	if err != nil {
+		return err
+	}
 	if err := rejectUnexpectedFieldsForMode(fields, "ComputerUseRequirements", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ComputerUseWindowsConfig struct {
+	Aumids *Nullable[map[string]AllowDenyRequirement] `json:"aumids,omitempty"`
+	Exes   *Nullable[[]ComputerUseWindowsExeConfig]   `json:"exes,omitempty"`
+}
+
+func (value *ComputerUseWindowsConfig) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ComputerUseWindowsConfig) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ComputerUseWindowsConfig")
+	if err != nil {
+		return err
+	}
+	var decoded ComputerUseWindowsConfig
+	_, err = decodeNullableJSONField[map[string]AllowDenyRequirement](fields, "aumids", "ComputerUseWindowsConfig.aumids", mode, wireMapDecoder(decodeWireValue[AllowDenyRequirement]), &decoded.Aumids)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[[]ComputerUseWindowsExeConfig](fields, "exes", "ComputerUseWindowsConfig.exes", mode, wireSliceDecoder(decodeWireValue[ComputerUseWindowsExeConfig]), &decoded.Exes)
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ComputerUseWindowsConfig", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ComputerUseWindowsExeConfig struct {
+	Access        AllowDenyRequirement `json:"access"`
+	BinaryName    *Nullable[string]    `json:"binary_name,omitempty"`
+	ProductName   string               `json:"product_name"`
+	PublisherName string               `json:"publisher_name"`
+}
+
+func (value *ComputerUseWindowsExeConfig) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ComputerUseWindowsExeConfig) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ComputerUseWindowsExeConfig")
+	if err != nil {
+		return err
+	}
+	var decoded ComputerUseWindowsExeConfig
+	seenAccess, err := decodeJSONField(fields, "access", "ComputerUseWindowsExeConfig.access", false, mode, decodeWireValue[AllowDenyRequirement], &decoded.Access)
+	if err != nil {
+		return err
+	}
+	if !seenAccess {
+		return missingRequiredField("ComputerUseWindowsExeConfig.access")
+	}
+	_, err = decodeNullableJSONField[string](fields, "binary_name", "ComputerUseWindowsExeConfig.binary_name", mode, decodeWireValue[string], &decoded.BinaryName)
+	if err != nil {
+		return err
+	}
+	seenProductName, err := decodeJSONField(fields, "product_name", "ComputerUseWindowsExeConfig.product_name", false, mode, decodeWireValue[string], &decoded.ProductName)
+	if err != nil {
+		return err
+	}
+	if !seenProductName {
+		return missingRequiredField("ComputerUseWindowsExeConfig.product_name")
+	}
+	seenPublisherName, err := decodeJSONField(fields, "publisher_name", "ComputerUseWindowsExeConfig.publisher_name", false, mode, decodeWireValue[string], &decoded.PublisherName)
+	if err != nil {
+		return err
+	}
+	if !seenPublisherName {
+		return missingRequiredField("ComputerUseWindowsExeConfig.publisher_name")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ComputerUseWindowsExeConfig", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ComputerUseWindowsExeRequirement struct {
+	Access        AllowDenyRequirement `json:"access"`
+	BinaryName    *Nullable[string]    `json:"binaryName,omitempty"`
+	ProductName   string               `json:"productName"`
+	PublisherName string               `json:"publisherName"`
+}
+
+func (value *ComputerUseWindowsExeRequirement) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ComputerUseWindowsExeRequirement) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ComputerUseWindowsExeRequirement")
+	if err != nil {
+		return err
+	}
+	var decoded ComputerUseWindowsExeRequirement
+	seenAccess, err := decodeJSONField(fields, "access", "ComputerUseWindowsExeRequirement.access", false, mode, decodeWireValue[AllowDenyRequirement], &decoded.Access)
+	if err != nil {
+		return err
+	}
+	if !seenAccess {
+		return missingRequiredField("ComputerUseWindowsExeRequirement.access")
+	}
+	_, err = decodeNullableJSONField[string](fields, "binaryName", "ComputerUseWindowsExeRequirement.binaryName", mode, decodeWireValue[string], &decoded.BinaryName)
+	if err != nil {
+		return err
+	}
+	seenProductName, err := decodeJSONField(fields, "productName", "ComputerUseWindowsExeRequirement.productName", false, mode, decodeWireValue[string], &decoded.ProductName)
+	if err != nil {
+		return err
+	}
+	if !seenProductName {
+		return missingRequiredField("ComputerUseWindowsExeRequirement.productName")
+	}
+	seenPublisherName, err := decodeJSONField(fields, "publisherName", "ComputerUseWindowsExeRequirement.publisherName", false, mode, decodeWireValue[string], &decoded.PublisherName)
+	if err != nil {
+		return err
+	}
+	if !seenPublisherName {
+		return missingRequiredField("ComputerUseWindowsExeRequirement.publisherName")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ComputerUseWindowsExeRequirement", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ComputerUseWindowsRequirements struct {
+	Aumids *Nullable[map[string]AllowDenyRequirement]    `json:"aumids,omitempty"`
+	Exes   *Nullable[[]ComputerUseWindowsExeRequirement] `json:"exes,omitempty"`
+}
+
+func (value *ComputerUseWindowsRequirements) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ComputerUseWindowsRequirements) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ComputerUseWindowsRequirements")
+	if err != nil {
+		return err
+	}
+	var decoded ComputerUseWindowsRequirements
+	_, err = decodeNullableJSONField[map[string]AllowDenyRequirement](fields, "aumids", "ComputerUseWindowsRequirements.aumids", mode, wireMapDecoder(decodeWireValue[AllowDenyRequirement]), &decoded.Aumids)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[[]ComputerUseWindowsExeRequirement](fields, "exes", "ComputerUseWindowsRequirements.exes", mode, wireSliceDecoder(decodeWireValue[ComputerUseWindowsExeRequirement]), &decoded.Exes)
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ComputerUseWindowsRequirements", mode); err != nil {
 		return err
 	}
 	*value = decoded
@@ -8693,7 +9382,9 @@ type Config struct {
 	ApprovalPolicy                  *Nullable[AskForApproval]             `json:"approval_policy,omitempty"`
 	ApprovalsReviewer               *Nullable[ApprovalsReviewer]          `json:"approvals_reviewer,omitempty"`
 	Apps                            *Nullable[AppsConfig]                 `json:"apps,omitempty"`
+	BrowserUse                      *Nullable[BrowserUseConfig]           `json:"browser_use,omitempty"`
 	CompactPrompt                   *Nullable[string]                     `json:"compact_prompt,omitempty"`
+	ComputerUse                     *Nullable[ComputerUseConfig]          `json:"computer_use,omitempty"`
 	Desktop                         *Nullable[map[string]JSONValue]       `json:"desktop,omitempty"`
 	DeveloperInstructions           *Nullable[string]                     `json:"developer_instructions,omitempty"`
 	ForcedChatGPTWorkspaceID        *Nullable[ForcedChatgptWorkspaceIds]  `json:"forced_chatgpt_workspace_id,omitempty"`
@@ -8722,7 +9413,9 @@ func (value Config) MarshalJSON() ([]byte, error) {
 		ApprovalPolicy                  *Nullable[AskForApproval]             `json:"approval_policy,omitempty"`
 		ApprovalsReviewer               *Nullable[ApprovalsReviewer]          `json:"approvals_reviewer,omitempty"`
 		Apps                            *Nullable[AppsConfig]                 `json:"apps,omitempty"`
+		BrowserUse                      *Nullable[BrowserUseConfig]           `json:"browser_use,omitempty"`
 		CompactPrompt                   *Nullable[string]                     `json:"compact_prompt,omitempty"`
+		ComputerUse                     *Nullable[ComputerUseConfig]          `json:"computer_use,omitempty"`
 		Desktop                         *Nullable[map[string]JSONValue]       `json:"desktop,omitempty"`
 		DeveloperInstructions           *Nullable[string]                     `json:"developer_instructions,omitempty"`
 		ForcedChatGPTWorkspaceID        *Nullable[ForcedChatgptWorkspaceIds]  `json:"forced_chatgpt_workspace_id,omitempty"`
@@ -8748,7 +9441,9 @@ func (value Config) MarshalJSON() ([]byte, error) {
 		ApprovalPolicy:                  value.ApprovalPolicy,
 		ApprovalsReviewer:               value.ApprovalsReviewer,
 		Apps:                            value.Apps,
+		BrowserUse:                      value.BrowserUse,
 		CompactPrompt:                   value.CompactPrompt,
+		ComputerUse:                     value.ComputerUse,
 		Desktop:                         value.Desktop,
 		DeveloperInstructions:           value.DeveloperInstructions,
 		ForcedChatGPTWorkspaceID:        value.ForcedChatGPTWorkspaceID,
@@ -8790,7 +9485,11 @@ func (value Config) MarshalJSON() ([]byte, error) {
 			return nil, fmt.Errorf("encode Config.DynamicProperties[%q]: conflicts with declared field", key)
 		case "apps":
 			return nil, fmt.Errorf("encode Config.DynamicProperties[%q]: conflicts with declared field", key)
+		case "browser_use":
+			return nil, fmt.Errorf("encode Config.DynamicProperties[%q]: conflicts with declared field", key)
 		case "compact_prompt":
+			return nil, fmt.Errorf("encode Config.DynamicProperties[%q]: conflicts with declared field", key)
+		case "computer_use":
 			return nil, fmt.Errorf("encode Config.DynamicProperties[%q]: conflicts with declared field", key)
 		case "desktop":
 			return nil, fmt.Errorf("encode Config.DynamicProperties[%q]: conflicts with declared field", key)
@@ -8868,7 +9567,15 @@ func (value *Config) unmarshalJSON(data []byte, mode wireDecodeMode) error {
 	if err != nil {
 		return err
 	}
+	_, err = decodeNullableJSONField[BrowserUseConfig](fields, "browser_use", "Config.browser_use", mode, decodeWireValue[BrowserUseConfig], &decoded.BrowserUse)
+	if err != nil {
+		return err
+	}
 	_, err = decodeNullableJSONField[string](fields, "compact_prompt", "Config.compact_prompt", mode, decodeWireValue[string], &decoded.CompactPrompt)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[ComputerUseConfig](fields, "computer_use", "Config.computer_use", mode, decodeWireValue[ComputerUseConfig], &decoded.ComputerUse)
 	if err != nil {
 		return err
 	}
@@ -9213,7 +9920,9 @@ func (value *ConfigReadResponse) unmarshalJSON(data []byte, mode wireDecodeMode)
 }
 
 type ConfigRequirements struct {
+	AdditionalDeveloperInstructions      *Nullable[string]                      `json:"additionalDeveloperInstructions,omitempty"`
 	AllowAppshots                        *Nullable[bool]                        `json:"allowAppshots,omitempty"`
+	AllowBrowserAndComputerUse           *Nullable[bool]                        `json:"allowBrowserAndComputerUse,omitempty"`
 	AllowLoginShell                      *Nullable[bool]                        `json:"allowLoginShell,omitempty"`
 	AllowManagedHooksOnly                *Nullable[bool]                        `json:"allowManagedHooksOnly,omitempty"`
 	AllowRemoteControl                   *Nullable[bool]                        `json:"allowRemoteControl,omitempty"`
@@ -9234,6 +9943,7 @@ type ConfigRequirements struct {
 	FeatureRequirements                  *Nullable[map[string]bool]             `json:"featureRequirements,omitempty"`
 	Feedback                             *Nullable[FeedbackRequirements]        `json:"feedback,omitempty"`
 	Hooks                                *Nullable[ManagedHooksRequirements]    `json:"hooks,omitempty"`
+	InAppBrowser                         *Nullable[InAppBrowserRequirements]    `json:"inAppBrowser,omitempty"`
 	LogDir                               *Nullable[string]                      `json:"logDir,omitempty"`
 	ModelCatalogJSON                     *Nullable[string]                      `json:"modelCatalogJson,omitempty"`
 	Models                               *Nullable[ModelsRequirements]          `json:"models,omitempty"`
@@ -9252,7 +9962,15 @@ func (value *ConfigRequirements) unmarshalJSON(data []byte, mode wireDecodeMode)
 		return err
 	}
 	var decoded ConfigRequirements
+	_, err = decodeNullableJSONField[string](fields, "additionalDeveloperInstructions", "ConfigRequirements.additionalDeveloperInstructions", mode, decodeWireValue[string], &decoded.AdditionalDeveloperInstructions)
+	if err != nil {
+		return err
+	}
 	_, err = decodeNullableJSONField[bool](fields, "allowAppshots", "ConfigRequirements.allowAppshots", mode, decodeWireValue[bool], &decoded.AllowAppshots)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[bool](fields, "allowBrowserAndComputerUse", "ConfigRequirements.allowBrowserAndComputerUse", mode, decodeWireValue[bool], &decoded.AllowBrowserAndComputerUse)
 	if err != nil {
 		return err
 	}
@@ -9333,6 +10051,10 @@ func (value *ConfigRequirements) unmarshalJSON(data []byte, mode wireDecodeMode)
 		return err
 	}
 	_, err = decodeNullableJSONField[ManagedHooksRequirements](fields, "hooks", "ConfigRequirements.hooks", mode, decodeWireValue[ManagedHooksRequirements], &decoded.Hooks)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[InAppBrowserRequirements](fields, "inAppBrowser", "ConfigRequirements.inAppBrowser", mode, decodeWireValue[InAppBrowserRequirements], &decoded.InAppBrowser)
 	if err != nil {
 		return err
 	}
@@ -13703,6 +14425,31 @@ func (value *HooksListResponse) unmarshalJSON(data []byte, mode wireDecodeMode) 
 	return nil
 }
 
+type InAppBrowserRequirements struct {
+	AllowExternalBrowserSettingsImport *Nullable[bool] `json:"allowExternalBrowserSettingsImport,omitempty"`
+}
+
+func (value *InAppBrowserRequirements) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *InAppBrowserRequirements) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "InAppBrowserRequirements")
+	if err != nil {
+		return err
+	}
+	var decoded InAppBrowserRequirements
+	_, err = decodeNullableJSONField[bool](fields, "allowExternalBrowserSettingsImport", "InAppBrowserRequirements.allowExternalBrowserSettingsImport", mode, decodeWireValue[bool], &decoded.AllowExternalBrowserSettingsImport)
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "InAppBrowserRequirements", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
 type InitializeCapabilities struct {
 	ExperimentalAPI                *bool                           `json:"experimentalApi,omitempty"`
 	Extensions                     *Nullable[map[string]JSONValue] `json:"extensions,omitempty"`
@@ -14273,6 +15020,7 @@ func (value *LogoutAccountResponse) unmarshalJSON(data []byte, mode wireDecodeMo
 }
 
 type ManagedHooksRequirements struct {
+	Interrupt         *[]ConfiguredHookMatcherGroup `json:"Interrupt,omitempty"`
 	PermissionRequest []ConfiguredHookMatcherGroup  `json:"PermissionRequest"`
 	PostCompact       []ConfiguredHookMatcherGroup  `json:"PostCompact"`
 	PostToolUse       []ConfiguredHookMatcherGroup  `json:"PostToolUse"`
@@ -14333,6 +15081,10 @@ func (value *ManagedHooksRequirements) unmarshalJSON(data []byte, mode wireDecod
 		return err
 	}
 	var decoded ManagedHooksRequirements
+	_, err = decodeJSONField(fields, "Interrupt", "ManagedHooksRequirements.Interrupt", false, mode, wirePointerDecoder(wireSliceDecoder(decodeWireValue[ConfiguredHookMatcherGroup])), &decoded.Interrupt)
+	if err != nil {
+		return err
+	}
 	seenPermissionRequest, err := decodeJSONField(fields, "PermissionRequest", "ManagedHooksRequirements.PermissionRequest", false, mode, wireSliceDecoder(decodeWireValue[ConfiguredHookMatcherGroup]), &decoded.PermissionRequest)
 	if err != nil {
 		return err
@@ -14916,6 +15668,207 @@ func (value *McpServerElicitationRequestResponse) unmarshalJSON(data []byte, mod
 	return nil
 }
 
+type McpServerEventNotification struct {
+	Method string    `json:"method"`
+	Params JSONValue `json:"params"`
+}
+
+func (value *McpServerEventNotification) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *McpServerEventNotification) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "McpServerEventNotification")
+	if err != nil {
+		return err
+	}
+	var decoded McpServerEventNotification
+	seenMethod, err := decodeJSONField(fields, "method", "McpServerEventNotification.method", false, mode, decodeWireValue[string], &decoded.Method)
+	if err != nil {
+		return err
+	}
+	if !seenMethod {
+		return missingRequiredField("McpServerEventNotification.method")
+	}
+	seenParams, err := decodeJSONValueField(fields, "params", "McpServerEventNotification.params", &decoded.Params)
+	if err != nil {
+		return err
+	}
+	if !seenParams {
+		return missingRequiredField("McpServerEventNotification.params")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "McpServerEventNotification", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type McpServerEventStreamNotification struct {
+	Notification   McpServerEventNotification `json:"notification"`
+	SubscriptionID string                     `json:"subscriptionId"`
+}
+
+func (value *McpServerEventStreamNotification) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *McpServerEventStreamNotification) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "McpServerEventStreamNotification")
+	if err != nil {
+		return err
+	}
+	var decoded McpServerEventStreamNotification
+	seenNotification, err := decodeJSONField(fields, "notification", "McpServerEventStreamNotification.notification", false, mode, decodeWireValue[McpServerEventNotification], &decoded.Notification)
+	if err != nil {
+		return err
+	}
+	if !seenNotification {
+		return missingRequiredField("McpServerEventStreamNotification.notification")
+	}
+	seenSubscriptionID, err := decodeJSONField(fields, "subscriptionId", "McpServerEventStreamNotification.subscriptionId", false, mode, decodeWireValue[string], &decoded.SubscriptionID)
+	if err != nil {
+		return err
+	}
+	if !seenSubscriptionID {
+		return missingRequiredField("McpServerEventStreamNotification.subscriptionId")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "McpServerEventStreamNotification", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type McpServerEventStreamStartParams struct {
+	Meta           *JSONValue `json:"_meta,omitempty"`
+	Arguments      JSONValue  `json:"arguments"`
+	Name           string     `json:"name"`
+	Server         string     `json:"server"`
+	SubscriptionID string     `json:"subscriptionId"`
+	ThreadID       string     `json:"threadId"`
+}
+
+func (value *McpServerEventStreamStartParams) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *McpServerEventStreamStartParams) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "McpServerEventStreamStartParams")
+	if err != nil {
+		return err
+	}
+	var decoded McpServerEventStreamStartParams
+	_, err = decodeOptionalJSONValueField(fields, "_meta", "McpServerEventStreamStartParams._meta", &decoded.Meta)
+	if err != nil {
+		return err
+	}
+	seenArguments, err := decodeJSONValueField(fields, "arguments", "McpServerEventStreamStartParams.arguments", &decoded.Arguments)
+	if err != nil {
+		return err
+	}
+	if !seenArguments {
+		return missingRequiredField("McpServerEventStreamStartParams.arguments")
+	}
+	seenName, err := decodeJSONField(fields, "name", "McpServerEventStreamStartParams.name", false, mode, decodeWireValue[string], &decoded.Name)
+	if err != nil {
+		return err
+	}
+	if !seenName {
+		return missingRequiredField("McpServerEventStreamStartParams.name")
+	}
+	seenServer, err := decodeJSONField(fields, "server", "McpServerEventStreamStartParams.server", false, mode, decodeWireValue[string], &decoded.Server)
+	if err != nil {
+		return err
+	}
+	if !seenServer {
+		return missingRequiredField("McpServerEventStreamStartParams.server")
+	}
+	seenSubscriptionID, err := decodeJSONField(fields, "subscriptionId", "McpServerEventStreamStartParams.subscriptionId", false, mode, decodeWireValue[string], &decoded.SubscriptionID)
+	if err != nil {
+		return err
+	}
+	if !seenSubscriptionID {
+		return missingRequiredField("McpServerEventStreamStartParams.subscriptionId")
+	}
+	seenThreadID, err := decodeJSONField(fields, "threadId", "McpServerEventStreamStartParams.threadId", false, mode, decodeWireValue[string], &decoded.ThreadID)
+	if err != nil {
+		return err
+	}
+	if !seenThreadID {
+		return missingRequiredField("McpServerEventStreamStartParams.threadId")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "McpServerEventStreamStartParams", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type McpServerEventStreamStartResponse struct{}
+
+func (value *McpServerEventStreamStartResponse) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *McpServerEventStreamStartResponse) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "McpServerEventStreamStartResponse")
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "McpServerEventStreamStartResponse", mode); err != nil {
+		return err
+	}
+	*value = McpServerEventStreamStartResponse{}
+	return nil
+}
+
+type McpServerEventStreamStopParams struct {
+	SubscriptionID string `json:"subscriptionId"`
+}
+
+func (value *McpServerEventStreamStopParams) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *McpServerEventStreamStopParams) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "McpServerEventStreamStopParams")
+	if err != nil {
+		return err
+	}
+	var decoded McpServerEventStreamStopParams
+	seenSubscriptionID, err := decodeJSONField(fields, "subscriptionId", "McpServerEventStreamStopParams.subscriptionId", false, mode, decodeWireValue[string], &decoded.SubscriptionID)
+	if err != nil {
+		return err
+	}
+	if !seenSubscriptionID {
+		return missingRequiredField("McpServerEventStreamStopParams.subscriptionId")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "McpServerEventStreamStopParams", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type McpServerEventStreamStopResponse struct{}
+
+func (value *McpServerEventStreamStopResponse) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *McpServerEventStreamStopResponse) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "McpServerEventStreamStopResponse")
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "McpServerEventStreamStopResponse", mode); err != nil {
+		return err
+	}
+	*value = McpServerEventStreamStopResponse{}
+	return nil
+}
+
 type McpServerInfo struct {
 	Description *Nullable[string]      `json:"description,omitempty"`
 	Icons       *Nullable[[]JSONValue] `json:"icons,omitempty"`
@@ -15141,13 +16094,14 @@ func (value *McpServerRefreshResponse) unmarshalJSON(data []byte, mode wireDecod
 }
 
 type McpServerStatus struct {
-	AuthStatus        McpAuthStatus            `json:"authStatus"`
-	Name              string                   `json:"name"`
-	PluginID          *Nullable[string]        `json:"pluginId,omitempty"`
-	ResourceTemplates []ResourceTemplate       `json:"resourceTemplates"`
-	Resources         []Resource               `json:"resources"`
-	ServerInfo        *Nullable[McpServerInfo] `json:"serverInfo,omitempty"`
-	Tools             map[string]Tool          `json:"tools"`
+	AuthStatus        McpAuthStatus                        `json:"authStatus"`
+	Name              string                               `json:"name"`
+	PluginID          *Nullable[string]                    `json:"pluginId,omitempty"`
+	ResourceTemplates []ResourceTemplate                   `json:"resourceTemplates"`
+	Resources         []Resource                           `json:"resources"`
+	RuntimeStatus     *Nullable[McpServerConnectionStatus] `json:"runtimeStatus,omitempty"`
+	ServerInfo        *Nullable[McpServerInfo]             `json:"serverInfo,omitempty"`
+	Tools             map[string]Tool                      `json:"tools"`
 }
 
 func (value McpServerStatus) MarshalJSON() ([]byte, error) {
@@ -15205,6 +16159,10 @@ func (value *McpServerStatus) unmarshalJSON(data []byte, mode wireDecodeMode) er
 	}
 	if !seenResources {
 		return missingRequiredField("McpServerStatus.resources")
+	}
+	_, err = decodeNullableJSONField[McpServerConnectionStatus](fields, "runtimeStatus", "McpServerStatus.runtimeStatus", mode, decodeWireValue[McpServerConnectionStatus], &decoded.RuntimeStatus)
+	if err != nil {
+		return err
 	}
 	_, err = decodeNullableJSONField[McpServerInfo](fields, "serverInfo", "McpServerStatus.serverInfo", mode, decodeWireValue[McpServerInfo], &decoded.ServerInfo)
 	if err != nil {
@@ -21428,6 +22386,7 @@ type SkillMetadata struct {
 	Interface        *Nullable[SkillInterface]    `json:"interface,omitempty"`
 	Name             string                       `json:"name"`
 	Path             string                       `json:"path"`
+	PluginID         *Nullable[string]            `json:"pluginId,omitempty"`
 	Scope            SkillScope                   `json:"scope"`
 	ShortDescription *Nullable[string]            `json:"shortDescription,omitempty"`
 }
@@ -21477,6 +22436,10 @@ func (value *SkillMetadata) unmarshalJSON(data []byte, mode wireDecodeMode) erro
 	}
 	if !seenPath {
 		return missingRequiredField("SkillMetadata.path")
+	}
+	_, err = decodeNullableJSONField[string](fields, "pluginId", "SkillMetadata.pluginId", mode, decodeWireValue[string], &decoded.PluginID)
+	if err != nil {
+		return err
 	}
 	seenScope, err := decodeJSONField(fields, "scope", "SkillMetadata.scope", false, mode, decodeWireValue[SkillScope], &decoded.Scope)
 	if err != nil {
@@ -25018,6 +25981,122 @@ func (value *ThreadRealtimeItemAddedNotification) unmarshalJSON(data []byte, mod
 	return nil
 }
 
+type ThreadRealtimeItemCompletedNotification struct {
+	Item     JSONValue `json:"item"`
+	ThreadID string    `json:"threadId"`
+}
+
+func (value *ThreadRealtimeItemCompletedNotification) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ThreadRealtimeItemCompletedNotification) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ThreadRealtimeItemCompletedNotification")
+	if err != nil {
+		return err
+	}
+	var decoded ThreadRealtimeItemCompletedNotification
+	seenItem, err := decodeJSONValueField(fields, "item", "ThreadRealtimeItemCompletedNotification.item", &decoded.Item)
+	if err != nil {
+		return err
+	}
+	if !seenItem {
+		return missingRequiredField("ThreadRealtimeItemCompletedNotification.item")
+	}
+	seenThreadID, err := decodeJSONField(fields, "threadId", "ThreadRealtimeItemCompletedNotification.threadId", false, mode, decodeWireValue[string], &decoded.ThreadID)
+	if err != nil {
+		return err
+	}
+	if !seenThreadID {
+		return missingRequiredField("ThreadRealtimeItemCompletedNotification.threadId")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ThreadRealtimeItemCompletedNotification", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ThreadRealtimeItemStartedNotification struct {
+	Item     JSONValue `json:"item"`
+	ThreadID string    `json:"threadId"`
+}
+
+func (value *ThreadRealtimeItemStartedNotification) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ThreadRealtimeItemStartedNotification) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ThreadRealtimeItemStartedNotification")
+	if err != nil {
+		return err
+	}
+	var decoded ThreadRealtimeItemStartedNotification
+	seenItem, err := decodeJSONValueField(fields, "item", "ThreadRealtimeItemStartedNotification.item", &decoded.Item)
+	if err != nil {
+		return err
+	}
+	if !seenItem {
+		return missingRequiredField("ThreadRealtimeItemStartedNotification.item")
+	}
+	seenThreadID, err := decodeJSONField(fields, "threadId", "ThreadRealtimeItemStartedNotification.threadId", false, mode, decodeWireValue[string], &decoded.ThreadID)
+	if err != nil {
+		return err
+	}
+	if !seenThreadID {
+		return missingRequiredField("ThreadRealtimeItemStartedNotification.threadId")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ThreadRealtimeItemStartedNotification", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ThreadRealtimeItemTranscriptDeltaNotification struct {
+	Delta    string `json:"delta"`
+	ItemID   string `json:"itemId"`
+	ThreadID string `json:"threadId"`
+}
+
+func (value *ThreadRealtimeItemTranscriptDeltaNotification) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ThreadRealtimeItemTranscriptDeltaNotification) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ThreadRealtimeItemTranscriptDeltaNotification")
+	if err != nil {
+		return err
+	}
+	var decoded ThreadRealtimeItemTranscriptDeltaNotification
+	seenDelta, err := decodeJSONField(fields, "delta", "ThreadRealtimeItemTranscriptDeltaNotification.delta", false, mode, decodeWireValue[string], &decoded.Delta)
+	if err != nil {
+		return err
+	}
+	if !seenDelta {
+		return missingRequiredField("ThreadRealtimeItemTranscriptDeltaNotification.delta")
+	}
+	seenItemID, err := decodeJSONField(fields, "itemId", "ThreadRealtimeItemTranscriptDeltaNotification.itemId", false, mode, decodeWireValue[string], &decoded.ItemID)
+	if err != nil {
+		return err
+	}
+	if !seenItemID {
+		return missingRequiredField("ThreadRealtimeItemTranscriptDeltaNotification.itemId")
+	}
+	seenThreadID, err := decodeJSONField(fields, "threadId", "ThreadRealtimeItemTranscriptDeltaNotification.threadId", false, mode, decodeWireValue[string], &decoded.ThreadID)
+	if err != nil {
+		return err
+	}
+	if !seenThreadID {
+		return missingRequiredField("ThreadRealtimeItemTranscriptDeltaNotification.threadId")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ThreadRealtimeItemTranscriptDeltaNotification", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
 type ThreadRealtimeListVoicesParams struct{}
 
 func (value *ThreadRealtimeListVoicesParams) UnmarshalJSON(data []byte) error {
@@ -27173,6 +28252,44 @@ func (value *ThreadStatusChangedNotification) unmarshalJSON(data []byte, mode wi
 		return missingRequiredField("ThreadStatusChangedNotification.threadId")
 	}
 	if err := rejectUnexpectedFieldsForMode(fields, "ThreadStatusChangedNotification", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ThreadTimelineListParams struct {
+	Cursor   *Nullable[string] `json:"cursor,omitempty"`
+	Limit    *Nullable[uint32] `json:"limit,omitempty"`
+	ThreadID string            `json:"threadId"`
+}
+
+func (value *ThreadTimelineListParams) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ThreadTimelineListParams) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ThreadTimelineListParams")
+	if err != nil {
+		return err
+	}
+	var decoded ThreadTimelineListParams
+	_, err = decodeNullableJSONField[string](fields, "cursor", "ThreadTimelineListParams.cursor", mode, decodeWireValue[string], &decoded.Cursor)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[uint32](fields, "limit", "ThreadTimelineListParams.limit", mode, decodeWireValue[uint32], &decoded.Limit)
+	if err != nil {
+		return err
+	}
+	seenThreadID, err := decodeJSONField(fields, "threadId", "ThreadTimelineListParams.threadId", false, mode, decodeWireValue[string], &decoded.ThreadID)
+	if err != nil {
+		return err
+	}
+	if !seenThreadID {
+		return missingRequiredField("ThreadTimelineListParams.threadId")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ThreadTimelineListParams", mode); err != nil {
 		return err
 	}
 	*value = decoded
@@ -32013,14 +33130,12 @@ type BedrockSetupParamsKind string
 const (
 	BedrockSetupParamsKindProfile     BedrockSetupParamsKind = "profile"
 	BedrockSetupParamsKindEnvironment BedrockSetupParamsKind = "environment"
-	BedrockSetupParamsKindAccessKeys  BedrockSetupParamsKind = "accessKeys"
 )
 
 type BedrockSetupParams struct {
 	kind               BedrockSetupParamsKind
 	variantProfile     *BedrockSetupParamsProfile
 	variantEnvironment *BedrockSetupParamsEnvironment
-	variantAccessKeys  *BedrockSetupParamsAccessKeys
 }
 
 type BedrockSetupParamsProfile struct {
@@ -32029,15 +33144,7 @@ type BedrockSetupParamsProfile struct {
 }
 
 type BedrockSetupParamsEnvironment struct {
-	CredentialType AwsCredentialType `json:"credentialType"`
-	Region         string            `json:"region"`
-}
-
-type BedrockSetupParamsAccessKeys struct {
-	AccessKeyID     string            `json:"accessKeyId"`
-	Region          string            `json:"region"`
-	SecretAccessKey string            `json:"secretAccessKey"`
-	SessionToken    *Nullable[string] `json:"sessionToken,omitempty"`
+	Region string `json:"region"`
 }
 
 func NewBedrockSetupParamsProfile(payload BedrockSetupParamsProfile) BedrockSetupParams {
@@ -32046,10 +33153,6 @@ func NewBedrockSetupParamsProfile(payload BedrockSetupParamsProfile) BedrockSetu
 
 func NewBedrockSetupParamsEnvironment(payload BedrockSetupParamsEnvironment) BedrockSetupParams {
 	return BedrockSetupParams{kind: BedrockSetupParamsKindEnvironment, variantEnvironment: &payload}
-}
-
-func NewBedrockSetupParamsAccessKeys(payload BedrockSetupParamsAccessKeys) BedrockSetupParams {
-	return BedrockSetupParams{kind: BedrockSetupParamsKindAccessKeys, variantAccessKeys: &payload}
 }
 
 func (value BedrockSetupParams) Kind() BedrockSetupParamsKind {
@@ -32062,8 +33165,6 @@ func (value BedrockSetupParams) IsValid() bool {
 		return value.variantProfile != nil
 	case BedrockSetupParamsKindEnvironment:
 		return value.variantEnvironment != nil
-	case BedrockSetupParamsKindAccessKeys:
-		return value.variantAccessKeys != nil
 	default:
 		return false
 	}
@@ -32081,13 +33182,6 @@ func (value BedrockSetupParams) AsEnvironment() (BedrockSetupParamsEnvironment, 
 		return BedrockSetupParamsEnvironment{}, false
 	}
 	return *value.variantEnvironment, true
-}
-
-func (value BedrockSetupParams) AsAccessKeys() (BedrockSetupParamsAccessKeys, bool) {
-	if value.kind != BedrockSetupParamsKindAccessKeys || value.variantAccessKeys == nil {
-		return BedrockSetupParamsAccessKeys{}, false
-	}
-	return *value.variantAccessKeys, true
 }
 
 func (value BedrockSetupParams) MarshalJSON() ([]byte, error) {
@@ -32110,30 +33204,11 @@ func (value BedrockSetupParams) MarshalJSON() ([]byte, error) {
 			return nil, invalidUnionVariant("BedrockSetupParams", "environment")
 		}
 		return json.Marshal(struct {
-			CredentialType AwsCredentialType `json:"credentialType"`
-			Region         string            `json:"region"`
-			Type           string            `json:"type"`
+			Region string `json:"region"`
+			Type   string `json:"type"`
 		}{
-			CredentialType: value.variantEnvironment.CredentialType,
-			Region:         value.variantEnvironment.Region,
-			Type:           "environment",
-		})
-	case BedrockSetupParamsKindAccessKeys:
-		if value.variantAccessKeys == nil {
-			return nil, invalidUnionVariant("BedrockSetupParams", "accessKeys")
-		}
-		return json.Marshal(struct {
-			AccessKeyID     string            `json:"accessKeyId"`
-			Region          string            `json:"region"`
-			SecretAccessKey string            `json:"secretAccessKey"`
-			SessionToken    *Nullable[string] `json:"sessionToken,omitempty"`
-			Type            string            `json:"type"`
-		}{
-			AccessKeyID:     value.variantAccessKeys.AccessKeyID,
-			Region:          value.variantAccessKeys.Region,
-			SecretAccessKey: value.variantAccessKeys.SecretAccessKey,
-			SessionToken:    value.variantAccessKeys.SessionToken,
-			Type:            "accessKeys",
+			Region: value.variantEnvironment.Region,
+			Type:   "environment",
 		})
 	default:
 		return nil, invalidUnionValue("BedrockSetupParams")
@@ -32177,13 +33252,6 @@ func (value *BedrockSetupParams) unmarshalJSON(data []byte, mode wireDecodeMode)
 		return nil
 	case "environment":
 		var decoded BedrockSetupParamsEnvironment
-		seenCredentialType, err := decodeJSONField(fields, "credentialType", "BedrockSetupParams.credentialType", false, mode, decodeWireValue[AwsCredentialType], &decoded.CredentialType)
-		if err != nil {
-			return err
-		}
-		if !seenCredentialType {
-			return missingRequiredField("BedrockSetupParams.credentialType")
-		}
 		seenRegion, err := decodeJSONField(fields, "region", "BedrockSetupParams.region", false, mode, decodeWireValue[string], &decoded.Region)
 		if err != nil {
 			return err
@@ -32195,38 +33263,6 @@ func (value *BedrockSetupParams) unmarshalJSON(data []byte, mode wireDecodeMode)
 			return err
 		}
 		*value = BedrockSetupParams{kind: BedrockSetupParamsKindEnvironment, variantEnvironment: &decoded}
-		return nil
-	case "accessKeys":
-		var decoded BedrockSetupParamsAccessKeys
-		seenAccessKeyID, err := decodeJSONField(fields, "accessKeyId", "BedrockSetupParams.accessKeyId", false, mode, decodeWireValue[string], &decoded.AccessKeyID)
-		if err != nil {
-			return err
-		}
-		if !seenAccessKeyID {
-			return missingRequiredField("BedrockSetupParams.accessKeyId")
-		}
-		seenRegion, err := decodeJSONField(fields, "region", "BedrockSetupParams.region", false, mode, decodeWireValue[string], &decoded.Region)
-		if err != nil {
-			return err
-		}
-		if !seenRegion {
-			return missingRequiredField("BedrockSetupParams.region")
-		}
-		seenSecretAccessKey, err := decodeJSONField(fields, "secretAccessKey", "BedrockSetupParams.secretAccessKey", false, mode, decodeWireValue[string], &decoded.SecretAccessKey)
-		if err != nil {
-			return err
-		}
-		if !seenSecretAccessKey {
-			return missingRequiredField("BedrockSetupParams.secretAccessKey")
-		}
-		_, err = decodeNullableJSONField[string](fields, "sessionToken", "BedrockSetupParams.sessionToken", mode, decodeWireValue[string], &decoded.SessionToken)
-		if err != nil {
-			return err
-		}
-		if err := rejectUnexpectedFieldsForMode(fields, "BedrockSetupParams.accessKeys", mode); err != nil {
-			return err
-		}
-		*value = BedrockSetupParams{kind: BedrockSetupParamsKindAccessKeys, variantAccessKeys: &decoded}
 		return nil
 	default:
 		return unknownUnionVariant("BedrockSetupParams", "type", variant)
@@ -32508,6 +33544,7 @@ const (
 	ClientRequestKindThreadRealtimeAppendText               ClientRequestKind = "thread/realtime/appendText"
 	ClientRequestKindThreadRealtimeAppendSpeech             ClientRequestKind = "thread/realtime/appendSpeech"
 	ClientRequestKindThreadRealtimeStop                     ClientRequestKind = "thread/realtime/stop"
+	ClientRequestKindThreadTimelineList                     ClientRequestKind = "thread/timeline/list"
 	ClientRequestKindThreadRealtimeListVoices               ClientRequestKind = "thread/realtime/listVoices"
 	ClientRequestKindReviewStart                            ClientRequestKind = "review/start"
 	ClientRequestKindModelList                              ClientRequestKind = "model/list"
@@ -32531,6 +33568,8 @@ const (
 	ClientRequestKindConfigMCPServerReload                  ClientRequestKind = "config/mcpServer/reload"
 	ClientRequestKindMCPServerStatusList                    ClientRequestKind = "mcpServerStatus/list"
 	ClientRequestKindMCPServerResourceRead                  ClientRequestKind = "mcpServer/resource/read"
+	ClientRequestKindMCPServerEventStreamStart              ClientRequestKind = "mcpServer/event/stream/start"
+	ClientRequestKindMCPServerEventStreamStop               ClientRequestKind = "mcpServer/event/stream/stop"
 	ClientRequestKindMCPServerToolCall                      ClientRequestKind = "mcpServer/tool/call"
 	ClientRequestKindWindowsSandboxSetupStart               ClientRequestKind = "windowsSandbox/setupStart"
 	ClientRequestKindWindowsSandboxReadiness                ClientRequestKind = "windowsSandbox/readiness"
@@ -32662,6 +33701,7 @@ type ClientRequest struct {
 	variantThreadRealtimeAppendText               *ClientRequestThreadRealtimeAppendText
 	variantThreadRealtimeAppendSpeech             *ClientRequestThreadRealtimeAppendSpeech
 	variantThreadRealtimeStop                     *ClientRequestThreadRealtimeStop
+	variantThreadTimelineList                     *ClientRequestThreadTimelineList
 	variantThreadRealtimeListVoices               *ClientRequestThreadRealtimeListVoices
 	variantReviewStart                            *ClientRequestReviewStart
 	variantModelList                              *ClientRequestModelList
@@ -32685,6 +33725,8 @@ type ClientRequest struct {
 	variantConfigMCPServerReload                  *ClientRequestConfigMCPServerReload
 	variantMCPServerStatusList                    *ClientRequestMCPServerStatusList
 	variantMCPServerResourceRead                  *ClientRequestMCPServerResourceRead
+	variantMCPServerEventStreamStart              *ClientRequestMCPServerEventStreamStart
+	variantMCPServerEventStreamStop               *ClientRequestMCPServerEventStreamStop
 	variantMCPServerToolCall                      *ClientRequestMCPServerToolCall
 	variantWindowsSandboxSetupStart               *ClientRequestWindowsSandboxSetupStart
 	variantWindowsSandboxReadiness                *ClientRequestWindowsSandboxReadiness
@@ -33181,6 +34223,11 @@ type ClientRequestThreadRealtimeStop struct {
 	Params ThreadRealtimeStopParams `json:"params"`
 }
 
+type ClientRequestThreadTimelineList struct {
+	ID     RequestId                `json:"id"`
+	Params ThreadTimelineListParams `json:"params"`
+}
+
 type ClientRequestThreadRealtimeListVoices struct {
 	ID     RequestId                      `json:"id"`
 	Params ThreadRealtimeListVoicesParams `json:"params"`
@@ -33292,6 +34339,16 @@ type ClientRequestMCPServerStatusList struct {
 type ClientRequestMCPServerResourceRead struct {
 	ID     RequestId             `json:"id"`
 	Params McpResourceReadParams `json:"params"`
+}
+
+type ClientRequestMCPServerEventStreamStart struct {
+	ID     RequestId                       `json:"id"`
+	Params McpServerEventStreamStartParams `json:"params"`
+}
+
+type ClientRequestMCPServerEventStreamStop struct {
+	ID     RequestId                      `json:"id"`
+	Params McpServerEventStreamStopParams `json:"params"`
 }
 
 type ClientRequestMCPServerToolCall struct {
@@ -33831,6 +34888,10 @@ func NewClientRequestThreadRealtimeStop(payload ClientRequestThreadRealtimeStop)
 	return ClientRequest{kind: ClientRequestKindThreadRealtimeStop, variantThreadRealtimeStop: &payload}
 }
 
+func NewClientRequestThreadTimelineList(payload ClientRequestThreadTimelineList) ClientRequest {
+	return ClientRequest{kind: ClientRequestKindThreadTimelineList, variantThreadTimelineList: &payload}
+}
+
 func NewClientRequestThreadRealtimeListVoices(payload ClientRequestThreadRealtimeListVoices) ClientRequest {
 	return ClientRequest{kind: ClientRequestKindThreadRealtimeListVoices, variantThreadRealtimeListVoices: &payload}
 }
@@ -33921,6 +34982,14 @@ func NewClientRequestMCPServerStatusList(payload ClientRequestMCPServerStatusLis
 
 func NewClientRequestMCPServerResourceRead(payload ClientRequestMCPServerResourceRead) ClientRequest {
 	return ClientRequest{kind: ClientRequestKindMCPServerResourceRead, variantMCPServerResourceRead: &payload}
+}
+
+func NewClientRequestMCPServerEventStreamStart(payload ClientRequestMCPServerEventStreamStart) ClientRequest {
+	return ClientRequest{kind: ClientRequestKindMCPServerEventStreamStart, variantMCPServerEventStreamStart: &payload}
+}
+
+func NewClientRequestMCPServerEventStreamStop(payload ClientRequestMCPServerEventStreamStop) ClientRequest {
+	return ClientRequest{kind: ClientRequestKindMCPServerEventStreamStop, variantMCPServerEventStreamStop: &payload}
 }
 
 func NewClientRequestMCPServerToolCall(payload ClientRequestMCPServerToolCall) ClientRequest {
@@ -34253,6 +35322,8 @@ func (value ClientRequest) IsValid() bool {
 		return value.variantThreadRealtimeAppendSpeech != nil
 	case ClientRequestKindThreadRealtimeStop:
 		return value.variantThreadRealtimeStop != nil
+	case ClientRequestKindThreadTimelineList:
+		return value.variantThreadTimelineList != nil
 	case ClientRequestKindThreadRealtimeListVoices:
 		return value.variantThreadRealtimeListVoices != nil
 	case ClientRequestKindReviewStart:
@@ -34299,6 +35370,10 @@ func (value ClientRequest) IsValid() bool {
 		return value.variantMCPServerStatusList != nil
 	case ClientRequestKindMCPServerResourceRead:
 		return value.variantMCPServerResourceRead != nil
+	case ClientRequestKindMCPServerEventStreamStart:
+		return value.variantMCPServerEventStreamStart != nil
+	case ClientRequestKindMCPServerEventStreamStop:
+		return value.variantMCPServerEventStreamStop != nil
 	case ClientRequestKindMCPServerToolCall:
 		return value.variantMCPServerToolCall != nil
 	case ClientRequestKindWindowsSandboxSetupStart:
@@ -35018,6 +36093,13 @@ func (value ClientRequest) AsThreadRealtimeStop() (ClientRequestThreadRealtimeSt
 	return *value.variantThreadRealtimeStop, true
 }
 
+func (value ClientRequest) AsThreadTimelineList() (ClientRequestThreadTimelineList, bool) {
+	if value.kind != ClientRequestKindThreadTimelineList || value.variantThreadTimelineList == nil {
+		return ClientRequestThreadTimelineList{}, false
+	}
+	return *value.variantThreadTimelineList, true
+}
+
 func (value ClientRequest) AsThreadRealtimeListVoices() (ClientRequestThreadRealtimeListVoices, bool) {
 	if value.kind != ClientRequestKindThreadRealtimeListVoices || value.variantThreadRealtimeListVoices == nil {
 		return ClientRequestThreadRealtimeListVoices{}, false
@@ -35177,6 +36259,20 @@ func (value ClientRequest) AsMCPServerResourceRead() (ClientRequestMCPServerReso
 		return ClientRequestMCPServerResourceRead{}, false
 	}
 	return *value.variantMCPServerResourceRead, true
+}
+
+func (value ClientRequest) AsMCPServerEventStreamStart() (ClientRequestMCPServerEventStreamStart, bool) {
+	if value.kind != ClientRequestKindMCPServerEventStreamStart || value.variantMCPServerEventStreamStart == nil {
+		return ClientRequestMCPServerEventStreamStart{}, false
+	}
+	return *value.variantMCPServerEventStreamStart, true
+}
+
+func (value ClientRequest) AsMCPServerEventStreamStop() (ClientRequestMCPServerEventStreamStop, bool) {
+	if value.kind != ClientRequestKindMCPServerEventStreamStop || value.variantMCPServerEventStreamStop == nil {
+		return ClientRequestMCPServerEventStreamStop{}, false
+	}
+	return *value.variantMCPServerEventStreamStop, true
 }
 
 func (value ClientRequest) AsMCPServerToolCall() (ClientRequestMCPServerToolCall, bool) {
@@ -36620,6 +37716,19 @@ func (value ClientRequest) MarshalJSON() ([]byte, error) {
 			Method: "thread/realtime/stop",
 			Params: value.variantThreadRealtimeStop.Params,
 		})
+	case ClientRequestKindThreadTimelineList:
+		if value.variantThreadTimelineList == nil {
+			return nil, invalidUnionVariant("ClientRequest", "thread/timeline/list")
+		}
+		return json.Marshal(struct {
+			ID     RequestId                `json:"id"`
+			Method string                   `json:"method"`
+			Params ThreadTimelineListParams `json:"params"`
+		}{
+			ID:     value.variantThreadTimelineList.ID,
+			Method: "thread/timeline/list",
+			Params: value.variantThreadTimelineList.Params,
+		})
 	case ClientRequestKindThreadRealtimeListVoices:
 		if value.variantThreadRealtimeListVoices == nil {
 			return nil, invalidUnionVariant("ClientRequest", "thread/realtime/listVoices")
@@ -36914,6 +38023,32 @@ func (value ClientRequest) MarshalJSON() ([]byte, error) {
 			ID:     value.variantMCPServerResourceRead.ID,
 			Method: "mcpServer/resource/read",
 			Params: value.variantMCPServerResourceRead.Params,
+		})
+	case ClientRequestKindMCPServerEventStreamStart:
+		if value.variantMCPServerEventStreamStart == nil {
+			return nil, invalidUnionVariant("ClientRequest", "mcpServer/event/stream/start")
+		}
+		return json.Marshal(struct {
+			ID     RequestId                       `json:"id"`
+			Method string                          `json:"method"`
+			Params McpServerEventStreamStartParams `json:"params"`
+		}{
+			ID:     value.variantMCPServerEventStreamStart.ID,
+			Method: "mcpServer/event/stream/start",
+			Params: value.variantMCPServerEventStreamStart.Params,
+		})
+	case ClientRequestKindMCPServerEventStreamStop:
+		if value.variantMCPServerEventStreamStop == nil {
+			return nil, invalidUnionVariant("ClientRequest", "mcpServer/event/stream/stop")
+		}
+		return json.Marshal(struct {
+			ID     RequestId                      `json:"id"`
+			Method string                         `json:"method"`
+			Params McpServerEventStreamStopParams `json:"params"`
+		}{
+			ID:     value.variantMCPServerEventStreamStop.ID,
+			Method: "mcpServer/event/stream/stop",
+			Params: value.variantMCPServerEventStreamStop.Params,
 		})
 	case ClientRequestKindMCPServerToolCall:
 		if value.variantMCPServerToolCall == nil {
@@ -39309,6 +40444,27 @@ func (value *ClientRequest) unmarshalJSON(data []byte, mode wireDecodeMode) erro
 		}
 		*value = ClientRequest{kind: ClientRequestKindThreadRealtimeStop, variantThreadRealtimeStop: &decoded}
 		return nil
+	case "thread/timeline/list":
+		var decoded ClientRequestThreadTimelineList
+		seenID, err := decodeJSONField(fields, "id", "ClientRequest.id", false, mode, decodeWireValue[RequestId], &decoded.ID)
+		if err != nil {
+			return err
+		}
+		if !seenID {
+			return missingRequiredField("ClientRequest.id")
+		}
+		seenParams, err := decodeJSONField(fields, "params", "ClientRequest.params", false, mode, decodeWireValue[ThreadTimelineListParams], &decoded.Params)
+		if err != nil {
+			return err
+		}
+		if !seenParams {
+			return missingRequiredField("ClientRequest.params")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ClientRequest.thread/timeline/list", mode); err != nil {
+			return err
+		}
+		*value = ClientRequest{kind: ClientRequestKindThreadTimelineList, variantThreadTimelineList: &decoded}
+		return nil
 	case "thread/realtime/listVoices":
 		var decoded ClientRequestThreadRealtimeListVoices
 		seenID, err := decodeJSONField(fields, "id", "ClientRequest.id", false, mode, decodeWireValue[RequestId], &decoded.ID)
@@ -39785,6 +40941,48 @@ func (value *ClientRequest) unmarshalJSON(data []byte, mode wireDecodeMode) erro
 			return err
 		}
 		*value = ClientRequest{kind: ClientRequestKindMCPServerResourceRead, variantMCPServerResourceRead: &decoded}
+		return nil
+	case "mcpServer/event/stream/start":
+		var decoded ClientRequestMCPServerEventStreamStart
+		seenID, err := decodeJSONField(fields, "id", "ClientRequest.id", false, mode, decodeWireValue[RequestId], &decoded.ID)
+		if err != nil {
+			return err
+		}
+		if !seenID {
+			return missingRequiredField("ClientRequest.id")
+		}
+		seenParams, err := decodeJSONField(fields, "params", "ClientRequest.params", false, mode, decodeWireValue[McpServerEventStreamStartParams], &decoded.Params)
+		if err != nil {
+			return err
+		}
+		if !seenParams {
+			return missingRequiredField("ClientRequest.params")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ClientRequest.mcpServer/event/stream/start", mode); err != nil {
+			return err
+		}
+		*value = ClientRequest{kind: ClientRequestKindMCPServerEventStreamStart, variantMCPServerEventStreamStart: &decoded}
+		return nil
+	case "mcpServer/event/stream/stop":
+		var decoded ClientRequestMCPServerEventStreamStop
+		seenID, err := decodeJSONField(fields, "id", "ClientRequest.id", false, mode, decodeWireValue[RequestId], &decoded.ID)
+		if err != nil {
+			return err
+		}
+		if !seenID {
+			return missingRequiredField("ClientRequest.id")
+		}
+		seenParams, err := decodeJSONField(fields, "params", "ClientRequest.params", false, mode, decodeWireValue[McpServerEventStreamStopParams], &decoded.Params)
+		if err != nil {
+			return err
+		}
+		if !seenParams {
+			return missingRequiredField("ClientRequest.params")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ClientRequest.mcpServer/event/stream/stop", mode); err != nil {
+			return err
+		}
+		*value = ClientRequest{kind: ClientRequestKindMCPServerEventStreamStop, variantMCPServerEventStreamStop: &decoded}
 		return nil
 	case "mcpServer/tool/call":
 		var decoded ClientRequestMCPServerToolCall
@@ -43091,6 +44289,7 @@ type GuardianApprovalReviewActionKind string
 const (
 	GuardianApprovalReviewActionKindCommand            GuardianApprovalReviewActionKind = "command"
 	GuardianApprovalReviewActionKindExecve             GuardianApprovalReviewActionKind = "execve"
+	GuardianApprovalReviewActionKindWriteStdin         GuardianApprovalReviewActionKind = "writeStdin"
 	GuardianApprovalReviewActionKindApplyPatch         GuardianApprovalReviewActionKind = "applyPatch"
 	GuardianApprovalReviewActionKindNetworkAccess      GuardianApprovalReviewActionKind = "networkAccess"
 	GuardianApprovalReviewActionKindMCPToolCall        GuardianApprovalReviewActionKind = "mcpToolCall"
@@ -43101,6 +44300,7 @@ type GuardianApprovalReviewAction struct {
 	kind                      GuardianApprovalReviewActionKind
 	variantCommand            *GuardianApprovalReviewActionCommand
 	variantExecve             *GuardianApprovalReviewActionExecve
+	variantWriteStdin         *GuardianApprovalReviewActionWriteStdin
 	variantApplyPatch         *GuardianApprovalReviewActionApplyPatch
 	variantNetworkAccess      *GuardianApprovalReviewActionNetworkAccess
 	variantMCPToolCall        *GuardianApprovalReviewActionMCPToolCall
@@ -43118,6 +44318,13 @@ type GuardianApprovalReviewActionExecve struct {
 	CWD     string                `json:"cwd"`
 	Program string                `json:"program"`
 	Source  GuardianCommandSource `json:"source"`
+}
+
+type GuardianApprovalReviewActionWriteStdin struct {
+	ApprovalID string `json:"approvalId"`
+	CWD        string `json:"cwd"`
+	ProcessID  string `json:"processId"`
+	Stdin      string `json:"stdin"`
 }
 
 type GuardianApprovalReviewActionApplyPatch struct {
@@ -43153,6 +44360,10 @@ func NewGuardianApprovalReviewActionExecve(payload GuardianApprovalReviewActionE
 	return GuardianApprovalReviewAction{kind: GuardianApprovalReviewActionKindExecve, variantExecve: &payload}
 }
 
+func NewGuardianApprovalReviewActionWriteStdin(payload GuardianApprovalReviewActionWriteStdin) GuardianApprovalReviewAction {
+	return GuardianApprovalReviewAction{kind: GuardianApprovalReviewActionKindWriteStdin, variantWriteStdin: &payload}
+}
+
 func NewGuardianApprovalReviewActionApplyPatch(payload GuardianApprovalReviewActionApplyPatch) GuardianApprovalReviewAction {
 	return GuardianApprovalReviewAction{kind: GuardianApprovalReviewActionKindApplyPatch, variantApplyPatch: &payload}
 }
@@ -43179,6 +44390,8 @@ func (value GuardianApprovalReviewAction) IsValid() bool {
 		return value.variantCommand != nil
 	case GuardianApprovalReviewActionKindExecve:
 		return value.variantExecve != nil
+	case GuardianApprovalReviewActionKindWriteStdin:
+		return value.variantWriteStdin != nil
 	case GuardianApprovalReviewActionKindApplyPatch:
 		return value.variantApplyPatch != nil
 	case GuardianApprovalReviewActionKindNetworkAccess:
@@ -43204,6 +44417,13 @@ func (value GuardianApprovalReviewAction) AsExecve() (GuardianApprovalReviewActi
 		return GuardianApprovalReviewActionExecve{}, false
 	}
 	return *value.variantExecve, true
+}
+
+func (value GuardianApprovalReviewAction) AsWriteStdin() (GuardianApprovalReviewActionWriteStdin, bool) {
+	if value.kind != GuardianApprovalReviewActionKindWriteStdin || value.variantWriteStdin == nil {
+		return GuardianApprovalReviewActionWriteStdin{}, false
+	}
+	return *value.variantWriteStdin, true
 }
 
 func (value GuardianApprovalReviewAction) AsApplyPatch() (GuardianApprovalReviewActionApplyPatch, bool) {
@@ -43270,6 +44490,23 @@ func (value GuardianApprovalReviewAction) MarshalJSON() ([]byte, error) {
 			Program: value.variantExecve.Program,
 			Source:  value.variantExecve.Source,
 			Type:    "execve",
+		})
+	case GuardianApprovalReviewActionKindWriteStdin:
+		if value.variantWriteStdin == nil {
+			return nil, invalidUnionVariant("GuardianApprovalReviewAction", "writeStdin")
+		}
+		return json.Marshal(struct {
+			ApprovalID string `json:"approvalId"`
+			CWD        string `json:"cwd"`
+			ProcessID  string `json:"processId"`
+			Stdin      string `json:"stdin"`
+			Type       string `json:"type"`
+		}{
+			ApprovalID: value.variantWriteStdin.ApprovalID,
+			CWD:        value.variantWriteStdin.CWD,
+			ProcessID:  value.variantWriteStdin.ProcessID,
+			Stdin:      value.variantWriteStdin.Stdin,
+			Type:       "writeStdin",
 		})
 	case GuardianApprovalReviewActionKindApplyPatch:
 		if value.variantApplyPatch == nil {
@@ -43417,6 +44654,41 @@ func (value *GuardianApprovalReviewAction) unmarshalJSON(data []byte, mode wireD
 			return err
 		}
 		*value = GuardianApprovalReviewAction{kind: GuardianApprovalReviewActionKindExecve, variantExecve: &decoded}
+		return nil
+	case "writeStdin":
+		var decoded GuardianApprovalReviewActionWriteStdin
+		seenApprovalID, err := decodeJSONField(fields, "approvalId", "GuardianApprovalReviewAction.approvalId", false, mode, decodeWireValue[string], &decoded.ApprovalID)
+		if err != nil {
+			return err
+		}
+		if !seenApprovalID {
+			return missingRequiredField("GuardianApprovalReviewAction.approvalId")
+		}
+		seenCWD, err := decodeJSONField(fields, "cwd", "GuardianApprovalReviewAction.cwd", false, mode, decodeWireValue[string], &decoded.CWD)
+		if err != nil {
+			return err
+		}
+		if !seenCWD {
+			return missingRequiredField("GuardianApprovalReviewAction.cwd")
+		}
+		seenProcessID, err := decodeJSONField(fields, "processId", "GuardianApprovalReviewAction.processId", false, mode, decodeWireValue[string], &decoded.ProcessID)
+		if err != nil {
+			return err
+		}
+		if !seenProcessID {
+			return missingRequiredField("GuardianApprovalReviewAction.processId")
+		}
+		seenStdin, err := decodeJSONField(fields, "stdin", "GuardianApprovalReviewAction.stdin", false, mode, decodeWireValue[string], &decoded.Stdin)
+		if err != nil {
+			return err
+		}
+		if !seenStdin {
+			return missingRequiredField("GuardianApprovalReviewAction.stdin")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "GuardianApprovalReviewAction.writeStdin", mode); err != nil {
+			return err
+		}
+		*value = GuardianApprovalReviewAction{kind: GuardianApprovalReviewActionKindWriteStdin, variantWriteStdin: &decoded}
 		return nil
 	case "applyPatch":
 		var decoded GuardianApprovalReviewActionApplyPatch
@@ -43751,20 +45023,22 @@ func (value *LocalShellAction) unmarshalJSON(data []byte, mode wireDecodeMode) e
 type LoginAccountParamsKind string
 
 const (
-	LoginAccountParamsKindAPIKey            LoginAccountParamsKind = "apiKey"
-	LoginAccountParamsKindChatGPT           LoginAccountParamsKind = "chatgpt"
-	LoginAccountParamsKindChatGPTDeviceCode LoginAccountParamsKind = "chatgptDeviceCode"
-	LoginAccountParamsKindChatGPTAuthTokens LoginAccountParamsKind = "chatgptAuthTokens"
-	LoginAccountParamsKindAmazonBedrock     LoginAccountParamsKind = "amazonBedrock"
+	LoginAccountParamsKindAPIKey                  LoginAccountParamsKind = "apiKey"
+	LoginAccountParamsKindChatGPT                 LoginAccountParamsKind = "chatgpt"
+	LoginAccountParamsKindChatGPTDeviceCode       LoginAccountParamsKind = "chatgptDeviceCode"
+	LoginAccountParamsKindChatGPTAuthTokens       LoginAccountParamsKind = "chatgptAuthTokens"
+	LoginAccountParamsKindAmazonBedrock           LoginAccountParamsKind = "amazonBedrock"
+	LoginAccountParamsKindAmazonBedrockAccessKeys LoginAccountParamsKind = "amazonBedrockAccessKeys"
 )
 
 type LoginAccountParams struct {
-	kind                     LoginAccountParamsKind
-	variantAPIKey            *LoginAccountParamsAPIKey
-	variantChatGPT           *LoginAccountParamsChatGPT
-	variantChatGPTDeviceCode *LoginAccountParamsChatGPTDeviceCode
-	variantChatGPTAuthTokens *LoginAccountParamsChatGPTAuthTokens
-	variantAmazonBedrock     *LoginAccountParamsAmazonBedrock
+	kind                           LoginAccountParamsKind
+	variantAPIKey                  *LoginAccountParamsAPIKey
+	variantChatGPT                 *LoginAccountParamsChatGPT
+	variantChatGPTDeviceCode       *LoginAccountParamsChatGPTDeviceCode
+	variantChatGPTAuthTokens       *LoginAccountParamsChatGPTAuthTokens
+	variantAmazonBedrock           *LoginAccountParamsAmazonBedrock
+	variantAmazonBedrockAccessKeys *LoginAccountParamsAmazonBedrockAccessKeys
 }
 
 type LoginAccountParamsAPIKey struct {
@@ -43790,6 +45064,13 @@ type LoginAccountParamsAmazonBedrock struct {
 	Region string `json:"region"`
 }
 
+type LoginAccountParamsAmazonBedrockAccessKeys struct {
+	AccessKeyID     string            `json:"accessKeyId"`
+	Region          string            `json:"region"`
+	SecretAccessKey string            `json:"secretAccessKey"`
+	SessionToken    *Nullable[string] `json:"sessionToken,omitempty"`
+}
+
 func NewLoginAccountParamsAPIKey(payload LoginAccountParamsAPIKey) LoginAccountParams {
 	return LoginAccountParams{kind: LoginAccountParamsKindAPIKey, variantAPIKey: &payload}
 }
@@ -43811,6 +45092,10 @@ func NewLoginAccountParamsAmazonBedrock(payload LoginAccountParamsAmazonBedrock)
 	return LoginAccountParams{kind: LoginAccountParamsKindAmazonBedrock, variantAmazonBedrock: &payload}
 }
 
+func NewLoginAccountParamsAmazonBedrockAccessKeys(payload LoginAccountParamsAmazonBedrockAccessKeys) LoginAccountParams {
+	return LoginAccountParams{kind: LoginAccountParamsKindAmazonBedrockAccessKeys, variantAmazonBedrockAccessKeys: &payload}
+}
+
 func (value LoginAccountParams) Kind() LoginAccountParamsKind {
 	return value.kind
 }
@@ -43827,6 +45112,8 @@ func (value LoginAccountParams) IsValid() bool {
 		return value.variantChatGPTAuthTokens != nil
 	case LoginAccountParamsKindAmazonBedrock:
 		return value.variantAmazonBedrock != nil
+	case LoginAccountParamsKindAmazonBedrockAccessKeys:
+		return value.variantAmazonBedrockAccessKeys != nil
 	default:
 		return false
 	}
@@ -43865,6 +45152,13 @@ func (value LoginAccountParams) AsAmazonBedrock() (LoginAccountParamsAmazonBedro
 		return LoginAccountParamsAmazonBedrock{}, false
 	}
 	return *value.variantAmazonBedrock, true
+}
+
+func (value LoginAccountParams) AsAmazonBedrockAccessKeys() (LoginAccountParamsAmazonBedrockAccessKeys, bool) {
+	if value.kind != LoginAccountParamsKindAmazonBedrockAccessKeys || value.variantAmazonBedrockAccessKeys == nil {
+		return LoginAccountParamsAmazonBedrockAccessKeys{}, false
+	}
+	return *value.variantAmazonBedrockAccessKeys, true
 }
 
 func (value LoginAccountParams) MarshalJSON() ([]byte, error) {
@@ -43931,6 +45225,23 @@ func (value LoginAccountParams) MarshalJSON() ([]byte, error) {
 			APIKey: value.variantAmazonBedrock.APIKey,
 			Region: value.variantAmazonBedrock.Region,
 			Type:   "amazonBedrock",
+		})
+	case LoginAccountParamsKindAmazonBedrockAccessKeys:
+		if value.variantAmazonBedrockAccessKeys == nil {
+			return nil, invalidUnionVariant("LoginAccountParams", "amazonBedrockAccessKeys")
+		}
+		return json.Marshal(struct {
+			AccessKeyID     string            `json:"accessKeyId"`
+			Region          string            `json:"region"`
+			SecretAccessKey string            `json:"secretAccessKey"`
+			SessionToken    *Nullable[string] `json:"sessionToken,omitempty"`
+			Type            string            `json:"type"`
+		}{
+			AccessKeyID:     value.variantAmazonBedrockAccessKeys.AccessKeyID,
+			Region:          value.variantAmazonBedrockAccessKeys.Region,
+			SecretAccessKey: value.variantAmazonBedrockAccessKeys.SecretAccessKey,
+			SessionToken:    value.variantAmazonBedrockAccessKeys.SessionToken,
+			Type:            "amazonBedrockAccessKeys",
 		})
 	default:
 		return nil, invalidUnionValue("LoginAccountParams")
@@ -44036,6 +45347,38 @@ func (value *LoginAccountParams) unmarshalJSON(data []byte, mode wireDecodeMode)
 			return err
 		}
 		*value = LoginAccountParams{kind: LoginAccountParamsKindAmazonBedrock, variantAmazonBedrock: &decoded}
+		return nil
+	case "amazonBedrockAccessKeys":
+		var decoded LoginAccountParamsAmazonBedrockAccessKeys
+		seenAccessKeyID, err := decodeJSONField(fields, "accessKeyId", "LoginAccountParams.accessKeyId", false, mode, decodeWireValue[string], &decoded.AccessKeyID)
+		if err != nil {
+			return err
+		}
+		if !seenAccessKeyID {
+			return missingRequiredField("LoginAccountParams.accessKeyId")
+		}
+		seenRegion, err := decodeJSONField(fields, "region", "LoginAccountParams.region", false, mode, decodeWireValue[string], &decoded.Region)
+		if err != nil {
+			return err
+		}
+		if !seenRegion {
+			return missingRequiredField("LoginAccountParams.region")
+		}
+		seenSecretAccessKey, err := decodeJSONField(fields, "secretAccessKey", "LoginAccountParams.secretAccessKey", false, mode, decodeWireValue[string], &decoded.SecretAccessKey)
+		if err != nil {
+			return err
+		}
+		if !seenSecretAccessKey {
+			return missingRequiredField("LoginAccountParams.secretAccessKey")
+		}
+		_, err = decodeNullableJSONField[string](fields, "sessionToken", "LoginAccountParams.sessionToken", mode, decodeWireValue[string], &decoded.SessionToken)
+		if err != nil {
+			return err
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "LoginAccountParams.amazonBedrockAccessKeys", mode); err != nil {
+			return err
+		}
+		*value = LoginAccountParams{kind: LoginAccountParamsKindAmazonBedrockAccessKeys, variantAmazonBedrockAccessKeys: &decoded}
 		return nil
 	default:
 		return unknownUnionVariant("LoginAccountParams", "type", variant)
@@ -45290,9 +46633,11 @@ type ResponseItemToolSearchCall struct {
 }
 
 type ResponseItemFunctionCallOutput struct {
-	CallID                                 string                                            `json:"call_id"`
+	CallID                                 *Nullable[string]                                 `json:"call_id,omitempty"`
 	ID                                     *Nullable[string]                                 `json:"id,omitempty"`
 	InternalChatMessageMetadataPassthrough *Nullable[InternalChatMessageMetadataPassthrough] `json:"internal_chat_message_metadata_passthrough,omitempty"`
+	Name                                   *Nullable[string]                                 `json:"name,omitempty"`
+	Namespace                              *Nullable[string]                                 `json:"namespace,omitempty"`
 	Output                                 FunctionCallOutputBody                            `json:"output"`
 }
 
@@ -45711,15 +47056,19 @@ func (value ResponseItem) MarshalJSON() ([]byte, error) {
 			return nil, invalidUnionVariant("ResponseItem", "function_call_output")
 		}
 		return json.Marshal(struct {
-			CallID                                 string                                            `json:"call_id"`
+			CallID                                 *Nullable[string]                                 `json:"call_id,omitempty"`
 			ID                                     *Nullable[string]                                 `json:"id,omitempty"`
 			InternalChatMessageMetadataPassthrough *Nullable[InternalChatMessageMetadataPassthrough] `json:"internal_chat_message_metadata_passthrough,omitempty"`
+			Name                                   *Nullable[string]                                 `json:"name,omitempty"`
+			Namespace                              *Nullable[string]                                 `json:"namespace,omitempty"`
 			Output                                 FunctionCallOutputBody                            `json:"output"`
 			Type                                   string                                            `json:"type"`
 		}{
 			CallID:                                 value.variantFunctionCallOutput.CallID,
 			ID:                                     value.variantFunctionCallOutput.ID,
 			InternalChatMessageMetadataPassthrough: value.variantFunctionCallOutput.InternalChatMessageMetadataPassthrough,
+			Name:                                   value.variantFunctionCallOutput.Name,
+			Namespace:                              value.variantFunctionCallOutput.Namespace,
 			Output:                                 value.variantFunctionCallOutput.Output,
 			Type:                                   "function_call_output",
 		})
@@ -46107,18 +47456,23 @@ func (value *ResponseItem) unmarshalJSON(data []byte, mode wireDecodeMode) error
 		return nil
 	case "function_call_output":
 		var decoded ResponseItemFunctionCallOutput
-		seenCallID, err := decodeJSONField(fields, "call_id", "ResponseItem.call_id", false, mode, decodeWireValue[string], &decoded.CallID)
+		_, err = decodeNullableJSONField[string](fields, "call_id", "ResponseItem.call_id", mode, decodeWireValue[string], &decoded.CallID)
 		if err != nil {
 			return err
-		}
-		if !seenCallID {
-			return missingRequiredField("ResponseItem.call_id")
 		}
 		_, err = decodeNullableJSONField[string](fields, "id", "ResponseItem.id", mode, decodeWireValue[string], &decoded.ID)
 		if err != nil {
 			return err
 		}
 		_, err = decodeNullableJSONField[InternalChatMessageMetadataPassthrough](fields, "internal_chat_message_metadata_passthrough", "ResponseItem.internal_chat_message_metadata_passthrough", mode, decodeWireValue[InternalChatMessageMetadataPassthrough], &decoded.InternalChatMessageMetadataPassthrough)
+		if err != nil {
+			return err
+		}
+		_, err = decodeNullableJSONField[string](fields, "name", "ResponseItem.name", mode, decodeWireValue[string], &decoded.Name)
+		if err != nil {
+			return err
+		}
+		_, err = decodeNullableJSONField[string](fields, "namespace", "ResponseItem.namespace", mode, decodeWireValue[string], &decoded.Namespace)
 		if err != nil {
 			return err
 		}
@@ -47315,6 +48669,7 @@ const (
 	ServerNotificationKindItemMCPToolCallProgress                 ServerNotificationKind = "item/mcpToolCall/progress"
 	ServerNotificationKindMCPServerOAuthLoginCompleted            ServerNotificationKind = "mcpServer/oauthLogin/completed"
 	ServerNotificationKindMCPServerStartupStatusUpdated           ServerNotificationKind = "mcpServer/startupStatus/updated"
+	ServerNotificationKindMCPServerEventStreamNotification        ServerNotificationKind = "mcpServer/event/stream/notification"
 	ServerNotificationKindAccountUpdated                          ServerNotificationKind = "account/updated"
 	ServerNotificationKindAccountRateLimitsUpdated                ServerNotificationKind = "account/rateLimits/updated"
 	ServerNotificationKindAppListUpdated                          ServerNotificationKind = "app/list/updated"
@@ -47338,6 +48693,9 @@ const (
 	ServerNotificationKindFuzzyFileSearchSessionCompleted         ServerNotificationKind = "fuzzyFileSearch/sessionCompleted"
 	ServerNotificationKindThreadRealtimeStarted                   ServerNotificationKind = "thread/realtime/started"
 	ServerNotificationKindThreadRealtimeItemAdded                 ServerNotificationKind = "thread/realtime/itemAdded"
+	ServerNotificationKindThreadRealtimeItemStarted               ServerNotificationKind = "thread/realtime/item/started"
+	ServerNotificationKindThreadRealtimeItemTranscriptDelta       ServerNotificationKind = "thread/realtime/item/transcript/delta"
+	ServerNotificationKindThreadRealtimeItemCompleted             ServerNotificationKind = "thread/realtime/item/completed"
 	ServerNotificationKindThreadRealtimeTranscriptDelta           ServerNotificationKind = "thread/realtime/transcript/delta"
 	ServerNotificationKindThreadRealtimeTranscriptDone            ServerNotificationKind = "thread/realtime/transcript/done"
 	ServerNotificationKindThreadRealtimeOutputAudioDelta          ServerNotificationKind = "thread/realtime/outputAudio/delta"
@@ -47394,6 +48752,7 @@ type ServerNotification struct {
 	variantItemMCPToolCallProgress                 *ServerNotificationItemMCPToolCallProgress
 	variantMCPServerOAuthLoginCompleted            *ServerNotificationMCPServerOAuthLoginCompleted
 	variantMCPServerStartupStatusUpdated           *ServerNotificationMCPServerStartupStatusUpdated
+	variantMCPServerEventStreamNotification        *ServerNotificationMCPServerEventStreamNotification
 	variantAccountUpdated                          *ServerNotificationAccountUpdated
 	variantAccountRateLimitsUpdated                *ServerNotificationAccountRateLimitsUpdated
 	variantAppListUpdated                          *ServerNotificationAppListUpdated
@@ -47417,6 +48776,9 @@ type ServerNotification struct {
 	variantFuzzyFileSearchSessionCompleted         *ServerNotificationFuzzyFileSearchSessionCompleted
 	variantThreadRealtimeStarted                   *ServerNotificationThreadRealtimeStarted
 	variantThreadRealtimeItemAdded                 *ServerNotificationThreadRealtimeItemAdded
+	variantThreadRealtimeItemStarted               *ServerNotificationThreadRealtimeItemStarted
+	variantThreadRealtimeItemTranscriptDelta       *ServerNotificationThreadRealtimeItemTranscriptDelta
+	variantThreadRealtimeItemCompleted             *ServerNotificationThreadRealtimeItemCompleted
 	variantThreadRealtimeTranscriptDelta           *ServerNotificationThreadRealtimeTranscriptDelta
 	variantThreadRealtimeTranscriptDone            *ServerNotificationThreadRealtimeTranscriptDone
 	variantThreadRealtimeOutputAudioDelta          *ServerNotificationThreadRealtimeOutputAudioDelta
@@ -47600,6 +48962,10 @@ type ServerNotificationMCPServerStartupStatusUpdated struct {
 	Params McpServerStatusUpdatedNotification `json:"params"`
 }
 
+type ServerNotificationMCPServerEventStreamNotification struct {
+	Params McpServerEventStreamNotification `json:"params"`
+}
+
 type ServerNotificationAccountUpdated struct {
 	Params AccountUpdatedNotification `json:"params"`
 }
@@ -47690,6 +49056,18 @@ type ServerNotificationThreadRealtimeStarted struct {
 
 type ServerNotificationThreadRealtimeItemAdded struct {
 	Params ThreadRealtimeItemAddedNotification `json:"params"`
+}
+
+type ServerNotificationThreadRealtimeItemStarted struct {
+	Params ThreadRealtimeItemStartedNotification `json:"params"`
+}
+
+type ServerNotificationThreadRealtimeItemTranscriptDelta struct {
+	Params ThreadRealtimeItemTranscriptDeltaNotification `json:"params"`
+}
+
+type ServerNotificationThreadRealtimeItemCompleted struct {
+	Params ThreadRealtimeItemCompletedNotification `json:"params"`
 }
 
 type ServerNotificationThreadRealtimeTranscriptDelta struct {
@@ -47900,6 +49278,10 @@ func NewServerNotificationMCPServerStartupStatusUpdated(payload ServerNotificati
 	return ServerNotification{kind: ServerNotificationKindMCPServerStartupStatusUpdated, variantMCPServerStartupStatusUpdated: &payload}
 }
 
+func NewServerNotificationMCPServerEventStreamNotification(payload ServerNotificationMCPServerEventStreamNotification) ServerNotification {
+	return ServerNotification{kind: ServerNotificationKindMCPServerEventStreamNotification, variantMCPServerEventStreamNotification: &payload}
+}
+
 func NewServerNotificationAccountUpdated(payload ServerNotificationAccountUpdated) ServerNotification {
 	return ServerNotification{kind: ServerNotificationKindAccountUpdated, variantAccountUpdated: &payload}
 }
@@ -47990,6 +49372,18 @@ func NewServerNotificationThreadRealtimeStarted(payload ServerNotificationThread
 
 func NewServerNotificationThreadRealtimeItemAdded(payload ServerNotificationThreadRealtimeItemAdded) ServerNotification {
 	return ServerNotification{kind: ServerNotificationKindThreadRealtimeItemAdded, variantThreadRealtimeItemAdded: &payload}
+}
+
+func NewServerNotificationThreadRealtimeItemStarted(payload ServerNotificationThreadRealtimeItemStarted) ServerNotification {
+	return ServerNotification{kind: ServerNotificationKindThreadRealtimeItemStarted, variantThreadRealtimeItemStarted: &payload}
+}
+
+func NewServerNotificationThreadRealtimeItemTranscriptDelta(payload ServerNotificationThreadRealtimeItemTranscriptDelta) ServerNotification {
+	return ServerNotification{kind: ServerNotificationKindThreadRealtimeItemTranscriptDelta, variantThreadRealtimeItemTranscriptDelta: &payload}
+}
+
+func NewServerNotificationThreadRealtimeItemCompleted(payload ServerNotificationThreadRealtimeItemCompleted) ServerNotification {
+	return ServerNotification{kind: ServerNotificationKindThreadRealtimeItemCompleted, variantThreadRealtimeItemCompleted: &payload}
 }
 
 func NewServerNotificationThreadRealtimeTranscriptDelta(payload ServerNotificationThreadRealtimeTranscriptDelta) ServerNotification {
@@ -48120,6 +49514,8 @@ func (value ServerNotification) IsValid() bool {
 		return value.variantMCPServerOAuthLoginCompleted != nil
 	case ServerNotificationKindMCPServerStartupStatusUpdated:
 		return value.variantMCPServerStartupStatusUpdated != nil
+	case ServerNotificationKindMCPServerEventStreamNotification:
+		return value.variantMCPServerEventStreamNotification != nil
 	case ServerNotificationKindAccountUpdated:
 		return value.variantAccountUpdated != nil
 	case ServerNotificationKindAccountRateLimitsUpdated:
@@ -48166,6 +49562,12 @@ func (value ServerNotification) IsValid() bool {
 		return value.variantThreadRealtimeStarted != nil
 	case ServerNotificationKindThreadRealtimeItemAdded:
 		return value.variantThreadRealtimeItemAdded != nil
+	case ServerNotificationKindThreadRealtimeItemStarted:
+		return value.variantThreadRealtimeItemStarted != nil
+	case ServerNotificationKindThreadRealtimeItemTranscriptDelta:
+		return value.variantThreadRealtimeItemTranscriptDelta != nil
+	case ServerNotificationKindThreadRealtimeItemCompleted:
+		return value.variantThreadRealtimeItemCompleted != nil
 	case ServerNotificationKindThreadRealtimeTranscriptDelta:
 		return value.variantThreadRealtimeTranscriptDelta != nil
 	case ServerNotificationKindThreadRealtimeTranscriptDone:
@@ -48490,6 +49892,13 @@ func (value ServerNotification) AsMCPServerStartupStatusUpdated() (ServerNotific
 	return *value.variantMCPServerStartupStatusUpdated, true
 }
 
+func (value ServerNotification) AsMCPServerEventStreamNotification() (ServerNotificationMCPServerEventStreamNotification, bool) {
+	if value.kind != ServerNotificationKindMCPServerEventStreamNotification || value.variantMCPServerEventStreamNotification == nil {
+		return ServerNotificationMCPServerEventStreamNotification{}, false
+	}
+	return *value.variantMCPServerEventStreamNotification, true
+}
+
 func (value ServerNotification) AsAccountUpdated() (ServerNotificationAccountUpdated, bool) {
 	if value.kind != ServerNotificationKindAccountUpdated || value.variantAccountUpdated == nil {
 		return ServerNotificationAccountUpdated{}, false
@@ -48649,6 +50058,27 @@ func (value ServerNotification) AsThreadRealtimeItemAdded() (ServerNotificationT
 		return ServerNotificationThreadRealtimeItemAdded{}, false
 	}
 	return *value.variantThreadRealtimeItemAdded, true
+}
+
+func (value ServerNotification) AsThreadRealtimeItemStarted() (ServerNotificationThreadRealtimeItemStarted, bool) {
+	if value.kind != ServerNotificationKindThreadRealtimeItemStarted || value.variantThreadRealtimeItemStarted == nil {
+		return ServerNotificationThreadRealtimeItemStarted{}, false
+	}
+	return *value.variantThreadRealtimeItemStarted, true
+}
+
+func (value ServerNotification) AsThreadRealtimeItemTranscriptDelta() (ServerNotificationThreadRealtimeItemTranscriptDelta, bool) {
+	if value.kind != ServerNotificationKindThreadRealtimeItemTranscriptDelta || value.variantThreadRealtimeItemTranscriptDelta == nil {
+		return ServerNotificationThreadRealtimeItemTranscriptDelta{}, false
+	}
+	return *value.variantThreadRealtimeItemTranscriptDelta, true
+}
+
+func (value ServerNotification) AsThreadRealtimeItemCompleted() (ServerNotificationThreadRealtimeItemCompleted, bool) {
+	if value.kind != ServerNotificationKindThreadRealtimeItemCompleted || value.variantThreadRealtimeItemCompleted == nil {
+		return ServerNotificationThreadRealtimeItemCompleted{}, false
+	}
+	return *value.variantThreadRealtimeItemCompleted, true
 }
 
 func (value ServerNotification) AsThreadRealtimeTranscriptDelta() (ServerNotificationThreadRealtimeTranscriptDelta, bool) {
@@ -49189,6 +50619,17 @@ func (value ServerNotification) MarshalJSON() ([]byte, error) {
 			Method: "mcpServer/startupStatus/updated",
 			Params: value.variantMCPServerStartupStatusUpdated.Params,
 		})
+	case ServerNotificationKindMCPServerEventStreamNotification:
+		if value.variantMCPServerEventStreamNotification == nil {
+			return nil, invalidUnionVariant("ServerNotification", "mcpServer/event/stream/notification")
+		}
+		return json.Marshal(struct {
+			Method string                           `json:"method"`
+			Params McpServerEventStreamNotification `json:"params"`
+		}{
+			Method: "mcpServer/event/stream/notification",
+			Params: value.variantMCPServerEventStreamNotification.Params,
+		})
 	case ServerNotificationKindAccountUpdated:
 		if value.variantAccountUpdated == nil {
 			return nil, invalidUnionVariant("ServerNotification", "account/updated")
@@ -49441,6 +50882,39 @@ func (value ServerNotification) MarshalJSON() ([]byte, error) {
 		}{
 			Method: "thread/realtime/itemAdded",
 			Params: value.variantThreadRealtimeItemAdded.Params,
+		})
+	case ServerNotificationKindThreadRealtimeItemStarted:
+		if value.variantThreadRealtimeItemStarted == nil {
+			return nil, invalidUnionVariant("ServerNotification", "thread/realtime/item/started")
+		}
+		return json.Marshal(struct {
+			Method string                                `json:"method"`
+			Params ThreadRealtimeItemStartedNotification `json:"params"`
+		}{
+			Method: "thread/realtime/item/started",
+			Params: value.variantThreadRealtimeItemStarted.Params,
+		})
+	case ServerNotificationKindThreadRealtimeItemTranscriptDelta:
+		if value.variantThreadRealtimeItemTranscriptDelta == nil {
+			return nil, invalidUnionVariant("ServerNotification", "thread/realtime/item/transcript/delta")
+		}
+		return json.Marshal(struct {
+			Method string                                        `json:"method"`
+			Params ThreadRealtimeItemTranscriptDeltaNotification `json:"params"`
+		}{
+			Method: "thread/realtime/item/transcript/delta",
+			Params: value.variantThreadRealtimeItemTranscriptDelta.Params,
+		})
+	case ServerNotificationKindThreadRealtimeItemCompleted:
+		if value.variantThreadRealtimeItemCompleted == nil {
+			return nil, invalidUnionVariant("ServerNotification", "thread/realtime/item/completed")
+		}
+		return json.Marshal(struct {
+			Method string                                  `json:"method"`
+			Params ThreadRealtimeItemCompletedNotification `json:"params"`
+		}{
+			Method: "thread/realtime/item/completed",
+			Params: value.variantThreadRealtimeItemCompleted.Params,
 		})
 	case ServerNotificationKindThreadRealtimeTranscriptDelta:
 		if value.variantThreadRealtimeTranscriptDelta == nil {
@@ -50162,6 +51636,20 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		}
 		*value = ServerNotification{kind: ServerNotificationKindMCPServerStartupStatusUpdated, variantMCPServerStartupStatusUpdated: &decoded}
 		return nil
+	case "mcpServer/event/stream/notification":
+		var decoded ServerNotificationMCPServerEventStreamNotification
+		seenParams, err := decodeJSONField(fields, "params", "ServerNotification.params", false, mode, decodeWireValue[McpServerEventStreamNotification], &decoded.Params)
+		if err != nil {
+			return err
+		}
+		if !seenParams {
+			return missingRequiredField("ServerNotification.params")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.mcpServer/event/stream/notification", mode); err != nil {
+			return err
+		}
+		*value = ServerNotification{kind: ServerNotificationKindMCPServerEventStreamNotification, variantMCPServerEventStreamNotification: &decoded}
+		return nil
 	case "account/updated":
 		var decoded ServerNotificationAccountUpdated
 		seenParams, err := decodeJSONField(fields, "params", "ServerNotification.params", false, mode, decodeWireValue[AccountUpdatedNotification], &decoded.Params)
@@ -50483,6 +51971,48 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 			return err
 		}
 		*value = ServerNotification{kind: ServerNotificationKindThreadRealtimeItemAdded, variantThreadRealtimeItemAdded: &decoded}
+		return nil
+	case "thread/realtime/item/started":
+		var decoded ServerNotificationThreadRealtimeItemStarted
+		seenParams, err := decodeJSONField(fields, "params", "ServerNotification.params", false, mode, decodeWireValue[ThreadRealtimeItemStartedNotification], &decoded.Params)
+		if err != nil {
+			return err
+		}
+		if !seenParams {
+			return missingRequiredField("ServerNotification.params")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/realtime/item/started", mode); err != nil {
+			return err
+		}
+		*value = ServerNotification{kind: ServerNotificationKindThreadRealtimeItemStarted, variantThreadRealtimeItemStarted: &decoded}
+		return nil
+	case "thread/realtime/item/transcript/delta":
+		var decoded ServerNotificationThreadRealtimeItemTranscriptDelta
+		seenParams, err := decodeJSONField(fields, "params", "ServerNotification.params", false, mode, decodeWireValue[ThreadRealtimeItemTranscriptDeltaNotification], &decoded.Params)
+		if err != nil {
+			return err
+		}
+		if !seenParams {
+			return missingRequiredField("ServerNotification.params")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/realtime/item/transcript/delta", mode); err != nil {
+			return err
+		}
+		*value = ServerNotification{kind: ServerNotificationKindThreadRealtimeItemTranscriptDelta, variantThreadRealtimeItemTranscriptDelta: &decoded}
+		return nil
+	case "thread/realtime/item/completed":
+		var decoded ServerNotificationThreadRealtimeItemCompleted
+		seenParams, err := decodeJSONField(fields, "params", "ServerNotification.params", false, mode, decodeWireValue[ThreadRealtimeItemCompletedNotification], &decoded.Params)
+		if err != nil {
+			return err
+		}
+		if !seenParams {
+			return missingRequiredField("ServerNotification.params")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/realtime/item/completed", mode); err != nil {
+			return err
+		}
+		*value = ServerNotification{kind: ServerNotificationKindThreadRealtimeItemCompleted, variantThreadRealtimeItemCompleted: &decoded}
 		return nil
 	case "thread/realtime/transcript/delta":
 		var decoded ServerNotificationThreadRealtimeTranscriptDelta
@@ -52665,20 +54195,26 @@ func (value *ThreadItem) unmarshalJSON(data []byte, mode wireDecodeMode) error {
 type ThreadRealtimeStartTransportKind string
 
 const (
-	ThreadRealtimeStartTransportKindWebsocket ThreadRealtimeStartTransportKind = "websocket"
-	ThreadRealtimeStartTransportKindWebrtc    ThreadRealtimeStartTransportKind = "webrtc"
+	ThreadRealtimeStartTransportKindWebsocket    ThreadRealtimeStartTransportKind = "websocket"
+	ThreadRealtimeStartTransportKindWebrtc       ThreadRealtimeStartTransportKind = "webrtc"
+	ThreadRealtimeStartTransportKindExistingCall ThreadRealtimeStartTransportKind = "existingCall"
 )
 
 type ThreadRealtimeStartTransport struct {
-	kind             ThreadRealtimeStartTransportKind
-	variantWebsocket *ThreadRealtimeStartTransportWebsocket
-	variantWebrtc    *ThreadRealtimeStartTransportWebrtc
+	kind                ThreadRealtimeStartTransportKind
+	variantWebsocket    *ThreadRealtimeStartTransportWebsocket
+	variantWebrtc       *ThreadRealtimeStartTransportWebrtc
+	variantExistingCall *ThreadRealtimeStartTransportExistingCall
 }
 
 type ThreadRealtimeStartTransportWebsocket struct{}
 
 type ThreadRealtimeStartTransportWebrtc struct {
 	SDP string `json:"sdp"`
+}
+
+type ThreadRealtimeStartTransportExistingCall struct {
+	CallID string `json:"callId"`
 }
 
 func NewThreadRealtimeStartTransportWebsocket() ThreadRealtimeStartTransport {
@@ -52688,6 +54224,10 @@ func NewThreadRealtimeStartTransportWebsocket() ThreadRealtimeStartTransport {
 
 func NewThreadRealtimeStartTransportWebrtc(payload ThreadRealtimeStartTransportWebrtc) ThreadRealtimeStartTransport {
 	return ThreadRealtimeStartTransport{kind: ThreadRealtimeStartTransportKindWebrtc, variantWebrtc: &payload}
+}
+
+func NewThreadRealtimeStartTransportExistingCall(payload ThreadRealtimeStartTransportExistingCall) ThreadRealtimeStartTransport {
+	return ThreadRealtimeStartTransport{kind: ThreadRealtimeStartTransportKindExistingCall, variantExistingCall: &payload}
 }
 
 func (value ThreadRealtimeStartTransport) Kind() ThreadRealtimeStartTransportKind {
@@ -52700,6 +54240,8 @@ func (value ThreadRealtimeStartTransport) IsValid() bool {
 		return value.variantWebsocket != nil
 	case ThreadRealtimeStartTransportKindWebrtc:
 		return value.variantWebrtc != nil
+	case ThreadRealtimeStartTransportKindExistingCall:
+		return value.variantExistingCall != nil
 	default:
 		return false
 	}
@@ -52717,6 +54259,13 @@ func (value ThreadRealtimeStartTransport) AsWebrtc() (ThreadRealtimeStartTranspo
 		return ThreadRealtimeStartTransportWebrtc{}, false
 	}
 	return *value.variantWebrtc, true
+}
+
+func (value ThreadRealtimeStartTransport) AsExistingCall() (ThreadRealtimeStartTransportExistingCall, bool) {
+	if value.kind != ThreadRealtimeStartTransportKindExistingCall || value.variantExistingCall == nil {
+		return ThreadRealtimeStartTransportExistingCall{}, false
+	}
+	return *value.variantExistingCall, true
 }
 
 func (value ThreadRealtimeStartTransport) MarshalJSON() ([]byte, error) {
@@ -52740,6 +54289,17 @@ func (value ThreadRealtimeStartTransport) MarshalJSON() ([]byte, error) {
 		}{
 			SDP:  value.variantWebrtc.SDP,
 			Type: "webrtc",
+		})
+	case ThreadRealtimeStartTransportKindExistingCall:
+		if value.variantExistingCall == nil {
+			return nil, invalidUnionVariant("ThreadRealtimeStartTransport", "existingCall")
+		}
+		return json.Marshal(struct {
+			CallID string `json:"callId"`
+			Type   string `json:"type"`
+		}{
+			CallID: value.variantExistingCall.CallID,
+			Type:   "existingCall",
 		})
 	default:
 		return nil, invalidUnionValue("ThreadRealtimeStartTransport")
@@ -52780,6 +54340,20 @@ func (value *ThreadRealtimeStartTransport) unmarshalJSON(data []byte, mode wireD
 			return err
 		}
 		*value = ThreadRealtimeStartTransport{kind: ThreadRealtimeStartTransportKindWebrtc, variantWebrtc: &decoded}
+		return nil
+	case "existingCall":
+		var decoded ThreadRealtimeStartTransportExistingCall
+		seenCallID, err := decodeJSONField(fields, "callId", "ThreadRealtimeStartTransport.callId", false, mode, decodeWireValue[string], &decoded.CallID)
+		if err != nil {
+			return err
+		}
+		if !seenCallID {
+			return missingRequiredField("ThreadRealtimeStartTransport.callId")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ThreadRealtimeStartTransport.existingCall", mode); err != nil {
+			return err
+		}
+		*value = ThreadRealtimeStartTransport{kind: ThreadRealtimeStartTransportKindExistingCall, variantExistingCall: &decoded}
 		return nil
 	default:
 		return unknownUnionVariant("ThreadRealtimeStartTransport", "type", variant)

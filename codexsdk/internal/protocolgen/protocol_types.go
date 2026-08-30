@@ -1991,14 +1991,16 @@ func isGeneratedDefinitionStringEnumCheckpoint(schemaPath string, name string) b
 		return name == "CommandExecOutputStream"
 	case "v2/ConfigReadResponse.json":
 		switch name {
-		case "AutoCompactTokenLimitScope", "ReasoningSummary":
+		case "AllowDenyRequirement", "AutoCompactTokenLimitScope", "ReasoningSummary":
 			return true
 		default:
 			return false
 		}
 	case "v2/ConfigRequirementsReadResponse.json":
 		switch name {
-		case "ApprovalsReviewer",
+		case "AllowDenyRequirement",
+			"ApprovalsReviewer",
+			"BrowserUseAccessApprovalLifetime",
 			"NetworkDomainPermission",
 			"NetworkUnixSocketPermission",
 			"ResidencyRequirement",
@@ -2121,6 +2123,12 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 			"AppToolsConfig",
 			"AppsConfig",
 			"AppsDefaultConfig",
+			"BrowserUseConfig",
+			"BrowserUseOriginPolicyConfig",
+			"ComputerUseConfig",
+			"ComputerUseMacosConfig",
+			"ComputerUseWindowsConfig",
+			"ComputerUseWindowsExeConfig",
 			"Config",
 			"ConfigLayer",
 			"ProfileV2",
@@ -2149,11 +2157,16 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 	case "v2/ConfigRequirementsReadResponse.json":
 		switch name {
 		case "AutoReviewRequirements",
+			"BrowserUseOriginPolicy",
 			"BrowserUseRequirements",
+			"ComputerUseMacosRequirements",
 			"ComputerUseRequirements",
+			"ComputerUseWindowsExeRequirement",
+			"ComputerUseWindowsRequirements",
 			"ConfigRequirements",
 			"ConfiguredHookMatcherGroup",
 			"FeedbackRequirements",
+			"InAppBrowserRequirements",
 			"ManagedHooksRequirements",
 			"ModelsRequirements",
 			"NewThreadModelDefaults",
@@ -2243,6 +2256,8 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 		default:
 			return false
 		}
+	case "v2/McpServerEventStreamNotification.json":
+		return name == "McpServerEventNotification"
 	case "v2/ThreadRealtimeStartParams.json":
 		return name == "ThreadRealtimeInitialItem"
 	case "v2/ThreadRealtimeListVoicesResponse.json":
