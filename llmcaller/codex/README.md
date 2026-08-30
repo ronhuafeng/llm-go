@@ -1,20 +1,8 @@
 # Codex adapter
 
-The module path is `github.com/ronhuafeng/llm-go/llmcaller/codex`. Its verified
-first monorepo release is `llmcaller/codex/v0.5.0`, continuing the legacy
-adapter's pre-v1 lineage. The GitHub Release and public Go proxy are the live
-availability and verification sources. Consumers of
-`github.com/ronhuafeng/llmcaller-codex-go@v0.4.2` should follow the
-[v0.5 migration guide](docs/migration/v0.5.0.md).
-
-The adapter connects provider-neutral structured calls from
-[`llmkit`](../../llmkit) to exact Codex lifecycle operations from
-[`codexsdk`](../../codexsdk).
-
-The adapter owns only Codex schema policy, exact request/result translation,
-construction defaults, and the named read-only ephemeral profile. Typed schema
-generation, decoding, validation, and retry belong to `llmkit`; transport,
-protocol, streaming, and thread lifecycle belong to `codexsdk`.
+A lossless join: toolkit-shaped calls, exact Codex facts, and adapter-owned
+Codex policy only. Destination: [NORTHSTAR.md](../../NORTHSTAR.md).
+Language: [CONTEXT.md](CONTEXT.md). Upgrade notes: [UPGRADE.md](UPGRADE.md).
 
 ## Install
 
@@ -210,21 +198,9 @@ tuple-form `items` requires an explicit draft-07 `$schema`. Explicit dialects
 other than the documented draft-07 and draft 2020-12 identifiers fail closed
 until added to this contract and matrix.
 
-Language: [CONTEXT.md](CONTEXT.md). Explicit dialect admission:
-[v0.6 migration](docs/migration/v0.6.0.md).
+See [UPGRADE.md](UPGRADE.md) for dialect admission from v0.5.
 
-## Boundaries
-
-This module does not start processes, manage credentials, handle approvals,
-decode typed values, validate business output, retry calls, or own workflow.
-Applications configure those behaviors through the adjacent layers.
-
-## Verification
-
-Release orchestration obtains handwritten compatibility facts from the
-module-owned `internal/cmd/apiinventoryreport` command, which binds the baseline
-and candidate inventory digests and classifies the change without transferring
-adapter API ownership to repository tooling.
+## Testing
 
 ```sh
 GOWORK=off go test ./...
@@ -232,17 +208,6 @@ GOWORK=off go vet ./...
 GOWORK=off go test -race ./...
 ```
 
-The canonical exported API inventory, public behavior tests, and schema matrix
-remain module-owned. The committed `go.mod` is the sole compatibility-tuple
-owner. Repository-level `repoctl` verification derives the two stable upstream
-requirements from that file, runs the flattened three-layer canary and an
-isolated source consumer, and owns release and public-proxy evidence.
-
-## Security
-
-Applications own Codex authentication, workspace exposure, approval handling,
-and the app-server command. See [SECURITY.md](SECURITY.md) for the complete
-adapter boundary and private vulnerability-reporting path.
-
-This project is MIT licensed. Dependency provenance is recorded in
-[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+Changelog: [CHANGELOG.md](CHANGELOG.md). Notices:
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). See repository
+[CONTRIBUTING.md](../../CONTRIBUTING.md) and [SECURITY.md](../../SECURITY.md).

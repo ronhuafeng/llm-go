@@ -67,3 +67,20 @@ _Avoid_: delivery queue, event store
 **Shared Run Cancellation**:
 The lifecycle boundary that terminates an Exact Run for every observer.
 _Avoid_: waiter cancellation, timeout
+
+## Invariants
+
+**Concrete root:**
+`New` returns `*Client`. There is no umbrella Client interface, `NewClient`,
+or lazy construction. The zero value is inert. Generated facades are concrete
+opaque values. Applications declare Consumer-Owned Interfaces.
+
+**Non-destructive wait:**
+Wait observes completion and does not consume history. Next only moves an
+Exact Run History Cursor. Close is Shared Run Cancellation.
+
+**Wire roles:**
+Unknown-member acceptance belongs to Wire Message Role. Server Observations
+keep known members and ignore Additional Wire Members. Action-Bearing
+Messages fail closed.
+

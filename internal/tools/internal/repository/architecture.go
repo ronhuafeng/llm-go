@@ -21,6 +21,65 @@ func verifyArchitecture(root string, registered *registry) []string {
 	violations = append(violations, verifyRegisteredModules(root, registered)...)
 	violations = append(violations, verifyWorkspace(root, *registered)...)
 	violations = append(violations, verifyModuleGraph(root, *registered)...)
+	violations = append(violations, verifyDocumentLayout(root, *registered)...)
+	return violations
+}
+
+func verifyDocumentLayout(root string, registered registry) []string {
+	var violations []string
+	required := []string{
+		"NORTHSTAR.md",
+		"DESIGN.md",
+		"AGENTS.md",
+		"docs/verify.md",
+		"docs/release.md",
+		"docs/issues.md",
+	}
+	for _, rel := range required {
+		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(rel))); err != nil {
+			violations = append(violations, fmt.Sprintf("missing required document %s", rel))
+		}
+	}
+	forbidden := []string{
+		"CONTEXT-MAP.md",
+		"docs/verification.md",
+		"docs/releasing.md",
+		"docs/coding-agent-guide.md",
+	}
+	for _, rel := range forbidden {
+		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(rel))); err == nil {
+			violations = append(violations, fmt.Sprintf("forbidden leftover document %s", rel))
+		}
+	}
+	for _, dir := range []string{"docs/architecture", "docs/agents"} {
+		if info, err := os.Stat(filepath.Join(root, filepath.FromSlash(dir))); err == nil && info.IsDir() {
+			violations = append(violations, fmt.Sprintf("forbidden leftover directory %s", dir))
+		}
+	}
+	for _, candidate := range registered.Modules {
+		if !candidate.Published {
+			continue
+		}
+		for _, name := range []string{"CONTEXT.md", "README.md", "CHANGELOG.md", "UPGRADE.md"} {
+			rel := filepath.ToSlash(filepath.Join(candidate.Dir, name))
+			if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(rel))); err != nil {
+				violations = append(violations, fmt.Sprintf("module %s missing required document %s", candidate.ID, name))
+			}
+		}
+		for _, rel := range []string{
+			filepath.ToSlash(filepath.Join(candidate.Dir, "docs/release.md")),
+			filepath.ToSlash(filepath.Join(candidate.Dir, "docs/agents")),
+			filepath.ToSlash(filepath.Join(candidate.Dir, "CONTRIBUTING.md")),
+			filepath.ToSlash(filepath.Join(candidate.Dir, "SUPPORT.md")),
+			filepath.ToSlash(filepath.Join(candidate.Dir, "CODE_OF_CONDUCT.md")),
+			filepath.ToSlash(filepath.Join(candidate.Dir, "SECURITY.md")),
+			filepath.ToSlash(filepath.Join(candidate.Dir, "AGENTS.md")),
+		} {
+			if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(rel))); err == nil {
+				violations = append(violations, fmt.Sprintf("module %s has leftover document %s", candidate.ID, rel))
+			}
+		}
+	}
 	return violations
 }
 

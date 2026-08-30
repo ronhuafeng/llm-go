@@ -1,17 +1,16 @@
 # North stars
 
-This document names the destination of each semantic owner. Use it when two
-good changes conflict. Each module `CONTEXT.md` names the language. The
-[context map](../../CONTEXT-MAP.md) lists the owners. [`DESIGN.md`](DESIGN.md)
-records the accepted repository model. Exported code, inventories, and tests
-remain the current public contract.
+This document names the destination of each semantic owner and why they share
+one repository. Use it when two good changes conflict.
 
-A north star is the outcome that owner will not sacrifice. It is not a slogan,
-a layout, or a constraint list.
+A north star is the outcome that owner will not sacrifice. Module `CONTEXT.md`
+files name the language. [`DESIGN.md`](DESIGN.md) lists live repository
+invariants. Exported code, inventories, and tests remain the current public
+contract.
 
 ## LLM Toolkit
 
-Module: `llmkit`. Language: [`llmkit/CONTEXT.md`](../../llmkit/CONTEXT.md).
+Module: `llmkit`. Language: [`llmkit/CONTEXT.md`](llmkit/CONTEXT.md).
 
 **Provider-neutral typed structured output, with complete stage-owned
 evidence, and with no provider SDK.**
@@ -26,7 +25,7 @@ backends, or business rules.
 
 ## Codex SDK
 
-Module: `codexsdk`. Language: [`codexsdk/CONTEXT.md`](../../codexsdk/CONTEXT.md).
+Module: `codexsdk`. Language: [`codexsdk/CONTEXT.md`](codexsdk/CONTEXT.md).
 
 **Exact control of one local Codex app-server: generated protocol facts,
 attributable Exact Runs, and fail-closed admission.**
@@ -44,7 +43,7 @@ or a friendlier copy of the protocol.
 
 ## Codex Adapter
 
-Module: `llmcaller/codex`. Language: [`llmcaller/codex/CONTEXT.md`](../../llmcaller/codex/CONTEXT.md).
+Module: `llmcaller/codex`. Language: [`llmcaller/codex/CONTEXT.md`](llmcaller/codex/CONTEXT.md).
 
 **A lossless join: toolkit-shaped calls, exact Codex facts, and adapter-owned
 Codex policy only.**
@@ -61,7 +60,7 @@ order to look simpler.
 
 ## Repository
 
-Path: `github.com/ronhuafeng/llm-go`. Map: [`CONTEXT-MAP.md`](../../CONTEXT-MAP.md).
+Path: `github.com/ronhuafeng/llm-go`. Invariants: [`DESIGN.md`](DESIGN.md).
 
 **Three independently publishable truths, proven by public-proxy artifacts.
 One repository must not create a fourth runtime owner.**
@@ -79,10 +78,20 @@ their dependency.
 The three destinations share one repository because they must change in sight
 of each other without becoming one API.
 
-The Codex Adapter is the only runtime join. A toolkit caller-contract change
-or an SDK lifecycle change is visible at that join, then published in
-dependency order. Independent SemVer stays honest: an upstream expand is
-published and proxy-verified before a downstream module may depend on it.
+```text
+llmkit         ---\
+                 +--> llmcaller/codex
+codexsdk       ---/
+internal/tools ----> all three public modules
+llmkit         <-X-> codexsdk
+public modules  -X-> internal/tools
+```
+
+- **Adapter → Toolkit**: implements caller contracts and publishes
+  toolkit-owned evidence.
+- **Adapter → SDK**: invokes exact lifecycle and retains the complete typed
+  SDK result.
+- **Toolkit ↮ SDK**: neither imports or defines the other.
 
 Shared source, review, CI, and one typed release orchestrator reduce
 coordination cost. They do not collapse the three owners or their runtime

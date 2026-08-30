@@ -12,7 +12,7 @@ This project follows Semantic Versioning.
 
 - **Breaking semantic change (pre-v1):** require legacy tuple schemas to declare
   Draft 7 explicitly and default every unversioned schema to Draft 2020-12. See
-  [Migrating to v0.6](docs/migration/v0.6.0.md).
+  [Migrating to v0.6](UPGRADE.md).
 - Require the published `llmkit v0.7.0` and `codexsdk v0.6.1` modules.
 
 ### Fixed
@@ -31,7 +31,7 @@ This project follows Semantic Versioning.
   names, exported identifiers, schema policy, effective-profile behavior,
   neutral evidence projection, exact-result escape hatches, and the Go 1.23
   minimum remain unchanged. See
-  [Migrating to v0.5](docs/migration/v0.5.0.md).
+  [Migrating to v0.5](UPGRADE.md).
 
 ## [0.4.2] - 2026-07-14
 
@@ -40,7 +40,7 @@ This project follows Semantic Versioning.
 - Froze `github.com/ronhuafeng/llmcaller-codex-go` at its final legacy release.
   The replacement module is
   `github.com/ronhuafeng/llm-go/llmcaller/codex`, beginning with `v0.5.0`; see
-  the [repository migration guide](docs/migration/v0.5.0.md) for the exact
+  the [repository migration guide](UPGRADE.md) for the exact
   adapter and upstream import mappings.
 - Ended feature and security maintenance for the legacy module path. Existing
   immutable versions remain available through the public Go proxy until the
