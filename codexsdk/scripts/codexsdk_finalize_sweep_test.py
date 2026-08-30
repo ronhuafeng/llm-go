@@ -59,6 +59,47 @@ class FinalizeSweepTest(unittest.TestCase):
             ["PR #31: upstream-codex-rust-v0.141.0 already points at the merge commit"],
         )
 
+    def test_skips_sync_pr_when_upstream_tag_exists_at_a_different_commit(self) -> None:
+        result, skipped = select_candidate(
+            active_runs=[],
+            finalized_tags={"upstream-codex-rust-v0.141.0": "d" * 40},
+            prs=[
+                {
+                    "number": 31,
+                    "body": SYNC_BODY,
+                    "mergeCommit": {"oid": "c" * 40},
+                    "url": "https://github.example/repo/pull/31",
+                }
+            ],
+        )
+
+        self.assertEqual(result, {"dispatch": "false"})
+        self.assertEqual(
+            skipped,
+            ["PR #31: upstream-codex-rust-v0.141.0 already exists at a different commit"],
+        )
+
+    def test_skips_sync_pr_when_landed_commit_lacks_baseline_metadata(self) -> None:
+        result, skipped = select_candidate(
+            active_runs=[],
+            finalized_tags={},
+            prs=[
+                {
+                    "number": 31,
+                    "body": SYNC_BODY,
+                    "mergeCommit": {"oid": "c" * 40},
+                    "url": "https://github.example/repo/pull/31",
+                }
+            ],
+            has_baseline=lambda _commit: False,
+        )
+
+        self.assertEqual(result, {"dispatch": "false"})
+        self.assertEqual(
+            skipped,
+            ["PR #31: landed commit lacks protocol baseline metadata"],
+        )
+
     def test_does_not_treat_nonstable_ref_as_a_completed_sync_tag(self) -> None:
         body = SYNC_BODY.replace("rust-v0.141.0", "main").replace(
             "stable_rust_tag", "git_ref"

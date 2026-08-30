@@ -7,6 +7,8 @@ import argparse
 import json
 import os
 import re
+import subprocess
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -55,6 +57,7 @@ def select_candidate(
     active_runs: list[dict[str, Any]],
     finalized_tags: dict[str, str],
     prs: list[dict[str, Any]],
+    has_baseline: Callable[[str], bool] | None = None,
 ) -> tuple[dict[str, str], list[str]]:
     skipped: list[str] = []
     if active_runs:
@@ -74,8 +77,17 @@ def select_candidate(
         tag_name = ""
         if metadata.get("upstream_ref_kind") == "stable_rust_tag":
             tag_name = f"{SYNC_TAG_PREFIX}-{metadata.get('upstream_ref', '')}"
-        if tag_name and finalized_tags.get(tag_name) == merge_commit:
-            skipped.append(f"PR #{number}: {tag_name} already points at the merge commit")
+        if tag_name and tag_name in finalized_tags:
+            existing = finalized_tags[tag_name]
+            if existing == merge_commit:
+                skipped.append(f"PR #{number}: {tag_name} already points at the merge commit")
+            else:
+                skipped.append(
+                    f"PR #{number}: {tag_name} already exists at a different commit"
+                )
+            continue
+        if has_baseline is not None and merge_commit and not has_baseline(merge_commit):
+            skipped.append(f"PR #{number}: landed commit lacks protocol baseline metadata")
             continue
         candidates.append((pr, metadata))
 
@@ -86,6 +98,26 @@ def select_candidate(
         }, skipped
 
     return {"dispatch": "false"}, skipped
+
+
+
+def commit_has_baseline(commit: str) -> bool:
+    if not commit:
+        return False
+    specs = (
+        f"{commit}:./internal/protocolschema/appserver/v2/baseline_metadata.json",
+        f"{commit}:codexsdk/internal/protocolschema/appserver/v2/baseline_metadata.json",
+    )
+    for spec in specs:
+        completed = subprocess.run(
+            ["git", "cat-file", "-e", spec],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        if completed.returncode == 0:
+            return True
+    return False
 
 
 def write_outputs(path: str | None, values: dict[str, str]) -> None:
@@ -173,6 +205,7 @@ def main() -> int:
         active_runs=active_runs,
         finalized_tags=finalized_tags,
         prs=prs,
+        has_baseline=commit_has_baseline,
     )
     write_outputs(args.github_output, result)
     write_summary(args.summary, args.default_branch, args.default_head, result, skipped)

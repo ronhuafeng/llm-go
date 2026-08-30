@@ -1537,6 +1537,47 @@ func TestExactStreamWaitCancellationIsCallerLocalAndReturnsPartialSnapshot(t *te
 	}
 }
 
+func TestExactStreamNextCancellationIsCallerLocal(t *testing.T) {
+	t.Setenv("CODEXSDK_FAKE_RECORD", tempRecord(t))
+	root, err := New(ClientOptions{CWD: t.TempDir(), Command: fakeCommand("hang")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+	stream, err := root.ThreadRunner().StartStream(context.Background(), StartThreadRunRequest{
+		Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	other := make(chan error, 1)
+	go func() {
+		_, err := stream.Wait(context.Background())
+		other <- err
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if stream.Next(ctx) {
+		t.Fatal("Next returned true after caller-local cancellation")
+	}
+	if stream.Err() != nil {
+		t.Fatalf("caller cancellation changed stream error: %v", stream.Err())
+	}
+	select {
+	case err := <-other:
+		t.Fatalf("caller cancellation released another waiter: %v", err)
+	default:
+	}
+
+	if err := stream.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-other; !errors.Is(err, ErrStreamClosed) {
+		t.Fatalf("other Wait error = %v, want ErrStreamClosed", err)
+	}
+}
+
 func TestExactStreamWaitPrefersTerminalWhenContextIsAlsoDone(t *testing.T) {
 	t.Setenv("CODEXSDK_FAKE_RECORD", tempRecord(t))
 	root, err := New(ClientOptions{CWD: t.TempDir(), Command: fakeCommand("failed")})

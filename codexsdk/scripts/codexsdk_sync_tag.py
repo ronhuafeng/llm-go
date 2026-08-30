@@ -49,9 +49,30 @@ def git_tag_commit(ref: str) -> str | None:
     return completed.stdout.strip()
 
 
+def metadata_git_specs() -> tuple[str, ...]:
+    return (f"HEAD:./{METADATA_PATH}", f"HEAD:codexsdk/{METADATA_PATH}")
+
+
 def load_head_metadata() -> dict[str, Any]:
-    raw = git_output(["show", f"HEAD:./{METADATA_PATH}"])
-    return json.loads(raw)
+    last: subprocess.CompletedProcess[str] | None = None
+    for spec in metadata_git_specs():
+        completed = subprocess.run(
+            ["git", "show", spec],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        if completed.returncode == 0:
+            return json.loads(completed.stdout)
+        last = completed
+    assert last is not None
+    raise subprocess.CalledProcessError(
+        last.returncode,
+        last.args,
+        output=last.stdout,
+        stderr=last.stderr,
+    )
 
 
 def head_commit() -> str:
