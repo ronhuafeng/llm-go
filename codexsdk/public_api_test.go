@@ -45,7 +45,7 @@ func TestHandwrittenPublicAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 	if actual != string(want) {
-		t.Fatalf("handwritten public API changed; review the exported API, changelog, migration impact, and canonical allowlist:\n%s", actual)
+		t.Fatalf("handwritten public API changed; review the exported API, changelog, and canonical allowlist:\n%s", actual)
 	}
 }
 

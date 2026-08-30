@@ -5,9 +5,8 @@ Status: current
 Destinations: [`NORTHSTAR.md`](NORTHSTAR.md).
 Operations: [`docs/verify.md`](docs/verify.md), [`docs/release.md`](docs/release.md).
 
-This file is the live invariant list. It is not an ADR archive. Create a new
-ADR only when an item below changes and the why would be judged wrong without
-it, or when a module-specific prohibition cannot fit here.
+This file is the live invariant list. Put a new prohibition here, or in the
+owning module `CONTEXT.md`, when the why would be judged wrong without it.
 
 ## Invariants
 
@@ -40,8 +39,8 @@ canonical inventory, and public behavior tests. `.changes/` fragments declare
 human-reviewed impact. `module-registry.json` names release units only.
 
 **I8** Root documents own destination, invariants, and operations. Each public
-module owns its current contract, changelog, and upgrade notes for still
-published tags. Root documents are not API allowlists.
+module owns its current contract and changelog. Root documents are not API
+allowlists.
 
 **I9** Retain material only when a current fact, real consumer, upstream
 contract, or indispensable invariant requires it.
@@ -49,21 +48,7 @@ contract, or indispensable invariant requires it.
 Each module owns its minimum Go version. The adapter's committed `go.mod` is
 the compatibility-tuple source.
 
-## Layout
-
-```text
-README.md          choose a module
-NORTHSTAR.md       destinations and joins
-DESIGN.md          this file
-AGENTS.md          agent reading paths
-docs/verify.md
-docs/release.md
-docs/issues.md
-llmkit/            CONTEXT.md README.md CHANGELOG.md UPGRADE.md
-codexsdk/          same
-llmcaller/codex/   same
-internal/tools/    non-published
-```
+Reading paths: [`AGENTS.md`](AGENTS.md).
 
 Public package roots:
 

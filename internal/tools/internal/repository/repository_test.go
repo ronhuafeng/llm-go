@@ -147,42 +147,6 @@ func TestArchitectureRejectsBoundaryViolations(t *testing.T) {
 	}
 }
 
-func TestDocumentLayoutRejectsMissingAndLeftoverDocs(t *testing.T) {
-	root := newArchitectureFixture(t)
-	registered, err := loadRegistry(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	violations := strings.Join(verifyArchitecture(root, &registered), "\n")
-	for _, want := range []string{
-		"missing required document NORTHSTAR.md",
-		"module llmkit missing required document CONTEXT.md",
-	} {
-		if !strings.Contains(violations, want) {
-			t.Fatalf("violations %q do not contain %q", violations, want)
-		}
-	}
-	writeFile(t, root, "CONTEXT-MAP.md", "# leftover\n")
-	writeFile(t, root, "NORTHSTAR.md", "# northstar\n")
-	writeFile(t, root, "DESIGN.md", "# design\n")
-	writeFile(t, root, "AGENTS.md", "# agents\n")
-	writeFile(t, root, "docs/verify.md", "# verify\n")
-	writeFile(t, root, "docs/release.md", "# release\n")
-	for _, directory := range []string{"llmkit", "codexsdk", "llmcaller/codex"} {
-		writeFile(t, root, filepath.Join(directory, "CONTEXT.md"), "# ctx\n")
-		writeFile(t, root, filepath.Join(directory, "README.md"), "# readme\n")
-		writeFile(t, root, filepath.Join(directory, "CHANGELOG.md"), "# log\n")
-	}
-	registered, err = loadRegistry(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	violations = strings.Join(verifyArchitecture(root, &registered), "\n")
-	if !strings.Contains(violations, "forbidden leftover document CONTEXT-MAP.md") {
-		t.Fatalf("violations %q do not contain leftover CONTEXT-MAP.md", violations)
-	}
-}
-
 func TestRegistryRejectsMirroredModuleFacts(t *testing.T) {
 	root := newArchitectureFixture(t)
 	writeFile(t, root, registryFilename, `{

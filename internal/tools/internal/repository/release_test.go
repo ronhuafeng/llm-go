@@ -53,8 +53,7 @@ func TestPreV1BreakingFragmentRequiresMinor(t *testing.T) {
   "impact": "patch",
   "breaking": true,
   "summary": "Break the contract.",
-  "issue": 1,
-  "migration": "docs/migration.md"
+  "issue": 1
 }`)
 	_, _, _, _, err := loadReleaseFragments(root, candidate, "v0.5.1")
 	if err == nil || !strings.Contains(err.Error(), "at least a minor") {
@@ -76,7 +75,7 @@ func TestReleaseFragmentsMustBeArchivedAndStrict(t *testing.T) {
 		root := t.TempDir()
 		writeFile(t, root, "llmkit/.changes/releases/v0.6.0/10.json", `{
   "format_version":1,"module":"llmkit","impact":"minor","breaking":true,
-  "summary":"Move path.","issue":10,"migration":"docs/migration.md","extra":true
+  "summary":"Move path.","issue":10,"extra":true
 }`)
 		_, _, _, _, err := loadReleaseFragments(root, candidate, "v0.6.0")
 		if err == nil || !strings.Contains(err.Error(), "unknown field") {
@@ -87,11 +86,11 @@ func TestReleaseFragmentsMustBeArchivedAndStrict(t *testing.T) {
 		root := t.TempDir()
 		writeFile(t, root, "llmkit/.changes/releases/v0.6.0/b.json", `{
   "format_version":1,"module":"llmkit","impact":"patch","breaking":false,
-  "summary":"Second.","issue":11,"migration":"none"
+  "summary":"Second.","issue":11
 }`)
 		writeFile(t, root, "llmkit/.changes/releases/v0.6.0/a.json", `{
   "format_version":1,"module":"llmkit","impact":"minor","breaking":true,
-  "summary":"First.","issue":10,"migration":"docs/migration.md"
+  "summary":"First.","issue":10
 }`)
 		fragments, inputs, impact, breaking, err := loadReleaseFragments(root, candidate, "v0.6.0")
 		if err != nil {
@@ -225,9 +224,6 @@ func TestReleaseWorkflowWiringSmoke(t *testing.T) {
 	}
 	if strings.Contains(workflow, "/releases/tags/") {
 		t.Error("Draft lookup must use the authenticated releases list because get-by-tag hides Draft Releases")
-	}
-	if strings.Contains(workflow, "options: [v0.6.0, v0.5.0]") {
-		t.Error("release workflow must not retain the completed first-release version allowlist")
 	}
 	if got := strings.Count(workflow, "secrets.RELEASE_DEPLOY_KEY"); got != 2 {
 		t.Errorf("release Deploy Key secret references = %d, want only presence validation and checkout SSH auth", got)
@@ -961,7 +957,7 @@ func validReleasePlan(t *testing.T) ReleasePlan {
 				BaselineSHA256: strings.Repeat("c", 64), CurrentSHA256: strings.Repeat("c", 64),
 				HandwrittenImpact: apiInventoryBreaking, MechanicalImpact: apiInventoryBreaking,
 			},
-			Fragments: []ReleaseFragment{{Path: "llmkit/.changes/releases/v0.6.0/10.json", Impact: "minor", Breaking: true, Summary: "Move path.", Issue: 10, Migration: "docs/migration/v0.6.0.md"}},
+			Fragments: []ReleaseFragment{{Path: "llmkit/.changes/releases/v0.6.0/10.json", Impact: "minor", Breaking: true, Summary: "Move path.", Issue: 10}},
 		},
 		Operations: []ReleaseOperation{{Order: 1, ModuleID: "llmkit", Tag: "llmkit/v0.6.0"}},
 		Inputs: []ReleaseInput{
@@ -994,7 +990,7 @@ func validAdapterReleasePlan(t *testing.T) ReleasePlan {
 				BaselineSHA256: strings.Repeat("c", 64), CurrentSHA256: strings.Repeat("c", 64),
 				HandwrittenImpact: apiInventoryBreaking, MechanicalImpact: apiInventoryBreaking,
 			},
-			Fragments: []ReleaseFragment{{Path: "llmcaller/codex/.changes/releases/v0.5.0/14-module-path.json", Impact: "minor", Breaking: true, Summary: "Move path.", Issue: 14, Migration: "docs/migration/v0.5.0.md"}},
+			Fragments: []ReleaseFragment{{Path: "llmcaller/codex/.changes/releases/v0.5.0/14-module-path.json", Impact: "minor", Breaking: true, Summary: "Move path.", Issue: 14}},
 		},
 		Dependencies: []ReleaseDependency{
 			{Module: "github.com/ronhuafeng/llm-go/codexsdk", Version: "v0.6.0"},

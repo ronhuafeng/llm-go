@@ -4,6 +4,5 @@
   "impact": "patch",
   "breaking": false,
   "summary": "Reject typed-nil step callers before prompt rendering begins.",
-  "issue": 49,
-  "migration": "none"
+  "issue": 49
 }

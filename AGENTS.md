@@ -19,7 +19,7 @@ Resolve paths from the repository root that contains this file.
   → [`DESIGN.md`](DESIGN.md) → [`docs/verify.md`](docs/verify.md) or
   [`docs/release.md`](docs/release.md).
 
-Do not read an ADR archive, architecture index, or second copy of these facts.
+Do not read a second copy of these facts.
 If a change contradicts a north star or a DESIGN invariant, surface the
 conflict instead of silently overriding it.
 
@@ -35,22 +35,8 @@ The remaining repository-owned skill is
 
 ## Friction-to-knowledge
 
-Treat project docs as working memory. When a correction, repeated friction, or
-failed validation suggests a reusable lesson:
-
-1. Treat it as evidence, not an automatic rule.
-2. Classify it as one-off, project-local, or broadly reusable.
-3. Verify with the closest source, code, tool, or failing validation.
-4. Draft the smallest wording and scope that would prevent the same miss.
-5. Update the closest working-memory doc when the lesson is verified and local.
-6. Ask before promoting it into a broader rule, global instruction, skill, or
-   helper.
-7. Run lightweight validation when a document, skill, helper, or rule changes.
-8. Promote only when repeated, broadly applicable, or mechanically enforceable.
-
-Do not add an ADR unless a DESIGN invariant changes and the why would be
-judged wrong without it, or a module-specific prohibition cannot fit in
-DESIGN or that module's `CONTEXT.md`.
+Verified local lessons go in the closest CONTEXT or DESIGN. Do not add a
+second design file.
 
 ## Operating principles
 

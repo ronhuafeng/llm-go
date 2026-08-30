@@ -11,26 +11,10 @@ cd llm-go
 go run ./internal/tools/cmd/repoctl verify
 ```
 
-Test each module the way consumers resolve it:
-
-```sh
-(
-  set -e
-  for module in llmkit codexsdk llmcaller/codex internal/tools; do
-    echo "==> Testing ${module}"
-    (cd "${module}" && GOWORK=off go test ./...)
-  done
-)
-```
-
 Public changes must update the owning module's inventory, behavior tests,
 `CHANGELOG.md`, and a structured `.changes/` fragment when the change is
-user-visible. Breaking changes need upgrade notes in that module's
-`UPGRADE.md`.
-
-Do not import a sibling public module except from the adapter, and never
-import `internal/tools` from a public module. Do not add a root facade or a
-shared runtime package.
+user-visible. Breaking changes update that module's README or CONTEXT when the
+current contract changes.
 
 Protocol baseline work uses
 [`codexsdk-sync-upstream`](.agents/skills/codexsdk-sync-upstream/SKILL.md).

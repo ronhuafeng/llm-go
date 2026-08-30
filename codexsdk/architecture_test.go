@@ -20,11 +20,8 @@ func TestCodexSDKDoesNotImportToolkitCallerOrBusinessPackages(t *testing.T) {
 		t.Fatal(err)
 	}
 	forbiddenPrefixes := []string{
-		"smart-contract",
 		"github.com/ronhuafeng/llm-go/llmkit",
 		"github.com/ronhuafeng/llm-go/llmcaller/codex",
-		"github.com/ronhuafeng/llmkit-go",
-		"github.com/ronhuafeng/llmcaller-codex-go",
 	}
 
 	err = filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {

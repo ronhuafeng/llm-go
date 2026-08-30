@@ -44,7 +44,7 @@ func TestHandwrittenPublicAPI(t *testing.T) {
 }
 
 func publicAPIMismatchMessage(actual string) string {
-	return "handwritten public API changed; review the exported surface against the canonical allowlist, changelog, migration obligations, public behavior tests, and repository-owned clean consumer before accepting the inventory change:\n" + actual
+	return "handwritten public API changed; review the exported surface against the canonical allowlist, changelog, public behavior tests, and repository-owned clean consumer before accepting the inventory change:\n" + actual
 }
 
 type callerSourceImporter struct {

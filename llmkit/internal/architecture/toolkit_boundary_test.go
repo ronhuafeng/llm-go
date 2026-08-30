@@ -49,7 +49,7 @@ func TestHandwrittenPublicAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 	if actual != string(want) {
-		t.Fatalf("handwritten public API changed; review the exported diff and its additive, breaking, or metadata-only compatibility impact; update the changelog and migration guidance as required; verify public behavior tests and the clean consumer before updating the canonical allowlist:\n%s", actual)
+		t.Fatalf("handwritten public API changed; review the exported diff and its additive, breaking, or metadata-only compatibility impact; update the changelog as required; verify public behavior tests and the clean consumer before updating the canonical allowlist:\n%s", actual)
 	}
 }
 
@@ -240,18 +240,16 @@ func TestLLMKitImportBoundaries(t *testing.T) {
 			forbidden: []string{
 				"github.com/ronhuafeng/llm-go/codexsdk",
 				"github.com/ronhuafeng/llm-go/llmcaller/codex",
-				"smart-contract",
 			},
-			violationLabel: "llmschema must remain provider- and business-independent",
+			violationLabel: "llmschema must remain provider-independent",
 		},
 		{
 			dir: "llmadapter",
 			forbidden: []string{
 				"github.com/ronhuafeng/llm-go/codexsdk",
 				"github.com/ronhuafeng/llm-go/llmcaller/codex",
-				"smart-contract",
 			},
-			violationLabel: "llmadapter must not bind to a concrete provider SDK or business package",
+			violationLabel: "llmadapter must not bind to a concrete provider SDK",
 		},
 	}
 

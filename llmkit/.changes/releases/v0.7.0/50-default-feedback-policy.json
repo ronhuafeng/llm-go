@@ -4,6 +4,5 @@
   "impact": "minor",
   "breaking": true,
   "summary": "Require an explicit sanitizer before free-form retry feedback can be sent to a model.",
-  "issue": 50,
-  "migration": "docs/migration/v0.7.0.md"
+  "issue": 50
 }

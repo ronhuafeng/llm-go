@@ -4,6 +4,5 @@
   "impact": "patch",
   "breaking": false,
   "summary": "Make Root Client RPC admission atomic with shutdown so admitted calls cannot escape close or failure terminalization.",
-  "issue": 55,
-  "migration": "none"
+  "issue": 55
 }

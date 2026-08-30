@@ -4,6 +4,5 @@
   "impact": "patch",
   "breaking": false,
   "summary": "Bound inbound app-server JSON-RPC frames and fail oversized or unterminated input with sanitized diagnostics.",
-  "issue": 58,
-  "migration": "none"
+  "issue": 58
 }

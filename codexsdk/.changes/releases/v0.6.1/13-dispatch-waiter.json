@@ -4,6 +4,5 @@
   "impact": "patch",
   "breaking": false,
   "summary": "Publish callback failures before rejected dispatch fences or fail-closed protocol responses can release exact runs, preventing deadlocks and lost first causes without erasing accepted evidence.",
-  "issue": 13,
-  "migration": "none"
+  "issue": 13
 }
