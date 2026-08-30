@@ -54,8 +54,8 @@ When updating the Codex app-server schema baseline:
    paths.
 5. Regenerate `protocolv2/*.gen.go`.
 6. Run gofmt, vet, tests, and generated-code reproducibility checks.
-7. Update `CHANGELOG.md`, `NOTICE`, and `docs/release.md` if the legal,
-   compatibility, or maintenance story changed.
+7. Update `CHANGELOG.md` and `NOTICE` if the legal, compatibility, or
+   maintenance story changed.
 
 The schema baseline may include experimental upstream surface. Marking a method
 as present in a stable schema only means it appeared in the non-experimental

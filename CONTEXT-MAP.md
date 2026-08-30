@@ -2,7 +2,8 @@
 
 This repository contains three separately published Go modules whose
 semantic ownership remains independent even though development and review share
-one repository.
+one repository. Each owner's destination, and why they walk together, is in
+[docs/architecture/Northstar.md](./docs/architecture/Northstar.md).
 
 ## Contexts
 

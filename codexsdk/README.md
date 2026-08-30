@@ -28,14 +28,11 @@ launched Codex app-server over stdio.
 - Runtime requirement: the SDK launches an external `codex app-server` command.
   Unit tests and CI do not require a local Codex binary.
 
-The pre-v1 API uses a concrete root client, exported concrete opaque generated
-facades, consumer-owned narrow interfaces, and manifest-classified stable
-versus experimental generated compatibility.
-See [Pre-v1 Public API Boundary](docs/public-api-boundary.md).
-For the concrete generated-facade migration, see the
-[v0.4 migration guide](docs/v0.4-migration.md).
-For the unified malformed lifecycle partial-evidence contract, see the
-[v0.5 migration guide](docs/v0.5-migration.md).
+Language: [CONTEXT.md](CONTEXT.md). Still-binding decisions:
+[ADR 0001](docs/adr/0001-pre-v1-public-api-boundary.md).
+The root client is a concrete `*Client` from `New`; applications declare
+narrow Consumer-Owned Interfaces. Generated facades are concrete opaque
+values. Action-bearing messages fail closed.
 
 ## Packages
 
@@ -120,7 +117,7 @@ the simple operation returns the decoded facts with `ErrMissingThreadID` or
 `ErrMissingTurnID`; the streaming operation returns a non-nil terminal stream
 whose `Wait`, `Result`, and `Err` expose the same facts and cause. Identity
 failure prevents later lifecycle requests or live run registration without
-closing the Client. See the [v0.5 migration guide](docs/v0.5-migration.md).
+closing the Client.
 
 ```go
 package main
@@ -211,10 +208,6 @@ every callback accepted before that boundary before transport teardown;
 failure shutdown cancels accepted callbacks immediately while preserving the
 first failure cause and partial run evidence. Handlers must return when their
 context is canceled and must not call `Close` reentrantly.
-
-The removed v0.1 lifecycle and copied protocol models have no compatibility
-aliases. See [the migration mapping](docs/v0.2-migration.md#removed-v01-mapping)
-for exact replacements.
 
 ## Real App-Server Smoke Test
 
@@ -309,8 +302,8 @@ scripts/codexsdk_track_upstream.sh \
 Then review the generated `reports/SUMMARY.md`, schema drift summary, and matrix
 update skeleton before updating the baseline, manifest, coverage matrix, and
 generated Go code. Keep handwritten SDK changes limited to reviewed public
-surface or compatibility fixes. See `docs/release.md` for the release and
-schema baseline checklists.
+surface or compatibility fixes. Tags follow the repository
+[protected release operation](../docs/releasing.md).
 
 After committing a successful baseline sync, tag the repository commit with an
 annotated upstream sync tag. These tags intentionally live outside the Go

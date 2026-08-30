@@ -43,7 +43,7 @@ Requires Go 1.23 or newer.
 Install the verified replacement release with:
 
 ```sh
-go get github.com/ronhuafeng/llm-go/llmkit@v0.6.0
+go get github.com/ronhuafeng/llm-go/llmkit@v0.7.0
 ```
 
 ## Quick Start
@@ -285,26 +285,14 @@ Everything under `internal/` is private. README examples are illustrative and
 may change, but they are compiled in tests where practical. Exported package
 behavior and the canonical handwritten API allowlist are compatibility surface.
 
-Before v1.0.0, this project follows SemVer with a conservative pre-v1 policy:
-patch releases should be bug fixes only, minor releases may add API, and any
-known breaking API change must be called out in `CHANGELOG.md` and the release
-notes. After v1.0.0, breaking public API changes require a new major version.
+Language: [CONTEXT.md](CONTEXT.md). Validation decisions and retry feedback
+are distinct; the default retry-feedback sanitizer is structured-only. See
+[Migrating to v0.7](docs/migration/v0.7.0.md) when a validator previously
+relied on default free-form summaries.
 
-Version 0.3 removes the helpers deprecated in v0.2. See
-[Migrating to v0.3](docs/v0.3-migration.md) for the complete symbol mapping.
-
-Version 0.4 separates exact validator decisions from sanitized model-facing
-retry feedback. See [Migrating to v0.4](docs/v0.4-migration.md) for the field
-semantics and sensitive-feedback boundary.
-
-Version 0.5 limits sanitization to feedback that will reach a real retry; final
-unsettled attempts now return `settle.ErrUnsettled` directly. See
-[Migrating to v0.5](docs/v0.5-migration.md) for the corrected terminal error
-semantics.
-
-Version 0.7 makes the default retry-feedback sanitizer structured-only. See
-[Migrating to v0.7](docs/migration/v0.7.0.md) for the required changes when a
-validator previously relied on default free-form summaries.
+Before v1.0.0, patch releases are compatible fixes and documentation; additive
+or breaking changes use a minor release and must be explicit in `CHANGELOG.md`.
+After v1.0.0, breaking public API changes require a new major version.
 
 ## Versioning
 
@@ -315,8 +303,8 @@ llmkit/vX.Y.Z
 ```
 
 The first tag is `llmkit/v0.6.0`. Production tags are created only by
-the protected repository release workflow from an approved, digest-bound plan.
-See [docs/release.md](docs/release.md) for the module release contract.
+protected CI. See the repository
+[protected release operation](../docs/releasing.md).
 
 ## Testing
 
