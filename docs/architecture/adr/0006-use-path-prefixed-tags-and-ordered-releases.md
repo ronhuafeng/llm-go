@@ -31,7 +31,8 @@ Every module maintains its own changelog and release notes. A repository-level
 release page may summarize a coordinated batch for humans, but it is only a
 navigation aid.
 
-The first path-prefixed versions are defined by ADR-0007; equality between
+The first path-prefixed versions were `llmkit/v0.6.0`, `codexsdk/v0.6.0`, and
+`llmcaller/codex/v0.5.0`; equality between
 module versions is neither required nor meaningful.
 
 ## Consequences

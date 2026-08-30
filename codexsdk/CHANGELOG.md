@@ -75,7 +75,7 @@ All notable changes to this project are documented here.
   `thread/start`, `thread/resume`, and `turn/start` responses now remain
   observable as immutable terminal partial results when a required identity is
   missing, without starting the next stage, registering an empty-ID run, or
-  closing the Client. See the [v0.5 migration guide](docs/v0.5-migration.md).
+  closing the Client.
 
 ## [0.4.0] - 2026-07-13
 
@@ -86,7 +86,6 @@ All notable changes to this project are documented here.
   calls retain their exact typed methods and facts; consumers should declare
   narrow interfaces at their own seams. Future generated method additions add
   SDK capability without adding methods that external implementations owe.
-  See the [v0.4 migration guide](docs/v0.4-migration.md).
 
 ### Fixed
 

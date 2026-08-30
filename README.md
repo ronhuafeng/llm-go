@@ -69,13 +69,13 @@ own `go.mod`:
 )
 ```
 
-See the [context map](CONTEXT-MAP.md) for current semantic ownership, the
+See the [north stars](docs/architecture/Northstar.md) for each owner's
+destination, the [context map](CONTEXT-MAP.md) for semantic ownership, the
 [architecture design](docs/architecture/DESIGN.md) for the accepted repository
-structure, [repository verification](docs/verification.md) for the complete CI
-checks, and the [protected release operation](docs/releasing.md) for release
-maintainers.
+model, [repository verification](docs/verification.md) for CI, and the
+[protected release operation](docs/releasing.md) for tags.
 
-Consumers moving from the archived module paths should use the module-owned
+Consumers moving from archived module paths should use the current
 [toolkit](llmkit/docs/migration/v0.6.0.md),
 [SDK](codexsdk/docs/migration/v0.6.0.md), or
 [adapter](llmcaller/codex/docs/migration/v0.5.0.md) migration guide.

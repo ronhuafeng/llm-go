@@ -20,9 +20,8 @@ historical sources. They will not remain publishing mirrors: retaining mirrors
 would preserve the synchronization, tag coordination, proxy provenance, and
 release ambiguity that the monorepo is intended to remove.
 
-Their final migration versions and archive gate are defined by ADR-0021. The
-migration-specific release commits are documentation-only; already merged
-unreleased changes remain part of the recorded source baseline.
+Those legacy repositories are archived and read-only. They are not publishing
+mirrors.
 
 ## Consequences
 

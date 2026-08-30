@@ -98,7 +98,6 @@ This project follows Semantic Versioning.
   `CallDetailed` while preserving full SDK results, notifications, lifecycle
   operations, and a typed `SDKStream` escape hatch. SDK and
   `ErrEffectiveProfile` causes remain distinguishable through `errors.Is`.
-  See the [v0.4 migration guide](docs/v0.4-migration.md).
 
 ## [0.3.0] - 2026-07-13
 

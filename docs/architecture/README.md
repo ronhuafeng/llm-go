@@ -1,11 +1,16 @@
 # Architecture
 
-The [current design](DESIGN.md) summarizes the accepted repository model.
-[Architecture decisions](adr/) record the hard-to-reverse choices, and
-the root [context map](../../CONTEXT-MAP.md) links the semantic owners.
-Current CI and release evidence are documented in
-[repository verification](../verification.md).
+Read in this order for a local change:
 
-These documents govern repository boundaries. Exported code,
-module-local API inventories, public behavior tests, module files, and public
-Proxy artifacts remain the authoritative owners of their current facts.
+1. [Northstar.md](Northstar.md) — destination of each owner
+2. [CONTEXT-MAP.md](../../CONTEXT-MAP.md) — owners and joins
+3. The module `CONTEXT.md` for the code you will touch
+4. [DESIGN.md](DESIGN.md) — current repository model
+5. [Still-binding ADRs](adr/) that constrain the area
+
+CI evidence: [repository verification](../verification.md).
+Tags: [protected release](../releasing.md).
+
+Exported code, inventories, public tests, module files, and public proxy
+artifacts remain the authority for current facts. These documents do not copy
+that surface.

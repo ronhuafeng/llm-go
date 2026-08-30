@@ -1,9 +1,9 @@
 # Integrating `llm-go`
 
 This repository-level guide helps a coding agent choose the semantic owner for
-an integration and shows the three-module adapter path. The linked module
-documentation is authoritative for current APIs, behavior, policy, testing,
-and compatibility.
+an integration and shows the three-module adapter path. Destinations:
+[Northstar.md](architecture/Northstar.md). The linked module documentation is
+authoritative for current APIs, behavior, policy, testing, and compatibility.
 
 ## Choose the owning module
 

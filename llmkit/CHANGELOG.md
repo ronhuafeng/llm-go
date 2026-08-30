@@ -57,7 +57,6 @@ changes may occur in minor releases, but they must be documented here.
   propagation retry, exact version and integrity checks, and reviewable
   immutable-tag evidence.
 
-See [Migrating to v0.5](docs/v0.5-migration.md) for the corrected terminal
 error and detailed-evidence semantics.
 
 ## [0.4.1] - 2026-07-13
@@ -82,7 +81,6 @@ error and detailed-evidence semantics.
   omit, or deliberately pseudonymize sensitive validator facts before returning
   them.
 
-See [Migrating to v0.4](docs/v0.4-migration.md) for the detailed-result field
 semantics and sensitive-feedback boundary.
 
 ## [0.3.0] - 2026-07-13
@@ -95,8 +93,7 @@ semantics and sensitive-feedback boundary.
 - Removed `llmadapter.ErrNilRender`, which was used only by the removed legacy
   adapter operation. `llmstep.ErrNilRender` remains available for `llmstep`.
 
-See [Migrating to v0.3](docs/v0.3-migration.md) for replacements. These are
-intentional pre-v1 breaking changes.
+These are intentional pre-v1 breaking changes.
 
 ## [0.2.0] - 2026-07-11
 

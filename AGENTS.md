@@ -30,7 +30,6 @@ Use it to synchronize the Codex SDK protocol baseline to an upstream openai/code
 
 ### Domain docs
 
-This is a multi-context repository. Resolve the paths below from the repository
-root containing this `AGENTS.md`, not from the current working directory. Start
-with `CONTEXT-MAP.md` and follow the module context and ADR links described in
-`docs/agents/domain.md`.
+This is a multi-context repository. Resolve paths from the repository root
+containing this `AGENTS.md`. Start with `docs/architecture/Northstar.md` and
+`CONTEXT-MAP.md`. Follow `docs/agents/domain.md`.

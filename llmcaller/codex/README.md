@@ -78,9 +78,6 @@ roots, and all other non-profile generated defaults remain caller-controlled.
 - `CallStream` returns an adapter-owned exact stream wrapper and uses the same
   request builder. `Stream.SDKStream` is the adjacent typed SDK escape hatch.
 
-See the [v0.4 migration guide](docs/v0.4-migration.md) when updating code that
-stored the pre-v0.4 SDK stream return type explicitly.
-
 `Call` places an immutable exact run in `codexcaller.Details`. Notifications,
 diagnostics, IDs, exact usage, sandbox, approval, service tier, and generated
 configuration remain available there. If the SDK returns a partial run and an
@@ -213,9 +210,8 @@ tuple-form `items` requires an explicit draft-07 `$schema`. Explicit dialects
 other than the documented draft-07 and draft 2020-12 identifiers fail closed
 until added to this contract and matrix.
 
-See [`docs/v0.2-migration.md`](docs/v0.2-migration.md) for the original strict
-schema policy and [`docs/migration/v0.6.0.md`](docs/migration/v0.6.0.md) for the
-explicit dialect migration.
+Language: [CONTEXT.md](CONTEXT.md). Explicit dialect admission:
+[v0.6 migration](docs/migration/v0.6.0.md).
 
 ## Boundaries
 
