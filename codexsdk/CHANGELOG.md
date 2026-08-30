@@ -4,6 +4,21 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-30
+
+### Changed
+
+- **Breaking generated-surface change (pre-v1):** publish the `rust-v0.150.1`
+  classified protocol surface. Stable Amazon Bedrock credential-source facts
+  and several stable metadata fields are removed. `Accounts`, `MCPServers`,
+  `Plugins`, and `ThreadMetadataUpdateParams` become mixed Generated Facades.
+  See [Migrating to v0.7](docs/migration/v0.7.0.md).
+
+### Fixed
+
+- Keep Exact Run History Cursor cancellation caller-local so `Next` cannot
+  terminate a shared Exact Run.
+
 ## [0.6.1] - 2026-07-23
 
 ### Fixed
