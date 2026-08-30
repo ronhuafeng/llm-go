@@ -12,7 +12,7 @@ All notable changes to this project are documented here.
   classified protocol surface. Stable Amazon Bedrock credential-source facts
   and several stable metadata fields are removed. `Accounts`, `MCPServers`,
   `Plugins`, and `ThreadMetadataUpdateParams` become mixed Generated Facades.
-  See [Migrating to v0.7](docs/migration/v0.7.0.md).
+  See [Migrating to v0.7](UPGRADE.md).
 
 ### Fixed
 
@@ -48,7 +48,7 @@ All notable changes to this project are documented here.
   `github.com/ronhuafeng/llm-go/codexsdk/protocolv2`. Package names, exported
   identifiers, generated protocol facts, lifecycle behavior, evidence, and the
   Go 1.23 minimum remain unchanged. See
-  [Migrating to v0.6](docs/migration/v0.6.0.md).
+  [Migrating to v0.6](UPGRADE.md).
 
 ## [0.5.1] - 2026-07-14
 
@@ -56,7 +56,7 @@ All notable changes to this project are documented here.
 
 - Froze `github.com/ronhuafeng/codexsdk-go` at its final legacy release. The
   replacement module is `github.com/ronhuafeng/llm-go/codexsdk`, beginning
-  with `v0.6.0`; see the [repository migration guide](docs/migration/v0.6.0.md)
+  with `v0.6.0`; see the [repository migration guide](UPGRADE.md)
   for exact public import mappings.
 - Ended feature and security maintenance for the legacy module path. Existing
   immutable versions remain available through the public Go proxy until the

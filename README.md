@@ -1,86 +1,78 @@
 # llm-go
 
-Typed Go building blocks for reliable structured LLM calls.
-
-`llm-go` provides three independently versioned modules. Use the
-provider-neutral toolkit on its own, control a local Codex app-server directly,
-or connect the two while keeping the complete Codex result available.
-
-## Modules
+Typed Go modules for structured LLM calls and exact Codex app-server control.
 
 | Module | Use it to | Import path |
 | --- | --- | --- |
 | [`llmkit`](llmkit) | Generate JSON Schema from Go types, decode and validate structured output, and run bounded retries without a provider SDK. | `github.com/ronhuafeng/llm-go/llmkit` |
 | [`codexsdk`](codexsdk) | Control a local Codex app-server through generated protocol types and typed thread/turn APIs. | `github.com/ronhuafeng/llm-go/codexsdk` |
-| [`llmcaller/codex`](llmcaller/codex) | Use Codex as an `llmkit` caller with access to the complete SDK result. | `github.com/ronhuafeng/llm-go/llmcaller/codex` |
+| [`llmcaller/codex`](llmcaller/codex) | Use Codex as an `llmkit` caller while keeping the complete SDK result. | `github.com/ronhuafeng/llm-go/llmcaller/codex` |
 
 Start with the README for the module matching your use case.
+Upgrade from archived module paths: [`llmkit/UPGRADE.md`](llmkit/UPGRADE.md),
+[`codexsdk/UPGRADE.md`](codexsdk/UPGRADE.md),
+[`llmcaller/codex/UPGRADE.md`](llmcaller/codex/UPGRADE.md).
 
-For an implementation-oriented guide that a coding agent can follow, see
-[Integrating `llm-go`](docs/coding-agent-guide.md). It covers module selection,
-a cross-module quickstart, and routes detailed contracts to their owning module
-documentation.
+Destinations: [`NORTHSTAR.md`](NORTHSTAR.md).
+Maintainers: [`AGENTS.md`](AGENTS.md), [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-## Architecture
+## Adapter path
 
-```text
-structured application
-        │
-      llmkit
-        │
-llmcaller/codex
-        │
-     codexsdk
-        │
- Codex app-server
-```
+```go
+package main
 
-The modules remain separate by design:
+import (
+	"context"
+	"fmt"
+	"log"
+	"os"
 
-- `llmkit` and `codexsdk` do not depend on each other.
-- `llmcaller/codex` is the only public module that depends on both.
-- `internal/tools` may use all three public modules; they never depend on it.
-- The repository root coordinates development and releases but is not a Go
-  module or umbrella API.
-
-The complete legacy histories are part of this repository. The three legacy
-repositories are archived and read-only; all active development and releases
-use the module paths above.
-
-## Development
-
-From the repository root, check the module registry, workspace, import
-boundaries, and root layout with:
-
-```sh
-go run ./internal/tools/cmd/repoctl verify
-```
-
-Then test every module independently using the dependencies declared in its
-own `go.mod`:
-
-```sh
-(
-  set -e
-  for module in llmkit codexsdk llmcaller/codex internal/tools; do
-    echo "==> Testing ${module}"
-    (cd "${module}" && GOWORK=off go test ./...)
-  done
+	"github.com/ronhuafeng/llm-go/codexsdk"
+	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
+	codexcaller "github.com/ronhuafeng/llm-go/llmcaller/codex"
+	"github.com/ronhuafeng/llm-go/llmkit/llmadapter"
 )
+
+type Answer struct {
+	Summary string `json:"summary"`
+}
+
+func main() {
+	ctx := context.Background()
+	workspace, err := os.Getwd()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	client, err := codexsdk.New(codexsdk.ClientOptions{
+		CWD:     workspace,
+		Command: []string{"codex", "app-server", "--listen", "stdio://"},
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer client.Close()
+
+	options := codexcaller.ReadOnlyEphemeralOptions(client.ThreadRunner())
+	options.Defaults.Thread.Model = protocolv2.Value("gpt-5")
+	options.Defaults.Thread.CWD = protocolv2.Value(workspace)
+	caller, err := codexcaller.New(options)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	answer, err := llmadapter.Value[Answer](ctx, caller, "Summarize this repository.")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(answer.Summary)
+}
 ```
 
-See the [north stars](docs/architecture/Northstar.md) for each owner's
-destination, the [context map](CONTEXT-MAP.md) for semantic ownership, the
-[architecture design](docs/architecture/DESIGN.md) for the accepted repository
-model, [repository verification](docs/verification.md) for CI, and the
-[protected release operation](docs/releasing.md) for tags.
-
-Consumers moving from archived module paths should use the current
-[toolkit](llmkit/docs/migration/v0.6.0.md),
-[SDK](codexsdk/docs/migration/v0.6.0.md), or
-[adapter](llmcaller/codex/docs/migration/v0.5.0.md) migration guide.
+Follow the adapter README for exact defaults, result paths, and schema policy.
+Applications must not import `internal/tools`.
 
 ## Security
 
-Report vulnerabilities through this repository's private intake. See the
-[security policy](SECURITY.md); do not publish sensitive details in an issue.
+Report vulnerabilities through this repository's private intake. See
+[SECURITY.md](SECURITY.md).

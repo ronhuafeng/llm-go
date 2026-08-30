@@ -1,38 +1,11 @@
 # codexsdk
 
-Go client and generated protocol types for the Codex app-server JSON-RPC
-protocol.
+Exact control of one local Codex app-server. Destination:
+[NORTHSTAR.md](../NORTHSTAR.md). Language: [CONTEXT.md](CONTEXT.md).
+Upgrade notes: [UPGRADE.md](UPGRADE.md).
 
-The module path is `github.com/ronhuafeng/llm-go/codexsdk`. Its verified first
-monorepo release is `codexsdk/v0.6.0`, continuing the legacy SDK's pre-v1
-lineage. The GitHub Release and public Go proxy are the live availability and
-verification sources.
-Consumers of `github.com/ronhuafeng/codexsdk-go@v0.5.1` should follow the
-[v0.6 migration guide](docs/migration/v0.6.0.md). The migration changes only
-module and import paths; it adds no forwarding or runtime compatibility layer.
-
-This project is unofficial and experimental. It is not an OpenAI product, is
-not supported by OpenAI, and may lag or diverge from the Codex CLI/app-server
-implementation. Use it when you want a small Go SDK that talks to a locally
-launched Codex app-server over stdio.
-
-## Status
-
-- License: MIT for this repository.
-- Upstream protocol source: OpenAI Codex, Apache-2.0, generated from the
-  app-server schema baseline recorded in
-  `internal/protocolschema/appserver/v2/baseline_metadata.json`.
-- API stability: pre-1.0. Public APIs are intended to be useful and reviewed,
-  but breaking changes can happen before v1.0.
-- Final legacy release: `github.com/ronhuafeng/codexsdk-go@v0.5.1`.
-- Runtime requirement: the SDK launches an external `codex app-server` command.
-  Unit tests and CI do not require a local Codex binary.
-
-Language: [CONTEXT.md](CONTEXT.md). Still-binding decisions:
-[ADR 0001](docs/adr/0001-pre-v1-public-api-boundary.md).
-The root client is a concrete `*Client` from `New`; applications declare
-narrow Consumer-Owned Interfaces. Generated facades are concrete opaque
-values. Action-bearing messages fail closed.
+This project is unofficial and experimental. It is not an OpenAI product.
+Use it to talk to a locally launched Codex app-server over stdio.
 
 ## Packages
 
@@ -209,136 +182,14 @@ failure shutdown cancels accepted callbacks immediately while preserving the
 first failure cause and partial run evidence. Handlers must return when their
 context is canceled and must not call `Close` reentrantly.
 
-## Real App-Server Smoke Test
-
-The real smoke test is opt-in because it launches Codex, uses a configured
-model, and may create or consume account state.
+## Testing
 
 ```sh
-CODEXSDK_REAL_APP_SERVER_SMOKE=1 \
-CODEXSDK_REAL_APP_SERVER_MODEL=gpt-5-mini \
-go test . -run TestRealAppServerSmokeStartResumeFork -count=1
+GOWORK=off go test ./...
+GOWORK=off go vet ./...
 ```
 
-Optional command override:
-
-```sh
-CODEXSDK_REAL_APP_SERVER_COMMAND='codex app-server --listen stdio://' \
-CODEXSDK_REAL_APP_SERVER_SMOKE=1 \
-CODEXSDK_REAL_APP_SERVER_MODEL=gpt-5-mini \
-go test . -run TestRealAppServerSmokeStartResumeFork -count=1
-```
-
-Normal CI does not run this test.
-
-## Protocol V2 Schema Strategy
-
-`protocolv2` code is generated from a checked-in Codex app-server v2 schema
-baseline, not by shelling out to Codex during normal builds. The baseline is
-tracked with:
-
-- `baseline_metadata.json`: upstream tag/ref name, target kind, peeled commit,
-  Codex version, generation command, source license, file count, and schema
-  bundle checksum.
-- `manifest.json`: classified method and exported generated Go surface,
-  request/notification direction, response schema mapping, facade target,
-  explicit generated/deferred facade status, and mechanically derived stable,
-  experimental, or mixed marking. A deferred facade is valid only while a
-  generated method constant or protocol type prerequisite is absent.
-- `coverage_matrix.json`: reviewed support status for methods, types, and key
-  fields.
-- `drift_report.json` and `matrix_update_skeleton.json`: last clean comparison
-  artifacts and the shape of follow-up review work when upstream changes.
-
-Regenerate Go code from the checked-in baseline:
-
-```sh
-go run ./internal/cmd/protocolv2gen
-```
-
-Check generated code reproducibility without modifying the tree:
-
-```sh
-go run ./internal/cmd/protocolv2gen -stdout method-registry |
-  diff -u protocolv2/method_registry.gen.go -
-go run ./internal/cmd/protocolv2gen -stdout protocol-types |
-  diff -u protocolv2/protocol_types.gen.go -
-tmp="$(mktemp -d)/sdk_surface.gen.go"
-python3 scripts/codexsdk_generate_sdk_surface.py --out "$tmp"
-gofmt -w "$tmp"
-diff -u sdk_surface.gen.go "$tmp"
-```
-
-## Maintenance
-
-Use the upstream tracking script to generate review artifacts for a Codex
-schema update. The script is read-only for the checked-in baseline unless a
-maintainer copies reviewed files back into the SDK tree.
-
-Check the target policy before generating drift artifacts. Scheduled automation
-tracks stable `rust-vX.Y.Z` tags only when the current baseline is already on
-that stable tag track; manual commits and track switches must be explicit.
-
-```sh
-python3 scripts/codexsdk_target_policy.py \
-  --baseline internal/protocolschema/appserver/v2/baseline_metadata.json \
-  --target-ref rust-v0.140.0 \
-  --target-kind stable_rust_tag \
-  --target-sha <peeled-target-commit> \
-  --target-explicit true \
-  --mode manual \
-  --json
-```
-
-```sh
-scripts/codexsdk_track_upstream.sh \
-  --codex-repo /path/to/openai/codex \
-  --commit <peeled-target-commit> \
-  --source-ref rust-v0.140.0 \
-  --source-ref-kind stable_rust_tag \
-  --out /tmp/codexsdk-upstream
-```
-
-Then review the generated `reports/SUMMARY.md`, schema drift summary, and matrix
-update skeleton before updating the baseline, manifest, coverage matrix, and
-generated Go code. Keep handwritten SDK changes limited to reviewed public
-surface or compatibility fixes. Tags follow the repository
-[protected release operation](../docs/releasing.md).
-
-After committing a successful baseline sync, tag the repository commit with an
-annotated upstream sync tag. These tags intentionally live outside the Go
-module release namespace.
-
-```sh
-python3 scripts/codexsdk_sync_tag.py --json
-python3 scripts/codexsdk_sync_tag.py --create --push origin --json
-```
-
-Stable upstream Codex tags use the single canonical name
-`upstream-codex-rust-vX.Y.Z`. Existing upstream sync tags are never moved or
-replaced. If that tag already resolves to another repository commit, the command
-reports both commits and stops; it never creates a fallback tag. Manual upstream
-commits and refs do not get sync tags.
-
-## Compatibility Policy
-
-Before v1.0, minor releases may include breaking changes when the upstream
-Codex app-server protocol changes or when the SDK corrects an unsafe public
-API. Patch releases should be backwards compatible except for security or data
-corruption fixes.
-
-After v1.0, the project should follow SemVer for the public API at the module
-root and in `protocolv2`. Generated `protocolv2` additions are usually minor
-changes. Removing or changing generated types, method constants, or facade
-method signatures is a major change unless the upstream protocol removed the
-surface and compatibility cannot be preserved safely.
-
-## Security
-
-Do not put API keys, account tokens, private workspaces, private schema dumps,
-or local absolute paths into issues, tests, schema metadata, or generated
-artifacts. The SDK starts a local app-server process and forwards requests over
-stdio; callers are responsible for choosing an appropriate Codex command,
-working directory, approval policy, and server request handler.
-
-See `SECURITY.md` for vulnerability reporting guidance.
+Protocol sync uses
+[`codexsdk-sync-upstream`](../.agents/skills/codexsdk-sync-upstream/SKILL.md).
+See repository [CONTRIBUTING.md](../CONTRIBUTING.md) and
+[SECURITY.md](../SECURITY.md). Changelog: [CHANGELOG.md](CHANGELOG.md).

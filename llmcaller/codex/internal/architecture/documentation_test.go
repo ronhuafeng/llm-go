@@ -8,7 +8,7 @@ import (
 )
 
 func TestSecurityGuidanceUsesCurrentExactAndAdapterContracts(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join(repoRoot(t), "SECURITY.md"))
+	data, err := os.ReadFile(filepath.Join(repoRoot(t), "..", "..", "SECURITY.md"))
 	if err != nil {
 		t.Fatal(err)
 	}

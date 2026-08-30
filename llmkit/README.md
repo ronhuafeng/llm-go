@@ -1,29 +1,8 @@
 # llmkit
 
-Provider-neutral Go primitives for typed LLM programming.
-
-`llmkit` is a small toolkit for code that wants structured LLM output
-without taking a dependency on a specific model provider SDK. It focuses on
-four stable boundaries:
-
-- `settle`: bounded stabilization with complete attempt evidence.
-- `llmschema`: Go type to JSON Schema projection and schema-enforced decode.
-- `llmadapter`: one provider-neutral typed call with execution evidence.
-- `llmstep`: typed validation-feedback retries with stage-specific history.
-
-Concrete provider callers live in separate modules. This module does not
-own provider transport, provider credentials, prompt libraries, tracing
-backends, or business validation rules.
-
-## Status
-
-The module path is `github.com/ronhuafeng/llm-go/llmkit`. Its verified first
-monorepo release is `llmkit/v0.6.0`, continuing the legacy toolkit's pre-v1
-lineage. The [GitHub Release](https://github.com/ronhuafeng/llm-go/releases/tag/llmkit%2Fv0.6.0)
-and the public Go proxy are the live availability and verification sources.
-Consumers of `github.com/ronhuafeng/llmkit-go@v0.5.0` should follow the
-[v0.6 migration guide](docs/migration/v0.6.0.md). The migration changes only
-module and import paths; it adds no forwarding or runtime compatibility layer.
+Provider-neutral typed structured output, with complete stage-owned evidence,
+and with no provider SDK. Destination: [NORTHSTAR.md](../NORTHSTAR.md).
+Language: [CONTEXT.md](CONTEXT.md). Upgrade notes: [UPGRADE.md](UPGRADE.md).
 
 ## Packages
 
@@ -272,39 +251,8 @@ takes precedence over cancellation observed at the same boundary. Cancellation
 after the final observation can still race with a successful return, as with
 other cooperative Go context APIs.
 
-## API Compatibility
-
-Public API is limited to exported identifiers in these packages:
-
-- `settle`
-- `llmschema`
-- `llmadapter`
-- `llmstep`
-
-Everything under `internal/` is private. README examples are illustrative and
-may change, but they are compiled in tests where practical. Exported package
-behavior and the canonical handwritten API allowlist are compatibility surface.
-
-Language: [CONTEXT.md](CONTEXT.md). Validation decisions and retry feedback
-are distinct; the default retry-feedback sanitizer is structured-only. See
-[Migrating to v0.7](docs/migration/v0.7.0.md) when a validator previously
-relied on default free-form summaries.
-
-Before v1.0.0, patch releases are compatible fixes and documentation; additive
-or breaking changes use a minor release and must be explicit in `CHANGELOG.md`.
-After v1.0.0, breaking public API changes require a new major version.
-
-## Versioning
-
-Releases use directory-prefixed Go module tags:
-
-```text
-llmkit/vX.Y.Z
-```
-
-The first tag is `llmkit/v0.6.0`. Production tags are created only by
-protected CI. See the repository
-[protected release operation](../docs/releasing.md).
+Changelog: [CHANGELOG.md](CHANGELOG.md). License: [LICENSE](LICENSE).
+Notices: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Testing
 
@@ -321,28 +269,5 @@ GOWORK=off go test -race ./...
 `GOWORK=off` is required even when the repository workspace is available;
 these checks prove that the published module is independently consumable.
 
-## Security
-
-Do not open public issues with exploit details. Use the llm-go repository's
-[private vulnerability reporting](https://github.com/ronhuafeng/llm-go/security/advisories/new).
-Supported-version details are in [SECURITY.md](SECURITY.md).
-
-## License and Dependency Provenance
-
-`llmkit` is released under the MIT License. See [LICENSE](LICENSE).
-
-Dependency provenance is tracked in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
-and should be reviewed before each release.
-
-## Contributing
-
-Toolkit work belongs to this module within
-[`ronhuafeng/llm-go`](https://github.com/ronhuafeng/llm-go). See
-[CONTRIBUTING.md](CONTRIBUTING.md) for scope and validation requirements.
-
-## Related Modules
-
-Codex transport and exact lifecycle facts live in
-`github.com/ronhuafeng/llm-go/codexsdk`. The Codex adapter and its provider
-policy live in `github.com/ronhuafeng/llm-go/llmcaller/codex`. Application
-policy and business validation remain consumer-owned.
+See repository [CONTRIBUTING.md](../CONTRIBUTING.md) and
+[SECURITY.md](../SECURITY.md).

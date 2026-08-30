@@ -15,7 +15,7 @@ changes may occur in minor releases, but they must be documented here.
   free-form retry feedback can be sent to a model. When `Step.Sanitizer` is
   nil, a non-empty `Feedback.Summary` on an attempt that can retry is now a
   sanitize-stage error wrapping `llmstep.ErrUnsafeFeedback`. See
-  [Migrating to v0.7](docs/migration/v0.7.0.md).
+  [Migrating to v0.7](UPGRADE.md).
 
 ### Fixed
 
@@ -32,7 +32,7 @@ changes may occur in minor releases, but they must be documented here.
   from `github.com/ronhuafeng/llmkit-go` to
   `github.com/ronhuafeng/llm-go/llmkit`. Package names, exported identifiers,
   behavior, evidence, retry and validation semantics, and the Go 1.23 minimum
-  remain unchanged. See [Migrating to v0.6](docs/migration/v0.6.0.md).
+  remain unchanged. See [Migrating to v0.6](UPGRADE.md).
 
 ## [0.5.0] - 2026-07-14
 
@@ -42,7 +42,7 @@ changes may occur in minor releases, but they must be documented here.
   replacement module is `github.com/ronhuafeng/llm-go/llmkit`, beginning with
   `llmkit/v0.6.0`. This repository receives no feature or security maintenance
   after cutover; published versions remain available through the public Go
-  proxy. See [Migrating to llm-go](docs/migration/v0.6.0.md).
+  proxy. See [Migrating to llm-go](UPGRADE.md).
 
 ### Changed
 

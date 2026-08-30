@@ -16,7 +16,7 @@ import (
 	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
 )
 
-// docs/adr/0002-non-destructive-exact-run-wait.md defines 1,280 notifications
+// CONTEXT.md Exact Run invariants: Wait-only runs must retain at least 1,280 notifications
 // as the minimum Wait-only history stress contract.
 const exactStreamHistoryContractNotifications = 1280
 

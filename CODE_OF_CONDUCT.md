@@ -7,6 +7,6 @@ This project follows the Contributor Covenant Code of Conduct, version 2.1:
 Project participants are expected to keep discussions respectful, constructive,
 and focused on improving the software.
 
-To report unacceptable behavior, use the repository's private security/advisory
-contact path when the report is sensitive, or open a maintainer-facing issue
-without private details when it is not.
+To report unacceptable behavior, use the repository's private security advisory
+path when the report is sensitive, or open a maintainer-facing issue without
+private details when it is not.
