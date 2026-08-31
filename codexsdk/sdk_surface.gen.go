@@ -1415,6 +1415,14 @@ func (f Turns) Interrupt(ctx context.Context, params protocolv2.TurnInterruptPar
 	return response, nil
 }
 
+func (f Turns) SettingsUpdate(ctx context.Context, params protocolv2.TurnSettingsUpdateParams) (protocolv2.TurnSettingsUpdateResponse, error) {
+	var response protocolv2.TurnSettingsUpdateResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodTurnSettingsUpdate, params, &response); err != nil {
+		return protocolv2.TurnSettingsUpdateResponse{}, err
+	}
+	return response, nil
+}
+
 func (f Turns) Start(ctx context.Context, params protocolv2.TurnStartParams) (protocolv2.TurnStartResponse, error) {
 	var response protocolv2.TurnStartResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodTurnStart, params, &response); err != nil {

@@ -1285,6 +1285,14 @@ func TestFirstPassTypesIncludeReviewedRPCDependencies(t *testing.T) {
 		"ThreadSearchOccurrencesResponse",
 		"ThreadSearchOccurrence",
 		"ThreadSearchTextRange",
+		"ReviewStartResponse",
+		"Turn",
+		"TurnError",
+		"MisalignmentErrorDetails",
+		"MisalignmentSteer",
+		"TurnSettingsUpdateResponse",
+		"TurnStartParams",
+		"TurnToolOutput",
 	} {
 		if !generated[name] {
 			t.Errorf("first-pass generated types do not include new RPC type dependency %s", name)
@@ -1300,6 +1308,8 @@ func TestFirstPassTypesIncludeReviewedRPCDependencies(t *testing.T) {
 		"ScheduledTaskWeekday":                 false,
 		"CodexResponseHandoffMode":             false,
 		"ConversationTextRole":                 false,
+		"TurnSettingsUpdateStatus":             false,
+		"CyberAccessProgram":                   false,
 	}
 	for _, enum := range enums {
 		if _, ok := wantEnums[enum.TypeName]; ok {

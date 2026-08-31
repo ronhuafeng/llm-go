@@ -1316,7 +1316,8 @@ func isJSONValueFieldPath(path string) bool {
 		"v2/TurnStartResponse.json#/definitions/McpToolCallResult/properties/_meta",
 		"v2/TurnStartResponse.json#/definitions/McpToolCallResult/properties/structuredContent",
 		"v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/7/properties/arguments",
-		"v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/8/properties/arguments":
+		"v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/8/properties/arguments",
+		"v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/9/properties/arguments":
 		return true
 	default:
 		return false
@@ -1347,7 +1348,8 @@ func isJSONValueArrayPath(path string) bool {
 		"v2/ThreadResumeParams.json#/definitions/ResponseItem#/oneOf/9/properties/tools",
 		"v2/ThreadInjectItemsParams.json#/properties/items",
 		"v2/TurnStartResponse.json#/definitions/McpToolCallResult/properties/content",
-		"v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/11/properties/results":
+		"v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/11/properties/results",
+		"v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/12/properties/results":
 		return true
 	default:
 		return false

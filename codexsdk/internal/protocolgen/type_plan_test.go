@@ -256,6 +256,34 @@ func TestBuildProtocolTypePlanClassifiesDynamicJSONFields(t *testing.T) {
 	}
 }
 
+func TestFieldPlannerSupportsOnlyReviewedDynamicToolArgumentsJSON(t *testing.T) {
+	trueSchema := true
+	schema := &Schema{Bool: &trueSchema}
+	reviewed := CoverageField{
+		Field:     "arguments",
+		Path:      "v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/9/properties/arguments",
+		Required:  true,
+		Schema:    "v2/TurnStartResponse.json",
+		Stability: "stable",
+		Status:    "supported-generated",
+		Type:      "DynamicToolCallThreadItem",
+	}
+
+	field, err := planField(reviewed, schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if field.Kind != FieldPlanJSONValue || field.GoType != "protocolv2.JSONValue" {
+		t.Fatalf("reviewed dynamic tool arguments = kind %s GoType %q, want JSON value", field.Kind, field.GoType)
+	}
+
+	unreviewed := reviewed
+	unreviewed.Path = "Example.json#/properties/arguments"
+	if _, err := planField(unreviewed, schema); err == nil || !strings.Contains(err.Error(), "unreviewed true schema") {
+		t.Fatalf("unreviewed true schema error = %v", err)
+	}
+}
+
 func TestArrayPlannerSupportsOnlyReviewedNullableJSONValueArrays(t *testing.T) {
 	trueSchema := true
 	schema := &Schema{
@@ -264,7 +292,7 @@ func TestArrayPlannerSupportsOnlyReviewedNullableJSONValueArrays(t *testing.T) {
 	}
 	reviewed := CoverageField{
 		Field:     "results",
-		Path:      "v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/11/properties/results",
+		Path:      "v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/12/properties/results",
 		Required:  false,
 		Schema:    "v2/TurnStartResponse.json",
 		Stability: "stable",

@@ -7022,6 +7022,19 @@
       "type": "RawResponseCompletedNotification"
     },
     {
+      "exit_condition": "Regenerate if upstream schema drift changes RawResponseCompletedNotification.usageMetadata semantics.",
+      "field": "usageMetadata",
+      "owner": "codex-go-sdk",
+      "path": "v2/RawResponseCompletedNotification.json#/properties/usageMetadata",
+      "reason": "Generated as a strict typed RawResponseCompletedNotification field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/RawResponseCompletedNotification.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "RawResponseCompletedNotification"
+    },
+    {
       "exit_condition": "Generated protocolv2 field with omit/null/value or validation tests, or explicit intentionally-unsupported classification.",
       "field": "item",
       "owner": "codex-go-sdk",
@@ -12690,6 +12703,97 @@
       "type": "TurnPlanUpdatedNotification"
     },
     {
+      "exit_condition": "Regenerate if upstream schema drift changes TurnSettingsUpdateParams.effort semantics.",
+      "field": "effort",
+      "owner": "codex-go-sdk",
+      "path": "v2/TurnSettingsUpdateParams.json#/properties/effort",
+      "reason": "Generated as a strict typed TurnSettingsUpdateParams field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/TurnSettingsUpdateParams.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "TurnSettingsUpdateParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes TurnSettingsUpdateParams.model semantics.",
+      "field": "model",
+      "owner": "codex-go-sdk",
+      "path": "v2/TurnSettingsUpdateParams.json#/properties/model",
+      "reason": "Generated as a strict typed TurnSettingsUpdateParams field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/TurnSettingsUpdateParams.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "TurnSettingsUpdateParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes TurnSettingsUpdateParams.serviceTier semantics.",
+      "field": "serviceTier",
+      "owner": "codex-go-sdk",
+      "path": "v2/TurnSettingsUpdateParams.json#/properties/serviceTier",
+      "reason": "Generated as a strict typed TurnSettingsUpdateParams field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/TurnSettingsUpdateParams.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "TurnSettingsUpdateParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes TurnSettingsUpdateParams.summary semantics.",
+      "field": "summary",
+      "owner": "codex-go-sdk",
+      "path": "v2/TurnSettingsUpdateParams.json#/properties/summary",
+      "reason": "Generated as a strict typed TurnSettingsUpdateParams field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/TurnSettingsUpdateParams.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "TurnSettingsUpdateParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes TurnSettingsUpdateParams.threadId semantics.",
+      "field": "threadId",
+      "owner": "codex-go-sdk",
+      "path": "v2/TurnSettingsUpdateParams.json#/properties/threadId",
+      "reason": "Generated as a strict typed TurnSettingsUpdateParams field.",
+      "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/TurnSettingsUpdateParams.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "TurnSettingsUpdateParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes TurnSettingsUpdateParams.turnId semantics.",
+      "field": "turnId",
+      "owner": "codex-go-sdk",
+      "path": "v2/TurnSettingsUpdateParams.json#/properties/turnId",
+      "reason": "Generated as a strict typed TurnSettingsUpdateParams field.",
+      "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/TurnSettingsUpdateParams.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "TurnSettingsUpdateParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes TurnSettingsUpdateResponse.status semantics.",
+      "field": "status",
+      "owner": "codex-go-sdk",
+      "path": "v2/TurnSettingsUpdateResponse.json#/properties/status",
+      "reason": "Generated as a strict typed TurnSettingsUpdateResponse field.",
+      "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/TurnSettingsUpdateResponse.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "TurnSettingsUpdateResponse"
+    },
+    {
       "exit_condition": "Regenerate if upstream schema drift changes this field shape, requiredness, enum values, or omit/null/value semantics.",
       "field": "additionalContext",
       "owner": "codex-go-sdk",
@@ -12760,6 +12864,19 @@
       "owner": "codex-go-sdk",
       "path": "v2/TurnStartParams.json#/properties/cwd",
       "reason": "Generated as a strict typed protocol field preserving required/optional and omit/null/value semantics, with enum/union/ref validation and JSONValue/OutputSchema handling where declared.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/TurnStartParams.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "TurnStartParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes TurnStartParams.cyberAccessProgram semantics.",
+      "field": "cyberAccessProgram",
+      "owner": "codex-go-sdk",
+      "path": "v2/TurnStartParams.json#/properties/cyberAccessProgram",
+      "reason": "Generated as a strict typed TurnStartParams field.",
       "required": false,
       "revisit_trigger": "protocolv2 generation or upstream schema drift",
       "schema": "v2/TurnStartParams.json",
@@ -12924,6 +13041,19 @@
       "type": "TurnStartParams"
     },
     {
+      "exit_condition": "Regenerate if upstream schema drift changes TurnStartParams.serviceTierForTurn semantics.",
+      "field": "serviceTierForTurn",
+      "owner": "codex-go-sdk",
+      "path": "v2/TurnStartParams.json#/properties/serviceTierForTurn",
+      "reason": "Generated as a strict typed TurnStartParams field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/TurnStartParams.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "TurnStartParams"
+    },
+    {
       "exit_condition": "Regenerate if upstream schema drift changes this field shape or typed representation.",
       "field": "summary",
       "owner": "codex-go-sdk",
@@ -12943,6 +13073,32 @@
       "path": "v2/TurnStartParams.json#/properties/threadId",
       "reason": "Generated as a strict typed protocol field preserving required/optional and omit/null/value semantics, with enum/union/ref validation and JSONValue/OutputSchema handling where declared.",
       "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/TurnStartParams.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "TurnStartParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes TurnStartParams.toolOutput semantics.",
+      "field": "toolOutput",
+      "owner": "codex-go-sdk",
+      "path": "v2/TurnStartParams.json#/properties/toolOutput",
+      "reason": "Generated as a strict typed TurnStartParams field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/TurnStartParams.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "TurnStartParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes TurnStartParams.turnTrigger semantics.",
+      "field": "turnTrigger",
+      "owner": "codex-go-sdk",
+      "path": "v2/TurnStartParams.json#/properties/turnTrigger",
+      "reason": "Generated as a strict typed TurnStartParams field.",
+      "required": false,
       "revisit_trigger": "protocolv2 generation or upstream schema drift",
       "schema": "v2/TurnStartParams.json",
       "stability": "stable",
@@ -16067,6 +16223,18 @@
       "revisit_trigger": "protocolv2 generation or upstream schema drift",
       "source_schema": "ServerNotification.json",
       "stability": "stable",
+      "status": "supported-generated"
+    },
+    {
+      "direction": "client_to_server",
+      "exit_condition": "Regenerate method registry and add handwritten facade coverage only if this upstream method becomes part of the public SDK surface.",
+      "kind": "request",
+      "method": "turn/settings/update",
+      "owner": "codex-go-sdk",
+      "reason": "Generated protocolv2 method registry coverage for client_to_server request method; no handwritten facade is claimed until explicitly added.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "source_schema": "ClientRequest.json",
+      "stability": "experimental",
       "status": "supported-generated"
     },
     {
@@ -20168,6 +20336,26 @@
       "stability": "stable",
       "status": "supported-generated",
       "type": "TurnPlanUpdatedNotification"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes this generated protocol type.",
+      "owner": "codex-go-sdk",
+      "reason": "Generated from the checked-in upstream app-server schema baseline.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/TurnSettingsUpdateParams.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "TurnSettingsUpdateParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes this generated protocol type.",
+      "owner": "codex-go-sdk",
+      "reason": "Generated from the checked-in upstream app-server schema baseline.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/TurnSettingsUpdateResponse.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "TurnSettingsUpdateResponse"
     },
     {
       "exit_condition": "Regenerate if upstream schema drift changes generated field, enum, union, JSONValue, OutputSchema, or omit/null/value semantics.",

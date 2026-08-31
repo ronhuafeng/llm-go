@@ -278,6 +278,7 @@ const (
 	MethodTurnInterrupt                           = "turn/interrupt"
 	MethodTurnModerationMetadata                  = "turn/moderationMetadata"
 	MethodTurnPlanUpdated                         = "turn/plan/updated"
+	MethodTurnSettingsUpdate                      = "turn/settings/update"
 	MethodTurnStart                               = "turn/start"
 	MethodTurnStarted                             = "turn/started"
 	MethodTurnSteer                               = "turn/steer"
@@ -2884,6 +2885,17 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
 		FacadeTarget:          "ServerNotifications().TurnPlanUpdated",
 		Stability:             MethodStabilityStable,
+	},
+	MethodTurnSettingsUpdate: {
+		Method:                MethodTurnSettingsUpdate,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "turn",
+		ParamsOrPayloadSchema: "TurnSettingsUpdateParams",
+		ResponseSchema:        "v2/TurnSettingsUpdateResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Turns().SettingsUpdate",
+		Stability:             MethodStabilityExperimental,
 	},
 	MethodTurnStart: {
 		Method:                MethodTurnStart,
