@@ -671,6 +671,14 @@ func overlayFieldPlan(plan FieldPlan, schema *Schema) (FieldPlan, bool, error) {
 		plan.GoType = optionalGoType(plan.Required, "protocolv2.OutputSchema")
 		plan.Reason = "turn-level output JSON Schema contract"
 		return plan, true, nil
+	case plan.Path == "v2/GetAccountRateLimitsResponse.json#/properties/rateLimitUpsell":
+		if !isDescriptionOnlySchema(schema) {
+			return FieldPlan{}, true, fmt.Errorf("field %s rate-limit upsell overlay no longer matches description-only schema shape", plan.Path)
+		}
+		plan.Kind = FieldPlanJSONValue
+		plan.GoType = optionalGoType(plan.Required, "protocolv2.JSONValue")
+		plan.Reason = "reviewed backend-owned rate-limit upsell payload"
+		return plan, true, nil
 	case plan.Path == "v2/ThreadApproveGuardianDeniedActionParams.json#/properties/event":
 		if !isDescriptionOnlySchema(schema) {
 			return FieldPlan{}, true, fmt.Errorf("field %s GuardianAssessmentEvent overlay no longer matches description-only JsonValue schema shape", plan.Path)
@@ -1316,7 +1324,8 @@ func isJSONValueFieldPath(path string) bool {
 		"v2/TurnStartResponse.json#/definitions/McpToolCallResult/properties/_meta",
 		"v2/TurnStartResponse.json#/definitions/McpToolCallResult/properties/structuredContent",
 		"v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/7/properties/arguments",
-		"v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/8/properties/arguments":
+		"v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/8/properties/arguments",
+		"v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/9/properties/arguments":
 		return true
 	default:
 		return false
@@ -1347,7 +1356,8 @@ func isJSONValueArrayPath(path string) bool {
 		"v2/ThreadResumeParams.json#/definitions/ResponseItem#/oneOf/9/properties/tools",
 		"v2/ThreadInjectItemsParams.json#/properties/items",
 		"v2/TurnStartResponse.json#/definitions/McpToolCallResult/properties/content",
-		"v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/11/properties/results":
+		"v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/11/properties/results",
+		"v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/12/properties/results":
 		return true
 	default:
 		return false

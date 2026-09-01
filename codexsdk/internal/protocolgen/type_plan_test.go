@@ -256,6 +256,70 @@ func TestBuildProtocolTypePlanClassifiesDynamicJSONFields(t *testing.T) {
 	}
 }
 
+func TestFieldPlannerSupportsOnlyReviewedDynamicToolArgumentsTrueSchema(t *testing.T) {
+	trueSchema := true
+	reviewed := CoverageField{
+		Field:     "arguments",
+		Path:      "v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/9/properties/arguments",
+		Required:  true,
+		Schema:    "v2/TurnStartResponse.json",
+		Stability: "stable",
+		Status:    "supported-generated",
+		Type:      "ThreadItem",
+	}
+
+	field, err := planField(reviewed, &Schema{Bool: &trueSchema})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if field.Kind != FieldPlanJSONValue || field.GoType != "protocolv2.JSONValue" {
+		t.Fatalf("reviewed dynamic tool arguments = kind %s GoType %q, want JSONValue", field.Kind, field.GoType)
+	}
+	if field.WireOmitAllowed {
+		t.Fatal("required true-schema arguments must not allow omission")
+	}
+
+	unreviewed := reviewed
+	unreviewed.Path = "Example.json#/properties/arguments"
+	if _, err := planField(unreviewed, &Schema{Bool: &trueSchema}); err == nil || !strings.Contains(err.Error(), "unreviewed true schema") {
+		t.Fatalf("unreviewed true-schema error = %v", err)
+	}
+}
+
+func TestFieldPlannerSupportsReviewedRateLimitUpsellDescriptionOnlyJSON(t *testing.T) {
+	reviewed := CoverageField{
+		Field:     "rateLimitUpsell",
+		Path:      "v2/GetAccountRateLimitsResponse.json#/properties/rateLimitUpsell",
+		Required:  false,
+		Schema:    "v2/GetAccountRateLimitsResponse.json",
+		Stability: "stable",
+		Status:    "supported-generated",
+		Type:      "GetAccountRateLimitsResponse",
+	}
+	schema := &Schema{Description: "Optional backend-owned banner."}
+
+	field, err := planField(reviewed, schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if field.Kind != FieldPlanJSONValue || field.GoType != "*protocolv2.JSONValue" {
+		t.Fatalf("reviewed rate-limit upsell = kind %s GoType %q, want optional JSONValue", field.Kind, field.GoType)
+	}
+	if !field.WireOmitAllowed {
+		t.Fatal("optional rate-limit upsell must allow omission")
+	}
+
+	unreviewed := reviewed
+	unreviewed.Path = "Example.json#/properties/banner"
+	field, err = planField(unreviewed, schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if field.Kind != FieldPlanDescriptionOnly {
+		t.Fatalf("unreviewed description-only field kind = %s, want deferred", field.Kind)
+	}
+}
+
 func TestArrayPlannerSupportsOnlyReviewedNullableJSONValueArrays(t *testing.T) {
 	trueSchema := true
 	schema := &Schema{
@@ -264,7 +328,7 @@ func TestArrayPlannerSupportsOnlyReviewedNullableJSONValueArrays(t *testing.T) {
 	}
 	reviewed := CoverageField{
 		Field:     "results",
-		Path:      "v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/11/properties/results",
+		Path:      "v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/12/properties/results",
 		Required:  false,
 		Schema:    "v2/TurnStartResponse.json",
 		Stability: "stable",

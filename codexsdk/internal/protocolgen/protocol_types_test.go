@@ -811,6 +811,178 @@ func TestSelectFirstPassGeneratedTypesIncludesReviewedBedrockDiscoverResponse(t 
 	}
 }
 
+func TestSelectFirstPassGeneratedTypesIncludesReviewedMisalignmentModels(t *testing.T) {
+	schema := mustParseSchema(t, `{
+		"definitions": {
+			"MisalignmentSteer": {
+				"type": "object",
+				"required": ["message"],
+				"properties": {"message": {"type": "string"}}
+			},
+			"MisalignmentErrorDetails": {
+				"type": "object",
+				"properties": {
+					"detailedExplanation": {"type": ["string", "null"]},
+					"steer": {
+						"anyOf": [
+							{"$ref": "#/definitions/MisalignmentSteer"},
+							{"type": "null"}
+						]
+					}
+				}
+			}
+		}
+	}`)
+	plan := ProtocolTypePlan{Types: []TypePlan{{
+		Kind:       TypePlanObjectStructCandidate,
+		Schema:     schema,
+		SchemaPath: "v2/TurnStartResponse.json",
+		Stability:  "stable",
+		TypeName:   "TurnStartResponse",
+	}}}
+
+	selected, err := SelectFirstPassGeneratedTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selectedNames := map[string]bool{}
+	for _, typ := range selected {
+		selectedNames[typ.TypeName] = true
+	}
+	for _, name := range []string{"MisalignmentErrorDetails", "MisalignmentSteer"} {
+		if !selectedNames[name] {
+			t.Fatalf("selected turn response dependencies %v do not include %s", selectedNames, name)
+		}
+	}
+}
+
+func TestGeneratedTurnSettingsUpdateStatusEnablesResponseType(t *testing.T) {
+	schema := mustParseSchema(t, `{
+		"definitions": {
+			"TurnSettingsUpdateStatus": {
+				"oneOf": [
+					{"type": "string", "enum": ["applied"]},
+					{"type": "string", "enum": ["targetUnavailable"]}
+				]
+			}
+		}
+	}`)
+	plan := ProtocolTypePlan{Types: []TypePlan{{
+		Fields: []FieldPlan{{
+			FieldName:  "status",
+			GoType:     "TurnSettingsUpdateStatus",
+			Kind:       FieldPlanRef,
+			Path:       "v2/TurnSettingsUpdateResponse.json#/properties/status",
+			RefPath:    "v2/TurnSettingsUpdateResponse.json#/definitions/TurnSettingsUpdateStatus",
+			Required:   true,
+			SchemaPath: "v2/TurnSettingsUpdateResponse.json",
+			Stability:  "experimental",
+			TypeName:   "TurnSettingsUpdateResponse",
+		}},
+		Kind:       TypePlanObjectStructCandidate,
+		Schema:     schema,
+		SchemaPath: "v2/TurnSettingsUpdateResponse.json",
+		Stability:  "experimental",
+		TypeName:   "TurnSettingsUpdateResponse",
+	}}}
+
+	enums, err := SelectGeneratedEnums(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(enums) != 1 || enums[0].TypeName != "TurnSettingsUpdateStatus" ||
+		!sameStrings(enums[0].Values, []string{"applied", "targetUnavailable"}) {
+		t.Fatalf("generated turn settings enums = %#v", enums)
+	}
+	selected, err := SelectFirstPassGeneratedTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(selected) != 1 || selected[0].TypeName != "TurnSettingsUpdateResponse" {
+		t.Fatalf("selected turn settings response types = %#v", selected)
+	}
+}
+
+func TestSelectFirstPassGeneratedTypesIncludesReviewedTurnToolOutput(t *testing.T) {
+	schema := mustParseSchema(t, `{
+		"definitions": {
+			"TurnToolOutput": {
+				"type": "object",
+				"required": ["name", "output"],
+				"properties": {
+					"name": {"type": "string"},
+					"namespace": {"type": ["string", "null"]},
+					"output": {"type": "string"}
+				}
+			}
+		}
+	}`)
+	plan := ProtocolTypePlan{Types: []TypePlan{{
+		Kind:       TypePlanObjectStructCandidate,
+		Schema:     schema,
+		SchemaPath: "v2/TurnStartParams.json",
+		Stability:  "stable",
+		TypeName:   "TurnStartParams",
+	}}}
+
+	selected, err := SelectFirstPassGeneratedTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selectedNames := map[string]bool{}
+	for _, typ := range selected {
+		selectedNames[typ.TypeName] = true
+	}
+	if !selectedNames["TurnToolOutput"] {
+		t.Fatalf("selected turn start dependencies %v do not include TurnToolOutput", selectedNames)
+	}
+}
+
+func TestResponseUsageMetadataKeepsRawResponseCompletedNotificationGenerated(t *testing.T) {
+	schema := mustParseSchema(t, `{
+		"definitions": {
+			"ResponseUsageMetadata": {
+				"type": "object",
+				"properties": {"amount": {"type": ["string", "null"]}}
+			}
+		}
+	}`)
+	plan := ProtocolTypePlan{Types: []TypePlan{{
+		Fields: []FieldPlan{{
+			FieldName:       "usageMetadata",
+			GoType:          "*protocolv2.Nullable[ResponseUsageMetadata]",
+			Kind:            FieldPlanNullableRef,
+			Path:            "v2/RawResponseCompletedNotification.json#/properties/usageMetadata",
+			RefPath:         "v2/RawResponseCompletedNotification.json#/definitions/ResponseUsageMetadata",
+			Required:        false,
+			SchemaPath:      "v2/RawResponseCompletedNotification.json",
+			Stability:       "stable",
+			TypeName:        "RawResponseCompletedNotification",
+			WireAllowsNull:  true,
+			WireOmitAllowed: true,
+		}},
+		Kind:       TypePlanObjectStructCandidate,
+		Schema:     schema,
+		SchemaPath: "v2/RawResponseCompletedNotification.json",
+		Stability:  "stable",
+		TypeName:   "RawResponseCompletedNotification",
+	}}}
+
+	selected, err := SelectFirstPassGeneratedTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selectedNames := map[string]bool{}
+	for _, typ := range selected {
+		selectedNames[typ.TypeName] = true
+	}
+	for _, name := range []string{"RawResponseCompletedNotification", "ResponseUsageMetadata"} {
+		if !selectedNames[name] {
+			t.Fatalf("selected raw response types %v do not include %s", selectedNames, name)
+		}
+	}
+}
+
 func TestSelectFirstPassGeneratedTypesIncludesReviewedAutoReviewRequirements(t *testing.T) {
 	schema := mustParseSchema(t, `{
 		"definitions": {
