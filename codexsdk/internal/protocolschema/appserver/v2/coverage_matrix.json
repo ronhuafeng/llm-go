@@ -1770,6 +1770,58 @@
       "type": "AppsReadResponse"
     },
     {
+      "exit_condition": "Regenerate if upstream schema drift changes AuthRecoveryNotification.message semantics.",
+      "field": "message",
+      "owner": "codex-go-sdk",
+      "path": "v2/AuthRecoveryNotification.json#/properties/message",
+      "reason": "Generated as a strict typed AuthRecoveryNotification field.",
+      "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/AuthRecoveryNotification.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "AuthRecoveryNotification"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes AuthRecoveryNotification.provider semantics.",
+      "field": "provider",
+      "owner": "codex-go-sdk",
+      "path": "v2/AuthRecoveryNotification.json#/properties/provider",
+      "reason": "Generated as a strict typed AuthRecoveryNotification field.",
+      "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/AuthRecoveryNotification.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "AuthRecoveryNotification"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes AuthRecoveryNotification.threadId semantics.",
+      "field": "threadId",
+      "owner": "codex-go-sdk",
+      "path": "v2/AuthRecoveryNotification.json#/properties/threadId",
+      "reason": "Generated as a strict typed AuthRecoveryNotification field.",
+      "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/AuthRecoveryNotification.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "AuthRecoveryNotification"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes AuthRecoveryNotification.turnId semantics.",
+      "field": "turnId",
+      "owner": "codex-go-sdk",
+      "path": "v2/AuthRecoveryNotification.json#/properties/turnId",
+      "reason": "Generated as a strict typed AuthRecoveryNotification field.",
+      "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/AuthRecoveryNotification.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "AuthRecoveryNotification"
+    },
+    {
       "exit_condition": "Regenerate if upstream schema drift changes BedrockDiscoverResponse.environmentCredentials semantics.",
       "field": "environmentCredentials",
       "owner": "codex-go-sdk",
@@ -3746,10 +3798,36 @@
       "type": "GetAccountParams"
     },
     {
+      "exit_condition": "Regenerate if upstream schema drift changes GetAccountRateLimitsResponse.accountId semantics.",
+      "field": "accountId",
+      "owner": "codex-go-sdk",
+      "path": "v2/GetAccountRateLimitsResponse.json#/properties/accountId",
+      "reason": "Generated as a strict typed GetAccountRateLimitsResponse field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/GetAccountRateLimitsResponse.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "GetAccountRateLimitsResponse"
+    },
+    {
       "exit_condition": "Regenerate if upstream schema drift changes GetAccountRateLimitsResponse.rateLimitResetCredits semantics.",
       "field": "rateLimitResetCredits",
       "owner": "codex-go-sdk",
       "path": "v2/GetAccountRateLimitsResponse.json#/properties/rateLimitResetCredits",
+      "reason": "Generated as a strict typed GetAccountRateLimitsResponse field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/GetAccountRateLimitsResponse.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "GetAccountRateLimitsResponse"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes GetAccountRateLimitsResponse.rateLimitUpsell semantics.",
+      "field": "rateLimitUpsell",
+      "owner": "codex-go-sdk",
+      "path": "v2/GetAccountRateLimitsResponse.json#/properties/rateLimitUpsell",
       "reason": "Generated as a strict typed GetAccountRateLimitsResponse field.",
       "required": false,
       "revisit_trigger": "protocolv2 generation or upstream schema drift",
@@ -6818,6 +6896,32 @@
       "field": "limit",
       "owner": "codex-go-sdk",
       "path": "v2/ProjectListParams.json#/properties/limit",
+      "reason": "Generated as a strict typed ProjectListParams field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ProjectListParams.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "ProjectListParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes ProjectListParams.sortDirection semantics.",
+      "field": "sortDirection",
+      "owner": "codex-go-sdk",
+      "path": "v2/ProjectListParams.json#/properties/sortDirection",
+      "reason": "Generated as a strict typed ProjectListParams field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ProjectListParams.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "ProjectListParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes ProjectListParams.sortKey semantics.",
+      "field": "sortKey",
+      "owner": "codex-go-sdk",
+      "path": "v2/ProjectListParams.json#/properties/sortKey",
       "reason": "Generated as a strict typed ProjectListParams field.",
       "required": false,
       "revisit_trigger": "protocolv2 generation or upstream schema drift",
@@ -11689,6 +11793,19 @@
       "type": "ThreadShellCommandParams"
     },
     {
+      "exit_condition": "Regenerate if upstream schema drift changes ThreadShellCommandParams.timeoutMs semantics.",
+      "field": "timeoutMs",
+      "owner": "codex-go-sdk",
+      "path": "v2/ThreadShellCommandParams.json#/properties/timeoutMs",
+      "reason": "Generated as a strict typed ThreadShellCommandParams field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadShellCommandParams.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "ThreadShellCommandParams"
+    },
+    {
       "exit_condition": "Regenerate if upstream schema drift changes ThreadStartParams.allowProviderModelFallback semantics.",
       "field": "allowProviderModelFallback",
       "owner": "codex-go-sdk",
@@ -14714,6 +14831,30 @@
       "status": "supported-generated"
     },
     {
+      "direction": "server_to_client",
+      "exit_condition": "Regenerate method registry and add handwritten facade coverage only if this upstream method becomes part of the public SDK surface.",
+      "kind": "notification",
+      "method": "modelProvider/authRecoveryCompleted",
+      "owner": "codex-go-sdk",
+      "reason": "Generated protocolv2 method registry coverage for server_to_client notification method; no handwritten facade is claimed until explicitly added.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "source_schema": "ServerNotification.json",
+      "stability": "stable",
+      "status": "supported-generated"
+    },
+    {
+      "direction": "server_to_client",
+      "exit_condition": "Regenerate method registry and add handwritten facade coverage only if this upstream method becomes part of the public SDK surface.",
+      "kind": "notification",
+      "method": "modelProvider/authRecoveryStarted",
+      "owner": "codex-go-sdk",
+      "reason": "Generated protocolv2 method registry coverage for server_to_client notification method; no handwritten facade is claimed until explicitly added.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "source_schema": "ServerNotification.json",
+      "stability": "stable",
+      "status": "supported-generated"
+    },
+    {
       "direction": "client_to_server",
       "exit_condition": "Implement the corresponding typed model protocol-family facade/dispatch path, or explicitly classify the method as intentionally unsupported.",
       "kind": "request",
@@ -16916,6 +17057,16 @@
       "stability": "stable",
       "status": "supported-generated",
       "type": "AppsReadResponse"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes this generated protocol type.",
+      "owner": "codex-go-sdk",
+      "reason": "Generated from the checked-in upstream app-server schema baseline.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/AuthRecoveryNotification.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "AuthRecoveryNotification"
     },
     {
       "exit_condition": "Regenerate if upstream schema drift changes this generated protocol type.",

@@ -3,13 +3,13 @@
   "comparison_mode": "canonical-json",
   "target": {
     "source_repo": "https://github.com/openai/codex",
-    "source_ref_name": "rust-v0.151.0",
+    "source_ref_name": "rust-v0.152.1",
     "source_ref_kind": "stable_rust_tag",
-    "source_commit": "78c290807ce710180111df227df3b7a4fe845452",
-    "codex_version": "codex-cli 0.151.0",
+    "source_commit": "5adb68a49933ae446bf11935662c83dba55a0804",
+    "codex_version": "codex-cli 0.152.1",
     "generator": "cargo",
     "generator_detail": "codex app-server generate-json-schema --experimental --out internal/protocolschema/appserver/v2",
-    "schema_bundle_sha256": "a89f9204e98d2c930a36ed47d4d6b725264234375a4d9a50d91cd04b1a88515a",
+    "schema_bundle_sha256": "a433af17220618658e151c5f18f224eb0eff42f7a219e090b5705424919dbbcf",
     "canonical_json_note": "Schema comparisons use canonical JSON; object member ordering is irrelevant."
   },
   "file_diff": {
@@ -43,195 +43,45 @@
     "added": [
       {
         "kind": "field",
-        "name": "TurnStartParams.AdditionalContext",
-        "classification": "experimental",
-        "signature": "*Nullable[map[string]AdditionalContextEntry] `json:\"additionalContext,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.ApprovalPolicy",
+        "name": "GetAccountRateLimitsResponse.AccountID",
         "classification": "stable",
-        "signature": "*Nullable[AskForApproval] `json:\"approvalPolicy,omitempty\"`"
+        "signature": "*Nullable[string] `json:\"accountId,omitempty\"`"
       },
       {
         "kind": "field",
-        "name": "TurnStartParams.ApprovalsReviewer",
+        "name": "GetAccountRateLimitsResponse.RateLimitResetCredits",
         "classification": "stable",
-        "signature": "*Nullable[ApprovalsReviewer] `json:\"approvalsReviewer,omitempty\"`"
+        "signature": "*Nullable[RateLimitResetCreditsSummary] `json:\"rateLimitResetCredits,omitempty\"`"
       },
       {
         "kind": "field",
-        "name": "TurnStartParams.CWD",
+        "name": "GetAccountRateLimitsResponse.RateLimitUpsell",
         "classification": "stable",
-        "signature": "*Nullable[string] `json:\"cwd,omitempty\"`"
+        "signature": "*JSONValue `json:\"rateLimitUpsell,omitempty\"`"
       },
       {
         "kind": "field",
-        "name": "TurnStartParams.ClientUserMessageID",
+        "name": "GetAccountRateLimitsResponse.RateLimits",
         "classification": "stable",
-        "signature": "*Nullable[string] `json:\"clientUserMessageId,omitempty\"`"
+        "signature": "RateLimitSnapshot `json:\"rateLimits\"`"
       },
       {
         "kind": "field",
-        "name": "TurnStartParams.CollaborationMode",
-        "classification": "experimental",
-        "signature": "*Nullable[CollaborationMode] `json:\"collaborationMode,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.CyberAccessProgram",
-        "classification": "experimental",
-        "signature": "*Nullable[CyberAccessProgram] `json:\"cyberAccessProgram,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.Effort",
+        "name": "GetAccountRateLimitsResponse.RateLimitsByLimitID",
         "classification": "stable",
-        "signature": "*Nullable[ReasoningEffort] `json:\"effort,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.Environments",
-        "classification": "experimental",
-        "signature": "*Nullable[[]TurnEnvironmentParams] `json:\"environments,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.Input",
-        "classification": "stable",
-        "signature": "[]UserInput `json:\"input\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.Model",
-        "classification": "stable",
-        "signature": "*Nullable[string] `json:\"model,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.MultiAgentMode",
-        "classification": "experimental",
-        "signature": "*Nullable[MultiAgentMode] `json:\"multiAgentMode,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.OutputSchema",
-        "classification": "stable",
-        "signature": "*OutputSchema `json:\"outputSchema,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.Permissions",
-        "classification": "experimental",
-        "signature": "*Nullable[string] `json:\"permissions,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.Personality",
-        "classification": "stable",
-        "signature": "*Nullable[Personality] `json:\"personality,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.ResponsesapiClientMetadata",
-        "classification": "experimental",
-        "signature": "*Nullable[map[string]string] `json:\"responsesapiClientMetadata,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.RuntimeWorkspaceRoots",
-        "classification": "experimental",
-        "signature": "*Nullable[[]string] `json:\"runtimeWorkspaceRoots,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.SandboxPolicy",
-        "classification": "stable",
-        "signature": "*Nullable[SandboxPolicy] `json:\"sandboxPolicy,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.ServiceTier",
-        "classification": "stable",
-        "signature": "*Nullable[string] `json:\"serviceTier,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.ServiceTierForTurn",
-        "classification": "stable",
-        "signature": "*Nullable[string] `json:\"serviceTierForTurn,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.Summary",
-        "classification": "stable",
-        "signature": "*Nullable[ReasoningSummary] `json:\"summary,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.ThreadID",
-        "classification": "stable",
-        "signature": "string `json:\"threadId\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.ToolOutput",
-        "classification": "stable",
-        "signature": "*Nullable[TurnToolOutput] `json:\"toolOutput,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.TurnTrigger",
-        "classification": "stable",
-        "signature": "*Nullable[string] `json:\"turnTrigger,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnToolOutput.Name",
-        "classification": "stable",
-        "signature": "string `json:\"name\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnToolOutput.Namespace",
-        "classification": "stable",
-        "signature": "*Nullable[string] `json:\"namespace,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnToolOutput.Output",
-        "classification": "stable",
-        "signature": "FunctionCallOutputBody `json:\"output\"`"
+        "signature": "*Nullable[map[string]RateLimitSnapshot] `json:\"rateLimitsByLimitId,omitempty\"`"
       },
       {
         "kind": "method",
-        "name": "TurnStartParams.MarshalJSON",
-        "classification": "stable",
-        "signature": "func() ([]byte, error)"
-      },
-      {
-        "kind": "method",
-        "name": "TurnStartParams.UnmarshalJSON",
-        "classification": "stable",
-        "signature": "func(data []byte) error"
-      },
-      {
-        "kind": "method",
-        "name": "TurnToolOutput.UnmarshalJSON",
+        "name": "GetAccountRateLimitsResponse.UnmarshalJSON",
         "classification": "stable",
         "signature": "func(data []byte) error"
       },
       {
         "kind": "type",
-        "name": "TurnStartParams",
-        "classification": "mixed",
-        "signature": "struct {\n\tAdditionalContext          *Nullable[map[string]AdditionalContextEntry] `json:\"additionalContext,omitempty\"`\n\tApprovalPolicy             *Nullable[AskForApproval]                    `json:\"approvalPolicy,omitempty\"`\n\tApprovalsReviewer          *Nullable[ApprovalsReviewer]                 `json:\"approvalsReviewer,omitempty\"`\n\tClientUserMessageID        *Nullable[string]                            `json:\"clientUserMessageId,omitempty\"`\n\tCollaborationMode          *Nullable[CollaborationMode]                 `json:\"collaborationMode,omitempty\"`\n\tCWD                        *Nullable[string]                            `json:\"cwd,omitempty\"`\n\tCyberAccessProgram         *Nullable[CyberAccessProgram]                `json:\"cyberAccessProgram,omitempty\"`\n\tEffort                     *Nullable[ReasoningEffort]                   `json:\"effort,omitempty\"`\n\tEnvironments               *Nullable[[]TurnEnvironmentParams]           `json:\"environments,omitempty\"`\n\tInput                      []UserInput                                  `json:\"input\"`\n\tModel                      *Nullable[string]                            `json:\"model,omitempty\"`\n\tMultiAgentMode             *Nullable[MultiAgentMode]                    `json:\"multiAgentMode,omitempty\"`\n\tOutputSchema               *OutputSchema                                `json:\"outputSchema,omitempty\"`\n\tPermissions                *Nullable[string]                            `json:\"permissions,omitempty\"`\n\tPersonality                *Nullable[Personality]                       `json:\"personality,omitempty\"`\n\tResponsesapiClientMetadata *Nullable[map[string]string]                 `json:\"responsesapiClientMetadata,omitempty\"`\n\tRuntimeWorkspaceRoots      *Nullable[[]string]                          `json:\"runtimeWorkspaceRoots,omitempty\"`\n\tSandboxPolicy              *Nullable[SandboxPolicy]                     `json:\"sandboxPolicy,omitempty\"`\n\tServiceTier                *Nullable[string]                            `json:\"serviceTier,omitempty\"`\n\tServiceTierForTurn         *Nullable[string]                            `json:\"serviceTierForTurn,omitempty\"`\n\tSummary                    *Nullable[ReasoningSummary]                  `json:\"summary,omitempty\"`\n\tThreadID                   string                                       `json:\"threadId\"`\n\tToolOutput                 *Nullable[TurnToolOutput]                    `json:\"toolOutput,omitempty\"`\n\tTurnTrigger                *Nullable[string]                            `json:\"turnTrigger,omitempty\"`\n}"
-      },
-      {
-        "kind": "type",
-        "name": "TurnToolOutput",
+        "name": "GetAccountRateLimitsResponse",
         "classification": "stable",
-        "signature": "struct {\n\tName      string                 `json:\"name\"`\n\tNamespace *Nullable[string]      `json:\"namespace,omitempty\"`\n\tOutput    FunctionCallOutputBody `json:\"output\"`\n}"
+        "signature": "struct {\n\tAccountID             *Nullable[string]                       `json:\"accountId,omitempty\"`\n\tRateLimitResetCredits *Nullable[RateLimitResetCreditsSummary] `json:\"rateLimitResetCredits,omitempty\"`\n\tRateLimitUpsell       *JSONValue                              `json:\"rateLimitUpsell,omitempty\"`\n\tRateLimits            RateLimitSnapshot                       `json:\"rateLimits\"`\n\tRateLimitsByLimitID   *Nullable[map[string]RateLimitSnapshot] `json:\"rateLimitsByLimitId,omitempty\"`\n}"
       }
     ],
     "removed": [],
@@ -242,21 +92,21 @@
     "strengthened_support": [],
     "counts_by_classification": {
       "stable": {
-        "added": 23,
+        "added": 7,
         "removed": 0,
         "changed": 0,
         "reclassified_from": 0,
         "reclassified_to": 0
       },
       "experimental": {
-        "added": 8,
+        "added": 0,
         "removed": 0,
         "changed": 0,
         "reclassified_from": 0,
         "reclassified_to": 0
       },
       "mixed": {
-        "added": 1,
+        "added": 0,
         "removed": 0,
         "changed": 0,
         "reclassified_from": 0,

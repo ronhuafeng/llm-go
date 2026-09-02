@@ -4739,6 +4739,44 @@ func (value *ProjectChangeType) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+type ProjectSortKey string
+
+const (
+	ProjectSortKeyPosition  ProjectSortKey = "position"
+	ProjectSortKeyRecencyAt ProjectSortKey = "recencyAt"
+)
+
+func (value ProjectSortKey) IsValid() bool {
+	switch value {
+	case ProjectSortKeyPosition:
+		return true
+	case ProjectSortKeyRecencyAt:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value ProjectSortKey) MarshalJSON() ([]byte, error) {
+	if !value.IsValid() {
+		return nil, invalidEnumValue("ProjectSortKey", string(value))
+	}
+	return json.Marshal(string(value))
+}
+
+func (value *ProjectSortKey) UnmarshalJSON(data []byte) error {
+	var raw string
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	parsed := ProjectSortKey(raw)
+	if !parsed.IsValid() {
+		return invalidEnumValue("ProjectSortKey", raw)
+	}
+	*value = parsed
+	return nil
+}
+
 type RateLimitReachedType string
 
 const (
@@ -7822,6 +7860,58 @@ func (value *AttestationGenerateResponse) unmarshalJSON(data []byte, mode wireDe
 		return missingRequiredField("AttestationGenerateResponse.token")
 	}
 	if err := rejectUnexpectedFieldsForMode(fields, "AttestationGenerateResponse", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type AuthRecoveryNotification struct {
+	Message  string `json:"message"`
+	Provider string `json:"provider"`
+	ThreadID string `json:"threadId"`
+	TurnID   string `json:"turnId"`
+}
+
+func (value *AuthRecoveryNotification) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *AuthRecoveryNotification) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "AuthRecoveryNotification")
+	if err != nil {
+		return err
+	}
+	var decoded AuthRecoveryNotification
+	seenMessage, err := decodeJSONField(fields, "message", "AuthRecoveryNotification.message", false, mode, decodeWireValue[string], &decoded.Message)
+	if err != nil {
+		return err
+	}
+	if !seenMessage {
+		return missingRequiredField("AuthRecoveryNotification.message")
+	}
+	seenProvider, err := decodeJSONField(fields, "provider", "AuthRecoveryNotification.provider", false, mode, decodeWireValue[string], &decoded.Provider)
+	if err != nil {
+		return err
+	}
+	if !seenProvider {
+		return missingRequiredField("AuthRecoveryNotification.provider")
+	}
+	seenThreadID, err := decodeJSONField(fields, "threadId", "AuthRecoveryNotification.threadId", false, mode, decodeWireValue[string], &decoded.ThreadID)
+	if err != nil {
+		return err
+	}
+	if !seenThreadID {
+		return missingRequiredField("AuthRecoveryNotification.threadId")
+	}
+	seenTurnID, err := decodeJSONField(fields, "turnId", "AuthRecoveryNotification.turnId", false, mode, decodeWireValue[string], &decoded.TurnID)
+	if err != nil {
+		return err
+	}
+	if !seenTurnID {
+		return missingRequiredField("AuthRecoveryNotification.turnId")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "AuthRecoveryNotification", mode); err != nil {
 		return err
 	}
 	*value = decoded
@@ -13630,7 +13720,9 @@ func (value *GetAccountParams) unmarshalJSON(data []byte, mode wireDecodeMode) e
 }
 
 type GetAccountRateLimitsResponse struct {
+	AccountID             *Nullable[string]                       `json:"accountId,omitempty"`
 	RateLimitResetCredits *Nullable[RateLimitResetCreditsSummary] `json:"rateLimitResetCredits,omitempty"`
+	RateLimitUpsell       *JSONValue                              `json:"rateLimitUpsell,omitempty"`
 	RateLimits            RateLimitSnapshot                       `json:"rateLimits"`
 	RateLimitsByLimitID   *Nullable[map[string]RateLimitSnapshot] `json:"rateLimitsByLimitId,omitempty"`
 }
@@ -13645,7 +13737,15 @@ func (value *GetAccountRateLimitsResponse) unmarshalJSON(data []byte, mode wireD
 		return err
 	}
 	var decoded GetAccountRateLimitsResponse
+	_, err = decodeNullableJSONField[string](fields, "accountId", "GetAccountRateLimitsResponse.accountId", mode, decodeWireValue[string], &decoded.AccountID)
+	if err != nil {
+		return err
+	}
 	_, err = decodeNullableJSONField[RateLimitResetCreditsSummary](fields, "rateLimitResetCredits", "GetAccountRateLimitsResponse.rateLimitResetCredits", mode, decodeWireValue[RateLimitResetCreditsSummary], &decoded.RateLimitResetCredits)
+	if err != nil {
+		return err
+	}
+	_, err = decodeOptionalJSONValueField(fields, "rateLimitUpsell", "GetAccountRateLimitsResponse.rateLimitUpsell", &decoded.RateLimitUpsell)
 	if err != nil {
 		return err
 	}
@@ -20013,6 +20113,7 @@ type Project struct {
 	Metadata  map[string]string `json:"metadata"`
 	Name      string            `json:"name"`
 	Position  int64             `json:"position"`
+	RecencyAt *Nullable[int64]  `json:"recencyAt,omitempty"`
 	Roots     []ProjectRoot     `json:"roots"`
 	UpdatedAt int64             `json:"updatedAt"`
 }
@@ -20072,6 +20173,10 @@ func (value *Project) unmarshalJSON(data []byte, mode wireDecodeMode) error {
 	}
 	if !seenPosition {
 		return missingRequiredField("Project.position")
+	}
+	_, err = decodeNullableJSONField[int64](fields, "recencyAt", "Project.recencyAt", mode, decodeWireValue[int64], &decoded.RecencyAt)
+	if err != nil {
+		return err
 	}
 	seenRoots, err := decodeJSONField(fields, "roots", "Project.roots", false, mode, wireSliceDecoder(decodeWireValue[ProjectRoot]), &decoded.Roots)
 	if err != nil {
@@ -20352,8 +20457,10 @@ func (value *ProjectImportResponse) unmarshalJSON(data []byte, mode wireDecodeMo
 }
 
 type ProjectListParams struct {
-	Cursor *Nullable[string] `json:"cursor,omitempty"`
-	Limit  *Nullable[uint32] `json:"limit,omitempty"`
+	Cursor        *Nullable[string]         `json:"cursor,omitempty"`
+	Limit         *Nullable[uint32]         `json:"limit,omitempty"`
+	SortDirection *Nullable[SortDirection]  `json:"sortDirection,omitempty"`
+	SortKey       *Nullable[ProjectSortKey] `json:"sortKey,omitempty"`
 }
 
 func (value *ProjectListParams) UnmarshalJSON(data []byte) error {
@@ -20371,6 +20478,14 @@ func (value *ProjectListParams) unmarshalJSON(data []byte, mode wireDecodeMode) 
 		return err
 	}
 	_, err = decodeNullableJSONField[uint32](fields, "limit", "ProjectListParams.limit", mode, decodeWireValue[uint32], &decoded.Limit)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[SortDirection](fields, "sortDirection", "ProjectListParams.sortDirection", mode, decodeWireValue[SortDirection], &decoded.SortDirection)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[ProjectSortKey](fields, "sortKey", "ProjectListParams.sortKey", mode, decodeWireValue[ProjectSortKey], &decoded.SortKey)
 	if err != nil {
 		return err
 	}
@@ -27980,8 +28095,9 @@ func (value *ThreadSettingsUpdatedNotification) unmarshalJSON(data []byte, mode 
 }
 
 type ThreadShellCommandParams struct {
-	Command  string `json:"command"`
-	ThreadID string `json:"threadId"`
+	Command   string           `json:"command"`
+	ThreadID  string           `json:"threadId"`
+	TimeoutMS *Nullable[int64] `json:"timeoutMs,omitempty"`
 }
 
 func (value *ThreadShellCommandParams) UnmarshalJSON(data []byte) error {
@@ -28007,6 +28123,10 @@ func (value *ThreadShellCommandParams) unmarshalJSON(data []byte, mode wireDecod
 	}
 	if !seenThreadID {
 		return missingRequiredField("ThreadShellCommandParams.threadId")
+	}
+	_, err = decodeNullableJSONField[int64](fields, "timeoutMs", "ThreadShellCommandParams.timeoutMs", mode, decodeWireValue[int64], &decoded.TimeoutMS)
+	if err != nil {
+		return err
 	}
 	if err := rejectUnexpectedFieldsForMode(fields, "ThreadShellCommandParams", mode); err != nil {
 		return err
@@ -49009,6 +49129,8 @@ const (
 	ServerNotificationKindThreadCompacted                         ServerNotificationKind = "thread/compacted"
 	ServerNotificationKindModelRerouted                           ServerNotificationKind = "model/rerouted"
 	ServerNotificationKindModelVerification                       ServerNotificationKind = "model/verification"
+	ServerNotificationKindModelProviderAuthRecoveryStarted        ServerNotificationKind = "modelProvider/authRecoveryStarted"
+	ServerNotificationKindModelProviderAuthRecoveryCompleted      ServerNotificationKind = "modelProvider/authRecoveryCompleted"
 	ServerNotificationKindTurnModerationMetadata                  ServerNotificationKind = "turn/moderationMetadata"
 	ServerNotificationKindModelSafetyBufferingUpdated             ServerNotificationKind = "model/safetyBuffering/updated"
 	ServerNotificationKindWarning                                 ServerNotificationKind = "warning"
@@ -49092,6 +49214,8 @@ type ServerNotification struct {
 	variantThreadCompacted                         *ServerNotificationThreadCompacted
 	variantModelRerouted                           *ServerNotificationModelRerouted
 	variantModelVerification                       *ServerNotificationModelVerification
+	variantModelProviderAuthRecoveryStarted        *ServerNotificationModelProviderAuthRecoveryStarted
+	variantModelProviderAuthRecoveryCompleted      *ServerNotificationModelProviderAuthRecoveryCompleted
 	variantTurnModerationMetadata                  *ServerNotificationTurnModerationMetadata
 	variantModelSafetyBufferingUpdated             *ServerNotificationModelSafetyBufferingUpdated
 	variantWarning                                 *ServerNotificationWarning
@@ -49342,6 +49466,14 @@ type ServerNotificationModelRerouted struct {
 
 type ServerNotificationModelVerification struct {
 	Params ModelVerificationNotification `json:"params"`
+}
+
+type ServerNotificationModelProviderAuthRecoveryStarted struct {
+	Params AuthRecoveryNotification `json:"params"`
+}
+
+type ServerNotificationModelProviderAuthRecoveryCompleted struct {
+	Params AuthRecoveryNotification `json:"params"`
 }
 
 type ServerNotificationTurnModerationMetadata struct {
@@ -49660,6 +49792,14 @@ func NewServerNotificationModelVerification(payload ServerNotificationModelVerif
 	return ServerNotification{kind: ServerNotificationKindModelVerification, variantModelVerification: &payload}
 }
 
+func NewServerNotificationModelProviderAuthRecoveryStarted(payload ServerNotificationModelProviderAuthRecoveryStarted) ServerNotification {
+	return ServerNotification{kind: ServerNotificationKindModelProviderAuthRecoveryStarted, variantModelProviderAuthRecoveryStarted: &payload}
+}
+
+func NewServerNotificationModelProviderAuthRecoveryCompleted(payload ServerNotificationModelProviderAuthRecoveryCompleted) ServerNotification {
+	return ServerNotification{kind: ServerNotificationKindModelProviderAuthRecoveryCompleted, variantModelProviderAuthRecoveryCompleted: &payload}
+}
+
 func NewServerNotificationTurnModerationMetadata(payload ServerNotificationTurnModerationMetadata) ServerNotification {
 	return ServerNotification{kind: ServerNotificationKindTurnModerationMetadata, variantTurnModerationMetadata: &payload}
 }
@@ -49868,6 +50008,10 @@ func (value ServerNotification) IsValid() bool {
 		return value.variantModelRerouted != nil
 	case ServerNotificationKindModelVerification:
 		return value.variantModelVerification != nil
+	case ServerNotificationKindModelProviderAuthRecoveryStarted:
+		return value.variantModelProviderAuthRecoveryStarted != nil
+	case ServerNotificationKindModelProviderAuthRecoveryCompleted:
+		return value.variantModelProviderAuthRecoveryCompleted != nil
 	case ServerNotificationKindTurnModerationMetadata:
 		return value.variantTurnModerationMetadata != nil
 	case ServerNotificationKindModelSafetyBufferingUpdated:
@@ -50314,6 +50458,20 @@ func (value ServerNotification) AsModelVerification() (ServerNotificationModelVe
 		return ServerNotificationModelVerification{}, false
 	}
 	return *value.variantModelVerification, true
+}
+
+func (value ServerNotification) AsModelProviderAuthRecoveryStarted() (ServerNotificationModelProviderAuthRecoveryStarted, bool) {
+	if value.kind != ServerNotificationKindModelProviderAuthRecoveryStarted || value.variantModelProviderAuthRecoveryStarted == nil {
+		return ServerNotificationModelProviderAuthRecoveryStarted{}, false
+	}
+	return *value.variantModelProviderAuthRecoveryStarted, true
+}
+
+func (value ServerNotification) AsModelProviderAuthRecoveryCompleted() (ServerNotificationModelProviderAuthRecoveryCompleted, bool) {
+	if value.kind != ServerNotificationKindModelProviderAuthRecoveryCompleted || value.variantModelProviderAuthRecoveryCompleted == nil {
+		return ServerNotificationModelProviderAuthRecoveryCompleted{}, false
+	}
+	return *value.variantModelProviderAuthRecoveryCompleted, true
 }
 
 func (value ServerNotification) AsTurnModerationMetadata() (ServerNotificationTurnModerationMetadata, bool) {
@@ -51098,6 +51256,28 @@ func (value ServerNotification) MarshalJSON() ([]byte, error) {
 		}{
 			Method: "model/verification",
 			Params: value.variantModelVerification.Params,
+		})
+	case ServerNotificationKindModelProviderAuthRecoveryStarted:
+		if value.variantModelProviderAuthRecoveryStarted == nil {
+			return nil, invalidUnionVariant("ServerNotification", "modelProvider/authRecoveryStarted")
+		}
+		return json.Marshal(struct {
+			Method string                   `json:"method"`
+			Params AuthRecoveryNotification `json:"params"`
+		}{
+			Method: "modelProvider/authRecoveryStarted",
+			Params: value.variantModelProviderAuthRecoveryStarted.Params,
+		})
+	case ServerNotificationKindModelProviderAuthRecoveryCompleted:
+		if value.variantModelProviderAuthRecoveryCompleted == nil {
+			return nil, invalidUnionVariant("ServerNotification", "modelProvider/authRecoveryCompleted")
+		}
+		return json.Marshal(struct {
+			Method string                   `json:"method"`
+			Params AuthRecoveryNotification `json:"params"`
+		}{
+			Method: "modelProvider/authRecoveryCompleted",
+			Params: value.variantModelProviderAuthRecoveryCompleted.Params,
 		})
 	case ServerNotificationKindTurnModerationMetadata:
 		if value.variantTurnModerationMetadata == nil {
@@ -52157,6 +52337,34 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 			return err
 		}
 		*value = ServerNotification{kind: ServerNotificationKindModelVerification, variantModelVerification: &decoded}
+		return nil
+	case "modelProvider/authRecoveryStarted":
+		var decoded ServerNotificationModelProviderAuthRecoveryStarted
+		seenParams, err := decodeJSONField(fields, "params", "ServerNotification.params", false, mode, decodeWireValue[AuthRecoveryNotification], &decoded.Params)
+		if err != nil {
+			return err
+		}
+		if !seenParams {
+			return missingRequiredField("ServerNotification.params")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.modelProvider/authRecoveryStarted", mode); err != nil {
+			return err
+		}
+		*value = ServerNotification{kind: ServerNotificationKindModelProviderAuthRecoveryStarted, variantModelProviderAuthRecoveryStarted: &decoded}
+		return nil
+	case "modelProvider/authRecoveryCompleted":
+		var decoded ServerNotificationModelProviderAuthRecoveryCompleted
+		seenParams, err := decodeJSONField(fields, "params", "ServerNotification.params", false, mode, decodeWireValue[AuthRecoveryNotification], &decoded.Params)
+		if err != nil {
+			return err
+		}
+		if !seenParams {
+			return missingRequiredField("ServerNotification.params")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.modelProvider/authRecoveryCompleted", mode); err != nil {
+			return err
+		}
+		*value = ServerNotification{kind: ServerNotificationKindModelProviderAuthRecoveryCompleted, variantModelProviderAuthRecoveryCompleted: &decoded}
 		return nil
 	case "turn/moderationMetadata":
 		var decoded ServerNotificationTurnModerationMetadata

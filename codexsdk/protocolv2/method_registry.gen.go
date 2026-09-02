@@ -152,6 +152,8 @@ const (
 	MethodModelRerouted                           = "model/rerouted"
 	MethodModelSafetyBufferingUpdated             = "model/safetyBuffering/updated"
 	MethodModelVerification                       = "model/verification"
+	MethodModelProviderAuthRecoveryCompleted      = "modelProvider/authRecoveryCompleted"
+	MethodModelProviderAuthRecoveryStarted        = "modelProvider/authRecoveryStarted"
 	MethodModelProviderCapabilitiesRead           = "modelProvider/capabilities/read"
 	MethodPermissionProfileList                   = "permissionProfile/list"
 	MethodPluginInstall                           = "plugin/install"
@@ -1498,6 +1500,28 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchema:        "",
 		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
 		FacadeTarget:          "ServerNotifications().ModelVerification",
+		Stability:             MethodStabilityStable,
+	},
+	MethodModelProviderAuthRecoveryCompleted: {
+		Method:                MethodModelProviderAuthRecoveryCompleted,
+		Direction:             MethodDirectionServerToClient,
+		Kind:                  MethodKindNotification,
+		Family:                "modelProvider",
+		ParamsOrPayloadSchema: "AuthRecoveryNotification",
+		ResponseSchema:        "",
+		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
+		FacadeTarget:          "ServerNotifications().ModelProviderAuthRecoveryCompleted",
+		Stability:             MethodStabilityStable,
+	},
+	MethodModelProviderAuthRecoveryStarted: {
+		Method:                MethodModelProviderAuthRecoveryStarted,
+		Direction:             MethodDirectionServerToClient,
+		Kind:                  MethodKindNotification,
+		Family:                "modelProvider",
+		ParamsOrPayloadSchema: "AuthRecoveryNotification",
+		ResponseSchema:        "",
+		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
+		FacadeTarget:          "ServerNotifications().ModelProviderAuthRecoveryStarted",
 		Stability:             MethodStabilityStable,
 	},
 	MethodModelProviderCapabilitiesRead: {
