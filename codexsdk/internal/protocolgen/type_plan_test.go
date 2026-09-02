@@ -284,6 +284,40 @@ func TestFieldPlannerSupportsOnlyReviewedDynamicToolArgumentsJSON(t *testing.T) 
 	}
 }
 
+func TestFieldPlannerPreservesReviewedDescriptionOnlyJSONValue(t *testing.T) {
+	schema := &Schema{Description: "Backend-owned value whose nested shape is not specified."}
+	reviewed := CoverageField{
+		Field:     "rateLimitUpsell",
+		Path:      "v2/GetAccountRateLimitsResponse.json#/properties/rateLimitUpsell",
+		Required:  false,
+		Schema:    "v2/GetAccountRateLimitsResponse.json",
+		Stability: "stable",
+		Status:    "supported-generated",
+		Type:      "GetAccountRateLimitsResponse",
+	}
+
+	field, err := planField(reviewed, schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if field.Kind != FieldPlanJSONValue || field.GoType != "*protocolv2.JSONValue" {
+		t.Fatalf("reviewed description-only value = kind %s GoType %q, want optional JSON value", field.Kind, field.GoType)
+	}
+	if !field.WireOmitAllowed || !field.WireAllowsNull {
+		t.Fatal("reviewed description-only JSON value must preserve absent, null, and concrete values")
+	}
+
+	unreviewed := reviewed
+	unreviewed.Path = "Example.json#/properties/rateLimitUpsell"
+	field, err = planField(unreviewed, schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if field.Kind != FieldPlanDescriptionOnly {
+		t.Fatalf("unreviewed description-only value kind = %s, want deferred", field.Kind)
+	}
+}
+
 func TestArrayPlannerSupportsOnlyReviewedNullableJSONValueArrays(t *testing.T) {
 	trueSchema := true
 	schema := &Schema{

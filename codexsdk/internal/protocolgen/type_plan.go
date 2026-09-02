@@ -679,6 +679,15 @@ func overlayFieldPlan(plan FieldPlan, schema *Schema) (FieldPlan, bool, error) {
 		plan.GoType = optionalGoType(plan.Required, "protocolv2.JSONValue")
 		plan.Reason = "reviewed protocol JsonValue carrying serialized GuardianAssessmentEvent"
 		return plan, true, nil
+	case plan.Path == "v2/GetAccountRateLimitsResponse.json#/properties/rateLimitUpsell":
+		if !isDescriptionOnlySchema(schema) {
+			return FieldPlan{}, true, fmt.Errorf("field %s rate-limit upsell overlay no longer matches description-only JSON value schema shape", plan.Path)
+		}
+		plan.Kind = FieldPlanJSONValue
+		plan.GoType = optionalGoType(plan.Required, "protocolv2.JSONValue")
+		plan.WireAllowsNull = true
+		plan.Reason = "reviewed backend-owned rate-limit upsell JSON value"
+		return plan, true, nil
 	case plan.Path == "McpServerElicitationRequestResponse.json#/properties/_meta" ||
 		plan.Path == "McpServerElicitationRequestResponse.json#/properties/content":
 		if !isDescriptionOnlySchema(schema) {

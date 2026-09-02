@@ -75,9 +75,9 @@
     "experimental_schema_command": "codex app-server generate-json-schema --experimental --out <tmpdir>",
     "response_mapping_source": "codex-rs/app-server-protocol/src/protocol/common.rs",
     "source_repo": "https://github.com/openai/codex",
-    "source_commit": "78c290807ce710180111df227df3b7a4fe845452",
+    "source_commit": "5adb68a49933ae446bf11935662c83dba55a0804",
     "stable_schema_command": "codex app-server generate-json-schema --out <tmpdir>",
-    "source_ref_name": "rust-v0.151.0",
+    "source_ref_name": "rust-v0.152.1",
     "source_ref_kind": "stable_rust_tag"
   },
   "non_goals": [
