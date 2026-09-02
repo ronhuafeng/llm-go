@@ -2045,6 +2045,8 @@ func isGeneratedDefinitionStringEnumCheckpoint(schemaPath string, name string) b
 		default:
 			return false
 		}
+	case "v2/TurnSettingsUpdateResponse.json":
+		return name == "TurnSettingsUpdateStatus"
 	case "v2/TurnSteerParams.json":
 		return name == "AdditionalContextKind"
 	default:
@@ -2377,6 +2379,8 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 			"McpToolCallResult",
 			"MemoryCitation",
 			"MemoryCitationEntry",
+			"MisalignmentErrorDetails",
+			"MisalignmentSteer",
 			"Turn",
 			"TurnError":
 			return true
@@ -2417,7 +2421,7 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 		return name == "ThreadMetadataGitInfoUpdateParams"
 	case "v2/TurnStartParams.json":
 		switch name {
-		case "AdditionalContextEntry", "ByteRange", "CollaborationMode", "Settings", "TextElement":
+		case "AdditionalContextEntry", "ByteRange", "CollaborationMode", "Settings", "TextElement", "TurnToolOutput":
 			return true
 		default:
 			return false

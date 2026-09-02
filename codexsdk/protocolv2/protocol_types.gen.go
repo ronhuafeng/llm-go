@@ -351,6 +351,8 @@ func decodeWireProtocolValue(data []byte, target any, role wirejson.Role) error 
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleActionBearing)
 	case *TurnInterruptResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
+	case *TurnSettingsUpdateResponse:
+		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *TurnStartResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *TurnSteerResponse:
@@ -1705,6 +1707,47 @@ func (value *ConversationTextRole) UnmarshalJSON(data []byte) error {
 	parsed := ConversationTextRole(raw)
 	if !parsed.IsValid() {
 		return invalidEnumValue("ConversationTextRole", raw)
+	}
+	*value = parsed
+	return nil
+}
+
+type CyberAccessProgram string
+
+const (
+	CyberAccessProgramStandard     CyberAccessProgram = "standard"
+	CyberAccessProgramDaybreakBlue CyberAccessProgram = "daybreakBlue"
+	CyberAccessProgramDaybreakRed  CyberAccessProgram = "daybreakRed"
+)
+
+func (value CyberAccessProgram) IsValid() bool {
+	switch value {
+	case CyberAccessProgramStandard:
+		return true
+	case CyberAccessProgramDaybreakBlue:
+		return true
+	case CyberAccessProgramDaybreakRed:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value CyberAccessProgram) MarshalJSON() ([]byte, error) {
+	if !value.IsValid() {
+		return nil, invalidEnumValue("CyberAccessProgram", string(value))
+	}
+	return json.Marshal(string(value))
+}
+
+func (value *CyberAccessProgram) UnmarshalJSON(data []byte) error {
+	var raw string
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	parsed := CyberAccessProgram(raw)
+	if !parsed.IsValid() {
+		return invalidEnumValue("CyberAccessProgram", raw)
 	}
 	*value = parsed
 	return nil
@@ -5955,6 +5998,44 @@ func (value *TurnPlanStepStatus) UnmarshalJSON(data []byte) error {
 	parsed := TurnPlanStepStatus(raw)
 	if !parsed.IsValid() {
 		return invalidEnumValue("TurnPlanStepStatus", raw)
+	}
+	*value = parsed
+	return nil
+}
+
+type TurnSettingsUpdateStatus string
+
+const (
+	TurnSettingsUpdateStatusApplied           TurnSettingsUpdateStatus = "applied"
+	TurnSettingsUpdateStatusTargetUnavailable TurnSettingsUpdateStatus = "targetUnavailable"
+)
+
+func (value TurnSettingsUpdateStatus) IsValid() bool {
+	switch value {
+	case TurnSettingsUpdateStatusApplied:
+		return true
+	case TurnSettingsUpdateStatusTargetUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value TurnSettingsUpdateStatus) MarshalJSON() ([]byte, error) {
+	if !value.IsValid() {
+		return nil, invalidEnumValue("TurnSettingsUpdateStatus", string(value))
+	}
+	return json.Marshal(string(value))
+}
+
+func (value *TurnSettingsUpdateStatus) UnmarshalJSON(data []byte) error {
+	var raw string
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	parsed := TurnSettingsUpdateStatus(raw)
+	if !parsed.IsValid() {
+		return invalidEnumValue("TurnSettingsUpdateStatus", raw)
 	}
 	*value = parsed
 	return nil
@@ -16689,6 +16770,69 @@ func (value *MigrationDetails) unmarshalJSON(data []byte, mode wireDecodeMode) e
 	return nil
 }
 
+type MisalignmentErrorDetails struct {
+	DetailedExplanation *Nullable[string]            `json:"detailedExplanation,omitempty"`
+	ErrorType           *Nullable[string]            `json:"errorType,omitempty"`
+	Steer               *Nullable[MisalignmentSteer] `json:"steer,omitempty"`
+}
+
+func (value *MisalignmentErrorDetails) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *MisalignmentErrorDetails) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "MisalignmentErrorDetails")
+	if err != nil {
+		return err
+	}
+	var decoded MisalignmentErrorDetails
+	_, err = decodeNullableJSONField[string](fields, "detailedExplanation", "MisalignmentErrorDetails.detailedExplanation", mode, decodeWireValue[string], &decoded.DetailedExplanation)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[string](fields, "errorType", "MisalignmentErrorDetails.errorType", mode, decodeWireValue[string], &decoded.ErrorType)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[MisalignmentSteer](fields, "steer", "MisalignmentErrorDetails.steer", mode, decodeWireValue[MisalignmentSteer], &decoded.Steer)
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "MisalignmentErrorDetails", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type MisalignmentSteer struct {
+	Message string `json:"message"`
+}
+
+func (value *MisalignmentSteer) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *MisalignmentSteer) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "MisalignmentSteer")
+	if err != nil {
+		return err
+	}
+	var decoded MisalignmentSteer
+	seenMessage, err := decodeJSONField(fields, "message", "MisalignmentSteer.message", false, mode, decodeWireValue[string], &decoded.Message)
+	if err != nil {
+		return err
+	}
+	if !seenMessage {
+		return missingRequiredField("MisalignmentSteer.message")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "MisalignmentSteer", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
 type MockExperimentalMethodParams struct {
 	Value *Nullable[string] `json:"value,omitempty"`
 }
@@ -20733,55 +20877,6 @@ func (value *RateLimitWindow) unmarshalJSON(data []byte, mode wireDecodeMode) er
 		return err
 	}
 	if err := rejectUnexpectedFieldsForMode(fields, "RateLimitWindow", mode); err != nil {
-		return err
-	}
-	*value = decoded
-	return nil
-}
-
-type RawResponseCompletedNotification struct {
-	ResponseID string                         `json:"responseId"`
-	ThreadID   string                         `json:"threadId"`
-	TurnID     string                         `json:"turnId"`
-	Usage      *Nullable[TokenUsageBreakdown] `json:"usage,omitempty"`
-}
-
-func (value *RawResponseCompletedNotification) UnmarshalJSON(data []byte) error {
-	return value.unmarshalJSON(data, wireDecodeClosed)
-}
-
-func (value *RawResponseCompletedNotification) unmarshalJSON(data []byte, mode wireDecodeMode) error {
-	fields, err := decodeObjectFields(data, "RawResponseCompletedNotification")
-	if err != nil {
-		return err
-	}
-	var decoded RawResponseCompletedNotification
-	seenResponseID, err := decodeJSONField(fields, "responseId", "RawResponseCompletedNotification.responseId", false, mode, decodeWireValue[string], &decoded.ResponseID)
-	if err != nil {
-		return err
-	}
-	if !seenResponseID {
-		return missingRequiredField("RawResponseCompletedNotification.responseId")
-	}
-	seenThreadID, err := decodeJSONField(fields, "threadId", "RawResponseCompletedNotification.threadId", false, mode, decodeWireValue[string], &decoded.ThreadID)
-	if err != nil {
-		return err
-	}
-	if !seenThreadID {
-		return missingRequiredField("RawResponseCompletedNotification.threadId")
-	}
-	seenTurnID, err := decodeJSONField(fields, "turnId", "RawResponseCompletedNotification.turnId", false, mode, decodeWireValue[string], &decoded.TurnID)
-	if err != nil {
-		return err
-	}
-	if !seenTurnID {
-		return missingRequiredField("RawResponseCompletedNotification.turnId")
-	}
-	_, err = decodeNullableJSONField[TokenUsageBreakdown](fields, "usage", "RawResponseCompletedNotification.usage", mode, decodeWireValue[TokenUsageBreakdown], &decoded.Usage)
-	if err != nil {
-		return err
-	}
-	if err := rejectUnexpectedFieldsForMode(fields, "RawResponseCompletedNotification", mode); err != nil {
 		return err
 	}
 	*value = decoded
@@ -29210,9 +29305,10 @@ func (value *TurnEnvironmentParams) unmarshalJSON(data []byte, mode wireDecodeMo
 }
 
 type TurnError struct {
-	AdditionalDetails *Nullable[string]         `json:"additionalDetails,omitempty"`
-	CodexErrorInfo    *Nullable[CodexErrorInfo] `json:"codexErrorInfo,omitempty"`
-	Message           string                    `json:"message"`
+	AdditionalDetails *Nullable[string]                   `json:"additionalDetails,omitempty"`
+	CodexErrorInfo    *Nullable[CodexErrorInfo]           `json:"codexErrorInfo,omitempty"`
+	Message           string                              `json:"message"`
+	Misalignment      *Nullable[MisalignmentErrorDetails] `json:"misalignment,omitempty"`
 }
 
 func (value *TurnError) UnmarshalJSON(data []byte) error {
@@ -29239,6 +29335,10 @@ func (value *TurnError) unmarshalJSON(data []byte, mode wireDecodeMode) error {
 	}
 	if !seenMessage {
 		return missingRequiredField("TurnError.message")
+	}
+	_, err = decodeNullableJSONField[MisalignmentErrorDetails](fields, "misalignment", "TurnError.misalignment", mode, decodeWireValue[MisalignmentErrorDetails], &decoded.Misalignment)
+	if err != nil {
+		return err
 	}
 	if err := rejectUnexpectedFieldsForMode(fields, "TurnError", mode); err != nil {
 		return err
@@ -29438,6 +29538,90 @@ func (value *TurnPlanUpdatedNotification) unmarshalJSON(data []byte, mode wireDe
 	return nil
 }
 
+type TurnSettingsUpdateParams struct {
+	Effort      *Nullable[ReasoningEffort]  `json:"effort,omitempty"`
+	Model       *Nullable[string]           `json:"model,omitempty"`
+	ServiceTier *Nullable[string]           `json:"serviceTier,omitempty"`
+	Summary     *Nullable[ReasoningSummary] `json:"summary,omitempty"`
+	ThreadID    string                      `json:"threadId"`
+	TurnID      string                      `json:"turnId"`
+}
+
+func (value *TurnSettingsUpdateParams) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *TurnSettingsUpdateParams) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "TurnSettingsUpdateParams")
+	if err != nil {
+		return err
+	}
+	var decoded TurnSettingsUpdateParams
+	_, err = decodeNullableJSONField[ReasoningEffort](fields, "effort", "TurnSettingsUpdateParams.effort", mode, decodeWireValue[ReasoningEffort], &decoded.Effort)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[string](fields, "model", "TurnSettingsUpdateParams.model", mode, decodeWireValue[string], &decoded.Model)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[string](fields, "serviceTier", "TurnSettingsUpdateParams.serviceTier", mode, decodeWireValue[string], &decoded.ServiceTier)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[ReasoningSummary](fields, "summary", "TurnSettingsUpdateParams.summary", mode, decodeWireValue[ReasoningSummary], &decoded.Summary)
+	if err != nil {
+		return err
+	}
+	seenThreadID, err := decodeJSONField(fields, "threadId", "TurnSettingsUpdateParams.threadId", false, mode, decodeWireValue[string], &decoded.ThreadID)
+	if err != nil {
+		return err
+	}
+	if !seenThreadID {
+		return missingRequiredField("TurnSettingsUpdateParams.threadId")
+	}
+	seenTurnID, err := decodeJSONField(fields, "turnId", "TurnSettingsUpdateParams.turnId", false, mode, decodeWireValue[string], &decoded.TurnID)
+	if err != nil {
+		return err
+	}
+	if !seenTurnID {
+		return missingRequiredField("TurnSettingsUpdateParams.turnId")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "TurnSettingsUpdateParams", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type TurnSettingsUpdateResponse struct {
+	Status TurnSettingsUpdateStatus `json:"status"`
+}
+
+func (value *TurnSettingsUpdateResponse) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *TurnSettingsUpdateResponse) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "TurnSettingsUpdateResponse")
+	if err != nil {
+		return err
+	}
+	var decoded TurnSettingsUpdateResponse
+	seenStatus, err := decodeJSONField(fields, "status", "TurnSettingsUpdateResponse.status", false, mode, decodeWireValue[TurnSettingsUpdateStatus], &decoded.Status)
+	if err != nil {
+		return err
+	}
+	if !seenStatus {
+		return missingRequiredField("TurnSettingsUpdateResponse.status")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "TurnSettingsUpdateResponse", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
 type TurnStartParams struct {
 	AdditionalContext          *Nullable[map[string]AdditionalContextEntry] `json:"additionalContext,omitempty"`
 	ApprovalPolicy             *Nullable[AskForApproval]                    `json:"approvalPolicy,omitempty"`
@@ -29445,6 +29629,7 @@ type TurnStartParams struct {
 	ClientUserMessageID        *Nullable[string]                            `json:"clientUserMessageId,omitempty"`
 	CollaborationMode          *Nullable[CollaborationMode]                 `json:"collaborationMode,omitempty"`
 	CWD                        *Nullable[string]                            `json:"cwd,omitempty"`
+	CyberAccessProgram         *Nullable[CyberAccessProgram]                `json:"cyberAccessProgram,omitempty"`
 	Effort                     *Nullable[ReasoningEffort]                   `json:"effort,omitempty"`
 	Environments               *Nullable[[]TurnEnvironmentParams]           `json:"environments,omitempty"`
 	Input                      []UserInput                                  `json:"input"`
@@ -29457,8 +29642,11 @@ type TurnStartParams struct {
 	RuntimeWorkspaceRoots      *Nullable[[]string]                          `json:"runtimeWorkspaceRoots,omitempty"`
 	SandboxPolicy              *Nullable[SandboxPolicy]                     `json:"sandboxPolicy,omitempty"`
 	ServiceTier                *Nullable[string]                            `json:"serviceTier,omitempty"`
+	ServiceTierForTurn         *Nullable[string]                            `json:"serviceTierForTurn,omitempty"`
 	Summary                    *Nullable[ReasoningSummary]                  `json:"summary,omitempty"`
 	ThreadID                   string                                       `json:"threadId"`
+	ToolOutput                 *Nullable[TurnToolOutput]                    `json:"toolOutput,omitempty"`
+	TurnTrigger                *Nullable[string]                            `json:"turnTrigger,omitempty"`
 }
 
 func (value TurnStartParams) MarshalJSON() ([]byte, error) {
@@ -29500,6 +29688,10 @@ func (value *TurnStartParams) unmarshalJSON(data []byte, mode wireDecodeMode) er
 		return err
 	}
 	_, err = decodeNullableJSONField[string](fields, "cwd", "TurnStartParams.cwd", mode, decodeWireValue[string], &decoded.CWD)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[CyberAccessProgram](fields, "cyberAccessProgram", "TurnStartParams.cyberAccessProgram", mode, decodeWireValue[CyberAccessProgram], &decoded.CyberAccessProgram)
 	if err != nil {
 		return err
 	}
@@ -29554,6 +29746,10 @@ func (value *TurnStartParams) unmarshalJSON(data []byte, mode wireDecodeMode) er
 	if err != nil {
 		return err
 	}
+	_, err = decodeNullableJSONField[string](fields, "serviceTierForTurn", "TurnStartParams.serviceTierForTurn", mode, decodeWireValue[string], &decoded.ServiceTierForTurn)
+	if err != nil {
+		return err
+	}
 	_, err = decodeNullableJSONField[ReasoningSummary](fields, "summary", "TurnStartParams.summary", mode, decodeWireValue[ReasoningSummary], &decoded.Summary)
 	if err != nil {
 		return err
@@ -29564,6 +29760,14 @@ func (value *TurnStartParams) unmarshalJSON(data []byte, mode wireDecodeMode) er
 	}
 	if !seenThreadID {
 		return missingRequiredField("TurnStartParams.threadId")
+	}
+	_, err = decodeNullableJSONField[TurnToolOutput](fields, "toolOutput", "TurnStartParams.toolOutput", mode, decodeWireValue[TurnToolOutput], &decoded.ToolOutput)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[string](fields, "turnTrigger", "TurnStartParams.turnTrigger", mode, decodeWireValue[string], &decoded.TurnTrigger)
+	if err != nil {
+		return err
 	}
 	if err := rejectUnexpectedFieldsForMode(fields, "TurnStartParams", mode); err != nil {
 		return err
@@ -29725,6 +29929,47 @@ func (value *TurnSteerResponse) unmarshalJSON(data []byte, mode wireDecodeMode) 
 		return missingRequiredField("TurnSteerResponse.turnId")
 	}
 	if err := rejectUnexpectedFieldsForMode(fields, "TurnSteerResponse", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type TurnToolOutput struct {
+	Name      string                 `json:"name"`
+	Namespace *Nullable[string]      `json:"namespace,omitempty"`
+	Output    FunctionCallOutputBody `json:"output"`
+}
+
+func (value *TurnToolOutput) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *TurnToolOutput) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "TurnToolOutput")
+	if err != nil {
+		return err
+	}
+	var decoded TurnToolOutput
+	seenName, err := decodeJSONField(fields, "name", "TurnToolOutput.name", false, mode, decodeWireValue[string], &decoded.Name)
+	if err != nil {
+		return err
+	}
+	if !seenName {
+		return missingRequiredField("TurnToolOutput.name")
+	}
+	_, err = decodeNullableJSONField[string](fields, "namespace", "TurnToolOutput.namespace", mode, decodeWireValue[string], &decoded.Namespace)
+	if err != nil {
+		return err
+	}
+	seenOutput, err := decodeJSONField(fields, "output", "TurnToolOutput.output", false, mode, decodeWireValue[FunctionCallOutputBody], &decoded.Output)
+	if err != nil {
+		return err
+	}
+	if !seenOutput {
+		return missingRequiredField("TurnToolOutput.output")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "TurnToolOutput", mode); err != nil {
 		return err
 	}
 	*value = decoded
@@ -30721,6 +30966,7 @@ const (
 	CodexErrorInfoKindContextWindowExceeded          CodexErrorInfoKind = "contextWindowExceeded"
 	CodexErrorInfoKindSessionBudgetExceeded          CodexErrorInfoKind = "sessionBudgetExceeded"
 	CodexErrorInfoKindUsageLimitExceeded             CodexErrorInfoKind = "usageLimitExceeded"
+	CodexErrorInfoKindRateLimitExceeded              CodexErrorInfoKind = "rateLimitExceeded"
 	CodexErrorInfoKindServerOverloaded               CodexErrorInfoKind = "serverOverloaded"
 	CodexErrorInfoKindCyberPolicy                    CodexErrorInfoKind = "cyberPolicy"
 	CodexErrorInfoKindMisalignmentPolicyViolation    CodexErrorInfoKind = "misalignmentPolicyViolation"
@@ -30742,6 +30988,7 @@ type CodexErrorInfo struct {
 	variantContextWindowExceeded          *CodexErrorInfoContextWindowExceeded
 	variantSessionBudgetExceeded          *CodexErrorInfoSessionBudgetExceeded
 	variantUsageLimitExceeded             *CodexErrorInfoUsageLimitExceeded
+	variantRateLimitExceeded              *CodexErrorInfoRateLimitExceeded
 	variantServerOverloaded               *CodexErrorInfoServerOverloaded
 	variantCyberPolicy                    *CodexErrorInfoCyberPolicy
 	variantMisalignmentPolicyViolation    *CodexErrorInfoMisalignmentPolicyViolation
@@ -30763,6 +31010,8 @@ type CodexErrorInfoContextWindowExceeded struct{}
 type CodexErrorInfoSessionBudgetExceeded struct{}
 
 type CodexErrorInfoUsageLimitExceeded struct{}
+
+type CodexErrorInfoRateLimitExceeded struct{}
 
 type CodexErrorInfoServerOverloaded struct{}
 
@@ -30815,6 +31064,11 @@ func NewCodexErrorInfoSessionBudgetExceeded() CodexErrorInfo {
 func NewCodexErrorInfoUsageLimitExceeded() CodexErrorInfo {
 	payload := CodexErrorInfoUsageLimitExceeded{}
 	return CodexErrorInfo{kind: CodexErrorInfoKindUsageLimitExceeded, variantUsageLimitExceeded: &payload}
+}
+
+func NewCodexErrorInfoRateLimitExceeded() CodexErrorInfo {
+	payload := CodexErrorInfoRateLimitExceeded{}
+	return CodexErrorInfo{kind: CodexErrorInfoKindRateLimitExceeded, variantRateLimitExceeded: &payload}
 }
 
 func NewCodexErrorInfoServerOverloaded() CodexErrorInfo {
@@ -30894,6 +31148,8 @@ func (value CodexErrorInfo) IsValid() bool {
 		return value.variantSessionBudgetExceeded != nil
 	case CodexErrorInfoKindUsageLimitExceeded:
 		return value.variantUsageLimitExceeded != nil
+	case CodexErrorInfoKindRateLimitExceeded:
+		return value.variantRateLimitExceeded != nil
 	case CodexErrorInfoKindServerOverloaded:
 		return value.variantServerOverloaded != nil
 	case CodexErrorInfoKindCyberPolicy:
@@ -30946,6 +31202,13 @@ func (value CodexErrorInfo) AsUsageLimitExceeded() (CodexErrorInfoUsageLimitExce
 		return CodexErrorInfoUsageLimitExceeded{}, false
 	}
 	return *value.variantUsageLimitExceeded, true
+}
+
+func (value CodexErrorInfo) AsRateLimitExceeded() (CodexErrorInfoRateLimitExceeded, bool) {
+	if value.kind != CodexErrorInfoKindRateLimitExceeded || value.variantRateLimitExceeded == nil {
+		return CodexErrorInfoRateLimitExceeded{}, false
+	}
+	return *value.variantRateLimitExceeded, true
 }
 
 func (value CodexErrorInfo) AsServerOverloaded() (CodexErrorInfoServerOverloaded, bool) {
@@ -31063,6 +31326,11 @@ func (value CodexErrorInfo) MarshalJSON() ([]byte, error) {
 			return nil, invalidUnionVariant("CodexErrorInfo", "usageLimitExceeded")
 		}
 		return json.Marshal("usageLimitExceeded")
+	case CodexErrorInfoKindRateLimitExceeded:
+		if value.variantRateLimitExceeded == nil {
+			return nil, invalidUnionVariant("CodexErrorInfo", "rateLimitExceeded")
+		}
+		return json.Marshal("rateLimitExceeded")
 	case CodexErrorInfoKindServerOverloaded:
 		if value.variantServerOverloaded == nil {
 			return nil, invalidUnionVariant("CodexErrorInfo", "serverOverloaded")
@@ -31182,6 +31450,10 @@ func (value *CodexErrorInfo) unmarshalJSON(data []byte, mode wireDecodeMode) err
 		case "usageLimitExceeded":
 			payload := CodexErrorInfoUsageLimitExceeded{}
 			*value = CodexErrorInfo{kind: CodexErrorInfoKindUsageLimitExceeded, variantUsageLimitExceeded: &payload}
+			return nil
+		case "rateLimitExceeded":
+			payload := CodexErrorInfoRateLimitExceeded{}
+			*value = CodexErrorInfo{kind: CodexErrorInfoKindRateLimitExceeded, variantRateLimitExceeded: &payload}
 			return nil
 		case "serverOverloaded":
 			payload := CodexErrorInfoServerOverloaded{}
@@ -33537,6 +33809,7 @@ const (
 	ClientRequestKindPluginInstall                          ClientRequestKind = "plugin/install"
 	ClientRequestKindPluginUninstall                        ClientRequestKind = "plugin/uninstall"
 	ClientRequestKindTurnStart                              ClientRequestKind = "turn/start"
+	ClientRequestKindTurnSettingsUpdate                     ClientRequestKind = "turn/settings/update"
 	ClientRequestKindTurnSteer                              ClientRequestKind = "turn/steer"
 	ClientRequestKindTurnInterrupt                          ClientRequestKind = "turn/interrupt"
 	ClientRequestKindThreadRealtimeStart                    ClientRequestKind = "thread/realtime/start"
@@ -33694,6 +33967,7 @@ type ClientRequest struct {
 	variantPluginInstall                          *ClientRequestPluginInstall
 	variantPluginUninstall                        *ClientRequestPluginUninstall
 	variantTurnStart                              *ClientRequestTurnStart
+	variantTurnSettingsUpdate                     *ClientRequestTurnSettingsUpdate
 	variantTurnSteer                              *ClientRequestTurnSteer
 	variantTurnInterrupt                          *ClientRequestTurnInterrupt
 	variantThreadRealtimeStart                    *ClientRequestThreadRealtimeStart
@@ -34186,6 +34460,11 @@ type ClientRequestPluginUninstall struct {
 type ClientRequestTurnStart struct {
 	ID     RequestId       `json:"id"`
 	Params TurnStartParams `json:"params"`
+}
+
+type ClientRequestTurnSettingsUpdate struct {
+	ID     RequestId                `json:"id"`
+	Params TurnSettingsUpdateParams `json:"params"`
 }
 
 type ClientRequestTurnSteer struct {
@@ -34860,6 +35139,10 @@ func NewClientRequestTurnStart(payload ClientRequestTurnStart) ClientRequest {
 	return ClientRequest{kind: ClientRequestKindTurnStart, variantTurnStart: &payload}
 }
 
+func NewClientRequestTurnSettingsUpdate(payload ClientRequestTurnSettingsUpdate) ClientRequest {
+	return ClientRequest{kind: ClientRequestKindTurnSettingsUpdate, variantTurnSettingsUpdate: &payload}
+}
+
 func NewClientRequestTurnSteer(payload ClientRequestTurnSteer) ClientRequest {
 	return ClientRequest{kind: ClientRequestKindTurnSteer, variantTurnSteer: &payload}
 }
@@ -35308,6 +35591,8 @@ func (value ClientRequest) IsValid() bool {
 		return value.variantPluginUninstall != nil
 	case ClientRequestKindTurnStart:
 		return value.variantTurnStart != nil
+	case ClientRequestKindTurnSettingsUpdate:
+		return value.variantTurnSettingsUpdate != nil
 	case ClientRequestKindTurnSteer:
 		return value.variantTurnSteer != nil
 	case ClientRequestKindTurnInterrupt:
@@ -36042,6 +36327,13 @@ func (value ClientRequest) AsTurnStart() (ClientRequestTurnStart, bool) {
 		return ClientRequestTurnStart{}, false
 	}
 	return *value.variantTurnStart, true
+}
+
+func (value ClientRequest) AsTurnSettingsUpdate() (ClientRequestTurnSettingsUpdate, bool) {
+	if value.kind != ClientRequestKindTurnSettingsUpdate || value.variantTurnSettingsUpdate == nil {
+		return ClientRequestTurnSettingsUpdate{}, false
+	}
+	return *value.variantTurnSettingsUpdate, true
 }
 
 func (value ClientRequest) AsTurnSteer() (ClientRequestTurnSteer, bool) {
@@ -37624,6 +37916,19 @@ func (value ClientRequest) MarshalJSON() ([]byte, error) {
 			ID:     value.variantTurnStart.ID,
 			Method: "turn/start",
 			Params: value.variantTurnStart.Params,
+		})
+	case ClientRequestKindTurnSettingsUpdate:
+		if value.variantTurnSettingsUpdate == nil {
+			return nil, invalidUnionVariant("ClientRequest", "turn/settings/update")
+		}
+		return json.Marshal(struct {
+			ID     RequestId                `json:"id"`
+			Method string                   `json:"method"`
+			Params TurnSettingsUpdateParams `json:"params"`
+		}{
+			ID:     value.variantTurnSettingsUpdate.ID,
+			Method: "turn/settings/update",
+			Params: value.variantTurnSettingsUpdate.Params,
 		})
 	case ClientRequestKindTurnSteer:
 		if value.variantTurnSteer == nil {
@@ -40296,6 +40601,27 @@ func (value *ClientRequest) unmarshalJSON(data []byte, mode wireDecodeMode) erro
 			return err
 		}
 		*value = ClientRequest{kind: ClientRequestKindTurnStart, variantTurnStart: &decoded}
+		return nil
+	case "turn/settings/update":
+		var decoded ClientRequestTurnSettingsUpdate
+		seenID, err := decodeJSONField(fields, "id", "ClientRequest.id", false, mode, decodeWireValue[RequestId], &decoded.ID)
+		if err != nil {
+			return err
+		}
+		if !seenID {
+			return missingRequiredField("ClientRequest.id")
+		}
+		seenParams, err := decodeJSONField(fields, "params", "ClientRequest.params", false, mode, decodeWireValue[TurnSettingsUpdateParams], &decoded.Params)
+		if err != nil {
+			return err
+		}
+		if !seenParams {
+			return missingRequiredField("ClientRequest.params")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ClientRequest.turn/settings/update", mode); err != nil {
+			return err
+		}
+		*value = ClientRequest{kind: ClientRequestKindTurnSettingsUpdate, variantTurnSettingsUpdate: &decoded}
 		return nil
 	case "turn/steer":
 		var decoded ClientRequestTurnSteer
@@ -52791,6 +53117,7 @@ const (
 	ThreadItemKindUserMessage         ThreadItemKind = "userMessage"
 	ThreadItemKindHookPrompt          ThreadItemKind = "hookPrompt"
 	ThreadItemKindAgentMessage        ThreadItemKind = "agentMessage"
+	ThreadItemKindFunctionCallOutput  ThreadItemKind = "functionCallOutput"
 	ThreadItemKindPlan                ThreadItemKind = "plan"
 	ThreadItemKindReasoning           ThreadItemKind = "reasoning"
 	ThreadItemKindCommandExecution    ThreadItemKind = "commandExecution"
@@ -52813,6 +53140,7 @@ type ThreadItem struct {
 	variantUserMessage         *ThreadItemUserMessage
 	variantHookPrompt          *ThreadItemHookPrompt
 	variantAgentMessage        *ThreadItemAgentMessage
+	variantFunctionCallOutput  *ThreadItemFunctionCallOutput
 	variantPlan                *ThreadItemPlan
 	variantReasoning           *ThreadItemReasoning
 	variantCommandExecution    *ThreadItemCommandExecution
@@ -52847,6 +53175,13 @@ type ThreadItemAgentMessage struct {
 	MemoryCitation *Nullable[MemoryCitation]       `json:"memoryCitation,omitempty"`
 	Phase          *Nullable[MessagePhase]         `json:"phase,omitempty"`
 	Text           string                          `json:"text"`
+}
+
+type ThreadItemFunctionCallOutput struct {
+	ID        string                 `json:"id"`
+	Name      string                 `json:"name"`
+	Namespace *Nullable[string]      `json:"namespace,omitempty"`
+	Output    FunctionCallOutputBody `json:"output"`
 }
 
 type ThreadItemPlan struct {
@@ -52979,6 +53314,10 @@ func NewThreadItemAgentMessage(payload ThreadItemAgentMessage) ThreadItem {
 	return ThreadItem{kind: ThreadItemKindAgentMessage, variantAgentMessage: &payload}
 }
 
+func NewThreadItemFunctionCallOutput(payload ThreadItemFunctionCallOutput) ThreadItem {
+	return ThreadItem{kind: ThreadItemKindFunctionCallOutput, variantFunctionCallOutput: &payload}
+}
+
 func NewThreadItemPlan(payload ThreadItemPlan) ThreadItem {
 	return ThreadItem{kind: ThreadItemKindPlan, variantPlan: &payload}
 }
@@ -53051,6 +53390,8 @@ func (value ThreadItem) IsValid() bool {
 		return value.variantHookPrompt != nil
 	case ThreadItemKindAgentMessage:
 		return value.variantAgentMessage != nil
+	case ThreadItemKindFunctionCallOutput:
+		return value.variantFunctionCallOutput != nil
 	case ThreadItemKindPlan:
 		return value.variantPlan != nil
 	case ThreadItemKindReasoning:
@@ -53105,6 +53446,13 @@ func (value ThreadItem) AsAgentMessage() (ThreadItemAgentMessage, bool) {
 		return ThreadItemAgentMessage{}, false
 	}
 	return *value.variantAgentMessage, true
+}
+
+func (value ThreadItem) AsFunctionCallOutput() (ThreadItemFunctionCallOutput, bool) {
+	if value.kind != ThreadItemKindFunctionCallOutput || value.variantFunctionCallOutput == nil {
+		return ThreadItemFunctionCallOutput{}, false
+	}
+	return *value.variantFunctionCallOutput, true
 }
 
 func (value ThreadItem) AsPlan() (ThreadItemPlan, bool) {
@@ -53266,6 +53614,23 @@ func (value ThreadItem) MarshalJSON() ([]byte, error) {
 			Phase:          value.variantAgentMessage.Phase,
 			Text:           value.variantAgentMessage.Text,
 			Type:           "agentMessage",
+		})
+	case ThreadItemKindFunctionCallOutput:
+		if value.variantFunctionCallOutput == nil {
+			return nil, invalidUnionVariant("ThreadItem", "functionCallOutput")
+		}
+		return json.Marshal(struct {
+			ID        string                 `json:"id"`
+			Name      string                 `json:"name"`
+			Namespace *Nullable[string]      `json:"namespace,omitempty"`
+			Output    FunctionCallOutputBody `json:"output"`
+			Type      string                 `json:"type"`
+		}{
+			ID:        value.variantFunctionCallOutput.ID,
+			Name:      value.variantFunctionCallOutput.Name,
+			Namespace: value.variantFunctionCallOutput.Namespace,
+			Output:    value.variantFunctionCallOutput.Output,
+			Type:      "functionCallOutput",
 		})
 	case ThreadItemKindPlan:
 		if value.variantPlan == nil {
@@ -53657,6 +54022,38 @@ func (value *ThreadItem) unmarshalJSON(data []byte, mode wireDecodeMode) error {
 			return err
 		}
 		*value = ThreadItem{kind: ThreadItemKindAgentMessage, variantAgentMessage: &decoded}
+		return nil
+	case "functionCallOutput":
+		var decoded ThreadItemFunctionCallOutput
+		seenID, err := decodeJSONField(fields, "id", "ThreadItem.id", false, mode, decodeWireValue[string], &decoded.ID)
+		if err != nil {
+			return err
+		}
+		if !seenID {
+			return missingRequiredField("ThreadItem.id")
+		}
+		seenName, err := decodeJSONField(fields, "name", "ThreadItem.name", false, mode, decodeWireValue[string], &decoded.Name)
+		if err != nil {
+			return err
+		}
+		if !seenName {
+			return missingRequiredField("ThreadItem.name")
+		}
+		_, err = decodeNullableJSONField[string](fields, "namespace", "ThreadItem.namespace", mode, decodeWireValue[string], &decoded.Namespace)
+		if err != nil {
+			return err
+		}
+		seenOutput, err := decodeJSONField(fields, "output", "ThreadItem.output", false, mode, decodeWireValue[FunctionCallOutputBody], &decoded.Output)
+		if err != nil {
+			return err
+		}
+		if !seenOutput {
+			return missingRequiredField("ThreadItem.output")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ThreadItem.functionCallOutput", mode); err != nil {
+			return err
+		}
+		*value = ThreadItem{kind: ThreadItemKindFunctionCallOutput, variantFunctionCallOutput: &decoded}
 		return nil
 	case "plan":
 		var decoded ThreadItemPlan

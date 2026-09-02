@@ -2254,6 +2254,30 @@
             },
             "method": {
               "enum": [
+                "turn/settings/update"
+              ],
+              "title": "Turn/settings/updateRequestMethod",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/definitions/v2/TurnSettingsUpdateParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "title": "Turn/settings/updateRequest",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/definitions/v2/RequestId"
+            },
+            "method": {
+              "enum": [
                 "turn/steer"
               ],
               "title": "Turn/steerRequestMethod",
@@ -9618,6 +9642,7 @@
               "contextWindowExceeded",
               "sessionBudgetExceeded",
               "usageLimitExceeded",
+              "rateLimitExceeded",
               "serverOverloaded",
               "cyberPolicy",
               "misalignmentPolicyViolation",
@@ -11930,6 +11955,15 @@
           "unlimited"
         ],
         "type": "object"
+      },
+      "CyberAccessProgram": {
+        "description": "Requested cyber treatment for a ChatGPT-authenticated Codex turn. Authorization and model-tier restrictions remain server-owned.",
+        "enum": [
+          "standard",
+          "daybreakBlue",
+          "daybreakRed"
+        ],
+        "type": "string"
       },
       "DeprecationNoticeNotification": {
         "$schema": "http://json-schema.org/draft-07/schema#",
@@ -16534,6 +16568,47 @@
         },
         "type": "object"
       },
+      "MisalignmentErrorDetails": {
+        "properties": {
+          "detailedExplanation": {
+            "description": "A substantive localized explanation is required before offering continuation.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "errorType": {
+            "description": "Open-ended classification; clients must accept categories added by Responses.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "steer": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/MisalignmentSteer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Instruction to submit as the next turn's user input if continuation is confirmed."
+          }
+        },
+        "type": "object"
+      },
+      "MisalignmentSteer": {
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "type": "object"
+      },
       "MockExperimentalMethodParams": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "properties": {
@@ -19648,6 +19723,16 @@
                 "type": "null"
               }
             ]
+          },
+          "usageMetadata": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/ResponseUsageMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -21188,6 +21273,18 @@
             "type": "object"
           }
         ]
+      },
+      "ResponseUsageMetadata": {
+        "description": "Usage metadata reported for one upstream response.",
+        "properties": {
+          "amount": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
       },
       "ResponsesApiWebSearchAction": {
         "oneOf": [
@@ -23139,7 +23236,7 @@
             "type": "boolean"
           },
           "excludeTurns": {
-            "description": "When true, return only thread metadata and live fork state without populating `thread.turns`. This is useful when the client plans to call `thread/turns/list` immediately after forking.",
+            "description": "When true, return only thread metadata and live fork state without populating `thread.turns`. This is useful when the client plans to call `thread/turns/list` immediately after forking. Full-history hydration is deprecated for paginated threads; use this with `thread/turns/list` and `thread/items/list` instead.",
             "type": "boolean"
           },
           "lastTurnId": {
@@ -23709,6 +23806,40 @@
               "type"
             ],
             "title": "AgentMessageThreadItem",
+            "type": "object"
+          },
+          {
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "namespace": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "output": {
+                "$ref": "#/definitions/v2/FunctionCallOutputBody"
+              },
+              "type": {
+                "enum": [
+                  "functionCallOutput"
+                ],
+                "title": "FunctionCallOutputThreadItemType",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "output",
+              "type"
+            ],
+            "title": "FunctionCallOutputThreadItem",
             "type": "object"
           },
           {
@@ -25067,7 +25198,7 @@
         "$schema": "http://json-schema.org/draft-07/schema#",
         "properties": {
           "includeTurns": {
-            "description": "When true, include turns and their items from rollout history.",
+            "description": "When true, include turns and their items from rollout history. Full-history hydration is deprecated for paginated threads; prefer a metadata-only read and page with `thread/turns/list` and `thread/items/list`.",
             "type": "boolean"
           },
           "threadId": {
@@ -25983,7 +26114,7 @@
             ]
           },
           "excludeTurns": {
-            "description": "When true, return only thread metadata and live-resume state without populating `thread.turns`. This is useful when the client plans to call `thread/turns/list` immediately after resuming.",
+            "description": "When true, return only thread metadata and live-resume state without populating `thread.turns`. This is useful when the client plans to call `thread/turns/list` immediately after resuming. Full-history hydration is deprecated for paginated threads; use this with `thread/turns/list` and `thread/items/list` instead.",
             "type": "boolean"
           },
           "history": {
@@ -28271,6 +28402,18 @@
           },
           "message": {
             "type": "string"
+          },
+          "misalignment": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/MisalignmentErrorDetails"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional public explanation and continuation instruction for a misalignment block."
           }
         },
         "required": [
@@ -28397,6 +28540,92 @@
         "title": "TurnPlanUpdatedNotification",
         "type": "object"
       },
+      "TurnSettingsUpdateParams": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "description": "Experimental settings changes for one running turn, not future turns. Unsupported fields are rejected rather than silently ignored. Any live task kind may accept publication. Child sessions and consumers of frozen initial settings are unchanged.",
+        "properties": {
+          "effort": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/ReasoningEffort"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Omission or `null` leaves the effort unchanged."
+          },
+          "model": {
+            "description": "Omission or `null` leaves the model unchanged.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "serviceTier": {
+            "description": "`null` clears the requested tier; omission leaves it unchanged.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/ReasoningSummary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Omission or `null` leaves the summary preference unchanged."
+          },
+          "threadId": {
+            "type": "string"
+          },
+          "turnId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "turnId"
+        ],
+        "title": "TurnSettingsUpdateParams",
+        "type": "object"
+      },
+      "TurnSettingsUpdateResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "status": {
+            "$ref": "#/definitions/v2/TurnSettingsUpdateStatus"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "TurnSettingsUpdateResponse",
+        "type": "object"
+      },
+      "TurnSettingsUpdateStatus": {
+        "oneOf": [
+          {
+            "description": "Published for subsequent captures, even if the values were unchanged. Already captured steps are unchanged; a later inference is not guaranteed.",
+            "enum": [
+              "applied"
+            ],
+            "type": "string"
+          },
+          {
+            "description": "No matching live task remained available for publication.",
+            "enum": [
+              "targetUnavailable"
+            ],
+            "type": "string"
+          }
+        ]
+      },
       "TurnStartParams": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "properties": {
@@ -28455,6 +28684,17 @@
               "string",
               "null"
             ]
+          },
+          "cyberAccessProgram": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/CyberAccessProgram"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "EXPERIMENTAL - Request a workspace-authorized cyber program for this turn. Omission preserves automatic behavior. This does not grant access."
           },
           "effort": {
             "anyOf": [
@@ -28560,6 +28800,13 @@
               "null"
             ]
           },
+          "serviceTierForTurn": {
+            "description": "Override the service tier only when this request starts a new turn. Use \"default\" for standard speed. Omitted or null inherits the thread's tier. Does not change the thread's tier or a turn being steered.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "summary": {
             "anyOf": [
               {
@@ -28573,6 +28820,23 @@
           },
           "threadId": {
             "type": "string"
+          },
+          "toolOutput": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/TurnToolOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "turnTrigger": {
+            "description": "Optional source classification for the caller that starts this turn. Ignored when this request steers an already-active turn.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -28683,6 +28947,27 @@
           "turnId"
         ],
         "title": "TurnSteerResponse",
+        "type": "object"
+      },
+      "TurnToolOutput": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "namespace": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "output": {
+            "$ref": "#/definitions/v2/FunctionCallOutputBody"
+          }
+        },
+        "required": [
+          "name",
+          "output"
+        ],
         "type": "object"
       },
       "TurnsPage": {
