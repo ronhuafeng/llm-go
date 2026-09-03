@@ -791,6 +791,14 @@ func (f Plugins) Read(ctx context.Context, params protocolv2.PluginReadParams) (
 	return response, nil
 }
 
+func (f Plugins) Reconcile(ctx context.Context, params protocolv2.PluginReconcileParams) (protocolv2.PluginReconcileResponse, error) {
+	var response protocolv2.PluginReconcileResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodPluginReconcile, params, &response); err != nil {
+		return protocolv2.PluginReconcileResponse{}, err
+	}
+	return response, nil
+}
+
 func (f Plugins) Search(ctx context.Context, params protocolv2.PluginSearchParams) (protocolv2.PluginSearchResponse, error) {
 	var response protocolv2.PluginSearchResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodPluginSearch, params, &response); err != nil {
