@@ -230,6 +230,7 @@ func TestBuildProtocolTypePlanClassifiesDynamicJSONFields(t *testing.T) {
 		"McpServerElicitationRequestResponse.json#/properties/_meta",
 		"McpServerElicitationRequestResponse.json#/properties/content",
 		"v2/ConfigValueWriteParams.json#/properties/value",
+		"v2/GetAccountRateLimitsResponse.json#/properties/rateLimitUpsell",
 		"v2/McpServerEventStreamNotification.json#/definitions/McpServerEventNotification/properties/params",
 		"v2/McpServerEventStreamStartParams.json#/properties/_meta",
 		"v2/McpServerEventStreamStartParams.json#/properties/arguments",

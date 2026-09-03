@@ -13,200 +13,469 @@
   "generated_compatibility_updates": {
     "added": [
       {
-        "kind": "field",
-        "name": "TurnStartParams.AdditionalContext",
-        "classification": "experimental",
-        "signature": "*Nullable[map[string]AdditionalContextEntry] `json:\"additionalContext,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.ApprovalPolicy",
+        "kind": "const",
+        "name": "MethodModelProviderAuthRecoveryCompleted",
         "classification": "stable",
-        "signature": "*Nullable[AskForApproval] `json:\"approvalPolicy,omitempty\"`"
+        "signature": "implicit = \"modelProvider/authRecoveryCompleted\""
       },
       {
-        "kind": "field",
-        "name": "TurnStartParams.ApprovalsReviewer",
+        "kind": "const",
+        "name": "MethodModelProviderAuthRecoveryStarted",
         "classification": "stable",
-        "signature": "*Nullable[ApprovalsReviewer] `json:\"approvalsReviewer,omitempty\"`"
+        "signature": "implicit = \"modelProvider/authRecoveryStarted\""
       },
       {
-        "kind": "field",
-        "name": "TurnStartParams.CWD",
+        "kind": "const",
+        "name": "MethodPluginReconcile",
         "classification": "stable",
-        "signature": "*Nullable[string] `json:\"cwd,omitempty\"`"
+        "signature": "implicit = \"plugin/reconcile\""
       },
       {
         "kind": "field",
-        "name": "TurnStartParams.ClientUserMessageID",
+        "name": "AppConfig.Links",
         "classification": "stable",
-        "signature": "*Nullable[string] `json:\"clientUserMessageId,omitempty\"`"
+        "signature": "*Nullable[AppLinksConfig] `json:\"links,omitempty\"`"
       },
       {
         "kind": "field",
-        "name": "TurnStartParams.CollaborationMode",
-        "classification": "experimental",
-        "signature": "*Nullable[CollaborationMode] `json:\"collaborationMode,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.CyberAccessProgram",
-        "classification": "experimental",
-        "signature": "*Nullable[CyberAccessProgram] `json:\"cyberAccessProgram,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.Effort",
+        "name": "AsyncUserInputQuestion.Options",
         "classification": "stable",
-        "signature": "*Nullable[ReasoningEffort] `json:\"effort,omitempty\"`"
+        "signature": "*Nullable[[]string] `json:\"options,omitempty\"`"
       },
       {
         "kind": "field",
-        "name": "TurnStartParams.Environments",
-        "classification": "experimental",
-        "signature": "*Nullable[[]TurnEnvironmentParams] `json:\"environments,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.Input",
+        "name": "AsyncUserInputQuestion.Title",
         "classification": "stable",
-        "signature": "[]UserInput `json:\"input\"`"
+        "signature": "string `json:\"title\"`"
       },
       {
         "kind": "field",
-        "name": "TurnStartParams.Model",
+        "name": "AuthRecoveryNotification.Message",
         "classification": "stable",
-        "signature": "*Nullable[string] `json:\"model,omitempty\"`"
+        "signature": "string `json:\"message\"`"
       },
       {
         "kind": "field",
-        "name": "TurnStartParams.MultiAgentMode",
-        "classification": "experimental",
-        "signature": "*Nullable[MultiAgentMode] `json:\"multiAgentMode,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.OutputSchema",
+        "name": "AuthRecoveryNotification.Provider",
         "classification": "stable",
-        "signature": "*OutputSchema `json:\"outputSchema,omitempty\"`"
+        "signature": "string `json:\"provider\"`"
       },
       {
         "kind": "field",
-        "name": "TurnStartParams.Permissions",
-        "classification": "experimental",
-        "signature": "*Nullable[string] `json:\"permissions,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.Personality",
-        "classification": "stable",
-        "signature": "*Nullable[Personality] `json:\"personality,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.ResponsesapiClientMetadata",
-        "classification": "experimental",
-        "signature": "*Nullable[map[string]string] `json:\"responsesapiClientMetadata,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.RuntimeWorkspaceRoots",
-        "classification": "experimental",
-        "signature": "*Nullable[[]string] `json:\"runtimeWorkspaceRoots,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.SandboxPolicy",
-        "classification": "stable",
-        "signature": "*Nullable[SandboxPolicy] `json:\"sandboxPolicy,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.ServiceTier",
-        "classification": "stable",
-        "signature": "*Nullable[string] `json:\"serviceTier,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.ServiceTierForTurn",
-        "classification": "stable",
-        "signature": "*Nullable[string] `json:\"serviceTierForTurn,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.Summary",
-        "classification": "stable",
-        "signature": "*Nullable[ReasoningSummary] `json:\"summary,omitempty\"`"
-      },
-      {
-        "kind": "field",
-        "name": "TurnStartParams.ThreadID",
+        "name": "AuthRecoveryNotification.ThreadID",
         "classification": "stable",
         "signature": "string `json:\"threadId\"`"
       },
       {
         "kind": "field",
-        "name": "TurnStartParams.ToolOutput",
+        "name": "AuthRecoveryNotification.TurnID",
         "classification": "stable",
-        "signature": "*Nullable[TurnToolOutput] `json:\"toolOutput,omitempty\"`"
+        "signature": "string `json:\"turnId\"`"
       },
       {
         "kind": "field",
-        "name": "TurnStartParams.TurnTrigger",
+        "name": "ClientRequestPluginReconcile.ID",
         "classification": "stable",
-        "signature": "*Nullable[string] `json:\"turnTrigger,omitempty\"`"
+        "signature": "RequestId `json:\"id\"`"
       },
       {
         "kind": "field",
-        "name": "TurnToolOutput.Name",
+        "name": "ClientRequestPluginReconcile.Params",
         "classification": "stable",
-        "signature": "string `json:\"name\"`"
+        "signature": "PluginReconcileParams `json:\"params\"`"
       },
       {
         "kind": "field",
-        "name": "TurnToolOutput.Namespace",
+        "name": "GetAccountRateLimitsResponse.AccountID",
         "classification": "stable",
-        "signature": "*Nullable[string] `json:\"namespace,omitempty\"`"
+        "signature": "*Nullable[string] `json:\"accountId,omitempty\"`"
       },
       {
         "kind": "field",
-        "name": "TurnToolOutput.Output",
+        "name": "GetAccountRateLimitsResponse.RateLimitUpsell",
         "classification": "stable",
-        "signature": "FunctionCallOutputBody `json:\"output\"`"
+        "signature": "*JSONValue `json:\"rateLimitUpsell,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "PluginReconcileChangedPlugin.HasApps",
+        "classification": "stable",
+        "signature": "bool `json:\"hasApps\"`"
+      },
+      {
+        "kind": "field",
+        "name": "PluginReconcileChangedPlugin.HasHooks",
+        "classification": "stable",
+        "signature": "bool `json:\"hasHooks\"`"
+      },
+      {
+        "kind": "field",
+        "name": "PluginReconcileChangedPlugin.HasMcps",
+        "classification": "stable",
+        "signature": "bool `json:\"hasMcps\"`"
+      },
+      {
+        "kind": "field",
+        "name": "PluginReconcileChangedPlugin.HasSkills",
+        "classification": "stable",
+        "signature": "bool `json:\"hasSkills\"`"
+      },
+      {
+        "kind": "field",
+        "name": "PluginReconcileChangedPlugin.ID",
+        "classification": "stable",
+        "signature": "string `json:\"id\"`"
+      },
+      {
+        "kind": "field",
+        "name": "PluginReconcileParams.Reason",
+        "classification": "stable",
+        "signature": "*Nullable[string] `json:\"reason,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "PluginReconcileResponse.ChangedPlugins",
+        "classification": "stable",
+        "signature": "[]PluginReconcileChangedPlugin `json:\"changedPlugins\"`"
+      },
+      {
+        "kind": "field",
+        "name": "PluginReconcileResponse.FailedMaterializationRemotePluginIDs",
+        "classification": "stable",
+        "signature": "[]string `json:\"failedMaterializationRemotePluginIds\"`"
+      },
+      {
+        "kind": "field",
+        "name": "PluginReconcileResponse.FailedRemotePluginIDs",
+        "classification": "stable",
+        "signature": "[]string `json:\"failedRemotePluginIds\"`"
+      },
+      {
+        "kind": "field",
+        "name": "Project.RecencyAt",
+        "classification": "experimental",
+        "signature": "*Nullable[int64] `json:\"recencyAt,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ProjectListParams.SortDirection",
+        "classification": "experimental",
+        "signature": "*Nullable[SortDirection] `json:\"sortDirection,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ProjectListParams.SortKey",
+        "classification": "experimental",
+        "signature": "*Nullable[ProjectSortKey] `json:\"sortKey,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ServerNotificationModelProviderAuthRecoveryCompleted.Params",
+        "classification": "stable",
+        "signature": "AuthRecoveryNotification `json:\"params\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ServerNotificationModelProviderAuthRecoveryStarted.Params",
+        "classification": "stable",
+        "signature": "AuthRecoveryNotification `json:\"params\"`"
+      },
+      {
+        "kind": "field",
+        "name": "Thread.Model",
+        "classification": "stable",
+        "signature": "*Nullable[string] `json:\"model,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "Thread.ReasoningEffort",
+        "classification": "stable",
+        "signature": "*Nullable[ReasoningEffort] `json:\"reasoningEffort,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadItemAgentMessage.Questions",
+        "classification": "stable",
+        "signature": "*Nullable[[]AsyncUserInputQuestion] `json:\"questions,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "ThreadShellCommandParams.TimeoutMS",
+        "classification": "stable",
+        "signature": "*Nullable[int64] `json:\"timeoutMs,omitempty\"`"
+      },
+      {
+        "kind": "field",
+        "name": "TurnSettingsUpdateParams.ApprovalsReviewer",
+        "classification": "experimental",
+        "signature": "*Nullable[ApprovalsReviewer] `json:\"approvalsReviewer,omitempty\"`"
+      },
+      {
+        "kind": "func",
+        "name": "NewClientRequestPluginReconcile",
+        "classification": "stable",
+        "signature": "func(payload ClientRequestPluginReconcile) ClientRequest"
+      },
+      {
+        "kind": "func",
+        "name": "NewServerNotificationModelProviderAuthRecoveryCompleted",
+        "classification": "stable",
+        "signature": "func(payload ServerNotificationModelProviderAuthRecoveryCompleted) ServerNotification"
+      },
+      {
+        "kind": "func",
+        "name": "NewServerNotificationModelProviderAuthRecoveryStarted",
+        "classification": "stable",
+        "signature": "func(payload ServerNotificationModelProviderAuthRecoveryStarted) ServerNotification"
       },
       {
         "kind": "method",
-        "name": "TurnStartParams.MarshalJSON",
+        "name": "AppLinksConfig.UnmarshalJSON",
+        "classification": "stable",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "AsyncUserInputQuestion.UnmarshalJSON",
+        "classification": "stable",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "AuthRecoveryNotification.UnmarshalJSON",
+        "classification": "stable",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "ClientRequest.AsPluginReconcile",
+        "classification": "stable",
+        "signature": "func() (ClientRequestPluginReconcile, bool)"
+      },
+      {
+        "kind": "method",
+        "name": "PluginReconcileChangedPlugin.UnmarshalJSON",
+        "classification": "stable",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "PluginReconcileParams.UnmarshalJSON",
+        "classification": "stable",
+        "signature": "func(data []byte) error"
+      },
+      {
+        "kind": "method",
+        "name": "PluginReconcileResponse.MarshalJSON",
         "classification": "stable",
         "signature": "func() ([]byte, error)"
       },
       {
         "kind": "method",
-        "name": "TurnStartParams.UnmarshalJSON",
+        "name": "PluginReconcileResponse.UnmarshalJSON",
         "classification": "stable",
         "signature": "func(data []byte) error"
       },
       {
         "kind": "method",
-        "name": "TurnToolOutput.UnmarshalJSON",
+        "name": "ProjectSortKey.IsValid",
+        "classification": "stable",
+        "signature": "func() bool"
+      },
+      {
+        "kind": "method",
+        "name": "ProjectSortKey.MarshalJSON",
+        "classification": "stable",
+        "signature": "func() ([]byte, error)"
+      },
+      {
+        "kind": "method",
+        "name": "ProjectSortKey.UnmarshalJSON",
         "classification": "stable",
         "signature": "func(data []byte) error"
       },
       {
-        "kind": "type",
-        "name": "TurnStartParams",
-        "classification": "mixed",
-        "signature": "struct {\n\tAdditionalContext          *Nullable[map[string]AdditionalContextEntry] `json:\"additionalContext,omitempty\"`\n\tApprovalPolicy             *Nullable[AskForApproval]                    `json:\"approvalPolicy,omitempty\"`\n\tApprovalsReviewer          *Nullable[ApprovalsReviewer]                 `json:\"approvalsReviewer,omitempty\"`\n\tClientUserMessageID        *Nullable[string]                            `json:\"clientUserMessageId,omitempty\"`\n\tCollaborationMode          *Nullable[CollaborationMode]                 `json:\"collaborationMode,omitempty\"`\n\tCWD                        *Nullable[string]                            `json:\"cwd,omitempty\"`\n\tCyberAccessProgram         *Nullable[CyberAccessProgram]                `json:\"cyberAccessProgram,omitempty\"`\n\tEffort                     *Nullable[ReasoningEffort]                   `json:\"effort,omitempty\"`\n\tEnvironments               *Nullable[[]TurnEnvironmentParams]           `json:\"environments,omitempty\"`\n\tInput                      []UserInput                                  `json:\"input\"`\n\tModel                      *Nullable[string]                            `json:\"model,omitempty\"`\n\tMultiAgentMode             *Nullable[MultiAgentMode]                    `json:\"multiAgentMode,omitempty\"`\n\tOutputSchema               *OutputSchema                                `json:\"outputSchema,omitempty\"`\n\tPermissions                *Nullable[string]                            `json:\"permissions,omitempty\"`\n\tPersonality                *Nullable[Personality]                       `json:\"personality,omitempty\"`\n\tResponsesapiClientMetadata *Nullable[map[string]string]                 `json:\"responsesapiClientMetadata,omitempty\"`\n\tRuntimeWorkspaceRoots      *Nullable[[]string]                          `json:\"runtimeWorkspaceRoots,omitempty\"`\n\tSandboxPolicy              *Nullable[SandboxPolicy]                     `json:\"sandboxPolicy,omitempty\"`\n\tServiceTier                *Nullable[string]                            `json:\"serviceTier,omitempty\"`\n\tServiceTierForTurn         *Nullable[string]                            `json:\"serviceTierForTurn,omitempty\"`\n\tSummary                    *Nullable[ReasoningSummary]                  `json:\"summary,omitempty\"`\n\tThreadID                   string                                       `json:\"threadId\"`\n\tToolOutput                 *Nullable[TurnToolOutput]                    `json:\"toolOutput,omitempty\"`\n\tTurnTrigger                *Nullable[string]                            `json:\"turnTrigger,omitempty\"`\n}"
+        "kind": "method",
+        "name": "ServerNotification.AsModelProviderAuthRecoveryCompleted",
+        "classification": "stable",
+        "signature": "func() (ServerNotificationModelProviderAuthRecoveryCompleted, bool)"
+      },
+      {
+        "kind": "method",
+        "name": "ServerNotification.AsModelProviderAuthRecoveryStarted",
+        "classification": "stable",
+        "signature": "func() (ServerNotificationModelProviderAuthRecoveryStarted, bool)"
+      },
+      {
+        "kind": "method",
+        "name": "codexsdk.Plugins.Reconcile",
+        "classification": "stable",
+        "signature": "func(context.Context, protocolv2.PluginReconcileParams) (protocolv2.PluginReconcileResponse, error)"
       },
       {
         "kind": "type",
-        "name": "TurnToolOutput",
+        "name": "AppLinksConfig",
         "classification": "stable",
-        "signature": "struct {\n\tName      string                 `json:\"name\"`\n\tNamespace *Nullable[string]      `json:\"namespace,omitempty\"`\n\tOutput    FunctionCallOutputBody `json:\"output\"`\n}"
+        "signature": "struct{}"
+      },
+      {
+        "kind": "type",
+        "name": "AsyncUserInputQuestion",
+        "classification": "stable",
+        "signature": "struct {\n\tOptions *Nullable[[]string] `json:\"options,omitempty\"`\n\tTitle   string              `json:\"title\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "AuthRecoveryNotification",
+        "classification": "stable",
+        "signature": "struct {\n\tMessage  string `json:\"message\"`\n\tProvider string `json:\"provider\"`\n\tThreadID string `json:\"threadId\"`\n\tTurnID   string `json:\"turnId\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ClientRequestPluginReconcile",
+        "classification": "stable",
+        "signature": "struct {\n\tID     RequestId             `json:\"id\"`\n\tParams PluginReconcileParams `json:\"params\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "PluginReconcileChangedPlugin",
+        "classification": "stable",
+        "signature": "struct {\n\tHasApps   bool   `json:\"hasApps\"`\n\tHasHooks  bool   `json:\"hasHooks\"`\n\tHasMcps   bool   `json:\"hasMcps\"`\n\tHasSkills bool   `json:\"hasSkills\"`\n\tID        string `json:\"id\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "PluginReconcileParams",
+        "classification": "stable",
+        "signature": "struct {\n\tReason *Nullable[string] `json:\"reason,omitempty\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "PluginReconcileResponse",
+        "classification": "stable",
+        "signature": "struct {\n\tChangedPlugins                       []PluginReconcileChangedPlugin `json:\"changedPlugins\"`\n\tFailedMaterializationRemotePluginIDs []string                       `json:\"failedMaterializationRemotePluginIds\"`\n\tFailedRemotePluginIDs                []string                       `json:\"failedRemotePluginIds\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ProjectSortKey",
+        "classification": "stable",
+        "signature": "string"
+      },
+      {
+        "kind": "type",
+        "name": "ServerNotificationModelProviderAuthRecoveryCompleted",
+        "classification": "stable",
+        "signature": "struct {\n\tParams AuthRecoveryNotification `json:\"params\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ServerNotificationModelProviderAuthRecoveryStarted",
+        "classification": "stable",
+        "signature": "struct {\n\tParams AuthRecoveryNotification `json:\"params\"`\n}"
+      },
+      {
+        "kind": "value",
+        "name": "ClientRequestKindPluginReconcile",
+        "classification": "stable",
+        "signature": "ClientRequestKind = \"plugin/reconcile\""
+      },
+      {
+        "kind": "value",
+        "name": "ProjectSortKeyPosition",
+        "classification": "stable",
+        "signature": "ProjectSortKey = \"position\""
+      },
+      {
+        "kind": "value",
+        "name": "ProjectSortKeyRecencyAt",
+        "classification": "stable",
+        "signature": "ProjectSortKey = \"recencyAt\""
+      },
+      {
+        "kind": "value",
+        "name": "ServerNotificationKindModelProviderAuthRecoveryCompleted",
+        "classification": "stable",
+        "signature": "ServerNotificationKind = \"modelProvider/authRecoveryCompleted\""
+      },
+      {
+        "kind": "value",
+        "name": "ServerNotificationKindModelProviderAuthRecoveryStarted",
+        "classification": "stable",
+        "signature": "ServerNotificationKind = \"modelProvider/authRecoveryStarted\""
       }
     ],
     "removed": [],
     "reclassified": [],
-    "changed": []
+    "changed": [
+      {
+        "kind": "type",
+        "name": "AppConfig",
+        "classification": "stable",
+        "from_signature": "struct {\n\tApprovalsReviewer        *Nullable[ApprovalsReviewer] `json:\"approvals_reviewer,omitempty\"`\n\tDefaultToolsApprovalMode *Nullable[AppToolApproval]   `json:\"default_tools_approval_mode,omitempty\"`\n\tDefaultToolsEnabled      *Nullable[bool]              `json:\"default_tools_enabled,omitempty\"`\n\tDestructiveEnabled       *Nullable[bool]              `json:\"destructive_enabled,omitempty\"`\n\tEnabled                  *bool                        `json:\"enabled,omitempty\"`\n\tOpenWorldEnabled         *Nullable[bool]              `json:\"open_world_enabled,omitempty\"`\n\tTools                    *Nullable[AppToolsConfig]    `json:\"tools,omitempty\"`\n}",
+        "to_signature": "struct {\n\tApprovalsReviewer        *Nullable[ApprovalsReviewer] `json:\"approvals_reviewer,omitempty\"`\n\tDefaultToolsApprovalMode *Nullable[AppToolApproval]   `json:\"default_tools_approval_mode,omitempty\"`\n\tDefaultToolsEnabled      *Nullable[bool]              `json:\"default_tools_enabled,omitempty\"`\n\tDestructiveEnabled       *Nullable[bool]              `json:\"destructive_enabled,omitempty\"`\n\tEnabled                  *bool                        `json:\"enabled,omitempty\"`\n\tLinks                    *Nullable[AppLinksConfig]    `json:\"links,omitempty\"`\n\tOpenWorldEnabled         *Nullable[bool]              `json:\"open_world_enabled,omitempty\"`\n\tTools                    *Nullable[AppToolsConfig]    `json:\"tools,omitempty\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ClientRequest",
+        "classification": "mixed",
+        "from_signature": "struct {\n\tkind                                          ClientRequestKind\n\tvariantInitialize                             *ClientRequestInitialize\n\tvariantServerDiagnostics                      *ClientRequestServerDiagnostics\n\tvariantThreadStart                            *ClientRequestThreadStart\n\tvariantThreadResume                           *ClientRequestThreadResume\n\tvariantThreadFork                             *ClientRequestThreadFork\n\tvariantThreadArchive                          *ClientRequestThreadArchive\n\tvariantThreadDelete                           *ClientRequestThreadDelete\n\tvariantThreadUnsubscribe                      *ClientRequestThreadUnsubscribe\n\tvariantThreadIncrementElicitation             *ClientRequestThreadIncrementElicitation\n\tvariantThreadDecrementElicitation             *ClientRequestThreadDecrementElicitation\n\tvariantThreadNameSet                          *ClientRequestThreadNameSet\n\tvariantThreadGoalSet                          *ClientRequestThreadGoalSet\n\tvariantThreadGoalGet                          *ClientRequestThreadGoalGet\n\tvariantThreadGoalClear                        *ClientRequestThreadGoalClear\n\tvariantThreadQueueAdd                         *ClientRequestThreadQueueAdd\n\tvariantThreadQueueList                        *ClientRequestThreadQueueList\n\tvariantThreadQueueUpdate                      *ClientRequestThreadQueueUpdate\n\tvariantThreadQueueDelete                      *ClientRequestThreadQueueDelete\n\tvariantThreadQueueReorder                     *ClientRequestThreadQueueReorder\n\tvariantThreadQueueStart                       *ClientRequestThreadQueueStart\n\tvariantThreadMetadataUpdate                   *ClientRequestThreadMetadataUpdate\n\tvariantThreadSectionMove                      *ClientRequestThreadSectionMove\n\tvariantThreadSettingsUpdate                   *ClientRequestThreadSettingsUpdate\n\tvariantThreadMemoryModeSet                    *ClientRequestThreadMemoryModeSet\n\tvariantMemoryReset                            *ClientRequestMemoryReset\n\tvariantThreadUnarchive                        *ClientRequestThreadUnarchive\n\tvariantThreadCompactStart                     *ClientRequestThreadCompactStart\n\tvariantThreadShellCommand                     *ClientRequestThreadShellCommand\n\tvariantThreadApproveGuardianDeniedAction      *ClientRequestThreadApproveGuardianDeniedAction\n\tvariantThreadBackgroundTerminalsClean         *ClientRequestThreadBackgroundTerminalsClean\n\tvariantThreadBackgroundTerminalsList          *ClientRequestThreadBackgroundTerminalsList\n\tvariantThreadBackgroundTerminalsTerminate     *ClientRequestThreadBackgroundTerminalsTerminate\n\tvariantThreadRollback                         *ClientRequestThreadRollback\n\tvariantThreadRevert                           *ClientRequestThreadRevert\n\tvariantThreadList                             *ClientRequestThreadList\n\tvariantProjectList                            *ClientRequestProjectList\n\tvariantProjectRead                            *ClientRequestProjectRead\n\tvariantProjectCreate                          *ClientRequestProjectCreate\n\tvariantProjectImport                          *ClientRequestProjectImport\n\tvariantProjectUpdate                          *ClientRequestProjectUpdate\n\tvariantProjectMove                            *ClientRequestProjectMove\n\tvariantProjectDelete                          *ClientRequestProjectDelete\n\tvariantThreadSectionList                      *ClientRequestThreadSectionList\n\tvariantThreadSectionCreate                    *ClientRequestThreadSectionCreate\n\tvariantThreadSectionUpdate                    *ClientRequestThreadSectionUpdate\n\tvariantThreadSectionDelete                    *ClientRequestThreadSectionDelete\n\tvariantThreadSearch                           *ClientRequestThreadSearch\n\tvariantThreadSearchOccurrences                *ClientRequestThreadSearchOccurrences\n\tvariantThreadLoadedList                       *ClientRequestThreadLoadedList\n\tvariantThreadRead                             *ClientRequestThreadRead\n\tvariantThreadTurnsList                        *ClientRequestThreadTurnsList\n\tvariantThreadItemsList                        *ClientRequestThreadItemsList\n\tvariantThreadInjectItems                      *ClientRequestThreadInjectItems\n\tvariantSkillsList                             *ClientRequestSkillsList\n\tvariantSkillsExtraRootsSet                    *ClientRequestSkillsExtraRootsSet\n\tvariantHooksList                              *ClientRequestHooksList\n\tvariantMarketplaceAdd                         *ClientRequestMarketplaceAdd\n\tvariantMarketplaceRemove                      *ClientRequestMarketplaceRemove\n\tvariantMarketplaceUpgrade                     *ClientRequestMarketplaceUpgrade\n\tvariantPluginList                             *ClientRequestPluginList\n\tvariantPluginSearch                           *ClientRequestPluginSearch\n\tvariantPluginInstalled                        *ClientRequestPluginInstalled\n\tvariantPluginRead                             *ClientRequestPluginRead\n\tvariantPluginSkillRead                        *ClientRequestPluginSkillRead\n\tvariantPluginShareSave                        *ClientRequestPluginShareSave\n\tvariantPluginShareUpdateTargets               *ClientRequestPluginShareUpdateTargets\n\tvariantPluginShareList                        *ClientRequestPluginShareList\n\tvariantPluginShareCheckout                    *ClientRequestPluginShareCheckout\n\tvariantPluginShareDelete                      *ClientRequestPluginShareDelete\n\tvariantAppRead                                *ClientRequestAppRead\n\tvariantAppList                                *ClientRequestAppList\n\tvariantAppInstalled                           *ClientRequestAppInstalled\n\tvariantFSReadFile                             *ClientRequestFSReadFile\n\tvariantFSWriteFile                            *ClientRequestFSWriteFile\n\tvariantFSCreateDirectory                      *ClientRequestFSCreateDirectory\n\tvariantFSGetMetadata                          *ClientRequestFSGetMetadata\n\tvariantFSReadDirectory                        *ClientRequestFSReadDirectory\n\tvariantFSRemove                               *ClientRequestFSRemove\n\tvariantFSCopy                                 *ClientRequestFSCopy\n\tvariantFSWatch                                *ClientRequestFSWatch\n\tvariantFSUnwatch                              *ClientRequestFSUnwatch\n\tvariantSkillsConfigWrite                      *ClientRequestSkillsConfigWrite\n\tvariantPluginInstall                          *ClientRequestPluginInstall\n\tvariantPluginUninstall                        *ClientRequestPluginUninstall\n\tvariantTurnStart                              *ClientRequestTurnStart\n\tvariantTurnSettingsUpdate                     *ClientRequestTurnSettingsUpdate\n\tvariantTurnSteer                              *ClientRequestTurnSteer\n\tvariantTurnInterrupt                          *ClientRequestTurnInterrupt\n\tvariantThreadRealtimeStart                    *ClientRequestThreadRealtimeStart\n\tvariantThreadRealtimeAppendAudio              *ClientRequestThreadRealtimeAppendAudio\n\tvariantThreadRealtimeAppendText               *ClientRequestThreadRealtimeAppendText\n\tvariantThreadRealtimeAppendSpeech             *ClientRequestThreadRealtimeAppendSpeech\n\tvariantThreadRealtimeStop                     *ClientRequestThreadRealtimeStop\n\tvariantThreadTimelineList                     *ClientRequestThreadTimelineList\n\tvariantThreadRealtimeListVoices               *ClientRequestThreadRealtimeListVoices\n\tvariantReviewStart                            *ClientRequestReviewStart\n\tvariantModelList                              *ClientRequestModelList\n\tvariantModelProviderCapabilitiesRead          *ClientRequestModelProviderCapabilitiesRead\n\tvariantExperimentalFeatureList                *ClientRequestExperimentalFeatureList\n\tvariantPermissionProfileList                  *ClientRequestPermissionProfileList\n\tvariantExperimentalFeatureEnablementSet       *ClientRequestExperimentalFeatureEnablementSet\n\tvariantRemoteControlEnable                    *ClientRequestRemoteControlEnable\n\tvariantRemoteControlDisable                   *ClientRequestRemoteControlDisable\n\tvariantRemoteControlStatusRead                *ClientRequestRemoteControlStatusRead\n\tvariantRemoteControlPairingStart              *ClientRequestRemoteControlPairingStart\n\tvariantRemoteControlPairingStatus             *ClientRequestRemoteControlPairingStatus\n\tvariantRemoteControlClientList                *ClientRequestRemoteControlClientList\n\tvariantRemoteControlClientRevoke              *ClientRequestRemoteControlClientRevoke\n\tvariantCollaborationModeList                  *ClientRequestCollaborationModeList\n\tvariantMockExperimentalMethod                 *ClientRequestMockExperimentalMethod\n\tvariantEnvironmentAdd                         *ClientRequestEnvironmentAdd\n\tvariantEnvironmentInfo                        *ClientRequestEnvironmentInfo\n\tvariantEnvironmentStatus                      *ClientRequestEnvironmentStatus\n\tvariantMCPServerOAuthLogin                    *ClientRequestMCPServerOAuthLogin\n\tvariantConfigMCPServerReload                  *ClientRequestConfigMCPServerReload\n\tvariantMCPServerStatusList                    *ClientRequestMCPServerStatusList\n\tvariantMCPServerResourceRead                  *ClientRequestMCPServerResourceRead\n\tvariantMCPServerEventStreamStart              *ClientRequestMCPServerEventStreamStart\n\tvariantMCPServerEventStreamStop               *ClientRequestMCPServerEventStreamStop\n\tvariantMCPServerToolCall                      *ClientRequestMCPServerToolCall\n\tvariantWindowsSandboxSetupStart               *ClientRequestWindowsSandboxSetupStart\n\tvariantWindowsSandboxReadiness                *ClientRequestWindowsSandboxReadiness\n\tvariantAccountLoginStart                      *ClientRequestAccountLoginStart\n\tvariantAccountBedrockDiscover                 *ClientRequestAccountBedrockDiscover\n\tvariantAccountBedrockSetup                    *ClientRequestAccountBedrockSetup\n\tvariantAccountLoginCancel                     *ClientRequestAccountLoginCancel\n\tvariantAccountLogout                          *ClientRequestAccountLogout\n\tvariantAccountRateLimitsRead                  *ClientRequestAccountRateLimitsRead\n\tvariantAccountRateLimitResetCreditConsume     *ClientRequestAccountRateLimitResetCreditConsume\n\tvariantAccountUsageRead                       *ClientRequestAccountUsageRead\n\tvariantAccountWorkspaceMessagesRead           *ClientRequestAccountWorkspaceMessagesRead\n\tvariantAccountSendAddCreditsNudgeEmail        *ClientRequestAccountSendAddCreditsNudgeEmail\n\tvariantFeedbackUpload                         *ClientRequestFeedbackUpload\n\tvariantCommandExec                            *ClientRequestCommandExec\n\tvariantCommandExecWrite                       *ClientRequestCommandExecWrite\n\tvariantCommandExecTerminate                   *ClientRequestCommandExecTerminate\n\tvariantCommandExecResize                      *ClientRequestCommandExecResize\n\tvariantProcessSpawn                           *ClientRequestProcessSpawn\n\tvariantProcessWriteStdin                      *ClientRequestProcessWriteStdin\n\tvariantProcessKill                            *ClientRequestProcessKill\n\tvariantProcessResizePTY                       *ClientRequestProcessResizePTY\n\tvariantConfigRead                             *ClientRequestConfigRead\n\tvariantExternalAgentConfigDetect              *ClientRequestExternalAgentConfigDetect\n\tvariantExternalAgentConfigImport              *ClientRequestExternalAgentConfigImport\n\tvariantExternalAgentConfigImportRecordHistory *ClientRequestExternalAgentConfigImportRecordHistory\n\tvariantExternalAgentConfigImportReadHistories *ClientRequestExternalAgentConfigImportReadHistories\n\tvariantConfigValueWrite                       *ClientRequestConfigValueWrite\n\tvariantConfigBatchWrite                       *ClientRequestConfigBatchWrite\n\tvariantConfigRequirementsRead                 *ClientRequestConfigRequirementsRead\n\tvariantAccountRead                            *ClientRequestAccountRead\n\tvariantFuzzyFileSearch                        *ClientRequestFuzzyFileSearch\n\tvariantFuzzyFileSearchSessionStart            *ClientRequestFuzzyFileSearchSessionStart\n\tvariantFuzzyFileSearchSessionUpdate           *ClientRequestFuzzyFileSearchSessionUpdate\n\tvariantFuzzyFileSearchSessionStop             *ClientRequestFuzzyFileSearchSessionStop\n}",
+        "to_signature": "struct {\n\tkind                                          ClientRequestKind\n\tvariantInitialize                             *ClientRequestInitialize\n\tvariantServerDiagnostics                      *ClientRequestServerDiagnostics\n\tvariantThreadStart                            *ClientRequestThreadStart\n\tvariantThreadResume                           *ClientRequestThreadResume\n\tvariantThreadFork                             *ClientRequestThreadFork\n\tvariantThreadArchive                          *ClientRequestThreadArchive\n\tvariantThreadDelete                           *ClientRequestThreadDelete\n\tvariantThreadUnsubscribe                      *ClientRequestThreadUnsubscribe\n\tvariantThreadIncrementElicitation             *ClientRequestThreadIncrementElicitation\n\tvariantThreadDecrementElicitation             *ClientRequestThreadDecrementElicitation\n\tvariantThreadNameSet                          *ClientRequestThreadNameSet\n\tvariantThreadGoalSet                          *ClientRequestThreadGoalSet\n\tvariantThreadGoalGet                          *ClientRequestThreadGoalGet\n\tvariantThreadGoalClear                        *ClientRequestThreadGoalClear\n\tvariantThreadQueueAdd                         *ClientRequestThreadQueueAdd\n\tvariantThreadQueueList                        *ClientRequestThreadQueueList\n\tvariantThreadQueueUpdate                      *ClientRequestThreadQueueUpdate\n\tvariantThreadQueueDelete                      *ClientRequestThreadQueueDelete\n\tvariantThreadQueueReorder                     *ClientRequestThreadQueueReorder\n\tvariantThreadQueueStart                       *ClientRequestThreadQueueStart\n\tvariantThreadMetadataUpdate                   *ClientRequestThreadMetadataUpdate\n\tvariantThreadSectionMove                      *ClientRequestThreadSectionMove\n\tvariantThreadSettingsUpdate                   *ClientRequestThreadSettingsUpdate\n\tvariantThreadMemoryModeSet                    *ClientRequestThreadMemoryModeSet\n\tvariantMemoryReset                            *ClientRequestMemoryReset\n\tvariantThreadUnarchive                        *ClientRequestThreadUnarchive\n\tvariantThreadCompactStart                     *ClientRequestThreadCompactStart\n\tvariantThreadShellCommand                     *ClientRequestThreadShellCommand\n\tvariantThreadApproveGuardianDeniedAction      *ClientRequestThreadApproveGuardianDeniedAction\n\tvariantThreadBackgroundTerminalsClean         *ClientRequestThreadBackgroundTerminalsClean\n\tvariantThreadBackgroundTerminalsList          *ClientRequestThreadBackgroundTerminalsList\n\tvariantThreadBackgroundTerminalsTerminate     *ClientRequestThreadBackgroundTerminalsTerminate\n\tvariantThreadRollback                         *ClientRequestThreadRollback\n\tvariantThreadRevert                           *ClientRequestThreadRevert\n\tvariantThreadList                             *ClientRequestThreadList\n\tvariantProjectList                            *ClientRequestProjectList\n\tvariantProjectRead                            *ClientRequestProjectRead\n\tvariantProjectCreate                          *ClientRequestProjectCreate\n\tvariantProjectImport                          *ClientRequestProjectImport\n\tvariantProjectUpdate                          *ClientRequestProjectUpdate\n\tvariantProjectMove                            *ClientRequestProjectMove\n\tvariantProjectDelete                          *ClientRequestProjectDelete\n\tvariantThreadSectionList                      *ClientRequestThreadSectionList\n\tvariantThreadSectionCreate                    *ClientRequestThreadSectionCreate\n\tvariantThreadSectionUpdate                    *ClientRequestThreadSectionUpdate\n\tvariantThreadSectionDelete                    *ClientRequestThreadSectionDelete\n\tvariantThreadSearch                           *ClientRequestThreadSearch\n\tvariantThreadSearchOccurrences                *ClientRequestThreadSearchOccurrences\n\tvariantThreadLoadedList                       *ClientRequestThreadLoadedList\n\tvariantThreadRead                             *ClientRequestThreadRead\n\tvariantThreadTurnsList                        *ClientRequestThreadTurnsList\n\tvariantThreadItemsList                        *ClientRequestThreadItemsList\n\tvariantThreadInjectItems                      *ClientRequestThreadInjectItems\n\tvariantSkillsList                             *ClientRequestSkillsList\n\tvariantSkillsExtraRootsSet                    *ClientRequestSkillsExtraRootsSet\n\tvariantHooksList                              *ClientRequestHooksList\n\tvariantMarketplaceAdd                         *ClientRequestMarketplaceAdd\n\tvariantMarketplaceRemove                      *ClientRequestMarketplaceRemove\n\tvariantMarketplaceUpgrade                     *ClientRequestMarketplaceUpgrade\n\tvariantPluginList                             *ClientRequestPluginList\n\tvariantPluginSearch                           *ClientRequestPluginSearch\n\tvariantPluginInstalled                        *ClientRequestPluginInstalled\n\tvariantPluginReconcile                        *ClientRequestPluginReconcile\n\tvariantPluginRead                             *ClientRequestPluginRead\n\tvariantPluginSkillRead                        *ClientRequestPluginSkillRead\n\tvariantPluginShareSave                        *ClientRequestPluginShareSave\n\tvariantPluginShareUpdateTargets               *ClientRequestPluginShareUpdateTargets\n\tvariantPluginShareList                        *ClientRequestPluginShareList\n\tvariantPluginShareCheckout                    *ClientRequestPluginShareCheckout\n\tvariantPluginShareDelete                      *ClientRequestPluginShareDelete\n\tvariantAppRead                                *ClientRequestAppRead\n\tvariantAppList                                *ClientRequestAppList\n\tvariantAppInstalled                           *ClientRequestAppInstalled\n\tvariantFSReadFile                             *ClientRequestFSReadFile\n\tvariantFSWriteFile                            *ClientRequestFSWriteFile\n\tvariantFSCreateDirectory                      *ClientRequestFSCreateDirectory\n\tvariantFSGetMetadata                          *ClientRequestFSGetMetadata\n\tvariantFSReadDirectory                        *ClientRequestFSReadDirectory\n\tvariantFSRemove                               *ClientRequestFSRemove\n\tvariantFSCopy                                 *ClientRequestFSCopy\n\tvariantFSWatch                                *ClientRequestFSWatch\n\tvariantFSUnwatch                              *ClientRequestFSUnwatch\n\tvariantSkillsConfigWrite                      *ClientRequestSkillsConfigWrite\n\tvariantPluginInstall                          *ClientRequestPluginInstall\n\tvariantPluginUninstall                        *ClientRequestPluginUninstall\n\tvariantTurnStart                              *ClientRequestTurnStart\n\tvariantTurnSettingsUpdate                     *ClientRequestTurnSettingsUpdate\n\tvariantTurnSteer                              *ClientRequestTurnSteer\n\tvariantTurnInterrupt                          *ClientRequestTurnInterrupt\n\tvariantThreadRealtimeStart                    *ClientRequestThreadRealtimeStart\n\tvariantThreadRealtimeAppendAudio              *ClientRequestThreadRealtimeAppendAudio\n\tvariantThreadRealtimeAppendText               *ClientRequestThreadRealtimeAppendText\n\tvariantThreadRealtimeAppendSpeech             *ClientRequestThreadRealtimeAppendSpeech\n\tvariantThreadRealtimeStop                     *ClientRequestThreadRealtimeStop\n\tvariantThreadTimelineList                     *ClientRequestThreadTimelineList\n\tvariantThreadRealtimeListVoices               *ClientRequestThreadRealtimeListVoices\n\tvariantReviewStart                            *ClientRequestReviewStart\n\tvariantModelList                              *ClientRequestModelList\n\tvariantModelProviderCapabilitiesRead          *ClientRequestModelProviderCapabilitiesRead\n\tvariantExperimentalFeatureList                *ClientRequestExperimentalFeatureList\n\tvariantPermissionProfileList                  *ClientRequestPermissionProfileList\n\tvariantExperimentalFeatureEnablementSet       *ClientRequestExperimentalFeatureEnablementSet\n\tvariantRemoteControlEnable                    *ClientRequestRemoteControlEnable\n\tvariantRemoteControlDisable                   *ClientRequestRemoteControlDisable\n\tvariantRemoteControlStatusRead                *ClientRequestRemoteControlStatusRead\n\tvariantRemoteControlPairingStart              *ClientRequestRemoteControlPairingStart\n\tvariantRemoteControlPairingStatus             *ClientRequestRemoteControlPairingStatus\n\tvariantRemoteControlClientList                *ClientRequestRemoteControlClientList\n\tvariantRemoteControlClientRevoke              *ClientRequestRemoteControlClientRevoke\n\tvariantCollaborationModeList                  *ClientRequestCollaborationModeList\n\tvariantMockExperimentalMethod                 *ClientRequestMockExperimentalMethod\n\tvariantEnvironmentAdd                         *ClientRequestEnvironmentAdd\n\tvariantEnvironmentInfo                        *ClientRequestEnvironmentInfo\n\tvariantEnvironmentStatus                      *ClientRequestEnvironmentStatus\n\tvariantMCPServerOAuthLogin                    *ClientRequestMCPServerOAuthLogin\n\tvariantConfigMCPServerReload                  *ClientRequestConfigMCPServerReload\n\tvariantMCPServerStatusList                    *ClientRequestMCPServerStatusList\n\tvariantMCPServerResourceRead                  *ClientRequestMCPServerResourceRead\n\tvariantMCPServerEventStreamStart              *ClientRequestMCPServerEventStreamStart\n\tvariantMCPServerEventStreamStop               *ClientRequestMCPServerEventStreamStop\n\tvariantMCPServerToolCall                      *ClientRequestMCPServerToolCall\n\tvariantWindowsSandboxSetupStart               *ClientRequestWindowsSandboxSetupStart\n\tvariantWindowsSandboxReadiness                *ClientRequestWindowsSandboxReadiness\n\tvariantAccountLoginStart                      *ClientRequestAccountLoginStart\n\tvariantAccountBedrockDiscover                 *ClientRequestAccountBedrockDiscover\n\tvariantAccountBedrockSetup                    *ClientRequestAccountBedrockSetup\n\tvariantAccountLoginCancel                     *ClientRequestAccountLoginCancel\n\tvariantAccountLogout                          *ClientRequestAccountLogout\n\tvariantAccountRateLimitsRead                  *ClientRequestAccountRateLimitsRead\n\tvariantAccountRateLimitResetCreditConsume     *ClientRequestAccountRateLimitResetCreditConsume\n\tvariantAccountUsageRead                       *ClientRequestAccountUsageRead\n\tvariantAccountWorkspaceMessagesRead           *ClientRequestAccountWorkspaceMessagesRead\n\tvariantAccountSendAddCreditsNudgeEmail        *ClientRequestAccountSendAddCreditsNudgeEmail\n\tvariantFeedbackUpload                         *ClientRequestFeedbackUpload\n\tvariantCommandExec                            *ClientRequestCommandExec\n\tvariantCommandExecWrite                       *ClientRequestCommandExecWrite\n\tvariantCommandExecTerminate                   *ClientRequestCommandExecTerminate\n\tvariantCommandExecResize                      *ClientRequestCommandExecResize\n\tvariantProcessSpawn                           *ClientRequestProcessSpawn\n\tvariantProcessWriteStdin                      *ClientRequestProcessWriteStdin\n\tvariantProcessKill                            *ClientRequestProcessKill\n\tvariantProcessResizePTY                       *ClientRequestProcessResizePTY\n\tvariantConfigRead                             *ClientRequestConfigRead\n\tvariantExternalAgentConfigDetect              *ClientRequestExternalAgentConfigDetect\n\tvariantExternalAgentConfigImport              *ClientRequestExternalAgentConfigImport\n\tvariantExternalAgentConfigImportRecordHistory *ClientRequestExternalAgentConfigImportRecordHistory\n\tvariantExternalAgentConfigImportReadHistories *ClientRequestExternalAgentConfigImportReadHistories\n\tvariantConfigValueWrite                       *ClientRequestConfigValueWrite\n\tvariantConfigBatchWrite                       *ClientRequestConfigBatchWrite\n\tvariantConfigRequirementsRead                 *ClientRequestConfigRequirementsRead\n\tvariantAccountRead                            *ClientRequestAccountRead\n\tvariantFuzzyFileSearch                        *ClientRequestFuzzyFileSearch\n\tvariantFuzzyFileSearchSessionStart            *ClientRequestFuzzyFileSearchSessionStart\n\tvariantFuzzyFileSearchSessionUpdate           *ClientRequestFuzzyFileSearchSessionUpdate\n\tvariantFuzzyFileSearchSessionStop             *ClientRequestFuzzyFileSearchSessionStop\n}"
+      },
+      {
+        "kind": "type",
+        "name": "GetAccountRateLimitsResponse",
+        "classification": "stable",
+        "from_signature": "struct {\n\tRateLimitResetCredits *Nullable[RateLimitResetCreditsSummary] `json:\"rateLimitResetCredits,omitempty\"`\n\tRateLimits            RateLimitSnapshot                       `json:\"rateLimits\"`\n\tRateLimitsByLimitID   *Nullable[map[string]RateLimitSnapshot] `json:\"rateLimitsByLimitId,omitempty\"`\n}",
+        "to_signature": "struct {\n\tAccountID             *Nullable[string]                       `json:\"accountId,omitempty\"`\n\tRateLimitResetCredits *Nullable[RateLimitResetCreditsSummary] `json:\"rateLimitResetCredits,omitempty\"`\n\tRateLimitUpsell       *JSONValue                              `json:\"rateLimitUpsell,omitempty\"`\n\tRateLimits            RateLimitSnapshot                       `json:\"rateLimits\"`\n\tRateLimitsByLimitID   *Nullable[map[string]RateLimitSnapshot] `json:\"rateLimitsByLimitId,omitempty\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "Project",
+        "classification": "experimental",
+        "from_signature": "struct {\n\tCreatedAt int64             `json:\"createdAt\"`\n\tID        string            `json:\"id\"`\n\tMetadata  map[string]string `json:\"metadata\"`\n\tName      string            `json:\"name\"`\n\tPosition  int64             `json:\"position\"`\n\tRoots     []ProjectRoot     `json:\"roots\"`\n\tUpdatedAt int64             `json:\"updatedAt\"`\n}",
+        "to_signature": "struct {\n\tCreatedAt int64             `json:\"createdAt\"`\n\tID        string            `json:\"id\"`\n\tMetadata  map[string]string `json:\"metadata\"`\n\tName      string            `json:\"name\"`\n\tPosition  int64             `json:\"position\"`\n\tRecencyAt *Nullable[int64]  `json:\"recencyAt,omitempty\"`\n\tRoots     []ProjectRoot     `json:\"roots\"`\n\tUpdatedAt int64             `json:\"updatedAt\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ProjectListParams",
+        "classification": "experimental",
+        "from_signature": "struct {\n\tCursor *Nullable[string] `json:\"cursor,omitempty\"`\n\tLimit  *Nullable[uint32] `json:\"limit,omitempty\"`\n}",
+        "to_signature": "struct {\n\tCursor        *Nullable[string]         `json:\"cursor,omitempty\"`\n\tLimit         *Nullable[uint32]         `json:\"limit,omitempty\"`\n\tSortDirection *Nullable[SortDirection]  `json:\"sortDirection,omitempty\"`\n\tSortKey       *Nullable[ProjectSortKey] `json:\"sortKey,omitempty\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ServerNotification",
+        "classification": "stable",
+        "from_signature": "struct {\n\tkind                                           ServerNotificationKind\n\tvariantError                                   *ServerNotificationError\n\tvariantThreadStarted                           *ServerNotificationThreadStarted\n\tvariantThreadStatusChanged                     *ServerNotificationThreadStatusChanged\n\tvariantThreadArchived                          *ServerNotificationThreadArchived\n\tvariantThreadDeleted                           *ServerNotificationThreadDeleted\n\tvariantThreadUnarchived                        *ServerNotificationThreadUnarchived\n\tvariantThreadClosed                            *ServerNotificationThreadClosed\n\tvariantThreadReverted                          *ServerNotificationThreadReverted\n\tvariantSkillsChanged                           *ServerNotificationSkillsChanged\n\tvariantThreadNameUpdated                       *ServerNotificationThreadNameUpdated\n\tvariantThreadGoalUpdated                       *ServerNotificationThreadGoalUpdated\n\tvariantThreadGoalCleared                       *ServerNotificationThreadGoalCleared\n\tvariantThreadQueueChanged                      *ServerNotificationThreadQueueChanged\n\tvariantProjectChanged                          *ServerNotificationProjectChanged\n\tvariantThreadProjectUpdated                    *ServerNotificationThreadProjectUpdated\n\tvariantThreadEnvironmentConnected              *ServerNotificationThreadEnvironmentConnected\n\tvariantThreadEnvironmentDisconnected           *ServerNotificationThreadEnvironmentDisconnected\n\tvariantThreadSettingsUpdated                   *ServerNotificationThreadSettingsUpdated\n\tvariantThreadTokenUsageUpdated                 *ServerNotificationThreadTokenUsageUpdated\n\tvariantTurnStarted                             *ServerNotificationTurnStarted\n\tvariantHookStarted                             *ServerNotificationHookStarted\n\tvariantTurnCompleted                           *ServerNotificationTurnCompleted\n\tvariantHookCompleted                           *ServerNotificationHookCompleted\n\tvariantTurnDiffUpdated                         *ServerNotificationTurnDiffUpdated\n\tvariantTurnPlanUpdated                         *ServerNotificationTurnPlanUpdated\n\tvariantItemStarted                             *ServerNotificationItemStarted\n\tvariantItemAutoApprovalReviewStarted           *ServerNotificationItemAutoApprovalReviewStarted\n\tvariantItemAutoApprovalReviewCompleted         *ServerNotificationItemAutoApprovalReviewCompleted\n\tvariantAutoApprovalReviewStrictReviewRequired  *ServerNotificationAutoApprovalReviewStrictReviewRequired\n\tvariantItemCompleted                           *ServerNotificationItemCompleted\n\tvariantItemAgentMessageDelta                   *ServerNotificationItemAgentMessageDelta\n\tvariantItemPlanDelta                           *ServerNotificationItemPlanDelta\n\tvariantCommandExecOutputDelta                  *ServerNotificationCommandExecOutputDelta\n\tvariantProcessOutputDelta                      *ServerNotificationProcessOutputDelta\n\tvariantProcessExited                           *ServerNotificationProcessExited\n\tvariantItemCommandExecutionOutputDelta         *ServerNotificationItemCommandExecutionOutputDelta\n\tvariantItemCommandExecutionTerminalInteraction *ServerNotificationItemCommandExecutionTerminalInteraction\n\tvariantItemFileChangeOutputDelta               *ServerNotificationItemFileChangeOutputDelta\n\tvariantItemFileChangePatchUpdated              *ServerNotificationItemFileChangePatchUpdated\n\tvariantServerRequestResolved                   *ServerNotificationServerRequestResolved\n\tvariantItemMCPToolCallProgress                 *ServerNotificationItemMCPToolCallProgress\n\tvariantMCPServerOAuthLoginCompleted            *ServerNotificationMCPServerOAuthLoginCompleted\n\tvariantMCPServerStartupStatusUpdated           *ServerNotificationMCPServerStartupStatusUpdated\n\tvariantMCPServerEventStreamNotification        *ServerNotificationMCPServerEventStreamNotification\n\tvariantAccountUpdated                          *ServerNotificationAccountUpdated\n\tvariantAccountRateLimitsUpdated                *ServerNotificationAccountRateLimitsUpdated\n\tvariantAppListUpdated                          *ServerNotificationAppListUpdated\n\tvariantRemoteControlStatusChanged              *ServerNotificationRemoteControlStatusChanged\n\tvariantExternalAgentConfigImportProgress       *ServerNotificationExternalAgentConfigImportProgress\n\tvariantExternalAgentConfigImportCompleted      *ServerNotificationExternalAgentConfigImportCompleted\n\tvariantFSChanged                               *ServerNotificationFSChanged\n\tvariantItemReasoningSummaryTextDelta           *ServerNotificationItemReasoningSummaryTextDelta\n\tvariantItemReasoningSummaryPartAdded           *ServerNotificationItemReasoningSummaryPartAdded\n\tvariantItemReasoningTextDelta                  *ServerNotificationItemReasoningTextDelta\n\tvariantThreadCompacted                         *ServerNotificationThreadCompacted\n\tvariantModelRerouted                           *ServerNotificationModelRerouted\n\tvariantModelVerification                       *ServerNotificationModelVerification\n\tvariantTurnModerationMetadata                  *ServerNotificationTurnModerationMetadata\n\tvariantModelSafetyBufferingUpdated             *ServerNotificationModelSafetyBufferingUpdated\n\tvariantWarning                                 *ServerNotificationWarning\n\tvariantGuardianWarning                         *ServerNotificationGuardianWarning\n\tvariantDeprecationNotice                       *ServerNotificationDeprecationNotice\n\tvariantConfigWarning                           *ServerNotificationConfigWarning\n\tvariantFuzzyFileSearchSessionUpdated           *ServerNotificationFuzzyFileSearchSessionUpdated\n\tvariantFuzzyFileSearchSessionCompleted         *ServerNotificationFuzzyFileSearchSessionCompleted\n\tvariantThreadRealtimeStarted                   *ServerNotificationThreadRealtimeStarted\n\tvariantThreadRealtimeItemAdded                 *ServerNotificationThreadRealtimeItemAdded\n\tvariantThreadRealtimeItemStarted               *ServerNotificationThreadRealtimeItemStarted\n\tvariantThreadRealtimeItemTranscriptDelta       *ServerNotificationThreadRealtimeItemTranscriptDelta\n\tvariantThreadRealtimeItemCompleted             *ServerNotificationThreadRealtimeItemCompleted\n\tvariantThreadRealtimeTranscriptDelta           *ServerNotificationThreadRealtimeTranscriptDelta\n\tvariantThreadRealtimeTranscriptDone            *ServerNotificationThreadRealtimeTranscriptDone\n\tvariantThreadRealtimeOutputAudioDelta          *ServerNotificationThreadRealtimeOutputAudioDelta\n\tvariantThreadRealtimeSDP                       *ServerNotificationThreadRealtimeSDP\n\tvariantThreadRealtimeError                     *ServerNotificationThreadRealtimeError\n\tvariantThreadRealtimeClosed                    *ServerNotificationThreadRealtimeClosed\n\tvariantWindowsWorldWritableWarning             *ServerNotificationWindowsWorldWritableWarning\n\tvariantWindowsSandboxSetupCompleted            *ServerNotificationWindowsSandboxSetupCompleted\n\tvariantAccountLoginCompleted                   *ServerNotificationAccountLoginCompleted\n}",
+        "to_signature": "struct {\n\tkind                                           ServerNotificationKind\n\tvariantError                                   *ServerNotificationError\n\tvariantThreadStarted                           *ServerNotificationThreadStarted\n\tvariantThreadStatusChanged                     *ServerNotificationThreadStatusChanged\n\tvariantThreadArchived                          *ServerNotificationThreadArchived\n\tvariantThreadDeleted                           *ServerNotificationThreadDeleted\n\tvariantThreadUnarchived                        *ServerNotificationThreadUnarchived\n\tvariantThreadClosed                            *ServerNotificationThreadClosed\n\tvariantThreadReverted                          *ServerNotificationThreadReverted\n\tvariantSkillsChanged                           *ServerNotificationSkillsChanged\n\tvariantThreadNameUpdated                       *ServerNotificationThreadNameUpdated\n\tvariantThreadGoalUpdated                       *ServerNotificationThreadGoalUpdated\n\tvariantThreadGoalCleared                       *ServerNotificationThreadGoalCleared\n\tvariantThreadQueueChanged                      *ServerNotificationThreadQueueChanged\n\tvariantProjectChanged                          *ServerNotificationProjectChanged\n\tvariantThreadProjectUpdated                    *ServerNotificationThreadProjectUpdated\n\tvariantThreadEnvironmentConnected              *ServerNotificationThreadEnvironmentConnected\n\tvariantThreadEnvironmentDisconnected           *ServerNotificationThreadEnvironmentDisconnected\n\tvariantThreadSettingsUpdated                   *ServerNotificationThreadSettingsUpdated\n\tvariantThreadTokenUsageUpdated                 *ServerNotificationThreadTokenUsageUpdated\n\tvariantTurnStarted                             *ServerNotificationTurnStarted\n\tvariantHookStarted                             *ServerNotificationHookStarted\n\tvariantTurnCompleted                           *ServerNotificationTurnCompleted\n\tvariantHookCompleted                           *ServerNotificationHookCompleted\n\tvariantTurnDiffUpdated                         *ServerNotificationTurnDiffUpdated\n\tvariantTurnPlanUpdated                         *ServerNotificationTurnPlanUpdated\n\tvariantItemStarted                             *ServerNotificationItemStarted\n\tvariantItemAutoApprovalReviewStarted           *ServerNotificationItemAutoApprovalReviewStarted\n\tvariantItemAutoApprovalReviewCompleted         *ServerNotificationItemAutoApprovalReviewCompleted\n\tvariantAutoApprovalReviewStrictReviewRequired  *ServerNotificationAutoApprovalReviewStrictReviewRequired\n\tvariantItemCompleted                           *ServerNotificationItemCompleted\n\tvariantItemAgentMessageDelta                   *ServerNotificationItemAgentMessageDelta\n\tvariantItemPlanDelta                           *ServerNotificationItemPlanDelta\n\tvariantCommandExecOutputDelta                  *ServerNotificationCommandExecOutputDelta\n\tvariantProcessOutputDelta                      *ServerNotificationProcessOutputDelta\n\tvariantProcessExited                           *ServerNotificationProcessExited\n\tvariantItemCommandExecutionOutputDelta         *ServerNotificationItemCommandExecutionOutputDelta\n\tvariantItemCommandExecutionTerminalInteraction *ServerNotificationItemCommandExecutionTerminalInteraction\n\tvariantItemFileChangeOutputDelta               *ServerNotificationItemFileChangeOutputDelta\n\tvariantItemFileChangePatchUpdated              *ServerNotificationItemFileChangePatchUpdated\n\tvariantServerRequestResolved                   *ServerNotificationServerRequestResolved\n\tvariantItemMCPToolCallProgress                 *ServerNotificationItemMCPToolCallProgress\n\tvariantMCPServerOAuthLoginCompleted            *ServerNotificationMCPServerOAuthLoginCompleted\n\tvariantMCPServerStartupStatusUpdated           *ServerNotificationMCPServerStartupStatusUpdated\n\tvariantMCPServerEventStreamNotification        *ServerNotificationMCPServerEventStreamNotification\n\tvariantAccountUpdated                          *ServerNotificationAccountUpdated\n\tvariantAccountRateLimitsUpdated                *ServerNotificationAccountRateLimitsUpdated\n\tvariantAppListUpdated                          *ServerNotificationAppListUpdated\n\tvariantRemoteControlStatusChanged              *ServerNotificationRemoteControlStatusChanged\n\tvariantExternalAgentConfigImportProgress       *ServerNotificationExternalAgentConfigImportProgress\n\tvariantExternalAgentConfigImportCompleted      *ServerNotificationExternalAgentConfigImportCompleted\n\tvariantFSChanged                               *ServerNotificationFSChanged\n\tvariantItemReasoningSummaryTextDelta           *ServerNotificationItemReasoningSummaryTextDelta\n\tvariantItemReasoningSummaryPartAdded           *ServerNotificationItemReasoningSummaryPartAdded\n\tvariantItemReasoningTextDelta                  *ServerNotificationItemReasoningTextDelta\n\tvariantThreadCompacted                         *ServerNotificationThreadCompacted\n\tvariantModelRerouted                           *ServerNotificationModelRerouted\n\tvariantModelVerification                       *ServerNotificationModelVerification\n\tvariantModelProviderAuthRecoveryStarted        *ServerNotificationModelProviderAuthRecoveryStarted\n\tvariantModelProviderAuthRecoveryCompleted      *ServerNotificationModelProviderAuthRecoveryCompleted\n\tvariantTurnModerationMetadata                  *ServerNotificationTurnModerationMetadata\n\tvariantModelSafetyBufferingUpdated             *ServerNotificationModelSafetyBufferingUpdated\n\tvariantWarning                                 *ServerNotificationWarning\n\tvariantGuardianWarning                         *ServerNotificationGuardianWarning\n\tvariantDeprecationNotice                       *ServerNotificationDeprecationNotice\n\tvariantConfigWarning                           *ServerNotificationConfigWarning\n\tvariantFuzzyFileSearchSessionUpdated           *ServerNotificationFuzzyFileSearchSessionUpdated\n\tvariantFuzzyFileSearchSessionCompleted         *ServerNotificationFuzzyFileSearchSessionCompleted\n\tvariantThreadRealtimeStarted                   *ServerNotificationThreadRealtimeStarted\n\tvariantThreadRealtimeItemAdded                 *ServerNotificationThreadRealtimeItemAdded\n\tvariantThreadRealtimeItemStarted               *ServerNotificationThreadRealtimeItemStarted\n\tvariantThreadRealtimeItemTranscriptDelta       *ServerNotificationThreadRealtimeItemTranscriptDelta\n\tvariantThreadRealtimeItemCompleted             *ServerNotificationThreadRealtimeItemCompleted\n\tvariantThreadRealtimeTranscriptDelta           *ServerNotificationThreadRealtimeTranscriptDelta\n\tvariantThreadRealtimeTranscriptDone            *ServerNotificationThreadRealtimeTranscriptDone\n\tvariantThreadRealtimeOutputAudioDelta          *ServerNotificationThreadRealtimeOutputAudioDelta\n\tvariantThreadRealtimeSDP                       *ServerNotificationThreadRealtimeSDP\n\tvariantThreadRealtimeError                     *ServerNotificationThreadRealtimeError\n\tvariantThreadRealtimeClosed                    *ServerNotificationThreadRealtimeClosed\n\tvariantWindowsWorldWritableWarning             *ServerNotificationWindowsWorldWritableWarning\n\tvariantWindowsSandboxSetupCompleted            *ServerNotificationWindowsSandboxSetupCompleted\n\tvariantAccountLoginCompleted                   *ServerNotificationAccountLoginCompleted\n}"
+      },
+      {
+        "kind": "type",
+        "name": "Thread",
+        "classification": "mixed",
+        "from_signature": "struct {\n\tAgentNickname        *Nullable[string]        `json:\"agentNickname,omitempty\"`\n\tAgentRole            *Nullable[string]        `json:\"agentRole,omitempty\"`\n\tCanAcceptDirectInput *Nullable[bool]          `json:\"canAcceptDirectInput,omitempty\"`\n\tCliVersion           string                   `json:\"cliVersion\"`\n\tCreatedAt            int64                    `json:\"createdAt\"`\n\tCWD                  string                   `json:\"cwd\"`\n\tEphemeral            bool                     `json:\"ephemeral\"`\n\tExtra                *Nullable[ThreadExtra]   `json:\"extra,omitempty\"`\n\tForkedFromID         *Nullable[string]        `json:\"forkedFromId,omitempty\"`\n\tGitInfo              *Nullable[GitInfo]       `json:\"gitInfo,omitempty\"`\n\tHistoryMode          *ThreadHistoryMode       `json:\"historyMode,omitempty\"`\n\tID                   string                   `json:\"id\"`\n\tModelProvider        string                   `json:\"modelProvider\"`\n\tName                 *Nullable[string]        `json:\"name,omitempty\"`\n\tParentThreadID       *Nullable[string]        `json:\"parentThreadId,omitempty\"`\n\tPath                 *Nullable[string]        `json:\"path,omitempty\"`\n\tPreview              string                   `json:\"preview\"`\n\tProjectID            Nullable[string]         `json:\"projectId\"`\n\tRecencyAt            *Nullable[int64]         `json:\"recencyAt,omitempty\"`\n\tSection              *Nullable[ThreadSection] `json:\"section,omitempty\"`\n\tSectionEnteredAt     *Nullable[int64]         `json:\"sectionEnteredAt,omitempty\"`\n\tSessionID            string                   `json:\"sessionId\"`\n\tSource               SessionSource            `json:\"source\"`\n\tStatus               ThreadStatus             `json:\"status\"`\n\tThreadSource         *Nullable[ThreadSource]  `json:\"threadSource,omitempty\"`\n\tTurns                []Turn                   `json:\"turns\"`\n\tUpdatedAt            int64                    `json:\"updatedAt\"`\n}",
+        "to_signature": "struct {\n\tAgentNickname        *Nullable[string]          `json:\"agentNickname,omitempty\"`\n\tAgentRole            *Nullable[string]          `json:\"agentRole,omitempty\"`\n\tCanAcceptDirectInput *Nullable[bool]            `json:\"canAcceptDirectInput,omitempty\"`\n\tCliVersion           string                     `json:\"cliVersion\"`\n\tCreatedAt            int64                      `json:\"createdAt\"`\n\tCWD                  string                     `json:\"cwd\"`\n\tEphemeral            bool                       `json:\"ephemeral\"`\n\tExtra                *Nullable[ThreadExtra]     `json:\"extra,omitempty\"`\n\tForkedFromID         *Nullable[string]          `json:\"forkedFromId,omitempty\"`\n\tGitInfo              *Nullable[GitInfo]         `json:\"gitInfo,omitempty\"`\n\tHistoryMode          *ThreadHistoryMode         `json:\"historyMode,omitempty\"`\n\tID                   string                     `json:\"id\"`\n\tModel                *Nullable[string]          `json:\"model,omitempty\"`\n\tModelProvider        string                     `json:\"modelProvider\"`\n\tName                 *Nullable[string]          `json:\"name,omitempty\"`\n\tParentThreadID       *Nullable[string]          `json:\"parentThreadId,omitempty\"`\n\tPath                 *Nullable[string]          `json:\"path,omitempty\"`\n\tPreview              string                     `json:\"preview\"`\n\tProjectID            Nullable[string]           `json:\"projectId\"`\n\tReasoningEffort      *Nullable[ReasoningEffort] `json:\"reasoningEffort,omitempty\"`\n\tRecencyAt            *Nullable[int64]           `json:\"recencyAt,omitempty\"`\n\tSection              *Nullable[ThreadSection]   `json:\"section,omitempty\"`\n\tSectionEnteredAt     *Nullable[int64]           `json:\"sectionEnteredAt,omitempty\"`\n\tSessionID            string                     `json:\"sessionId\"`\n\tSource               SessionSource              `json:\"source\"`\n\tStatus               ThreadStatus               `json:\"status\"`\n\tThreadSource         *Nullable[ThreadSource]    `json:\"threadSource,omitempty\"`\n\tTurns                []Turn                     `json:\"turns\"`\n\tUpdatedAt            int64                      `json:\"updatedAt\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ThreadItemAgentMessage",
+        "classification": "stable",
+        "from_signature": "struct {\n\tDelivery       *Nullable[AgentMessageDelivery] `json:\"delivery,omitempty\"`\n\tID             string                          `json:\"id\"`\n\tMemoryCitation *Nullable[MemoryCitation]       `json:\"memoryCitation,omitempty\"`\n\tPhase          *Nullable[MessagePhase]         `json:\"phase,omitempty\"`\n\tText           string                          `json:\"text\"`\n}",
+        "to_signature": "struct {\n\tDelivery       *Nullable[AgentMessageDelivery]     `json:\"delivery,omitempty\"`\n\tID             string                              `json:\"id\"`\n\tMemoryCitation *Nullable[MemoryCitation]           `json:\"memoryCitation,omitempty\"`\n\tPhase          *Nullable[MessagePhase]             `json:\"phase,omitempty\"`\n\tQuestions      *Nullable[[]AsyncUserInputQuestion] `json:\"questions,omitempty\"`\n\tText           string                              `json:\"text\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "ThreadShellCommandParams",
+        "classification": "stable",
+        "from_signature": "struct {\n\tCommand  string `json:\"command\"`\n\tThreadID string `json:\"threadId\"`\n}",
+        "to_signature": "struct {\n\tCommand   string           `json:\"command\"`\n\tThreadID  string           `json:\"threadId\"`\n\tTimeoutMS *Nullable[int64] `json:\"timeoutMs,omitempty\"`\n}"
+      },
+      {
+        "kind": "type",
+        "name": "TurnSettingsUpdateParams",
+        "classification": "experimental",
+        "from_signature": "struct {\n\tEffort      *Nullable[ReasoningEffort]  `json:\"effort,omitempty\"`\n\tModel       *Nullable[string]           `json:\"model,omitempty\"`\n\tServiceTier *Nullable[string]           `json:\"serviceTier,omitempty\"`\n\tSummary     *Nullable[ReasoningSummary] `json:\"summary,omitempty\"`\n\tThreadID    string                      `json:\"threadId\"`\n\tTurnID      string                      `json:\"turnId\"`\n}",
+        "to_signature": "struct {\n\tApprovalsReviewer *Nullable[ApprovalsReviewer] `json:\"approvalsReviewer,omitempty\"`\n\tEffort            *Nullable[ReasoningEffort]   `json:\"effort,omitempty\"`\n\tModel             *Nullable[string]            `json:\"model,omitempty\"`\n\tServiceTier       *Nullable[string]            `json:\"serviceTier,omitempty\"`\n\tSummary           *Nullable[ReasoningSummary]  `json:\"summary,omitempty\"`\n\tThreadID          string                       `json:\"threadId\"`\n\tTurnID            string                       `json:\"turnId\"`\n}"
+      }
+    ]
   }
 }
