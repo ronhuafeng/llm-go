@@ -391,6 +391,7 @@ func TestAttributionExtractsGeneratedIdentity(t *testing.T) {
 		wantTurn   string
 	}{
 		{"turn fields", `{"method":"model/rerouted","params":{"threadId":"thread-a","turnId":"turn-a","fromModel":"a","toModel":"b","reason":"highRiskCyberActivity"}}`, notificationAttributionTurn, "thread-a", "turn-a"},
+		{"auth recovery turn fields", `{"method":"modelProvider/authRecoveryStarted","params":{"threadId":"thread-auth","turnId":"turn-auth","provider":"openai","message":"refreshing credentials"}}`, notificationAttributionTurn, "thread-auth", "turn-auth"},
 		{"nested turn", `{"method":"turn/started","params":{"threadId":"thread-b","turn":{"id":"turn-b","items":[],"status":"inProgress"}}}`, notificationAttributionTurn, "thread-b", "turn-b"},
 		{"thread only", `{"method":"guardianWarning","params":{"threadId":"thread-c","message":"notice"}}`, notificationAttributionThread, "thread-c", ""},
 		{"global", `{"method":"skills/changed","params":{}}`, notificationAttributionGlobal, "", ""},

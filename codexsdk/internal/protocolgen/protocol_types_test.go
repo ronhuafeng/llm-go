@@ -569,6 +569,71 @@ func TestSelectGeneratedTaggedUnionsSupportsReviewedNullableRefPayload(t *testin
 	}
 }
 
+func TestSelectGeneratedTaggedUnionsSupportsReviewedArrayRefPayload(t *testing.T) {
+	schema := mustParseSchema(t, `{
+		"definitions": {
+			"AsyncUserInputQuestion": {
+				"type": "object",
+				"required": ["title"],
+				"properties": {
+					"options": {"type": ["array", "null"], "items": {"type": "string"}},
+					"title": {"type": "string"}
+				}
+			},
+			"ThreadItem": {
+				"oneOf": [{
+					"type": "object",
+					"required": ["text", "type"],
+					"properties": {
+						"questions": {
+							"type": ["array", "null"],
+							"items": {"$ref": "#/definitions/AsyncUserInputQuestion"}
+						},
+						"text": {"type": "string"},
+						"type": {"type": "string", "enum": ["agentMessage"]}
+					}
+				}]
+			}
+		}
+	}`)
+	plan := ProtocolTypePlan{Types: []TypePlan{{
+		Schema:     schema,
+		SchemaPath: "v2/TurnStartResponse.json",
+		Stability:  "stable",
+		TypeName:   "TurnStartResponse",
+	}}}
+
+	unions, err := SelectGeneratedTaggedUnions(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(unions) != 1 || len(unions[0].Variants) != 1 {
+		t.Fatalf("ThreadItem tagged union plan = %#v", unions)
+	}
+	fields := map[string]FieldPlan{}
+	for _, field := range unions[0].Variants[0].Fields {
+		fields[field.FieldName] = field
+	}
+	questions := fields["questions"]
+	if questions.Kind != FieldPlanArrayRef || questions.GoType != "*protocolv2.Nullable[[]AsyncUserInputQuestion]" {
+		t.Fatalf("agentMessage questions field = kind %s GoType %q", questions.Kind, questions.GoType)
+	}
+	if !questions.WireAllowsNull || !questions.WireOmitAllowed {
+		t.Fatal("optional nullable questions must preserve omit/null/value semantics")
+	}
+
+	types, err := SelectFirstPassGeneratedTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, typ := range types {
+		if typ.TypeName == "AsyncUserInputQuestion" {
+			return
+		}
+	}
+	t.Fatal("AsyncUserInputQuestion dependency was not selected for generation")
+}
+
 func TestSelectGeneratedTaggedUnionsSupportsReviewedDynamicJSONField(t *testing.T) {
 	schema := mustParseSchema(t, `{
 		"definitions": {
@@ -807,6 +872,104 @@ func TestSelectFirstPassGeneratedTypesIncludesReviewedBedrockDiscoverResponse(t 
 	for _, name := range []string{"BedrockAwsProfile", "BedrockDiscoverResponse", "BedrockEnvironmentCredential"} {
 		if !selectedNames[name] {
 			t.Fatalf("selected Bedrock discover types %v do not include %s", selectedNames, name)
+		}
+	}
+}
+
+func TestSelectFirstPassGeneratedTypesIncludesReviewedPluginReconcileResponse(t *testing.T) {
+	schema := mustParseSchema(t, `{
+		"definitions": {
+			"PluginReconcileChangedPlugin": {
+				"type": "object",
+				"required": ["hasApps", "id"],
+				"properties": {
+					"hasApps": {"type": "boolean"},
+					"id": {"type": "string"}
+				}
+			}
+		}
+	}`)
+	plan := ProtocolTypePlan{Types: []TypePlan{{
+		Fields: []FieldPlan{
+			{
+				FieldName:  "changedPlugins",
+				GoType:     "[]PluginReconcileChangedPlugin",
+				Kind:       FieldPlanArrayRef,
+				Path:       "v2/PluginReconcileResponse.json#/properties/changedPlugins",
+				RefPath:    "v2/PluginReconcileResponse.json#/definitions/PluginReconcileChangedPlugin",
+				Required:   true,
+				SchemaPath: "v2/PluginReconcileResponse.json",
+				Stability:  "stable",
+				TypeName:   "PluginReconcileResponse",
+			},
+			{
+				FieldName:  "failedRemotePluginIds",
+				GoType:     "[]string",
+				Kind:       FieldPlanArrayString,
+				Path:       "v2/PluginReconcileResponse.json#/properties/failedRemotePluginIds",
+				Required:   true,
+				SchemaPath: "v2/PluginReconcileResponse.json",
+				Stability:  "stable",
+				TypeName:   "PluginReconcileResponse",
+			},
+		},
+		Kind:       TypePlanObjectStructCandidate,
+		Schema:     schema,
+		SchemaPath: "v2/PluginReconcileResponse.json",
+		Stability:  "stable",
+		TypeName:   "PluginReconcileResponse",
+	}}}
+
+	selected, err := SelectFirstPassGeneratedTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selectedNames := map[string]bool{}
+	for _, typ := range selected {
+		selectedNames[typ.TypeName] = true
+	}
+	for _, name := range []string{"PluginReconcileChangedPlugin", "PluginReconcileResponse"} {
+		if !selectedNames[name] {
+			t.Fatalf("selected plugin reconcile types %v do not include %s", selectedNames, name)
+		}
+	}
+}
+
+func TestSelectFirstPassGeneratedTypesIncludesReviewedAppLinksConfig(t *testing.T) {
+	schema := mustParseSchema(t, `{
+		"definitions": {
+			"AppConfig": {
+				"type": "object",
+				"properties": {
+					"links": {
+						"anyOf": [
+							{"$ref": "#/definitions/AppLinksConfig"},
+							{"type": "null"}
+						]
+					}
+				}
+			},
+			"AppLinksConfig": {"type": "object"}
+		}
+	}`)
+	plan := ProtocolTypePlan{Types: []TypePlan{{
+		Schema:     schema,
+		SchemaPath: "v2/ConfigReadResponse.json",
+		Stability:  "stable",
+		TypeName:   "ConfigReadResponse",
+	}}}
+
+	selected, err := SelectFirstPassGeneratedTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selectedNames := map[string]bool{}
+	for _, typ := range selected {
+		selectedNames[typ.TypeName] = true
+	}
+	for _, name := range []string{"AppConfig", "AppLinksConfig"} {
+		if !selectedNames[name] {
+			t.Fatalf("selected config types %v do not include %s", selectedNames, name)
 		}
 	}
 }
