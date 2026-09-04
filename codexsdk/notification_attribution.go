@@ -39,6 +39,7 @@ var notificationAttribution = func() map[protocolv2.ServerNotificationKind]notif
 		"item/mcpToolCall/progress", "item/plan/delta", "item/reasoning/summaryPartAdded",
 		"item/reasoning/summaryTextDelta", "item/reasoning/textDelta", "item/started",
 		"model/rerouted", "model/safetyBuffering/updated", "model/verification",
+		"modelProvider/authRecoveryCompleted", "modelProvider/authRecoveryStarted",
 		"thread/compacted", "thread/tokenUsage/updated", "turn/completed",
 		"turn/diff/updated", "turn/moderationMetadata", "turn/plan/updated", "turn/started",
 	)
