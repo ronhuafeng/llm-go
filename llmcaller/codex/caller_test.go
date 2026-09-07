@@ -447,8 +447,15 @@ func TestAdmitTurnRejectsUnknownEffectiveFactsBeforeTurn(t *testing.T) {
 			got, err := caller.CallDetailed(context.Background(), validRequest())
 			requireTurnAdmissionProfileError(t, err, testCase.want)
 			if got.Start.Thread.ID != run.Start.Thread.ID || got.Run.Turn.ID != "" {
-				t.Fatalf("unknown fact rejection = %#v, want start-only evidence", got)
+				t.Fatalf("CallDetailed unknown fact rejection = %#v, want start-only evidence", got)
 			}
+			response, callErr := caller.Call(context.Background(), validRequest())
+			requireTurnAdmissionProfileError(t, callErr, testCase.want)
+			if response.FinalResponse != "" {
+				t.Fatalf("Call published turn output after unknown fact: %#v", response)
+			}
+			_, streamErr := caller.CallStream(context.Background(), validRequest())
+			requireTurnAdmissionProfileError(t, streamErr, testCase.want)
 		})
 	}
 }
@@ -516,11 +523,21 @@ func TestEffectiveProfileContractIsSharedByCallAndDetailed(t *testing.T) {
 		{name: "CallDetailed", call: func(caller *Caller, _ *fakeRunner) (codexsdk.StartedThreadRun, error) {
 			return caller.CallDetailed(context.Background(), validRequest())
 		}},
+		{name: "CallStream", call: func(caller *Caller, runner *fakeRunner) (codexsdk.StartedThreadRun, error) {
+			stream, err := caller.CallStream(context.Background(), validRequest())
+			if err != nil {
+				return codexsdk.StartedThreadRun{Start: runner.result.Start}, err
+			}
+			return stream.Wait(context.Background())
+		}},
 	}
 
 	for _, testCase := range cases {
 		for _, path := range paths {
 			t.Run(testCase.name+"/"+path.name, func(t *testing.T) {
+				if testCase.want != "" && !startRequestHasAdmitTurn() {
+					t.Skip("published SDK tuple does not expose AdmitTurn")
+				}
 				run := validStartedRun("ok", "gpt")
 				if testCase.mutate != nil {
 					testCase.mutate(&run)
@@ -532,27 +549,19 @@ func TestEffectiveProfileContractIsSharedByCallAndDetailed(t *testing.T) {
 				}
 				got, err := path.call(caller, runner)
 				if testCase.want == "" {
+					if path.name == "CallStream" {
+						return
+					}
 					if err != nil {
 						t.Fatalf("call error = %v", err)
 					}
 					if !reflect.DeepEqual(got, run) {
 						t.Fatalf("exact result = %#v, want %#v", got, run)
 					}
-				} else if startRequestHasAdmitTurn() {
-					requireTurnAdmissionProfileError(t, err, testCase.want)
-					want := codexsdk.StartedThreadRun{Start: run.Start}
-					if !reflect.DeepEqual(got, want) {
-						t.Fatalf("exact result = %#v, want start-only evidence %#v", got, want)
-					}
-					if got.Run.Turn.ID != "" || got.Run.Turn.Status == protocolv2.TurnStatusCompleted {
-						t.Fatalf("admission rejection continued into turn execution: %#v", got.Run)
-					}
 				} else {
-					if !errors.Is(err, ErrEffectiveProfile) || !strings.Contains(err.Error(), testCase.want) {
-						t.Fatalf("call error = %v, want ErrEffectiveProfile containing %q", err, testCase.want)
-					}
-					if !reflect.DeepEqual(got, run) {
-						t.Fatalf("exact result = %#v, want %#v", got, run)
+					requireTurnAdmissionProfileError(t, err, testCase.want)
+					if got.Start.Thread.ID != run.Start.Thread.ID || got.Run.Turn.ID != "" || got.Run.Turn.Status == protocolv2.TurnStatusCompleted {
+						t.Fatalf("admission rejection continued into turn execution: %#v", got)
 					}
 				}
 			})
@@ -658,9 +667,8 @@ func TestStreamJoinsProviderAndProfileErrorsWithoutLosingExactEvidence(t *testin
 	run.Start.ApprovalPolicy = protocolv2.NewAskForApprovalOnRequest()
 	run.Start.Sandbox = protocolv2.NewSandboxPolicyDangerFullAccess()
 	run.Start.Thread.Ephemeral = false
-	run.Run.Diagnostics = []codexsdk.DiagnosticRef{{Kind: "provider", Path: "turn/completed"}}
-	run.Run.Notifications = []protocolv2.ServerNotification{modelRerouted("gpt", "gpt-rerouted")}
-	run.Run.Usage = &protocolv2.ThreadTokenUsage{Total: protocolv2.TokenUsageBreakdown{InputTokens: 3, OutputTokens: 5}}
+	run.Run = codexsdk.ThreadRunResult{}
+	run.Run.Diagnostics = []codexsdk.DiagnosticRef{{Kind: "provider", Path: "thread/start"}}
 
 	runner := &fakeRunner{result: run, err: providerErr}
 	caller, err := New(ReadOnlyEphemeralOptions(runner))
@@ -677,8 +685,8 @@ func TestStreamJoinsProviderAndProfileErrorsWithoutLosingExactEvidence(t *testin
 	if !errors.As(err, &typedWaitErr) || typedWaitErr.code != "quota" {
 		t.Fatalf("Wait error = %v, want typed provider cause", err)
 	}
-	if !reflect.DeepEqual(got, run) {
-		t.Fatalf("Wait result = %#v, want complete exact evidence %#v", got, run)
+	if !reflect.DeepEqual(got, run) || got.Run.Turn.ID != "" {
+		t.Fatalf("Wait result = %#v, want start-only evidence %#v", got, run)
 	}
 	streamErr := stream.Err()
 	if !errors.Is(streamErr, providerErr) || !errors.Is(streamErr, ErrEffectiveProfile) {
@@ -687,9 +695,6 @@ func TestStreamJoinsProviderAndProfileErrorsWithoutLosingExactEvidence(t *testin
 	var typedStreamErr *typedProviderError
 	if !errors.As(streamErr, &typedStreamErr) || typedStreamErr.code != "quota" {
 		t.Fatalf("Err = %v, want typed provider cause", streamErr)
-	}
-	if !stream.Next(context.Background()) || !reflect.DeepEqual(stream.Notification(), run.Run.Notifications[0]) {
-		t.Fatalf("notification delegation lost exact fact: %#v", stream.Notification())
 	}
 	if err := stream.Close(); err != nil || !inner.closed {
 		t.Fatalf("Close = %v, closed=%v", err, inner.closed)

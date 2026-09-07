@@ -89,7 +89,8 @@ named profile. All three paths attach `StartThreadRunRequest.AdmitTurn` so
 effective approval, sandbox, and ephemeral facts are checked from the decoded
 thread-start observation before `turn/start`. An unknown or mismatched
 required fact rejects continuation, preserves the exact thread-start
-evidence, and reports `ErrEffectiveProfile` with `ErrTurnAdmissionRejected`.
+evidence, and reports `ErrEffectiveProfile`. When the resolved SDK exposes
+`AdmitTurn`, that rejection happens before `turn/start`.
 Requested or default profile values are never substituted for missing
 effective facts. A decoded start remains profile-checked and observable even
 when its required thread ID is missing; failures before a start response is

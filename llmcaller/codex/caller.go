@@ -21,8 +21,8 @@ var (
 	ErrNilThreadRunner = errors.New("llmcaller/codex: thread runner is nil")
 	// ErrMissingSchemaJSON reports a request without an output schema.
 	ErrMissingSchemaJSON = errors.New("llmcaller/codex: output schema JSON is required")
-	// ErrEffectiveProfile reports that Codex's effective result does not satisfy
-	// the named adapter safety profile.
+	// ErrEffectiveProfile reports that decoded thread-start observation does
+	// not satisfy the named adapter safety profile.
 	ErrEffectiveProfile = errors.New("llmcaller/codex: effective profile mismatch")
 	// ErrMissingSafetyProfile reports construction of a provider-neutral Caller
 	// without a named effect-safe profile.
