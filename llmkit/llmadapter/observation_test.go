@@ -60,9 +60,6 @@ func TestValueDetailedDoesNotPromoteRequestIntoNeutralObservations(t *testing.T)
 	if result.Response.Execution.Model.Present() {
 		t.Fatalf("Model = %#v, want unknown; request text must not become an observed model", result.Response.Execution.Model)
 	}
-	if result.Response.Execution.EffectiveModel != "" {
-		t.Fatalf("EffectiveModel = %q, want empty; request text must not become a collapsing model view", result.Response.Execution.EffectiveModel)
-	}
 	if result.Response.Execution.Usage != nil {
 		t.Fatalf("Usage = %#v, want nil; request text must not become observed usage", result.Response.Execution.Usage)
 	}
@@ -96,23 +93,9 @@ func TestValueDetailedPreservesUnknownAndObservedUsageSnapshots(t *testing.T) {
 	}
 }
 
-func TestScalarCompatibilityViewsDoNotManufactureObservations(t *testing.T) {
-	evidence := ExecutionEvidence{EffectiveModel: "gpt-requested"}
-	if evidence.Model.Present() {
-		t.Fatalf("Model = %#v, want unknown; EffectiveModel must not populate presence", evidence.Model)
-	}
-	usage := TokenUsage{InputTokens: 0, OutputTokens: 7}
-	if usage.Input.Present() || usage.Output.Present() {
-		t.Fatalf("token observations = %#v, want unknown; int64 fields must not populate presence", usage)
-	}
-}
-
-func TestObserveModelRecordsPresenceAndScalar(t *testing.T) {
+func TestObserveModelRecordsObservedEmpty(t *testing.T) {
 	var evidence ExecutionEvidence
 	evidence.ObserveModel("")
-	if evidence.EffectiveModel != "" {
-		t.Fatalf("EffectiveModel = %q, want observed empty", evidence.EffectiveModel)
-	}
 	got, ok := evidence.Model.Value()
 	if !ok || got != "" {
 		t.Fatalf("Model = (%q, %t), want observed empty", got, ok)
@@ -122,7 +105,7 @@ func TestObserveModelRecordsPresenceAndScalar(t *testing.T) {
 func TestObserveCountsRecordsObservedZeroAndUnknownStaysNilUsage(t *testing.T) {
 	var usage TokenUsage
 	usage.ObserveCounts(0, 0, 0, 0)
-	if usage.InputTokens != 0 || !usage.Input.Present() {
+	if !usage.Input.Present() {
 		t.Fatalf("Input = %#v, want observed 0", usage)
 	}
 	got, ok := usage.Output.Value()

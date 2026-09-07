@@ -32,11 +32,8 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !result.Value.Answer || result.Response.Execution.EffectiveModel != "canary-rerouted" {
+		if !result.Value.Answer {
 			t.Fatalf("typed result = %#v", result)
-		}
-		if result.Response.Execution.Usage == nil || result.Response.Execution.Usage.InputTokens != 30 {
-			t.Fatalf("neutral usage = %#v", result.Response.Execution.Usage)
 		}
 		requireObservedModel(t, result.Response.Execution, "canary-rerouted")
 		requireObservedInput(t, result.Response.Execution.Usage, 30)
@@ -50,7 +47,7 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 		client, caller := canaryCaller(t, "provider-failure", codexsdk.ClientOptions{})
 		defer client.Close()
 		response, err := caller.Call(context.Background(), validRequest())
-		if err == nil || response.FinalResponse != "partial" || response.Execution.ProviderName != "codex" || response.Execution.EffectiveModel != "canary-start" {
+		if err == nil || response.FinalResponse != "partial" || response.Execution.ProviderName != "codex" {
 			t.Fatalf("response=%#v err=%v", response, err)
 		}
 		requireObservedModel(t, response.Execution, "canary-start")
@@ -91,12 +88,6 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 		if result.Response.ProviderDetails.(codexcaller.Details).Run.Run.Turn.Status != protocolv2.TurnStatusCompleted {
 			t.Fatalf("decode failure erased exact run: %#v", result.Response)
 		}
-		if result.Response.Execution.EffectiveModel != "canary-rerouted" {
-			t.Fatalf("decode failure erased effective model: %#v", result.Response.Execution)
-		}
-		if result.Response.Execution.Usage == nil || result.Response.Execution.Usage.InputTokens != 30 {
-			t.Fatalf("decode failure erased usage: %#v", result.Response.Execution.Usage)
-		}
 		requireObservedModel(t, result.Response.Execution, "canary-rerouted")
 		requireObservedInput(t, result.Response.Execution.Usage, 30)
 	})
@@ -125,11 +116,8 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 		if result.Response.ProviderDetails != nil {
 			t.Fatalf("ProviderDetails = %#v, want omitted unisolated run", result.Response.ProviderDetails)
 		}
-		if result.Response.FinalResponse != `{"answer":true}` || result.Response.Execution.ProviderName != "codex" || result.Response.Execution.EffectiveModel != "canary-rerouted" {
+		if result.Response.FinalResponse != `{"answer":true}` || result.Response.Execution.ProviderName != "codex" {
 			t.Fatalf("independent neutral evidence = %#v", result.Response)
-		}
-		if result.Response.Execution.Usage == nil || result.Response.Execution.Usage.InputTokens != 30 {
-			t.Fatalf("usage = %#v, want independently isolated usage", result.Response.Execution.Usage)
 		}
 		requireObservedModel(t, result.Response.Execution, "canary-rerouted")
 		requireObservedInput(t, result.Response.Execution.Usage, 30)
@@ -160,20 +148,20 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 
 func TestEffectiveProfileContractAcrossPublicCallPaths(t *testing.T) {
 	type profileCase struct {
-		name               string
-		scenario           string
-		want               string
-		wantEffectiveModel string
-		missingThreadID    bool
+		name            string
+		scenario        string
+		want            string
+		wantModel       string
+		missingThreadID bool
 	}
 	profileCases := []profileCase{
-		{name: "valid", scenario: "success", wantEffectiveModel: "canary-rerouted"},
-		{name: "approval", scenario: "effective-profile-approval", want: "not never", wantEffectiveModel: "canary-start"},
-		{name: "sandbox", scenario: "effective-profile-sandbox", want: "not read-only", wantEffectiveModel: "canary-start"},
-		{name: "ephemeral", scenario: "effective-profile-ephemeral", want: "not ephemeral", wantEffectiveModel: "canary-start"},
-		{name: "missing-thread-id-approval", scenario: "missing-thread-id-approval", want: "not never", wantEffectiveModel: "canary-start", missingThreadID: true},
-		{name: "missing-thread-id-sandbox", scenario: "missing-thread-id-sandbox", want: "not read-only", wantEffectiveModel: "canary-start", missingThreadID: true},
-		{name: "missing-thread-id-ephemeral", scenario: "missing-thread-id-ephemeral", want: "not ephemeral", wantEffectiveModel: "canary-start", missingThreadID: true},
+		{name: "valid", scenario: "success", wantModel: "canary-rerouted"},
+		{name: "approval", scenario: "effective-profile-approval", want: "not never", wantModel: "canary-start"},
+		{name: "sandbox", scenario: "effective-profile-sandbox", want: "not read-only", wantModel: "canary-start"},
+		{name: "ephemeral", scenario: "effective-profile-ephemeral", want: "not ephemeral", wantModel: "canary-start"},
+		{name: "missing-thread-id-approval", scenario: "missing-thread-id-approval", want: "not never", wantModel: "canary-start", missingThreadID: true},
+		{name: "missing-thread-id-sandbox", scenario: "missing-thread-id-sandbox", want: "not read-only", wantModel: "canary-start", missingThreadID: true},
+		{name: "missing-thread-id-ephemeral", scenario: "missing-thread-id-ephemeral", want: "not ephemeral", wantModel: "canary-start", missingThreadID: true},
 	}
 	paths := []struct {
 		name string
@@ -182,9 +170,10 @@ func TestEffectiveProfileContractAcrossPublicCallPaths(t *testing.T) {
 		{name: "Call", call: func(t *testing.T, caller *codexcaller.Caller, profileCase profileCase) (codexsdk.StartedThreadRun, error) {
 			t.Helper()
 			response, err := caller.Call(context.Background(), validRequest())
-			if response.Execution.ProviderName != "codex" || response.Execution.EffectiveModel != profileCase.wantEffectiveModel {
+			if response.Execution.ProviderName != "codex" {
 				t.Fatalf("neutral evidence = %#v, want decoded start projection", response.Execution)
 			}
+			requireObservedModel(t, response.Execution, profileCase.wantModel)
 			details, ok := response.ProviderDetails.(codexcaller.Details)
 			if !ok {
 				t.Fatalf("provider details = %#v, want typed exact evidence", response.ProviderDetails)
@@ -258,7 +247,8 @@ func TestThreeLayerCanaryFull(t *testing.T) {
 		}
 		details := response.ProviderDetails.(codexcaller.Details)
 		accepted, _ := json.Marshal(details.Run.Run.Notifications)
-		if response.Execution.ProviderName != "codex" || response.Execution.EffectiveModel != "canary-start" || details.Run.Start.Thread.ID != "thread-1" || details.Run.Run.Turn.ID != "turn-1" || len(details.Run.Run.Notifications) != 1 || !strings.Contains(string(accepted), `"text":"partial"`) {
+		requireObservedModel(t, response.Execution, "canary-start")
+		if response.Execution.ProviderName != "codex" || details.Run.Start.Thread.ID != "thread-1" || details.Run.Run.Turn.ID != "turn-1" || len(details.Run.Run.Notifications) != 1 || !strings.Contains(string(accepted), `"text":"partial"`) {
 			t.Fatalf("transport failure erased partial evidence: %#v", response)
 		}
 		if closeErr := client.Close(); closeErr == nil || closeErr.Error() != err.Error() || !errors.Is(closeErr, io.EOF) {

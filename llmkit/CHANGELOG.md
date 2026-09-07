@@ -7,6 +7,10 @@ changes may occur in minor releases.
 
 ### Changed
 
+- **Breaking (pre-v1):** remove leftover `ExecutionEvidence.EffectiveModel`
+  and scalar `TokenUsage` count fields. Neutral model and token facts are
+  only `Observation` values: unknown stays unknown, and `Observed(0)` or
+  an observed empty model stays distinct from absence.
 - **Breaking (pre-v1):** reject an `llmstep.Step` with `Validate == nil`
   before `Render` or a provider call. The configuration error is
   `ErrNilValidate` and no attempt evidence is published. `ErrNoJudgment` is

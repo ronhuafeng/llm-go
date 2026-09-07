@@ -11,8 +11,8 @@ type Observation[T any] struct {
 
 // Observed records an established fact. It is the only way to mark an
 // Observation present. ExecutionEvidence.ObserveModel and
-// TokenUsage.ObserveCounts call it so adapters can populate presence
-// together with the leftover scalar views.
+// TokenUsage.ObserveCounts call it to publish presence-aware model and
+// token facts.
 func Observed[T any](value T) Observation[T] {
 	return Observation[T]{value: value, present: true}
 }

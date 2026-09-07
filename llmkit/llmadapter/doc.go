@@ -17,8 +17,7 @@
 // Neutral token counts and the effective model use Observation so an
 // unreported fact stays unknown and an observed zero or empty value stays
 // present. Requested settings, defaults, estimates, heuristics, and inferred
-// names cannot populate an observation. Scalar TokenUsage and EffectiveModel
-// fields do not establish presence.
+// names cannot populate an observation.
 //
 // Detailed APIs publish owned, isolated snapshots of toolkit-owned state.
 // ValueDetailed clones request schema bytes before caller invocation and clones
