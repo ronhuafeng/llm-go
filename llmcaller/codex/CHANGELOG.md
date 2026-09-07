@@ -4,13 +4,14 @@ This project follows Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-09-07
+
 ### Fixed
 
 - **Breaking (pre-v1):** project each provider-neutral fact from independently
   isolated Codex evidence. Failure to isolate exact Provider details no longer
   erases attributable effective-model or usage evidence. Observed token zeros
-  stay distinct from unreported dimensions when the toolkit exposes
-  `Observation`.
+  stay distinct from unreported dimensions.
 
 ### Changed
 
@@ -20,6 +21,8 @@ This project follows Semantic Versioning.
   never-approve, and ephemeral facts are admitted from decoded thread-start
   observation before `turn/start`. Effectful Codex use stays on explicit
   Exact Run / `ThreadRunner` surfaces.
+- Require the published `llmkit v0.8.0` and `codexsdk v0.8.0` modules and
+  attach `AdmitTurn` / record `Observation` through those typed APIs.
 - Document the evidence-bearing `llmadapter.ValueDetailed` path in the
   module example and README.
 

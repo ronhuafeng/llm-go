@@ -7,7 +7,7 @@ Language: [CONTEXT.md](CONTEXT.md).
 ## Install
 
 ```sh
-go get github.com/ronhuafeng/llm-go/llmcaller/codex@v0.6.0
+go get github.com/ronhuafeng/llm-go/llmcaller/codex@v0.7.0
 ```
 
 Go 1.23 or newer is required. This tag's `llmkit` and `codexsdk` versions are
@@ -83,7 +83,7 @@ that can themselves be isolated stay published: final text, provider name,
 thread-start or independently isolated `model/rerouted` effective model, and
 cloned total token usage. Requested or default model values never fill an
 unknown observation. An observed zero token count stays distinct from an
-unreported dimension when the resolved toolkit exposes `Observation`.
+unreported dimension.
 
 Requested-policy enforcement happens before transport for `Call`,
 `CallDetailed`, and `CallStream`: no explicitly conflicting named-profile
@@ -92,8 +92,8 @@ named profile. All three paths attach `StartThreadRunRequest.AdmitTurn` so
 effective approval, sandbox, and ephemeral facts are checked from the decoded
 thread-start observation before `turn/start`. An unknown or mismatched
 required fact rejects continuation, preserves the exact thread-start
-evidence, and reports `ErrEffectiveProfile`. When the resolved SDK exposes
-`AdmitTurn`, that rejection happens before `turn/start`.
+evidence, and reports `ErrEffectiveProfile`. That rejection happens before
+`turn/start`.
 Requested or default profile values are never substituted for missing
 effective facts. A decoded start remains profile-checked and observable even
 when its required thread ID is missing; failures before a start response is
