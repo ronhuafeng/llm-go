@@ -35,7 +35,7 @@ go test ./internal/tools/integration -run '^TestThreeLayerCanaryFull$' -count=1 
 
 JSON evidence is `module_source` or `checkout_source`. Checkout evidence is
 not published-artifact proof: it does not establish proxy identity, checksum
-database records, or module zip identity. Those belong to
-[`docs/release.md`](release.md).
+database records, module zip identity, or README self-version truth. Those
+belong to [`docs/release.md`](release.md).
 
 The required GitHub check is `PR verification`.

@@ -17,6 +17,52 @@ import (
 	"golang.org/x/mod/sumdb/dirhash"
 )
 
+func TestREADMEInstallVersionMustNameTheTargetRelease(t *testing.T) {
+	const modulePath = "github.com/ronhuafeng/llm-go/llmkit"
+	readme := []byte("Install with:\n\n```sh\ngo get github.com/ronhuafeng/llm-go/llmkit@v0.12.0\n```\n")
+	if err := validateREADMEInstallVersion(readme, modulePath, "v0.11.0", "v0.12.0"); err != nil {
+		t.Fatal(err)
+	}
+	stale := []byte("Install with:\n\n```sh\ngo get github.com/ronhuafeng/llm-go/llmkit@v0.11.0\n```\n")
+	if err := validateREADMEInstallVersion(stale, modulePath, "v0.11.0", "v0.12.0"); err == nil || !strings.Contains(err.Error(), "v0.12.0") {
+		t.Fatalf("stale README error = %v", err)
+	}
+	mixed := []byte("go get github.com/ronhuafeng/llm-go/llmkit@v0.12.0\ngo get github.com/ronhuafeng/llm-go/llmkit@v0.11.0\n")
+	if err := validateREADMEInstallVersion(mixed, modulePath, "v0.11.0", "v0.12.0"); err == nil || !strings.Contains(err.Error(), "v0.11.0") {
+		t.Fatalf("mixed README error = %v", err)
+	}
+	missing := []byte("Install the latest published llmkit tag.\n")
+	if err := validateREADMEInstallVersion(missing, modulePath, "v0.11.0", "v0.12.0"); err == nil || !strings.Contains(err.Error(), "does not install") {
+		t.Fatalf("missing install error = %v", err)
+	}
+}
+
+func TestReleaseDocumentationRequiresChangelogAndREADME(t *testing.T) {
+	root := t.TempDir()
+	candidate := module{ID: "llmkit", Dir: "llmkit", path: "github.com/ronhuafeng/llm-go/llmkit"}
+	writeFile(t, root, "llmkit/CHANGELOG.md", "## [0.12.0] - 2026-09-07\n")
+	writeFile(t, root, "llmkit/README.md", "go get github.com/ronhuafeng/llm-go/llmkit@v0.12.0\n")
+	if err := validateReleaseDocumentation(root, candidate, "v0.11.0", "v0.12.0"); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, root, "llmkit/README.md", "go get github.com/ronhuafeng/llm-go/llmkit@v0.11.0\n")
+	if err := validateReleaseDocumentation(root, candidate, "v0.11.0", "v0.12.0"); err == nil || !strings.Contains(err.Error(), "v0.12.0") {
+		t.Fatalf("stale README documentation error = %v", err)
+	}
+}
+
+func TestReadModuleZipFileReturnsNamedEntry(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "module.zip")
+	writeNamedModuleZip(t, path, "github.com/ronhuafeng/llm-go/llmkit@v0.12.0/README.md", "go get github.com/ronhuafeng/llm-go/llmkit@v0.12.0\n")
+	got, err := readModuleZipFile(path, "github.com/ronhuafeng/llm-go/llmkit@v0.12.0/README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(got), "llmkit@v0.12.0") {
+		t.Fatalf("zip README = %q", got)
+	}
+}
+
 func TestReleasePlanDigestRejectsMutation(t *testing.T) {
 	plan := validReleasePlan(t)
 	if err := plan.Validate(); err != nil {
@@ -1049,6 +1095,30 @@ func validAdapterReleasePlan(t *testing.T) ReleasePlan {
 		t.Fatal(err)
 	}
 	return plan
+}
+
+func writeNamedModuleZip(t *testing.T, path, name, content string) {
+	t.Helper()
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	archive := zip.NewWriter(file)
+	header := &zip.FileHeader{Name: name, Method: zip.Deflate}
+	header.SetModTime(time.Unix(0, 0))
+	writer, err := archive.CreateHeader(header)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := writer.Write([]byte(content)); err != nil {
+		t.Fatal(err)
+	}
+	if err := archive.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func writeModuleZip(t *testing.T, path string, method uint16, content string) {

@@ -273,6 +273,7 @@ func VerifyCheckout(root string, plan AffectedPlan) (Evidence, error) {
 		"published module artifact identity",
 		"public proxy availability",
 		"module checksum database records",
+		"published README self-version",
 	}
 	if err = recorder.check("source identity", []string{"git", "diff", "--quiet", "HEAD", "--"}, func() error {
 		return verifySourceIdentity(root, map[string]bool{"affected-plan.json": true})
