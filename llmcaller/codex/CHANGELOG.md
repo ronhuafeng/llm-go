@@ -4,6 +4,8 @@ This project follows Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-09-07
+
 ### Changed
 
 - **Breaking (pre-v1):** remove `Caller.IsolatesNeutralFacts`. Loss-aware
