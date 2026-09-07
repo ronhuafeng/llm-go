@@ -16,7 +16,7 @@ GOWORK=off go mod graph
 | Module | Version | License | Use |
 | --- | --- | --- | --- |
 | `github.com/google/jsonschema-go` | `v0.4.3` | MIT | Projects Go output types into JSON Schema in `llmschema`. |
-| `github.com/santhosh-tekuri/jsonschema/v6` | `v6.0.2` | MIT | Compiles generated schemas and returns typed validation trees used by `llmschema.Decode`. |
+| `github.com/santhosh-tekuri/jsonschema/v6` | `v6.0.2` | MIT | Compiles generated schemas and returns typed validation trees used by `llmschema.Contract`. |
 
 ## Transitive module graph
 

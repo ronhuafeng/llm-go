@@ -54,3 +54,11 @@ _Avoid_: Validator output, shared feedback value
 The stage-owned record of one bounded inference attempt, including any call,
 decode, judgment, repair, or failure evidence actually obtained.
 _Avoid_: Successful result only, trace metadata bag
+
+**Contract**:
+One compiled provider-neutral structured-output type. It owns the exact
+schema JSON used for a request and the compiled validator used to decode
+matching responses. Compile once per owned inference definition; reuse
+across decode and bounded retries. The zero value is uncompiled and does
+not guess a schema.
+_Avoid_: Global schema cache, provider dialect, semantic validator

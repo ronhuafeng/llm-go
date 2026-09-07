@@ -28,8 +28,8 @@ go get github.com/ronhuafeng/llm-go/llmkit@v0.10.0
 
 ### llmschema
 
-Use `llmschema` when you need the JSON Schema for an expected output type or
-need to decode the provider's final structured JSON.
+Use `llmschema` when you need a compiled structured-output contract, the
+JSON Schema for an expected output type, or a one-shot decode.
 
 ```go
 package main
@@ -46,13 +46,13 @@ type Verdict struct {
 }
 
 func main() {
-	schema, err := llmschema.SchemaJSONFor[Verdict]()
+	contract, err := llmschema.Compile[Verdict]()
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(string(schema))
+	fmt.Println(string(contract.SchemaJSON()))
 
-	value, err := llmschema.Decode[Verdict]([]byte(`{"status":"pass","score":2}`))
+	value, err := contract.Decode([]byte(`{"status":"pass","score":2}`))
 	if err != nil {
 		panic(err)
 	}

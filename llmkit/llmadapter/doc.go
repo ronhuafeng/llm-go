@@ -21,6 +21,8 @@
 //
 // The typed-inference API publishes owned, isolated snapshots of toolkit-owned
 // state.
+// Value compiles one Contract for the request schema and the response
+// decode. Bounded llmstep retries reuse that compiled contract.
 // Value clones request schema bytes before caller invocation and clones
 // neutral token usage before publishing a response. Provider adapters must
 // publish ProviderDetails as isolated typed values that do not alias mutable

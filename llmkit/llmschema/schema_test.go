@@ -116,6 +116,70 @@ func TestSchemaJSONForTreatsRawMessageAsArbitraryJSON(t *testing.T) {
 	}
 }
 
+func TestCompileOwnsSchemaAndDecode(t *testing.T) {
+	type verdict struct {
+		Passed bool `json:"passed"`
+	}
+	contract, err := Compile[verdict]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !contract.Compiled() {
+		t.Fatal("compiled contract reports uncompiled")
+	}
+	schema := contract.SchemaJSON()
+	projected, err := SchemaJSONFor[verdict]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(schema) != string(projected) {
+		t.Fatalf("contract schema = %s, want %s", schema, projected)
+	}
+	schema[0] = 'x'
+	if string(contract.SchemaJSON()) != string(projected) {
+		t.Fatal("SchemaJSON returned the owned schema, not a copy")
+	}
+	got, err := contract.Decode([]byte(`{"passed":true}`))
+	if err != nil || !got.Passed {
+		t.Fatalf("Decode = %#v, %v", got, err)
+	}
+}
+
+func TestZeroContractDoesNotGuessSchema(t *testing.T) {
+	var contract Contract[bool]
+	if contract.Compiled() || contract.SchemaJSON() != nil {
+		t.Fatalf("zero contract leaked a schema: compiled=%t schema=%s", contract.Compiled(), contract.SchemaJSON())
+	}
+	_, err := contract.Decode([]byte(`true`))
+	if !errors.Is(err, ErrUncompiledContract) {
+		t.Fatalf("zero Decode error = %v, want ErrUncompiledContract", err)
+	}
+}
+
+func TestContractDecodePreservesValidationViolations(t *testing.T) {
+	type output struct {
+		Name string `json:"name"`
+	}
+	contract, err := Compile[output]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = contract.Decode([]byte(`{"name":"ok","unexpected":true}`))
+	var validationErr *SchemaValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("Decode error = %v, want SchemaValidationError", err)
+	}
+	found := false
+	for _, violation := range validationErr.Violations {
+		if violation.Keyword == "additionalProperties" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("violations = %#v, want additionalProperties", validationErr.Violations)
+	}
+}
+
 func TestDecodeStructuredOutput(t *testing.T) {
 	type verdict struct {
 		Passed bool `json:"passed"`

@@ -3,7 +3,6 @@ package llmschema
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"reflect"
 	"testing"
 
@@ -159,7 +158,7 @@ func benchmarkPipeline[T any](b *testing.B, name string, data []byte) {
 		if err != nil {
 			b.Fatalf("decode fixture: %v", err)
 		}
-		compiled, err := compileBenchmarkSchema(schemaJSON)
+		compiled, err := compileSchema(schemaJSON)
 		if err != nil {
 			b.Fatalf("compile schema: %v", err)
 		}
@@ -178,7 +177,7 @@ func benchmarkPipeline[T any](b *testing.B, name string, data []byte) {
 			b.ReportAllocs()
 			var err error
 			for i := 0; i < b.N; i++ {
-				benchmarkSchemaSink, err = compileBenchmarkSchema(schemaJSON)
+				benchmarkSchemaSink, err = compileSchema(schemaJSON)
 			}
 			if err != nil {
 				b.Fatal(err)
@@ -272,26 +271,33 @@ func BenchmarkDecodeParallelSameType(b *testing.B) {
 
 func BenchmarkCompiledValidationParallel(b *testing.B) {
 	data := []byte(`{"title":"batch","items":[{"name":"a","score":1},{"name":"b","score":2}]}`)
-	schemaJSON, err := SchemaJSONFor[benchmarkNested]()
-	if err != nil {
-		b.Fatal(err)
-	}
-	compiled, err := compileBenchmarkSchema(schemaJSON)
-	if err != nil {
-		b.Fatal(err)
-	}
-	instance, err := decodeJSON(data)
+	contract, err := Compile[benchmarkNested]()
 	if err != nil {
 		b.Fatal(err)
 	}
 	b.ReportAllocs()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			if err := compiled.Validate(instance); err != nil {
+			if _, err := contract.Decode(data); err != nil {
 				b.Error(err)
 			}
 		}
 	})
+}
+
+func BenchmarkContractDecodeRepeated(b *testing.B) {
+	data := []byte(`{"title":"batch","items":[{"name":"a","score":1},{"name":"b","score":2}]}`)
+	contract, err := Compile[benchmarkNested]()
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := contract.Decode(data); err != nil {
+			b.Fatal(err)
+		}
+	}
 }
 
 func BenchmarkDecodeSchemaViolation(b *testing.B) {
@@ -304,19 +310,4 @@ func BenchmarkDecodeSchemaViolation(b *testing.B) {
 		}
 		benchmarkErrorSink = err
 	}
-}
-
-func compileBenchmarkSchema(schemaJSON json.RawMessage) (*validator.Schema, error) {
-	var document any
-	decoder := json.NewDecoder(bytes.NewReader(schemaJSON))
-	decoder.UseNumber()
-	if err := decoder.Decode(&document); err != nil {
-		return nil, fmt.Errorf("decode generated schema: %w", err)
-	}
-	compiler := validator.NewCompiler()
-	const schemaURL = "https://llmkit.local/benchmark-output-schema.json"
-	if err := compiler.AddResource(schemaURL, document); err != nil {
-		return nil, fmt.Errorf("register generated schema: %w", err)
-	}
-	return compiler.Compile(schemaURL)
 }

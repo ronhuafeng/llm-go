@@ -156,13 +156,26 @@ func RequestFor[T any](prompt string) (Request, error) {
 }
 
 func Value[T any](ctx context.Context, caller Caller, prompt string) (ValueResult[T], error) {
+	contract, err := llmschema.Compile[T]()
+	if err != nil {
+		return ValueResult[T]{}, valueError(ValueStageRequest, err)
+	}
+	return ValueWithContract(ctx, caller, prompt, contract)
+}
+
+// ValueWithContract uses one compiled contract for the request schema and
+// the response decode. The zero contract fails closed before Caller.Call.
+func ValueWithContract[T any](ctx context.Context, caller Caller, prompt string, contract llmschema.Contract[T]) (ValueResult[T], error) {
 	var result ValueResult[T]
 	if isNil(caller) {
 		return result, valueError(ValueStageCall, ErrNilCaller)
 	}
-	request, err := RequestFor[T](prompt)
-	if err != nil {
-		return result, valueError(ValueStageRequest, err)
+	if !contract.Compiled() {
+		return result, valueError(ValueStageRequest, llmschema.ErrUncompiledContract)
+	}
+	request := Request{
+		Prompt:       prompt,
+		OutputSchema: contract.SchemaJSON(),
 	}
 	response, callErr := caller.Call(ctx, cloneRequest(request))
 	result.Response = cloneResponse(response)
@@ -173,23 +186,20 @@ func Value[T any](ctx context.Context, caller Caller, prompt string) (ValueResul
 	if err := ctx.Err(); err != nil {
 		return result, valueError(ValueStageCall, err)
 	}
-	result.Value, err = decodeFinalResponse[T](response.FinalResponse)
+	value, err := decodeFinalResponse(response.FinalResponse, contract)
 	if err != nil {
 		return result, valueError(ValueStageDecode, err)
 	}
+	result.Value = value
 	return result, nil
 }
 
-func decodeFinalResponse[T any](raw string) (T, error) {
+func decodeFinalResponse[T any](raw string, contract llmschema.Contract[T]) (T, error) {
 	var zero T
 	if strings.TrimSpace(raw) == "" {
 		return zero, ErrEmptyResponse
 	}
-	value, err := llmschema.Decode[T]([]byte(raw))
-	if err != nil {
-		return zero, err
-	}
-	return value, nil
+	return contract.Decode([]byte(raw))
 }
 
 func valueError(stage ValueStage, err error) error {

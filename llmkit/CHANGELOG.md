@@ -5,6 +5,14 @@ changes may occur in minor releases.
 
 ## [Unreleased]
 
+### Added
+
+- Add `llmschema.Contract` so one compiled typed schema owns the
+  provider-neutral request JSON and the structural decode validator.
+  `llmadapter.Value` compiles one contract per call. `llmstep.Run`
+  reuses that contract across bounded attempts. The zero contract is
+  uncompiled and does not guess a schema.
+
 ## [0.10.0] - 2026-09-07
 
 ### Changed
