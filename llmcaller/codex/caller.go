@@ -218,12 +218,6 @@ func ReadOnlyEphemeralOptions(runner ThreadRunner) Options {
 	}
 }
 
-// IsolatesNeutralFacts reports that Call projects independently isolated
-// model and usage evidence when exact Provider details cannot be snapshotted.
-// GOWORK=off consumers can detect this published capability without reading
-// unpublished source.
-func (*Caller) IsolatesNeutralFacts() bool { return true }
-
 // Call executes the detailed path and projects its available neutral facts.
 func (c *Caller) Call(ctx context.Context, request llmadapter.Request) (llmadapter.Response, error) {
 	run, runErr := c.startRun(ctx, request)

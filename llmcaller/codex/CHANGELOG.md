@@ -6,6 +6,10 @@ This project follows Semantic Versioning.
 
 ### Changed
 
+- **Breaking (pre-v1):** remove `Caller.IsolatesNeutralFacts`. Loss-aware
+  neutral projection remains the published `Call` behavior; compatibility
+  evidence is the module version and exported contract, not a capability
+  boolean.
 - Require the published `llmkit v0.9.0` module so `GOWORK=off` consumers
   compile against Observation-only execution evidence.
 
