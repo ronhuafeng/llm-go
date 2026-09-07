@@ -3,7 +3,9 @@
 //
 // It combines prompt rendering, llmadapter.Value typed calls,
 // deterministic judgment, sanitized repair, stage-specific attempt evidence,
-// and max-iteration handling. Run publishes the validator decision
+// and max-iteration handling. Run compiles one llmschema.Contract for the
+// output type and reuses it across attempts for request schema and decode.
+// Run publishes the validator decision
 // exactly as returned in Attempt.Judgment and separately publishes
 // sanitizer-owned, iteration-stamped Attempt.NextRepair. Only NextRepair is
 // eligible for the next Render call, and it is created only when that call

@@ -6,6 +6,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/ronhuafeng/llm-go/llmkit/llmschema"
 )
 
 type fakeCaller struct {
@@ -212,6 +214,42 @@ func TestRequestForProjectsTypedOutputSchema(t *testing.T) {
 	}
 	if !strings.Contains(string(request.OutputSchema), `"status"`) {
 		t.Fatalf("schema should include struct field: %s", request.OutputSchema)
+	}
+}
+
+func TestValueWithContractUsesOwnedSchemaAndDecode(t *testing.T) {
+	type verdict struct {
+		Status string `json:"status"`
+	}
+	contract, err := llmschema.Compile[verdict]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	caller := &fakeCaller{responses: []Response{{FinalResponse: `{"status":"ok"}`}}}
+	got, err := ValueWithContract[verdict](context.Background(), caller, "review", contract)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Value.Status != "ok" {
+		t.Fatalf("decoded = %#v", got.Value)
+	}
+	if string(caller.requests[0].OutputSchema) != string(contract.SchemaJSON()) {
+		t.Fatalf("request schema = %s, want contract %s", caller.requests[0].OutputSchema, contract.SchemaJSON())
+	}
+}
+
+func TestValueWithContractRejectsZeroContractBeforeCall(t *testing.T) {
+	caller := &fakeCaller{responses: []Response{{FinalResponse: `true`}}}
+	var contract llmschema.Contract[bool]
+	result, err := ValueWithContract[bool](context.Background(), caller, "prompt", contract)
+	if !errors.Is(err, llmschema.ErrUncompiledContract) {
+		t.Fatalf("error = %v, want ErrUncompiledContract", err)
+	}
+	if len(caller.requests) != 0 {
+		t.Fatalf("zero contract invoked caller: %#v", caller.requests)
+	}
+	if result.Response.FinalResponse != "" {
+		t.Fatalf("zero contract published evidence: %#v", result.Response)
 	}
 }
 

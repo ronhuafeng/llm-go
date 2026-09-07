@@ -10,6 +10,7 @@ import (
 	"unicode"
 
 	"github.com/ronhuafeng/llm-go/llmkit/llmadapter"
+	"github.com/ronhuafeng/llm-go/llmkit/llmschema"
 )
 
 // ErrUnsafeRepair reports model-facing repair input rejected by a sanitizer.
@@ -142,6 +143,11 @@ func Run[I any, O any](ctx context.Context, step Step[I, O], input I) (Result[O]
 		return result, ErrNilValidate
 	}
 
+	contract, err := llmschema.Compile[O]()
+	if err != nil {
+		return result, err
+	}
+
 	sanitize := step.Sanitizer
 	if sanitize == nil {
 		sanitize = StrictRepairSanitizer
@@ -163,7 +169,7 @@ func Run[I any, O any](ctx context.Context, step Step[I, O], input I) (Result[O]
 			return fail(result, attempt, StageRender, err)
 		}
 
-		call, err := llmadapter.Value[O](ctx, step.Caller, prompt)
+		call, err := llmadapter.ValueWithContract[O](ctx, step.Caller, prompt, contract)
 		attempt.Call = call
 		if err != nil {
 			stage := valueStage(err)

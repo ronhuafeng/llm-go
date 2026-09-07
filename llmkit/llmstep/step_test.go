@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ronhuafeng/llm-go/llmkit/llmadapter"
+	"github.com/ronhuafeng/llm-go/llmkit/llmschema"
 )
 
 type fakeCaller struct {
@@ -217,6 +218,40 @@ func TestRunFeedsSanitizedFindingsAsRepairIntoNextRender(t *testing.T) {
 	}
 	if len(secondRepair) != 1 || secondRepair[0].Iteration != 1 {
 		t.Fatalf("feedback = %#v, want iteration stamped to 1", secondRepair)
+	}
+}
+
+func TestRunReusesCompiledContractSchemaAcrossAttempts(t *testing.T) {
+	caller := &fakeCaller{responses: []llmadapter.Response{
+		{FinalResponse: `{"status":"draft"}`},
+		{FinalResponse: `{"status":"ok"}`},
+	}}
+	got, err := Run(context.Background(), Step[stepInput, stepOutput]{
+		Caller: caller,
+		Render: func(context.Context, stepInput, []Repair) (string, error) {
+			return "prompt", nil
+		},
+		Validate: func(_ context.Context, _ stepInput, output stepOutput) (Judgment, error) {
+			if output.Status == "ok" {
+				return Judgment{Accepted: true}, nil
+			}
+			return Judgment{Findings: []Finding{{Codes: []string{"retry"}}}}, nil
+		},
+		MaxIter: 2,
+	}, stepInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Attempts) != 2 || len(caller.requests) != 2 {
+		t.Fatalf("attempts=%d requests=%d", len(got.Attempts), len(caller.requests))
+	}
+	contract, err := llmschema.Compile[stepOutput]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := string(contract.SchemaJSON())
+	if string(caller.requests[0].OutputSchema) != want || string(caller.requests[1].OutputSchema) != want {
+		t.Fatalf("request schemas = %q / %q, want contract %q", caller.requests[0].OutputSchema, caller.requests[1].OutputSchema, want)
 	}
 }
 
@@ -892,23 +927,26 @@ func TestRunRecordsRenderFailure(t *testing.T) {
 	assertStepFailure(t, result, err, StageRender, renderErr, false)
 }
 
-func TestRunRecordsRequestFailure(t *testing.T) {
+func TestRunRejectsUncompilableOutputContractBeforeRender(t *testing.T) {
+	rendered := false
 	called := false
 	result, err := Run(context.Background(), Step[stepInput, chan int]{
 		Caller: stepCallerFunc(func(context.Context, llmadapter.Request) (llmadapter.Response, error) {
 			called = true
 			return llmadapter.Response{}, nil
 		}),
-		Render:   func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
+		Render: func(context.Context, stepInput, []Repair) (string, error) {
+			rendered = true
+			return "prompt", nil
+		},
 		Validate: acceptAny[chan int],
 		MaxIter:  1,
 	}, stepInput{})
-	var stepErr *StepError
-	if !errors.As(err, &stepErr) || stepErr.Stage != StageRequest || len(result.Attempts) != 1 {
-		t.Fatalf("result = %#v, err = %v; want request failure", result, err)
+	if err == nil || !strings.Contains(err.Error(), "unsupported") {
+		t.Fatalf("error = %v, want uncompilable contract", err)
 	}
-	if called {
-		t.Fatal("caller invoked after request failure")
+	if rendered || called || len(result.Attempts) != 0 {
+		t.Fatalf("uncompiled contract started work: rendered=%t called=%t attempts=%d", rendered, called, len(result.Attempts))
 	}
 }
 

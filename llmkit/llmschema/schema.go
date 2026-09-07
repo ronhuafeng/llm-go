@@ -33,6 +33,70 @@ func (e *SchemaValidationError) Error() string {
 	return fmt.Sprintf("structured output failed schema validation: %s at %s", e.Violations[0].Keyword, e.Violations[0].Path)
 }
 
+// ErrUncompiledContract reports a Contract that was never compiled.
+var ErrUncompiledContract = errors.New("llmschema: contract is not compiled")
+
+// Contract is one compiled provider-neutral structured-output type. It owns
+// the exact schema JSON used for a request and the compiled validator used
+// to decode matching responses. The zero value is uncompiled: SchemaJSON
+// returns nil and Decode returns ErrUncompiledContract. It does not guess
+// or regenerate a schema.
+type Contract[T any] struct {
+	schema   json.RawMessage
+	compiled *validator.Schema
+}
+
+// Compile projects T into provider-neutral JSON Schema and compiles the
+// structural validator once.
+func Compile[T any]() (Contract[T], error) {
+	schema, err := SchemaJSONFor[T]()
+	if err != nil {
+		return Contract[T]{}, err
+	}
+	compiled, err := compileSchema(schema)
+	if err != nil {
+		return Contract[T]{}, err
+	}
+	return Contract[T]{
+		schema:   append(json.RawMessage(nil), schema...),
+		compiled: compiled,
+	}, nil
+}
+
+// Compiled reports whether Compile populated this contract.
+func (c Contract[T]) Compiled() bool {
+	return c.compiled != nil
+}
+
+// SchemaJSON returns a copy of the owned provider-neutral schema. The zero
+// contract returns nil and does not project a schema.
+func (c Contract[T]) SchemaJSON() json.RawMessage {
+	if c.compiled == nil || len(c.schema) == 0 {
+		return nil
+	}
+	return append(json.RawMessage(nil), c.schema...)
+}
+
+// Decode validates data against the owned compiled validator and unmarshals
+// it into T. The zero contract returns ErrUncompiledContract.
+func (c Contract[T]) Decode(data []byte) (T, error) {
+	var value T
+	if c.compiled == nil {
+		return value, ErrUncompiledContract
+	}
+	instance, err := decodeJSON(data)
+	if err != nil {
+		return value, fmt.Errorf("decode structured output: %w", err)
+	}
+	if err := validateCompiled(c.compiled, instance); err != nil {
+		return value, err
+	}
+	if err := json.Unmarshal(data, &value); err != nil {
+		return value, fmt.Errorf("decode structured output: %w", err)
+	}
+	return value, nil
+}
+
 // SchemaJSONFor projects a Go expected-output type into provider-neutral JSON Schema JSON.
 func SchemaJSONFor[T any]() (json.RawMessage, error) {
 	schema, err := schemaFor[T]()
@@ -46,24 +110,15 @@ func SchemaJSONFor[T any]() (json.RawMessage, error) {
 	return json.RawMessage(data), nil
 }
 
-// Decode validates and unmarshals provider structured output into the expected Go type.
+// Decode compiles the contract for T and decodes one value. Prefer Compile
+// when the same type is decoded or requested more than once.
 func Decode[T any](data []byte) (T, error) {
-	var value T
-	instance, err := decodeJSON(data)
+	contract, err := Compile[T]()
 	if err != nil {
-		return value, fmt.Errorf("decode structured output: %w", err)
+		var zero T
+		return zero, err
 	}
-	schemaJSON, err := SchemaJSONFor[T]()
-	if err != nil {
-		return value, err
-	}
-	if err := validate(schemaJSON, instance); err != nil {
-		return value, err
-	}
-	if err := json.Unmarshal(data, &value); err != nil {
-		return value, fmt.Errorf("decode structured output: %w", err)
-	}
-	return value, nil
+	return contract.Decode(data)
 }
 
 func decodeJSON(data []byte) (any, error) {
@@ -81,29 +136,32 @@ func decodeJSON(data []byte) (any, error) {
 	return instance, nil
 }
 
-func validate(schemaJSON json.RawMessage, instance any) error {
+func compileSchema(schemaJSON json.RawMessage) (*validator.Schema, error) {
 	var schemaDocument any
 	decoder := json.NewDecoder(bytes.NewReader(schemaJSON))
 	decoder.UseNumber()
 	if err := decoder.Decode(&schemaDocument); err != nil {
-		return fmt.Errorf("decode generated schema: %w", err)
+		return nil, fmt.Errorf("decode generated schema: %w", err)
 	}
 	compiler := validator.NewCompiler()
 	const schemaURL = "https://llmkit.local/output-schema.json"
 	if err := compiler.AddResource(schemaURL, schemaDocument); err != nil {
-		return fmt.Errorf("register generated schema: %w", err)
+		return nil, fmt.Errorf("register generated schema: %w", err)
 	}
 	compiled, err := compiler.Compile(schemaURL)
 	if err != nil {
-		return fmt.Errorf("compile generated schema: %w", err)
+		return nil, fmt.Errorf("compile generated schema: %w", err)
 	}
+	return compiled, nil
+}
+
+func validateCompiled(compiled *validator.Schema, instance any) error {
 	if err := compiled.Validate(instance); err != nil {
 		var validationErr *validator.ValidationError
 		if !errors.As(err, &validationErr) {
 			return fmt.Errorf("validate structured output: %w", err)
 		}
-		violations := collectViolations(validationErr)
-		return &SchemaValidationError{Violations: violations}
+		return &SchemaValidationError{Violations: collectViolations(validationErr)}
 	}
 	return nil
 }
