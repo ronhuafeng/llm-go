@@ -6,7 +6,7 @@ module, version, minimal reproduction, expected behavior, and actual behavior.
 
 Choose the owning module first:
 
-- provider-neutral schema, decode, settle, or validation feedback: `llmkit`
+- provider-neutral schema, decode, or validation feedback: `llmkit`
 - Codex transport, Exact Run, or generated protocol: `codexsdk`
 - Codex schema policy or projection into toolkit evidence: `llmcaller/codex`
 

@@ -5,6 +5,13 @@ changes may occur in minor releases.
 
 ## [Unreleased]
 
+### Removed
+
+- **Breaking (pre-v1):** delete public `llmkit/settle`. Bounded inference
+  termination is owned by `llmstep` (`ErrInvalidMaxIter`, `ErrUnsettled`).
+  Callers that used `settle.Run` or `settle.RunDetailed` must own their retry
+  loop or use `llmstep`.
+
 ## [0.7.0] - 2026-08-30
 
 ### Changed

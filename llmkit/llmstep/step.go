@@ -10,13 +10,19 @@ import (
 	"unicode"
 
 	"github.com/ronhuafeng/llm-go/llmkit/llmadapter"
-	"github.com/ronhuafeng/llm-go/llmkit/settle"
 )
 
 // ErrUnsafeFeedback reports validation feedback rejected by a sanitizer.
 var ErrUnsafeFeedback = errors.New("llmstep: unsafe feedback")
 
 var ErrNilRender = errors.New("llmstep: render is nil")
+
+// ErrInvalidMaxIter reports a step configured with a non-positive retry bound.
+var ErrInvalidMaxIter = errors.New("llmstep: maxIter must be at least 1")
+
+// ErrUnsettled reports that no attempt produced a settled validator decision
+// before the retry bound was exhausted.
+var ErrUnsettled = errors.New("llmstep: output remains unsettled")
 
 // Feedback is the shared value shape used by validator decisions and retry
 // feedback. Its containing field determines ownership and whether it is safe
@@ -117,7 +123,7 @@ func RunDetailed[I any, O any](ctx context.Context, step Step[I, O], input I) (R
 	var result Result[O]
 
 	if step.MaxIter < 1 {
-		return result, settle.ErrInvalidMaxIter
+		return result, ErrInvalidMaxIter
 	}
 	if isNilCaller(step.Caller) {
 		return result, llmadapter.ErrNilCaller
@@ -175,7 +181,7 @@ func RunDetailed[I any, O any](ctx context.Context, step Step[I, O], input I) (R
 		}
 		if iter == step.MaxIter {
 			result.Attempts = append(result.Attempts, attempt)
-			return snapshotResult(result), fmt.Errorf("%w: maxIter=%d", settle.ErrUnsettled, step.MaxIter)
+			return snapshotResult(result), fmt.Errorf("%w: maxIter=%d", ErrUnsettled, step.MaxIter)
 		}
 
 		retryFeedback, err := sanitize(copyFeedback(validation.Feedback))
@@ -189,7 +195,7 @@ func RunDetailed[I any, O any](ctx context.Context, step Step[I, O], input I) (R
 		result.Attempts = append(result.Attempts, attempt)
 	}
 
-	return snapshotResult(result), fmt.Errorf("%w: maxIter=%d", settle.ErrUnsettled, step.MaxIter)
+	return snapshotResult(result), fmt.Errorf("%w: maxIter=%d", ErrUnsettled, step.MaxIter)
 }
 
 func isNilCaller(caller llmadapter.Caller) bool {

@@ -27,7 +27,7 @@ func TestHandwrittenPublicAPI(t *testing.T) {
 		cache: make(map[string]*types.Package),
 	}
 	var declarations []string
-	for _, name := range []string{"llmschema", "llmadapter", "settle", "llmstep"} {
+	for _, name := range []string{"llmschema", "llmadapter", "llmstep"} {
 		path := "github.com/ronhuafeng/llm-go/llmkit/" + name
 		pkg, err := loader.Import(path)
 		if err != nil {
@@ -227,14 +227,16 @@ func publicTypeParameters(named *types.Named, qualifier types.Qualifier) string 
 	return "[" + strings.Join(declarations, ", ") + "]"
 }
 
+func TestSettleIsNotAPublicPackage(t *testing.T) {
+	root := repoRoot(t)
+	if _, err := os.Stat(filepath.Join(root, "settle")); !os.IsNotExist(err) {
+		t.Fatalf("llmkit/settle must not exist as a public package: %v", err)
+	}
+}
+
 func TestLLMKitImportBoundaries(t *testing.T) {
 	root := repoRoot(t)
 	rules := []importRule{
-		{
-			dir:            "settle",
-			stdlibOnly:     true,
-			violationLabel: "settle must remain a stdlib-only stable loop primitive",
-		},
 		{
 			dir: "llmschema",
 			forbidden: []string{
