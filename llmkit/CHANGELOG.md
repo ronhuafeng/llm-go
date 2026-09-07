@@ -5,6 +5,12 @@ changes may occur in minor releases.
 
 ## [Unreleased]
 
+### Changed
+
+- Describe `llmadapter.Value` as the default typed-inference path and
+  `ValueWithContract` as the explicit Contract-reuse path. Both return the
+  same evidence-bearing result.
+
 ## [0.11.0] - 2026-09-07
 
 ### Added

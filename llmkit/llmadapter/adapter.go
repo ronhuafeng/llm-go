@@ -155,6 +155,8 @@ func RequestFor[T any](prompt string) (Request, error) {
 	}, nil
 }
 
+// Value is the default typed-inference path. It compiles one Contract and
+// returns the same evidence-bearing ValueResult as ValueWithContract.
 func Value[T any](ctx context.Context, caller Caller, prompt string) (ValueResult[T], error) {
 	contract, err := llmschema.Compile[T]()
 	if err != nil {
@@ -163,8 +165,9 @@ func Value[T any](ctx context.Context, caller Caller, prompt string) (ValueResul
 	return ValueWithContract(ctx, caller, prompt, contract)
 }
 
-// ValueWithContract uses one compiled contract for the request schema and
-// the response decode. The zero contract fails closed before Caller.Call.
+// ValueWithContract is the explicit reuse path: one compiled contract
+// supplies the request schema and the response decode. The zero contract
+// fails closed before Caller.Call.
 func ValueWithContract[T any](ctx context.Context, caller Caller, prompt string, contract llmschema.Contract[T]) (ValueResult[T], error) {
 	var result ValueResult[T]
 	if isNil(caller) {

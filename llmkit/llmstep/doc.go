@@ -1,10 +1,10 @@
 // Package llmstep runs a single provider-neutral typed structured-output LLM
 // step with bounded judgment and repair retries.
 //
-// It combines prompt rendering, llmadapter.Value typed calls,
+// It combines prompt rendering, typed llmadapter inference,
 // deterministic judgment, sanitized repair, stage-specific attempt evidence,
 // and max-iteration handling. Run compiles one llmschema.Contract for the
-// output type and reuses it across attempts for request schema and decode.
+// output type and reuses it across attempts through ValueWithContract.
 // Run publishes the validator decision
 // exactly as returned in Attempt.Judgment and separately publishes
 // sanitizer-owned, iteration-stamped Attempt.NextRepair. Only NextRepair is

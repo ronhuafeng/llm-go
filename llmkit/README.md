@@ -102,9 +102,19 @@ func main() {
 }
 ```
 
-`Value` is the only public typed-inference path. It returns the
-proposition together with the complete provider-neutral response on success
-or failure. Provider-specific exact facts remain available through typed
+`Value` is the default typed-inference path. It compiles one
+`llmschema.Contract` for the request schema and the response decode, then
+returns the proposition together with the complete provider-neutral
+response on success or failure.
+
+`ValueWithContract` is the explicit reuse path: pass a caller-owned
+compiled `Contract` when the same structural schema and validator must be
+reused across calls or composition. `llmstep.Run` uses that path
+internally. Both functions return the same evidence-bearing `ValueResult`.
+Neither path owns semantic judgment, provider dialect, or effect
+authority.
+
+Provider-specific exact facts remain available through typed
 `ProviderDetails` implementations supplied by adapters.
 
 ## Ownership and snapshots
