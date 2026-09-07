@@ -6,8 +6,8 @@ github.com/google/jsonschema-go v0.4.3 h1:/DBOLZTfDow7pe2GmaJNhltueGTtDKICi8V8p+
 github.com/google/jsonschema-go v0.4.3/go.mod h1:r5quNTdLOYEz95Ru18zA0ydNbBuYoo9tgaYcxEYhJVE=
 github.com/ronhuafeng/llm-go/codexsdk v0.8.0 h1:muQJGxsBHI8JbA6PsFt0e0W6af0APhchMj/+bbUarPk=
 github.com/ronhuafeng/llm-go/codexsdk v0.8.0/go.mod h1:nEUkMR3zmP6lqOf6el0qvH1q8M1X4HPhguadeTFceuI=
-github.com/ronhuafeng/llm-go/llmkit v0.8.0 h1:6cxIhlT7Z6XbSQqdYH3QbzjRnr86VtSsk+c+a1H8kc8=
-github.com/ronhuafeng/llm-go/llmkit v0.8.0/go.mod h1:1hPj0obVfhX5KgzgRS0Ot6vldCt9xLT0oVrppcEIfaA=
+github.com/ronhuafeng/llm-go/llmkit v0.9.0 h1:sgELLr4fusdD6eoR3sRbidBE6xtuoUdKzhAcWsxAytk=
+github.com/ronhuafeng/llm-go/llmkit v0.9.0/go.mod h1:1hPj0obVfhX5KgzgRS0Ot6vldCt9xLT0oVrppcEIfaA=
 github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 h1:KRzFb2m7YtdldCEkzs6KqmJw4nqEVZGK7IN2kJkjTuQ=
 github.com/santhosh-tekuri/jsonschema/v6 v6.0.2/go.mod h1:JXeL+ps8p7/KNMjDQk3TCwPpBy0wYklyWTfbkIzdIFU=
 golang.org/x/text v0.14.0 h1:ScX5w1eTa3QqT8oi6+ziP7dTV1S2+ALU0bI+0zXKWiQ=

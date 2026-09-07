@@ -4,6 +4,11 @@ This project follows Semantic Versioning.
 
 ## [Unreleased]
 
+### Changed
+
+- Require the published `llmkit v0.9.0` module so `GOWORK=off` consumers
+  compile against Observation-only execution evidence.
+
 ## [0.7.0] - 2026-09-07
 
 ### Fixed
