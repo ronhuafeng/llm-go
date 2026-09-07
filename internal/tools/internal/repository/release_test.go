@@ -469,7 +469,7 @@ func TestProxyPropagationUsesFreshCachePerAttempt(t *testing.T) {
 	}
 }
 
-func TestArtifactValidationCacheIsRemovedAfterDigestsAreCaptured(t *testing.T) {
+func TestArtifactValidationCacheSurvivesUntilCleanup(t *testing.T) {
 	options := PublishOptions{Proxy: "https://proxy.golang.org", SumDB: "sum.golang.org", CommandTimeout: time.Second}
 	var temporaryRoot string
 	command := func(_ context.Context, directory string, _ map[string]string, _ ...string) ([]byte, error) {
@@ -486,15 +486,21 @@ func TestArtifactValidationCacheIsRemovedAfterDigestsAreCaptured(t *testing.T) {
 		payload := moduleDownload{Path: "example.com/kit", Version: "v0.6.0", Zip: zipPath, GoMod: modPath, Sum: "h1:zip", GoModSum: "h1:mod"}
 		return json.Marshal(payload)
 	}
-	download, err := downloadFromFreshCache(context.Background(), "example.com/kit@v0.6.0", options, command)
+	download, cleanup, err := downloadFromFreshCache(context.Background(), "example.com/kit@v0.6.0", options, command)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if download.zipSHA256 == "" || download.goModSHA256 == "" {
 		t.Fatalf("download digests = %+v", download)
 	}
+	if _, err := os.Stat(download.Zip); err != nil {
+		t.Fatalf("zip must remain until cleanup: %v", err)
+	}
+	if err := cleanup(); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := os.Stat(temporaryRoot); !os.IsNotExist(err) {
-		t.Fatalf("validation cache survived: %v", err)
+		t.Fatalf("validation cache survived cleanup: %v", err)
 	}
 }
 
@@ -521,8 +527,11 @@ func TestArtifactValidationReportsCleanupFailure(t *testing.T) {
 		payload := moduleDownload{Path: "example.com/kit", Version: "v0.6.0", Zip: zipPath, GoMod: modPath, Sum: "h1:zip", GoModSum: "h1:mod"}
 		return json.Marshal(payload)
 	}
-	_, err := downloadFromFreshCache(context.Background(), "example.com/kit@v0.6.0", options, command)
-	if err == nil || !strings.Contains(err.Error(), "remove validation cache") {
+	_, cleanup, err := downloadFromFreshCache(context.Background(), "example.com/kit@v0.6.0", options, command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cleanup(); err == nil || !strings.Contains(err.Error(), "remove validation cache") {
 		t.Fatalf("cleanup error = %v", err)
 	}
 	if lockedDirectory != "" {
