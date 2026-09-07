@@ -6,6 +6,12 @@ This project follows Semantic Versioning.
 
 ### Changed
 
+- **Breaking (pre-v1):** construct a provider-neutral `Caller` only with a
+  named effect-safe profile. Unrestricted `New(Options{Runner})` no longer
+  implements inference over effect-capable turns. Effective read-only,
+  never-approve, and ephemeral facts are admitted from decoded thread-start
+  observation before `turn/start`. Effectful Codex use stays on explicit
+  Exact Run / `ThreadRunner` surfaces.
 - Document the evidence-bearing `llmadapter.ValueDetailed` path in the
   module example and README.
 

@@ -1,0 +1,8 @@
+{
+  "format_version": 1,
+  "module": "codex-adapter",
+  "impact": "minor",
+  "breaking": true,
+  "summary": "Require a named safety profile for the neutral Caller and admit effective thread-start facts before turn/start.",
+  "issue": 112
+}

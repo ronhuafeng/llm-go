@@ -66,12 +66,52 @@ func (runner *fakeRunner) Start(ctx context.Context, request codexsdk.StartThrea
 		return codexsdk.StartedThreadRun{}, err
 	}
 	runner.requests = append(runner.requests, request)
+	if err := applyAdmitTurn(request, runner.result.Start); err != nil {
+		return codexsdk.StartedThreadRun{Start: runner.result.Start}, err
+	}
 	return runner.result, runner.err
 }
 
 func (runner *fakeRunner) StartStream(ctx context.Context, request codexsdk.StartThreadRunRequest) (*codexsdk.Stream[codexsdk.StartedThreadRun], error) {
 	runner.streamRequests = append(runner.streamRequests, request)
+	if err := applyAdmitTurn(request, runner.result.Start); err != nil {
+		return nil, err
+	}
 	return nil, runner.streamErr
+}
+
+func applyAdmitTurn(request codexsdk.StartThreadRunRequest, start protocolv2.ThreadStartResponse) error {
+	if start.Thread.ID == "" {
+		return nil
+	}
+	field := reflect.ValueOf(&request).Elem().FieldByName("AdmitTurn")
+	if !field.IsValid() || field.IsNil() {
+		return nil
+	}
+	results := field.Call([]reflect.Value{reflect.ValueOf(start)})
+	if results[0].IsNil() {
+		return nil
+	}
+	return results[0].Interface().(error)
+}
+
+func startRequestHasAdmitTurn() bool {
+	_, ok := reflect.TypeOf(codexsdk.StartThreadRunRequest{}).FieldByName("AdmitTurn")
+	return ok
+}
+
+func setAdmitTurn(request *codexsdk.StartThreadRunRequest, admit func(protocolv2.ThreadStartResponse) error) bool {
+	field := reflect.ValueOf(request).Elem().FieldByName("AdmitTurn")
+	if !field.IsValid() || !field.CanSet() {
+		return false
+	}
+	field.Set(reflect.ValueOf(admit))
+	return true
+}
+
+func admitTurnAttached(request codexsdk.StartThreadRunRequest) bool {
+	field := reflect.ValueOf(&request).Elem().FieldByName("AdmitTurn")
+	return field.IsValid() && !field.IsNil()
 }
 
 var _ ThreadRunner = (*fakeRunner)(nil)
@@ -103,9 +143,39 @@ func requireMissingThreadProfileError(t *testing.T, err error, want string) {
 	}
 }
 
+func requireTurnAdmissionProfileError(t *testing.T, err error, want string) {
+	t.Helper()
+	if !errors.Is(err, ErrEffectiveProfile) || !strings.Contains(err.Error(), want) {
+		t.Fatalf("error = %v, want ErrEffectiveProfile containing %q", err, want)
+	}
+}
+
 func (value *nullAwareString) UnmarshalJSON(data []byte) error {
 	value.SawNull = string(data) == "null"
 	return nil
+}
+
+func TestNewRejectsCallerOwnedAdmitTurn(t *testing.T) {
+	if !startRequestHasAdmitTurn() {
+		t.Skip("published SDK tuple does not expose AdmitTurn")
+	}
+	options := ReadOnlyEphemeralOptions(&fakeRunner{})
+	if !setAdmitTurn(&options.Defaults, func(protocolv2.ThreadStartResponse) error { return nil }) {
+		t.Fatal("could not set AdmitTurn on defaults")
+	}
+	if _, err := New(options); err == nil {
+		t.Fatal("New accepted caller-owned AdmitTurn")
+	}
+}
+
+func TestNeutralCallerRequiresNamedSafetyProfile(t *testing.T) {
+	runner := &fakeRunner{result: validStartedRun("ok", "gpt")}
+	if _, err := New(Options{Runner: runner}); !errors.Is(err, ErrMissingSafetyProfile) {
+		t.Fatalf("New error = %v, want ErrMissingSafetyProfile", err)
+	}
+	if len(runner.requests) != 0 || len(runner.streamRequests) != 0 {
+		t.Fatalf("unrestricted construction invoked the runner: starts=%d streams=%d", len(runner.requests), len(runner.streamRequests))
+	}
 }
 
 func TestNewValidatesRunnerAndOwnedDefaults(t *testing.T) {
@@ -123,7 +193,11 @@ func TestNewValidatesRunnerAndOwnedDefaults(t *testing.T) {
 		{Turn: protocolv2.TurnStartParams{OutputSchema: outputSchemaPointer(t, `true`)}},
 	}
 	for _, defaults := range tests {
-		if _, err := New(Options{Runner: runner, Defaults: defaults}); err == nil {
+		options := ReadOnlyEphemeralOptions(runner)
+		options.Defaults.Turn.ThreadID = defaults.Turn.ThreadID
+		options.Defaults.Turn.Input = defaults.Turn.Input
+		options.Defaults.Turn.OutputSchema = defaults.Turn.OutputSchema
+		if _, err := New(options); err == nil {
 			t.Fatalf("New accepted conflicting defaults: %#v", defaults.Turn)
 		}
 	}
@@ -143,7 +217,11 @@ func TestCallerBuildsExactRequestAndProjectsEvidence(t *testing.T) {
 		},
 		Turn: protocolv2.TurnStartParams{Effort: protocolv2.Value(protocolv2.ReasoningEffort("high"))},
 	}
-	caller, err := New(Options{Runner: runner, Defaults: defaults})
+	options := ReadOnlyEphemeralOptions(runner)
+	options.Defaults.Thread.Model = defaults.Thread.Model
+	options.Defaults.Thread.RuntimeWorkspaceRoots = defaults.Thread.RuntimeWorkspaceRoots
+	options.Defaults.Turn.Effort = defaults.Turn.Effort
+	caller, err := New(options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +262,7 @@ func TestCallerPreservesStartOnlyPartialEvidence(t *testing.T) {
 	providerErr := errors.New("start failed after negotiation")
 	run := codexsdk.StartedThreadRun{Start: protocolv2.ThreadStartResponse{Model: "effective-model"}}
 	runner := &fakeRunner{result: run, err: providerErr}
-	caller, err := New(Options{Runner: runner})
+	caller, err := New(ReadOnlyEphemeralOptions(runner))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +282,7 @@ func TestCallerPreservesPartialRunAndCause(t *testing.T) {
 	run.Run.Turn.Status = protocolv2.TurnStatusFailed
 	run.Run.FinalResponse = "partial"
 	runner := &fakeRunner{result: run, err: providerErr}
-	caller, err := New(Options{Runner: runner})
+	caller, err := New(ReadOnlyEphemeralOptions(runner))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -224,7 +302,7 @@ func TestCallerPreservesPartialRunAndCause(t *testing.T) {
 func TestCallDetailedAndStreamShareRequestConstruction(t *testing.T) {
 	streamErr := errors.New("stream unavailable")
 	runner := &fakeRunner{result: validStartedRun("ok", "gpt"), streamErr: streamErr}
-	caller, err := New(Options{Runner: runner})
+	caller, err := New(ReadOnlyEphemeralOptions(runner))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,7 +326,7 @@ func TestCallDetailedAndStreamShareRequestConstruction(t *testing.T) {
 func TestCallIsProjectionOfDetailedResult(t *testing.T) {
 	run := validStartedRun("ok", "gpt")
 	runner := &fakeRunner{result: run}
-	caller, err := New(Options{Runner: runner})
+	caller, err := New(ReadOnlyEphemeralOptions(runner))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -270,9 +348,8 @@ func TestCallerPublishesImmutableDetailsAndDefaults(t *testing.T) {
 	run := validStartedRun("ok", "gpt")
 	runner := &fakeRunner{result: run}
 	roots := []string{"/one"}
-	options := Options{Runner: runner, Defaults: codexsdk.StartThreadRunRequest{
-		Thread: protocolv2.ThreadStartParams{RuntimeWorkspaceRoots: protocolv2.Value(roots)},
-	}}
+	options := ReadOnlyEphemeralOptions(runner)
+	options.Defaults.Thread.RuntimeWorkspaceRoots = protocolv2.Value(roots)
 	caller, err := New(options)
 	if err != nil {
 		t.Fatal(err)
@@ -299,7 +376,7 @@ func TestCallerIsolatesPartialTurnWithoutIdentity(t *testing.T) {
 	run := validStartedRun("partial", "gpt")
 	run.Run.Turn.ID = ""
 	runner := &fakeRunner{result: run}
-	caller, err := New(Options{Runner: runner})
+	caller, err := New(ReadOnlyEphemeralOptions(runner))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -325,7 +402,7 @@ func TestCallOmitsProviderDetailsWhenSnapshotFails(t *testing.T) {
 	run.Run.Notifications = []protocolv2.ServerNotification{modelRerouted("safe-model", "aliased-reroute")}
 	run.Run.Usage = &protocolv2.ThreadTokenUsage{Total: protocolv2.TokenUsageBreakdown{InputTokens: 3}}
 	runner := &fakeRunner{result: run}
-	caller, err := New(Options{Runner: runner})
+	caller, err := New(ReadOnlyEphemeralOptions(runner))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -345,6 +422,44 @@ func TestCallOmitsProviderDetailsWhenSnapshotFails(t *testing.T) {
 	}
 }
 
+func TestAdmitTurnRejectsUnknownEffectiveFactsBeforeTurn(t *testing.T) {
+	if !startRequestHasAdmitTurn() {
+		t.Skip("published SDK tuple does not expose AdmitTurn")
+	}
+	cases := []struct {
+		name   string
+		mutate func(*codexsdk.StartedThreadRun)
+		want   string
+	}{
+		{name: "approval", mutate: func(run *codexsdk.StartedThreadRun) {
+			run.Start.ApprovalPolicy = protocolv2.AskForApproval{}
+		}, want: "unknown"},
+		{name: "sandbox", mutate: func(run *codexsdk.StartedThreadRun) {
+			run.Start.Sandbox = protocolv2.SandboxPolicy{}
+		}, want: "unknown"},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			run := validStartedRun("must-not-execute", "gpt")
+			testCase.mutate(&run)
+			runner := &fakeRunner{result: run}
+			caller := newReadOnlyEphemeralCaller(t, runner)
+			got, err := caller.CallDetailed(context.Background(), validRequest())
+			requireTurnAdmissionProfileError(t, err, testCase.want)
+			if got.Start.Thread.ID != run.Start.Thread.ID || got.Run.Turn.ID != "" {
+				t.Fatalf("CallDetailed unknown fact rejection = %#v, want start-only evidence", got)
+			}
+			response, callErr := caller.Call(context.Background(), validRequest())
+			requireTurnAdmissionProfileError(t, callErr, testCase.want)
+			if response.FinalResponse != "" {
+				t.Fatalf("Call published turn output after unknown fact: %#v", response)
+			}
+			_, streamErr := caller.CallStream(context.Background(), validRequest())
+			requireTurnAdmissionProfileError(t, streamErr, testCase.want)
+		})
+	}
+}
+
 func TestReadOnlyEphemeralProfileSetsAndVerifiesExactPolicy(t *testing.T) {
 	run := validStartedRun("ok", "gpt")
 	runner := &fakeRunner{result: run}
@@ -357,6 +472,7 @@ func TestReadOnlyEphemeralProfileSetsAndVerifiesExactPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 	request := runner.requests[0]
+	assertReadOnlyEphemeralRequest(t, request)
 	if request.Thread.Ephemeral == nil || request.Thread.Ephemeral.Value == nil || !*request.Thread.Ephemeral.Value {
 		t.Fatalf("thread ephemeral = %#v", request.Thread.Ephemeral)
 	}
@@ -407,11 +523,21 @@ func TestEffectiveProfileContractIsSharedByCallAndDetailed(t *testing.T) {
 		{name: "CallDetailed", call: func(caller *Caller, _ *fakeRunner) (codexsdk.StartedThreadRun, error) {
 			return caller.CallDetailed(context.Background(), validRequest())
 		}},
+		{name: "CallStream", call: func(caller *Caller, runner *fakeRunner) (codexsdk.StartedThreadRun, error) {
+			stream, err := caller.CallStream(context.Background(), validRequest())
+			if err != nil {
+				return codexsdk.StartedThreadRun{Start: runner.result.Start}, err
+			}
+			return stream.Wait(context.Background())
+		}},
 	}
 
 	for _, testCase := range cases {
 		for _, path := range paths {
 			t.Run(testCase.name+"/"+path.name, func(t *testing.T) {
+				if testCase.want != "" && !startRequestHasAdmitTurn() {
+					t.Skip("published SDK tuple does not expose AdmitTurn")
+				}
 				run := validStartedRun("ok", "gpt")
 				if testCase.mutate != nil {
 					testCase.mutate(&run)
@@ -423,14 +549,20 @@ func TestEffectiveProfileContractIsSharedByCallAndDetailed(t *testing.T) {
 				}
 				got, err := path.call(caller, runner)
 				if testCase.want == "" {
+					if path.name == "CallStream" {
+						return
+					}
 					if err != nil {
 						t.Fatalf("call error = %v", err)
 					}
-				} else if !errors.Is(err, ErrEffectiveProfile) || !strings.Contains(err.Error(), testCase.want) {
-					t.Fatalf("call error = %v, want ErrEffectiveProfile containing %q", err, testCase.want)
-				}
-				if !reflect.DeepEqual(got, run) {
-					t.Fatalf("exact result = %#v, want %#v", got, run)
+					if !reflect.DeepEqual(got, run) {
+						t.Fatalf("exact result = %#v, want %#v", got, run)
+					}
+				} else {
+					requireTurnAdmissionProfileError(t, err, testCase.want)
+					if got.Start.Thread.ID != run.Start.Thread.ID || got.Run.Turn.ID != "" || got.Run.Turn.Status == protocolv2.TurnStatusCompleted {
+						t.Fatalf("admission rejection continued into turn execution: %#v", got)
+					}
 				}
 			})
 		}
@@ -505,7 +637,7 @@ func TestCallProjectsZeroValuedDecodedMissingThreadIDEvidence(t *testing.T) {
 	caller := newReadOnlyEphemeralCaller(t, runner)
 
 	response, err := caller.Call(context.Background(), validRequest())
-	requireMissingThreadProfileError(t, err, "not never")
+	requireMissingThreadProfileError(t, err, "unknown")
 	if response.Execution.ProviderName != "codex" {
 		t.Fatalf("Call evidence = %#v, want decoded start provider projection", response.Execution)
 	}
@@ -535,9 +667,8 @@ func TestStreamJoinsProviderAndProfileErrorsWithoutLosingExactEvidence(t *testin
 	run.Start.ApprovalPolicy = protocolv2.NewAskForApprovalOnRequest()
 	run.Start.Sandbox = protocolv2.NewSandboxPolicyDangerFullAccess()
 	run.Start.Thread.Ephemeral = false
-	run.Run.Diagnostics = []codexsdk.DiagnosticRef{{Kind: "provider", Path: "turn/completed"}}
-	run.Run.Notifications = []protocolv2.ServerNotification{modelRerouted("gpt", "gpt-rerouted")}
-	run.Run.Usage = &protocolv2.ThreadTokenUsage{Total: protocolv2.TokenUsageBreakdown{InputTokens: 3, OutputTokens: 5}}
+	run.Run = codexsdk.ThreadRunResult{}
+	run.Run.Diagnostics = []codexsdk.DiagnosticRef{{Kind: "provider", Path: "thread/start"}}
 
 	runner := &fakeRunner{result: run, err: providerErr}
 	caller, err := New(ReadOnlyEphemeralOptions(runner))
@@ -554,8 +685,8 @@ func TestStreamJoinsProviderAndProfileErrorsWithoutLosingExactEvidence(t *testin
 	if !errors.As(err, &typedWaitErr) || typedWaitErr.code != "quota" {
 		t.Fatalf("Wait error = %v, want typed provider cause", err)
 	}
-	if !reflect.DeepEqual(got, run) {
-		t.Fatalf("Wait result = %#v, want complete exact evidence %#v", got, run)
+	if !reflect.DeepEqual(got, run) || got.Run.Turn.ID != "" {
+		t.Fatalf("Wait result = %#v, want start-only evidence %#v", got, run)
 	}
 	streamErr := stream.Err()
 	if !errors.Is(streamErr, providerErr) || !errors.Is(streamErr, ErrEffectiveProfile) {
@@ -564,9 +695,6 @@ func TestStreamJoinsProviderAndProfileErrorsWithoutLosingExactEvidence(t *testin
 	var typedStreamErr *typedProviderError
 	if !errors.As(streamErr, &typedStreamErr) || typedStreamErr.code != "quota" {
 		t.Fatalf("Err = %v, want typed provider cause", streamErr)
-	}
-	if !stream.Next(context.Background()) || !reflect.DeepEqual(stream.Notification(), run.Run.Notifications[0]) {
-		t.Fatalf("notification delegation lost exact fact: %#v", stream.Notification())
 	}
 	if err := stream.Close(); err != nil || !inner.closed {
 		t.Fatalf("Close = %v, closed=%v", err, inner.closed)
@@ -727,11 +855,14 @@ func assertReadOnlyEphemeralRequest(t *testing.T, request codexsdk.StartThreadRu
 	if request.Turn.ApprovalPolicy == nil || request.Turn.ApprovalPolicy.Value == nil || request.Turn.ApprovalPolicy.Value.Kind() != protocolv2.AskForApprovalKindNever {
 		t.Fatalf("turn approval = %#v", request.Turn.ApprovalPolicy)
 	}
+	if startRequestHasAdmitTurn() && !admitTurnAttached(request) {
+		t.Fatal("AdmitTurn was not attached")
+	}
 }
 
 func TestCallerWorksThroughLLMAdapterDetailedPath(t *testing.T) {
 	runner := &fakeRunner{result: validStartedRun(`{"answer":true}`, "gpt")}
-	caller, err := New(Options{Runner: runner})
+	caller, err := New(ReadOnlyEphemeralOptions(runner))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1082,7 +1213,7 @@ func TestStrictOutputSchemaDecisionMatchesDirectValidator(t *testing.T) {
 
 func TestCallerRejectsUncertainNullAdmissionBeforeRunnerInvocation(t *testing.T) {
 	runner := &fakeRunner{}
-	caller, err := New(Options{Runner: runner})
+	caller, err := New(ReadOnlyEphemeralOptions(runner))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1201,7 +1332,7 @@ func assertSchemaError(t *testing.T, raw json.RawMessage, kind, path string) {
 	}
 
 	runner := &fakeRunner{}
-	caller, err := New(Options{Runner: runner})
+	caller, err := New(ReadOnlyEphemeralOptions(runner))
 	if err != nil {
 		t.Fatal(err)
 	}

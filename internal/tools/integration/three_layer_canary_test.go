@@ -95,7 +95,8 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 		}
 	})
 
-	t.Run("stream returns exact terminal evidence with effective profile error", func(t *testing.T) {
+	t.Run("stream rejects mismatched profile before turn/start", func(t *testing.T) {
+		requirePreTurnAdmission(t)
 		client, caller := canaryCaller(t, "effective-profile-mismatch", codexsdk.ClientOptions{})
 		defer closeCanary(t, client)
 		stream, err := caller.CallStream(context.Background(), validRequest())
@@ -109,8 +110,8 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 		if !errors.Is(err, codexcaller.ErrEffectiveProfile) {
 			t.Fatalf("Wait error = %v, want ErrEffectiveProfile", err)
 		}
-		if run.Start.Thread.ID != "thread-1" || run.Start.Model != "canary-start" || run.Run.Turn.Status != protocolv2.TurnStatusCompleted || len(run.Run.Notifications) != 4 || run.Run.Usage == nil || run.Run.Usage.Total.OutputTokens != 20 {
-			t.Fatalf("profile mismatch erased exact result: %#v", run)
+		if run.Start.Thread.ID != "thread-1" || run.Start.Model != "canary-start" || run.Run.Turn.ID != "" || run.Run.Turn.Status == protocolv2.TurnStatusCompleted || len(run.Run.Notifications) != 0 {
+			t.Fatalf("profile mismatch executed a turn: %#v", run)
 		}
 		if run.Start.ApprovalPolicy.Kind() != protocolv2.AskForApprovalKindOnRequest || run.Start.Sandbox.Kind() != protocolv2.SandboxPolicyKindDangerFullAccess || run.Start.Thread.Ephemeral {
 			t.Fatalf("effective profile facts were not preserved: %#v", run.Start)
@@ -128,9 +129,9 @@ func TestEffectiveProfileContractAcrossPublicCallPaths(t *testing.T) {
 	}
 	profileCases := []profileCase{
 		{name: "valid", scenario: "success", wantEffectiveModel: "canary-rerouted"},
-		{name: "approval", scenario: "effective-profile-approval", want: "not never", wantEffectiveModel: "canary-rerouted"},
-		{name: "sandbox", scenario: "effective-profile-sandbox", want: "not read-only", wantEffectiveModel: "canary-rerouted"},
-		{name: "ephemeral", scenario: "effective-profile-ephemeral", want: "not ephemeral", wantEffectiveModel: "canary-rerouted"},
+		{name: "approval", scenario: "effective-profile-approval", want: "not never", wantEffectiveModel: "canary-start"},
+		{name: "sandbox", scenario: "effective-profile-sandbox", want: "not read-only", wantEffectiveModel: "canary-start"},
+		{name: "ephemeral", scenario: "effective-profile-ephemeral", want: "not ephemeral", wantEffectiveModel: "canary-start"},
 		{name: "missing-thread-id-approval", scenario: "missing-thread-id-approval", want: "not never", wantEffectiveModel: "canary-start", missingThreadID: true},
 		{name: "missing-thread-id-sandbox", scenario: "missing-thread-id-sandbox", want: "not read-only", wantEffectiveModel: "canary-start", missingThreadID: true},
 		{name: "missing-thread-id-ephemeral", scenario: "missing-thread-id-ephemeral", want: "not ephemeral", wantEffectiveModel: "canary-start", missingThreadID: true},
@@ -172,6 +173,9 @@ func TestEffectiveProfileContractAcrossPublicCallPaths(t *testing.T) {
 	for _, profileCase := range profileCases {
 		for _, path := range paths {
 			t.Run(profileCase.name+"/"+path.name, func(t *testing.T) {
+				if profileCase.want != "" && !profileCase.missingThreadID {
+					requirePreTurnAdmission(t)
+				}
 				client, caller := canaryCaller(t, profileCase.scenario, codexsdk.ClientOptions{})
 				defer closeCanary(t, client)
 				run, err := path.call(t, caller, profileCase)
@@ -181,8 +185,11 @@ func TestEffectiveProfileContractAcrossPublicCallPaths(t *testing.T) {
 					}
 				} else if profileCase.missingThreadID {
 					requireMissingThreadProfileError(t, err, profileCase.want)
-				} else if !errors.Is(err, codexcaller.ErrEffectiveProfile) || !strings.Contains(err.Error(), profileCase.want) {
-					t.Fatalf("call error = %v, want ErrEffectiveProfile containing %q", err, profileCase.want)
+				} else {
+					requirePreTurnAdmission(t)
+					if !errors.Is(err, codexcaller.ErrEffectiveProfile) || !strings.Contains(err.Error(), profileCase.want) {
+						t.Fatalf("call error = %v, want ErrEffectiveProfile containing %q", err, profileCase.want)
+					}
 				}
 				if run.Start.Model != "canary-start" || run.Start.CWD != "/workspace" {
 					t.Fatalf("decoded start evidence = %#v", run.Start)
@@ -191,8 +198,12 @@ func TestEffectiveProfileContractAcrossPublicCallPaths(t *testing.T) {
 					if run.Start.Thread.ID != "" || run.Run.Turn.ID != "" {
 						t.Fatalf("exact partial run = %#v, want no lifecycle continuation", run)
 					}
-				} else if run.Start.Thread.ID != "thread-1" || run.Run.Turn.Status != protocolv2.TurnStatusCompleted || len(run.Run.Notifications) != 4 {
-					t.Fatalf("exact terminal run = %#v", run)
+				} else if profileCase.want == "" {
+					if run.Start.Thread.ID != "thread-1" || run.Run.Turn.Status != protocolv2.TurnStatusCompleted || len(run.Run.Notifications) != 4 {
+						t.Fatalf("exact terminal run = %#v", run)
+					}
+				} else if run.Start.Thread.ID != "thread-1" || run.Run.Turn.ID != "" || run.Run.Turn.Status == protocolv2.TurnStatusCompleted || len(run.Run.Notifications) != 0 {
+					t.Fatalf("exact rejected run = %#v, want start-only evidence", run)
 				}
 			})
 		}
@@ -419,6 +430,22 @@ func requireMissingThreadProfileError(t *testing.T, err error, want string) {
 	}
 }
 
+func requirePreTurnAdmission(t *testing.T) {
+	t.Helper()
+	if _, ok := reflect.TypeOf(codexsdk.StartThreadRunRequest{}).FieldByName("AdmitTurn"); !ok {
+		t.Skip("published SDK tuple does not expose AdmitTurn")
+	}
+}
+
+func isProfileMismatchScenario(scenario string) bool {
+	switch scenario {
+	case "effective-profile-mismatch", "effective-profile-approval", "effective-profile-sandbox", "effective-profile-ephemeral":
+		return true
+	default:
+		return false
+	}
+}
+
 const canaryOverflowHandlerStarted = "overflow-handler-started"
 
 func closeCanary(t *testing.T, client canaryClient) {
@@ -493,6 +520,9 @@ func runThreeLayerFakeAppServer(scenario string) {
 			}
 			canarySend(map[string]any{"id": id, "result": result})
 		case "turn/start":
+			if isProfileMismatchScenario(scenario) {
+				os.Exit(3)
+			}
 			params, _ := message["params"].(map[string]any)
 			if params["approvalPolicy"] != "never" {
 				os.Exit(3)

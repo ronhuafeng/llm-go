@@ -2,14 +2,18 @@
 // lifecycle operations.
 //
 // It owns Codex schema policy, request/result projection, exact defaults, and
-// named Codex safety profiles. Named-profile request policy is enforced before
-// every runner invocation; Call, CallDetailed, and the adapter-owned Stream
-// apply the same effective-policy verification after execution. Stream keeps
-// exact SDK notifications, lifecycle observation, terminal results, errors,
-// and a typed SDKStream escape hatch without projecting away generated facts.
-// A decoded partial start remains observable and profile-checked when its
-// required thread identity is missing; pre-response failures do not create a
-// synthetic profile mismatch.
+// named Codex safety profiles. A provider-neutral Caller can be constructed
+// only with a named effect-safe profile. Named-profile request policy is
+// enforced before every runner invocation. Effective approval, sandbox, and
+// ephemeral facts are admitted from the decoded thread-start Server
+// Observation through StartThreadRunRequest.AdmitTurn before turn/start.
+// Call, CallDetailed, and the adapter-owned Stream share that fail-closed
+// contract. Stream keeps exact SDK notifications, lifecycle observation,
+// terminal results, errors, and a typed SDKStream escape hatch without
+// projecting away generated facts. A decoded partial start remains
+// observable and profile-checked when its required thread identity is
+// missing; pre-response failures do not create a synthetic profile mismatch.
+// Effectful Codex use stays on explicit Exact Run / ThreadRunner surfaces.
 // The package does not own Go type projection, decoding, validation, retries,
 // transport, or business semantics.
 //

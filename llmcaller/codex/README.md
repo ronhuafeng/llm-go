@@ -16,8 +16,12 @@ the requirements in this module's `go.mod`.
 ## Typed Call
 
 An SDK `ThreadRunner` satisfies the adapter's smaller consumer-owned interface.
-The safety profile sets ephemeral thread creation, read-only sandboxing, and
-never-approve policy at both thread and turn scope.
+The named safety profile is required to construct a provider-neutral `Caller`.
+It sets ephemeral thread creation, read-only sandboxing, and never-approve
+policy at both thread and turn scope, then admits the effective decoded
+thread-start facts before `turn/start`. Effectful Codex use goes through the
+SDK Exact Run / `ThreadRunner` surfaces directly; it is not a neutral
+`llmadapter.Caller`.
 
 ```go
 runner := client.ThreadRunner()
@@ -80,17 +84,22 @@ notification-derived facts are omitted.
 
 Requested-policy enforcement happens before transport for `Call`,
 `CallDetailed`, and `CallStream`: no explicitly conflicting named-profile
-defaults can reach the SDK runner. All three paths also apply the same
-post-execution check that Codex's effective result is read-only, never-approve,
-and ephemeral. `Stream.Wait` returns the complete exact terminal or partial
-result together with SDK and `ErrEffectiveProfile` causes; `Stream.Err` exposes
-the same joined terminal causes. Notification, usage, diagnostics, metadata,
-effective configuration, and partial evidence remain exact SDK values. A
-decoded start remains profile-checked and observable even when its required
-thread ID is missing; failures before a start response is decoded do not
-synthesize a profile mismatch. Use `Stream.SDKStream` when a lower-level SDK
-operation is required, and observe the terminal result through the adapter
-wrapper when named-profile verification is required.
+defaults can reach the SDK runner, and `New` rejects construction without a
+named profile. All three paths attach `StartThreadRunRequest.AdmitTurn` so
+effective approval, sandbox, and ephemeral facts are checked from the decoded
+thread-start observation before `turn/start`. An unknown or mismatched
+required fact rejects continuation, preserves the exact thread-start
+evidence, and reports `ErrEffectiveProfile`. When the resolved SDK exposes
+`AdmitTurn`, that rejection happens before `turn/start`.
+Requested or default profile values are never substituted for missing
+effective facts. A decoded start remains profile-checked and observable even
+when its required thread ID is missing; failures before a start response is
+decoded do not synthesize a profile mismatch. `Stream.Wait` returns the
+complete exact terminal or partial result together with SDK and profile
+causes; `Stream.Err` exposes the same joined terminal causes. Use
+`Stream.SDKStream` when a lower-level SDK operation is required, and observe
+the terminal result through the adapter wrapper when named-profile
+verification is required.
 
 ```go
 response, err := caller.Call(ctx, request)
