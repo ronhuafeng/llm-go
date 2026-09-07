@@ -8,8 +8,8 @@
 // sanitizer-owned, iteration-stamped Attempt.NextRepair. Only NextRepair is
 // eligible for the next Render call, and it is created only when that call
 // will occur. A final rejected attempt returns ErrUnsettled without invoking
-// the sanitizer or synthesizing NextRepair. A successful decode without a
-// configured judge leaves Judgment nil and returns ErrNoJudgment. Sanitization
+// the sanitizer or synthesizing NextRepair. A step with no deterministic
+// judge returns ErrNilValidate before Render or a provider call. Sanitization
 // does not rewrite Judgment; applications must redact or omit sensitive facts
 // before their validator returns them, or deliberately substitute a
 // caller-owned threat-model-reviewed keyed pseudonymous fingerprint.

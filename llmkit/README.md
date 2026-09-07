@@ -129,9 +129,9 @@ judgment and bounded retries with sanitized repair.
 decision in `Attempt.Judgment` and sanitized, stamped text in
 `Attempt.NextRepair`. Only `NextRepair` goes to the next `Render`, and only
 when that render will run. A final rejected attempt keeps `NextRepair` nil
-and returns `llmstep.ErrUnsettled` without invoking the sanitizer. A
-successful decode without a judge leaves `Judgment` nil and returns
-`llmstep.ErrNoJudgment`. Decode-only proposition production remains
+and returns `llmstep.ErrUnsettled` without invoking the sanitizer. A step
+without a deterministic judge returns `llmstep.ErrNilValidate` before
+`Render` or a provider call. Decode-only proposition production remains
 available through `llmadapter`.
 
 When `Step.Sanitizer` is nil, `StrictRepairSanitizer` rejects non-empty

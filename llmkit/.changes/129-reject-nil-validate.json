@@ -1,0 +1,8 @@
+{
+  "format_version": 1,
+  "module": "llmkit",
+  "impact": "minor",
+  "breaking": true,
+  "summary": "Reject llmstep definitions without a deterministic judge before render or inference.",
+  "issue": 129
+}

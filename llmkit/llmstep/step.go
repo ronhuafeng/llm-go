@@ -17,16 +17,15 @@ var ErrUnsafeRepair = errors.New("llmstep: unsafe repair")
 
 var ErrNilRender = errors.New("llmstep: render is nil")
 
+// ErrNilValidate reports a step configured without a deterministic judge.
+var ErrNilValidate = errors.New("llmstep: validate is nil")
+
 // ErrInvalidMaxIter reports a step configured with a non-positive retry bound.
 var ErrInvalidMaxIter = errors.New("llmstep: maxIter must be at least 1")
 
 // ErrUnsettled reports that no attempt produced an accepted judgment before
 // the retry bound was exhausted.
 var ErrUnsettled = errors.New("llmstep: output remains unsettled")
-
-// ErrNoJudgment reports that a proposition was produced without a
-// deterministic judgment, so the step cannot accept it.
-var ErrNoJudgment = errors.New("llmstep: no deterministic judgment")
 
 // Finding is a validator-owned fact about a proposition. It is not
 // model-facing repair input.
@@ -54,7 +53,9 @@ type Repair struct {
 // RepairSanitizer projects judgment findings into model-facing repair input.
 type RepairSanitizer func([]Finding) ([]Repair, error)
 
-// Step describes one typed structured-output LLM operation.
+// Step describes one typed structured-output LLM operation. Caller, Render,
+// and Validate are required configuration; a nil Validate is rejected before
+// Render or Caller.Call.
 type Step[I any, O any] struct {
 	Caller    llmadapter.Caller
 	Render    func(context.Context, I, []Repair) (string, error)
@@ -137,6 +138,9 @@ func RunDetailed[I any, O any](ctx context.Context, step Step[I, O], input I) (R
 	if step.Render == nil {
 		return result, ErrNilRender
 	}
+	if step.Validate == nil {
+		return result, ErrNilValidate
+	}
 
 	sanitize := step.Sanitizer
 	if sanitize == nil {
@@ -167,11 +171,6 @@ func RunDetailed[I any, O any](ctx context.Context, step Step[I, O], input I) (R
 		}
 		result.Output = call.Value
 		result.HasOutput = true
-
-		if step.Validate == nil {
-			result.Attempts = append(result.Attempts, attempt)
-			return snapshotResult(result), ErrNoJudgment
-		}
 
 		judgment, err := step.Validate(ctx, input, call.Value)
 		attempt.Judgment = copyJudgment(&judgment)

@@ -5,6 +5,13 @@ changes may occur in minor releases.
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking (pre-v1):** reject an `llmstep.Step` with `Validate == nil`
+  before `Render` or a provider call. The configuration error is
+  `ErrNilValidate` and no attempt evidence is published. `ErrNoJudgment` is
+  removed. Decode-only proposition production remains on `llmadapter`.
+
 ## [0.8.0] - 2026-09-07
 
 ### Added

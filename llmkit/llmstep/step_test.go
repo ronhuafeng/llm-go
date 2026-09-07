@@ -22,6 +22,14 @@ func (f stepCallerFunc) Call(ctx context.Context, request llmadapter.Request) (l
 	return f(ctx, request)
 }
 
+func acceptValidate(context.Context, stepInput, stepOutput) (Judgment, error) {
+	return Judgment{Accepted: true}, nil
+}
+
+func acceptAny[O any](context.Context, stepInput, O) (Judgment, error) {
+	return Judgment{Accepted: true}, nil
+}
+
 func (caller *fakeCaller) Call(ctx context.Context, request llmadapter.Request) (llmadapter.Response, error) {
 	if err := ctx.Err(); err != nil {
 		return llmadapter.Response{}, err
@@ -75,42 +83,32 @@ func TestRunRendersFirstAttemptWithNoRepairAndReturnsAcceptedOutput(t *testing.T
 	}
 }
 
-func TestRunDoesNotAcceptPropositionWithoutJudgment(t *testing.T) {
+func TestRunRejectsNilValidateBeforeRenderOrCall(t *testing.T) {
+	caller := &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"ok"}`}}}
+	rendered := false
 	result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
-		Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"ok"}`}}},
+		Caller: caller,
 		Render: func(context.Context, stepInput, []Repair) (string, error) {
+			rendered = true
 			return "prompt", nil
 		},
 		MaxIter: 2,
 	}, stepInput{})
-	if !errors.Is(err, ErrNoJudgment) {
-		t.Fatalf("RunDetailed error = %v, want ErrNoJudgment", err)
+	if !errors.Is(err, ErrNilValidate) {
+		t.Fatalf("RunDetailed error = %v, want ErrNilValidate", err)
 	}
-	if !result.HasOutput || result.Output.Status != "ok" {
-		t.Fatalf("result = %#v, want decoded proposition without acceptance", result)
+	if rendered {
+		t.Fatal("Render ran for a step with Validate == nil")
 	}
-	if len(result.Attempts) != 1 {
-		t.Fatalf("attempts = %d, want 1 without retry", len(result.Attempts))
+	if len(caller.requests) != 0 {
+		t.Fatalf("Caller.Call ran %d times, want 0", len(caller.requests))
 	}
-	if result.Attempts[0].Judgment != nil {
-		t.Fatalf("Judgment = %#v, want nil when no judge ran", result.Attempts[0].Judgment)
-	}
-	if result.Attempts[0].NextRepair != nil {
-		t.Fatalf("NextRepair = %#v, want nil without judgment", result.Attempts[0].NextRepair)
+	if result.HasOutput || len(result.Attempts) != 0 {
+		t.Fatalf("nil Validate published attempt evidence: %#v", result)
 	}
 }
 
 func TestRunDetailedDistinguishesJudgmentStates(t *testing.T) {
-	t.Run("no judgment after decode", func(t *testing.T) {
-		result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
-			Caller:  &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"ok"}`}}},
-			Render:  func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
-			MaxIter: 1,
-		}, stepInput{})
-		if !errors.Is(err, ErrNoJudgment) || result.Attempts[0].Judgment != nil {
-			t.Fatalf("no-judgment path: err=%v judgment=%#v", err, result.Attempts[0].Judgment)
-		}
-	})
 	t.Run("rejected judgment", func(t *testing.T) {
 		result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
 			Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"draft"}`}}},
@@ -160,9 +158,10 @@ func TestRunDetailedDistinguishesJudgmentStates(t *testing.T) {
 	})
 	t.Run("decode failure has no judgment", func(t *testing.T) {
 		result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
-			Caller:  &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `not-json`}}},
-			Render:  func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
-			MaxIter: 1,
+			Caller:   &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `not-json`}}},
+			Render:   func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
+			Validate: acceptValidate,
+			MaxIter:  1,
 		}, stepInput{})
 		var stepErr *StepError
 		if !errors.As(err, &stepErr) || stepErr.Stage != StageDecode {
@@ -373,6 +372,11 @@ func TestRunFailsFastOnInvalidConfiguration(t *testing.T) {
 			step: Step[stepInput, stepOutput]{Caller: caller, MaxIter: 1},
 			want: ErrNilRender,
 		},
+		{
+			name: "nil validate",
+			step: Step[stepInput, stepOutput]{Caller: caller, Render: validRender, MaxIter: 1},
+			want: ErrNilValidate,
+		},
 	}
 
 	for _, tt := range tests {
@@ -422,7 +426,8 @@ func TestRunDetailedRecordsCancellationAfterSuccessfulRender(t *testing.T) {
 			cancel()
 			return "prompt", nil
 		},
-		MaxIter: 1,
+		Validate: acceptValidate,
+		MaxIter:  1,
 	}, stepInput{})
 
 	var stepErr *StepError
@@ -446,8 +451,9 @@ func TestRunDetailedRecordsCancellationAfterSuccessfulProviderCall(t *testing.T)
 			cancel()
 			return response, nil
 		}),
-		Render:  func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
-		MaxIter: 1,
+		Render:   func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
+		Validate: acceptValidate,
+		MaxIter:  1,
 	}, stepInput{})
 
 	var stepErr *StepError
@@ -878,9 +884,10 @@ func TestRunDetailedPublishesIsolatedFeedbackSlices(t *testing.T) {
 func TestRunDetailedRecordsRenderFailure(t *testing.T) {
 	renderErr := errors.New("render")
 	result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
-		Caller:  &fakeCaller{},
-		Render:  func(context.Context, stepInput, []Repair) (string, error) { return "", renderErr },
-		MaxIter: 1,
+		Caller:   &fakeCaller{},
+		Render:   func(context.Context, stepInput, []Repair) (string, error) { return "", renderErr },
+		Validate: acceptValidate,
+		MaxIter:  1,
 	}, stepInput{})
 	assertStepFailure(t, result, err, StageRender, renderErr, false)
 }
@@ -892,8 +899,9 @@ func TestRunDetailedRecordsRequestFailure(t *testing.T) {
 			called = true
 			return llmadapter.Response{}, nil
 		}),
-		Render:  func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
-		MaxIter: 1,
+		Render:   func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
+		Validate: acceptAny[chan int],
+		MaxIter:  1,
 	}, stepInput{})
 	var stepErr *StepError
 	if !errors.As(err, &stepErr) || stepErr.Stage != StageRequest || len(result.Attempts) != 1 {
@@ -911,8 +919,9 @@ func TestRunDetailedRecordsPartialCallAndDecodeFailures(t *testing.T) {
 		Caller: stepCallerFunc(func(context.Context, llmadapter.Request) (llmadapter.Response, error) {
 			return callResponse, providerErr
 		}),
-		Render:  func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
-		MaxIter: 1,
+		Render:   func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
+		Validate: acceptValidate,
+		MaxIter:  1,
 	}, stepInput{})
 	assertStepFailure(t, callResult, err, StageCall, providerErr, false)
 	if callResult.Attempts[0].Call.Response.FinalResponse != callResponse.FinalResponse {
@@ -924,8 +933,9 @@ func TestRunDetailedRecordsPartialCallAndDecodeFailures(t *testing.T) {
 		Caller: stepCallerFunc(func(context.Context, llmadapter.Request) (llmadapter.Response, error) {
 			return decodeResponse, nil
 		}),
-		Render:  func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
-		MaxIter: 1,
+		Render:   func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
+		Validate: acceptValidate,
+		MaxIter:  1,
 	}, stepInput{})
 	assertStepFailure(t, decodeResult, err, StageDecode, nil, false)
 	if decodeResult.Attempts[0].Call.Response.FinalResponse != decodeResponse.FinalResponse {
