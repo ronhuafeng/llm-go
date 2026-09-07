@@ -4,6 +4,8 @@ This project follows Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-09-07
+
 ### Changed
 
 - Require the published `llmkit v0.10.0` module so `GOWORK=off` consumers

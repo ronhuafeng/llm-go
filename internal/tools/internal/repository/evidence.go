@@ -315,12 +315,10 @@ func VerifyCheckout(root string, plan AffectedPlan) (Evidence, error) {
 		}); err != nil {
 			return recorder.evidence, err
 		}
-		if candidate.ID == "llmkit" {
-			if err = recorder.check("documented examples against published install: "+affected.ID, []string{"go", "test", "<documented published examples>"}, func() error {
-				return verifyDocumentedExamples(root, candidate)
-			}); err != nil {
-				return recorder.evidence, err
-			}
+		if err = recorder.check("documented examples against published install: "+affected.ID, []string{"go", "test", "<documented published examples>"}, func() error {
+			return verifyDocumentedExamples(root, candidate)
+		}); err != nil {
+			return recorder.evidence, err
 		}
 	}
 	if err = recorder.check("final source identity", []string{"git", "diff", "--quiet", "HEAD", "--"}, func() error {
