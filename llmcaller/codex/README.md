@@ -7,7 +7,7 @@ projected neutral facts, and adapter-owned Codex policy only. Destination:
 ## Install
 
 ```sh
-go get github.com/ronhuafeng/llm-go/llmcaller/codex@v0.7.0
+go get github.com/ronhuafeng/llm-go/llmcaller/codex@v0.8.0
 ```
 
 Go 1.23 or newer is required. This tag's `llmkit` and `codexsdk` versions are
