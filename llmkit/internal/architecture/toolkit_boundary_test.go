@@ -73,14 +73,37 @@ func fixturePackage(t *testing.T, source string) *types.Package {
 	return pkg
 }
 
-func TestPublicPackagesAreCurrentSemanticOwners(t *testing.T) {
-	got, err := publicPackageNames(repoRoot(t))
+func TestPublicPackageDiscoveryUsesLiveTree(t *testing.T) {
+	root := t.TempDir()
+	writePackage := func(name string) {
+		dir := filepath.Join(root, name)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, name+".go"), []byte("package "+name+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writePackage("alpha")
+	writePackage("beta")
+	writePackage("internal")
+	if err := os.Mkdir(filepath.Join(root, ".hidden"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := publicPackageNames(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"llmadapter", "llmschema", "llmstep"}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("public llmkit packages = %v, want current semantic owners %v", got, want)
+	found := map[string]bool{}
+	for _, name := range got {
+		found[name] = true
+		if name == "internal" || strings.HasPrefix(name, ".") {
+			t.Fatalf("discovered non-public package %q from %v", name, got)
+		}
+	}
+	if !found["alpha"] || !found["beta"] {
+		t.Fatalf("live public packages = %v, want discovery of alpha and beta", got)
 	}
 }
 
