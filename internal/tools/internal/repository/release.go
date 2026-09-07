@@ -1,12 +1,14 @@
 package repository
 
 import (
+	"archive/zip"
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -189,7 +191,7 @@ func BuildReleasePlan(root, moduleID, targetVersion, requiredCommit, mainRef str
 	if want := nextVersion(previousVersion, declaredImpact); targetVersion != want {
 		return ReleasePlan{}, fmt.Errorf("target %s skips the next %s version %s after %s", targetVersion, declaredImpact, want, previousVersion)
 	}
-	if err := validateReleaseDocumentation(root, candidate, targetVersion); err != nil {
+	if err := validateReleaseDocumentation(root, candidate, previousVersion, targetVersion); err != nil {
 		return ReleasePlan{}, err
 	}
 
@@ -213,6 +215,7 @@ func BuildReleasePlan(root, moduleID, targetVersion, requiredCommit, mainRef str
 		filepath.ToSlash(filepath.Join(candidate.Dir, "go.mod")),
 		filepath.ToSlash(filepath.Join(candidate.Dir, "go.sum")),
 		filepath.ToSlash(filepath.Join(candidate.Dir, "CHANGELOG.md")),
+		filepath.ToSlash(filepath.Join(candidate.Dir, "README.md")),
 	}
 	if candidate.ID == "codexsdk" {
 		inputPaths = append(inputPaths, filepath.ToSlash(filepath.Join(candidate.Dir, codexSDKGeneratedManifestPath)))
@@ -619,7 +622,7 @@ func loadReleaseFragments(root string, candidate module, targetVersion string) (
 	return fragments, inputs, declared, breaking, nil
 }
 
-func validateReleaseDocumentation(root string, candidate module, targetVersion string) error {
+func validateReleaseDocumentation(root string, candidate module, previousVersion, targetVersion string) error {
 	changelogPath := filepath.Join(root, filepath.FromSlash(candidate.Dir), "CHANGELOG.md")
 	changelog, err := os.ReadFile(changelogPath)
 	if err != nil {
@@ -628,7 +631,70 @@ func validateReleaseDocumentation(root string, candidate module, targetVersion s
 	if !bytes.Contains(changelog, []byte("## ["+strings.TrimPrefix(targetVersion, "v")+"]")) {
 		return fmt.Errorf("CHANGELOG.md has no release section for %s", targetVersion)
 	}
+	readmePath := filepath.Join(root, filepath.FromSlash(candidate.Dir), "README.md")
+	readme, err := os.ReadFile(readmePath)
+	if err != nil {
+		return fmt.Errorf("read README: %w", err)
+	}
+	return validateREADMEInstallVersion(readme, candidate.path, previousVersion, targetVersion)
+}
+
+func validateREADMEInstallVersion(readme []byte, modulePath, previousVersion, targetVersion string) error {
+	if modulePath == "" || targetVersion == "" {
+		return fmt.Errorf("README install version check is missing module path or target version")
+	}
+	current := modulePath + "@" + targetVersion
+	if !bytes.Contains(readme, []byte(current)) {
+		return fmt.Errorf("README.md does not install %s as the current release", targetVersion)
+	}
+	prefix := modulePath + "@"
+	for _, line := range strings.Split(string(readme), "\n") {
+		idx := strings.Index(line, prefix)
+		if idx < 0 {
+			continue
+		}
+		version := strings.TrimSpace(line[idx+len(prefix):])
+		if cut := strings.IndexAny(version, " \t`\"'"); cut >= 0 {
+			version = version[:cut]
+		}
+		if version != targetVersion {
+			return fmt.Errorf("README.md installs %s@%s, want %s", modulePath, version, targetVersion)
+		}
+	}
+	if previousVersion != "" && previousVersion != targetVersion {
+		stale := modulePath + "@" + previousVersion
+		if bytes.Contains(readme, []byte(stale)) {
+			return fmt.Errorf("README.md still names previous release %s as current", previousVersion)
+		}
+	}
 	return nil
+}
+
+func readModuleZipFile(zipPath, name string) ([]byte, error) {
+	archive, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return nil, fmt.Errorf("open module zip: %w", err)
+	}
+	defer archive.Close()
+	for _, file := range archive.File {
+		if file.Name != name {
+			continue
+		}
+		reader, err := file.Open()
+		if err != nil {
+			return nil, fmt.Errorf("open %s: %w", name, err)
+		}
+		data, err := io.ReadAll(reader)
+		closeErr := reader.Close()
+		if err != nil {
+			return nil, fmt.Errorf("read %s: %w", name, err)
+		}
+		if closeErr != nil {
+			return nil, closeErr
+		}
+		return data, nil
+	}
+	return nil, fmt.Errorf("module zip is missing %s", name)
 }
 
 func deriveExportedAPI(root string, candidate module, ref string) ([]byte, error) {

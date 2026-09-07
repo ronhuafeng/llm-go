@@ -220,6 +220,16 @@ func VerifyPublishedTag(ctx context.Context, root string, plan ReleasePlan, auth
 	}); err != nil {
 		return finish(err)
 	}
+	if err := check("published README self-version", func() error {
+		name := plan.Subject.ModulePath + "@" + plan.Subject.TargetVersion + "/README.md"
+		readme, err := readModuleZipFile(downloaded.Zip, name)
+		if err != nil {
+			return err
+		}
+		return validateREADMEInstallVersion(readme, plan.Subject.ModulePath, plan.Subject.PreviousVersion, plan.Subject.TargetVersion)
+	}); err != nil {
+		return finish(err)
+	}
 	var declaredTuple map[string]string
 	if plan.Subject.ModuleID == "codex-adapter" {
 		if err := check("proxy artifact exact declared tuple without overrides", func() error {

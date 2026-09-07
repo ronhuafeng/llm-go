@@ -34,8 +34,10 @@ new pair. On compromise, delete the key and secret; never move a tag.
 
 ## Transaction
 
-1. Archive `.changes` fragments and give `CHANGELOG.md` a `## [version]`
-   section.
+1. Archive `.changes` fragments, give `CHANGELOG.md` a `## [version]`
+   section, and stamp the module README install line to that same version.
+   `release-plan` and `verify-tag` both require the tagged artifact to name
+   the version being published, not the previous release.
 2. Dispatch from `main` with module ID, version, and current commit.
 3. Approve the authorization digest that hashes the plan plus
    minimum/current/race/checkout evidence.
@@ -44,8 +46,8 @@ new pair. On compromise, delete the key and secret; never move a tag.
    without updating `main`; the job reads `main` and creates the tag with an
    empty-expectation lease instead.
 5. `verify-tag` binds the immutable tag to the proxy artifact, official sums,
-   and an isolated consumer. The GitHub Release stays Draft until that
-   evidence is uploaded.
+   the published README self-version, and an isolated consumer. The GitHub
+   Release stays Draft until that evidence is uploaded.
 
 ## Failure
 
