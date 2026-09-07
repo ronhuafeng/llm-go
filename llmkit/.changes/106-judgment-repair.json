@@ -1,0 +1,8 @@
+{
+  "format_version": 1,
+  "module": "llmkit",
+  "impact": "minor",
+  "breaking": true,
+  "summary": "Replace shared llmstep feedback with distinct judgment findings and repair types.",
+  "issue": 106
+}

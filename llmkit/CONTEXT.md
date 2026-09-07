@@ -25,17 +25,18 @@ A caller-selected Go value decoded from model output with ordinary Go value
 semantics. It is a typed proposition, not an accepted domain fact or authority.
 _Avoid_: Deep-copied value, immutable output, accepted fact
 
-**Validation decision**:
-The deterministic validator result published exactly as returned. It is not
-model-facing retry feedback.
-_Avoid_: Sanitized feedback, model judgment
+**Judgment**:
+The deterministic acceptance or rejection of a proposition, with optional
+validator-owned findings, published exactly as returned. Absence of judgment
+is a first-class state. It is not model-facing repair.
+_Avoid_: Sanitized feedback, model judgment, shared feedback value
 
-**Retry feedback**:
+**Repair**:
 Sanitizer-owned, iteration-stamped information eligible for a later prompt
-render. It is a projection of validation findings, not the original decision.
-_Avoid_: Validator output
+render. It is a projection of judgment findings, not the judgment itself.
+_Avoid_: Validator output, shared feedback value
 
 **Attempt evidence**:
 The stage-owned record of one bounded inference attempt, including any call,
-decode, validation, retry-feedback, or failure evidence actually obtained.
+decode, judgment, repair, or failure evidence actually obtained.
 _Avoid_: Successful result only, trace metadata bag

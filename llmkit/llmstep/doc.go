@@ -1,26 +1,27 @@
 // Package llmstep runs a single provider-neutral typed structured-output LLM
-// step with bounded validation feedback retries.
+// step with bounded judgment and repair retries.
 //
 // It combines prompt rendering, llmadapter.ValueDetailed typed calls,
-// deterministic typed validation, sanitized retry feedback, stage-specific
-// attempt evidence, and max-iteration handling. RunDetailed publishes the
-// validator decision exactly as returned in Attempt.Validation and separately
-// publishes sanitizer-owned, iteration-stamped Attempt.RetryFeedback. Only
-// RetryFeedback is eligible for the next Render call, and it is created only
-// when that call will occur. A final unsettled attempt returns ErrUnsettled
-// without invoking the sanitizer or synthesizing RetryFeedback. Sanitization
-// does not redact Validation; applications must redact or omit sensitive facts
-// before their validator returns them, or deliberately substitute a caller-owned
-// threat-model-reviewed keyed pseudonymous fingerprint.
+// deterministic judgment, sanitized repair, stage-specific attempt evidence,
+// and max-iteration handling. RunDetailed publishes the validator decision
+// exactly as returned in Attempt.Judgment and separately publishes
+// sanitizer-owned, iteration-stamped Attempt.NextRepair. Only NextRepair is
+// eligible for the next Render call, and it is created only when that call
+// will occur. A final rejected attempt returns ErrUnsettled without invoking
+// the sanitizer or synthesizing NextRepair. A successful decode without a
+// configured judge leaves Judgment nil and returns ErrNoJudgment. Sanitization
+// does not rewrite Judgment; applications must redact or omit sensitive facts
+// before their validator returns them, or deliberately substitute a
+// caller-owned threat-model-reviewed keyed pseudonymous fingerprint.
 //
-// When Step.Sanitizer is nil, StrictFeedbackSanitizer is the default. It rejects
+// When Step.Sanitizer is nil, StrictRepairSanitizer is the default. It rejects
 // every non-empty free-form Summary and accepts only identifier-oriented Codes
-// and Locations. Applications that intentionally send free-form feedback must
+// and Locations. Applications that intentionally send free-form repair must
 // provide an explicit sanitizer and own that policy. Neither the default nor a
 // custom sanitizer is a DLP system, secret scanner, or privacy guarantee;
-// applications remain responsible for redacting validator evidence.
+// applications remain responsible for redacting validator findings.
 //
-// RunDetailed publishes owned snapshots of attempt, validation, and feedback
+// RunDetailed publishes owned snapshots of attempt, judgment, and repair
 // slices. Typed outputs inside those snapshots follow ordinary Go value
 // semantics and are not generically deep-cloned.
 //
@@ -33,6 +34,6 @@
 // a successful return.
 //
 // It is intentionally smaller than a workflow engine: applications still own
-// business prompts, provider callers, semantic validators, write gates, and
+// business prompts, provider callers, semantic judges, write gates, and
 // policy.
 package llmstep

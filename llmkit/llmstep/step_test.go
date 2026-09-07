@@ -46,15 +46,18 @@ type stepOutput struct {
 	Status string `json:"status"`
 }
 
-func TestRunRendersFirstAttemptWithNoFeedbackAndReturnsSettledOutput(t *testing.T) {
+func TestRunRendersFirstAttemptWithNoRepairAndReturnsAcceptedOutput(t *testing.T) {
 	caller := &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"ok"}`}}}
-	var renderFeedbackLens []int
+	var renderRepairLens []int
 
 	got, err := Run(context.Background(), Step[stepInput, stepOutput]{
 		Caller: caller,
-		Render: func(_ context.Context, input stepInput, feedback []Feedback) (string, error) {
-			renderFeedbackLens = append(renderFeedbackLens, len(feedback))
+		Render: func(_ context.Context, input stepInput, repair []Repair) (string, error) {
+			renderRepairLens = append(renderRepairLens, len(repair))
 			return input.Question, nil
+		},
+		Validate: func(context.Context, stepInput, stepOutput) (Judgment, error) {
+			return Judgment{Accepted: true}, nil
 		},
 		MaxIter: 1,
 	}, stepInput{Question: "ready?"})
@@ -64,41 +67,140 @@ func TestRunRendersFirstAttemptWithNoFeedbackAndReturnsSettledOutput(t *testing.
 	if got.Status != "ok" {
 		t.Fatalf("Run output = %#v, want status ok", got)
 	}
-	if len(renderFeedbackLens) != 1 || renderFeedbackLens[0] != 0 {
-		t.Fatalf("render feedback lens = %#v, want [0]", renderFeedbackLens)
+	if len(renderRepairLens) != 1 || renderRepairLens[0] != 0 {
+		t.Fatalf("render feedback lens = %#v, want [0]", renderRepairLens)
 	}
 	if len(caller.requests) != 1 || caller.requests[0].Prompt != "ready?" {
 		t.Fatalf("requests = %#v, want one ready prompt", caller.requests)
 	}
 }
 
-func TestRunFeedsSanitizedValidationFeedbackIntoNextRender(t *testing.T) {
+func TestRunDoesNotAcceptPropositionWithoutJudgment(t *testing.T) {
+	result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
+		Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"ok"}`}}},
+		Render: func(context.Context, stepInput, []Repair) (string, error) {
+			return "prompt", nil
+		},
+		MaxIter: 2,
+	}, stepInput{})
+	if !errors.Is(err, ErrNoJudgment) {
+		t.Fatalf("RunDetailed error = %v, want ErrNoJudgment", err)
+	}
+	if !result.HasOutput || result.Output.Status != "ok" {
+		t.Fatalf("result = %#v, want decoded proposition without acceptance", result)
+	}
+	if len(result.Attempts) != 1 {
+		t.Fatalf("attempts = %d, want 1 without retry", len(result.Attempts))
+	}
+	if result.Attempts[0].Judgment != nil {
+		t.Fatalf("Judgment = %#v, want nil when no judge ran", result.Attempts[0].Judgment)
+	}
+	if result.Attempts[0].NextRepair != nil {
+		t.Fatalf("NextRepair = %#v, want nil without judgment", result.Attempts[0].NextRepair)
+	}
+}
+
+func TestRunDetailedDistinguishesJudgmentStates(t *testing.T) {
+	t.Run("no judgment after decode", func(t *testing.T) {
+		result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
+			Caller:  &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"ok"}`}}},
+			Render:  func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
+			MaxIter: 1,
+		}, stepInput{})
+		if !errors.Is(err, ErrNoJudgment) || result.Attempts[0].Judgment != nil {
+			t.Fatalf("no-judgment path: err=%v judgment=%#v", err, result.Attempts[0].Judgment)
+		}
+	})
+	t.Run("rejected judgment", func(t *testing.T) {
+		result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
+			Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"draft"}`}}},
+			Render: func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
+			Validate: func(context.Context, stepInput, stepOutput) (Judgment, error) {
+				return Judgment{Findings: []Finding{{Codes: []string{"rejected"}}}}, nil
+			},
+			MaxIter: 1,
+		}, stepInput{})
+		if !errors.Is(err, ErrUnsettled) || result.Attempts[0].Judgment == nil || result.Attempts[0].Judgment.Accepted {
+			t.Fatalf("rejected path: err=%v judgment=%#v", err, result.Attempts[0].Judgment)
+		}
+		if result.Attempts[0].NextRepair != nil {
+			t.Fatalf("final rejected attempt synthesized repair: %#v", result.Attempts[0].NextRepair)
+		}
+	})
+	t.Run("accepted judgment", func(t *testing.T) {
+		result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
+			Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"ok"}`}}},
+			Render: func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
+			Validate: func(context.Context, stepInput, stepOutput) (Judgment, error) {
+				return Judgment{Accepted: true, Findings: []Finding{{Codes: []string{"ok"}}}}, nil
+			},
+			MaxIter: 1,
+		}, stepInput{})
+		if err != nil || result.Attempts[0].Judgment == nil || !result.Attempts[0].Judgment.Accepted {
+			t.Fatalf("accepted path: err=%v judgment=%#v", err, result.Attempts[0].Judgment)
+		}
+	})
+	t.Run("judgment failure", func(t *testing.T) {
+		judgeErr := errors.New("judge")
+		result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
+			Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"ok"}`}}},
+			Render: func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
+			Validate: func(context.Context, stepInput, stepOutput) (Judgment, error) {
+				return Judgment{Findings: []Finding{{Codes: []string{"partial"}}}}, judgeErr
+			},
+			MaxIter: 1,
+		}, stepInput{})
+		var stepErr *StepError
+		if !errors.As(err, &stepErr) || stepErr.Stage != StageValidate || !errors.Is(err, judgeErr) {
+			t.Fatalf("judgment failure path: err=%v", err)
+		}
+		if result.Attempts[0].Judgment == nil || result.Attempts[0].Judgment.Accepted || result.Attempts[0].Judgment.Findings[0].Codes[0] != "partial" {
+			t.Fatalf("judgment failure lost findings: %#v", result.Attempts[0].Judgment)
+		}
+	})
+	t.Run("decode failure has no judgment", func(t *testing.T) {
+		result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
+			Caller:  &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `not-json`}}},
+			Render:  func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
+			MaxIter: 1,
+		}, stepInput{})
+		var stepErr *StepError
+		if !errors.As(err, &stepErr) || stepErr.Stage != StageDecode {
+			t.Fatalf("decode failure path: err=%v", err)
+		}
+		if result.Attempts[0].Judgment != nil {
+			t.Fatalf("decode failure published judgment: %#v", result.Attempts[0].Judgment)
+		}
+	})
+}
+
+func TestRunFeedsSanitizedFindingsAsRepairIntoNextRender(t *testing.T) {
 	caller := &fakeCaller{responses: []llmadapter.Response{
 		{FinalResponse: `{"status":"draft"}`},
 		{FinalResponse: `{"status":"ok"}`},
 	}}
 	var prompts []string
-	var secondFeedback []Feedback
+	var secondRepair []Repair
 
 	got, err := Run(context.Background(), Step[stepInput, stepOutput]{
 		Caller: caller,
-		Render: func(_ context.Context, input stepInput, feedback []Feedback) (string, error) {
-			if len(feedback) > 0 {
-				secondFeedback = append([]Feedback(nil), feedback...)
+		Render: func(_ context.Context, input stepInput, repair []Repair) (string, error) {
+			if len(repair) > 0 {
+				secondRepair = append([]Repair(nil), repair...)
 			}
 			prompt := input.Question
-			if len(feedback) > 0 {
-				prompt += " " + feedback[0].Codes[0]
+			if len(repair) > 0 {
+				prompt += " " + repair[0].Codes[0]
 			}
 			prompts = append(prompts, prompt)
 			return prompt, nil
 		},
-		Validate: func(_ context.Context, _ stepInput, output stepOutput) (ValidationResult, error) {
+		Validate: func(_ context.Context, _ stepInput, output stepOutput) (Judgment, error) {
 			if output.Status == "ok" {
-				return ValidationResult{Settled: true}, nil
+				return Judgment{Accepted: true}, nil
 			}
-			return ValidationResult{
-				Feedback: []Feedback{{
+			return Judgment{
+				Findings: []Finding{{
 					Codes: []string{"invalid_status"},
 				}},
 			}, nil
@@ -114,8 +216,8 @@ func TestRunFeedsSanitizedValidationFeedbackIntoNextRender(t *testing.T) {
 	if strings.Join(prompts, "|") != "ready?|ready? invalid_status" {
 		t.Fatalf("prompts = %#v", prompts)
 	}
-	if len(secondFeedback) != 1 || secondFeedback[0].Iteration != 1 {
-		t.Fatalf("feedback = %#v, want iteration stamped to 1", secondFeedback)
+	if len(secondRepair) != 1 || secondRepair[0].Iteration != 1 {
+		t.Fatalf("feedback = %#v, want iteration stamped to 1", secondRepair)
 	}
 }
 
@@ -127,11 +229,11 @@ func TestRunExhaustedAttemptsWrapsErrUnsettled(t *testing.T) {
 
 	_, err := Run(context.Background(), Step[stepInput, stepOutput]{
 		Caller: caller,
-		Render: func(_ context.Context, _ stepInput, _ []Feedback) (string, error) {
+		Render: func(_ context.Context, _ stepInput, _ []Repair) (string, error) {
 			return "prompt", nil
 		},
-		Validate: func(_ context.Context, _ stepInput, _ stepOutput) (ValidationResult, error) {
-			return ValidationResult{Feedback: []Feedback{{Codes: []string{"not_ready"}}}}, nil
+		Validate: func(_ context.Context, _ stepInput, _ stepOutput) (Judgment, error) {
+			return Judgment{Findings: []Finding{{Codes: []string{"not_ready"}}}}, nil
 		},
 		MaxIter: 2,
 	}, stepInput{})
@@ -143,8 +245,8 @@ func TestRunExhaustedAttemptsWrapsErrUnsettled(t *testing.T) {
 	}
 }
 
-func TestRunDetailedFinalUnsettledAttemptSkipsRetryFeedbackSanitization(t *testing.T) {
-	validation := ValidationResult{Feedback: []Feedback{{
+func TestRunDetailedFinalUnsettledAttemptSkipsNextRepairSanitization(t *testing.T) {
+	validation := Judgment{Findings: []Finding{{
 		Summary:   "terminal validator evidence",
 		Codes:     []string{"not_ready"},
 		Locations: []string{"status"},
@@ -153,15 +255,15 @@ func TestRunDetailedFinalUnsettledAttemptSkipsRetryFeedbackSanitization(t *testi
 
 	result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
 		Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"draft"}`}}},
-		Render: func(context.Context, stepInput, []Feedback) (string, error) {
+		Render: func(context.Context, stepInput, []Repair) (string, error) {
 			return "prompt", nil
 		},
-		Validate: func(context.Context, stepInput, stepOutput) (ValidationResult, error) {
+		Validate: func(context.Context, stepInput, stepOutput) (Judgment, error) {
 			return validation, nil
 		},
-		Sanitizer: func([]Feedback) ([]Feedback, error) {
+		Sanitizer: func([]Finding) ([]Repair, error) {
 			sanitizerCalls++
-			return nil, ErrUnsafeFeedback
+			return nil, ErrUnsafeRepair
 		},
 		MaxIter: 1,
 	}, stepInput{})
@@ -169,7 +271,7 @@ func TestRunDetailedFinalUnsettledAttemptSkipsRetryFeedbackSanitization(t *testi
 	if !errors.Is(err, ErrUnsettled) {
 		t.Fatalf("RunDetailed error = %v, want ErrUnsettled", err)
 	}
-	if errors.Is(err, ErrUnsafeFeedback) {
+	if errors.Is(err, ErrUnsafeRepair) {
 		t.Fatalf("RunDetailed error = %v, must not expose terminal sanitizer error", err)
 	}
 	if sanitizerCalls != 0 {
@@ -179,40 +281,40 @@ func TestRunDetailedFinalUnsettledAttemptSkipsRetryFeedbackSanitization(t *testi
 		t.Fatalf("attempts = %d, want 1", len(result.Attempts))
 	}
 	attempt := result.Attempts[0]
-	if attempt.RetryFeedback != nil {
-		t.Fatalf("RetryFeedback = %#v, want nil without a retry", attempt.RetryFeedback)
+	if attempt.NextRepair != nil {
+		t.Fatalf("NextRepair = %#v, want nil without a retry", attempt.NextRepair)
 	}
-	if len(attempt.Validation.Feedback) != 1 ||
-		attempt.Validation.Feedback[0].Summary != validation.Feedback[0].Summary ||
-		attempt.Validation.Feedback[0].Codes[0] != "not_ready" ||
-		attempt.Validation.Feedback[0].Locations[0] != "status" {
-		t.Fatalf("Validation = %#v, want original validator decision", attempt.Validation)
+	if len(attempt.Judgment.Findings) != 1 ||
+		attempt.Judgment.Findings[0].Summary != validation.Findings[0].Summary ||
+		attempt.Judgment.Findings[0].Codes[0] != "not_ready" ||
+		attempt.Judgment.Findings[0].Locations[0] != "status" {
+		t.Fatalf("Judgment = %#v, want original validator findings", attempt.Judgment)
 	}
 }
 
-func TestRunDetailedExhaustionPublishesRetryFeedbackOnlyForRealRetries(t *testing.T) {
+func TestRunDetailedExhaustionPublishesNextRepairOnlyForRealRetries(t *testing.T) {
 	caller := &fakeCaller{responses: []llmadapter.Response{
 		{FinalResponse: `{"status":"first"}`},
 		{FinalResponse: `{"status":"final"}`},
 	}}
-	var renderedFeedback [][]Feedback
+	var renderedRepair [][]Repair
 	sanitizerCalls := 0
 
 	result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
 		Caller: caller,
-		Render: func(_ context.Context, _ stepInput, feedback []Feedback) (string, error) {
-			renderedFeedback = append(renderedFeedback, copyFeedback(feedback))
+		Render: func(_ context.Context, _ stepInput, repair []Repair) (string, error) {
+			renderedRepair = append(renderedRepair, copyRepair(repair))
 			return "prompt", nil
 		},
-		Validate: func(_ context.Context, _ stepInput, output stepOutput) (ValidationResult, error) {
-			return ValidationResult{Feedback: []Feedback{{
+		Validate: func(_ context.Context, _ stepInput, output stepOutput) (Judgment, error) {
+			return Judgment{Findings: []Finding{{
 				Summary: "validator " + output.Status,
 				Codes:   []string{"raw_" + output.Status},
 			}}}, nil
 		},
-		Sanitizer: func(feedback []Feedback) ([]Feedback, error) {
+		Sanitizer: func([]Finding) ([]Repair, error) {
 			sanitizerCalls++
-			return []Feedback{{Codes: []string{"safe_retry"}}}, nil
+			return []Repair{{Codes: []string{"safe_retry"}}}, nil
 		},
 		MaxIter: 2,
 	}, stepInput{})
@@ -223,29 +325,29 @@ func TestRunDetailedExhaustionPublishesRetryFeedbackOnlyForRealRetries(t *testin
 	if sanitizerCalls != 1 {
 		t.Fatalf("sanitizer calls = %d, want 1 for the only real retry", sanitizerCalls)
 	}
-	if len(renderedFeedback) != 2 || renderedFeedback[0] != nil ||
-		len(renderedFeedback[1]) != 1 || renderedFeedback[1][0].Codes[0] != "safe_retry" {
-		t.Fatalf("rendered feedback = %#v, want only sanitized feedback on retry", renderedFeedback)
+	if len(renderedRepair) != 2 || renderedRepair[0] != nil ||
+		len(renderedRepair[1]) != 1 || renderedRepair[1][0].Codes[0] != "safe_retry" {
+		t.Fatalf("rendered feedback = %#v, want only sanitized feedback on retry", renderedRepair)
 	}
 	if len(result.Attempts) != 2 {
 		t.Fatalf("attempts = %d, want 2", len(result.Attempts))
 	}
-	if len(result.Attempts[0].RetryFeedback) != 1 ||
-		result.Attempts[0].RetryFeedback[0].Iteration != 1 ||
-		result.Attempts[0].RetryFeedback[0].Codes[0] != "safe_retry" {
-		t.Fatalf("first RetryFeedback = %#v, want sanitized retry evidence", result.Attempts[0].RetryFeedback)
+	if len(result.Attempts[0].NextRepair) != 1 ||
+		result.Attempts[0].NextRepair[0].Iteration != 1 ||
+		result.Attempts[0].NextRepair[0].Codes[0] != "safe_retry" {
+		t.Fatalf("first NextRepair = %#v, want sanitized retry evidence", result.Attempts[0].NextRepair)
 	}
-	if result.Attempts[1].RetryFeedback != nil {
-		t.Fatalf("final RetryFeedback = %#v, want nil", result.Attempts[1].RetryFeedback)
+	if result.Attempts[1].NextRepair != nil {
+		t.Fatalf("final NextRepair = %#v, want nil", result.Attempts[1].NextRepair)
 	}
-	finalValidation := result.Attempts[1].Validation.Feedback
+	finalValidation := result.Attempts[1].Judgment.Findings
 	if len(finalValidation) != 1 || finalValidation[0].Summary != "validator final" || finalValidation[0].Codes[0] != "raw_final" {
 		t.Fatalf("final Validation = %#v, want original validator decision", finalValidation)
 	}
 }
 
 func TestRunFailsFastOnInvalidConfiguration(t *testing.T) {
-	validRender := func(context.Context, stepInput, []Feedback) (string, error) { return "prompt", nil }
+	validRender := func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil }
 	caller := &fakeCaller{}
 
 	tests := []struct {
@@ -286,7 +388,7 @@ func TestRunDetailedFailsFastOnTypedNilCaller(t *testing.T) {
 
 	result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
 		Caller: caller,
-		Render: func(context.Context, stepInput, []Feedback) (string, error) {
+		Render: func(context.Context, stepInput, []Repair) (string, error) {
 			renderCalls++
 			return "prompt", nil
 		},
@@ -310,7 +412,7 @@ func TestRunDetailedRecordsCancellationAfterSuccessfulRender(t *testing.T) {
 
 	result, err := RunDetailed(ctx, Step[stepInput, stepOutput]{
 		Caller: caller,
-		Render: func(context.Context, stepInput, []Feedback) (string, error) {
+		Render: func(context.Context, stepInput, []Repair) (string, error) {
 			cancel()
 			return "prompt", nil
 		},
@@ -338,7 +440,7 @@ func TestRunDetailedRecordsCancellationAfterSuccessfulProviderCall(t *testing.T)
 			cancel()
 			return response, nil
 		}),
-		Render:  func(context.Context, stepInput, []Feedback) (string, error) { return "prompt", nil },
+		Render:  func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
 		MaxIter: 1,
 	}, stepInput{})
 
@@ -356,12 +458,12 @@ func TestRunDetailedRecordsCancellationAfterSuccessfulProviderCall(t *testing.T)
 
 func TestRunDetailedRecordsCancellationAfterSuccessfulValidation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	validation := ValidationResult{Settled: true, Feedback: []Feedback{{Codes: []string{"accepted"}}}}
+	validation := Judgment{Accepted: true, Findings: []Finding{{Codes: []string{"accepted"}}}}
 
 	result, err := RunDetailed(ctx, Step[stepInput, stepOutput]{
 		Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"ok"}`}}},
-		Render: func(context.Context, stepInput, []Feedback) (string, error) { return "prompt", nil },
-		Validate: func(context.Context, stepInput, stepOutput) (ValidationResult, error) {
+		Render: func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
+		Validate: func(context.Context, stepInput, stepOutput) (Judgment, error) {
 			cancel()
 			return validation, nil
 		},
@@ -376,8 +478,8 @@ func TestRunDetailedRecordsCancellationAfterSuccessfulValidation(t *testing.T) {
 		t.Fatalf("result = %#v, want typed output plus one validation-stage failure", result)
 	}
 	attempt := result.Attempts[0]
-	if !attempt.Validation.Settled || len(attempt.Validation.Feedback) != 1 || attempt.Validation.Feedback[0].Codes[0] != "accepted" {
-		t.Fatalf("Validation = %#v, want completed validation evidence", attempt.Validation)
+	if !attempt.Judgment.Accepted || len(attempt.Judgment.Findings) != 1 || attempt.Judgment.Findings[0].Codes[0] != "accepted" {
+		t.Fatalf("Judgment = %#v, want completed accepted judgment", attempt.Judgment)
 	}
 }
 
@@ -390,12 +492,12 @@ func TestRunStopsOnDecodeFailureWithoutRetryingAsValidation(t *testing.T) {
 
 	_, err := Run(context.Background(), Step[stepInput, stepOutput]{
 		Caller: caller,
-		Render: func(_ context.Context, _ stepInput, _ []Feedback) (string, error) {
+		Render: func(_ context.Context, _ stepInput, _ []Repair) (string, error) {
 			return "prompt", nil
 		},
-		Validate: func(_ context.Context, _ stepInput, _ stepOutput) (ValidationResult, error) {
+		Validate: func(_ context.Context, _ stepInput, _ stepOutput) (Judgment, error) {
 			validateCalls++
-			return ValidationResult{Settled: true}, nil
+			return Judgment{Accepted: true}, nil
 		},
 		MaxIter: 2,
 	}, stepInput{})
@@ -416,24 +518,24 @@ func TestRunRejectsUnsafeFeedbackBeforeNextRender(t *testing.T) {
 
 	_, err := Run(context.Background(), Step[stepInput, stepOutput]{
 		Caller: caller,
-		Render: func(_ context.Context, _ stepInput, _ []Feedback) (string, error) {
+		Render: func(_ context.Context, _ stepInput, _ []Repair) (string, error) {
 			renderCalls++
 			return "prompt", nil
 		},
-		Validate: func(_ context.Context, _ stepInput, _ stepOutput) (ValidationResult, error) {
-			return ValidationResult{Feedback: []Feedback{{Summary: "see https://example.com/secret"}}}, nil
+		Validate: func(_ context.Context, _ stepInput, _ stepOutput) (Judgment, error) {
+			return Judgment{Findings: []Finding{{Summary: "see https://example.com/secret"}}}, nil
 		},
 		MaxIter: 2,
 	}, stepInput{})
-	if !errors.Is(err, ErrUnsafeFeedback) {
-		t.Fatalf("Run error = %v, want ErrUnsafeFeedback", err)
+	if !errors.Is(err, ErrUnsafeRepair) {
+		t.Fatalf("Run error = %v, want ErrUnsafeRepair", err)
 	}
 	if renderCalls != 1 {
 		t.Fatalf("render calls = %d, want 1", renderCalls)
 	}
 }
 
-func TestStrictFeedbackSanitizerRejectsFreeFormSummaries(t *testing.T) {
+func TestStrictRepairSanitizerRejectsFreeFormSummaries(t *testing.T) {
 	tests := map[string]string{
 		"AWS access key":      "AKIAIOSFODNN7EXAMPLE",
 		"GitHub token":        "ghp_1234567890abcdefghijklmnopqrstuvwxyz",
@@ -448,17 +550,16 @@ func TestStrictFeedbackSanitizerRejectsFreeFormSummaries(t *testing.T) {
 
 	for name, summary := range tests {
 		t.Run(name, func(t *testing.T) {
-			_, err := StrictFeedbackSanitizer([]Feedback{{Summary: summary}})
-			if !errors.Is(err, ErrUnsafeFeedback) {
-				t.Fatalf("StrictFeedbackSanitizer(%q) error = %v, want ErrUnsafeFeedback", summary, err)
+			_, err := StrictRepairSanitizer([]Finding{{Summary: summary}})
+			if !errors.Is(err, ErrUnsafeRepair) {
+				t.Fatalf("StrictRepairSanitizer(%q) error = %v, want ErrUnsafeRepair", summary, err)
 			}
 		})
 	}
 }
 
-func TestStrictFeedbackSanitizerAllowsStructuredFields(t *testing.T) {
-	got, err := StrictFeedbackSanitizer([]Feedback{{
-		Iteration: 7,
+func TestStrictRepairSanitizerAllowsStructuredFields(t *testing.T) {
+	got, err := StrictRepairSanitizer([]Finding{{
 		Summary:   "   ",
 		Codes:     []string{" invalid_status "},
 		Locations: []string{" result.status "},
@@ -466,8 +567,8 @@ func TestStrictFeedbackSanitizerAllowsStructuredFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || got[0].Iteration != 7 || got[0].Summary != "" || got[0].Codes[0] != "invalid_status" || got[0].Locations[0] != "result.status" {
-		t.Fatalf("StrictFeedbackSanitizer result = %#v, want trimmed structured fields", got)
+	if len(got) != 1 || got[0].Iteration != 0 || got[0].Summary != "" || got[0].Codes[0] != "invalid_status" || got[0].Locations[0] != "result.status" {
+		t.Fatalf("StrictRepairSanitizer result = %#v, want trimmed structured fields", got)
 	}
 }
 
@@ -476,62 +577,62 @@ func TestRunUsesCustomSanitizer(t *testing.T) {
 		{FinalResponse: `{"status":"draft"}`},
 		{FinalResponse: `{"status":"ok"}`},
 	}}
-	var gotFeedback []Feedback
+	var gotRepair []Repair
 
 	_, err := Run(context.Background(), Step[stepInput, stepOutput]{
 		Caller: caller,
-		Render: func(_ context.Context, _ stepInput, feedback []Feedback) (string, error) {
-			gotFeedback = append([]Feedback(nil), feedback...)
+		Render: func(_ context.Context, _ stepInput, repair []Repair) (string, error) {
+			gotRepair = append([]Repair(nil), repair...)
 			return "prompt", nil
 		},
-		Validate: func(_ context.Context, _ stepInput, output stepOutput) (ValidationResult, error) {
-			return ValidationResult{Settled: output.Status == "ok", Feedback: []Feedback{{Summary: "raw https://example.com"}}}, nil
+		Validate: func(_ context.Context, _ stepInput, output stepOutput) (Judgment, error) {
+			return Judgment{Accepted: output.Status == "ok", Findings: []Finding{{Summary: "raw https://example.com"}}}, nil
 		},
-		Sanitizer: func(_ []Feedback) ([]Feedback, error) {
-			return []Feedback{{Summary: "custom", Codes: []string{"custom_code"}}}, nil
+		Sanitizer: func(_ []Finding) ([]Repair, error) {
+			return []Repair{{Summary: "custom", Codes: []string{"custom_code"}}}, nil
 		},
 		MaxIter: 2,
 	}, stepInput{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(gotFeedback) != 1 || gotFeedback[0].Summary != "custom" {
-		t.Fatalf("feedback = %#v, want custom sanitizer output", gotFeedback)
+	if len(gotRepair) != 1 || gotRepair[0].Summary != "custom" {
+		t.Fatalf("feedback = %#v, want custom sanitizer output", gotRepair)
 	}
 }
 
-func TestRunDetailedSeparatesValidationFromRetryFeedback(t *testing.T) {
+func TestRunDetailedSeparatesValidationFromNextRepair(t *testing.T) {
 	caller := &fakeCaller{responses: []llmadapter.Response{
 		{FinalResponse: `{"status":"draft"}`},
 		{FinalResponse: `{"status":"ok"}`},
 	}}
-	validatorDecision := Feedback{
+	validatorDecision := Finding{
 		Summary:   "validator-only detail",
 		Codes:     []string{"raw_code"},
 		Locations: []string{"private_source"},
 	}
-	var rendered []Feedback
-	var sanitizerOutput []Feedback
+	var rendered []Repair
+	var sanitizerOutput []Repair
 
 	result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
 		Caller: caller,
-		Render: func(_ context.Context, _ stepInput, feedback []Feedback) (string, error) {
-			if len(feedback) > 0 {
-				rendered = copyFeedback(feedback)
-				feedback[0].Codes[0] = "render_mutation"
+		Render: func(_ context.Context, _ stepInput, repair []Repair) (string, error) {
+			if len(repair) > 0 {
+				rendered = copyRepair(repair)
+				repair[0].Codes[0] = "render_mutation"
 			}
 			return "prompt", nil
 		},
-		Validate: func(_ context.Context, _ stepInput, output stepOutput) (ValidationResult, error) {
+		Validate: func(_ context.Context, _ stepInput, output stepOutput) (Judgment, error) {
 			if output.Status == "ok" {
-				return ValidationResult{Settled: true}, nil
+				return Judgment{Accepted: true}, nil
 			}
-			return ValidationResult{Feedback: []Feedback{validatorDecision}}, nil
+			return Judgment{Findings: []Finding{validatorDecision}}, nil
 		},
-		Sanitizer: func(feedback []Feedback) ([]Feedback, error) {
-			feedback[0].Summary = "sanitizer input mutation"
-			feedback[0].Codes[0] = "sanitizer_input_mutation"
-			sanitizerOutput = []Feedback{{Summary: "model-safe detail", Codes: []string{"safe_code"}}}
+		Sanitizer: func(findings []Finding) ([]Repair, error) {
+			findings[0].Summary = "sanitizer input mutation"
+			findings[0].Codes[0] = "sanitizer_input_mutation"
+			sanitizerOutput = []Repair{{Summary: "model-safe detail", Codes: []string{"safe_code"}}}
 			return sanitizerOutput, nil
 		},
 		MaxIter: 2,
@@ -542,15 +643,15 @@ func TestRunDetailedSeparatesValidationFromRetryFeedback(t *testing.T) {
 	if len(result.Attempts) != 2 {
 		t.Fatalf("attempts = %d, want 2", len(result.Attempts))
 	}
-	validation := result.Attempts[0].Validation.Feedback
-	if len(validation) != 1 || validation[0].Iteration != 0 || validation[0].Summary != validatorDecision.Summary || validation[0].Codes[0] != "raw_code" || validation[0].Locations[0] != "private_source" {
-		t.Fatalf("Validation = %#v, want original validator decision", validation)
+	validation := result.Attempts[0].Judgment.Findings
+	if len(validation) != 1 || validation[0].Summary != validatorDecision.Summary || validation[0].Codes[0] != "raw_code" || validation[0].Locations[0] != "private_source" {
+		t.Fatalf("Judgment findings = %#v, want original validator findings", validation)
 	}
-	retry := result.Attempts[0].RetryFeedback
+	retry := result.Attempts[0].NextRepair
 	if len(retry) != 1 || retry[0].Iteration != 1 || retry[0].Summary != "model-safe detail" || retry[0].Codes[0] != "safe_code" || retry[0].Locations != nil {
-		t.Fatalf("RetryFeedback = %#v, want sanitized and stamped feedback", retry)
+		t.Fatalf("NextRepair = %#v, want sanitized and stamped feedback", retry)
 	}
-	if len(rendered) != 1 || rendered[0].Summary != "model-safe detail" || rendered[0].Codes[0] != "safe_code" || result.Attempts[1].Feedback[0].Summary != "model-safe detail" || result.Attempts[1].Feedback[0].Codes[0] != "safe_code" || result.Attempts[0].RetryFeedback[0].Summary != "model-safe detail" || result.Attempts[0].RetryFeedback[0].Codes[0] != "safe_code" {
+	if len(rendered) != 1 || rendered[0].Summary != "model-safe detail" || rendered[0].Codes[0] != "safe_code" || result.Attempts[1].Repair[0].Summary != "model-safe detail" || result.Attempts[1].Repair[0].Codes[0] != "safe_code" || result.Attempts[0].NextRepair[0].Summary != "model-safe detail" || result.Attempts[0].NextRepair[0].Codes[0] != "safe_code" {
 		t.Fatalf("render feedback or snapshots aliased: rendered=%#v attempts=%#v", rendered, result.Attempts)
 	}
 	if sanitizerOutput[0].Iteration != 0 || sanitizerOutput[0].Summary != "model-safe detail" || sanitizerOutput[0].Codes[0] != "safe_code" {
@@ -558,28 +659,28 @@ func TestRunDetailedSeparatesValidationFromRetryFeedback(t *testing.T) {
 	}
 }
 
-func TestRunDetailedStampsValidatorRetryFeedbackWithFrameworkIteration(t *testing.T) {
+func TestRunDetailedStampsValidatorNextRepairWithFrameworkIteration(t *testing.T) {
 	for _, validatorIteration := range []int{0, -1, 999} {
 		t.Run(fmt.Sprintf("validator iteration %d", validatorIteration), func(t *testing.T) {
 			caller := &fakeCaller{responses: []llmadapter.Response{
 				{FinalResponse: `{"status":"draft"}`},
 				{FinalResponse: `{"status":"ok"}`},
 			}}
-			var rendered []Feedback
+			var rendered []Repair
 
 			result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
 				Caller: caller,
-				Render: func(_ context.Context, _ stepInput, feedback []Feedback) (string, error) {
-					if len(feedback) > 0 {
-						rendered = copyFeedback(feedback)
+				Render: func(_ context.Context, _ stepInput, repair []Repair) (string, error) {
+					if len(repair) > 0 {
+						rendered = copyRepair(repair)
 					}
 					return "prompt", nil
 				},
-				Validate: func(_ context.Context, _ stepInput, output stepOutput) (ValidationResult, error) {
+				Validate: func(_ context.Context, _ stepInput, output stepOutput) (Judgment, error) {
 					if output.Status == "ok" {
-						return ValidationResult{Settled: true}, nil
+						return Judgment{Accepted: true}, nil
 					}
-					return ValidationResult{Feedback: []Feedback{{Iteration: validatorIteration, Codes: []string{"safe_retry"}}}}, nil
+					return Judgment{Findings: []Finding{{Codes: []string{"safe_retry"}}}}, nil
 				},
 				MaxIter: 2,
 			}, stepInput{})
@@ -587,44 +688,44 @@ func TestRunDetailedStampsValidatorRetryFeedbackWithFrameworkIteration(t *testin
 				t.Fatal(err)
 			}
 
-			if got := result.Attempts[0].Validation.Feedback[0].Iteration; got != validatorIteration {
-				t.Fatalf("Validation iteration = %d, want validator-provided %d", got, validatorIteration)
+			if got := result.Attempts[0].Judgment.Findings[0].Codes[0]; got != "safe_retry" {
+				t.Fatalf("Judgment findings = %#v, want original validator codes", result.Attempts[0].Judgment.Findings)
 			}
 			if len(rendered) != 1 || rendered[0].Iteration != 1 {
 				t.Fatalf("rendered retry feedback = %#v, want framework iteration 1", rendered)
 			}
-			if retry := result.Attempts[0].RetryFeedback; len(retry) != 1 || retry[0].Iteration != 1 {
-				t.Fatalf("RetryFeedback = %#v, want framework iteration 1", retry)
+			if retry := result.Attempts[0].NextRepair; len(retry) != 1 || retry[0].Iteration != 1 {
+				t.Fatalf("NextRepair = %#v, want framework iteration 1", retry)
 			}
 		})
 	}
 }
 
-func TestRunDetailedStampsCustomSanitizerRetryFeedbackWithFrameworkIteration(t *testing.T) {
+func TestRunDetailedStampsCustomSanitizerNextRepairWithFrameworkIteration(t *testing.T) {
 	for _, sanitizerIteration := range []int{0, -1, 999} {
 		t.Run(fmt.Sprintf("sanitizer iteration %d", sanitizerIteration), func(t *testing.T) {
 			caller := &fakeCaller{responses: []llmadapter.Response{
 				{FinalResponse: `{"status":"draft"}`},
 				{FinalResponse: `{"status":"ok"}`},
 			}}
-			var rendered []Feedback
+			var rendered []Repair
 
 			result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
 				Caller: caller,
-				Render: func(_ context.Context, _ stepInput, feedback []Feedback) (string, error) {
-					if len(feedback) > 0 {
-						rendered = copyFeedback(feedback)
+				Render: func(_ context.Context, _ stepInput, repair []Repair) (string, error) {
+					if len(repair) > 0 {
+						rendered = copyRepair(repair)
 					}
 					return "prompt", nil
 				},
-				Validate: func(_ context.Context, _ stepInput, output stepOutput) (ValidationResult, error) {
+				Validate: func(_ context.Context, _ stepInput, output stepOutput) (Judgment, error) {
 					if output.Status == "ok" {
-						return ValidationResult{Settled: true}, nil
+						return Judgment{Accepted: true}, nil
 					}
-					return ValidationResult{Feedback: []Feedback{{Iteration: -1, Codes: []string{"validator_detail"}}}}, nil
+					return Judgment{Findings: []Finding{{Codes: []string{"validator_detail"}}}}, nil
 				},
-				Sanitizer: func([]Feedback) ([]Feedback, error) {
-					return []Feedback{{Iteration: sanitizerIteration, Codes: []string{"safe_retry"}}}, nil
+				Sanitizer: func([]Finding) ([]Repair, error) {
+					return []Repair{{Iteration: sanitizerIteration, Codes: []string{"safe_retry"}}}, nil
 				},
 				MaxIter: 2,
 			}, stepInput{})
@@ -632,14 +733,14 @@ func TestRunDetailedStampsCustomSanitizerRetryFeedbackWithFrameworkIteration(t *
 				t.Fatal(err)
 			}
 
-			if got := result.Attempts[0].Validation.Feedback[0].Iteration; got != -1 {
-				t.Fatalf("Validation iteration = %d, want validator-provided -1", got)
+			if got := result.Attempts[0].Judgment.Findings[0].Codes[0]; got != "validator_detail" {
+				t.Fatalf("Judgment findings = %#v, want original validator codes", result.Attempts[0].Judgment.Findings)
 			}
 			if len(rendered) != 1 || rendered[0].Iteration != 1 {
 				t.Fatalf("rendered retry feedback = %#v, want framework iteration 1", rendered)
 			}
-			if retry := result.Attempts[0].RetryFeedback; len(retry) != 1 || retry[0].Iteration != 1 {
-				t.Fatalf("RetryFeedback = %#v, want framework iteration 1", retry)
+			if retry := result.Attempts[0].NextRepair; len(retry) != 1 || retry[0].Iteration != 1 {
+				t.Fatalf("NextRepair = %#v, want framework iteration 1", retry)
 			}
 		})
 	}
@@ -649,36 +750,36 @@ func TestRunDetailedPreservesValidatorEmptySliceShape(t *testing.T) {
 	t.Run("outer feedback", func(t *testing.T) {
 		result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
 			Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"ok"}`}}},
-			Render: func(context.Context, stepInput, []Feedback) (string, error) { return "prompt", nil },
-			Validate: func(context.Context, stepInput, stepOutput) (ValidationResult, error) {
-				return ValidationResult{Settled: true, Feedback: make([]Feedback, 0)}, nil
+			Render: func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
+			Validate: func(context.Context, stepInput, stepOutput) (Judgment, error) {
+				return Judgment{Accepted: true, Findings: make([]Finding, 0)}, nil
 			},
 			MaxIter: 1,
 		}, stepInput{})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if result.Attempts[0].Validation.Feedback == nil || len(result.Attempts[0].Validation.Feedback) != 0 {
-			t.Fatalf("Validation feedback = %#v, want non-nil empty slice", result.Attempts[0].Validation.Feedback)
+		if result.Attempts[0].Judgment.Findings == nil || len(result.Attempts[0].Judgment.Findings) != 0 {
+			t.Fatalf("Validation feedback = %#v, want non-nil empty slice", result.Attempts[0].Judgment.Findings)
 		}
 	})
 
 	t.Run("nested feedback", func(t *testing.T) {
 		result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
 			Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"draft"}`}}},
-			Render: func(context.Context, stepInput, []Feedback) (string, error) { return "prompt", nil },
-			Validate: func(context.Context, stepInput, stepOutput) (ValidationResult, error) {
-				return ValidationResult{Feedback: []Feedback{{Codes: make([]string, 0), Locations: make([]string, 0)}}}, nil
+			Render: func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
+			Validate: func(context.Context, stepInput, stepOutput) (Judgment, error) {
+				return Judgment{Findings: []Finding{{Codes: make([]string, 0), Locations: make([]string, 0)}}}, nil
 			},
-			Sanitizer: func([]Feedback) ([]Feedback, error) { return nil, nil },
+			Sanitizer: func([]Finding) ([]Repair, error) { return nil, nil },
 			MaxIter:   1,
 		}, stepInput{})
 		if !errors.Is(err, ErrUnsettled) {
 			t.Fatalf("error = %v, want ErrUnsettled", err)
 		}
-		feedback := result.Attempts[0].Validation.Feedback
-		if len(feedback) != 1 || feedback[0].Codes == nil || feedback[0].Locations == nil || len(feedback[0].Codes) != 0 || len(feedback[0].Locations) != 0 {
-			t.Fatalf("Validation feedback = %#v, want non-nil empty nested slices", feedback)
+		findings := result.Attempts[0].Judgment.Findings
+		if len(findings) != 1 || findings[0].Codes == nil || findings[0].Locations == nil || len(findings[0].Codes) != 0 || len(findings[0].Locations) != 0 {
+			t.Fatalf("Judgment findings = %#v, want non-nil empty nested slices", findings)
 		}
 	})
 }
@@ -692,20 +793,20 @@ func TestRunDetailedExposesAttemptHistory(t *testing.T) {
 
 	got, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
 		Caller: caller,
-		Render: func(_ context.Context, _ stepInput, feedback []Feedback) (string, error) {
-			if len(feedback) > 0 {
-				prompt := "retry " + feedback[0].Codes[0]
+		Render: func(_ context.Context, _ stepInput, repair []Repair) (string, error) {
+			if len(repair) > 0 {
+				prompt := "retry " + repair[0].Codes[0]
 				prompts = append(prompts, prompt)
 				return prompt, nil
 			}
 			prompts = append(prompts, "initial")
 			return "initial", nil
 		},
-		Validate: func(_ context.Context, _ stepInput, output stepOutput) (ValidationResult, error) {
+		Validate: func(_ context.Context, _ stepInput, output stepOutput) (Judgment, error) {
 			if output.Status == "ok" {
-				return ValidationResult{Settled: true}, nil
+				return Judgment{Accepted: true}, nil
 			}
-			return ValidationResult{Feedback: []Feedback{{Codes: []string{"not_ok"}}}}, nil
+			return Judgment{Findings: []Finding{{Codes: []string{"not_ok"}}}}, nil
 		},
 		MaxIter: 2,
 	}, stepInput{})
@@ -721,29 +822,28 @@ func TestRunDetailedExposesAttemptHistory(t *testing.T) {
 	if strings.Join(prompts, "|") != "initial|retry not_ok" {
 		t.Fatalf("rendered prompts = %#v", prompts)
 	}
-	if got.Attempts[0].Feedback != nil {
-		t.Fatalf("first attempt feedback = %#v, want nil", got.Attempts[0].Feedback)
+	if got.Attempts[0].Repair != nil {
+		t.Fatalf("first attempt feedback = %#v, want nil", got.Attempts[0].Repair)
 	}
-	if len(got.Attempts[1].Feedback) != 1 || got.Attempts[1].Feedback[0].Codes[0] != "not_ok" {
-		t.Fatalf("second attempt feedback = %#v, want sanitized retry feedback", got.Attempts[1].Feedback)
+	if len(got.Attempts[1].Repair) != 1 || got.Attempts[1].Repair[0].Codes[0] != "not_ok" {
+		t.Fatalf("second attempt feedback = %#v, want sanitized retry feedback", got.Attempts[1].Repair)
 	}
-	if len(got.Attempts[0].Validation.Feedback) != 1 ||
-		got.Attempts[0].Validation.Feedback[0].Iteration != 0 {
-		t.Fatalf("attempt validation feedback = %#v, want original validator decision", got.Attempts[0].Validation.Feedback)
+	if len(got.Attempts[0].Judgment.Findings) != 1 || got.Attempts[0].Judgment.Findings[0].Codes[0] != "not_ok" {
+		t.Fatalf("attempt judgment findings = %#v, want original validator findings", got.Attempts[0].Judgment.Findings)
 	}
-	if len(got.Attempts[0].RetryFeedback) != 1 || got.Attempts[0].RetryFeedback[0].Iteration != 1 || got.Attempts[0].RetryFeedback[0].Codes[0] != "not_ok" {
-		t.Fatalf("attempt retry feedback = %#v, want sanitized and stamped history", got.Attempts[0].RetryFeedback)
+	if len(got.Attempts[0].NextRepair) != 1 || got.Attempts[0].NextRepair[0].Iteration != 1 || got.Attempts[0].NextRepair[0].Codes[0] != "not_ok" {
+		t.Fatalf("attempt retry feedback = %#v, want sanitized and stamped history", got.Attempts[0].NextRepair)
 	}
 }
 
 func TestRunDetailedPublishesIsolatedFeedbackSlices(t *testing.T) {
 	caller := &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"draft"}`}}}
-	source := []Feedback{{Summary: "not ready", Codes: []string{"not_ready"}, Locations: []string{"status"}}}
+	source := []Finding{{Summary: "not ready", Codes: []string{"not_ready"}, Locations: []string{"status"}}}
 	result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
 		Caller: caller,
-		Render: func(context.Context, stepInput, []Feedback) (string, error) { return "prompt", nil },
-		Validate: func(context.Context, stepInput, stepOutput) (ValidationResult, error) {
-			return ValidationResult{Feedback: source}, nil
+		Render: func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
+		Validate: func(context.Context, stepInput, stepOutput) (Judgment, error) {
+			return Judgment{Findings: source}, nil
 		},
 		MaxIter: 1,
 	}, stepInput{})
@@ -754,7 +854,7 @@ func TestRunDetailedPublishesIsolatedFeedbackSlices(t *testing.T) {
 	source[0].Summary = "mutated"
 	source[0].Codes[0] = "mutated"
 	source[0].Locations[0] = "mutated"
-	got := result.Attempts[0].Validation.Feedback[0]
+	got := result.Attempts[0].Judgment.Findings[0]
 	if got.Summary != "not ready" || got.Codes[0] != "not_ready" || got.Locations[0] != "status" {
 		t.Fatalf("published feedback changed with validator source: %#v", got)
 	}
@@ -764,7 +864,7 @@ func TestRunDetailedRecordsRenderFailure(t *testing.T) {
 	renderErr := errors.New("render")
 	result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
 		Caller:  &fakeCaller{},
-		Render:  func(context.Context, stepInput, []Feedback) (string, error) { return "", renderErr },
+		Render:  func(context.Context, stepInput, []Repair) (string, error) { return "", renderErr },
 		MaxIter: 1,
 	}, stepInput{})
 	assertStepFailure(t, result, err, StageRender, renderErr, false)
@@ -777,7 +877,7 @@ func TestRunDetailedRecordsRequestFailure(t *testing.T) {
 			called = true
 			return llmadapter.Response{}, nil
 		}),
-		Render:  func(context.Context, stepInput, []Feedback) (string, error) { return "prompt", nil },
+		Render:  func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
 		MaxIter: 1,
 	}, stepInput{})
 	var stepErr *StepError
@@ -796,7 +896,7 @@ func TestRunDetailedRecordsPartialCallAndDecodeFailures(t *testing.T) {
 		Caller: stepCallerFunc(func(context.Context, llmadapter.Request) (llmadapter.Response, error) {
 			return callResponse, providerErr
 		}),
-		Render:  func(context.Context, stepInput, []Feedback) (string, error) { return "prompt", nil },
+		Render:  func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
 		MaxIter: 1,
 	}, stepInput{})
 	assertStepFailure(t, callResult, err, StageCall, providerErr, false)
@@ -809,7 +909,7 @@ func TestRunDetailedRecordsPartialCallAndDecodeFailures(t *testing.T) {
 		Caller: stepCallerFunc(func(context.Context, llmadapter.Request) (llmadapter.Response, error) {
 			return decodeResponse, nil
 		}),
-		Render:  func(context.Context, stepInput, []Feedback) (string, error) { return "prompt", nil },
+		Render:  func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
 		MaxIter: 1,
 	}, stepInput{})
 	assertStepFailure(t, decodeResult, err, StageDecode, nil, false)
@@ -822,9 +922,9 @@ func TestRunDetailedPreservesOutputOnValidationAndSanitizeFailures(t *testing.T)
 	validationErr := errors.New("validate")
 	validationResult, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
 		Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"draft"}`}}},
-		Render: func(context.Context, stepInput, []Feedback) (string, error) { return "prompt", nil },
-		Validate: func(context.Context, stepInput, stepOutput) (ValidationResult, error) {
-			return ValidationResult{Feedback: []Feedback{{Codes: []string{"invalid"}}}}, validationErr
+		Render: func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
+		Validate: func(context.Context, stepInput, stepOutput) (Judgment, error) {
+			return Judgment{Findings: []Finding{{Codes: []string{"invalid"}}}}, validationErr
 		},
 		MaxIter: 1,
 	}, stepInput{})
@@ -832,22 +932,22 @@ func TestRunDetailedPreservesOutputOnValidationAndSanitizeFailures(t *testing.T)
 
 	sanitizeResult, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
 		Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"draft"}`}}},
-		Render: func(context.Context, stepInput, []Feedback) (string, error) { return "prompt", nil },
-		Validate: func(context.Context, stepInput, stepOutput) (ValidationResult, error) {
-			return ValidationResult{Feedback: []Feedback{{Summary: "https://unsafe.example"}}}, nil
+		Render: func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
+		Validate: func(context.Context, stepInput, stepOutput) (Judgment, error) {
+			return Judgment{Findings: []Finding{{Summary: "https://unsafe.example"}}}, nil
 		},
 		MaxIter: 2,
 	}, stepInput{})
-	assertStepFailure(t, sanitizeResult, err, StageSanitize, ErrUnsafeFeedback, true)
+	assertStepFailure(t, sanitizeResult, err, StageSanitize, ErrUnsafeRepair, true)
 	if sanitizeResult.Attempts[0].Call.Response.FinalResponse != `{"status":"draft"}` {
 		t.Fatalf("sanitize failure lost call evidence: %#v", sanitizeResult.Attempts[0].Call)
 	}
-	validation := sanitizeResult.Attempts[0].Validation.Feedback
+	validation := sanitizeResult.Attempts[0].Judgment.Findings
 	if len(validation) != 1 || validation[0].Summary != "https://unsafe.example" {
 		t.Fatalf("sanitize failure lost validator decision: %#v", validation)
 	}
-	if sanitizeResult.Attempts[0].RetryFeedback != nil {
-		t.Fatalf("sanitize failure published retry feedback: %#v", sanitizeResult.Attempts[0].RetryFeedback)
+	if sanitizeResult.Attempts[0].NextRepair != nil {
+		t.Fatalf("sanitize failure published retry feedback: %#v", sanitizeResult.Attempts[0].NextRepair)
 	}
 }
 

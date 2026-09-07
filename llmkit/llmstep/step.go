@@ -12,44 +12,55 @@ import (
 	"github.com/ronhuafeng/llm-go/llmkit/llmadapter"
 )
 
-// ErrUnsafeFeedback reports validation feedback rejected by a sanitizer.
-var ErrUnsafeFeedback = errors.New("llmstep: unsafe feedback")
+// ErrUnsafeRepair reports model-facing repair input rejected by a sanitizer.
+var ErrUnsafeRepair = errors.New("llmstep: unsafe repair")
 
 var ErrNilRender = errors.New("llmstep: render is nil")
 
 // ErrInvalidMaxIter reports a step configured with a non-positive retry bound.
 var ErrInvalidMaxIter = errors.New("llmstep: maxIter must be at least 1")
 
-// ErrUnsettled reports that no attempt produced a settled validator decision
-// before the retry bound was exhausted.
+// ErrUnsettled reports that no attempt produced an accepted judgment before
+// the retry bound was exhausted.
 var ErrUnsettled = errors.New("llmstep: output remains unsettled")
 
-// Feedback is the shared value shape used by validator decisions and retry
-// feedback. Its containing field determines ownership and whether it is safe
-// for model input.
-type Feedback struct {
+// ErrNoJudgment reports that a proposition was produced without a
+// deterministic judgment, so the step cannot accept it.
+var ErrNoJudgment = errors.New("llmstep: no deterministic judgment")
+
+// Finding is a validator-owned fact about a proposition. It is not
+// model-facing repair input.
+type Finding struct {
+	Summary   string   `json:"summary,omitempty"`
+	Codes     []string `json:"codes,omitempty"`
+	Locations []string `json:"locations,omitempty"`
+}
+
+// Judgment is a deterministic acceptance or rejection of a proposition.
+type Judgment struct {
+	Accepted bool      `json:"accepted"`
+	Findings []Finding `json:"findings,omitempty"`
+}
+
+// Repair is sanitizer-owned, iteration-stamped information eligible for a
+// later prompt render. It is a projection of findings, not the judgment.
+type Repair struct {
 	Iteration int      `json:"iteration,omitempty"`
 	Summary   string   `json:"summary,omitempty"`
 	Codes     []string `json:"codes,omitempty"`
 	Locations []string `json:"locations,omitempty"`
 }
 
-// ValidationResult is the validator's decision for one typed output.
-type ValidationResult struct {
-	Settled  bool       `json:"settled"`
-	Feedback []Feedback `json:"feedback,omitempty"`
-}
-
-// FeedbackSanitizer checks and narrows feedback before retry prompt rendering.
-type FeedbackSanitizer func([]Feedback) ([]Feedback, error)
+// RepairSanitizer projects judgment findings into model-facing repair input.
+type RepairSanitizer func([]Finding) ([]Repair, error)
 
 // Step describes one typed structured-output LLM operation.
 type Step[I any, O any] struct {
 	Caller    llmadapter.Caller
-	Render    func(context.Context, I, []Feedback) (string, error)
-	Validate  func(context.Context, I, O) (ValidationResult, error)
+	Render    func(context.Context, I, []Repair) (string, error)
+	Validate  func(context.Context, I, O) (Judgment, error)
 	MaxIter   int
-	Sanitizer FeedbackSanitizer
+	Sanitizer RepairSanitizer
 }
 
 type Stage string
@@ -86,19 +97,20 @@ func (e *StepError) Unwrap() error {
 // Attempt records one run attempt without retaining the rendered prompt.
 type Attempt[O any] struct {
 	Iteration int
-	// Feedback is the owned retry feedback snapshot supplied to this attempt's
-	// Render call, including its Codes and Locations slices.
-	Feedback []Feedback
-	Call     llmadapter.ValueResult[O]
-	// Validation is the validator-owned decision exactly as returned, including
-	// nil-versus-empty slice shape, published as an isolated snapshot. Generic
-	// values in Call retain ordinary Go value semantics.
-	Validation ValidationResult
-	// RetryFeedback is the sanitizer-owned, iteration-stamped feedback supplied
-	// to the next Render call when another attempt exists, published as an
-	// isolated snapshot.
-	RetryFeedback []Feedback
-	Err           error
+	// Repair is the owned repair snapshot supplied to this attempt's Render
+	// call, including its Codes and Locations slices.
+	Repair []Repair
+	Call   llmadapter.ValueResult[O]
+	// Judgment is the validator-owned decision exactly as returned, including
+	// nil-versus-empty slice shape, published as an isolated snapshot. Nil
+	// means no judgment occurred. Generic values in Call retain ordinary Go
+	// value semantics.
+	Judgment *Judgment
+	// NextRepair is the sanitizer-owned, iteration-stamped repair supplied to
+	// the next Render call when another attempt exists, published as an
+	// isolated snapshot. It is nil when no later render will run.
+	NextRepair []Repair
+	Err        error
 }
 
 // Result is the typed output plus attempt history from RunDetailed.
@@ -106,18 +118,18 @@ type Result[O any] struct {
 	// Output follows ordinary Go value semantics and is not generically cloned.
 	Output    O
 	HasOutput bool
-	// Attempts is an owned snapshot. Its feedback slices are isolated, while
-	// generic outputs retain ordinary Go value semantics.
+	// Attempts is an owned snapshot. Its judgment and repair slices are
+	// isolated, while generic outputs retain ordinary Go value semantics.
 	Attempts []Attempt[O]
 }
 
-// Run executes a step and returns only the settled typed output.
+// Run executes a step and returns only the accepted typed output.
 func Run[I any, O any](ctx context.Context, step Step[I, O], input I) (O, error) {
 	result, err := RunDetailed(ctx, step, input)
 	return result.Output, err
 }
 
-// RunDetailed executes a step and returns the settled output with attempt
+// RunDetailed executes a step and returns the accepted output with attempt
 // history.
 func RunDetailed[I any, O any](ctx context.Context, step Step[I, O], input I) (Result[O], error) {
 	var result Result[O]
@@ -134,18 +146,18 @@ func RunDetailed[I any, O any](ctx context.Context, step Step[I, O], input I) (R
 
 	sanitize := step.Sanitizer
 	if sanitize == nil {
-		sanitize = StrictFeedbackSanitizer
+		sanitize = StrictRepairSanitizer
 	}
 
-	var feedback []Feedback
+	var repair []Repair
 	for iter := 1; iter <= step.MaxIter; iter++ {
-		attempt := Attempt[O]{Iteration: iter, Feedback: copyFeedback(feedback)}
+		attempt := Attempt[O]{Iteration: iter, Repair: copyRepair(repair)}
 		if err := ctx.Err(); err != nil {
 			return fail(result, attempt, StageRender, err)
 		}
 
-		renderFeedback := copyFeedback(attempt.Feedback)
-		prompt, err := step.Render(ctx, input, renderFeedback)
+		renderRepair := copyRepair(attempt.Repair)
+		prompt, err := step.Render(ctx, input, renderRepair)
 		if err != nil {
 			return fail(result, attempt, StageRender, err)
 		}
@@ -162,20 +174,20 @@ func RunDetailed[I any, O any](ctx context.Context, step Step[I, O], input I) (R
 		result.Output = call.Value
 		result.HasOutput = true
 
-		validation := ValidationResult{Settled: true}
-		if step.Validate != nil {
-			validation, err = step.Validate(ctx, input, call.Value)
-			if err != nil {
-				attempt.Validation = copyValidationResult(validation)
-				return fail(result, attempt, StageValidate, err)
-			}
+		if step.Validate == nil {
+			result.Attempts = append(result.Attempts, attempt)
+			return snapshotResult(result), ErrNoJudgment
 		}
 
-		attempt.Validation = copyValidationResult(validation)
+		judgment, err := step.Validate(ctx, input, call.Value)
+		attempt.Judgment = copyJudgment(&judgment)
+		if err != nil {
+			return fail(result, attempt, StageValidate, err)
+		}
 		if err := ctx.Err(); err != nil {
 			return fail(result, attempt, StageValidate, err)
 		}
-		if validation.Settled {
+		if judgment.Accepted {
 			result.Attempts = append(result.Attempts, attempt)
 			return snapshotResult(result), nil
 		}
@@ -184,14 +196,14 @@ func RunDetailed[I any, O any](ctx context.Context, step Step[I, O], input I) (R
 			return snapshotResult(result), fmt.Errorf("%w: maxIter=%d", ErrUnsettled, step.MaxIter)
 		}
 
-		retryFeedback, err := sanitize(copyFeedback(validation.Feedback))
+		nextRepair, err := sanitize(copyFindings(judgment.Findings))
 		if err != nil {
 			return fail(result, attempt, StageSanitize, err)
 		}
-		retryFeedback = copyFeedback(retryFeedback)
-		stampIterations(retryFeedback, iter)
-		attempt.RetryFeedback = copyFeedback(retryFeedback)
-		feedback = copyFeedback(retryFeedback)
+		nextRepair = copyRepair(nextRepair)
+		stampIterations(nextRepair, iter)
+		attempt.NextRepair = copyRepair(nextRepair)
+		repair = copyRepair(nextRepair)
 		result.Attempts = append(result.Attempts, attempt)
 	}
 
@@ -237,25 +249,24 @@ func fail[O any](result Result[O], attempt Attempt[O], stage Stage, err error) (
 func snapshotResult[O any](result Result[O]) Result[O] {
 	result.Attempts = append([]Attempt[O](nil), result.Attempts...)
 	for i := range result.Attempts {
-		result.Attempts[i].Feedback = copyFeedback(result.Attempts[i].Feedback)
-		result.Attempts[i].Validation = copyValidationResult(result.Attempts[i].Validation)
-		result.Attempts[i].RetryFeedback = copyFeedback(result.Attempts[i].RetryFeedback)
+		result.Attempts[i].Repair = copyRepair(result.Attempts[i].Repair)
+		result.Attempts[i].Judgment = copyJudgment(result.Attempts[i].Judgment)
+		result.Attempts[i].NextRepair = copyRepair(result.Attempts[i].NextRepair)
 	}
 	return result
 }
 
-// StrictFeedbackSanitizer accepts identifier-oriented Codes and Locations and
+// StrictRepairSanitizer accepts identifier-oriented Codes and Locations and
 // rejects every non-empty free-form Summary. It is not a DLP system, secret
 // scanner, or privacy guarantee; applications must still redact validator
-// evidence before returning it.
-func StrictFeedbackSanitizer(feedback []Feedback) ([]Feedback, error) {
-	sanitized := make([]Feedback, 0, len(feedback))
-	for i, item := range feedback {
+// findings before returning them.
+func StrictRepairSanitizer(findings []Finding) ([]Repair, error) {
+	sanitized := make([]Repair, 0, len(findings))
+	for i, item := range findings {
 		if strings.TrimSpace(item.Summary) != "" {
-			return nil, fmt.Errorf("%w: feedback[%d].summary", ErrUnsafeFeedback, i)
+			return nil, fmt.Errorf("%w: findings[%d].summary", ErrUnsafeRepair, i)
 		}
-		next := Feedback{
-			Iteration: item.Iteration,
+		next := Repair{
 			Codes:     sanitizeStrings(item.Codes),
 			Locations: sanitizeStrings(item.Locations),
 		}
@@ -273,26 +284,43 @@ func StrictFeedbackSanitizer(feedback []Feedback) ([]Feedback, error) {
 	return sanitized, nil
 }
 
-func stampIterations(feedback []Feedback, iteration int) {
-	for i := range feedback {
-		feedback[i].Iteration = iteration
+func stampIterations(repair []Repair, iteration int) {
+	for i := range repair {
+		repair[i].Iteration = iteration
 	}
 }
 
-func copyValidationResult(result ValidationResult) ValidationResult {
-	return ValidationResult{
-		Settled:  result.Settled,
-		Feedback: copyFeedback(result.Feedback),
-	}
-}
-
-func copyFeedback(feedback []Feedback) []Feedback {
-	if feedback == nil {
+func copyJudgment(judgment *Judgment) *Judgment {
+	if judgment == nil {
 		return nil
 	}
-	copied := make([]Feedback, len(feedback))
-	for i, item := range feedback {
-		copied[i] = Feedback{
+	copied := *judgment
+	copied.Findings = copyFindings(judgment.Findings)
+	return &copied
+}
+
+func copyFindings(findings []Finding) []Finding {
+	if findings == nil {
+		return nil
+	}
+	copied := make([]Finding, len(findings))
+	for i, item := range findings {
+		copied[i] = Finding{
+			Summary:   item.Summary,
+			Codes:     copyStrings(item.Codes),
+			Locations: copyStrings(item.Locations),
+		}
+	}
+	return copied
+}
+
+func copyRepair(repair []Repair) []Repair {
+	if repair == nil {
+		return nil
+	}
+	copied := make([]Repair, len(repair))
+	for i, item := range repair {
+		copied[i] = Repair{
 			Iteration: item.Iteration,
 			Summary:   item.Summary,
 			Codes:     copyStrings(item.Codes),
@@ -323,19 +351,19 @@ func sanitizeStrings(values []string) []string {
 	return sanitized
 }
 
-var unsafeFeedbackPattern = regexp.MustCompile(`(?i)(https?://|www\.|authorization\s*:|bearer\s+[a-z0-9._~+/=-]+|api[_ -]?key|password|passwd|secret|token\s*[:=]|sk-[a-z0-9]{12,}|[a-z]:\\|~[/\\]|/(users|home|var|etc|private|tmp)/)`)
+var unsafeRepairPattern = regexp.MustCompile(`(?i)(https?://|www\.|authorization\s*:|bearer\s+[a-z0-9._~+/=-]+|api[_ -]?key|password|passwd|secret|token\s*[:=]|sk-[a-z0-9]{12,}|[a-z]:\\|~[/\\]|/(users|home|var|etc|private|tmp)/)`)
 
-func safeTokens(tokens []string, field string, feedbackIndex int) error {
+func safeTokens(tokens []string, field string, findingIndex int) error {
 	for tokenIndex, token := range tokens {
 		if !safeToken(token) {
-			return fmt.Errorf("%w: feedback[%d].%s[%d]", ErrUnsafeFeedback, feedbackIndex, field, tokenIndex)
+			return fmt.Errorf("%w: findings[%d].%s[%d]", ErrUnsafeRepair, findingIndex, field, tokenIndex)
 		}
 	}
 	return nil
 }
 
 func safeToken(token string) bool {
-	if token == "" || len(token) > 96 || unsafeFeedbackPattern.MatchString(token) {
+	if token == "" || len(token) > 96 || unsafeRepairPattern.MatchString(token) {
 		return false
 	}
 	for _, r := range token {
