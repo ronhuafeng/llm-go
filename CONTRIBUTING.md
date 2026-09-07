@@ -1,7 +1,7 @@
 # Contributing
 
-Destinations: [`NORTHSTAR.md`](NORTHSTAR.md).
-Invariants: [`DESIGN.md`](DESIGN.md).
+Semantics: [`NORTHSTAR.md`](NORTHSTAR.md).
+Live invariants: [`DESIGN.md`](DESIGN.md).
 
 Requires Go 1.23 or newer.
 
@@ -11,14 +11,15 @@ cd llm-go
 go run ./internal/tools/cmd/repoctl verify
 ```
 
-Public changes must update the owning module's inventory, behavior tests,
-`CHANGELOG.md`, and a structured `.changes/` fragment when the change is
-user-visible. Breaking changes update that module's README or CONTEXT when the
-current contract changes.
+Public changes must update the owning module's code, public behavior tests,
+canonical API inventory, `CHANGELOG.md`, and structured `.changes/` fragment
+when the change is user-visible. Update public package docs or the module README
+when consumer-visible behavior or usage changes. Update a module `CONTEXT.md`
+only when its owned vocabulary changes.
 
 Protocol baseline work uses
 [`codexsdk-sync-upstream`](.agents/skills/codexsdk-sync-upstream/SKILL.md).
 SDK test design follows [`codexsdk/Agents.test.md`](codexsdk/Agents.test.md).
 
-Do not check in credentials, private prompts, customer data, or local
-absolute paths. Report vulnerabilities through [`SECURITY.md`](SECURITY.md).
+Do not check in credentials, private prompts, customer data, or local absolute
+paths. Report vulnerabilities through [`SECURITY.md`](SECURITY.md).
