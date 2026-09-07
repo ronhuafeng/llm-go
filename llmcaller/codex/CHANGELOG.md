@@ -10,6 +10,9 @@ This project follows Semantic Versioning.
   compile against `Value`, `Run`, and `ErrExhausted`.
 - Require the published `llmkit v0.11.0` module so `GOWORK=off` consumers
   compile against `llmschema.Contract` and `Compile`.
+- Require the published `llmkit v0.12.0` module so `GOWORK=off` consumers
+  compile against the `RequestFor` removal and documented `Value` /
+  `ValueWithContract` paths.
 
 ## [0.8.0] - 2026-09-07
 

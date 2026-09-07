@@ -4,7 +4,7 @@ go 1.23.0
 
 require (
 	github.com/ronhuafeng/llm-go/codexsdk v0.8.0
-	github.com/ronhuafeng/llm-go/llmkit v0.11.0
+	github.com/ronhuafeng/llm-go/llmkit v0.12.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 )
 
