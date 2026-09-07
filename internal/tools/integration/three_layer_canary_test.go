@@ -110,7 +110,6 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 	})
 
 	t.Run("exact-details isolation failure keeps independent neutral facts", func(t *testing.T) {
-		requireLossAwareIsolation(t)
 		client := startCanaryClient(t, "success", codexsdk.ClientOptions{})
 		defer closeCanary(t, client)
 		caller, err := codexcaller.New(codexcaller.ReadOnlyEphemeralOptions(isolationFailureRunner{inner: client.ThreadRunner()}))
@@ -137,7 +136,6 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 	})
 
 	t.Run("stream rejects mismatched profile before turn/start", func(t *testing.T) {
-		requirePreTurnAdmission(t)
 		client, caller := canaryCaller(t, "effective-profile-mismatch", codexsdk.ClientOptions{})
 		defer closeCanary(t, client)
 		stream, err := caller.CallStream(context.Background(), validRequest())
@@ -214,9 +212,6 @@ func TestEffectiveProfileContractAcrossPublicCallPaths(t *testing.T) {
 	for _, profileCase := range profileCases {
 		for _, path := range paths {
 			t.Run(profileCase.name+"/"+path.name, func(t *testing.T) {
-				if profileCase.want != "" && !profileCase.missingThreadID {
-					requirePreTurnAdmission(t)
-				}
 				client, caller := canaryCaller(t, profileCase.scenario, codexsdk.ClientOptions{})
 				defer closeCanary(t, client)
 				run, err := path.call(t, caller, profileCase)
@@ -227,7 +222,6 @@ func TestEffectiveProfileContractAcrossPublicCallPaths(t *testing.T) {
 				} else if profileCase.missingThreadID {
 					requireMissingThreadProfileError(t, err, profileCase.want)
 				} else {
-					requirePreTurnAdmission(t)
 					if !errors.Is(err, codexcaller.ErrEffectiveProfile) || !strings.Contains(err.Error(), profileCase.want) {
 						t.Fatalf("call error = %v, want ErrEffectiveProfile containing %q", err, profileCase.want)
 					}
@@ -493,44 +487,22 @@ func requireMissingThreadProfileError(t *testing.T, err error, want string) {
 	}
 }
 
-func requirePreTurnAdmission(t *testing.T) {
-	t.Helper()
-	if _, ok := reflect.TypeOf(codexsdk.StartThreadRunRequest{}).FieldByName("AdmitTurn"); !ok {
-		t.Skip("published SDK tuple does not expose AdmitTurn")
-	}
-}
-
-func requireLossAwareIsolation(t *testing.T) {
-	t.Helper()
-	var caller *codexcaller.Caller
-	if _, ok := any(caller).(interface{ IsolatesNeutralFacts() bool }); !ok {
-		t.Skip("published adapter tuple does not isolate independent neutral facts after exact-details failure")
-	}
-}
-
 func requireObservedModel(t *testing.T, evidence llmadapter.ExecutionEvidence, want string) {
 	t.Helper()
-	if _, ok := reflect.TypeOf(evidence).FieldByName("Model"); !ok {
-		return
-	}
-	field := reflect.ValueOf(evidence).FieldByName("Model")
-	results := field.MethodByName("Value").Call(nil)
-	if !results[1].Bool() || results[0].String() != want {
-		t.Fatalf("Model = (%v, %v), want observed %q", results[0], results[1], want)
+	got, ok := evidence.Model.Value()
+	if !ok || got != want {
+		t.Fatalf("Model = (%q, %t), want observed %q", got, ok, want)
 	}
 }
 
 func requireObservedInput(t *testing.T, usage *llmadapter.TokenUsage, want int64) {
 	t.Helper()
 	if usage == nil {
-		return
+		t.Fatal("Usage = nil, want observed Input")
 	}
-	if _, ok := reflect.TypeOf(*usage).FieldByName("Input"); !ok {
-		return
-	}
-	results := reflect.ValueOf(*usage).FieldByName("Input").MethodByName("Value").Call(nil)
-	if !results[1].Bool() || results[0].Int() != want {
-		t.Fatalf("Input = (%v, %v), want observed %d", results[0], results[1], want)
+	got, ok := usage.Input.Value()
+	if !ok || got != want {
+		t.Fatalf("Input = (%d, %t), want observed %d", got, ok, want)
 	}
 }
 
