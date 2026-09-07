@@ -53,13 +53,13 @@ type ReleaseImpact struct {
 }
 
 type ReleaseAPIInventoryEvidence struct {
-	Path              string                       `json:"path"`
-	BaselineTag       string                       `json:"baseline_tag"`
-	BaselineSHA256    string                       `json:"baseline_sha256"`
-	CurrentSHA256     string                       `json:"current_sha256"`
-	HandwrittenImpact apiInventoryImpact           `json:"handwritten_impact"`
-	MechanicalImpact  apiInventoryImpact           `json:"mechanical_impact"`
-	Generated         *ReleaseGeneratedAPIEvidence `json:"generated,omitempty"`
+	Path             string                       `json:"path"`
+	BaselineTag      string                       `json:"baseline_tag"`
+	BaselineSHA256   string                       `json:"baseline_sha256"`
+	CurrentSHA256    string                       `json:"current_sha256"`
+	DerivedImpact    apiInventoryImpact           `json:"derived_impact"`
+	MechanicalImpact apiInventoryImpact           `json:"mechanical_impact"`
+	Generated        *ReleaseGeneratedAPIEvidence `json:"generated,omitempty"`
 }
 
 type ReleaseGeneratedAPIEvidence struct {
@@ -193,17 +193,13 @@ func BuildReleasePlan(root, moduleID, targetVersion, requiredCommit, mainRef str
 		return ReleasePlan{}, err
 	}
 
-	inventoryPath, err := apiInventoryPath(candidate.ID)
-	if err != nil {
-		return ReleasePlan{}, err
-	}
 	moduleRoot := filepath.Join(root, filepath.FromSlash(candidate.Dir))
 	recorder := newEvidence(EvidenceSubject{Kind: "release_preflight", Commit: commit, Tree: tree, Module: moduleID})
 	runner := commandRunner{directory: moduleRoot, environment: sourceCleanEnvironment()}
-	if err := verifyAPISurface(recorder, runner, candidate.ID); err != nil {
-		return ReleasePlan{}, fmt.Errorf("verify canonical API inventory: %w", err)
+	if err := verifyAPISurface(recorder, runner, root, candidate); err != nil {
+		return ReleasePlan{}, fmt.Errorf("verify exported public API: %w", err)
 	}
-	apiInventory, err := validateAPIInventoryBaseline(root, candidate, inventoryPath, previousVersion, declaredImpact, breaking)
+	apiInventory, err := validateAPIInventoryBaseline(root, candidate, previousVersion, declaredImpact, breaking)
 	if err != nil {
 		return ReleasePlan{}, err
 	}
@@ -217,7 +213,6 @@ func BuildReleasePlan(root, moduleID, targetVersion, requiredCommit, mainRef str
 		filepath.ToSlash(filepath.Join(candidate.Dir, "go.mod")),
 		filepath.ToSlash(filepath.Join(candidate.Dir, "go.sum")),
 		filepath.ToSlash(filepath.Join(candidate.Dir, "CHANGELOG.md")),
-		filepath.ToSlash(filepath.Join(candidate.Dir, inventoryPath)),
 	}
 	if candidate.ID == "codexsdk" {
 		inputPaths = append(inputPaths, filepath.ToSlash(filepath.Join(candidate.Dir, codexSDKGeneratedManifestPath)))
@@ -227,19 +222,6 @@ func BuildReleasePlan(root, moduleID, targetVersion, requiredCommit, mainRef str
 	if err != nil {
 		return ReleasePlan{}, err
 	}
-	inventoryDigest := ""
-	for _, input := range inputs {
-		if input.Path == filepath.ToSlash(filepath.Join(candidate.Dir, inventoryPath)) {
-			inventoryDigest = input.SHA256
-		}
-	}
-	if inventoryDigest == "" {
-		return ReleasePlan{}, fmt.Errorf("canonical API inventory digest is missing")
-	}
-	if inventoryDigest != apiInventory.CurrentSHA256 {
-		return ReleasePlan{}, fmt.Errorf("canonical API inventory input digest does not match the module-owned report")
-	}
-
 	dependencies := make([]ReleaseDependency, 0, len(candidate.requireVersions))
 	for path, version := range candidate.requireVersions {
 		if path == "" || version == "" {
@@ -305,27 +287,28 @@ const (
 	apiInventoryBreaking     apiInventoryImpact = "breaking"
 )
 
-func validateAPIInventoryBaseline(root string, candidate module, inventoryPath, previousVersion, declaredImpact string, declaredBreaking bool) (ReleaseAPIInventoryEvidence, error) {
+const exportedAPIEvidencePath = "exported-source"
+
+func validateAPIInventoryBaseline(root string, candidate module, previousVersion, declaredImpact string, declaredBreaking bool) (ReleaseAPIInventoryEvidence, error) {
 	previousTag := candidate.Dir + "/" + previousVersion
-	inventoryRepoPath := filepath.ToSlash(filepath.Join(candidate.Dir, inventoryPath))
-	previous, err := gitBytes(root, "show", previousTag+":"+inventoryRepoPath)
+	previous, err := deriveExportedAPI(root, candidate, previousTag)
 	if err != nil {
-		return ReleaseAPIInventoryEvidence{}, fmt.Errorf("read canonical API inventory from %s: %w", previousTag, err)
+		return ReleaseAPIInventoryEvidence{}, fmt.Errorf("derive exported API from %s: %w", previousTag, err)
 	}
-	current, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(inventoryRepoPath)))
+	current, err := deriveExportedAPI(root, candidate, "")
 	if err != nil {
-		return ReleaseAPIInventoryEvidence{}, fmt.Errorf("read current canonical API inventory: %w", err)
+		return ReleaseAPIInventoryEvidence{}, fmt.Errorf("derive current exported API: %w", err)
 	}
-	report, impact, err := moduleAPIInventoryImpact(root, candidate, inventoryPath, previous, current)
+	report, impact, err := moduleAPIInventoryImpact(root, candidate, previous, current)
 	if err != nil {
 		return ReleaseAPIInventoryEvidence{}, err
 	}
 	evidence := ReleaseAPIInventoryEvidence{
-		Path:              inventoryRepoPath,
-		BaselineTag:       previousTag,
-		BaselineSHA256:    report.BaselineSHA256,
-		CurrentSHA256:     report.TargetSHA256,
-		HandwrittenImpact: impact,
+		Path:           exportedAPIEvidencePath,
+		BaselineTag:    previousTag,
+		BaselineSHA256: report.BaselineSHA256,
+		CurrentSHA256:  report.TargetSHA256,
+		DerivedImpact:  impact,
 	}
 	if candidate.ID == "codexsdk" {
 		generated, generatedImpact, err := codexSDKGeneratedAPIImpact(root, candidate, previousTag)
@@ -342,22 +325,35 @@ func validateAPIInventoryBaseline(root string, candidate module, inventoryPath, 
 	return evidence, nil
 }
 
-func moduleAPIInventoryImpact(root string, candidate module, inventoryPath string, previous, current []byte) (moduleAPIInventoryReport, apiInventoryImpact, error) {
-	temporary, err := os.CreateTemp("", "llm-go-api-inventory-*.txt")
+func moduleAPIInventoryImpact(root string, candidate module, previous, current []byte) (moduleAPIInventoryReport, apiInventoryImpact, error) {
+	baselineFile, err := os.CreateTemp("", "llm-go-api-baseline-*.txt")
 	if err != nil {
-		return moduleAPIInventoryReport{}, "", fmt.Errorf("create API inventory baseline: %w", err)
+		return moduleAPIInventoryReport{}, "", fmt.Errorf("create API baseline: %w", err)
 	}
-	temporaryPath := temporary.Name()
-	defer os.Remove(temporaryPath)
-	if _, err := temporary.Write(previous); err != nil {
-		temporary.Close()
-		return moduleAPIInventoryReport{}, "", fmt.Errorf("write API inventory baseline: %w", err)
+	baselinePath := baselineFile.Name()
+	defer os.Remove(baselinePath)
+	if _, err := baselineFile.Write(previous); err != nil {
+		baselineFile.Close()
+		return moduleAPIInventoryReport{}, "", fmt.Errorf("write API baseline: %w", err)
 	}
-	if err := temporary.Close(); err != nil {
-		return moduleAPIInventoryReport{}, "", fmt.Errorf("close API inventory baseline: %w", err)
+	if err := baselineFile.Close(); err != nil {
+		return moduleAPIInventoryReport{}, "", fmt.Errorf("close API baseline: %w", err)
+	}
+	targetFile, err := os.CreateTemp("", "llm-go-api-target-*.txt")
+	if err != nil {
+		return moduleAPIInventoryReport{}, "", fmt.Errorf("create API target: %w", err)
+	}
+	targetPath := targetFile.Name()
+	defer os.Remove(targetPath)
+	if _, err := targetFile.Write(current); err != nil {
+		targetFile.Close()
+		return moduleAPIInventoryReport{}, "", fmt.Errorf("write API target: %w", err)
+	}
+	if err := targetFile.Close(); err != nil {
+		return moduleAPIInventoryReport{}, "", fmt.Errorf("close API target: %w", err)
 	}
 	moduleRoot := filepath.Join(root, filepath.FromSlash(candidate.Dir))
-	command := exec.Command("go", "run", "./internal/cmd/apiinventoryreport", "-baseline", temporaryPath, "-target", inventoryPath)
+	command := exec.Command("go", "run", "./internal/cmd/apiinventoryreport", "-baseline", baselinePath, "-target", targetPath)
 	command.Dir = moduleRoot
 	command.Env = overriddenEnvironment(sourceCleanEnvironment())
 	output, err := command.CombinedOutput()
@@ -384,10 +380,10 @@ func moduleAPIInventoryImpact(root string, candidate module, inventoryPath strin
 func validateAPIImpactFloor(previousTag, previousVersion string, impact apiInventoryImpact, declaredImpact string, declaredBreaking bool) error {
 	minimum := minimumReleaseImpact(previousVersion, impact)
 	if releaseImpactRank(declaredImpact) < releaseImpactRank(minimum) {
-		return fmt.Errorf("canonical API inventory is %s since %s and requires at least a %s release, got %s", impact, previousTag, minimum, declaredImpact)
+		return fmt.Errorf("derived exported API is %s since %s and requires at least a %s release, got %s", impact, previousTag, minimum, declaredImpact)
 	}
 	if impact == apiInventoryBreaking && !declaredBreaking {
-		return fmt.Errorf("canonical API inventory is breaking since %s but no change fragment declares breaking=true", previousTag)
+		return fmt.Errorf("derived exported API is breaking since %s but no change fragment declares breaking=true", previousTag)
 	}
 	return nil
 }
@@ -635,17 +631,48 @@ func validateReleaseDocumentation(root string, candidate module, targetVersion s
 	return nil
 }
 
-func apiInventoryPath(moduleID string) (string, error) {
-	paths := map[string]string{
-		"llmkit":        "internal/architecture/testdata/handwritten-api.txt",
-		"codexsdk":      "testdata/handwritten-api.txt",
-		"codex-adapter": "internal/architecture/testdata/handwritten-api.txt",
+func deriveExportedAPI(root string, candidate module, ref string) ([]byte, error) {
+	if ref != "" {
+		return deriveExportedAPIFromRef(root, candidate, ref)
 	}
-	path, ok := paths[moduleID]
-	if !ok {
-		return "", fmt.Errorf("module %s has no canonical API inventory", moduleID)
+	return runAPIExport(root, candidate, "")
+}
+
+func deriveExportedAPIFromRef(root string, candidate module, ref string) ([]byte, error) {
+	temporary, err := os.MkdirTemp("", "llm-go-api-export-")
+	if err != nil {
+		return nil, fmt.Errorf("create API export worktree: %w", err)
 	}
-	return path, nil
+	defer os.RemoveAll(temporary)
+	archive, err := gitBytes(root, "archive", ref, candidate.Dir)
+	if err != nil {
+		return nil, fmt.Errorf("archive %s %s: %w", ref, candidate.Dir, err)
+	}
+	command := exec.Command("tar", "-x", "-C", temporary)
+	command.Stdin = bytes.NewReader(archive)
+	if output, err := command.CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("extract %s %s: %w: %s", ref, candidate.Dir, err, strings.TrimSpace(string(output)))
+	}
+	return runAPIExport(root, candidate, filepath.Join(temporary, filepath.FromSlash(candidate.Dir)))
+}
+
+func runAPIExport(root string, candidate module, sourceRoot string) ([]byte, error) {
+	moduleRoot := filepath.Join(root, filepath.FromSlash(candidate.Dir))
+	args := []string{"go", "run", "./internal/cmd/apiexport"}
+	if sourceRoot != "" {
+		args = append(args, "-root", sourceRoot)
+	}
+	command := exec.Command(args[0], args[1:]...)
+	command.Dir = moduleRoot
+	command.Env = overriddenEnvironment(sourceCleanEnvironment())
+	output, err := command.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("export public API: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	if len(bytes.TrimSpace(output)) == 0 {
+		return nil, fmt.Errorf("exported public API is empty")
+	}
+	return output, nil
 }
 
 func digestInputs(root string, paths []string) ([]ReleaseInput, error) {
@@ -709,20 +736,15 @@ func (plan ReleasePlan) Validate() error {
 	if len(plan.Impact.Fragments) == 0 || plan.Impact.Declared == "" || plan.ArchiveSum == "" {
 		return fmt.Errorf("release plan impact or archive evidence is incomplete")
 	}
-	inventoryPath, err := apiInventoryPath(plan.Subject.ModuleID)
-	if err != nil {
-		return err
-	}
-	wantInventoryPath := filepath.ToSlash(filepath.Join(plan.Subject.ModuleDir, inventoryPath))
 	inventory := plan.Impact.APIInventory
-	if inventory.Path != wantInventoryPath || inventory.BaselineTag != plan.Subject.ModuleDir+"/"+plan.Subject.PreviousVersion || !isSHA256(inventory.BaselineSHA256) || !isSHA256(inventory.CurrentSHA256) {
+	if inventory.Path != exportedAPIEvidencePath || inventory.BaselineTag != plan.Subject.ModuleDir+"/"+plan.Subject.PreviousVersion || !isSHA256(inventory.BaselineSHA256) || !isSHA256(inventory.CurrentSHA256) {
 		return fmt.Errorf("release plan API inventory evidence is incomplete or inconsistent")
 	}
-	handwrittenImpact, err := parseAPIInventoryImpact(inventory.HandwrittenImpact)
+	derivedImpact, err := parseAPIInventoryImpact(inventory.DerivedImpact)
 	if err != nil {
 		return err
 	}
-	mechanicalImpact := handwrittenImpact
+	mechanicalImpact := derivedImpact
 	if plan.Subject.ModuleID == "codexsdk" {
 		if inventory.Generated == nil || inventory.Generated.Path != filepath.ToSlash(filepath.Join(plan.Subject.ModuleDir, codexSDKGeneratedManifestPath)) || !isSHA256(inventory.Generated.BaselineSHA256) || !isSHA256(inventory.Generated.CurrentSHA256) {
 			return fmt.Errorf("release plan generated API evidence is incomplete or inconsistent")
@@ -766,9 +788,6 @@ func (plan ReleasePlan) Validate() error {
 			return fmt.Errorf("release plan contains an invalid or duplicate input")
 		}
 		lastInput = input.Path
-	}
-	if releaseInputSHA256(plan.Inputs, inventory.Path) != inventory.CurrentSHA256 {
-		return fmt.Errorf("release plan API inventory evidence does not match its release input")
 	}
 	if inventory.Generated != nil && releaseInputSHA256(plan.Inputs, inventory.Generated.Path) != inventory.Generated.CurrentSHA256 {
 		return fmt.Errorf("release plan generated API evidence does not match its release input")

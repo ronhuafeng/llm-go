@@ -43,7 +43,7 @@ func TestCodexCallerImportBoundary(t *testing.T) {
 			if isForbiddenImport(importPath) {
 				t.Fatalf("Codex caller must not own schema projection: %s imports %q", relPath(root, path), importPath)
 			}
-			if isStdlibImport(importPath) {
+			if isStdlibImport(importPath) || isSameModuleImport(importPath) {
 				continue
 			}
 			if !isAllowedExternalImport(importPath) {
@@ -62,6 +62,12 @@ func TestImportBoundaryClassifiesStdlibAndBusinessImports(t *testing.T) {
 		if !isStdlibImport(importPath) {
 			t.Fatalf("import %q should be classified as stdlib", importPath)
 		}
+	}
+	if !isSameModuleImport("github.com/ronhuafeng/llm-go/llmcaller/codex/internal/architecture") {
+		t.Fatal("same-module internal import should not be treated as external")
+	}
+	if isSameModuleImport("github.com/ronhuafeng/llm-go/llmkit") {
+		t.Fatal("llmkit must remain an external dependency")
 	}
 
 	for _, importPath := range []string{
@@ -106,6 +112,10 @@ func isForbiddenImport(importPath string) bool {
 		}
 	}
 	return false
+}
+
+func isSameModuleImport(importPath string) bool {
+	return matchesImportPrefix(importPath, "github.com/ronhuafeng/llm-go/llmcaller/codex")
 }
 
 func isAllowedExternalImport(importPath string) bool {

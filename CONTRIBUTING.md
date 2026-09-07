@@ -12,10 +12,14 @@ go run ./internal/tools/cmd/repoctl verify
 ```
 
 Public changes must update the owning module's code, public behavior tests,
-canonical API inventory, `CHANGELOG.md`, and structured `.changes/` fragment
-when the change is user-visible. Update public package docs or the module README
-when consumer-visible behavior or usage changes. Update a module `CONTEXT.md`
-only when its owned vocabulary changes.
+`CHANGELOG.md`, and structured `.changes/` fragment when the change is
+user-visible. Update public package docs or the module README when
+consumer-visible behavior or usage changes. Compatibility evidence is derived
+from exported source and compared to the latest stable tag during
+verification and release.
+Inventories and change fragments do not establish public truth when they
+disagree with exported artifacts. Update a module `CONTEXT.md` only when its
+owned vocabulary changes.
 
 Protocol baseline work uses
 [`codexsdk-sync-upstream`](.agents/skills/codexsdk-sync-upstream/SKILL.md).

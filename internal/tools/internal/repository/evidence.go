@@ -144,7 +144,7 @@ func VerifyModule(root, moduleID, stage string) (Evidence, error) {
 			}
 		}
 		if err == nil {
-			err = verifyAPISurface(recorder, runner, candidate.ID)
+			err = verifyAPISurface(recorder, runner, root, candidate)
 		}
 		if err == nil && candidate.Published && strings.HasPrefix(candidate.path, "github.com/ronhuafeng/llm-go/") {
 			err = recorder.check("module archive boundaries", []string{"go", "module", "archive", "<module source>"}, func() error {
@@ -427,17 +427,40 @@ func findModule(registered registry, id string) (module, bool) {
 	return module{}, false
 }
 
-func verifyAPISurface(recorder *evidenceRecorder, runner commandRunner, moduleID string) error {
-	commands := map[string][]string{
-		"llmkit":        {"go", "test", "./internal/architecture", "-run", "^TestHandwrittenPublicAPI$", "-count=1"},
-		"codexsdk":      {"go", "test", ".", "-run", "^Test(HandwrittenPublicAPI|GeneratedFacadeAccessorsReturnConcreteOpaqueValues)$", "-count=1"},
-		"codex-adapter": {"go", "test", "./internal/architecture", "-run", "^TestHandwrittenPublicAPI$", "-count=1"},
-	}
-	command, ok := commands[moduleID]
-	if !ok {
+func verifyAPISurface(recorder *evidenceRecorder, runner commandRunner, root string, candidate module) error {
+	switch candidate.ID {
+	case "llmkit", "codexsdk", "codex-adapter":
+	default:
 		return nil
 	}
-	return recorder.check("public API inventory", command, func() error { return runner.run(command...) })
+	if err := recorder.check("exported public API", []string{"go", "run", "./internal/cmd/apiexport"}, func() error {
+		output, err := runner.output("go", "run", "./internal/cmd/apiexport")
+		if err != nil {
+			return err
+		}
+		if len(bytes.TrimSpace(output)) == 0 {
+			return fmt.Errorf("exported public API is empty")
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	previous, err := previousReleaseVersion(root, candidate)
+	if err != nil {
+		return nil
+	}
+	return recorder.check("exported API compatibility report", []string{"derived", candidate.Dir + "/" + previous}, func() error {
+		baseline, err := deriveExportedAPI(root, candidate, candidate.Dir+"/"+previous)
+		if err != nil {
+			return err
+		}
+		current, err := deriveExportedAPI(root, candidate, "")
+		if err != nil {
+			return err
+		}
+		_, _, err = moduleAPIInventoryImpact(root, candidate, baseline, current)
+		return err
+	})
 }
 
 func verifyFormatting(root string) error {
@@ -536,6 +559,15 @@ func (runner commandRunner) run(args ...string) error {
 		return fmt.Errorf("%s: %w", strings.Join(args, " "), err)
 	}
 	return nil
+}
+
+func (runner commandRunner) output(args ...string) ([]byte, error) {
+	command := runner.command(args...)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(output)))
+	}
+	return output, nil
 }
 
 func (runner commandRunner) command(args ...string) *exec.Cmd {

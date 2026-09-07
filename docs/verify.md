@@ -11,7 +11,7 @@ For each affected public module, CI runs `repoctl verify-module` three times
 with `GOWORK=off`:
 
 - `minimum` — tests on the module's declared Go version
-- `current` — format, metadata, vet, tests, API inventory, generator drift
+- `current` — format, metadata, vet, tests, derived public API, generator drift
 - `race` — race detector
 
 `repoctl verify-checkout` then runs the repository boundary contract, the
