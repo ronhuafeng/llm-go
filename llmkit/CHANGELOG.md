@@ -5,6 +5,8 @@ changes may occur in minor releases.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-09-07
+
 ### Added
 
 - Add `llmschema.Contract` so one compiled typed schema owns the
