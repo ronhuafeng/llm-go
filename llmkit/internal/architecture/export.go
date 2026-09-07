@@ -27,8 +27,12 @@ func ExportPublicAPI(root string) (string, error) {
 		fset:  token.NewFileSet(),
 		cache: make(map[string]*types.Package),
 	}
+	names, err := publicPackageNames(root)
+	if err != nil {
+		return "", err
+	}
 	var declarations []string
-	for _, name := range []string{"llmschema", "llmadapter", "llmstep"} {
+	for _, name := range names {
 		pkg, err := loader.Import(llmkitModule + name)
 		if err != nil {
 			return "", err
@@ -40,6 +44,42 @@ func ExportPublicAPI(root string) (string, error) {
 		return "", fmt.Errorf("derived public API is empty")
 	}
 	return strings.Join(declarations, "\n") + "\n", nil
+}
+
+func publicPackageNames(root string) ([]string, error) {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	for _, entry := range entries {
+		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") || entry.Name() == "internal" {
+			continue
+		}
+		ok, err := publicPackageDir(filepath.Join(root, entry.Name()))
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			names = append(names, entry.Name())
+		}
+	}
+	sort.Strings(names)
+	return names, nil
+}
+
+func publicPackageDir(dir string) (bool, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false, err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".go" || strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
+		}
+		return true, nil
+	}
+	return false, nil
 }
 
 type sourceImporter struct {
