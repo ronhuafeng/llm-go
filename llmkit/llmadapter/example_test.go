@@ -42,9 +42,9 @@ func ExampleObservation() {
 	// true 0
 }
 
-func ExampleValueDetailed_providerDetailsOwnership() {
+func ExampleValue_providerDetailsOwnership() {
 	runtimeHeaders := map[string]string{"trace": "trace-1"}
-	result, err := llmadapter.ValueDetailed[bool](context.Background(), ownershipCaller{
+	result, err := llmadapter.Value[bool](context.Background(), ownershipCaller{
 		runtimeHeaders: runtimeHeaders,
 	}, "Return true.")
 	if err != nil {

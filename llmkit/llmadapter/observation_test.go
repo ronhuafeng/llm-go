@@ -50,8 +50,8 @@ func TestObservationDistinguishesObservedEmptyModelFromUnknown(t *testing.T) {
 	}
 }
 
-func TestValueDetailedDoesNotPromoteRequestIntoNeutralObservations(t *testing.T) {
-	result, err := ValueDetailed[bool](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
+func TestValueDoesNotPromoteRequestIntoNeutralObservations(t *testing.T) {
+	result, err := Value[bool](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
 		return Response{FinalResponse: `true`}, nil
 	}), "Use model gpt-requested and expect 12 input tokens.")
 	if err != nil {
@@ -68,11 +68,11 @@ func TestValueDetailedDoesNotPromoteRequestIntoNeutralObservations(t *testing.T)
 	}
 }
 
-func TestValueDetailedPreservesUnknownAndObservedUsageSnapshots(t *testing.T) {
+func TestValuePreservesUnknownAndObservedUsageSnapshots(t *testing.T) {
 	usage := &TokenUsage{
 		Input: Observed[int64](0),
 	}
-	result, err := ValueDetailed[bool](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
+	result, err := Value[bool](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
 		return Response{FinalResponse: `true`, Execution: ExecutionEvidence{Usage: usage, Model: Observed("served")}}, nil
 	}), "prompt")
 	if err != nil {

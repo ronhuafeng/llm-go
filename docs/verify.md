@@ -14,10 +14,11 @@ with `GOWORK=off`:
 - `current` — format, metadata, vet, tests, derived public API, generator drift
 - `race` — race detector
 
-`repoctl verify-checkout` then runs the repository boundary contract, the
-three-layer canary, and one isolated consumer per affected public module.
-Consumers replace only the module under test. Upstream versions stay those in
-that module's `go.mod`.
+`repoctl verify-checkout` then runs the repository boundary contract, tool
+tests under `cmd` and `internal`, the three-layer canary, and one isolated
+consumer per affected public module. Consumers replace only the module under
+test. Upstream versions stay those in that module's `go.mod`. Integration
+tests belong to the workspace canary, not the GOWORK=off tool-test sweep.
 
 The canary copies `go.work` ephemerally and must not write `go.work.sum`.
 Minimum-Go jobs build `repoctl` with current Go, then switch the module to its

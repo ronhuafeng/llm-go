@@ -769,7 +769,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	result, err := llmadapter.ValueDetailed[answer](context.Background(), caller, "Return the typed answer.")
+	result, err := llmadapter.Value[answer](context.Background(), caller, "Return the typed answer.")
 	if err != nil {
 		panic(err)
 	}

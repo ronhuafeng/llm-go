@@ -91,7 +91,7 @@ type Answer struct {
 }
 
 func main() {
-	result, err := llmadapter.ValueDetailed[Answer](context.Background(), staticCaller{}, "Return yes.")
+	result, err := llmadapter.Value[Answer](context.Background(), staticCaller{}, "Return yes.")
 	if err != nil {
 		panic(err)
 	}
@@ -102,15 +102,15 @@ func main() {
 }
 ```
 
-`ValueDetailed` is the only public typed-inference path. It returns the
+`Value` is the only public typed-inference path. It returns the
 proposition together with the complete provider-neutral response on success
 or failure. Provider-specific exact facts remain available through typed
 `ProviderDetails` implementations supplied by adapters.
 
 ## Ownership and snapshots
 
-Detailed APIs publish isolated snapshots of toolkit-owned state. This is not a
-promise that every generic output is deeply immutable.
+Typed-inference APIs publish isolated snapshots of toolkit-owned state. This
+is not a promise that every generic output is deeply immutable.
 
 - Clone toolkit-owned schema bytes and usage before publication.
   Observation values copy by value; unknown stays unknown. Requested
@@ -125,11 +125,11 @@ promise that every generic output is deeply immutable.
 Use `llmstep` when one typed structured-output call needs deterministic
 judgment and bounded retries with sanitized repair.
 
-`RunDetailed` is the only public step path. It records the validator's exact
+`Run` is the only public step path. It records the validator's exact
 decision in `Attempt.Judgment` and sanitized, stamped text in
 `Attempt.NextRepair`. Only `NextRepair` goes to the next `Render`, and only
 when that render will run. A final rejected attempt keeps `NextRepair` nil
-and returns `llmstep.ErrUnsettled` without invoking the sanitizer. A step
+and returns `llmstep.ErrExhausted` without invoking the sanitizer. A step
 without a deterministic judge returns `llmstep.ErrNilValidate` before
 `Render` or a provider call. Decode-only proposition production remains
 available through `llmadapter`.
@@ -140,7 +140,7 @@ in neither field. A custom sanitizer is application-owned model-facing policy,
 not DLP.
 
 ```go
-result, err := llmstep.RunDetailed(ctx, llmstep.Step[ReviewInput, ReviewResult]{
+result, err := llmstep.Run(ctx, llmstep.Step[ReviewInput, ReviewResult]{
 	Caller:   caller,
 	Render:   renderReviewPrompt,
 	Validate: validateReviewResult,
@@ -148,11 +148,11 @@ result, err := llmstep.RunDetailed(ctx, llmstep.Step[ReviewInput, ReviewResult]{
 }, input)
 ```
 
-`RunDetailed` returns the accepted output together with attempt errors,
+`Run` returns the accepted output together with attempt errors,
 judgment, repair, provider response evidence, and the latest partial output
 after a failure or exhausted retry bound.
 
-`RunDetailed` observes context cancellation before work begins and at its
+`Run` observes context cancellation before work begins and at its
 documented callback boundaries after Render, provider Call, and Validate. If
 cancellation is observed after one of those phases succeeds, it returns the
 context error while retaining completed partial output and phase evidence. A
