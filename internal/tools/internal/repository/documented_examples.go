@@ -89,7 +89,7 @@ func verifyDocumentedExamples(root string, candidate module) error {
 	if err != nil {
 		return fmt.Errorf("module %s: %w", candidate.ID, err)
 	}
-	pending, err := unpublishedArchivedInstall(moduleRoot, candidate.path, version)
+	pending, err := unpublishedArchivedInstall(root, candidate, version)
 	if err != nil {
 		return fmt.Errorf("module %s: %w", candidate.ID, err)
 	}
@@ -99,18 +99,23 @@ func verifyDocumentedExamples(root string, candidate module) error {
 	return compileExamplesAgainstPublished(moduleRoot, examples, candidate.path, version)
 }
 
-func unpublishedArchivedInstall(moduleRoot, modulePath, version string) (bool, error) {
+// unpublishedArchivedInstall reports whether checkout should skip compiling
+// documented examples because the README version is archived but not yet a
+// local module tag. Do not probe proxy.golang.org here: a pre-tag lookup
+// plants a negative cache that later blocks verify-tag.
+func unpublishedArchivedInstall(root string, candidate module, version string) (bool, error) {
+	moduleRoot := filepath.Join(root, filepath.FromSlash(candidate.Dir))
 	if !archivedReleaseFragments(moduleRoot, version) {
 		return false, nil
 	}
-	err := probePublishedInstall(modulePath, version)
-	if err == nil {
+	exists, err := localModuleTagExists(root, candidate, version)
+	if err != nil {
+		return false, err
+	}
+	if exists {
 		return false, nil
 	}
-	if unpublishedInstall(err) {
-		return true, nil
-	}
-	return false, err
+	return true, nil
 }
 
 func archivedReleaseFragments(moduleRoot, version string) bool {
@@ -118,35 +123,21 @@ func archivedReleaseFragments(moduleRoot, version string) bool {
 	return err == nil && len(matches) > 0
 }
 
-func probePublishedInstall(modulePath, version string) error {
-	if modulePath == "" || version == "" {
-		return fmt.Errorf("published install probe is missing a module path or version")
+func localModuleTagExists(root string, candidate module, version string) (bool, error) {
+	if candidate.Dir == "" || version == "" {
+		return false, fmt.Errorf("local module tag check is missing a module directory or version")
 	}
-	temporary, err := os.MkdirTemp("", "llm-go-published-install-")
+	tag := candidate.Dir + "/" + version
+	output, err := gitOutput(root, "tag", "--list", tag)
 	if err != nil {
-		return err
+		return false, err
 	}
-	defer os.RemoveAll(temporary)
-	runner := commandRunner{directory: temporary, environment: publishedConsumerEnvironment()}
-	if err := runner.run("go", "mod", "init", "example.test/published-install"); err != nil {
-		return err
+	for _, found := range strings.Fields(output) {
+		if found == tag {
+			return true, nil
+		}
 	}
-	if _, err := runner.output("go", "list", "-m", "-json", modulePath+"@"+version); err != nil {
-		return err
-	}
-	return nil
-}
-
-func unpublishedInstall(err error) bool {
-	if err == nil {
-		return false
-	}
-	text := err.Error()
-	return strings.Contains(text, "GOVCS disallows") ||
-		strings.Contains(text, "cannot find module") ||
-		strings.Contains(text, "unknown revision") ||
-		strings.Contains(text, "invalid version") ||
-		strings.Contains(text, "no matching versions")
+	return false, nil
 }
 
 func publishedConsumerEnvironment() map[string]string {
