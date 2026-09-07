@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+
+- Add `StartThreadRunRequest.AdmitTurn` so Exact Run startup can inspect the
+  decoded `ThreadStartResponse` and reject continuation fail-closed before
+  `turn/start`. Rejection preserves the exact partial `StartedThreadRun` and
+  reports `ErrTurnAdmissionRejected`.
+
 ## [0.7.0] - 2026-08-30
 
 ### Changed
