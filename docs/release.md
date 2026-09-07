@@ -46,8 +46,10 @@ new pair. On compromise, delete the key and secret; never move a tag.
    without updating `main`; the job reads `main` and creates the tag with an
    empty-expectation lease instead.
 5. `verify-tag` binds the immutable tag to the proxy artifact, official sums,
-   the published README self-version, and an isolated consumer. The GitHub
-   Release stays Draft until that evidence is uploaded.
+   the published README self-version, an isolated consumer, and the module's
+   own `example_test.go` compiled against that published artifact with
+   `GOWORK=off` and no `replace`. The GitHub Release stays Draft until that
+   evidence is uploaded.
 
 ## Failure
 

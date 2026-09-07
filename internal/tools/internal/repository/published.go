@@ -230,6 +230,11 @@ func VerifyPublishedTag(ctx context.Context, root string, plan ReleasePlan, auth
 	}); err != nil {
 		return finish(err)
 	}
+	if err := check("documented examples against published artifact", func() error {
+		return compilePublishedZipExamples(downloaded.Zip, plan.Subject.ModulePath, plan.Subject.TargetVersion)
+	}); err != nil {
+		return finish(err)
+	}
 	var declaredTuple map[string]string
 	if plan.Subject.ModuleID == "codex-adapter" {
 		if err := check("proxy artifact exact declared tuple without overrides", func() error {
