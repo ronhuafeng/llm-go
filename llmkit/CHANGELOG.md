@@ -5,6 +5,8 @@ changes may occur in minor releases.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-09-07
+
 ### Changed
 
 - Describe `llmadapter.Value` as the default typed-inference path and

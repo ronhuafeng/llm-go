@@ -21,7 +21,7 @@ Requires Go 1.23 or newer.
 Install the current release with:
 
 ```sh
-go get github.com/ronhuafeng/llm-go/llmkit@v0.11.0
+go get github.com/ronhuafeng/llm-go/llmkit@v0.12.0
 ```
 
 ## Quick Start
