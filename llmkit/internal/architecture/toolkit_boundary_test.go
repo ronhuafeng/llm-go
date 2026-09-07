@@ -73,10 +73,14 @@ func fixturePackage(t *testing.T, source string) *types.Package {
 	return pkg
 }
 
-func TestSettleIsNotAPublicPackage(t *testing.T) {
-	root := repoRoot(t)
-	if _, err := os.Stat(filepath.Join(root, "settle")); !os.IsNotExist(err) {
-		t.Fatalf("llmkit/settle must not exist as a public package: %v", err)
+func TestPublicPackagesAreCurrentSemanticOwners(t *testing.T) {
+	got, err := publicPackageNames(repoRoot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"llmadapter", "llmschema", "llmstep"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("public llmkit packages = %v, want current semantic owners %v", got, want)
 	}
 }
 
