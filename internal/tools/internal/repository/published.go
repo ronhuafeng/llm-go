@@ -205,11 +205,18 @@ func VerifyPublishedTag(ctx context.Context, root string, plan ReleasePlan, auth
 	}
 
 	var downloaded moduleDownload
+	var cleanupDownload func() error
+	defer func() {
+		if cleanupDownload != nil {
+			_ = cleanupDownload()
+		}
+	}()
 	if err := check("proxy artifact resolution", func() error {
-		resolved, err := downloadFromFreshCache(deadlineCtx, moduleVersion, options, runPublishedCommand)
+		resolved, cleanup, err := downloadFromFreshCache(deadlineCtx, moduleVersion, options, runPublishedCommand)
 		if err != nil {
 			return err
 		}
+		cleanupDownload = cleanup
 		resolution, err := validateModuleDownload(resolved, plan)
 		if err != nil {
 			return err
@@ -306,46 +313,53 @@ func waitForProxy(ctx context.Context, moduleVersion string, options PublishOpti
 	}
 }
 
-func downloadFromFreshCache(ctx context.Context, moduleVersion string, options PublishOptions, command publishedCommand) (download moduleDownload, err error) {
+func downloadFromFreshCache(ctx context.Context, moduleVersion string, options PublishOptions, command publishedCommand) (download moduleDownload, cleanup func() error, err error) {
 	root, err := os.MkdirTemp("", "llm-go-proxy-validate-")
 	if err != nil {
-		return moduleDownload{}, err
+		return moduleDownload{}, func() error { return nil }, err
 	}
-	defer func() {
-		if cleanupErr := os.RemoveAll(root); cleanupErr != nil && err == nil {
-			err = fmt.Errorf("remove validation cache: %w", cleanupErr)
+	cleanup = func() error {
+		if removeErr := os.RemoveAll(root); removeErr != nil {
+			return fmt.Errorf("remove validation cache: %w", removeErr)
 		}
-	}()
+		return nil
+	}
+	fail := func(err error) (moduleDownload, func() error, error) {
+		if cleanupErr := cleanup(); cleanupErr != nil && err == nil {
+			err = cleanupErr
+		}
+		return moduleDownload{}, func() error { return nil }, err
+	}
 	environment := publishedEnvironment(filepath.Join(root, "gopath"), filepath.Join(root, "gomodcache"), filepath.Join(root, "gocache"), options)
 	commandCtx, cancel := context.WithTimeout(ctx, options.CommandTimeout)
 	defer cancel()
 	output, err := command(commandCtx, root, environment, "go", "mod", "download", "-json", moduleVersion)
 	if err != nil {
-		return moduleDownload{}, err
+		return fail(err)
 	}
 	if err := json.Unmarshal(output, &download); err != nil {
-		return moduleDownload{}, fmt.Errorf("decode module download: %w", err)
+		return fail(fmt.Errorf("decode module download: %w", err))
 	}
 	if download.Error != "" {
-		return moduleDownload{}, fmt.Errorf("module download: %s", download.Error)
+		return fail(fmt.Errorf("module download: %s", download.Error))
 	}
 	download.zipSHA256, err = fileSHA256(download.Zip)
 	if err != nil {
-		return moduleDownload{}, fmt.Errorf("hash module zip: %w", err)
+		return fail(fmt.Errorf("hash module zip: %w", err))
 	}
 	download.goModSHA256, err = fileSHA256(download.GoMod)
 	if err != nil {
-		return moduleDownload{}, fmt.Errorf("hash module go.mod: %w", err)
+		return fail(fmt.Errorf("hash module go.mod: %w", err))
 	}
 	download.goModData, err = os.ReadFile(download.GoMod)
 	if err != nil {
-		return moduleDownload{}, fmt.Errorf("read module go.mod: %w", err)
+		return fail(fmt.Errorf("read module go.mod: %w", err))
 	}
 	download.contentSum, err = dirhash.HashZip(download.Zip, dirhash.Hash1)
 	if err != nil {
-		return moduleDownload{}, fmt.Errorf("hash canonical module content: %w", err)
+		return fail(fmt.Errorf("hash canonical module content: %w", err))
 	}
-	return download, nil
+	return download, cleanup, nil
 }
 
 func validateModuleDownload(download moduleDownload, plan ReleasePlan) (PublishedResolution, error) {
