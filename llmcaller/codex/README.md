@@ -1,8 +1,8 @@
 # Codex adapter
 
-A lossless join: toolkit-shaped calls, exact Codex facts, and adapter-owned
-Codex policy only. Destination: [NORTHSTAR.md](../../NORTHSTAR.md).
-Language: [CONTEXT.md](CONTEXT.md).
+A loss-aware join: toolkit-shaped calls, isolated Exact snapshots, independently
+projected neutral facts, and adapter-owned Codex policy only. Destination:
+[NORTHSTAR.md](../../NORTHSTAR.md). Language: [CONTEXT.md](CONTEXT.md).
 
 ## Install
 
@@ -52,11 +52,13 @@ adapter owns and rejects non-zero values for:
 
 - `Defaults.Turn.ThreadID`;
 - `Defaults.Turn.Input`;
-- `Defaults.Turn.OutputSchema`.
+- `Defaults.Turn.OutputSchema`;
+- `Defaults.AdmitTurn`.
 
-For options returned by `ReadOnlyEphemeralOptions`, the adapter additionally
-owns thread ephemeral, sandbox, and approval fields plus turn sandbox and
-approval fields. `New` fills unset profile fields with their safe values and
+`New` rejects a caller-owned `AdmitTurn` and every request attaches the
+adapter's Effective-profile admission callback. For options returned by
+`ReadOnlyEphemeralOptions`, the adapter additionally owns thread ephemeral,
+sandbox, and approval fields plus turn sandbox and approval fields. `New` fills unset profile fields with their safe values and
 rejects explicit conflicts before a caller can be constructed. It then clones
 the normalized defaults. Every request reapplies those profile values before
 the SDK runner is invoked, while model, CWD, effort, service tier, workspace

@@ -30,7 +30,7 @@ internal transport limit.
 Install the current release with:
 
 ```sh
-go get github.com/ronhuafeng/llm-go/codexsdk@v0.7.0
+go get github.com/ronhuafeng/llm-go/codexsdk@v0.8.0
 ```
 
 The module targets Go 1.23 or newer.
