@@ -93,6 +93,9 @@ func main() {
 		panic(err)
 	}
 	fmt.Println(result.Value.Answer)
+	// Model stays unknown: the caller did not report one, and the prompt
+	// is not promoted into an observation.
+	fmt.Println(result.Response.Execution.Model.Present())
 }
 ```
 

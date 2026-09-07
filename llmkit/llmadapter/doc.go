@@ -11,7 +11,7 @@
 // unreported fact stays unknown and an observed zero or empty value stays
 // present. Requested settings, defaults, estimates, heuristics, and inferred
 // names cannot populate an observation. Scalar TokenUsage and EffectiveModel
-// fields are collapsing compatibility views and do not establish presence.
+// fields do not establish presence.
 //
 // Detailed APIs publish owned, isolated snapshots of toolkit-owned state.
 // ValueDetailed clones request schema bytes before caller invocation and clones

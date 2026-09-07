@@ -28,6 +28,17 @@ func (caller ownershipCaller) Call(context.Context, llmadapter.Request) (llmadap
 	}, nil
 }
 
+func ExampleObservation() {
+	var unknown llmadapter.Observation[int64]
+	zero := llmadapter.Observed[int64](0)
+	fmt.Println(unknown.Present())
+	count, ok := zero.Value()
+	fmt.Println(ok, count)
+	// Output:
+	// false
+	// true 0
+}
+
 func ExampleValueDetailed_providerDetailsOwnership() {
 	runtimeHeaders := map[string]string{"trace": "trace-1"}
 	result, err := llmadapter.ValueDetailed[bool](context.Background(), ownershipCaller{

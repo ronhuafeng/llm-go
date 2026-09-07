@@ -27,8 +27,8 @@ type ProviderDetails interface {
 //
 // Input, CachedInput, Output, and ReasoningOutput are presence-aware.
 // Unknown means the provider did not report that count; Observed(0) is an
-// explicit zero. The int64 fields are collapsing compatibility views and
-// do not establish presence.
+// explicit zero. The int64 fields do not establish presence; they remain
+// only so unpublished adapters keep compiling until they migrate.
 type TokenUsage struct {
 	InputTokens           int64
 	CachedInputTokens     int64
@@ -44,17 +44,15 @@ type TokenUsage struct {
 // call. ProviderName is identity: empty means the caller published no
 // provider. Model and Usage use Observation / nil so unknown stays
 // unknown; requested settings do not fill them.
-//
-// EffectiveModel is the collapsing compatibility view of Model and does
-// not establish presence.
 type ExecutionEvidence struct {
 	ProviderName string
-	// EffectiveModel is a collapsing compatibility view of Model.
+	// EffectiveModel does not establish presence. It remains only so
+	// unpublished adapters keep compiling until they migrate.
 	EffectiveModel string
 	// Model is the provider model identifier that actually served the
 	// request. Unknown means the provider did not report one. It is not
-	// inferred from Request.Model and is not a capability or pricing
-	// lookup key.
+	// inferred from the prompt and is not a capability or pricing lookup
+	// key.
 	Model Observation[string]
 	// Usage is observed token accounting for this attempt. Nil means the
 	// provider did not report a usage object. Unknown dimensions inside a

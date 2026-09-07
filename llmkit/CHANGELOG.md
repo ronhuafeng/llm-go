@@ -13,8 +13,8 @@ changes may occur in minor releases.
   fields; effective model presence lives on `ExecutionEvidence.Model`.
   Requested settings, defaults, estimates, and inferred names cannot
   populate an observation. Existing scalar `TokenUsage` and
-  `EffectiveModel` fields remain collapsing compatibility views until
-  adapters migrate.
+  `EffectiveModel` fields do not establish presence and remain only so
+  unpublished adapters keep compiling until they migrate.
 
 ### Changed
 
