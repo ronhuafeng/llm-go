@@ -8,8 +8,10 @@ in [`llmkit/CONTEXT.md`](../../llmkit/CONTEXT.md).
 ## Language
 
 **Effective profile**:
-The adapter-owned postcondition that a named safety profile matches the
-configuration observed on a terminal or partial Codex result.
+The adapter-owned fail-closed check that a named safety profile matches
+approval, sandbox, and ephemeral facts observed on the decoded thread-start
+Server Observation before `turn/start`, and on a missing-thread-id partial
+start that never continues.
 _Avoid_: Requested settings, SDK validation
 
 **Terminal observation**:

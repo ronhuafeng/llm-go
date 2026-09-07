@@ -24,6 +24,9 @@ var (
 	// ErrEffectiveProfile reports that Codex's effective result does not satisfy
 	// the named adapter safety profile.
 	ErrEffectiveProfile = errors.New("llmcaller/codex: effective profile mismatch")
+	// ErrMissingSafetyProfile reports construction of a provider-neutral Caller
+	// without a named effect-safe profile.
+	ErrMissingSafetyProfile = errors.New("llmcaller/codex: provider-neutral Caller requires a named safety profile")
 )
 
 // ThreadRunner is the exact subset of codexsdk.ThreadRunner used by Caller.
@@ -160,7 +163,9 @@ const profileReadOnlyEphemeral safetyProfile = 1
 
 var _ llmadapter.Caller = (*Caller)(nil)
 
-// New validates options and clones mutable defaults.
+// New validates options and clones mutable defaults. A provider-neutral
+// Caller requires a named effect-safe profile; unrestricted Options
+// without a profile are rejected.
 func New(options Options) (*Caller, error) {
 	if isNil(options.Runner) {
 		return nil, ErrNilThreadRunner
@@ -174,12 +179,16 @@ func New(options Options) (*Caller, error) {
 	if options.Defaults.Turn.OutputSchema != nil {
 		return nil, errors.New("llmcaller/codex: Defaults.Turn.OutputSchema is adapter-owned")
 	}
-	if options.profile == profileReadOnlyEphemeral {
-		if err := validateReadOnlyEphemeralProfile(options.Defaults); err != nil {
-			return nil, err
-		}
-		enforceReadOnlyEphemeralProfile(&options.Defaults)
+	if hasCallerOwnedAdmitTurn(options.Defaults) {
+		return nil, errors.New("llmcaller/codex: Defaults.AdmitTurn is adapter-owned")
 	}
+	if options.profile != profileReadOnlyEphemeral {
+		return nil, ErrMissingSafetyProfile
+	}
+	if err := validateReadOnlyEphemeralProfile(options.Defaults); err != nil {
+		return nil, err
+	}
+	enforceReadOnlyEphemeralProfile(&options.Defaults)
 	defaults, err := cloneStartRequest(options.Defaults)
 	if err != nil {
 		return nil, fmt.Errorf("llmcaller/codex: clone defaults: %w", err)
@@ -279,9 +288,8 @@ func (c *Caller) request(request llmadapter.Request) (codexsdk.StartThreadRunReq
 	if err != nil {
 		return codexsdk.StartThreadRunRequest{}, err
 	}
-	if c.profile == profileReadOnlyEphemeral {
-		enforceReadOnlyEphemeralProfile(&startRequest)
-	}
+	enforceReadOnlyEphemeralProfile(&startRequest)
+	attachAdmitTurn(&startRequest, admitReadOnlyEphemeralTurn)
 	startRequest.Turn.ThreadID = ""
 	startRequest.Turn.Input = []protocolv2.UserInput{
 		protocolv2.NewUserInputText(protocolv2.UserInputText{Text: request.Prompt}),
@@ -318,16 +326,49 @@ func enforceReadOnlyEphemeralProfile(request *codexsdk.StartThreadRunRequest) {
 }
 
 func (c *Caller) validateProfile(run codexsdk.StartedThreadRun, runErr error) error {
-	if c.profile != profileReadOnlyEphemeral || !hasDecodedStart(run, runErr) {
+	if !hasDecodedStart(run, runErr) {
 		return nil
 	}
-	if run.Start.ApprovalPolicy.Kind() != protocolv2.AskForApprovalKindNever {
+	if errors.Is(runErr, ErrEffectiveProfile) {
+		return nil
+	}
+	return admitReadOnlyEphemeralTurn(run.Start)
+}
+
+// AdmitTurn is attached by field name so adapter source still type-checks
+// against published SDK tags that predate the pre-turn admission seam. When
+// the field is absent, request construction stays effect-safe on the
+// requested profile and validateProfile still fail-closes after a decoded
+// start. I6 forbids replacing that published tuple through go.work.
+const admitTurnField = "AdmitTurn"
+
+func hasCallerOwnedAdmitTurn(request codexsdk.StartThreadRunRequest) bool {
+	field := reflect.ValueOf(&request).Elem().FieldByName(admitTurnField)
+	return field.IsValid() && !field.IsNil()
+}
+
+func attachAdmitTurn(request *codexsdk.StartThreadRunRequest, admit func(protocolv2.ThreadStartResponse) error) {
+	field := reflect.ValueOf(request).Elem().FieldByName(admitTurnField)
+	if !field.IsValid() || !field.CanSet() {
+		return
+	}
+	field.Set(reflect.ValueOf(admit))
+}
+
+func admitReadOnlyEphemeralTurn(start protocolv2.ThreadStartResponse) error {
+	if !start.ApprovalPolicy.IsValid() {
+		return fmt.Errorf("%w: read-only profile effective approval policy is unknown", ErrEffectiveProfile)
+	}
+	if start.ApprovalPolicy.Kind() != protocolv2.AskForApprovalKindNever {
 		return fmt.Errorf("%w: read-only profile effective approval policy is not never", ErrEffectiveProfile)
 	}
-	if run.Start.Sandbox.Kind() != protocolv2.SandboxPolicyKindReadOnly {
+	if !start.Sandbox.IsValid() {
+		return fmt.Errorf("%w: read-only profile effective sandbox is unknown", ErrEffectiveProfile)
+	}
+	if start.Sandbox.Kind() != protocolv2.SandboxPolicyKindReadOnly {
 		return fmt.Errorf("%w: read-only profile effective sandbox is not read-only", ErrEffectiveProfile)
 	}
-	if !run.Start.Thread.Ephemeral {
+	if !start.Thread.Ephemeral {
 		return fmt.Errorf("%w: read-only profile effective thread is not ephemeral", ErrEffectiveProfile)
 	}
 	return nil
