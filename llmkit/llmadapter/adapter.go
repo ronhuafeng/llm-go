@@ -21,17 +21,43 @@ type ProviderDetails interface {
 	ProviderName() string
 }
 
+// TokenUsage is observed token accounting for one adapter attempt. It is
+// not a billing estimate, remaining-budget figure, or reconstructed
+// heuristic.
+//
+// Input, CachedInput, Output, and ReasoningOutput are presence-aware.
+// Unknown means the provider did not report that count; Observed(0) is an
+// explicit zero. The int64 fields do not establish presence; they remain
+// only so unpublished adapters keep compiling until they migrate.
 type TokenUsage struct {
 	InputTokens           int64
 	CachedInputTokens     int64
 	OutputTokens          int64
 	ReasoningOutputTokens int64
+	Input                 Observation[int64]
+	CachedInput           Observation[int64]
+	Output                Observation[int64]
+	ReasoningOutput       Observation[int64]
 }
 
+// ExecutionEvidence is provider-neutral facts attributable to one model
+// call. ProviderName is identity: empty means the caller published no
+// provider. Model and Usage use Observation / nil so unknown stays
+// unknown; requested settings do not fill them.
 type ExecutionEvidence struct {
-	ProviderName   string
+	ProviderName string
+	// EffectiveModel does not establish presence. It remains only so
+	// unpublished adapters keep compiling until they migrate.
 	EffectiveModel string
-	Usage          *TokenUsage
+	// Model is the provider model identifier that actually served the
+	// request. Unknown means the provider did not report one. It is not
+	// inferred from the prompt and is not a capability or pricing lookup
+	// key.
+	Model Observation[string]
+	// Usage is observed token accounting for this attempt. Nil means the
+	// provider did not report a usage object. Unknown dimensions inside a
+	// present Usage object are unreported measurements, not observed zeros.
+	Usage *TokenUsage
 }
 
 type Caller interface {
@@ -52,7 +78,8 @@ type Response struct {
 	// decode errors when available.
 	FinalResponse string
 	// Execution is provider-neutral evidence. ValueDetailed clones Usage before
-	// publishing the response.
+	// publishing the response. Observation values copy by value; unknown stays
+	// unknown.
 	Execution ExecutionEvidence
 	// ProviderDetails is adapter-owned. Adapters must return an isolated typed
 	// value that does not alias mutable runtime state. Typed nil is invalid, and

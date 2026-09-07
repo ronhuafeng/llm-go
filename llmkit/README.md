@@ -93,6 +93,9 @@ func main() {
 		panic(err)
 	}
 	fmt.Println(result.Value.Answer)
+	// Model stays unknown: the caller did not report one, and the prompt
+	// is not promoted into an observation.
+	fmt.Println(result.Response.Execution.Model.Present())
 }
 ```
 
@@ -107,6 +110,8 @@ Detailed APIs publish isolated snapshots of toolkit-owned state. This is not a
 promise that every generic output is deeply immutable.
 
 - Clone toolkit-owned schema bytes and usage before publication.
+  Observation values copy by value; unknown stays unknown. Requested
+  settings, defaults, and estimates cannot populate an observation.
 - Copy llmstep attempt, judgment, and repair slices.
 - Generic outputs use ordinary Go value semantics.
 - Adapters own `ProviderDetails`: isolated, non-nil, matching provider identity,
