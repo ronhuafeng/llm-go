@@ -5,6 +5,13 @@ changes may occur in minor releases.
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking (pre-v1):** rename `ValueDetailed` to `Value` and
+  `RunDetailed` to `Run`. Remove the obsolete `Detailed` suffix and do
+  not keep aliases. Replace `ErrUnsettled` with `ErrExhausted` when no
+  attempt produced an accepted judgment before `MaxIter`.
+
 ## [0.9.0] - 2026-09-07
 
 ### Changed

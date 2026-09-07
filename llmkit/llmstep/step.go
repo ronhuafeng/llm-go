@@ -23,9 +23,9 @@ var ErrNilValidate = errors.New("llmstep: validate is nil")
 // ErrInvalidMaxIter reports a step configured with a non-positive retry bound.
 var ErrInvalidMaxIter = errors.New("llmstep: maxIter must be at least 1")
 
-// ErrUnsettled reports that no attempt produced an accepted judgment before
-// the retry bound was exhausted.
-var ErrUnsettled = errors.New("llmstep: output remains unsettled")
+// ErrExhausted reports that no attempt produced an accepted judgment before
+// MaxIter was exhausted.
+var ErrExhausted = errors.New("llmstep: no accepted judgment before maxIter")
 
 // Finding is a validator-owned fact about a proposition. It is not
 // model-facing repair input.
@@ -114,7 +114,7 @@ type Attempt[O any] struct {
 	Err        error
 }
 
-// Result is the typed output plus attempt history from RunDetailed.
+// Result is the typed output plus attempt history from Run.
 type Result[O any] struct {
 	// Output follows ordinary Go value semantics and is not generically cloned.
 	Output    O
@@ -124,9 +124,9 @@ type Result[O any] struct {
 	Attempts []Attempt[O]
 }
 
-// RunDetailed executes a step and returns the accepted output with attempt
+// Run executes a step and returns the accepted output with attempt
 // history.
-func RunDetailed[I any, O any](ctx context.Context, step Step[I, O], input I) (Result[O], error) {
+func Run[I any, O any](ctx context.Context, step Step[I, O], input I) (Result[O], error) {
 	var result Result[O]
 
 	if step.MaxIter < 1 {
@@ -163,7 +163,7 @@ func RunDetailed[I any, O any](ctx context.Context, step Step[I, O], input I) (R
 			return fail(result, attempt, StageRender, err)
 		}
 
-		call, err := llmadapter.ValueDetailed[O](ctx, step.Caller, prompt)
+		call, err := llmadapter.Value[O](ctx, step.Caller, prompt)
 		attempt.Call = call
 		if err != nil {
 			stage := valueStage(err)
@@ -186,7 +186,7 @@ func RunDetailed[I any, O any](ctx context.Context, step Step[I, O], input I) (R
 		}
 		if iter == step.MaxIter {
 			result.Attempts = append(result.Attempts, attempt)
-			return snapshotResult(result), fmt.Errorf("%w: maxIter=%d", ErrUnsettled, step.MaxIter)
+			return snapshotResult(result), fmt.Errorf("%w: maxIter=%d", ErrExhausted, step.MaxIter)
 		}
 
 		nextRepair, err := sanitize(copyFindings(judgment.Findings))
@@ -200,7 +200,7 @@ func RunDetailed[I any, O any](ctx context.Context, step Step[I, O], input I) (R
 		result.Attempts = append(result.Attempts, attempt)
 	}
 
-	return snapshotResult(result), fmt.Errorf("%w: maxIter=%d", ErrUnsettled, step.MaxIter)
+	return snapshotResult(result), fmt.Errorf("%w: maxIter=%d", ErrExhausted, step.MaxIter)
 }
 
 func isNilCaller(caller llmadapter.Caller) bool {

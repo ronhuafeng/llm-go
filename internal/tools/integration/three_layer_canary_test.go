@@ -26,7 +26,7 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 		client, caller := canaryCaller(t, "success", codexsdk.ClientOptions{})
 		defer closeCanary(t, client)
 
-		result, err := llmadapter.ValueDetailed[struct {
+		result, err := llmadapter.Value[struct {
 			Answer bool `json:"answer"`
 		}](context.Background(), caller, "answer")
 		if err != nil {
@@ -81,7 +81,7 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 	t.Run("typed decode failure retains successful call evidence", func(t *testing.T) {
 		client, caller := canaryCaller(t, "decode-failure", codexsdk.ClientOptions{})
 		defer closeCanary(t, client)
-		result, err := llmadapter.ValueDetailed[map[string]bool](context.Background(), caller, "answer")
+		result, err := llmadapter.Value[map[string]bool](context.Background(), caller, "answer")
 		if err == nil || result.Response.FinalResponse != "not-json" {
 			t.Fatalf("result=%#v err=%v", result, err)
 		}
@@ -107,7 +107,7 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		result, err := llmadapter.ValueDetailed[struct {
+		result, err := llmadapter.Value[struct {
 			Answer bool `json:"answer"`
 		}](context.Background(), caller, "answer")
 		if err == nil || !strings.Contains(err.Error(), "Turn.items") {

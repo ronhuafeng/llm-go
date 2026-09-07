@@ -286,8 +286,11 @@ func VerifyCheckout(root string, plan AffectedPlan) (Evidence, error) {
 		directory:   filepath.Join(root, "internal", "tools"),
 		environment: map[string]string{"GOWORK": "off", "GOTOOLCHAIN": "local"},
 	}
-	if err = recorder.check("repository tool tests", []string{"go", "test", "./..."}, func() error {
-		return toolsRunner.run("go", "test", "./...")
+	// Integration is the workspace canary. It compiles against the
+	// checkout join, not the published module pins used by GOWORK=off
+	// tool tests.
+	if err = recorder.check("repository tool tests", []string{"go", "test", "./cmd/...", "./internal/..."}, func() error {
+		return toolsRunner.run("go", "test", "./cmd/...", "./internal/...")
 	}); err != nil {
 		return recorder.evidence, err
 	}

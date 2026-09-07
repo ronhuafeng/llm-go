@@ -98,7 +98,7 @@ type Response struct {
 	// FinalResponse is copied as a Go string value and is retained on call and
 	// decode errors when available.
 	FinalResponse string
-	// Execution is provider-neutral evidence. ValueDetailed clones Usage before
+	// Execution is provider-neutral evidence. Value clones Usage before
 	// publishing the response. Observation values copy by value; unknown stays
 	// unknown.
 	Execution ExecutionEvidence
@@ -136,8 +136,9 @@ func (e *ValueError) Unwrap() error {
 }
 
 type ValueResult[T any] struct {
-	// Value follows ordinary Go value semantics. ValueDetailed does not
-	// generically deep-clone maps, slices, pointers, or other reference fields.
+	// Value follows ordinary Go value semantics. The Value call does not
+	// generically deep-clone maps, slices, pointers, or other reference
+	// fields.
 	Value T
 	// Response preserves available call evidence on call and decode failures.
 	Response Response
@@ -154,7 +155,7 @@ func RequestFor[T any](prompt string) (Request, error) {
 	}, nil
 }
 
-func ValueDetailed[T any](ctx context.Context, caller Caller, prompt string) (ValueResult[T], error) {
+func Value[T any](ctx context.Context, caller Caller, prompt string) (ValueResult[T], error) {
 	var result ValueResult[T]
 	if isNil(caller) {
 		return result, valueError(ValueStageCall, ErrNilCaller)

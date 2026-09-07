@@ -43,7 +43,7 @@ func (caller *fakeCaller) Call(ctx context.Context, request Request) (Response, 
 	return response, nil
 }
 
-func TestValueDetailedPreservesCallAndDecodeEvidence(t *testing.T) {
+func TestValuePreservesCallAndDecodeEvidence(t *testing.T) {
 	providerErr := errors.New("provider failed")
 	partial := Response{
 		FinalResponse: `{"status":"partial"}`,
@@ -53,7 +53,7 @@ func TestValueDetailedPreservesCallAndDecodeEvidence(t *testing.T) {
 		},
 		ProviderDetails: details{name: "test"},
 	}
-	result, err := ValueDetailed[map[string]string](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
+	result, err := Value[map[string]string](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
 		return partial, providerErr
 	}), "prompt")
 	var valueErr *ValueError
@@ -66,7 +66,7 @@ func TestValueDetailedPreservesCallAndDecodeEvidence(t *testing.T) {
 
 	decodeResponse := partial
 	decodeResponse.FinalResponse = `{"status":7}`
-	result, err = ValueDetailed[map[string]string](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
+	result, err = Value[map[string]string](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
 		return decodeResponse, nil
 	}), "prompt")
 	if !errors.As(err, &valueErr) || valueErr.Stage != ValueStageDecode {
@@ -77,13 +77,13 @@ func TestValueDetailedPreservesCallAndDecodeEvidence(t *testing.T) {
 	}
 }
 
-func TestValueDetailedChecksProviderIdentityWithoutReplacingCallError(t *testing.T) {
+func TestValueChecksProviderIdentityWithoutReplacingCallError(t *testing.T) {
 	providerErr := errors.New("provider failed")
 	response := Response{
 		Execution:       ExecutionEvidence{ProviderName: "one"},
 		ProviderDetails: details{name: "two"},
 	}
-	_, err := ValueDetailed[bool](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
+	_, err := Value[bool](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
 		return response, providerErr
 	}), "prompt")
 	if !errors.Is(err, providerErr) || !errors.Is(err, ErrProviderIdentityMismatch) {
@@ -91,9 +91,9 @@ func TestValueDetailedChecksProviderIdentityWithoutReplacingCallError(t *testing
 	}
 }
 
-func TestValueDetailedRejectsTypedNilProviderDetails(t *testing.T) {
+func TestValueRejectsTypedNilProviderDetails(t *testing.T) {
 	var typedNil *testPointerDetails
-	_, err := ValueDetailed[bool](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
+	_, err := Value[bool](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
 		return Response{FinalResponse: `true`, Execution: ExecutionEvidence{ProviderName: "test"}, ProviderDetails: typedNil}, nil
 	}), "prompt")
 	if !errors.Is(err, ErrProviderIdentityMismatch) {
@@ -105,9 +105,9 @@ type testPointerDetails struct{}
 
 func (*testPointerDetails) ProviderName() string { return "test" }
 
-func TestValueDetailedReturnsRequestStageForSchemaProjectionFailure(t *testing.T) {
+func TestValueReturnsRequestStageForSchemaProjectionFailure(t *testing.T) {
 	called := false
-	_, err := ValueDetailed[chan int](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
+	_, err := Value[chan int](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
 		called = true
 		return Response{}, nil
 	}), "prompt")
@@ -120,9 +120,9 @@ func TestValueDetailedReturnsRequestStageForSchemaProjectionFailure(t *testing.T
 	}
 }
 
-func TestValueDetailedPublishesUsageSnapshot(t *testing.T) {
+func TestValuePublishesUsageSnapshot(t *testing.T) {
 	usage := &TokenUsage{Input: Observed[int64](3)}
-	result, err := ValueDetailed[bool](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
+	result, err := Value[bool](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
 		return Response{FinalResponse: `true`, Execution: ExecutionEvidence{Usage: usage}}, nil
 	}), "prompt")
 	if err != nil {
@@ -134,7 +134,7 @@ func TestValueDetailedPublishesUsageSnapshot(t *testing.T) {
 	}
 }
 
-func TestValueDetailedProvidesIsolatedRequestSchemaPerCall(t *testing.T) {
+func TestValueProvidesIsolatedRequestSchemaPerCall(t *testing.T) {
 	var firstSchema json.RawMessage
 	calls := 0
 	caller := callerFunc(func(_ context.Context, request Request) (Response, error) {
@@ -148,10 +148,10 @@ func TestValueDetailedProvidesIsolatedRequestSchemaPerCall(t *testing.T) {
 		return Response{FinalResponse: `true`}, nil
 	})
 
-	if _, err := ValueDetailed[bool](context.Background(), caller, "first"); err != nil {
+	if _, err := Value[bool](context.Background(), caller, "first"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ValueDetailed[bool](context.Background(), caller, "second"); err != nil {
+	if _, err := Value[bool](context.Background(), caller, "second"); err != nil {
 		t.Fatal(err)
 	}
 	if len(firstSchema) == 0 || firstSchema[0] != '!' {
@@ -159,11 +159,11 @@ func TestValueDetailedProvidesIsolatedRequestSchemaPerCall(t *testing.T) {
 	}
 }
 
-func TestValueDetailedGenericValueUsesOrdinaryGoSemantics(t *testing.T) {
+func TestValueGenericValueUsesOrdinaryGoSemantics(t *testing.T) {
 	type output struct {
 		Labels map[string]string `json:"labels"`
 	}
-	result, err := ValueDetailed[output](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
+	result, err := Value[output](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
 		return Response{FinalResponse: `{"labels":{"status":"draft"}}`}, nil
 	}), "prompt")
 	if err != nil {
@@ -180,12 +180,12 @@ func TestValueDetailedGenericValueUsesOrdinaryGoSemantics(t *testing.T) {
 func TestValueProjectsSchemaCallsBackendAndDecodes(t *testing.T) {
 	caller := &fakeCaller{responses: []Response{{FinalResponse: `true`}}}
 
-	got, err := ValueDetailed[bool](context.Background(), caller, "Is Paris the capital of France?")
+	got, err := Value[bool](context.Background(), caller, "Is Paris the capital of France?")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !got.Value {
-		t.Fatal("ValueDetailed returned false, want true")
+		t.Fatal("Value returned false, want true")
 	}
 	if len(caller.requests) != 1 {
 		t.Fatalf("requests = %d, want 1", len(caller.requests))
@@ -222,7 +222,7 @@ func TestValueSupportsStructOutput(t *testing.T) {
 	}
 	caller := &fakeCaller{responses: []Response{{FinalResponse: `{"status":"passed","passed":true}`}}}
 
-	got, err := ValueDetailed[verdict](context.Background(), caller, "review")
+	got, err := Value[verdict](context.Background(), caller, "review")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,19 +237,19 @@ func TestValueSupportsStructOutput(t *testing.T) {
 
 func TestValueFailsClosed(t *testing.T) {
 	empty := Response{FinalResponse: `not-json`, Execution: ExecutionEvidence{ProviderName: "test"}}
-	if result, err := ValueDetailed[bool](context.Background(), nil, "prompt"); !errors.Is(err, ErrNilCaller) {
+	if result, err := Value[bool](context.Background(), nil, "prompt"); !errors.Is(err, ErrNilCaller) {
 		t.Fatalf("nil caller error = %v, want ErrNilCaller", err)
 	} else if result.Response.FinalResponse != "" {
 		t.Fatalf("nil caller response = %#v, want empty evidence", result.Response)
 	}
-	if result, err := ValueDetailed[bool](context.Background(), &fakeCaller{}, "prompt"); err == nil ||
+	if result, err := Value[bool](context.Background(), &fakeCaller{}, "prompt"); err == nil ||
 		!strings.Contains(err.Error(), "final response is empty") {
 		t.Fatalf("empty final response error = %v", err)
 	} else if result.Response.FinalResponse != "" {
 		t.Fatalf("empty caller response = %#v", result.Response)
 	}
-	if result, err := ValueDetailed[bool](context.Background(), &fakeCaller{responses: []Response{empty}}, "prompt"); err == nil {
-		t.Fatal("ValueDetailed accepted invalid JSON")
+	if result, err := Value[bool](context.Background(), &fakeCaller{responses: []Response{empty}}, "prompt"); err == nil {
+		t.Fatal("Value accepted invalid JSON")
 	} else if result.Response.FinalResponse != empty.FinalResponse || result.Response.Execution.ProviderName != "test" {
 		t.Fatalf("decode failure discarded call evidence: %#v", result.Response)
 	}

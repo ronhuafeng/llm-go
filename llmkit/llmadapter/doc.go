@@ -10,7 +10,7 @@
 // Prompt wording and decoded model output cannot authorize an external effect.
 // Application authorization stays outside llmkit.
 //
-// ValueDetailed preserves the provider-neutral response and typed provider
+// Value preserves the provider-neutral response and typed provider
 // details on call and decode failures. Concrete provider callers own transport
 // and provider-specific schema policy; business code owns semantic acceptance.
 //
@@ -19,14 +19,15 @@
 // present. Requested settings, defaults, estimates, heuristics, and inferred
 // names cannot populate an observation.
 //
-// Detailed APIs publish owned, isolated snapshots of toolkit-owned state.
-// ValueDetailed clones request schema bytes before caller invocation and clones
+// The typed-inference API publishes owned, isolated snapshots of toolkit-owned
+// state.
+// Value clones request schema bytes before caller invocation and clones
 // neutral token usage before publishing a response. Provider adapters must
 // publish ProviderDetails as isolated typed values that do not alias mutable
 // runtime state. Generic typed outputs follow ordinary Go value semantics; the
 // package does not promise a universal deep copy of arbitrary T.
 //
-// After a successful Caller.Call and provider-identity check, ValueDetailed
+// After a successful Caller.Call and provider-identity check, Value
 // observes context cancellation before decoding the typed output. If canceled,
 // it returns a call-stage error while preserving the cloned response evidence.
 // Caller and identity errors take precedence over cancellation observed at that
