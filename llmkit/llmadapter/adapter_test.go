@@ -49,7 +49,7 @@ func TestValueDetailedPreservesCallAndDecodeEvidence(t *testing.T) {
 		FinalResponse: `{"status":"partial"}`,
 		Execution: ExecutionEvidence{
 			ProviderName: "test",
-			Usage:        &TokenUsage{InputTokens: 4},
+			Usage:        &TokenUsage{InputTokens: 4, Input: Observed[int64](4)},
 		},
 		ProviderDetails: details{name: "test"},
 	}
@@ -60,7 +60,7 @@ func TestValueDetailedPreservesCallAndDecodeEvidence(t *testing.T) {
 	if !errors.As(err, &valueErr) || valueErr.Stage != ValueStageCall || !errors.Is(err, providerErr) {
 		t.Fatalf("call error = %v, want ValueStageCall retaining provider error", err)
 	}
-	if result.Response.FinalResponse != partial.FinalResponse || result.Response.Execution.Usage.InputTokens != 4 {
+	if result.Response.FinalResponse != partial.FinalResponse || result.Response.Execution.Usage.InputTokens != 4 || result.Response.Execution.Usage.Input != Observed[int64](4) {
 		t.Fatalf("partial response = %#v, want %#v", result.Response, partial)
 	}
 
@@ -121,7 +121,7 @@ func TestValueDetailedReturnsRequestStageForSchemaProjectionFailure(t *testing.T
 }
 
 func TestValueDetailedPublishesUsageSnapshot(t *testing.T) {
-	usage := &TokenUsage{InputTokens: 3}
+	usage := &TokenUsage{InputTokens: 3, Input: Observed[int64](3)}
 	result, err := ValueDetailed[bool](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
 		return Response{FinalResponse: `true`, Execution: ExecutionEvidence{Usage: usage}}, nil
 	}), "prompt")
@@ -129,8 +129,9 @@ func TestValueDetailedPublishesUsageSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	usage.InputTokens = 99
-	if result.Response.Execution.Usage.InputTokens != 3 {
-		t.Fatalf("published usage changed to %d", result.Response.Execution.Usage.InputTokens)
+	usage.Input = Observed[int64](99)
+	if result.Response.Execution.Usage.InputTokens != 3 || result.Response.Execution.Usage.Input != Observed[int64](3) {
+		t.Fatalf("published usage changed to %#v", result.Response.Execution.Usage)
 	}
 }
 

@@ -5,6 +5,17 @@ changes may occur in minor releases.
 
 ## [Unreleased]
 
+### Added
+
+- Add `llmadapter.Observation` so neutral execution facts can be unknown
+  without collapsing into a Go zero value. Token measurements expose
+  presence-aware `Input`, `CachedInput`, `Output`, and `ReasoningOutput`
+  fields; effective model presence lives on `ExecutionEvidence.Model`.
+  Requested settings, defaults, estimates, and inferred names cannot
+  populate an observation. Existing scalar `TokenUsage` and
+  `EffectiveModel` fields remain collapsing compatibility views until
+  adapters migrate.
+
 ### Changed
 
 - **Breaking (pre-v1):** replace the shared `Feedback` / `ValidationResult`

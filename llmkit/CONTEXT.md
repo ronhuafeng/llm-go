@@ -15,6 +15,12 @@ Provider-neutral facts attributable to one model call. Unknown facts remain
 unknown; provider-specific facts stay in Provider details.
 _Avoid_: Requested settings, estimated usage, metadata bag
 
+**Observation**:
+A toolkit-owned fact that may be unknown. The zero value is unknown and
+does not manufacture a value. Requested settings, defaults, estimates,
+heuristics, and inferred names cannot populate an observation.
+_Avoid_: Zero sentinel, estimated usage, inferred name
+
 **Provider details**:
 Typed provider-specific evidence published by an adapter. It must not alias
 mutable runtime state.
