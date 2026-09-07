@@ -21,8 +21,12 @@
 //
 // The typed-inference API publishes owned, isolated snapshots of toolkit-owned
 // state.
-// Value compiles one Contract for the request schema and the response
-// decode. Bounded llmstep retries reuse that compiled contract.
+// Value is the default path: it compiles one Contract for the request
+// schema and the response decode. ValueWithContract is the explicit reuse
+// path for a caller-owned compiled Contract. Both return the same
+// evidence-bearing ValueResult. Bounded llmstep retries use
+// ValueWithContract. Neither path owns semantic judgment, provider dialect,
+// or effect authority.
 // Value clones request schema bytes before caller invocation and clones
 // neutral token usage before publishing a response. Provider adapters must
 // publish ProviderDetails as isolated typed values that do not alias mutable
