@@ -1,0 +1,8 @@
+{
+  "format_version": 1,
+  "module": "codexsdk",
+  "impact": "minor",
+  "breaking": true,
+  "summary": "Publish the rust-v0.151.0 generated protocol surface, including additive stable members and breaking stable removals and mixed Generated Facades.",
+  "issue": 98
+}

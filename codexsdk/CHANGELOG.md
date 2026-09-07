@@ -6,10 +6,18 @@
 
 ### Added
 
-- Add `StartThreadRunRequest.AdmitTurn` so Exact Run startup can inspect the
-  decoded `ThreadStartResponse` and reject continuation fail-closed before
-  `turn/start`. Rejection preserves the exact partial `StartedThreadRun` and
-  reports `ErrTurnAdmissionRejected`.
+- **Breaking (pre-v1):** add `StartThreadRunRequest.AdmitTurn` so Exact Run
+  startup can inspect the decoded `ThreadStartResponse` and reject
+  continuation fail-closed before `turn/start`. Rejection preserves the exact
+  partial `StartedThreadRun` and reports `ErrTurnAdmissionRejected`.
+
+### Changed
+
+- **Breaking generated-surface change (pre-v1):** publish the `rust-v0.151.0`
+  classified protocol surface. Stable `RawResponseCompletedNotification` is
+  removed. `CodexErrorInfo`, `ThreadItem`, and `TurnError` gain stable
+  members. `ClientRequest` and `TurnStartParams` remain mixed Generated
+  Facades with added members. `Turns` becomes a mixed Generated Facade.
 
 ## [0.7.0] - 2026-08-30
 

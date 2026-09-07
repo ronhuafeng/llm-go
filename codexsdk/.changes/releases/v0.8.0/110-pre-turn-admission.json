@@ -2,7 +2,7 @@
   "format_version": 1,
   "module": "codexsdk",
   "impact": "minor",
-  "breaking": false,
-  "summary": "Add pre-turn admission to Exact Run startup.",
+  "breaking": true,
+  "summary": "Add pre-turn admission to Exact Run startup, rewriting the exported StartThreadRunRequest type.",
   "issue": 110
 }
