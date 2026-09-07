@@ -94,6 +94,14 @@ whose `Wait`, `Result`, and `Err` expose the same facts and cause. Identity
 failure prevents later lifecycle requests or live run registration without
 closing the Client.
 
+`StartThreadRunRequest.AdmitTurn` inspects the decoded `thread/start` Server
+Observation before `turn/start`. The callback is caller-owned. A non-nil
+error rejects continuation fail-closed: `Start` and `StartStream` publish the
+exact partial `StartedThreadRun` plus `ErrTurnAdmissionRejected`, and no
+`turn/start` is sent. A nil callback keeps current Exact Run behavior. The
+SDK does not interpret that decision as a read-only profile or
+provider-neutral authorization policy.
+
 ```go
 package main
 

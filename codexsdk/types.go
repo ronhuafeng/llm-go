@@ -3,6 +3,8 @@ package codexsdk
 import (
 	"context"
 	"errors"
+	"fmt"
+
 	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
 )
 
@@ -16,6 +18,7 @@ var (
 	ErrExactServerRequest       = errors.New("codexsdk: exact server request failed closed")
 	ErrMissingThreadID          = errors.New("codexsdk: thread response missing thread id")
 	ErrMissingTurnID            = errors.New("codexsdk: turn response missing turn id")
+	ErrTurnAdmissionRejected    = errors.New("codexsdk: turn admission rejected")
 )
 
 type ExactServerRequestError struct {
@@ -33,9 +36,45 @@ func (e *ExactServerRequestError) Error() string {
 
 func (e *ExactServerRequestError) Unwrap() error { return ErrExactServerRequest }
 
+// AdmitTurn inspects the exact decoded thread-start Server Observation after
+// thread/start and before any turn/start. A non-nil error rejects continuation
+// fail-closed. A nil callback preserves current Exact Run behavior.
+// The decision is caller-owned; the SDK does not define a read-only profile
+// or provider-neutral authorization policy.
+type AdmitTurn func(protocolv2.ThreadStartResponse) error
+
 type StartThreadRunRequest struct {
-	Thread protocolv2.ThreadStartParams
-	Turn   protocolv2.TurnStartParams
+	Thread    protocolv2.ThreadStartParams
+	Turn      protocolv2.TurnStartParams
+	AdmitTurn AdmitTurn
+}
+
+// TurnAdmissionError is the fail-closed cause of rejected pre-turn admission.
+// The exact thread-start observation remains on StartedThreadRun.Start and is
+// not rewritten. Unwrap includes ErrTurnAdmissionRejected and the
+// caller-owned rejection error.
+type TurnAdmissionError struct {
+	Err error
+}
+
+func (e *TurnAdmissionError) Error() string {
+	if e == nil {
+		return "<nil>"
+	}
+	if e.Err == nil {
+		return ErrTurnAdmissionRejected.Error()
+	}
+	return fmt.Sprintf("%s: %v", ErrTurnAdmissionRejected, e.Err)
+}
+
+func (e *TurnAdmissionError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	if e.Err == nil {
+		return ErrTurnAdmissionRejected
+	}
+	return errors.Join(ErrTurnAdmissionRejected, e.Err)
 }
 
 type ResumeThreadRunRequest struct {

@@ -1920,6 +1920,185 @@ func TestExactRunnerStartStreamPreservesDecodedResponseMissingThreadID(t *testin
 	assertNoGhostNotification(t, second)
 }
 
+func TestExactRunnerStartRejectedTurnAdmissionOmitsTurnStart(t *testing.T) {
+	record := tempRecord(t)
+	t.Setenv("CODEXSDK_FAKE_RECORD", record)
+	root, err := New(ClientOptions{CWD: t.TempDir(), Command: fakeCommand("happy")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+
+	reject := errors.New("consumer rejected observed thread")
+	var seen protocolv2.ThreadStartResponse
+	result, err := root.ThreadRunner().Start(context.Background(), StartThreadRunRequest{
+		Thread: protocolv2.ThreadStartParams{Model: protocolv2.Value("gpt-exact")},
+		Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{
+			protocolv2.NewUserInputText(protocolv2.UserInputText{Text: "hello"}),
+		}},
+		AdmitTurn: func(start protocolv2.ThreadStartResponse) error {
+			if firstRecord(readRecords(t, record), "recv", protocolv2.MethodTurnStart) != nil {
+				t.Fatal("turn/start was sent before AdmitTurn")
+			}
+			seen = start
+			return reject
+		},
+	})
+	if !errors.Is(err, ErrTurnAdmissionRejected) || !errors.Is(err, reject) {
+		t.Fatalf("Start error = %v, want ErrTurnAdmissionRejected wrapping consumer rejection", err)
+	}
+	var admission *TurnAdmissionError
+	if !errors.As(err, &admission) || admission.Err != reject {
+		t.Fatalf("TurnAdmissionError = %#v", admission)
+	}
+	if result.Start.Thread.ID == "" || result.Start.Model != "gpt-exact" || result.Start.ModelProvider != "openai" || result.Start.CWD != "/workspace/facade" {
+		t.Fatalf("Start partial evidence = %#v", result.Start)
+	}
+	if result.Start.Thread.ID != seen.Thread.ID || result.Start.Model != seen.Model {
+		t.Fatalf("admission observation = %#v, result = %#v", seen, result.Start)
+	}
+	if result.Run.Turn.ID != "" || result.Run.Turn.Status != "" {
+		t.Fatalf("unexpected turn evidence = %#v", result.Run.Turn)
+	}
+	if firstRecord(readRecords(t, record), "recv", protocolv2.MethodThreadStart) == nil {
+		t.Fatal("thread/start was not sent")
+	}
+	if firstRecord(readRecords(t, record), "recv", protocolv2.MethodTurnStart) != nil {
+		t.Fatal("turn/start was sent after rejected admission")
+	}
+
+	second, err := root.ThreadRunner().Start(context.Background(), StartThreadRunRequest{
+		Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}},
+	})
+	if err != nil || second.Start.Thread.ID == "" || second.Run.Turn.Status != protocolv2.TurnStatusCompleted {
+		t.Fatalf("second run = %#v, error = %v; want usable Client", second, err)
+	}
+}
+
+func TestExactRunnerStartStreamRejectedTurnAdmissionOmitsTurnStart(t *testing.T) {
+	record := tempRecord(t)
+	t.Setenv("CODEXSDK_FAKE_RECORD", record)
+	root, err := New(ClientOptions{CWD: t.TempDir(), Command: fakeCommand("happy")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+
+	reject := errors.New("consumer rejected observed thread")
+	stream, err := root.ThreadRunner().StartStream(context.Background(), StartThreadRunRequest{
+		Thread: protocolv2.ThreadStartParams{Model: protocolv2.Value("gpt-exact")},
+		Turn:   protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}},
+		AdmitTurn: func(start protocolv2.ThreadStartResponse) error {
+			if firstRecord(readRecords(t, record), "recv", protocolv2.MethodTurnStart) != nil {
+				t.Fatal("turn/start was sent before AdmitTurn")
+			}
+			start.Model = "mutated-by-callback"
+			start.Thread.ID = "mutated-id"
+			if start.Thread.ThreadSource != nil {
+				mutated := protocolv2.ThreadSource("mutated")
+				start.Thread.ThreadSource.Value = &mutated
+			}
+			return reject
+		},
+	})
+	if err != nil {
+		t.Fatalf("StartStream error = %v, want observable terminal stream", err)
+	}
+	if stream == nil {
+		t.Fatal("StartStream returned nil stream")
+	}
+	result, err := stream.Wait(context.Background())
+	if !errors.Is(err, ErrTurnAdmissionRejected) || !errors.Is(err, reject) {
+		t.Fatalf("Wait error = %v, want ErrTurnAdmissionRejected wrapping consumer rejection", err)
+	}
+	if stream.Err() != err {
+		t.Fatalf("stream Err = %p, Wait error = %p; want stable terminal cause", stream.Err(), err)
+	}
+	if result.Start.Model != "gpt-exact" || result.Start.Thread.ID == "" || result.Start.Thread.ID == "mutated-id" {
+		t.Fatalf("Wait partial evidence rewritten by AdmitTurn: %#v", result.Start)
+	}
+	if result.Start.Thread.ThreadSource == nil || result.Start.Thread.ThreadSource.Value == nil || *result.Start.Thread.ThreadSource.Value != protocolv2.ThreadSource("user") {
+		t.Fatalf("Wait ThreadSource rewritten by AdmitTurn: %#v", result.Start.Thread.ThreadSource)
+	}
+	result.Start.Model = "mutated"
+	snapshot, ok := stream.Result()
+	if !ok || snapshot.Start.Model != "gpt-exact" {
+		t.Fatalf("Result snapshot aliases Wait result: %#v, ok=%v", snapshot.Start, ok)
+	}
+	if firstRecord(readRecords(t, record), "recv", protocolv2.MethodTurnStart) != nil {
+		t.Fatal("turn/start was sent after rejected admission")
+	}
+}
+
+func TestExactRunnerStartAcceptedTurnAdmissionSendsTurnStartAfterInspection(t *testing.T) {
+	record := tempRecord(t)
+	t.Setenv("CODEXSDK_FAKE_RECORD", record)
+	root, err := New(ClientOptions{CWD: t.TempDir(), Command: fakeCommand("happy")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+
+	var seen protocolv2.ThreadStartResponse
+	result, err := root.ThreadRunner().Start(context.Background(), StartThreadRunRequest{
+		Thread: protocolv2.ThreadStartParams{Model: protocolv2.Value("gpt-exact")},
+		Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{
+			protocolv2.NewUserInputText(protocolv2.UserInputText{Text: "hello"}),
+		}},
+		AdmitTurn: func(start protocolv2.ThreadStartResponse) error {
+			if firstRecord(readRecords(t, record), "recv", protocolv2.MethodTurnStart) != nil {
+				t.Fatal("turn/start was sent before AdmitTurn")
+			}
+			if start.Thread.ID == "" || start.Model != "gpt-exact" || start.CWD != "/workspace/facade" {
+				t.Fatalf("AdmitTurn observation = %#v", start)
+			}
+			seen = start
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Start.Thread.ID != seen.Thread.ID || result.Start.Model != "gpt-exact" {
+		t.Fatalf("accepted start evidence = %#v, seen %#v", result.Start, seen)
+	}
+	if result.Run.Turn.ID == "" || result.Run.Turn.Status != protocolv2.TurnStatusCompleted {
+		t.Fatalf("accepted run did not preserve Exact Run behavior: %#v", result.Run)
+	}
+	if firstRecord(readRecords(t, record), "recv", protocolv2.MethodTurnStart) == nil {
+		t.Fatal("accepted admission did not send turn/start")
+	}
+}
+
+func TestExactRunnerStartMissingThreadIDIsNotAdmissionRejection(t *testing.T) {
+	record := tempRecord(t)
+	t.Setenv("CODEXSDK_FAKE_RECORD", record)
+	root, err := New(ClientOptions{CWD: t.TempDir(), Command: fakeCommand("thread-start-missing-id-once")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+
+	result, err := root.ThreadRunner().Start(context.Background(), StartThreadRunRequest{
+		Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}},
+		AdmitTurn: func(protocolv2.ThreadStartResponse) error {
+			return errors.New("must not override missing thread id")
+		},
+	})
+	if !errors.Is(err, ErrMissingThreadID) {
+		t.Fatalf("Start error = %v, want missing thread id", err)
+	}
+	if errors.Is(err, ErrTurnAdmissionRejected) {
+		t.Fatalf("missing thread id was reported as admission rejection: %v", err)
+	}
+	if result.Start.Model != "decoded-model" || result.Start.Thread.ID != "" {
+		t.Fatalf("Start partial evidence = %#v", result.Start)
+	}
+	if firstRecord(readRecords(t, record), "recv", protocolv2.MethodTurnStart) != nil {
+		t.Fatal("turn/start was sent after missing thread id")
+	}
+}
+
 func TestExactRunnerResumePreservesDecodedResponseMissingThreadID(t *testing.T) {
 	record := tempRecord(t)
 	t.Setenv("CODEXSDK_FAKE_RECORD", record)

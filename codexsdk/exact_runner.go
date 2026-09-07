@@ -116,6 +116,10 @@ func (r *exactRunner) StartStream(ctx context.Context, request StartThreadRunReq
 		state.finish(err)
 		return stream, nil
 	}
+	if err := admitTurn(request.AdmitTurn, started); err != nil {
+		r.client.finishAttachingExactStream(state, err)
+		return stream, nil
+	}
 	turnParams.ThreadID = started.Thread.ID
 	var turnStarted protocolv2.TurnStartResponse
 	if err := r.client.callProtocol(ctx, protocolv2.MethodTurnStart, turnParams, &turnStarted); err != nil {
@@ -183,6 +187,20 @@ func (r *exactRunner) ResumeStream(ctx context.Context, request ResumeThreadRunR
 	}
 	r.client.attachExactStreamForTurn(state, turnStarted.Turn)
 	return stream, nil
+}
+
+func admitTurn(admit AdmitTurn, started protocolv2.ThreadStartResponse) error {
+	if admit == nil {
+		return nil
+	}
+	observed, err := cloneJSON(started)
+	if err != nil {
+		return fmt.Errorf("codexsdk: clone thread/start observation: %w", err)
+	}
+	if err := admit(observed); err != nil {
+		return &TurnAdmissionError{Err: err}
+	}
+	return nil
 }
 
 func finishMissingTurnID(client *Client, state *exactRunState, turn protocolv2.Turn) {

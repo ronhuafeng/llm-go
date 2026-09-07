@@ -22,8 +22,11 @@ method github.com/ronhuafeng/llm-go/codexsdk.Stream.Nextfunc(ctx context.Context
 method github.com/ronhuafeng/llm-go/codexsdk.Stream.Notificationfunc() github.com/ronhuafeng/llm-go/codexsdk/protocolv2.ServerNotification
 method github.com/ronhuafeng/llm-go/codexsdk.Stream.Resultfunc() (R, bool)
 method github.com/ronhuafeng/llm-go/codexsdk.Stream.Waitfunc(ctx context.Context) (R, error)
+method github.com/ronhuafeng/llm-go/codexsdk.TurnAdmissionError.Errorfunc() string
+method github.com/ronhuafeng/llm-go/codexsdk.TurnAdmissionError.Unwrapfunc() error
 method github.com/ronhuafeng/llm-go/codexsdk.TurnError.Errorfunc() string
 method github.com/ronhuafeng/llm-go/codexsdk.TurnError.Unwrapfunc() error
+type github.com/ronhuafeng/llm-go/codexsdk.AdmitTurn func(github.com/ronhuafeng/llm-go/codexsdk/protocolv2.ThreadStartResponse) error
 type github.com/ronhuafeng/llm-go/codexsdk.Client struct{ /* unexported fields */ }
 type github.com/ronhuafeng/llm-go/codexsdk.ClientOptions struct{CWD string; Command []string; Initialize github.com/ronhuafeng/llm-go/codexsdk/protocolv2.InitializeParams; ServerRequestHandler github.com/ronhuafeng/llm-go/codexsdk.ServerRequestHandler; ServerNotificationHandler github.com/ronhuafeng/llm-go/codexsdk.ServerNotificationHandler; NotificationQueueCapacity int}
 type github.com/ronhuafeng/llm-go/codexsdk.DiagnosticRef struct{Kind string; ID string; Path string; SizeBytes int64; SHA256 string}
@@ -35,11 +38,12 @@ type github.com/ronhuafeng/llm-go/codexsdk.ResumedThreadRun struct{Resume github
 type github.com/ronhuafeng/llm-go/codexsdk.ServerNotificationHandler func(context.Context, github.com/ronhuafeng/llm-go/codexsdk/protocolv2.ServerNotification) error
 type github.com/ronhuafeng/llm-go/codexsdk.ServerRequestHandler func(context.Context, github.com/ronhuafeng/llm-go/codexsdk/protocolv2.ServerRequest) (github.com/ronhuafeng/llm-go/codexsdk.ServerRequestResponse, error)
 type github.com/ronhuafeng/llm-go/codexsdk.ServerRequestResponse struct{ /* unexported fields */ }
-type github.com/ronhuafeng/llm-go/codexsdk.StartThreadRunRequest struct{Thread github.com/ronhuafeng/llm-go/codexsdk/protocolv2.ThreadStartParams; Turn github.com/ronhuafeng/llm-go/codexsdk/protocolv2.TurnStartParams}
+type github.com/ronhuafeng/llm-go/codexsdk.StartThreadRunRequest struct{Thread github.com/ronhuafeng/llm-go/codexsdk/protocolv2.ThreadStartParams; Turn github.com/ronhuafeng/llm-go/codexsdk/protocolv2.TurnStartParams; AdmitTurn github.com/ronhuafeng/llm-go/codexsdk.AdmitTurn}
 type github.com/ronhuafeng/llm-go/codexsdk.StartedThreadRun struct{Start github.com/ronhuafeng/llm-go/codexsdk/protocolv2.ThreadStartResponse; Run github.com/ronhuafeng/llm-go/codexsdk.ThreadRunResult}
 type github.com/ronhuafeng/llm-go/codexsdk.Stream struct{ /* unexported fields */ }
 type github.com/ronhuafeng/llm-go/codexsdk.ThreadRunResult struct{Turn github.com/ronhuafeng/llm-go/codexsdk/protocolv2.Turn; Usage *github.com/ronhuafeng/llm-go/codexsdk/protocolv2.ThreadTokenUsage; Notifications []github.com/ronhuafeng/llm-go/codexsdk/protocolv2.ServerNotification; FinalResponse string; InputStats github.com/ronhuafeng/llm-go/codexsdk.InputStats; Diagnostics []github.com/ronhuafeng/llm-go/codexsdk.DiagnosticRef}
 type github.com/ronhuafeng/llm-go/codexsdk.ThreadRunner interface{Resume(context.Context, github.com/ronhuafeng/llm-go/codexsdk.ResumeThreadRunRequest) (github.com/ronhuafeng/llm-go/codexsdk.ResumedThreadRun, error); ResumeStream(context.Context, github.com/ronhuafeng/llm-go/codexsdk.ResumeThreadRunRequest) (*github.com/ronhuafeng/llm-go/codexsdk.Stream[github.com/ronhuafeng/llm-go/codexsdk.ResumedThreadRun], error); Start(context.Context, github.com/ronhuafeng/llm-go/codexsdk.StartThreadRunRequest) (github.com/ronhuafeng/llm-go/codexsdk.StartedThreadRun, error); StartStream(context.Context, github.com/ronhuafeng/llm-go/codexsdk.StartThreadRunRequest) (*github.com/ronhuafeng/llm-go/codexsdk.Stream[github.com/ronhuafeng/llm-go/codexsdk.StartedThreadRun], error)}
+type github.com/ronhuafeng/llm-go/codexsdk.TurnAdmissionError struct{Err error}
 type github.com/ronhuafeng/llm-go/codexsdk.TurnError struct{ThreadID string; Turn github.com/ronhuafeng/llm-go/codexsdk/protocolv2.Turn; Err error}
 var github.com/ronhuafeng/llm-go/codexsdk.ErrClientClosed error
 var github.com/ronhuafeng/llm-go/codexsdk.ErrExactServerRequest error
@@ -48,5 +52,6 @@ var github.com/ronhuafeng/llm-go/codexsdk.ErrMissingThreadID error
 var github.com/ronhuafeng/llm-go/codexsdk.ErrMissingTurnID error
 var github.com/ronhuafeng/llm-go/codexsdk.ErrNotificationBackpressure error
 var github.com/ronhuafeng/llm-go/codexsdk.ErrStreamClosed error
+var github.com/ronhuafeng/llm-go/codexsdk.ErrTurnAdmissionRejected error
 var github.com/ronhuafeng/llm-go/codexsdk.ErrTurnFailed error
 var github.com/ronhuafeng/llm-go/codexsdk.ErrTurnInterrupted error
