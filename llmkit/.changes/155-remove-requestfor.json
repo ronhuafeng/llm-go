@@ -1,0 +1,8 @@
+{
+  "format_version": 1,
+  "module": "llmkit",
+  "impact": "minor",
+  "breaking": true,
+  "summary": "Remove RequestFor; construct Request from prompt text and an owned Contract schema when calling Caller.Call directly.",
+  "issue": 155
+}
