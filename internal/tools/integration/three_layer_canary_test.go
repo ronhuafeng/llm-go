@@ -38,6 +38,8 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 		if result.Response.Execution.Usage == nil || result.Response.Execution.Usage.InputTokens != 30 {
 			t.Fatalf("neutral usage = %#v", result.Response.Execution.Usage)
 		}
+		requireObservedModel(t, result.Response.Execution, "canary-rerouted")
+		requireObservedInput(t, result.Response.Execution.Usage, 30)
 		details := result.Response.ProviderDetails.(codexcaller.Details)
 		if details.Run.Run.FinalResponse != `{"answer":true}` || len(details.Run.Run.Notifications) != 4 || details.Run.Run.Usage.Total.OutputTokens != 20 {
 			t.Fatalf("exact details = %#v", details.Run)
@@ -51,6 +53,7 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 		if err == nil || response.FinalResponse != "partial" || response.Execution.ProviderName != "codex" || response.Execution.EffectiveModel != "canary-start" {
 			t.Fatalf("response=%#v err=%v", response, err)
 		}
+		requireObservedModel(t, response.Execution, "canary-start")
 		details := response.ProviderDetails.(codexcaller.Details)
 		if details.Run.Run.Turn.Status != protocolv2.TurnStatusFailed || len(details.Run.Run.Notifications) < 2 {
 			t.Fatalf("partial exact details = %#v", details.Run)
@@ -85,6 +88,7 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 		if result.Response.ProviderDetails.(codexcaller.Details).Run.Run.Turn.Status != protocolv2.TurnStatusCompleted {
 			t.Fatalf("decode failure erased exact run: %#v", result.Response)
 		}
+		requireObservedModel(t, result.Response.Execution, "canary-rerouted")
 	})
 
 	t.Run("read-only profile is sent and verified before projection", func(t *testing.T) {
@@ -93,6 +97,33 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 		if _, err := caller.CallDetailed(context.Background(), validRequest()); err != nil {
 			t.Fatal(err)
 		}
+	})
+
+	t.Run("exact-details isolation failure keeps independent neutral facts", func(t *testing.T) {
+		requireLossAwareIsolation(t)
+		client := startCanaryClient(t, "success", codexsdk.ClientOptions{})
+		defer closeCanary(t, client)
+		caller, err := codexcaller.New(codexcaller.ReadOnlyEphemeralOptions(isolationFailureRunner{inner: client.ThreadRunner()}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err := llmadapter.ValueDetailed[struct {
+			Answer bool `json:"answer"`
+		}](context.Background(), caller, "answer")
+		if err == nil || !strings.Contains(err.Error(), "Turn.items") {
+			t.Fatalf("result=%#v err=%v, want exact-details isolation failure", result, err)
+		}
+		if result.Response.ProviderDetails != nil {
+			t.Fatalf("ProviderDetails = %#v, want omitted unisolated run", result.Response.ProviderDetails)
+		}
+		if result.Response.FinalResponse != `{"answer":true}` || result.Response.Execution.ProviderName != "codex" || result.Response.Execution.EffectiveModel != "canary-rerouted" {
+			t.Fatalf("independent neutral evidence = %#v", result.Response)
+		}
+		if result.Response.Execution.Usage == nil || result.Response.Execution.Usage.InputTokens != 30 {
+			t.Fatalf("usage = %#v, want independently isolated usage", result.Response.Execution.Usage)
+		}
+		requireObservedModel(t, result.Response.Execution, "canary-rerouted")
+		requireObservedInput(t, result.Response.Execution.Usage, 30)
 	})
 
 	t.Run("stream rejects mismatched profile before turn/start", func(t *testing.T) {
@@ -398,7 +429,7 @@ type canaryClient interface {
 	Close() error
 }
 
-func canaryCaller(t *testing.T, scenario string, options codexsdk.ClientOptions) (canaryClient, *codexcaller.Caller) {
+func startCanaryClient(t *testing.T, scenario string, options codexsdk.ClientOptions) canaryClient {
 	t.Helper()
 	if options.CWD == "" {
 		options.CWD = t.TempDir()
@@ -408,12 +439,34 @@ func canaryCaller(t *testing.T, scenario string, options codexsdk.ClientOptions)
 	if err != nil {
 		t.Fatalf("start fake app-server: %v", err)
 	}
+	return client
+}
+
+func canaryCaller(t *testing.T, scenario string, options codexsdk.ClientOptions) (canaryClient, *codexcaller.Caller) {
+	t.Helper()
+	client := startCanaryClient(t, scenario, options)
 	caller, err := codexcaller.New(codexcaller.ReadOnlyEphemeralOptions(client.ThreadRunner()))
 	if err != nil {
 		client.Close()
 		t.Fatal(err)
 	}
 	return client, caller
+}
+
+type isolationFailureRunner struct {
+	inner codexsdk.ThreadRunner
+}
+
+func (runner isolationFailureRunner) Start(ctx context.Context, request codexsdk.StartThreadRunRequest) (codexsdk.StartedThreadRun, error) {
+	run, err := runner.inner.Start(ctx, request)
+	run.Run.Turn = protocolv2.Turn{
+		ID: run.Run.Turn.ID, StartedAt: protocolv2.Value(int64(1)), Status: protocolv2.TurnStatusInProgress,
+	}
+	return run, err
+}
+
+func (runner isolationFailureRunner) StartStream(ctx context.Context, request codexsdk.StartThreadRunRequest) (*codexsdk.Stream[codexsdk.StartedThreadRun], error) {
+	return runner.inner.StartStream(ctx, request)
 }
 
 func validRequest() llmadapter.Request {
@@ -434,6 +487,40 @@ func requirePreTurnAdmission(t *testing.T) {
 	t.Helper()
 	if _, ok := reflect.TypeOf(codexsdk.StartThreadRunRequest{}).FieldByName("AdmitTurn"); !ok {
 		t.Skip("published SDK tuple does not expose AdmitTurn")
+	}
+}
+
+func requireLossAwareIsolation(t *testing.T) {
+	t.Helper()
+	var evidence llmadapter.ExecutionEvidence
+	if _, ok := any(&evidence).(interface{ ObserveModel(string) }); !ok {
+		t.Skip("published toolkit tuple does not expose ObserveModel")
+	}
+}
+
+func requireObservedModel(t *testing.T, evidence llmadapter.ExecutionEvidence, want string) {
+	t.Helper()
+	if _, ok := reflect.TypeOf(evidence).FieldByName("Model"); !ok {
+		return
+	}
+	field := reflect.ValueOf(evidence).FieldByName("Model")
+	results := field.MethodByName("Value").Call(nil)
+	if !results[1].Bool() || results[0].String() != want {
+		t.Fatalf("Model = (%v, %v), want observed %q", results[0], results[1], want)
+	}
+}
+
+func requireObservedInput(t *testing.T, usage *llmadapter.TokenUsage, want int64) {
+	t.Helper()
+	if usage == nil {
+		return
+	}
+	if _, ok := reflect.TypeOf(*usage).FieldByName("Input"); !ok {
+		return
+	}
+	results := reflect.ValueOf(*usage).FieldByName("Input").MethodByName("Value").Call(nil)
+	if !results[1].Bool() || results[0].Int() != want {
+		t.Fatalf("Input = (%v, %v), want observed %d", results[0], results[1], want)
 	}
 }
 

@@ -4,6 +4,14 @@ This project follows Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Breaking (pre-v1):** project each provider-neutral fact from independently
+  isolated Codex evidence. Failure to isolate exact Provider details no longer
+  erases attributable effective-model or usage evidence. Observed token zeros
+  stay distinct from unreported dimensions when the toolkit exposes
+  `Observation`.
+
 ### Changed
 
 - **Breaking (pre-v1):** construct a provider-neutral `Caller` only with a

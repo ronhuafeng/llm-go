@@ -60,6 +60,35 @@ type ExecutionEvidence struct {
 	Usage *TokenUsage
 }
 
+// ObserveCounts records the four total token dimensions as present,
+// including an observed zero. It also writes the leftover scalar views.
+// Requested, default, or estimated counts must not be passed here.
+func (u *TokenUsage) ObserveCounts(input, cachedInput, output, reasoningOutput int64) {
+	if u == nil {
+		return
+	}
+	u.InputTokens = input
+	u.CachedInputTokens = cachedInput
+	u.OutputTokens = output
+	u.ReasoningOutputTokens = reasoningOutput
+	u.Input = Observed(input)
+	u.CachedInput = Observed(cachedInput)
+	u.Output = Observed(output)
+	u.ReasoningOutput = Observed(reasoningOutput)
+}
+
+// ObserveModel records the served model identifier as present, including
+// an observed empty string. It also writes the leftover EffectiveModel
+// scalar. Requested, default, heuristic, or inferred names must not be
+// passed here.
+func (e *ExecutionEvidence) ObserveModel(model string) {
+	if e == nil {
+		return
+	}
+	e.EffectiveModel = model
+	e.Model = Observed(model)
+}
+
 // Caller is a provider-neutral inference capability. It asks a model for a
 // typed proposition and publishes evidence. It does not grant mutation
 // authority. An implementation may satisfy Caller only when any

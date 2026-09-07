@@ -20,7 +20,7 @@ _Avoid_: Result snapshot
 
 **Exact snapshot**:
 Isolated exact Codex facts published without the Effective profile
-postcondition.
+postcondition. Neutral facts are admitted independently of this snapshot.
 _Avoid_: Validated result
 
 **Schema policy**:
