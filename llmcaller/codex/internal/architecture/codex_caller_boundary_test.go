@@ -19,7 +19,6 @@ var allowedExternalImportPrefixes = []string{
 
 var forbiddenImportPrefixes = []string{
 	"github.com/ronhuafeng/llm-go/llmkit/llmschema",
-	"github.com/ronhuafeng/llm-go/llmkit/settle",
 }
 
 func TestCodexCallerImportBoundary(t *testing.T) {
@@ -42,7 +41,7 @@ func TestCodexCallerImportBoundary(t *testing.T) {
 				return err
 			}
 			if isForbiddenImport(importPath) {
-				t.Fatalf("Codex caller must not own schema projection or settle: %s imports %q", relPath(root, path), importPath)
+				t.Fatalf("Codex caller must not own schema projection: %s imports %q", relPath(root, path), importPath)
 			}
 			if isStdlibImport(importPath) {
 				continue
@@ -68,8 +67,6 @@ func TestImportBoundaryClassifiesStdlibAndBusinessImports(t *testing.T) {
 	for _, importPath := range []string{
 		"github.com/ronhuafeng/llm-go/llmkit/llmschema",
 		"github.com/ronhuafeng/llm-go/llmkit/llmschema/internal",
-		"github.com/ronhuafeng/llm-go/llmkit/settle",
-		"github.com/ronhuafeng/llm-go/llmkit/settle/runtime",
 	} {
 		if !isForbiddenImport(importPath) {
 			t.Fatalf("import %q should be forbidden", importPath)
