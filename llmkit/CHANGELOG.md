@@ -11,6 +11,12 @@ changes may occur in minor releases.
   `ValueWithContract` as the explicit Contract-reuse path. Both return the
   same evidence-bearing result.
 
+### Removed
+
+- **Breaking (pre-v1):** remove `llmadapter.RequestFor`. Construct `Request`
+  from prompt text and an owned `Contract.SchemaJSON()` when calling
+  `Caller.Call` directly. `SchemaJSONFor` and one-shot `Decode` remain.
+
 ## [0.11.0] - 2026-09-07
 
 ### Added

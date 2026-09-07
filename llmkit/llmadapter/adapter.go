@@ -144,17 +144,6 @@ type ValueResult[T any] struct {
 	Response Response
 }
 
-func RequestFor[T any](prompt string) (Request, error) {
-	schema, err := llmschema.SchemaJSONFor[T]()
-	if err != nil {
-		return Request{}, err
-	}
-	return Request{
-		Prompt:       prompt,
-		OutputSchema: schema,
-	}, nil
-}
-
 // Value is the default typed-inference path. It compiles one Contract and
 // returns the same evidence-bearing ValueResult as ValueWithContract.
 func Value[T any](ctx context.Context, caller Caller, prompt string) (ValueResult[T], error) {

@@ -53,7 +53,8 @@
 // rule belongs to the adapter because llmadapter cannot know provider-specific
 // value semantics.
 //
-// Trace-rich business provider adapters may use RequestFor and still call a
-// provider SDK directly when they must preserve provider-specific diagnostics,
-// lineage, artifacts, or failure mapping.
+// Callers that invoke Caller.Call directly construct Request from prompt
+// text and an owned Contract's SchemaJSON when the same typed schema must
+// also decode the response. SchemaJSONFor remains available for one-shot
+// schema projection that does not need a compiled validator.
 package llmadapter

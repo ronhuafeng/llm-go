@@ -200,23 +200,6 @@ func TestValueProjectsSchemaCallsBackendAndDecodes(t *testing.T) {
 	}
 }
 
-func TestRequestForProjectsTypedOutputSchema(t *testing.T) {
-	type verdict struct {
-		Status string `json:"status,omitempty"`
-	}
-
-	request, err := RequestFor[verdict]("review")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if request.Prompt != "review" {
-		t.Fatalf("prompt = %q", request.Prompt)
-	}
-	if !strings.Contains(string(request.OutputSchema), `"status"`) {
-		t.Fatalf("schema should include struct field: %s", request.OutputSchema)
-	}
-}
-
 func TestValueWithContractUsesOwnedSchemaAndDecode(t *testing.T) {
 	type verdict struct {
 		Status string `json:"status"`
