@@ -4,6 +4,11 @@ This project follows Semantic Versioning.
 
 ## [Unreleased]
 
+### Changed
+
+- Require the published `llmkit v0.10.0` module so `GOWORK=off` consumers
+  compile against `Value`, `Run`, and `ErrExhausted`.
+
 ## [0.8.0] - 2026-09-07
 
 ### Changed

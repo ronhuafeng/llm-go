@@ -12,7 +12,7 @@ The Codex adapter is licensed under the MIT License. See `LICENSE`.
 
 | Module | Version | Relationship | Provenance | License |
 | --- | --- | --- | --- | --- |
-| `github.com/ronhuafeng/llm-go/llmkit` | `v0.9.0` | Direct | Go module declared in `go.mod`; provider-neutral typed request, schema, decode, validation, and retry primitives. | MIT |
+| `github.com/ronhuafeng/llm-go/llmkit` | `v0.10.0` | Direct | Go module declared in `go.mod`; provider-neutral typed request, schema, decode, validation, and retry primitives. | MIT |
 | `github.com/ronhuafeng/llm-go/codexsdk` | `v0.8.0` | Direct | Go module declared in `go.mod`; exact Codex app-server protocol, transport, and lifecycle API. | MIT |
 | `github.com/google/jsonschema-go` | `v0.4.3` | Indirect | Go module declared as indirect in `go.mod`; JSON Schema support used by the typed schema stack. | MIT |
 | `github.com/santhosh-tekuri/jsonschema/v6` | `v6.0.2` | Direct | Strict JSON Schema validation used by the typed schema stack. | MIT |
