@@ -490,7 +490,9 @@ func TestCallOmitsProviderDetailsWhenSnapshotFails(t *testing.T) {
 	run := validStartedRun("safe-final", "safe-model")
 	run.Run.Turn = unisolatableTurn()
 	run.Run.Notifications = []protocolv2.ServerNotification{modelRerouted("safe-model", "isolated-reroute")}
-	run.Run.Usage = &protocolv2.ThreadTokenUsage{Total: protocolv2.TokenUsageBreakdown{InputTokens: 3}}
+	run.Run.Usage = &protocolv2.ThreadTokenUsage{Total: protocolv2.TokenUsageBreakdown{
+		InputTokens: 3, CachedInputTokens: 0, OutputTokens: 0, ReasoningOutputTokens: 0,
+	}}
 	runner := &fakeRunner{result: run}
 	caller, err := New(ReadOnlyEphemeralOptions(runner))
 	if err != nil {
@@ -521,16 +523,17 @@ func TestCallOmitsProviderDetailsWhenSnapshotFails(t *testing.T) {
 
 func TestCallPreservesRerouteWhenUnrelatedNotificationIsMalformed(t *testing.T) {
 	run := validStartedRun("ok", "safe-model")
-	run.Run.Turn = unisolatableTurn()
 	run.Run.Notifications = []protocolv2.ServerNotification{
 		{},
 		modelRerouted("safe-model", "from-good-reroute"),
 	}
-	run.Run.Usage = &protocolv2.ThreadTokenUsage{Total: protocolv2.TokenUsageBreakdown{InputTokens: 0, OutputTokens: 0}}
+	run.Run.Usage = &protocolv2.ThreadTokenUsage{Total: protocolv2.TokenUsageBreakdown{
+		InputTokens: 0, CachedInputTokens: 0, OutputTokens: 0, ReasoningOutputTokens: 0,
+	}}
 	caller := newReadOnlyEphemeralCaller(t, &fakeRunner{result: run})
 	response, err := caller.Call(context.Background(), validRequest())
-	if err == nil || !strings.Contains(err.Error(), "Turn.items") {
-		t.Fatalf("Call error = %v, want snapshot failure", err)
+	if err == nil || !strings.Contains(err.Error(), "ServerNotification") {
+		t.Fatalf("Call error = %v, want notification isolation failure", err)
 	}
 	if response.ProviderDetails != nil {
 		t.Fatalf("ProviderDetails = %#v, want omitted exact details", response.ProviderDetails)

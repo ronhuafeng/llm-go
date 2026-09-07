@@ -54,6 +54,9 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 			t.Fatalf("response=%#v err=%v", response, err)
 		}
 		requireObservedModel(t, response.Execution, "canary-start")
+		if response.Execution.Usage != nil {
+			t.Fatalf("usage = %#v, want unreported on provider failure", response.Execution.Usage)
+		}
 		details := response.ProviderDetails.(codexcaller.Details)
 		if details.Run.Run.Turn.Status != protocolv2.TurnStatusFailed || len(details.Run.Run.Notifications) < 2 {
 			t.Fatalf("partial exact details = %#v", details.Run)
@@ -88,7 +91,14 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 		if result.Response.ProviderDetails.(codexcaller.Details).Run.Run.Turn.Status != protocolv2.TurnStatusCompleted {
 			t.Fatalf("decode failure erased exact run: %#v", result.Response)
 		}
+		if result.Response.Execution.EffectiveModel != "canary-rerouted" {
+			t.Fatalf("decode failure erased effective model: %#v", result.Response.Execution)
+		}
+		if result.Response.Execution.Usage == nil || result.Response.Execution.Usage.InputTokens != 30 {
+			t.Fatalf("decode failure erased usage: %#v", result.Response.Execution.Usage)
+		}
 		requireObservedModel(t, result.Response.Execution, "canary-rerouted")
+		requireObservedInput(t, result.Response.Execution.Usage, 30)
 	})
 
 	t.Run("read-only profile is sent and verified before projection", func(t *testing.T) {
@@ -492,9 +502,9 @@ func requirePreTurnAdmission(t *testing.T) {
 
 func requireLossAwareIsolation(t *testing.T) {
 	t.Helper()
-	var evidence llmadapter.ExecutionEvidence
-	if _, ok := any(&evidence).(interface{ ObserveModel(string) }); !ok {
-		t.Skip("published toolkit tuple does not expose ObserveModel")
+	var caller *codexcaller.Caller
+	if _, ok := any(caller).(interface{ IsolatesNeutralFacts() bool }); !ok {
+		t.Skip("published adapter tuple does not isolate independent neutral facts after exact-details failure")
 	}
 }
 

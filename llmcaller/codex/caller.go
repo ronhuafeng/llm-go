@@ -218,6 +218,10 @@ func ReadOnlyEphemeralOptions(runner ThreadRunner) Options {
 	}
 }
 
+// IsolatesNeutralFacts reports that Call projects independently isolated
+// model and usage evidence when exact Provider details cannot be snapshotted.
+func (*Caller) IsolatesNeutralFacts() bool { return true }
+
 // Call executes the detailed path and projects its available neutral facts.
 func (c *Caller) Call(ctx context.Context, request llmadapter.Request) (llmadapter.Response, error) {
 	run, runErr := c.startRun(ctx, request)
@@ -225,11 +229,10 @@ func (c *Caller) Call(ctx context.Context, request llmadapter.Request) (llmadapt
 		return llmadapter.Response{}, runErr
 	}
 	cloned, cloneErr := cloneStartedRun(run)
-	profileRun := cloned
 	if cloneErr != nil {
-		profileRun = run
+		return projectNeutralResponse(run, cloned, cloneErr), errors.Join(runErr, cloneErr)
 	}
-	profileErr := c.validateProfile(profileRun, runErr)
+	profileErr := c.validateProfile(cloned, runErr)
 	return projectNeutralResponse(run, cloned, cloneErr), errors.Join(runErr, cloneErr, profileErr)
 }
 
