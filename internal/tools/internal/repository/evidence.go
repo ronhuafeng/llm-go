@@ -274,6 +274,7 @@ func VerifyCheckout(root string, plan AffectedPlan) (Evidence, error) {
 		"public proxy availability",
 		"module checksum database records",
 		"published README self-version",
+		"documented-example compilation against the published zip",
 	}
 	if err = recorder.check("source identity", []string{"git", "diff", "--quiet", "HEAD", "--"}, func() error {
 		return verifySourceIdentity(root, map[string]bool{"affected-plan.json": true})
@@ -313,6 +314,13 @@ func VerifyCheckout(root string, plan AffectedPlan) (Evidence, error) {
 			return verifySourceConsumer(root, candidate)
 		}); err != nil {
 			return recorder.evidence, err
+		}
+		if candidate.ID == "llmkit" {
+			if err = recorder.check("documented examples against published install: "+affected.ID, []string{"go", "test", "<documented published examples>"}, func() error {
+				return verifyDocumentedExamples(root, candidate)
+			}); err != nil {
+				return recorder.evidence, err
+			}
 		}
 	}
 	if err = recorder.check("final source identity", []string{"git", "diff", "--quiet", "HEAD", "--"}, func() error {
