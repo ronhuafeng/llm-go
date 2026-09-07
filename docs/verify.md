@@ -19,8 +19,11 @@ tests under `cmd` and `internal`, the three-layer canary, and one isolated
 consumer per affected public module. Consumers replace only the module under
 test. Upstream versions stay those in that module's `go.mod`. When llmkit is
 affected, checkout also compiles current `example_test.go` files against the
-README install version with `GOWORK=off` and no `replace`. That is
-consumer-facing documentation evidence, not proxy zip identity.
+README install version with `GOWORK=off` and no `replace`. If that version is
+not yet on the public proxy and the module has already archived fragments for
+it, checkout skips the compile; `verify-tag` compiles the zip examples after
+the tag exists. That is consumer-facing documentation evidence, not proxy zip
+identity.
 Integration tests belong to the workspace canary, not the GOWORK=off
 tool-test sweep.
 

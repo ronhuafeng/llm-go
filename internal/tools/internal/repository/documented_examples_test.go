@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,6 +31,46 @@ func TestDocumentedLLMKitExamplesCompileAgainstPublishedInstall(t *testing.T) {
 	}
 	if err := verifyDocumentedExamples(root, candidate); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestUnpublishedInstallClassification(t *testing.T) {
+	if unpublishedInstall(nil) {
+		t.Fatal("nil is published")
+	}
+	if !unpublishedInstall(fmt.Errorf("go list -m -json github.com/ronhuafeng/llm-go/llmkit@v0.12.0: exit status 1: go: github.com/ronhuafeng/llm-go/llmkit@v0.12.0: GOVCS disallows using git")) {
+		t.Fatal("GOVCS denial is unpublished")
+	}
+	if unpublishedInstall(fmt.Errorf("go list -m -json: exit status 1: dial tcp: i/o timeout")) {
+		t.Fatal("network failure is not unpublished")
+	}
+}
+
+func TestDocumentedExamplesSkipUnpublishedArchivedInstall(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "mod/README.md", "go get github.com/ronhuafeng/llm-go/llmkit@v9.9.9\n")
+	writeFile(t, root, "mod/example_test.go", "package undocumented_test\n")
+	writeFile(t, root, "mod/.changes/releases/v9.9.9/pending.json", `{"format_version":1}`+"\n")
+	candidate := module{
+		ID: "pending", Dir: "mod", Published: true,
+		path: "github.com/ronhuafeng/llm-go/llmkit",
+	}
+	if err := verifyDocumentedExamples(root, candidate); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDocumentedExamplesRejectUnpublishedInstallWithoutArchive(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "mod/README.md", "go get github.com/ronhuafeng/llm-go/llmkit@v9.9.9\n")
+	writeFile(t, root, "mod/example_test.go", "package undocumented_test\n")
+	candidate := module{
+		ID: "pending", Dir: "mod", Published: true,
+		path: "github.com/ronhuafeng/llm-go/llmkit",
+	}
+	err := verifyDocumentedExamples(root, candidate)
+	if err == nil || !strings.Contains(err.Error(), "llmkit@v9.9.9") {
+		t.Fatalf("error = %v, want unresolved published tuple", err)
 	}
 }
 

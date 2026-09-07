@@ -89,7 +89,74 @@ func verifyDocumentedExamples(root string, candidate module) error {
 	if err != nil {
 		return fmt.Errorf("module %s: %w", candidate.ID, err)
 	}
+	pending, err := unpublishedArchivedInstall(moduleRoot, candidate.path, version)
+	if err != nil {
+		return fmt.Errorf("module %s: %w", candidate.ID, err)
+	}
+	if pending {
+		return nil
+	}
 	return compileExamplesAgainstPublished(moduleRoot, examples, candidate.path, version)
+}
+
+func unpublishedArchivedInstall(moduleRoot, modulePath, version string) (bool, error) {
+	if !archivedReleaseFragments(moduleRoot, version) {
+		return false, nil
+	}
+	err := probePublishedInstall(modulePath, version)
+	if err == nil {
+		return false, nil
+	}
+	if unpublishedInstall(err) {
+		return true, nil
+	}
+	return false, err
+}
+
+func archivedReleaseFragments(moduleRoot, version string) bool {
+	matches, err := filepath.Glob(filepath.Join(moduleRoot, ".changes", "releases", version, "*.json"))
+	return err == nil && len(matches) > 0
+}
+
+func probePublishedInstall(modulePath, version string) error {
+	if modulePath == "" || version == "" {
+		return fmt.Errorf("published install probe is missing a module path or version")
+	}
+	temporary, err := os.MkdirTemp("", "llm-go-published-install-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(temporary)
+	runner := commandRunner{directory: temporary, environment: publishedConsumerEnvironment()}
+	if err := runner.run("go", "mod", "init", "example.test/published-install"); err != nil {
+		return err
+	}
+	if _, err := runner.output("go", "list", "-m", "-json", modulePath+"@"+version); err != nil {
+		return err
+	}
+	return nil
+}
+
+func unpublishedInstall(err error) bool {
+	if err == nil {
+		return false
+	}
+	text := err.Error()
+	return strings.Contains(text, "GOVCS disallows") ||
+		strings.Contains(text, "cannot find module") ||
+		strings.Contains(text, "unknown revision") ||
+		strings.Contains(text, "invalid version") ||
+		strings.Contains(text, "no matching versions")
+}
+
+func publishedConsumerEnvironment() map[string]string {
+	return map[string]string{
+		"GOWORK":      "off",
+		"GOTOOLCHAIN": "local",
+		"GOPROXY":     "https://proxy.golang.org,direct",
+		"GOSUMDB":     "sum.golang.org",
+		"GOVCS":       "*:off",
+	}
 }
 
 func compileExamplesAgainstPublished(moduleRoot string, examples []string, modulePath, version string) error {
@@ -98,13 +165,7 @@ func compileExamplesAgainstPublished(moduleRoot string, examples []string, modul
 		return err
 	}
 	defer os.RemoveAll(temporary)
-	runner := commandRunner{directory: temporary, environment: map[string]string{
-		"GOWORK":      "off",
-		"GOTOOLCHAIN": "local",
-		"GOPROXY":     "https://proxy.golang.org,direct",
-		"GOSUMDB":     "sum.golang.org",
-		"GOVCS":       "*:off",
-	}}
+	runner := commandRunner{directory: temporary, environment: publishedConsumerEnvironment()}
 	if err := runner.run("go", "mod", "init", "example.test/documented-examples"); err != nil {
 		return err
 	}
