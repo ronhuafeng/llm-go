@@ -67,7 +67,7 @@ roots, and all other non-profile generated defaults remain caller-controlled.
 ## Result Paths
 
 - `Call` implements `llmadapter.Caller` and projects final text, provider name,
-  effective model, and total token usage.
+  observed model, and observed token usage.
 - `CallDetailed` returns the exact `codexsdk.StartedThreadRun` and is the core
   execution path.
 - `CallStream` returns an adapter-owned exact stream wrapper and uses the same
@@ -82,10 +82,10 @@ error cause chain.
 If an exact run cannot be isolated, `Call` returns the snapshot error and omits
 `ProviderDetails` rather than publishing mutable runner state. Neutral facts
 that can themselves be isolated stay published: final text, provider name,
-thread-start or independently isolated `model/rerouted` effective model, and
-cloned total token usage. Requested or default model values never fill an
-unknown observation. An observed zero token count stays distinct from an
-unreported dimension.
+thread-start or independently isolated `model/rerouted` model, and cloned
+total token usage. Requested or default model values never fill an unknown
+observation. An observed zero token count stays distinct from an unreported
+dimension.
 
 Requested-policy enforcement happens before transport for `Call`,
 `CallDetailed`, and `CallStream`: no explicitly conflicting named-profile

@@ -372,8 +372,8 @@ func projectNeutralResponse(run, cloned codexsdk.StartedThreadRun, cloneErr erro
 			ProviderName: "codex",
 		},
 	}
-	if model, ok := isolatedEffectiveModel(run); ok {
-		recordObservedModel(&response.Execution, model)
+	if model, ok := isolatedServedModel(run); ok {
+		response.Execution.ObserveModel(model)
 	}
 	if usage, err := isolatedNeutralUsage(run.Run.Usage); err == nil {
 		response.Execution.Usage = usage
@@ -384,7 +384,7 @@ func projectNeutralResponse(run, cloned codexsdk.StartedThreadRun, cloneErr erro
 	return response
 }
 
-func isolatedEffectiveModel(run codexsdk.StartedThreadRun) (string, bool) {
+func isolatedServedModel(run codexsdk.StartedThreadRun) (string, bool) {
 	var model string
 	ok := !reflect.DeepEqual(run.Start, protocolv2.ThreadStartResponse{})
 	if ok {
@@ -414,10 +414,6 @@ func isolatedNeutralUsage(usage *protocolv2.ThreadTokenUsage) (*llmadapter.Token
 	projected := &llmadapter.TokenUsage{}
 	projected.ObserveCounts(cloned.Total.InputTokens, cloned.Total.CachedInputTokens, cloned.Total.OutputTokens, cloned.Total.ReasoningOutputTokens)
 	return projected, nil
-}
-
-func recordObservedModel(evidence *llmadapter.ExecutionEvidence, model string) {
-	evidence.ObserveModel(model)
 }
 
 func hasRunEvidence(run codexsdk.StartedThreadRun, runErr error) bool {

@@ -777,7 +777,13 @@ func main() {
 	if !ok || !reflect.DeepEqual(details.Run, want) {
 		panic(fmt.Sprintf("exact SDK result was not preserved: %#v", result.Response.ProviderDetails))
 	}
-	if result.Value.Answer != "verified" || result.Response.Execution.ProviderName != "codex" || result.Response.Execution.EffectiveModel != "proxy-model" || result.Response.Execution.Usage == nil || result.Response.Execution.Usage.InputTokens != 11 {
+	model, modelOK := result.Response.Execution.Model.Value()
+	var input int64
+	var inputOK bool
+	if result.Response.Execution.Usage != nil {
+		input, inputOK = result.Response.Execution.Usage.Input.Value()
+	}
+	if result.Value.Answer != "verified" || result.Response.Execution.ProviderName != "codex" || !modelOK || model != "proxy-model" || !inputOK || input != 11 {
 		panic(fmt.Sprintf("neutral typed evidence was not preserved: %#v", result))
 	}
 	attestation := struct {
@@ -791,8 +797,8 @@ func main() {
 		ExactResultPreserved bool   ` + "`json:\"exact_result_preserved\"`" + `
 	}{
 		Kind: "typed_three_layer_call", TypedValue: result.Value.Answer,
-		ProviderName: result.Response.Execution.ProviderName, EffectiveModel: result.Response.Execution.EffectiveModel,
-		NeutralInputTokens: result.Response.Execution.Usage.InputTokens,
+		ProviderName: result.Response.Execution.ProviderName, EffectiveModel: model,
+		NeutralInputTokens: input,
 		ExactThreadID: details.Run.Start.Thread.ID, ExactTurnID: details.Run.Run.Turn.ID,
 		ExactResultPreserved: true,
 	}

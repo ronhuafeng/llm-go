@@ -25,19 +25,13 @@ type ProviderDetails interface {
 // not a billing estimate, remaining-budget figure, or reconstructed
 // heuristic.
 //
-// Input, CachedInput, Output, and ReasoningOutput are presence-aware.
-// Unknown means the provider did not report that count; Observed(0) is an
-// explicit zero. The int64 fields do not establish presence; they remain
-// only so unpublished adapters keep compiling until they migrate.
+// Each dimension is presence-aware. Unknown means the provider did not
+// report that count; Observed(0) is an explicit zero.
 type TokenUsage struct {
-	InputTokens           int64
-	CachedInputTokens     int64
-	OutputTokens          int64
-	ReasoningOutputTokens int64
-	Input                 Observation[int64]
-	CachedInput           Observation[int64]
-	Output                Observation[int64]
-	ReasoningOutput       Observation[int64]
+	Input           Observation[int64]
+	CachedInput     Observation[int64]
+	Output          Observation[int64]
+	ReasoningOutput Observation[int64]
 }
 
 // ExecutionEvidence is provider-neutral facts attributable to one model
@@ -46,9 +40,6 @@ type TokenUsage struct {
 // unknown; requested settings do not fill them.
 type ExecutionEvidence struct {
 	ProviderName string
-	// EffectiveModel does not establish presence. It remains only so
-	// unpublished adapters keep compiling until they migrate.
-	EffectiveModel string
 	// Model is the provider model identifier that actually served the
 	// request. Unknown means the provider did not report one. It is not
 	// inferred from the prompt and is not a capability or pricing lookup
@@ -61,16 +52,12 @@ type ExecutionEvidence struct {
 }
 
 // ObserveCounts records the four total token dimensions as present,
-// including an observed zero. It also writes the leftover scalar views.
-// Requested, default, or estimated counts must not be passed here.
+// including an observed zero. Requested, default, or estimated counts
+// must not be passed here.
 func (u *TokenUsage) ObserveCounts(input, cachedInput, output, reasoningOutput int64) {
 	if u == nil {
 		return
 	}
-	u.InputTokens = input
-	u.CachedInputTokens = cachedInput
-	u.OutputTokens = output
-	u.ReasoningOutputTokens = reasoningOutput
 	u.Input = Observed(input)
 	u.CachedInput = Observed(cachedInput)
 	u.Output = Observed(output)
@@ -78,14 +65,12 @@ func (u *TokenUsage) ObserveCounts(input, cachedInput, output, reasoningOutput i
 }
 
 // ObserveModel records the served model identifier as present, including
-// an observed empty string. It also writes the leftover EffectiveModel
-// scalar. Requested, default, heuristic, or inferred names must not be
-// passed here.
+// an observed empty string. Requested, default, heuristic, or inferred
+// names must not be passed here.
 func (e *ExecutionEvidence) ObserveModel(model string) {
 	if e == nil {
 		return
 	}
-	e.EffectiveModel = model
 	e.Model = Observed(model)
 }
 

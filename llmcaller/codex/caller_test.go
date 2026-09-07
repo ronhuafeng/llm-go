@@ -113,9 +113,14 @@ func requireObservedInput(t *testing.T, usage *llmadapter.TokenUsage, want int64
 	if usage == nil {
 		t.Fatal("Usage = nil, want observed Input")
 	}
-	got, ok := usage.Input.Value()
-	if !ok || got != want {
-		t.Fatalf("Input = (%d, %t), want observed %d", got, ok, want)
+	requireObservedCount(t, usage.Input, want)
+}
+
+func requireObservedCount(t *testing.T, got llmadapter.Observation[int64], want int64) {
+	t.Helper()
+	value, ok := got.Value()
+	if !ok || value != want {
+		t.Fatalf("count = (%d, %t), want observed %d", value, ok, want)
 	}
 }
 
@@ -232,14 +237,12 @@ func TestCallerBuildsExactRequestAndProjectsEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.FinalResponse != "final" || response.Execution.ProviderName != "codex" || response.Execution.EffectiveModel != "gpt-rerouted" {
+	if response.FinalResponse != "final" || response.Execution.ProviderName != "codex" {
 		t.Fatalf("response = %#v", response)
-	}
-	if response.Execution.Usage == nil || response.Execution.Usage.InputTokens != 11 || response.Execution.Usage.ReasoningOutputTokens != 2 {
-		t.Fatalf("neutral usage = %#v", response.Execution.Usage)
 	}
 	requireObservedModel(t, response.Execution, "gpt-rerouted")
 	requireObservedInput(t, response.Execution.Usage, 11)
+	requireObservedCount(t, response.Execution.Usage.ReasoningOutput, 2)
 	details, ok := response.ProviderDetails.(Details)
 	if !ok || details.ProviderName() != "codex" || !reflect.DeepEqual(details.Run, run) {
 		t.Fatalf("details = %#v", response.ProviderDetails)
@@ -269,7 +272,7 @@ func TestCallerPreservesStartOnlyPartialEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	response, err := caller.Call(context.Background(), validRequest())
-	if !errors.Is(err, providerErr) || response.Execution.EffectiveModel != "effective-model" {
+	if !errors.Is(err, providerErr) {
 		t.Fatalf("response=%#v err=%v", response, err)
 	}
 	requireObservedModel(t, response.Execution, "effective-model")
@@ -417,19 +420,15 @@ func TestCallOmitsProviderDetailsWhenSnapshotFails(t *testing.T) {
 	if response.ProviderDetails != nil {
 		t.Fatalf("ProviderDetails = %#v, want no unisolated run", response.ProviderDetails)
 	}
-	if response.FinalResponse != "safe-final" || response.Execution.ProviderName != "codex" || response.Execution.EffectiveModel != "isolated-reroute" {
+	if response.FinalResponse != "safe-final" || response.Execution.ProviderName != "codex" {
 		t.Fatalf("independent neutral evidence = %#v", response)
-	}
-	if response.Execution.Usage == nil || response.Execution.Usage.InputTokens != 3 {
-		t.Fatalf("usage = %#v, want independently isolated usage", response.Execution.Usage)
 	}
 	requireObservedModel(t, response.Execution, "isolated-reroute")
 	requireObservedInput(t, response.Execution.Usage, 3)
 	runner.result.Run.Usage.Total.InputTokens = 99
 	runner.result.Start.Model = "mutated-start"
-	if response.Execution.Usage.InputTokens != 3 || response.Execution.EffectiveModel != "isolated-reroute" {
-		t.Fatalf("published neutral evidence aliased runner state: %#v", response.Execution)
-	}
+	requireObservedModel(t, response.Execution, "isolated-reroute")
+	requireObservedInput(t, response.Execution.Usage, 3)
 }
 
 func TestCallPreservesRerouteWhenUnrelatedNotificationIsMalformed(t *testing.T) {
@@ -449,12 +448,6 @@ func TestCallPreservesRerouteWhenUnrelatedNotificationIsMalformed(t *testing.T) 
 	if response.ProviderDetails != nil {
 		t.Fatalf("ProviderDetails = %#v, want omitted exact details", response.ProviderDetails)
 	}
-	if response.Execution.EffectiveModel != "from-good-reroute" {
-		t.Fatalf("effective model = %q, want independently isolated reroute", response.Execution.EffectiveModel)
-	}
-	if response.Execution.Usage == nil || response.Execution.Usage.InputTokens != 0 {
-		t.Fatalf("usage = %#v, want observed zero", response.Execution.Usage)
-	}
 	requireObservedModel(t, response.Execution, "from-good-reroute")
 	requireObservedInput(t, response.Execution.Usage, 0)
 }
@@ -473,9 +466,6 @@ func TestCallDoesNotFillUnknownModelFromRequestedDefault(t *testing.T) {
 	response, err := caller.Call(context.Background(), validRequest())
 	if err != nil {
 		t.Fatal(err)
-	}
-	if response.Execution.EffectiveModel != "" {
-		t.Fatalf("EffectiveModel = %q, want unknown; requested model must not fill observation", response.Execution.EffectiveModel)
 	}
 	requireUnknownModel(t, response.Execution)
 }
@@ -659,9 +649,10 @@ func TestCallValidatesDecodedMissingThreadIDSandboxAndProjectsEvidence(t *testin
 
 	response, err := caller.Call(context.Background(), validRequest())
 	requireMissingThreadProfileError(t, err, "not read-only")
-	if response.Execution.ProviderName != "codex" || response.Execution.EffectiveModel != "decoded-model" {
+	if response.Execution.ProviderName != "codex" {
 		t.Fatalf("Call evidence = %#v, want decoded start projection", response.Execution)
 	}
+	requireObservedModel(t, response.Execution, "decoded-model")
 	details, ok := response.ProviderDetails.(Details)
 	if !ok || !reflect.DeepEqual(details.Run, partial) {
 		t.Fatalf("Call details = %#v, want exact partial evidence %#v", response.ProviderDetails, partial)
