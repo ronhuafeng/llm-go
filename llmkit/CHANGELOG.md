@@ -15,6 +15,8 @@ changes may occur in minor releases.
   populate an observation. Existing scalar `TokenUsage` and
   `EffectiveModel` fields do not establish presence and remain only so
   unpublished adapters keep compiling until they migrate.
+  `ExecutionEvidence.ObserveModel` and `TokenUsage.ObserveCounts` record
+  presence through `Observed` and keep those leftover scalars in sync.
 
 ### Changed
 

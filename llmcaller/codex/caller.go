@@ -218,6 +218,10 @@ func ReadOnlyEphemeralOptions(runner ThreadRunner) Options {
 	}
 }
 
+// IsolatesNeutralFacts reports that Call projects independently isolated
+// model and usage evidence when exact Provider details cannot be snapshotted.
+func (*Caller) IsolatesNeutralFacts() bool { return true }
+
 // Call executes the detailed path and projects its available neutral facts.
 func (c *Caller) Call(ctx context.Context, request llmadapter.Request) (llmadapter.Response, error) {
 	run, runErr := c.startRun(ctx, request)
@@ -226,10 +230,10 @@ func (c *Caller) Call(ctx context.Context, request llmadapter.Request) (llmadapt
 	}
 	cloned, cloneErr := cloneStartedRun(run)
 	if cloneErr != nil {
-		return safeResponseFromRun(run), errors.Join(runErr, cloneErr)
+		return projectNeutralResponse(run, cloned, cloneErr), errors.Join(runErr, cloneErr)
 	}
 	profileErr := c.validateProfile(cloned, runErr)
-	return responseFromRun(cloned), errors.Join(runErr, profileErr)
+	return projectNeutralResponse(run, cloned, cloneErr), errors.Join(runErr, cloneErr, profileErr)
 }
 
 // CallDetailed executes a structured call and returns the exact run, including
@@ -375,24 +379,78 @@ func admitReadOnlyEphemeralTurn(start protocolv2.ThreadStartResponse) error {
 }
 
 func responseFromRun(run codexsdk.StartedThreadRun) llmadapter.Response {
-	return llmadapter.Response{
+	cloned, cloneErr := cloneStartedRun(run)
+	return projectNeutralResponse(run, cloned, cloneErr)
+}
+
+func projectNeutralResponse(run, cloned codexsdk.StartedThreadRun, cloneErr error) llmadapter.Response {
+	response := llmadapter.Response{
 		FinalResponse: run.Run.FinalResponse,
 		Execution: llmadapter.ExecutionEvidence{
-			ProviderName:   "codex",
-			EffectiveModel: effectiveModel(run),
-			Usage:          neutralUsage(run.Run.Usage),
+			ProviderName: "codex",
 		},
-		ProviderDetails: Details{Run: run},
+	}
+	if model, ok := isolatedEffectiveModel(run); ok {
+		recordObservedModel(&response.Execution, model)
+	}
+	if usage, err := isolatedNeutralUsage(run.Run.Usage); err == nil {
+		response.Execution.Usage = usage
+	}
+	if cloneErr == nil {
+		response.ProviderDetails = Details{Run: cloned}
+	}
+	return response
+}
+
+func isolatedEffectiveModel(run codexsdk.StartedThreadRun) (string, bool) {
+	var model string
+	ok := !reflect.DeepEqual(run.Start, protocolv2.ThreadStartResponse{})
+	if ok {
+		model = run.Start.Model
+	}
+	for _, notification := range run.Run.Notifications {
+		var cloned protocolv2.ServerNotification
+		if err := cloneGenerated(notification, &cloned); err != nil {
+			continue
+		}
+		if rerouted, routed := cloned.AsModelRerouted(); routed {
+			model = rerouted.Params.ToModel
+			ok = true
+		}
+	}
+	return model, ok
+}
+
+func isolatedNeutralUsage(usage *protocolv2.ThreadTokenUsage) (*llmadapter.TokenUsage, error) {
+	if usage == nil {
+		return nil, nil
+	}
+	var cloned protocolv2.ThreadTokenUsage
+	if err := cloneGenerated(*usage, &cloned); err != nil {
+		return nil, err
+	}
+	projected := &llmadapter.TokenUsage{
+		InputTokens:           cloned.Total.InputTokens,
+		CachedInputTokens:     cloned.Total.CachedInputTokens,
+		OutputTokens:          cloned.Total.OutputTokens,
+		ReasoningOutputTokens: cloned.Total.ReasoningOutputTokens,
+	}
+	recordObservedCounts(projected, cloned.Total)
+	return projected, nil
+}
+
+func recordObservedModel(evidence *llmadapter.ExecutionEvidence, model string) {
+	evidence.EffectiveModel = model
+	if recorder, ok := any(evidence).(interface{ ObserveModel(string) }); ok {
+		recorder.ObserveModel(model)
 	}
 }
 
-func safeResponseFromRun(run codexsdk.StartedThreadRun) llmadapter.Response {
-	return llmadapter.Response{
-		FinalResponse: run.Run.FinalResponse,
-		Execution: llmadapter.ExecutionEvidence{
-			ProviderName:   "codex",
-			EffectiveModel: run.Start.Model,
-		},
+func recordObservedCounts(usage *llmadapter.TokenUsage, total protocolv2.TokenUsageBreakdown) {
+	if recorder, ok := any(usage).(interface {
+		ObserveCounts(int64, int64, int64, int64)
+	}); ok {
+		recorder.ObserveCounts(total.InputTokens, total.CachedInputTokens, total.OutputTokens, total.ReasoningOutputTokens)
 	}
 }
 
@@ -402,28 +460,6 @@ func hasRunEvidence(run codexsdk.StartedThreadRun, runErr error) bool {
 
 func hasDecodedStart(run codexsdk.StartedThreadRun, runErr error) bool {
 	return run.Start.Thread.ID != "" || errors.Is(runErr, codexsdk.ErrMissingThreadID)
-}
-
-func effectiveModel(run codexsdk.StartedThreadRun) string {
-	model := run.Start.Model
-	for _, notification := range run.Run.Notifications {
-		if rerouted, ok := notification.AsModelRerouted(); ok {
-			model = rerouted.Params.ToModel
-		}
-	}
-	return model
-}
-
-func neutralUsage(usage *protocolv2.ThreadTokenUsage) *llmadapter.TokenUsage {
-	if usage == nil {
-		return nil
-	}
-	return &llmadapter.TokenUsage{
-		InputTokens:           usage.Total.InputTokens,
-		CachedInputTokens:     usage.Total.CachedInputTokens,
-		OutputTokens:          usage.Total.OutputTokens,
-		ReasoningOutputTokens: usage.Total.ReasoningOutputTokens,
-	}
 }
 
 // SchemaPolicyError identifies a stable schema-policy kind and JSON pointer.

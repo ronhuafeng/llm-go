@@ -78,9 +78,12 @@ error, the adapter returns both the available response evidence and the same
 error cause chain.
 
 If an exact run cannot be isolated, `Call` returns the snapshot error and omits
-`ProviderDetails` rather than publishing mutable runner state. Direct scalar
-facts such as final text and the start model remain available; aliased usage and
-notification-derived facts are omitted.
+`ProviderDetails` rather than publishing mutable runner state. Neutral facts
+that can themselves be isolated stay published: final text, provider name,
+thread-start or independently isolated `model/rerouted` effective model, and
+cloned total token usage. Requested or default model values never fill an
+unknown observation. An observed zero token count stays distinct from an
+unreported dimension when the resolved toolkit exposes `Observation`.
 
 Requested-policy enforcement happens before transport for `Call`,
 `CallDetailed`, and `CallStream`: no explicitly conflicting named-profile

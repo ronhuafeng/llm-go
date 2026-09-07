@@ -106,3 +106,31 @@ func TestScalarCompatibilityViewsDoNotManufactureObservations(t *testing.T) {
 		t.Fatalf("token observations = %#v, want unknown; int64 fields must not populate presence", usage)
 	}
 }
+
+func TestObserveModelRecordsPresenceAndScalar(t *testing.T) {
+	var evidence ExecutionEvidence
+	evidence.ObserveModel("")
+	if evidence.EffectiveModel != "" {
+		t.Fatalf("EffectiveModel = %q, want observed empty", evidence.EffectiveModel)
+	}
+	got, ok := evidence.Model.Value()
+	if !ok || got != "" {
+		t.Fatalf("Model = (%q, %t), want observed empty", got, ok)
+	}
+}
+
+func TestObserveCountsRecordsObservedZeroAndUnknownStaysNilUsage(t *testing.T) {
+	var usage TokenUsage
+	usage.ObserveCounts(0, 0, 0, 0)
+	if usage.InputTokens != 0 || !usage.Input.Present() {
+		t.Fatalf("Input = %#v, want observed 0", usage)
+	}
+	got, ok := usage.Output.Value()
+	if !ok || got != 0 {
+		t.Fatalf("Output = (%d, %t), want observed 0", got, ok)
+	}
+	var unset ExecutionEvidence
+	if unset.Usage != nil || unset.Model.Present() {
+		t.Fatalf("unset evidence = %#v, want unknown model and nil usage", unset)
+	}
+}

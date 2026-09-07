@@ -100,6 +100,95 @@ func startRequestHasAdmitTurn() bool {
 	return ok
 }
 
+func unisolatableTurn() protocolv2.Turn {
+	return protocolv2.Turn{
+		ID: "invalid-turn", StartedAt: protocolv2.Value(int64(1)), Status: protocolv2.TurnStatusInProgress,
+	}
+}
+
+func requireObservedModel(t *testing.T, evidence llmadapter.ExecutionEvidence, want string) {
+	t.Helper()
+	if !executionHasModelObservation() {
+		return
+	}
+	got, ok := observationString(evidence, "Model")
+	if !ok || got != want {
+		t.Fatalf("Model = (%q, %t), want observed %q", got, ok, want)
+	}
+}
+
+func requireUnknownModel(t *testing.T, evidence llmadapter.ExecutionEvidence) {
+	t.Helper()
+	if !executionHasModelObservation() {
+		return
+	}
+	if got, ok := observationString(evidence, "Model"); ok {
+		t.Fatalf("Model = (%q, true), want unknown", got)
+	}
+}
+
+func requireObservedInput(t *testing.T, usage *llmadapter.TokenUsage, want int64) {
+	t.Helper()
+	if usage == nil || !tokenUsageHasInputObservation() {
+		return
+	}
+	got, ok := observationInt64(*usage, "Input")
+	if !ok || got != want {
+		t.Fatalf("Input = (%d, %t), want observed %d", got, ok, want)
+	}
+}
+
+func executionHasModelObservation() bool {
+	_, ok := reflect.TypeOf(llmadapter.ExecutionEvidence{}).FieldByName("Model")
+	return ok
+}
+
+func tokenUsageHasInputObservation() bool {
+	_, ok := reflect.TypeOf(llmadapter.TokenUsage{}).FieldByName("Input")
+	return ok
+}
+
+func observationString(value any, field string) (string, bool) {
+	got, ok := observationValue(value, field)
+	if !ok {
+		return "", false
+	}
+	text, _ := got.(string)
+	return text, true
+}
+
+func observationInt64(value any, field string) (int64, bool) {
+	got, ok := observationValue(value, field)
+	if !ok {
+		return 0, false
+	}
+	n, _ := got.(int64)
+	return n, true
+}
+
+func observationValue(value any, field string) (any, bool) {
+	target := reflect.ValueOf(value)
+	if target.Kind() == reflect.Pointer {
+		if target.IsNil() {
+			return nil, false
+		}
+		target = target.Elem()
+	}
+	observed := target.FieldByName(field)
+	if !observed.IsValid() {
+		return nil, false
+	}
+	method := observed.MethodByName("Value")
+	if !method.IsValid() {
+		return nil, false
+	}
+	results := method.Call(nil)
+	if len(results) != 2 || !results[1].Bool() {
+		return nil, false
+	}
+	return results[0].Interface(), true
+}
+
 func setAdmitTurn(request *codexsdk.StartThreadRunRequest, admit func(protocolv2.ThreadStartResponse) error) bool {
 	field := reflect.ValueOf(request).Elem().FieldByName("AdmitTurn")
 	if !field.IsValid() || !field.CanSet() {
@@ -238,6 +327,8 @@ func TestCallerBuildsExactRequestAndProjectsEvidence(t *testing.T) {
 	if response.Execution.Usage == nil || response.Execution.Usage.InputTokens != 11 || response.Execution.Usage.ReasoningOutputTokens != 2 {
 		t.Fatalf("neutral usage = %#v", response.Execution.Usage)
 	}
+	requireObservedModel(t, response.Execution, "gpt-rerouted")
+	requireObservedInput(t, response.Execution.Usage, 11)
 	details, ok := response.ProviderDetails.(Details)
 	if !ok || details.ProviderName() != "codex" || !reflect.DeepEqual(details.Run, run) {
 		t.Fatalf("details = %#v", response.ProviderDetails)
@@ -270,6 +361,7 @@ func TestCallerPreservesStartOnlyPartialEvidence(t *testing.T) {
 	if !errors.Is(err, providerErr) || response.Execution.EffectiveModel != "effective-model" {
 		t.Fatalf("response=%#v err=%v", response, err)
 	}
+	requireObservedModel(t, response.Execution, "effective-model")
 	details, ok := response.ProviderDetails.(Details)
 	if !ok || details.Run.Start.Model != "effective-model" {
 		t.Fatalf("details = %#v", response.ProviderDetails)
@@ -396,11 +488,11 @@ func TestCallerIsolatesPartialTurnWithoutIdentity(t *testing.T) {
 
 func TestCallOmitsProviderDetailsWhenSnapshotFails(t *testing.T) {
 	run := validStartedRun("safe-final", "safe-model")
-	run.Run.Turn = protocolv2.Turn{
-		ID: "invalid-turn", StartedAt: protocolv2.Value(int64(1)), Status: protocolv2.TurnStatusInProgress,
-	}
-	run.Run.Notifications = []protocolv2.ServerNotification{modelRerouted("safe-model", "aliased-reroute")}
-	run.Run.Usage = &protocolv2.ThreadTokenUsage{Total: protocolv2.TokenUsageBreakdown{InputTokens: 3}}
+	run.Run.Turn = unisolatableTurn()
+	run.Run.Notifications = []protocolv2.ServerNotification{modelRerouted("safe-model", "isolated-reroute")}
+	run.Run.Usage = &protocolv2.ThreadTokenUsage{Total: protocolv2.TokenUsageBreakdown{
+		InputTokens: 3, CachedInputTokens: 0, OutputTokens: 0, ReasoningOutputTokens: 0,
+	}}
 	runner := &fakeRunner{result: run}
 	caller, err := New(ReadOnlyEphemeralOptions(runner))
 	if err != nil {
@@ -414,11 +506,77 @@ func TestCallOmitsProviderDetailsWhenSnapshotFails(t *testing.T) {
 	if response.ProviderDetails != nil {
 		t.Fatalf("ProviderDetails = %#v, want no unisolated run", response.ProviderDetails)
 	}
-	if response.FinalResponse != "safe-final" || response.Execution.ProviderName != "codex" || response.Execution.EffectiveModel != "safe-model" {
-		t.Fatalf("safe scalar evidence = %#v", response)
+	if response.FinalResponse != "safe-final" || response.Execution.ProviderName != "codex" || response.Execution.EffectiveModel != "isolated-reroute" {
+		t.Fatalf("independent neutral evidence = %#v", response)
+	}
+	if response.Execution.Usage == nil || response.Execution.Usage.InputTokens != 3 {
+		t.Fatalf("usage = %#v, want independently isolated usage", response.Execution.Usage)
+	}
+	requireObservedModel(t, response.Execution, "isolated-reroute")
+	requireObservedInput(t, response.Execution.Usage, 3)
+	runner.result.Run.Usage.Total.InputTokens = 99
+	runner.result.Start.Model = "mutated-start"
+	if response.Execution.Usage.InputTokens != 3 || response.Execution.EffectiveModel != "isolated-reroute" {
+		t.Fatalf("published neutral evidence aliased runner state: %#v", response.Execution)
+	}
+}
+
+func TestCallPreservesRerouteWhenUnrelatedNotificationIsMalformed(t *testing.T) {
+	run := validStartedRun("ok", "safe-model")
+	run.Run.Notifications = []protocolv2.ServerNotification{
+		{},
+		modelRerouted("safe-model", "from-good-reroute"),
+	}
+	run.Run.Usage = &protocolv2.ThreadTokenUsage{Total: protocolv2.TokenUsageBreakdown{
+		InputTokens: 0, CachedInputTokens: 0, OutputTokens: 0, ReasoningOutputTokens: 0,
+	}}
+	caller := newReadOnlyEphemeralCaller(t, &fakeRunner{result: run})
+	response, err := caller.Call(context.Background(), validRequest())
+	if err == nil || !strings.Contains(err.Error(), "ServerNotification") {
+		t.Fatalf("Call error = %v, want notification isolation failure", err)
+	}
+	if response.ProviderDetails != nil {
+		t.Fatalf("ProviderDetails = %#v, want omitted exact details", response.ProviderDetails)
+	}
+	if response.Execution.EffectiveModel != "from-good-reroute" {
+		t.Fatalf("effective model = %q, want independently isolated reroute", response.Execution.EffectiveModel)
+	}
+	if response.Execution.Usage == nil || response.Execution.Usage.InputTokens != 0 {
+		t.Fatalf("usage = %#v, want observed zero", response.Execution.Usage)
+	}
+	requireObservedModel(t, response.Execution, "from-good-reroute")
+	requireObservedInput(t, response.Execution.Usage, 0)
+}
+
+func TestCallDoesNotFillUnknownModelFromRequestedDefault(t *testing.T) {
+	run := validStartedRun("ok", "unused")
+	run.Start = protocolv2.ThreadStartResponse{}
+	run.Run.Notifications = nil
+	runner := &fakeRunner{result: run}
+	options := ReadOnlyEphemeralOptions(runner)
+	options.Defaults.Thread.Model = protocolv2.Value("gpt-requested")
+	caller, err := New(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := caller.Call(context.Background(), validRequest())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Execution.EffectiveModel != "" {
+		t.Fatalf("EffectiveModel = %q, want unknown; requested model must not fill observation", response.Execution.EffectiveModel)
+	}
+	requireUnknownModel(t, response.Execution)
+}
+
+func TestCallLeavesUsageUnknownWhenProviderOmitsIt(t *testing.T) {
+	caller := newReadOnlyEphemeralCaller(t, &fakeRunner{result: validStartedRun("ok", "gpt")})
+	response, err := caller.Call(context.Background(), validRequest())
+	if err != nil {
+		t.Fatal(err)
 	}
 	if response.Execution.Usage != nil {
-		t.Fatalf("usage = %#v, want no aliased reference evidence", response.Execution.Usage)
+		t.Fatalf("Usage = %#v, want unreported", response.Execution.Usage)
 	}
 }
 

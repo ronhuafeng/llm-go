@@ -1,0 +1,8 @@
+{
+  "format_version": 1,
+  "module": "llmkit",
+  "impact": "patch",
+  "breaking": false,
+  "summary": "Add ObserveModel and ObserveCounts so adapters can record presence without collapsing leftover scalar views.",
+  "issue": 113
+}

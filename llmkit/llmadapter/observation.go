@@ -9,8 +9,10 @@ type Observation[T any] struct {
 	present bool
 }
 
-// Observed records an established fact. It is the only way to mark a value
-// present.
+// Observed records an established fact. It is the only way to mark an
+// Observation present. ExecutionEvidence.ObserveModel and
+// TokenUsage.ObserveCounts call it so adapters can populate presence
+// together with the leftover scalar views.
 func Observed[T any](value T) Observation[T] {
 	return Observation[T]{value: value, present: true}
 }
