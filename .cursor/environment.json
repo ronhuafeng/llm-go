@@ -1,0 +1,4 @@
+{
+  "name": "llm-go",
+  "install": "bash .cursor/install.sh"
+}
