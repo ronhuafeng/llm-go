@@ -2,10 +2,17 @@
 // provider-neutral typed LLM request or value call.
 //
 // It owns the small provider-neutral Caller contract and the type/schema/decode
-// plumbing around prompt plus typed output. ValueDetailed preserves the
-// provider-neutral response and typed provider details on call and decode
-// failures. Concrete provider callers own transport and provider-specific
-// schema policy; business code owns semantic acceptance.
+// plumbing around prompt plus typed output. Caller is an inference capability:
+// Request carries only prompt text and an output schema, and neither field
+// grants application effect authority. An adapter may implement Caller only
+// when any model-directed execution reachable through that implementation is
+// already effect-free or independently authorized outside the model request.
+// Prompt wording and decoded model output cannot authorize an external effect.
+// Application authorization stays outside llmkit.
+//
+// ValueDetailed preserves the provider-neutral response and typed provider
+// details on call and decode failures. Concrete provider callers own transport
+// and provider-specific schema policy; business code owns semantic acceptance.
 //
 // Neutral token counts and the effective model use Observation so an
 // unreported fact stays unknown and an observed zero or empty value stays

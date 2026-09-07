@@ -60,16 +60,23 @@ type ExecutionEvidence struct {
 	Usage *TokenUsage
 }
 
+// Caller is a provider-neutral inference capability. It asks a model for a
+// typed proposition and publishes evidence. It does not grant mutation
+// authority. An implementation may satisfy Caller only when any
+// model-directed execution reachable through that implementation is already
+// effect-free or independently authorized outside the model request. Prompt
+// is not authority. Decoded model output cannot authorize an external effect.
 type Caller interface {
 	Call(ctx context.Context, request Request) (Response, error)
 }
 
 type Request struct {
-	// Prompt is copied as a Go string value.
+	// Prompt is copied as a Go string value. Prompt is not authority.
 	Prompt string
 	// OutputSchema is cloned before Caller.Call is invoked. A caller may mutate
 	// its copy during the call but must not retain mutable toolkit-owned request
-	// state and mutate it after returning.
+	// state and mutate it after returning. The schema constrains proposition
+	// shape only; it does not grant an external effect.
 	OutputSchema json.RawMessage
 }
 

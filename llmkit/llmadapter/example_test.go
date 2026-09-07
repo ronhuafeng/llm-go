@@ -18,6 +18,9 @@ type ownershipCaller struct {
 	runtimeHeaders map[string]string
 }
 
+// ownershipCaller implements llmadapter.Caller as inference only: it returns a
+// proposition and isolated evidence and does not take effect authority from
+// the request.
 func (caller ownershipCaller) Call(context.Context, llmadapter.Request) (llmadapter.Response, error) {
 	return llmadapter.Response{
 		FinalResponse: `true`,
