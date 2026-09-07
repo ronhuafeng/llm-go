@@ -81,23 +81,10 @@ func (runner *fakeRunner) StartStream(ctx context.Context, request codexsdk.Star
 }
 
 func applyAdmitTurn(request codexsdk.StartThreadRunRequest, start protocolv2.ThreadStartResponse) error {
-	if start.Thread.ID == "" {
+	if start.Thread.ID == "" || request.AdmitTurn == nil {
 		return nil
 	}
-	field := reflect.ValueOf(&request).Elem().FieldByName("AdmitTurn")
-	if !field.IsValid() || field.IsNil() {
-		return nil
-	}
-	results := field.Call([]reflect.Value{reflect.ValueOf(start)})
-	if results[0].IsNil() {
-		return nil
-	}
-	return results[0].Interface().(error)
-}
-
-func startRequestHasAdmitTurn() bool {
-	_, ok := reflect.TypeOf(codexsdk.StartThreadRunRequest{}).FieldByName("AdmitTurn")
-	return ok
+	return request.AdmitTurn(start)
 }
 
 func unisolatableTurn() protocolv2.Turn {
@@ -108,10 +95,7 @@ func unisolatableTurn() protocolv2.Turn {
 
 func requireObservedModel(t *testing.T, evidence llmadapter.ExecutionEvidence, want string) {
 	t.Helper()
-	if !executionHasModelObservation() {
-		return
-	}
-	got, ok := observationString(evidence, "Model")
+	got, ok := evidence.Model.Value()
 	if !ok || got != want {
 		t.Fatalf("Model = (%q, %t), want observed %q", got, ok, want)
 	}
@@ -119,88 +103,20 @@ func requireObservedModel(t *testing.T, evidence llmadapter.ExecutionEvidence, w
 
 func requireUnknownModel(t *testing.T, evidence llmadapter.ExecutionEvidence) {
 	t.Helper()
-	if !executionHasModelObservation() {
-		return
-	}
-	if got, ok := observationString(evidence, "Model"); ok {
+	if got, ok := evidence.Model.Value(); ok {
 		t.Fatalf("Model = (%q, true), want unknown", got)
 	}
 }
 
 func requireObservedInput(t *testing.T, usage *llmadapter.TokenUsage, want int64) {
 	t.Helper()
-	if usage == nil || !tokenUsageHasInputObservation() {
-		return
+	if usage == nil {
+		t.Fatal("Usage = nil, want observed Input")
 	}
-	got, ok := observationInt64(*usage, "Input")
+	got, ok := usage.Input.Value()
 	if !ok || got != want {
 		t.Fatalf("Input = (%d, %t), want observed %d", got, ok, want)
 	}
-}
-
-func executionHasModelObservation() bool {
-	_, ok := reflect.TypeOf(llmadapter.ExecutionEvidence{}).FieldByName("Model")
-	return ok
-}
-
-func tokenUsageHasInputObservation() bool {
-	_, ok := reflect.TypeOf(llmadapter.TokenUsage{}).FieldByName("Input")
-	return ok
-}
-
-func observationString(value any, field string) (string, bool) {
-	got, ok := observationValue(value, field)
-	if !ok {
-		return "", false
-	}
-	text, _ := got.(string)
-	return text, true
-}
-
-func observationInt64(value any, field string) (int64, bool) {
-	got, ok := observationValue(value, field)
-	if !ok {
-		return 0, false
-	}
-	n, _ := got.(int64)
-	return n, true
-}
-
-func observationValue(value any, field string) (any, bool) {
-	target := reflect.ValueOf(value)
-	if target.Kind() == reflect.Pointer {
-		if target.IsNil() {
-			return nil, false
-		}
-		target = target.Elem()
-	}
-	observed := target.FieldByName(field)
-	if !observed.IsValid() {
-		return nil, false
-	}
-	method := observed.MethodByName("Value")
-	if !method.IsValid() {
-		return nil, false
-	}
-	results := method.Call(nil)
-	if len(results) != 2 || !results[1].Bool() {
-		return nil, false
-	}
-	return results[0].Interface(), true
-}
-
-func setAdmitTurn(request *codexsdk.StartThreadRunRequest, admit func(protocolv2.ThreadStartResponse) error) bool {
-	field := reflect.ValueOf(request).Elem().FieldByName("AdmitTurn")
-	if !field.IsValid() || !field.CanSet() {
-		return false
-	}
-	field.Set(reflect.ValueOf(admit))
-	return true
-}
-
-func admitTurnAttached(request codexsdk.StartThreadRunRequest) bool {
-	field := reflect.ValueOf(&request).Elem().FieldByName("AdmitTurn")
-	return field.IsValid() && !field.IsNil()
 }
 
 var _ ThreadRunner = (*fakeRunner)(nil)
@@ -245,13 +161,8 @@ func (value *nullAwareString) UnmarshalJSON(data []byte) error {
 }
 
 func TestNewRejectsCallerOwnedAdmitTurn(t *testing.T) {
-	if !startRequestHasAdmitTurn() {
-		t.Skip("published SDK tuple does not expose AdmitTurn")
-	}
 	options := ReadOnlyEphemeralOptions(&fakeRunner{})
-	if !setAdmitTurn(&options.Defaults, func(protocolv2.ThreadStartResponse) error { return nil }) {
-		t.Fatal("could not set AdmitTurn on defaults")
-	}
+	options.Defaults.AdmitTurn = func(protocolv2.ThreadStartResponse) error { return nil }
 	if _, err := New(options); err == nil {
 		t.Fatal("New accepted caller-owned AdmitTurn")
 	}
@@ -581,9 +492,6 @@ func TestCallLeavesUsageUnknownWhenProviderOmitsIt(t *testing.T) {
 }
 
 func TestAdmitTurnRejectsUnknownEffectiveFactsBeforeTurn(t *testing.T) {
-	if !startRequestHasAdmitTurn() {
-		t.Skip("published SDK tuple does not expose AdmitTurn")
-	}
 	cases := []struct {
 		name   string
 		mutate func(*codexsdk.StartedThreadRun)
@@ -693,9 +601,6 @@ func TestEffectiveProfileContractIsSharedByCallAndDetailed(t *testing.T) {
 	for _, testCase := range cases {
 		for _, path := range paths {
 			t.Run(testCase.name+"/"+path.name, func(t *testing.T) {
-				if testCase.want != "" && !startRequestHasAdmitTurn() {
-					t.Skip("published SDK tuple does not expose AdmitTurn")
-				}
 				run := validStartedRun("ok", "gpt")
 				if testCase.mutate != nil {
 					testCase.mutate(&run)
@@ -1013,7 +918,7 @@ func assertReadOnlyEphemeralRequest(t *testing.T, request codexsdk.StartThreadRu
 	if request.Turn.ApprovalPolicy == nil || request.Turn.ApprovalPolicy.Value == nil || request.Turn.ApprovalPolicy.Value.Kind() != protocolv2.AskForApprovalKindNever {
 		t.Fatalf("turn approval = %#v", request.Turn.ApprovalPolicy)
 	}
-	if startRequestHasAdmitTurn() && !admitTurnAttached(request) {
+	if request.AdmitTurn == nil {
 		t.Fatal("AdmitTurn was not attached")
 	}
 }

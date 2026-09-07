@@ -179,7 +179,7 @@ func New(options Options) (*Caller, error) {
 	if options.Defaults.Turn.OutputSchema != nil {
 		return nil, errors.New("llmcaller/codex: Defaults.Turn.OutputSchema is adapter-owned")
 	}
-	if hasCallerOwnedAdmitTurn(options.Defaults) {
+	if options.Defaults.AdmitTurn != nil {
 		return nil, errors.New("llmcaller/codex: Defaults.AdmitTurn is adapter-owned")
 	}
 	if options.profile != profileReadOnlyEphemeral {
@@ -220,6 +220,8 @@ func ReadOnlyEphemeralOptions(runner ThreadRunner) Options {
 
 // IsolatesNeutralFacts reports that Call projects independently isolated
 // model and usage evidence when exact Provider details cannot be snapshotted.
+// GOWORK=off consumers can detect this published capability without reading
+// unpublished source.
 func (*Caller) IsolatesNeutralFacts() bool { return true }
 
 // Call executes the detailed path and projects its available neutral facts.
@@ -293,7 +295,7 @@ func (c *Caller) request(request llmadapter.Request) (codexsdk.StartThreadRunReq
 		return codexsdk.StartThreadRunRequest{}, err
 	}
 	enforceReadOnlyEphemeralProfile(&startRequest)
-	attachAdmitTurn(&startRequest, admitReadOnlyEphemeralTurn)
+	startRequest.AdmitTurn = admitReadOnlyEphemeralTurn
 	startRequest.Turn.ThreadID = ""
 	startRequest.Turn.Input = []protocolv2.UserInput{
 		protocolv2.NewUserInputText(protocolv2.UserInputText{Text: request.Prompt}),
@@ -337,26 +339,6 @@ func (c *Caller) validateProfile(run codexsdk.StartedThreadRun, runErr error) er
 		return nil
 	}
 	return admitReadOnlyEphemeralTurn(run.Start)
-}
-
-// AdmitTurn is attached by field name so adapter source still type-checks
-// against published SDK tags that predate the pre-turn admission seam. When
-// the field is absent, request construction stays effect-safe on the
-// requested profile and validateProfile still fail-closes after a decoded
-// start. I6 forbids replacing that published tuple through go.work.
-const admitTurnField = "AdmitTurn"
-
-func hasCallerOwnedAdmitTurn(request codexsdk.StartThreadRunRequest) bool {
-	field := reflect.ValueOf(&request).Elem().FieldByName(admitTurnField)
-	return field.IsValid() && !field.IsNil()
-}
-
-func attachAdmitTurn(request *codexsdk.StartThreadRunRequest, admit func(protocolv2.ThreadStartResponse) error) {
-	field := reflect.ValueOf(request).Elem().FieldByName(admitTurnField)
-	if !field.IsValid() || !field.CanSet() {
-		return
-	}
-	field.Set(reflect.ValueOf(admit))
 }
 
 func admitReadOnlyEphemeralTurn(start protocolv2.ThreadStartResponse) error {
@@ -429,29 +411,13 @@ func isolatedNeutralUsage(usage *protocolv2.ThreadTokenUsage) (*llmadapter.Token
 	if err := cloneGenerated(*usage, &cloned); err != nil {
 		return nil, err
 	}
-	projected := &llmadapter.TokenUsage{
-		InputTokens:           cloned.Total.InputTokens,
-		CachedInputTokens:     cloned.Total.CachedInputTokens,
-		OutputTokens:          cloned.Total.OutputTokens,
-		ReasoningOutputTokens: cloned.Total.ReasoningOutputTokens,
-	}
-	recordObservedCounts(projected, cloned.Total)
+	projected := &llmadapter.TokenUsage{}
+	projected.ObserveCounts(cloned.Total.InputTokens, cloned.Total.CachedInputTokens, cloned.Total.OutputTokens, cloned.Total.ReasoningOutputTokens)
 	return projected, nil
 }
 
 func recordObservedModel(evidence *llmadapter.ExecutionEvidence, model string) {
-	evidence.EffectiveModel = model
-	if recorder, ok := any(evidence).(interface{ ObserveModel(string) }); ok {
-		recorder.ObserveModel(model)
-	}
-}
-
-func recordObservedCounts(usage *llmadapter.TokenUsage, total protocolv2.TokenUsageBreakdown) {
-	if recorder, ok := any(usage).(interface {
-		ObserveCounts(int64, int64, int64, int64)
-	}); ok {
-		recorder.ObserveCounts(total.InputTokens, total.CachedInputTokens, total.OutputTokens, total.ReasoningOutputTokens)
-	}
+	evidence.ObserveModel(model)
 }
 
 func hasRunEvidence(run codexsdk.StartedThreadRun, runErr error) bool {
