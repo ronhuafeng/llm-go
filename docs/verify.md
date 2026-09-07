@@ -17,7 +17,7 @@ with `GOWORK=off`:
 `repoctl verify-checkout` then runs the repository boundary contract, tool
 tests under `cmd` and `internal`, the three-layer canary, and one isolated
 consumer per affected public module. Consumers replace only the module under
-test. Upstream versions stay those in that module's `go.mod`. When llmkit is
+test. Upstream versions stay those in that module's `go.mod`. When a public module is
 affected, checkout also compiles current `example_test.go` files against the
 README install version with `GOWORK=off` and no `replace`. If that version is
 not yet on the public proxy and the module has already archived fragments for

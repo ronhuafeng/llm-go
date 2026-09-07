@@ -74,18 +74,14 @@ func TestDocumentedExamplesRejectUnpublishedInstallWithoutArchive(t *testing.T) 
 	}
 }
 
-func TestDocumentedAdapterExamplesRejectStalePublishedTuple(t *testing.T) {
+func TestDocumentedAdapterExamplesCompileAgainstDeclaredInstall(t *testing.T) {
 	root := repositoryRoot(t)
 	candidate := module{
 		ID: "codex-adapter", Dir: "llmcaller/codex", Published: true,
 		path: "github.com/ronhuafeng/llm-go/llmcaller/codex",
 	}
-	err := verifyDocumentedExamples(root, candidate)
-	if err == nil {
-		t.Fatal("expected adapter README install tuple to fail current Value examples")
-	}
-	if !strings.Contains(err.Error(), "llmcaller/codex@v0.8.0") && !strings.Contains(err.Error(), "declared published tuple") {
-		t.Fatalf("error = %v, want documented adapter tuple failure", err)
+	if err := verifyDocumentedExamples(root, candidate); err != nil {
+		t.Fatal(err)
 	}
 }
 
