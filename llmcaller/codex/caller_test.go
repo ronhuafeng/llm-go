@@ -914,13 +914,13 @@ func assertReadOnlyEphemeralRequest(t *testing.T, request codexsdk.StartThreadRu
 	}
 }
 
-func TestCallerWorksThroughLLMAdapterDetailedPath(t *testing.T) {
+func TestCallerWorksThroughLLMAdapterTypedPath(t *testing.T) {
 	runner := &fakeRunner{result: validStartedRun(`{"answer":true}`, "gpt")}
 	caller, err := New(ReadOnlyEphemeralOptions(runner))
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := llmadapter.ValueDetailed[map[string]bool](context.Background(), caller, "answer")
+	result, err := llmadapter.Value[map[string]bool](context.Background(), caller, "answer")
 	if err != nil {
 		t.Fatal(err)
 	}

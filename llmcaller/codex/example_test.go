@@ -45,7 +45,7 @@ func Example() {
 	type result struct {
 		Answer string `json:"answer"`
 	}
-	got, err := llmadapter.ValueDetailed[result](context.Background(), caller, "Describe the layering.")
+	got, err := llmadapter.Value[result](context.Background(), caller, "Describe the layering.")
 	if err != nil {
 		panic(err)
 	}
