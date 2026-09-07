@@ -66,8 +66,8 @@ Use `llmadapter` to keep provider-specific transport behind a narrow interface.
 `Caller` is an inference capability: it receives a prompt and output schema
 and returns a typed proposition plus evidence. The request cannot authorize
 an external effect. An adapter may implement `Caller` only when any
-model-directed execution it exposes is already effect-free or independently
-authorized outside the model request.
+model-directed execution reachable through that implementation is already
+effect-free or independently authorized outside the model request.
 
 ```go
 package main

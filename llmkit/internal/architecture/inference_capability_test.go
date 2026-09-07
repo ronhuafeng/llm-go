@@ -16,8 +16,10 @@ func TestCallerDocsDefineInferenceCapability(t *testing.T) {
 	for _, want := range []string{
 		"inference capability",
 		"does not grant",
-		"external effect",
+		"effect-free",
+		"independently authorized outside the model request",
 		"prompt is not authority",
+		"external effect",
 	} {
 		if !strings.Contains(comment, want) {
 			t.Fatalf("Caller docs = %q, want to state %q", comment, want)
@@ -34,7 +36,11 @@ func TestRequestSurfaceIsInferenceOnly(t *testing.T) {
 	}
 	got := map[string]string{}
 	for _, field := range structure.Fields.List {
-		for _, name := range field.Names {
+		names := field.Names
+		if len(names) == 0 {
+			t.Fatalf("Request embeds %s; the inference-only surface must use explicit fields", exprString(field.Type))
+		}
+		for _, name := range names {
 			if !name.IsExported() {
 				continue
 			}
