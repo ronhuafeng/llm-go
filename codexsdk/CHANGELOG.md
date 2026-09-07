@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-09-07
+
 ### Added
 
 - Add `StartThreadRunRequest.AdmitTurn` so Exact Run startup can inspect the
