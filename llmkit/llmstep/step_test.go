@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/ronhuafeng/llm-go/llmkit/llmadapter"
-	"github.com/ronhuafeng/llm-go/llmkit/settle"
 )
 
 type fakeCaller struct {
@@ -136,7 +135,7 @@ func TestRunExhaustedAttemptsWrapsErrUnsettled(t *testing.T) {
 		},
 		MaxIter: 2,
 	}, stepInput{})
-	if !errors.Is(err, settle.ErrUnsettled) {
+	if !errors.Is(err, ErrUnsettled) {
 		t.Fatalf("Run error = %v, want errors.Is ErrUnsettled", err)
 	}
 	if len(caller.requests) != 2 {
@@ -167,7 +166,7 @@ func TestRunDetailedFinalUnsettledAttemptSkipsRetryFeedbackSanitization(t *testi
 		MaxIter: 1,
 	}, stepInput{})
 
-	if !errors.Is(err, settle.ErrUnsettled) {
+	if !errors.Is(err, ErrUnsettled) {
 		t.Fatalf("RunDetailed error = %v, want ErrUnsettled", err)
 	}
 	if errors.Is(err, ErrUnsafeFeedback) {
@@ -218,7 +217,7 @@ func TestRunDetailedExhaustionPublishesRetryFeedbackOnlyForRealRetries(t *testin
 		MaxIter: 2,
 	}, stepInput{})
 
-	if !errors.Is(err, settle.ErrUnsettled) {
+	if !errors.Is(err, ErrUnsettled) {
 		t.Fatalf("RunDetailed error = %v, want ErrUnsettled", err)
 	}
 	if sanitizerCalls != 1 {
@@ -257,7 +256,7 @@ func TestRunFailsFastOnInvalidConfiguration(t *testing.T) {
 		{
 			name: "invalid max iter",
 			step: Step[stepInput, stepOutput]{Caller: caller, Render: validRender},
-			want: settle.ErrInvalidMaxIter,
+			want: ErrInvalidMaxIter,
 		},
 		{
 			name: "nil caller",
@@ -674,7 +673,7 @@ func TestRunDetailedPreservesValidatorEmptySliceShape(t *testing.T) {
 			Sanitizer: func([]Feedback) ([]Feedback, error) { return nil, nil },
 			MaxIter:   1,
 		}, stepInput{})
-		if !errors.Is(err, settle.ErrUnsettled) {
+		if !errors.Is(err, ErrUnsettled) {
 			t.Fatalf("error = %v, want ErrUnsettled", err)
 		}
 		feedback := result.Attempts[0].Validation.Feedback
@@ -748,7 +747,7 @@ func TestRunDetailedPublishesIsolatedFeedbackSlices(t *testing.T) {
 		},
 		MaxIter: 1,
 	}, stepInput{})
-	if !errors.Is(err, settle.ErrUnsettled) {
+	if !errors.Is(err, ErrUnsettled) {
 		t.Fatalf("error = %v, want ErrUnsettled", err)
 	}
 

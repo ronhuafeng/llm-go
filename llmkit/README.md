@@ -8,10 +8,9 @@ Language: [CONTEXT.md](CONTEXT.md).
 
 | Package | Purpose | Provider dependencies |
 | --- | --- | --- |
-| `github.com/ronhuafeng/llm-go/llmkit/settle` | Run and validate bounded candidates while preserving stage-specific attempt history. | Standard library only. |
 | `github.com/ronhuafeng/llm-go/llmkit/llmschema` | Project Go output types to provider-neutral JSON Schema, validate responses, and decode typed values. | Uses JSON Schema projection and validation libraries. |
 | `github.com/ronhuafeng/llm-go/llmkit/llmadapter` | Build one typed request, preserve provider-neutral execution evidence, and decode the final value. | Depends on `llmschema`; no concrete provider SDK. |
-| `github.com/ronhuafeng/llm-go/llmkit/llmstep` | Run typed validation-feedback retries while preserving every request/call/decode/validation stage. | Depends on `llmadapter` and `settle`; no concrete provider SDK. |
+| `github.com/ronhuafeng/llm-go/llmkit/llmstep` | Run typed validation-feedback retries while preserving every request/call/decode/validation stage. | Depends on `llmadapter`; no concrete provider SDK. |
 
 The `internal/` tree is not public API.
 
@@ -26,47 +25,6 @@ go get github.com/ronhuafeng/llm-go/llmkit@v0.7.0
 ```
 
 ## Quick Start
-
-### settle
-
-Use `settle.Run` when an operation may need a few bounded attempts before the
-output is acceptable.
-
-```go
-package main
-
-import (
-	"context"
-	"fmt"
-	"strings"
-
-	"github.com/ronhuafeng/llm-go/llmkit/settle"
-)
-
-type op struct {
-	attempt int
-}
-
-func (o *op) Run(ctx context.Context, input string) (string, error) {
-	o.attempt++
-	if o.attempt == 1 {
-		return "draft", nil
-	}
-	return input + " final", nil
-}
-
-func (o *op) Validate(ctx context.Context, input, result string) (bool, error) {
-	return strings.Contains(result, input), nil
-}
-
-func main() {
-	got, err := settle.Run(context.Background(), &op{}, "ship", 3)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(got)
-}
-```
 
 ### llmschema
 
@@ -149,7 +107,7 @@ Detailed APIs publish isolated snapshots of toolkit-owned state. This is not a
 promise that every generic output is deeply immutable.
 
 - Clone toolkit-owned schema bytes and usage before publication.
-- Copy settle/llmstep attempt, validation, and feedback slices.
+- Copy llmstep attempt, validation, and feedback slices.
 - Generic outputs use ordinary Go value semantics.
 - Adapters own `ProviderDetails`: isolated, non-nil, matching provider identity,
   no mutable transport aliases.
@@ -162,7 +120,7 @@ validation and bounded retries with sanitized validation feedback.
 `RunDetailed` records the validator's exact decision in `Attempt.Validation`
 and sanitized, stamped text in `Attempt.RetryFeedback`. Only `RetryFeedback`
 goes to the next `Render`, and only when that render will run. A final
-unsettled attempt keeps `RetryFeedback` nil and returns `settle.ErrUnsettled`
+unsettled attempt keeps `RetryFeedback` nil and returns `llmstep.ErrUnsettled`
 without invoking the sanitizer.
 
 When `Step.Sanitizer` is nil, `StrictFeedbackSanitizer` rejects non-empty
@@ -179,21 +137,17 @@ result, err := llmstep.Run(ctx, llmstep.Step[ReviewInput, ReviewResult]{
 }, input)
 ```
 
-Use `settle.Run` directly when retry state already lives in your operation and
-you do not need validation feedback passed back into prompt rendering.
+Use `llmstep.RunDetailed` when callers need candidates, attempt errors,
+validation feedback, provider response evidence, or the latest partial output
+after a failure or exhausted retry bound.
 
-Use `settle.RunDetailed` and `llmstep.RunDetailed` when callers need candidates,
-attempt errors, validation feedback, provider response evidence, or the latest
-partial output after a failure or exhausted retry bound.
-
-Both detailed retry APIs observe context cancellation before work begins and at
-their documented callback boundaries: `settle` checks after Run and Validate;
-`llmstep` checks after Render, provider Call, and Validate. If cancellation is
-observed after one of those phases succeeds, they return the context error while
-retaining completed partial output and phase evidence. A callback's own error
-takes precedence over cancellation observed at the same boundary. Cancellation
-after the final observation can still race with a successful return, as with
-other cooperative Go context APIs.
+`RunDetailed` observes context cancellation before work begins and at its
+documented callback boundaries after Render, provider Call, and Validate. If
+cancellation is observed after one of those phases succeeds, it returns the
+context error while retaining completed partial output and phase evidence. A
+callback's own error takes precedence over cancellation observed at the same
+boundary. Cancellation after the final observation can still race with a
+successful return, as with other cooperative Go context APIs.
 
 Changelog: [CHANGELOG.md](CHANGELOG.md). License: [LICENSE](LICENSE).
 Notices: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

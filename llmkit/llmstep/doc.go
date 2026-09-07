@@ -7,7 +7,7 @@
 // validator decision exactly as returned in Attempt.Validation and separately
 // publishes sanitizer-owned, iteration-stamped Attempt.RetryFeedback. Only
 // RetryFeedback is eligible for the next Render call, and it is created only
-// when that call will occur. A final unsettled attempt returns settle.ErrUnsettled
+// when that call will occur. A final unsettled attempt returns ErrUnsettled
 // without invoking the sanitizer or synthesizing RetryFeedback. Sanitization
 // does not redact Validation; applications must redact or omit sensitive facts
 // before their validator returns them, or deliberately substitute a caller-owned
