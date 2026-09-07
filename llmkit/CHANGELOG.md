@@ -5,6 +5,8 @@ changes may occur in minor releases.
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-09-07
+
 ### Changed
 
 - **Breaking (pre-v1):** rename `ValueDetailed` to `Value` and
