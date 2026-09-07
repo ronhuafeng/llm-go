@@ -5,6 +5,16 @@ changes may occur in minor releases.
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking (pre-v1):** replace the shared `Feedback` / `ValidationResult`
+  model with distinct `Finding`, `Judgment`, and `Repair` types. Accepted
+  step success requires an explicit deterministic judgment. A missing judge
+  leaves `Attempt.Judgment` nil and returns `ErrNoJudgment`. Repair is
+  projected only for a later render. `StrictFeedbackSanitizer` and
+  `ErrUnsafeFeedback` are removed in favor of `StrictRepairSanitizer` and
+  `ErrUnsafeRepair`.
+
 ### Removed
 
 - **Breaking (pre-v1):** delete public `llmkit/settle`. Bounded inference

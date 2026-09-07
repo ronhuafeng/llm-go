@@ -37,18 +37,18 @@ func ExampleRun() {
 
 	result, err := llmstep.Run(context.Background(), llmstep.Step[reviewInput, reviewResult]{
 		Caller: caller,
-		Render: func(ctx context.Context, input reviewInput, feedback []llmstep.Feedback) (string, error) {
-			if len(feedback) > 0 {
-				return input.Question + " Fix: " + feedback[0].Codes[0], nil
+		Render: func(ctx context.Context, input reviewInput, repair []llmstep.Repair) (string, error) {
+			if len(repair) > 0 {
+				return input.Question + " Fix: " + repair[0].Codes[0], nil
 			}
 			return input.Question, nil
 		},
-		Validate: func(ctx context.Context, input reviewInput, output reviewResult) (llmstep.ValidationResult, error) {
+		Validate: func(ctx context.Context, input reviewInput, output reviewResult) (llmstep.Judgment, error) {
 			if output.Verdict == "pass" || output.Verdict == "fail" {
-				return llmstep.ValidationResult{Settled: true}, nil
+				return llmstep.Judgment{Accepted: true}, nil
 			}
-			return llmstep.ValidationResult{
-				Feedback: []llmstep.Feedback{{
+			return llmstep.Judgment{
+				Findings: []llmstep.Finding{{
 					Codes: []string{"invalid_verdict"},
 				}},
 			}, nil

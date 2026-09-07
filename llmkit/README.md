@@ -10,7 +10,7 @@ Language: [CONTEXT.md](CONTEXT.md).
 | --- | --- | --- |
 | `github.com/ronhuafeng/llm-go/llmkit/llmschema` | Project Go output types to provider-neutral JSON Schema, validate responses, and decode typed values. | Uses JSON Schema projection and validation libraries. |
 | `github.com/ronhuafeng/llm-go/llmkit/llmadapter` | Build one typed request, preserve provider-neutral execution evidence, and decode the final value. | Depends on `llmschema`; no concrete provider SDK. |
-| `github.com/ronhuafeng/llm-go/llmkit/llmstep` | Run typed validation-feedback retries while preserving every request/call/decode/validation stage. | Depends on `llmadapter`; no concrete provider SDK. |
+| `github.com/ronhuafeng/llm-go/llmkit/llmstep` | Run typed judgment and repair retries while preserving every request/call/decode/judgment stage. | Depends on `llmadapter`; no concrete provider SDK. |
 
 The `internal/` tree is not public API.
 
@@ -107,7 +107,7 @@ Detailed APIs publish isolated snapshots of toolkit-owned state. This is not a
 promise that every generic output is deeply immutable.
 
 - Clone toolkit-owned schema bytes and usage before publication.
-- Copy llmstep attempt, validation, and feedback slices.
+- Copy llmstep attempt, judgment, and repair slices.
 - Generic outputs use ordinary Go value semantics.
 - Adapters own `ProviderDetails`: isolated, non-nil, matching provider identity,
   no mutable transport aliases.
@@ -115,15 +115,17 @@ promise that every generic output is deeply immutable.
 ### llmstep
 
 Use `llmstep` when one typed structured-output call needs deterministic
-validation and bounded retries with sanitized validation feedback.
+judgment and bounded retries with sanitized repair.
 
-`RunDetailed` records the validator's exact decision in `Attempt.Validation`
-and sanitized, stamped text in `Attempt.RetryFeedback`. Only `RetryFeedback`
-goes to the next `Render`, and only when that render will run. A final
-unsettled attempt keeps `RetryFeedback` nil and returns `llmstep.ErrUnsettled`
-without invoking the sanitizer.
+`RunDetailed` records the validator's exact decision in `Attempt.Judgment`
+and sanitized, stamped text in `Attempt.NextRepair`. Only `NextRepair` goes
+to the next `Render`, and only when that render will run. A final rejected
+attempt keeps `NextRepair` nil and returns `llmstep.ErrUnsettled` without
+invoking the sanitizer. A successful decode without a judge leaves
+`Judgment` nil and returns `llmstep.ErrNoJudgment`. Decode-only proposition
+production remains available through `llmadapter`.
 
-When `Step.Sanitizer` is nil, `StrictFeedbackSanitizer` rejects non-empty
+When `Step.Sanitizer` is nil, `StrictRepairSanitizer` rejects non-empty
 `Summary` and allows identifier-oriented `Codes` and `Locations`. Put secrets
 in neither field. A custom sanitizer is application-owned model-facing policy,
 not DLP.
