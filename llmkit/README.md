@@ -63,8 +63,11 @@ func main() {
 ### llmadapter
 
 Use `llmadapter` to keep provider-specific transport behind a narrow interface.
-Your provider caller receives a prompt and schema, then returns the final JSON
-text to decode.
+`Caller` is an inference capability: it receives a prompt and output schema
+and returns a typed proposition plus evidence. The request cannot authorize
+an external effect. An adapter may implement `Caller` only when any
+model-directed execution reachable through that implementation is already
+effect-free or independently authorized outside the model request.
 
 ```go
 package main

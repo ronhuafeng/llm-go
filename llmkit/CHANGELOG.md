@@ -18,6 +18,12 @@ changes may occur in minor releases.
 
 ### Changed
 
+- Define `llmadapter.Caller` as an inference capability. The neutral
+  request remains prompt plus output schema and cannot grant effect
+  authority. Prompt text and model output are not authority. An
+  implementation may satisfy `Caller` only when reachable model-directed
+  execution is already effect-free or independently authorized outside the
+  model request.
 - **Breaking (pre-v1):** make `llmadapter.ValueDetailed` and
   `llmstep.RunDetailed` the only public typed-inference result paths. They
   return the proposition or output together with available call and attempt

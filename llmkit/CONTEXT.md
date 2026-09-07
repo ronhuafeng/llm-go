@@ -26,6 +26,14 @@ Typed provider-specific evidence published by an adapter. It must not alias
 mutable runtime state.
 _Avoid_: Metadata bag, raw metadata
 
+**Inference capability**:
+A provider-neutral `Caller` that obtains a typed proposition and evidence.
+It does not grant mutation authority. Prompt is not authority. An
+implementation may satisfy `Caller` only when any model-directed execution
+reachable through that implementation is already effect-free or
+independently authorized outside the model request.
+_Avoid_: Tool grant, write gate, permission token
+
 **Generic typed output**:
 A caller-selected Go value decoded from model output with ordinary Go value
 semantics. It is a typed proposition, not an accepted domain fact or authority.
