@@ -3,7 +3,7 @@
 Tags are created only by the manually dispatched `Release public module`
 workflow. It accepts the next stable SemVer for one registered public module.
 
-The plan diffs the module's canonical API inventory against the latest stable
+The plan diffs the module's derived exported API against the latest stable
 tag. Fragments may raise impact; they cannot lower the mechanical floor.
 The adapter's published `go.mod` owns the `llmkit`/`codexsdk` tuple.
 

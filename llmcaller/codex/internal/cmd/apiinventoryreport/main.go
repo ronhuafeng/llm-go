@@ -28,8 +28,8 @@ type inventoryReport struct {
 }
 
 func main() {
-	baselinePath := flag.String("baseline", "", "canonical inventory from the comparison tag")
-	targetPath := flag.String("target", "", "canonical inventory from the candidate source")
+	baselinePath := flag.String("baseline", "", "derived inventory from the comparison tag")
+	targetPath := flag.String("target", "", "derived inventory from the candidate source")
 	flag.Parse()
 	if *baselinePath == "" || *targetPath == "" || flag.NArg() != 0 {
 		fmt.Fprintln(os.Stderr, "usage: apiinventoryreport -baseline <path> -target <path>")

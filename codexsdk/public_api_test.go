@@ -15,37 +15,30 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
-	"sort"
 	"strings"
 	"testing"
+
+	"github.com/ronhuafeng/llm-go/codexsdk/internal/publicapi"
 )
 
-func TestHandwrittenPublicAPI(t *testing.T) {
+func TestPublicAPIIsDerivedFromExportedSource(t *testing.T) {
 	root, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
 	}
-	loader := &sdkSourceImporter{root: root, fset: token.NewFileSet(), cache: map[string]*types.Package{}}
-	pkg, err := loader.Import("github.com/ronhuafeng/llm-go/codexsdk")
+	actual, err := publicapi.Export(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	declarations := handwrittenDeclarations(loader.fset, pkg)
-	sort.Strings(declarations)
-	actual := strings.Join(declarations, "\n") + "\n"
-	path := filepath.Join(root, "testdata", "handwritten-api.txt")
-	if os.Getenv("UPDATE_HANDWRITTEN_API") == "1" {
-		if err := os.WriteFile(path, []byte(actual), 0o644); err != nil {
-			t.Fatal(err)
-		}
-		return
+	if !strings.Contains(actual, "type github.com/ronhuafeng/llm-go/codexsdk.ThreadRunner interface") {
+		t.Fatalf("derived public API omitted ThreadRunner:\n%s", actual)
 	}
-	want, err := os.ReadFile(path)
+	second, err := publicapi.Export(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if actual != string(want) {
-		t.Fatalf("handwritten public API changed; review the exported API, changelog, and canonical allowlist:\n%s", actual)
+	if actual != second {
+		t.Fatal("derived public API is not deterministic")
 	}
 }
 
@@ -199,74 +192,6 @@ func (i *sdkSourceImporter) openExport(path string) (io.ReadCloser, error) {
 		return nil, err
 	}
 	return os.Open(listed.Export)
-}
-
-func handwrittenDeclarations(fset *token.FileSet, pkg *types.Package) []string {
-	qualifier := func(other *types.Package) string { return other.Path() }
-	var declarations []string
-	for _, name := range pkg.Scope().Names() {
-		object := pkg.Scope().Lookup(name)
-		if !object.Exported() || generatedPosition(fset, object.Pos()) {
-			continue
-		}
-		declarations = append(declarations, publicObjectString(object, qualifier))
-		typeName, ok := object.(*types.TypeName)
-		if !ok {
-			continue
-		}
-		named, ok := typeName.Type().(*types.Named)
-		if !ok {
-			continue
-		}
-		methods := types.NewMethodSet(types.NewPointer(named))
-		for index := 0; index < methods.Len(); index++ {
-			method := methods.At(index).Obj()
-			if method.Exported() && !generatedPosition(fset, method.Pos()) {
-				declarations = append(declarations, fmt.Sprintf("method %s.%s.%s%s", pkg.Path(), named.Obj().Name(), method.Name(), types.TypeString(method.Type(), qualifier)))
-			}
-		}
-	}
-	return declarations
-}
-
-func publicObjectString(object types.Object, qualifier types.Qualifier) string {
-	typeName, ok := object.(*types.TypeName)
-	if !ok {
-		return types.ObjectString(object, qualifier)
-	}
-	named, ok := typeName.Type().(*types.Named)
-	if !ok {
-		return types.ObjectString(object, qualifier)
-	}
-	structure, ok := named.Underlying().(*types.Struct)
-	if !ok {
-		return types.ObjectString(object, qualifier)
-	}
-	for index := 0; index < structure.NumFields(); index++ {
-		if structure.Field(index).Exported() {
-			return types.ObjectString(object, qualifier)
-		}
-	}
-	return fmt.Sprintf("type %s.%s struct{ /* unexported fields */ }", object.Pkg().Path(), object.Name())
-}
-
-func TestPublicObjectStringMasksOnlyStructsWithoutExportedFields(t *testing.T) {
-	pkg := types.NewPackage("example.com/inventory", "inventory")
-	hidden := types.NewField(token.NoPos, pkg, "hidden", types.Typ[types.String], false)
-	exported := types.NewField(token.NoPos, pkg, "Visible", types.Typ[types.String], false)
-
-	opaqueName := types.NewTypeName(token.NoPos, pkg, "Opaque", nil)
-	types.NewNamed(opaqueName, types.NewStruct([]*types.Var{hidden}, nil), nil)
-	if got := publicObjectString(opaqueName, nil); !strings.Contains(got, "unexported fields") {
-		t.Fatalf("opaque struct inventory = %q, want masked private layout", got)
-	}
-
-	publicName := types.NewTypeName(token.NoPos, pkg, "Public", nil)
-	types.NewNamed(publicName, types.NewStruct([]*types.Var{hidden, exported}, nil), nil)
-	got := publicObjectString(publicName, nil)
-	if !strings.Contains(got, "Visible string") || strings.Contains(got, "unexported fields") {
-		t.Fatalf("public struct inventory = %q, want exported field retained", got)
-	}
 }
 
 func generatedPosition(fset *token.FileSet, position token.Pos) bool {

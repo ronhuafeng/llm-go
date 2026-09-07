@@ -548,15 +548,11 @@ func TestReleaseOrchestratorConsumesEachModuleInventoryReport(t *testing.T) {
 		{ID: "codex-adapter", Dir: "llmcaller/codex"},
 	} {
 		t.Run(candidate.ID, func(t *testing.T) {
-			inventoryPath, err := apiInventoryPath(candidate.ID)
+			current, err := deriveExportedAPI(root, candidate, "")
 			if err != nil {
 				t.Fatal(err)
 			}
-			current, err := os.ReadFile(filepath.Join(root, candidate.Dir, inventoryPath))
-			if err != nil {
-				t.Fatal(err)
-			}
-			report, impact, err := moduleAPIInventoryImpact(root, candidate, inventoryPath, current, current)
+			report, impact, err := moduleAPIInventoryImpact(root, candidate, current, current)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -564,6 +560,52 @@ func TestReleaseOrchestratorConsumesEachModuleInventoryReport(t *testing.T) {
 				t.Fatalf("report = %#v, impact = %s", report, impact)
 			}
 		})
+	}
+}
+
+func TestPublishedTagBaselineUsesReleasedInventory(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidate := module{ID: "llmkit", Dir: "llmkit"}
+	baseline, err := deriveExportedAPI(root, candidate, "llmkit/v0.7.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(baseline), "github.com/ronhuafeng/llm-go/llmkit/llmadapter") {
+		t.Fatalf("published baseline omitted llmadapter: %s", baseline)
+	}
+	current, err := deriveExportedAPI(root, candidate, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := moduleAPIInventoryImpact(root, candidate, baseline, current); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDerivedAPIDetectsRemovedExport(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidate := module{ID: "llmkit", Dir: "llmkit"}
+	current, err := deriveExportedAPI(root, candidate, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(current)), "\n")
+	if len(lines) < 2 {
+		t.Fatalf("derived API too small to remove a line: %q", current)
+	}
+	reduced := []byte(strings.Join(lines[:len(lines)-1], "\n") + "\n")
+	_, impact, err := moduleAPIInventoryImpact(root, candidate, current, reduced)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if impact != apiInventoryBreaking {
+		t.Fatalf("removed export impact = %s, want breaking", impact)
 	}
 }
 
@@ -953,16 +995,15 @@ func validReleasePlan(t *testing.T) ReleasePlan {
 		Impact: ReleaseImpact{
 			Declared: "minor", Breaking: true,
 			APIInventory: ReleaseAPIInventoryEvidence{
-				Path: "llmkit/internal/architecture/testdata/handwritten-api.txt", BaselineTag: "llmkit/v0.5.0",
+				Path: exportedAPIEvidencePath, BaselineTag: "llmkit/v0.5.0",
 				BaselineSHA256: strings.Repeat("c", 64), CurrentSHA256: strings.Repeat("c", 64),
-				HandwrittenImpact: apiInventoryBreaking, MechanicalImpact: apiInventoryBreaking,
+				DerivedImpact: apiInventoryBreaking, MechanicalImpact: apiInventoryBreaking,
 			},
 			Fragments: []ReleaseFragment{{Path: "llmkit/.changes/releases/v0.6.0/10.json", Impact: "minor", Breaking: true, Summary: "Move path.", Issue: 10}},
 		},
 		Operations: []ReleaseOperation{{Order: 1, ModuleID: "llmkit", Tag: "llmkit/v0.6.0"}},
 		Inputs: []ReleaseInput{
 			{Path: "llmkit/go.mod", SHA256: strings.Repeat("d", 64)},
-			{Path: "llmkit/internal/architecture/testdata/handwritten-api.txt", SHA256: strings.Repeat("c", 64)},
 		},
 		ArchiveSum: "h1:canonical",
 	}
@@ -986,9 +1027,9 @@ func validAdapterReleasePlan(t *testing.T) ReleasePlan {
 		Impact: ReleaseImpact{
 			Declared: "minor", Breaking: true,
 			APIInventory: ReleaseAPIInventoryEvidence{
-				Path: "llmcaller/codex/internal/architecture/testdata/handwritten-api.txt", BaselineTag: "llmcaller/codex/v0.4.2",
+				Path: exportedAPIEvidencePath, BaselineTag: "llmcaller/codex/v0.4.2",
 				BaselineSHA256: strings.Repeat("c", 64), CurrentSHA256: strings.Repeat("c", 64),
-				HandwrittenImpact: apiInventoryBreaking, MechanicalImpact: apiInventoryBreaking,
+				DerivedImpact: apiInventoryBreaking, MechanicalImpact: apiInventoryBreaking,
 			},
 			Fragments: []ReleaseFragment{{Path: "llmcaller/codex/.changes/releases/v0.5.0/14-module-path.json", Impact: "minor", Breaking: true, Summary: "Move path.", Issue: 14}},
 		},
@@ -999,7 +1040,6 @@ func validAdapterReleasePlan(t *testing.T) ReleasePlan {
 		Operations: []ReleaseOperation{{Order: 1, ModuleID: "codex-adapter", Tag: "llmcaller/codex/v0.5.0"}},
 		Inputs: []ReleaseInput{
 			{Path: "llmcaller/codex/go.mod", SHA256: strings.Repeat("d", 64)},
-			{Path: "llmcaller/codex/internal/architecture/testdata/handwritten-api.txt", SHA256: strings.Repeat("c", 64)},
 		},
 		ArchiveSum: "h1:canonical",
 	}
