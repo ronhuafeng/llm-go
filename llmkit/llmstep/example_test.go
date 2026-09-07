@@ -29,13 +29,13 @@ type reviewResult struct {
 	Verdict string `json:"verdict"`
 }
 
-func ExampleRun() {
+func ExampleRunDetailed() {
 	caller := &exampleCaller{responses: []llmadapter.Response{
 		{FinalResponse: `{"verdict":"maybe"}`},
 		{FinalResponse: `{"verdict":"pass"}`},
 	}}
 
-	result, err := llmstep.Run(context.Background(), llmstep.Step[reviewInput, reviewResult]{
+	result, err := llmstep.RunDetailed(context.Background(), llmstep.Step[reviewInput, reviewResult]{
 		Caller: caller,
 		Render: func(ctx context.Context, input reviewInput, repair []llmstep.Repair) (string, error) {
 			if len(repair) > 0 {
@@ -59,8 +59,10 @@ func ExampleRun() {
 		panic(err)
 	}
 
-	fmt.Println(result.Verdict)
+	fmt.Println(result.Output.Verdict)
+	fmt.Println(len(result.Attempts))
 
 	// Output:
 	// pass
+	// 2
 }

@@ -18,6 +18,10 @@ changes may occur in minor releases.
 
 ### Changed
 
+- **Breaking (pre-v1):** make `llmadapter.ValueDetailed` and
+  `llmstep.RunDetailed` the only public typed-inference result paths. They
+  return the proposition or output together with available call and attempt
+  evidence on success and failure.
 - **Breaking (pre-v1):** replace the shared `Feedback` / `ValidationResult`
   model with distinct `Finding`, `Judgment`, and `Repair` types. Accepted
   step success requires an explicit deterministic judgment. A missing judge
@@ -28,6 +32,9 @@ changes may occur in minor releases.
 
 ### Removed
 
+- **Breaking (pre-v1):** delete `llmadapter.Value` and `llmstep.Run`. Those
+  wrappers returned only the typed value and discarded provider-neutral
+  response and attempt evidence.
 - **Breaking (pre-v1):** delete public `llmkit/settle`. Bounded inference
   termination is owned by `llmstep` (`ErrInvalidMaxIter`, `ErrUnsettled`).
   Callers that used `settle.Run` or `settle.RunDetailed` must own their retry

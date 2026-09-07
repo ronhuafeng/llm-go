@@ -99,9 +99,9 @@ func main() {
 }
 ```
 
-Use `Value` when only the typed value is needed. `ValueDetailed` is the core
-path and also returns the complete provider-neutral response on success or
-failure. Provider-specific exact facts remain available through typed
+`ValueDetailed` is the only public typed-inference path. It returns the
+proposition together with the complete provider-neutral response on success
+or failure. Provider-specific exact facts remain available through typed
 `ProviderDetails` implementations supplied by adapters.
 
 ## Ownership and snapshots
@@ -122,13 +122,14 @@ promise that every generic output is deeply immutable.
 Use `llmstep` when one typed structured-output call needs deterministic
 judgment and bounded retries with sanitized repair.
 
-`RunDetailed` records the validator's exact decision in `Attempt.Judgment`
-and sanitized, stamped text in `Attempt.NextRepair`. Only `NextRepair` goes
-to the next `Render`, and only when that render will run. A final rejected
-attempt keeps `NextRepair` nil and returns `llmstep.ErrUnsettled` without
-invoking the sanitizer. A successful decode without a judge leaves
-`Judgment` nil and returns `llmstep.ErrNoJudgment`. Decode-only proposition
-production remains available through `llmadapter`.
+`RunDetailed` is the only public step path. It records the validator's exact
+decision in `Attempt.Judgment` and sanitized, stamped text in
+`Attempt.NextRepair`. Only `NextRepair` goes to the next `Render`, and only
+when that render will run. A final rejected attempt keeps `NextRepair` nil
+and returns `llmstep.ErrUnsettled` without invoking the sanitizer. A
+successful decode without a judge leaves `Judgment` nil and returns
+`llmstep.ErrNoJudgment`. Decode-only proposition production remains
+available through `llmadapter`.
 
 When `Step.Sanitizer` is nil, `StrictRepairSanitizer` rejects non-empty
 `Summary` and allows identifier-oriented `Codes` and `Locations`. Put secrets
@@ -136,7 +137,7 @@ in neither field. A custom sanitizer is application-owned model-facing policy,
 not DLP.
 
 ```go
-result, err := llmstep.Run(ctx, llmstep.Step[ReviewInput, ReviewResult]{
+result, err := llmstep.RunDetailed(ctx, llmstep.Step[ReviewInput, ReviewResult]{
 	Caller:   caller,
 	Render:   renderReviewPrompt,
 	Validate: validateReviewResult,
@@ -144,8 +145,8 @@ result, err := llmstep.Run(ctx, llmstep.Step[ReviewInput, ReviewResult]{
 }, input)
 ```
 
-Use `llmstep.RunDetailed` when callers need candidates, attempt errors,
-validation feedback, provider response evidence, or the latest partial output
+`RunDetailed` returns the accepted output together with attempt errors,
+judgment, repair, provider response evidence, and the latest partial output
 after a failure or exhausted retry bound.
 
 `RunDetailed` observes context cancellation before work begins and at its

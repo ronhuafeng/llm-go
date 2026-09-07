@@ -10,11 +10,9 @@ const github.com/ronhuafeng/llm-go/llmkit/llmstep.StageValidate github.com/ronhu
 func github.com/ronhuafeng/llm-go/llmkit/llmadapter.Observed[T any](value T) github.com/ronhuafeng/llm-go/llmkit/llmadapter.Observation[T]
 func github.com/ronhuafeng/llm-go/llmkit/llmadapter.RequestFor[T any](prompt string) (github.com/ronhuafeng/llm-go/llmkit/llmadapter.Request, error)
 func github.com/ronhuafeng/llm-go/llmkit/llmadapter.ValueDetailed[T any](ctx context.Context, caller github.com/ronhuafeng/llm-go/llmkit/llmadapter.Caller, prompt string) (github.com/ronhuafeng/llm-go/llmkit/llmadapter.ValueResult[T], error)
-func github.com/ronhuafeng/llm-go/llmkit/llmadapter.Value[T any](ctx context.Context, caller github.com/ronhuafeng/llm-go/llmkit/llmadapter.Caller, prompt string) (T, error)
 func github.com/ronhuafeng/llm-go/llmkit/llmschema.Decode[T any](data []byte) (T, error)
 func github.com/ronhuafeng/llm-go/llmkit/llmschema.SchemaJSONFor[T any]() (encoding/json.RawMessage, error)
 func github.com/ronhuafeng/llm-go/llmkit/llmstep.RunDetailed[I, O any](ctx context.Context, step github.com/ronhuafeng/llm-go/llmkit/llmstep.Step[I, O], input I) (github.com/ronhuafeng/llm-go/llmkit/llmstep.Result[O], error)
-func github.com/ronhuafeng/llm-go/llmkit/llmstep.Run[I, O any](ctx context.Context, step github.com/ronhuafeng/llm-go/llmkit/llmstep.Step[I, O], input I) (O, error)
 func github.com/ronhuafeng/llm-go/llmkit/llmstep.StrictRepairSanitizer(findings []github.com/ronhuafeng/llm-go/llmkit/llmstep.Finding) ([]github.com/ronhuafeng/llm-go/llmkit/llmstep.Repair, error)
 method github.com/ronhuafeng/llm-go/llmkit/llmadapter.Observation.Presentfunc() bool
 method github.com/ronhuafeng/llm-go/llmkit/llmadapter.Observation.Valuefunc() (T, bool)

@@ -133,11 +133,6 @@ func RequestFor[T any](prompt string) (Request, error) {
 	}, nil
 }
 
-func Value[T any](ctx context.Context, caller Caller, prompt string) (T, error) {
-	result, err := ValueDetailed[T](ctx, caller, prompt)
-	return result.Value, err
-}
-
 func ValueDetailed[T any](ctx context.Context, caller Caller, prompt string) (ValueResult[T], error) {
 	var result ValueResult[T]
 	if isNil(caller) {

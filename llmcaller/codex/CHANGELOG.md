@@ -4,6 +4,11 @@ This project follows Semantic Versioning.
 
 ## [Unreleased]
 
+### Changed
+
+- Document the evidence-bearing `llmadapter.ValueDetailed` path in the
+  module example and README.
+
 ## [0.6.0] - 2026-08-30
 
 ### Changed
