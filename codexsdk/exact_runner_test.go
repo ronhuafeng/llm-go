@@ -2025,6 +2025,9 @@ func TestExactRunnerStartStreamRejectedTurnAdmissionOmitsTurnStart(t *testing.T)
 	if !ok || snapshot.Start.Model != "gpt-exact" {
 		t.Fatalf("Result snapshot aliases Wait result: %#v, ok=%v", snapshot.Start, ok)
 	}
+	if firstRecord(readRecords(t, record), "recv", protocolv2.MethodThreadStart) == nil {
+		t.Fatal("thread/start was not sent")
+	}
 	if firstRecord(readRecords(t, record), "recv", protocolv2.MethodTurnStart) != nil {
 		t.Fatal("turn/start was sent after rejected admission")
 	}
