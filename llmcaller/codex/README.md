@@ -34,7 +34,7 @@ type Result struct {
 	Answer string `json:"answer"`
 }
 
-value, err := llmadapter.Value[Result](ctx, caller, "Return JSON.")
+result, err := llmadapter.ValueDetailed[Result](ctx, caller, "Return JSON.")
 ```
 
 A compile-checked fake-runner version of the complete three-layer path is in

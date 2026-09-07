@@ -181,12 +181,12 @@ func TestValueDetailedGenericValueUsesOrdinaryGoSemantics(t *testing.T) {
 func TestValueProjectsSchemaCallsBackendAndDecodes(t *testing.T) {
 	caller := &fakeCaller{responses: []Response{{FinalResponse: `true`}}}
 
-	got, err := Value[bool](context.Background(), caller, "Is Paris the capital of France?")
+	got, err := ValueDetailed[bool](context.Background(), caller, "Is Paris the capital of France?")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !got {
-		t.Fatal("Value returned false, want true")
+	if !got.Value {
+		t.Fatal("ValueDetailed returned false, want true")
 	}
 	if len(caller.requests) != 1 {
 		t.Fatalf("requests = %d, want 1", len(caller.requests))
@@ -223,12 +223,12 @@ func TestValueSupportsStructOutput(t *testing.T) {
 	}
 	caller := &fakeCaller{responses: []Response{{FinalResponse: `{"status":"passed","passed":true}`}}}
 
-	got, err := Value[verdict](context.Background(), caller, "review")
+	got, err := ValueDetailed[verdict](context.Background(), caller, "review")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Status != "passed" || got.Passed == nil || !*got.Passed {
-		t.Fatalf("decoded verdict = %#v", got)
+	if got.Value.Status != "passed" || got.Value.Passed == nil || !*got.Value.Passed {
+		t.Fatalf("decoded verdict = %#v", got.Value)
 	}
 	if !strings.Contains(string(caller.requests[0].OutputSchema), `"status"`) ||
 		!strings.Contains(string(caller.requests[0].OutputSchema), `"passed"`) {
@@ -237,14 +237,21 @@ func TestValueSupportsStructOutput(t *testing.T) {
 }
 
 func TestValueFailsClosed(t *testing.T) {
-	if _, err := Value[bool](context.Background(), nil, "prompt"); !errors.Is(err, ErrNilCaller) {
+	empty := Response{FinalResponse: `not-json`, Execution: ExecutionEvidence{ProviderName: "test"}}
+	if result, err := ValueDetailed[bool](context.Background(), nil, "prompt"); !errors.Is(err, ErrNilCaller) {
 		t.Fatalf("nil caller error = %v, want ErrNilCaller", err)
+	} else if result.Response.FinalResponse != "" {
+		t.Fatalf("nil caller response = %#v, want empty evidence", result.Response)
 	}
-	if _, err := Value[bool](context.Background(), &fakeCaller{}, "prompt"); err == nil ||
+	if result, err := ValueDetailed[bool](context.Background(), &fakeCaller{}, "prompt"); err == nil ||
 		!strings.Contains(err.Error(), "final response is empty") {
 		t.Fatalf("empty final response error = %v", err)
+	} else if result.Response.FinalResponse != "" {
+		t.Fatalf("empty caller response = %#v", result.Response)
 	}
-	if _, err := Value[bool](context.Background(), &fakeCaller{responses: []Response{{FinalResponse: `not-json`}}}, "prompt"); err == nil {
-		t.Fatal("Value accepted invalid JSON")
+	if result, err := ValueDetailed[bool](context.Background(), &fakeCaller{responses: []Response{empty}}, "prompt"); err == nil {
+		t.Fatal("ValueDetailed accepted invalid JSON")
+	} else if result.Response.FinalResponse != empty.FinalResponse || result.Response.Execution.ProviderName != "test" {
+		t.Fatalf("decode failure discarded call evidence: %#v", result.Response)
 	}
 }

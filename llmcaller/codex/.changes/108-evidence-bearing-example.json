@@ -1,0 +1,8 @@
+{
+  "format_version": 1,
+  "module": "codex-adapter",
+  "impact": "patch",
+  "breaking": false,
+  "summary": "Document the evidence-bearing llmadapter.ValueDetailed path.",
+  "issue": 108
+}

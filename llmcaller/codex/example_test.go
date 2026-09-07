@@ -45,10 +45,10 @@ func Example() {
 	type result struct {
 		Answer string `json:"answer"`
 	}
-	value, err := llmadapter.Value[result](context.Background(), caller, "Describe the layering.")
+	got, err := llmadapter.ValueDetailed[result](context.Background(), caller, "Describe the layering.")
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(value.Answer)
+	fmt.Println(got.Value.Answer)
 	// Output: three layers
 }

@@ -123,12 +123,6 @@ type Result[O any] struct {
 	Attempts []Attempt[O]
 }
 
-// Run executes a step and returns only the accepted typed output.
-func Run[I any, O any](ctx context.Context, step Step[I, O], input I) (O, error) {
-	result, err := RunDetailed(ctx, step, input)
-	return result.Output, err
-}
-
 // RunDetailed executes a step and returns the accepted output with attempt
 // history.
 func RunDetailed[I any, O any](ctx context.Context, step Step[I, O], input I) (Result[O], error) {

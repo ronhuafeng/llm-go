@@ -50,7 +50,7 @@ func TestRunRendersFirstAttemptWithNoRepairAndReturnsAcceptedOutput(t *testing.T
 	caller := &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"ok"}`}}}
 	var renderRepairLens []int
 
-	got, err := Run(context.Background(), Step[stepInput, stepOutput]{
+	got, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
 		Caller: caller,
 		Render: func(_ context.Context, input stepInput, repair []Repair) (string, error) {
 			renderRepairLens = append(renderRepairLens, len(repair))
@@ -64,8 +64,8 @@ func TestRunRendersFirstAttemptWithNoRepairAndReturnsAcceptedOutput(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Status != "ok" {
-		t.Fatalf("Run output = %#v, want status ok", got)
+	if got.Output.Status != "ok" || !got.HasOutput || len(got.Attempts) != 1 {
+		t.Fatalf("RunDetailed result = %#v, want accepted status ok with one attempt", got)
 	}
 	if len(renderRepairLens) != 1 || renderRepairLens[0] != 0 {
 		t.Fatalf("render feedback lens = %#v, want [0]", renderRepairLens)
@@ -182,7 +182,7 @@ func TestRunFeedsSanitizedFindingsAsRepairIntoNextRender(t *testing.T) {
 	var prompts []string
 	var secondRepair []Repair
 
-	got, err := Run(context.Background(), Step[stepInput, stepOutput]{
+	got, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
 		Caller: caller,
 		Render: func(_ context.Context, input stepInput, repair []Repair) (string, error) {
 			if len(repair) > 0 {
@@ -210,8 +210,8 @@ func TestRunFeedsSanitizedFindingsAsRepairIntoNextRender(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Status != "ok" {
-		t.Fatalf("Run output = %#v, want status ok", got)
+	if got.Output.Status != "ok" || !got.HasOutput || len(got.Attempts) != 2 {
+		t.Fatalf("RunDetailed result = %#v, want accepted status ok with two attempts", got)
 	}
 	if strings.Join(prompts, "|") != "ready?|ready? invalid_status" {
 		t.Fatalf("prompts = %#v", prompts)
@@ -227,7 +227,7 @@ func TestRunExhaustedAttemptsWrapsErrUnsettled(t *testing.T) {
 		{FinalResponse: `{"status":"draft"}`},
 	}}
 
-	_, err := Run(context.Background(), Step[stepInput, stepOutput]{
+	result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
 		Caller: caller,
 		Render: func(_ context.Context, _ stepInput, _ []Repair) (string, error) {
 			return "prompt", nil
@@ -238,7 +238,10 @@ func TestRunExhaustedAttemptsWrapsErrUnsettled(t *testing.T) {
 		MaxIter: 2,
 	}, stepInput{})
 	if !errors.Is(err, ErrUnsettled) {
-		t.Fatalf("Run error = %v, want errors.Is ErrUnsettled", err)
+		t.Fatalf("RunDetailed error = %v, want errors.Is ErrUnsettled", err)
+	}
+	if !result.HasOutput || result.Output.Status != "draft" || len(result.Attempts) != 2 {
+		t.Fatalf("exhaustion discarded latest proposition or attempts: %#v", result)
 	}
 	if len(caller.requests) != 2 {
 		t.Fatalf("requests = %d, want 2", len(caller.requests))
@@ -374,9 +377,12 @@ func TestRunFailsFastOnInvalidConfiguration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := Run(context.Background(), tt.step, stepInput{})
+			result, err := RunDetailed(context.Background(), tt.step, stepInput{})
 			if !errors.Is(err, tt.want) {
-				t.Fatalf("Run error = %v, want %v", err, tt.want)
+				t.Fatalf("RunDetailed error = %v, want %v", err, tt.want)
+			}
+			if result.HasOutput || len(result.Attempts) != 0 {
+				t.Fatalf("invalid configuration published attempt evidence: %#v", result)
 			}
 		})
 	}
@@ -490,7 +496,7 @@ func TestRunStopsOnDecodeFailureWithoutRetryingAsValidation(t *testing.T) {
 	}}
 	validateCalls := 0
 
-	_, err := Run(context.Background(), Step[stepInput, stepOutput]{
+	result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
 		Caller: caller,
 		Render: func(_ context.Context, _ stepInput, _ []Repair) (string, error) {
 			return "prompt", nil
@@ -502,7 +508,10 @@ func TestRunStopsOnDecodeFailureWithoutRetryingAsValidation(t *testing.T) {
 		MaxIter: 2,
 	}, stepInput{})
 	if err == nil {
-		t.Fatal("Run accepted invalid JSON")
+		t.Fatal("RunDetailed accepted invalid JSON")
+	}
+	if result.Attempts[0].Call.Response.FinalResponse != "not-json" {
+		t.Fatalf("decode failure discarded call evidence: %#v", result)
 	}
 	if validateCalls != 0 {
 		t.Fatalf("validate calls = %d, want 0", validateCalls)
@@ -516,7 +525,7 @@ func TestRunRejectsUnsafeFeedbackBeforeNextRender(t *testing.T) {
 	caller := &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"draft"}`}}}
 	renderCalls := 0
 
-	_, err := Run(context.Background(), Step[stepInput, stepOutput]{
+	result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
 		Caller: caller,
 		Render: func(_ context.Context, _ stepInput, _ []Repair) (string, error) {
 			renderCalls++
@@ -528,7 +537,10 @@ func TestRunRejectsUnsafeFeedbackBeforeNextRender(t *testing.T) {
 		MaxIter: 2,
 	}, stepInput{})
 	if !errors.Is(err, ErrUnsafeRepair) {
-		t.Fatalf("Run error = %v, want ErrUnsafeRepair", err)
+		t.Fatalf("RunDetailed error = %v, want ErrUnsafeRepair", err)
+	}
+	if !result.HasOutput || result.Output.Status != "draft" || result.Attempts[0].Judgment == nil {
+		t.Fatalf("unsafe repair discarded proposition or judgment: %#v", result)
 	}
 	if renderCalls != 1 {
 		t.Fatalf("render calls = %d, want 1", renderCalls)
@@ -579,7 +591,7 @@ func TestRunUsesCustomSanitizer(t *testing.T) {
 	}}
 	var gotRepair []Repair
 
-	_, err := Run(context.Background(), Step[stepInput, stepOutput]{
+	result, err := RunDetailed(context.Background(), Step[stepInput, stepOutput]{
 		Caller: caller,
 		Render: func(_ context.Context, _ stepInput, repair []Repair) (string, error) {
 			gotRepair = append([]Repair(nil), repair...)
@@ -595,6 +607,9 @@ func TestRunUsesCustomSanitizer(t *testing.T) {
 	}, stepInput{})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if !result.HasOutput || result.Output.Status != "ok" || len(result.Attempts) != 2 {
+		t.Fatalf("custom sanitizer result discarded attempts: %#v", result)
 	}
 	if len(gotRepair) != 1 || gotRepair[0].Summary != "custom" {
 		t.Fatalf("feedback = %#v, want custom sanitizer output", gotRepair)
