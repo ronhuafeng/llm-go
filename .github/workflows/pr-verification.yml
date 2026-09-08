@@ -37,7 +37,7 @@ jobs:
           tar -xzf "${archive}" actionlint
           ./actionlint
 
-      - name: Minimum Go compatibility
+      - name: Public Go minimum
         uses: actions/setup-go@v6
         with:
           go-version: '1.23.x'
@@ -63,6 +63,24 @@ jobs:
           GOWORK: "off"
           GOTOOLCHAIN: local
         run: go test ./...
+
+      - name: Repository Go minimum
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.x'
+          cache: false
+
+      - name: Minimum Go - repository tools
+        working-directory: internal/tools
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+        run: go test ./...
+
+      - name: Minimum Go - workspace composition
+        env:
+          GOTOOLCHAIN: local
+        run: go test ./internal/tools/integration
 
       - name: Current Go
         uses: actions/setup-go@v6
