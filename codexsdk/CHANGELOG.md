@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking generated-surface change (pre-v1):** publish the `rust-v0.153.4`
+  classified protocol surface. Stable `ThreadItem` can carry
+  `AsyncUserInputQuestion` lists. `plugin/reconcile` and
+  `modelProvider/authRecovery*` methods are generated. `GetAccountRateLimitsResponse`
+  preserves backend-owned `rateLimitUpsell` as a JSON value.
+
 ## [0.8.0] - 2026-09-07
 
 ### Added
