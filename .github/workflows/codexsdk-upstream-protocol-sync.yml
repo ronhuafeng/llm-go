@@ -177,9 +177,9 @@ jobs:
           from pathlib import Path
 
           path = os.environ.get("CODEX_FINAL_MESSAGE_PATH", "")
-          if not path or not Path(path).is_file():
-              raise SystemExit(0)
-          first_line = Path(path).read_text(encoding="utf-8").splitlines()[0] if Path(path).stat().st_size else ""
+          if not path or not Path(path).is_file() or Path(path).stat().st_size == 0:
+              raise SystemExit("escalation Codex did not write a final message")
+          first_line = Path(path).read_text(encoding="utf-8").splitlines()[0]
           if first_line in {"protocol implementation current", "protocol comparison clean"}:
               raise SystemExit(
                   f"escalation Codex claim {first_line!r} does not match repair worktree mode"
