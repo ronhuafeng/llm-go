@@ -29,12 +29,12 @@ API inventories, compile README Markdown, probe unpublished module versions, or
 produce custom evidence/authorization artifacts. Git source, Go tests, module
 `go.mod` files, and immutable tags are the authorities for those facts.
 
-## Optional real Codex smoke
+## Real Codex smoke
 
-Real provider availability is a third, optional layer. It is not a required PR
-check because credentials, service availability, quotas, CLI versions, and
-model behavior are external observations rather than deterministic semantic
-proofs.
+Real provider availability is a third, non-gating layer. It is not a required
+pull-request check because credentials, service availability, quotas, CLI
+versions, and model behavior are external observations rather than
+deterministic semantic proofs.
 
 Locally, install and authenticate the Codex CLI, then run:
 
@@ -43,17 +43,33 @@ LLMGO_LIVE_CODEX=1 \
 go test ./internal/tools/integration -run '^TestLiveCodexSmoke$' -count=1 -v
 ```
 
-Set `LLMGO_LIVE_CODEX_MODEL` only when you intentionally want to pin a model;
-otherwise the app-server uses its configured default.
+Local runs may set `LLMGO_LIVE_CODEX_MODEL` when a specific model is desired.
+That local choice is independent of the hosted smoke policy.
 
-GitHub Actions exposes the same test through the manually dispatched
-`Live Codex smoke` workflow. The workflow reuses the repository's existing
-`AZURE_OPENAI_API_KEY` and `CODEX_RESPONSES_API_ENDPOINT` through a local
-`codex-responses-api-proxy`, matching the authentication path used by upstream
-protocol sync. Those secrets are scoped only to proxy startup. The real
-`codex app-server` runs in a later step with an isolated `CODEX_HOME` whose
-custom Responses provider points at localhost, so the app-server process does
-not inherit either credential.
+GitHub Actions keeps `Live Codex smoke` continuously active in three ways:
 
-No additional live-smoke Environment or secret is required. The workflow is
-manual, runs only from `main`, and never becomes a required pull-request gate.
+- after every push to `main`;
+- after every successful `PR verification` for a same-repository PR head whose
+  triggering actor is the repository owner; and
+- through manual `workflow_dispatch` from `main`.
+
+The development path is chained from the deterministic PR check rather than
+running a secret-bearing workflow directly from an arbitrary branch. The live
+workflow is defined on the default branch, checks out the exact verified PR
+head SHA, uses read-only repository permissions, disables dependency caching,
+and does not run for fork/untrusted PR heads. Repeated pushes on the same source
+branch cancel the superseded smoke so cost remains bounded.
+
+The hosted smoke is intentionally fixed to `gpt-5.6-luna` with `medium`
+reasoning. Those settings exist only in `live-codex-smoke.yml`; they do not
+change upstream protocol-sync Codex settings or any library/runtime default.
+
+The workflow reuses the repository's existing `AZURE_OPENAI_API_KEY` and
+`CODEX_RESPONSES_API_ENDPOINT` through a local `codex-responses-api-proxy`,
+matching the authentication path used by upstream protocol sync. Those secrets
+are scoped only to proxy startup. The real `codex app-server` runs later with
+an isolated `CODEX_HOME` whose custom Responses provider points at localhost,
+so checked-out development code and the app-server process do not inherit
+either credential.
+
+No additional live-smoke Environment or secret is required.
