@@ -4,6 +4,9 @@
 
 ### Added
 
+- Optional Grok real-provider Live tests (`TestGrok*`) that drive a supplied
+  local Codex binary through the exact App Server surface. They stay skipped
+  unless `GROKEX_LIVE=1`.
 - Expose generated-baseline provenance and initialize runtime identity as
   separate facts. Runtime compatibility stays unknown: `initialize` reports
   identity, not whole-surface compatibility, and a successful turn does not
