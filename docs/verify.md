@@ -21,10 +21,12 @@ go test -race ./internal/tools/integration
 ```
 
 Required pull-request verification runs on Linux only. The scheduled or
-manual `Advisory OS portability` workflow additionally runs the same
-standalone public-module `go vet`/`go test` commands on macOS and Windows,
-plus current-source integration tests. That matrix is not a required merge
-gate. See [`SUPPORT.md`](../SUPPORT.md).
+manual `Advisory OS portability` workflow additionally runs `go vet ./...`
+and `go test ./...` for each public module with `GOWORK=off`, plus
+current-source `go test ./internal/tools/integration`, on Linux, macOS, and
+Windows. That matrix is advisory: it does not run `-race` or `go mod tidy
+-diff`, and it is not a required merge gate. See
+[`SUPPORT.md`](../SUPPORT.md).
 
 `PR verification` makes the complete ordinary gate explicit in its workflow:
 
