@@ -122,7 +122,7 @@ Do not enter an unbounded loop chasing moving upstream refs. If the target moved
 ## Decision Rules
 
 - If drift is clean and the user only asked to check a target, report no SDK update is needed.
-- If an allowed forward target is clean, update provenance and clean reports through `metadata-sync`; the sync agent records that review found no repair or schema-derived Go changes.
+- If an allowed forward target is clean, update provenance and clean reports through `metadata-sync`. GitHub Actions publishes that path without an implementation agent. Invoke Codex or human compatibility work only when mechanical generation or owner-local Go proofs record unsupported semantic drift.
 - If target policy returns `block`, stop before drift generation.
 - After local validation and final-manifest capture pass, report `protocol implementation complete` and stop before staging or publication.
 - If generated Go fails because a new schema shape is unsupported, update focused generator rules and tests before regenerating.

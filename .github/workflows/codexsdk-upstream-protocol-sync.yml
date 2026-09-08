@@ -32,7 +32,7 @@ concurrency:
 
 jobs:
   sync:
-    name: Run Codex upstream sync
+    name: Sync upstream protocol
     runs-on: ubuntu-latest
     timeout-minutes: 360
     permissions:
@@ -143,129 +143,67 @@ jobs:
               upstream_repo: $upstream_repo
             }' /tmp/codexsdk-target.json > .cache/codexsdk-sync/action-inputs.json
 
-      - name: Implement target protocol with Codex
+      - name: Run mechanical protocol sync
+        id: mechanical
+        working-directory: codexsdk
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+        run: |
+          python3 scripts/codexsdk_mechanical_sync.py --repo-root "${GITHUB_WORKSPACE}"
+
+      - name: Escalate unsupported semantic drift
         id: codex
+        if: steps.mechanical.outputs.escalate == 'true'
         uses: ./.github/actions/codex-exec
         with:
           api-key: ${{ secrets.AZURE_OPENAI_API_KEY }}
           responses-api-endpoint: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
           working-directory: codexsdk
-          prompt: 'Use $codexsdk-sync-upstream.'
+          prompt: >-
+            The mechanical protocol sync escalated. Read
+            ${{ github.workspace }}/codexsdk/.cache/codexsdk-sync/escalation.json
+            and use $codexsdk-sync-upstream only to repair the recorded
+            unsupported semantic drift for that upstream ref and commit. Do not
+            resolve a different target or rediscover the repository. Leave
+            changes unstaged.
 
-      - name: Require completed Codex implementation
-        id: completion
+      - name: Validate escalated protocol implementation
+        id: escalation-validation
+        if: steps.mechanical.outputs.escalate == 'true'
         working-directory: codexsdk
         env:
-          CODEX_FINAL_MESSAGE_PATH: ${{ steps.codex.outputs.final-message-path }}
-        run: |
-          set -euo pipefail
-          if [[ ! -s "${CODEX_FINAL_MESSAGE_PATH}" ]]; then
-            echo "Codex did not write a final message." >&2
-            exit 1
-          fi
-          CODEX_FINAL_MESSAGE="$(< "${CODEX_FINAL_MESSAGE_PATH}")"
-          first_line="${CODEX_FINAL_MESSAGE%%$'\n'*}"
-          case "${first_line}" in
-            "protocol implementation complete") mode="implemented" ;;
-            "protocol implementation current") mode="current" ;;
-            "protocol comparison clean") mode="comparison" ;;
-            *)
-              echo "Codex stopped before reaching a successful protocol state." >&2
-              printf '%s\n' "${CODEX_FINAL_MESSAGE}" >&2
-              exit 1
-              ;;
-          esac
-          echo "mode=${mode}" >> "${GITHUB_OUTPUT}"
-
-      - name: Inspect protocol implementation
-        id: implementation
-        working-directory: codexsdk
-        env:
-          COMPLETION_MODE: ${{ steps.completion.outputs.mode }}
-          FORCE_COMPARE: ${{ inputs.force_compare || false }}
-          RESOLVED_TARGET_KIND: ${{ steps.target.outputs.kind }}
-          RESOLVED_TARGET_REF: ${{ steps.target.outputs.ref }}
-          RESOLVED_TARGET_SHA: ${{ steps.target.outputs.sha }}
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import json
-          import os
-          import subprocess
-          from pathlib import Path
-
-          workspace = Path(os.environ["GITHUB_WORKSPACE"])
-          changed = subprocess.run(
-              ["git", "-C", str(workspace), "status", "--porcelain", "--untracked-files=all"],
-              check=True,
-              stdout=subprocess.PIPE,
-              text=True,
-          ).stdout.strip()
-          completion_mode = os.environ["COMPLETION_MODE"]
-          force_compare = os.environ["FORCE_COMPARE"].lower() == "true"
-          if force_compare:
-              if completion_mode != "comparison":
-                  raise SystemExit(
-                      f"force_compare requires completion mode 'comparison', got {completion_mode!r}"
-                  )
-              if changed:
-                  raise SystemExit("force_compare must leave the protocol worktree unchanged")
-          elif changed:
-              if completion_mode != "implemented":
-                  raise SystemExit(
-                      f"changed protocol implementation requires completion mode 'implemented', "
-                      f"got {completion_mode!r}"
-                  )
-          elif completion_mode != "current":
-              raise SystemExit(
-                  f"unchanged protocol implementation requires completion mode 'current', "
-                  f"got {completion_mode!r}"
-              )
-
-          values = {"publish": "false"}
-          if changed:
-              metadata = json.loads(
-                  Path("internal/protocolschema/appserver/v2/baseline_metadata.json").read_text(encoding="utf-8")
-              )
-              values = {
-                  "publish": "true",
-                  "target_ref": str(metadata.get("source_ref_name") or ""),
-                  "target_kind": str(metadata.get("source_ref_kind") or ""),
-                  "target_sha": str(metadata.get("source_commit") or ""),
-              }
-              if not all(values[key] for key in ("target_ref", "target_kind", "target_sha")):
-                  raise SystemExit("completed protocol implementation lacks canonical target provenance")
-              expected = {
-                  "target_ref": os.environ["RESOLVED_TARGET_REF"],
-                  "target_kind": os.environ["RESOLVED_TARGET_KIND"],
-                  "target_sha": os.environ["RESOLVED_TARGET_SHA"],
-              }
-              for key, value in expected.items():
-                  if values[key] != value:
-                      raise SystemExit(f"protocol implementation {key}={values[key]!r}, expected {value!r}")
-          elif not force_compare:
-              metadata = json.loads(
-                  Path("internal/protocolschema/appserver/v2/baseline_metadata.json").read_text(encoding="utf-8")
-              )
-              if metadata.get("source_commit") != os.environ["RESOLVED_TARGET_SHA"]:
-                  raise SystemExit("Codex produced no changes before reaching the resolved target")
-
-          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
-              for key, value in values.items():
-                  output.write(f"{key}={value}\n")
-          PY
-
-      - name: Validate protocol implementation
-        id: validation
-        if: steps.implementation.outputs.publish == 'true'
-        working-directory: codexsdk
-        env:
-          TARGET_SHA: ${{ steps.implementation.outputs.target_sha }}
+          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
         run: |
           scripts/codexsdk_validate_sync.sh --target-sha "${TARGET_SHA}"
 
+      - name: Confirm generated baseline provenance
+        if: steps.mechanical.outputs.publish == 'true' || steps.mechanical.outputs.escalate == 'true'
+        working-directory: codexsdk
+        env:
+          RESOLVED_TARGET_KIND: ${{ steps.mechanical.outputs.target_kind }}
+          RESOLVED_TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
+          RESOLVED_TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          metadata = json.loads(Path("internal/protocolschema/appserver/v2/baseline_metadata.json").read_text(encoding="utf-8"))
+          expected = {
+              "source_ref_name": os.environ["RESOLVED_TARGET_REF"],
+              "source_ref_kind": os.environ["RESOLVED_TARGET_KIND"],
+              "source_commit": os.environ["RESOLVED_TARGET_SHA"],
+          }
+          for key, value in expected.items():
+              actual = str(metadata.get(key) or "")
+              if actual != value:
+                  raise SystemExit(f"protocol implementation {key}={actual!r}, expected {value!r}")
+          PY
+
       - name: Capture final protocol changes
-        if: steps.implementation.outputs.publish == 'true'
+        id: capture
+        if: steps.mechanical.outputs.publish == 'true' || steps.mechanical.outputs.escalate == 'true'
         working-directory: codexsdk
         run: |
           python3 scripts/codexsdk_sync_changes.py capture \
@@ -275,12 +213,14 @@ jobs:
 
       - name: Commit validated protocol implementation
         id: commit
-        if: steps.implementation.outputs.publish == 'true' && inputs.validation_only != true
+        if: >-
+          (steps.mechanical.outputs.publish == 'true' || steps.mechanical.outputs.escalate == 'true') &&
+          inputs.validation_only != true
         working-directory: codexsdk
         env:
-          TARGET_KIND: ${{ steps.implementation.outputs.target_kind }}
-          TARGET_REF: ${{ steps.implementation.outputs.target_ref }}
-          TARGET_SHA: ${{ steps.implementation.outputs.target_sha }}
+          TARGET_KIND: ${{ steps.mechanical.outputs.target_kind }}
+          TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
+          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
         run: |
           set -euo pipefail
           python3 scripts/codexsdk_sync_changes.py stage \
@@ -298,14 +238,17 @@ jobs:
 
       - name: Publish protected sync PR
         id: publish
-        if: steps.implementation.outputs.publish == 'true' && inputs.validation_only != true
+        if: >-
+          (steps.mechanical.outputs.publish == 'true' || steps.mechanical.outputs.escalate == 'true') &&
+          inputs.validation_only != true
         working-directory: codexsdk
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TARGET_KIND: ${{ steps.implementation.outputs.target_kind }}
-          TARGET_REF: ${{ steps.implementation.outputs.target_ref }}
-          TARGET_SHA: ${{ steps.implementation.outputs.target_sha }}
+          SYNC_MODE: ${{ steps.mechanical.outputs.escalate == 'true' && 'repair-sync' || 'metadata-sync' }}
+          TARGET_KIND: ${{ steps.mechanical.outputs.target_kind }}
+          TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
+          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
           VALIDATED_COMMIT: ${{ steps.commit.outputs.validated_commit }}
         run: |
           set -euo pipefail
@@ -318,22 +261,22 @@ jobs:
             --target-ref "${TARGET_REF}" \
             --target-kind "${TARGET_KIND}" \
             --target-sha "${TARGET_SHA}" \
-            --sync-mode repair-sync \
+            --sync-mode "${SYNC_MODE}" \
             --validated-commit "${VALIDATED_COMMIT}"
 
       - name: Report protocol sync outcome
         if: >-
           always() &&
-          steps.completion.outcome == 'success' &&
-          steps.implementation.outcome == 'success' &&
-          (steps.implementation.outputs.publish != 'true' || steps.validation.outcome == 'success') &&
+          steps.mechanical.outcome == 'success' &&
+          (steps.mechanical.outputs.escalate != 'true' || steps.escalation-validation.outcome == 'success') &&
           (inputs.validation_only == true ||
-           steps.implementation.outputs.publish != 'true' ||
+           (steps.mechanical.outputs.publish != 'true' && steps.mechanical.outputs.escalate != 'true') ||
            (steps.commit.outcome == 'success' && steps.publish.outcome == 'success'))
         env:
-          COMPLETION_MODE: ${{ steps.completion.outputs.mode }}
+          OUTCOME: ${{ steps.mechanical.outputs.outcome }}
           PR_URL: ${{ steps.publish.outputs.pr_url }}
-          PUBLISH: ${{ steps.implementation.outputs.publish }}
+          PUBLISH: ${{ steps.mechanical.outputs.publish }}
+          ESCALATE: ${{ steps.mechanical.outputs.escalate }}
           TARGET_REF: ${{ steps.target.outputs.ref }}
           TARGET_SHA: ${{ steps.target.outputs.sha }}
           VALIDATION_ONLY: ${{ inputs.validation_only || false }}
@@ -342,24 +285,23 @@ jobs:
             echo
             echo "## Protocol sync outcome"
             echo
-            if [[ "${PUBLISH}" == "true" ]]; then
-              echo "- Codex completion: \`protocol implementation complete\`"
-              echo "- Upstream target: \`${TARGET_REF}\`"
-              echo "- Upstream commit: \`${TARGET_SHA}\`"
+            echo "- Mechanical outcome: \`${OUTCOME}\`"
+            echo "- Upstream target: \`${TARGET_REF}\`"
+            echo "- Upstream commit: \`${TARGET_SHA}\`"
+            if [[ "${ESCALATE}" == "true" ]]; then
+              echo "- Escalation: implementation agent received explicit drift evidence after mechanical generation and owner-local Go proofs failed."
+            elif [[ "${OUTCOME}" == "implemented" ]]; then
+              echo "- Mechanical generation and owner-local Go proofs were sufficient; no implementation agent was invoked."
+            elif [[ "${OUTCOME}" == "comparison" ]]; then
+              echo "- Read-only comparison found no protocol drift."
+            else
+              echo "- Checked-in protocol implementation is already current."
+            fi
+            if [[ "${PUBLISH}" == "true" || "${ESCALATE}" == "true" ]]; then
               if [[ "${VALIDATION_ONLY}" == "true" ]]; then
                 echo "- PR validation: protocol implementation validated; commit and publication intentionally skipped."
               else
                 echo "- Workflow publication: ${PR_URL}"
               fi
-            elif [[ "${COMPLETION_MODE}" == "comparison" ]]; then
-              echo "- Codex completion: \`protocol comparison clean\`"
-              echo "- Upstream target: \`${TARGET_REF}\`"
-              echo "- Upstream commit: \`${TARGET_SHA}\`"
-              echo "- Read-only comparison found no protocol drift."
-            else
-              echo "- Codex completion: \`protocol implementation current\`"
-              echo "- Upstream target: \`${TARGET_REF}\`"
-              echo "- Upstream commit: \`${TARGET_SHA}\`"
-              echo "- Checked-in protocol implementation is already current."
             fi
           } >> "${GITHUB_STEP_SUMMARY}"
