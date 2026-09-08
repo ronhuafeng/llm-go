@@ -152,12 +152,15 @@ const (
 	MethodModelRerouted                           = "model/rerouted"
 	MethodModelSafetyBufferingUpdated             = "model/safetyBuffering/updated"
 	MethodModelVerification                       = "model/verification"
+	MethodModelProviderAuthRecoveryCompleted      = "modelProvider/authRecoveryCompleted"
+	MethodModelProviderAuthRecoveryStarted        = "modelProvider/authRecoveryStarted"
 	MethodModelProviderCapabilitiesRead           = "modelProvider/capabilities/read"
 	MethodPermissionProfileList                   = "permissionProfile/list"
 	MethodPluginInstall                           = "plugin/install"
 	MethodPluginInstalled                         = "plugin/installed"
 	MethodPluginList                              = "plugin/list"
 	MethodPluginRead                              = "plugin/read"
+	MethodPluginReconcile                         = "plugin/reconcile"
 	MethodPluginSearch                            = "plugin/search"
 	MethodPluginShareCheckout                     = "plugin/share/checkout"
 	MethodPluginShareDelete                       = "plugin/share/delete"
@@ -1500,6 +1503,28 @@ var methodRegistry = map[string]MethodInfo{
 		FacadeTarget:          "ServerNotifications().ModelVerification",
 		Stability:             MethodStabilityStable,
 	},
+	MethodModelProviderAuthRecoveryCompleted: {
+		Method:                MethodModelProviderAuthRecoveryCompleted,
+		Direction:             MethodDirectionServerToClient,
+		Kind:                  MethodKindNotification,
+		Family:                "modelProvider",
+		ParamsOrPayloadSchema: "AuthRecoveryNotification",
+		ResponseSchema:        "",
+		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
+		FacadeTarget:          "ServerNotifications().ModelProviderAuthRecoveryCompleted",
+		Stability:             MethodStabilityStable,
+	},
+	MethodModelProviderAuthRecoveryStarted: {
+		Method:                MethodModelProviderAuthRecoveryStarted,
+		Direction:             MethodDirectionServerToClient,
+		Kind:                  MethodKindNotification,
+		Family:                "modelProvider",
+		ParamsOrPayloadSchema: "AuthRecoveryNotification",
+		ResponseSchema:        "",
+		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
+		FacadeTarget:          "ServerNotifications().ModelProviderAuthRecoveryStarted",
+		Stability:             MethodStabilityStable,
+	},
 	MethodModelProviderCapabilitiesRead: {
 		Method:                MethodModelProviderCapabilitiesRead,
 		Direction:             MethodDirectionClientToServer,
@@ -1564,6 +1589,17 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchema:        "v2/PluginReadResponse.json",
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "Plugins().Read",
+		Stability:             MethodStabilityStable,
+	},
+	MethodPluginReconcile: {
+		Method:                MethodPluginReconcile,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "plugin",
+		ParamsOrPayloadSchema: "PluginReconcileParams",
+		ResponseSchema:        "v2/PluginReconcileResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Plugins().Reconcile",
 		Stability:             MethodStabilityStable,
 	},
 	MethodPluginSearch: {
