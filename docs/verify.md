@@ -44,9 +44,16 @@ go test ./internal/tools/integration -run '^TestLiveCodexSmoke$' -count=1 -v
 ```
 
 Set `LLMGO_LIVE_CODEX_MODEL` only when you intentionally want to pin a model;
-otherwise the Codex CLI default is used.
+otherwise the app-server uses its configured default.
 
 GitHub Actions exposes the same test through the manually dispatched
-`Live Codex smoke` workflow. Its credential belongs in the protected
-`codex-live-smoke` Environment as the `OPENAI_API_KEY` secret. The workflow is
-manual and never runs for untrusted pull-request code.
+`Live Codex smoke` workflow. The workflow reuses the repository's existing
+`AZURE_OPENAI_API_KEY` and `CODEX_RESPONSES_API_ENDPOINT` through a local
+`codex-responses-api-proxy`, matching the authentication path used by upstream
+protocol sync. Those secrets are scoped only to proxy startup. The real
+`codex app-server` runs in a later step with an isolated `CODEX_HOME` whose
+custom Responses provider points at localhost, so the app-server process does
+not inherit either credential.
+
+No additional live-smoke Environment or secret is required. The workflow is
+manual, runs only from `main`, and never becomes a required pull-request gate.
