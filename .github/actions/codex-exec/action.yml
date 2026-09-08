@@ -28,13 +28,13 @@ runs:
       with:
         node-version: "24"
 
-    - name: Install latest Codex CLI
+    - name: Install Codex CLI and pinned Responses proxy
       shell: bash
       run: |
         set -euo pipefail
         npm install --global \
           @openai/codex@latest \
-          @openai/codex-responses-api-proxy@latest
+          @openai/codex-responses-api-proxy@0.153.4
         codex --version
 
     - name: Enable Codex sandbox

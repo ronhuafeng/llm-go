@@ -50,7 +50,7 @@ jobs:
         run: |
           npm install --global \
             @openai/codex@latest \
-            @openai/codex-responses-api-proxy@latest
+            @openai/codex-responses-api-proxy@0.153.4
           codex --version
       - name: Start Codex Responses API proxy
         id: proxy

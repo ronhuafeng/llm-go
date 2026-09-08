@@ -97,6 +97,33 @@ func TestPostReleaseModuleSmokeObservesPublicProxyOnce(t *testing.T) {
 	}
 }
 
+func TestSecretBearingCodexProxyIsPinned(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := []string{
+		filepath.Join(".github", "workflows", "live-codex-smoke.yml"),
+		filepath.Join(".github", "actions", "codex-exec", "action.yml"),
+	}
+	for _, rel := range files {
+		data, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := string(data)
+		if strings.Contains(text, "@openai/codex-responses-api-proxy@latest") {
+			t.Fatalf("%s must not install a floating credential-handling proxy", rel)
+		}
+		if !strings.Contains(text, "@openai/codex-responses-api-proxy@") {
+			t.Fatalf("%s must install an explicit credential-handling proxy version", rel)
+		}
+		if strings.Contains(rel, "live-codex-smoke.yml") && !strings.Contains(text, "@openai/codex@latest") {
+			t.Fatalf("%s must keep the live Codex CLI as @latest", rel)
+		}
+	}
+}
+
 func TestArchitectureAllowsAdditionalToolingWorkspaceModule(t *testing.T) {
 	root := newArchitectureFixture(t)
 	writeFile(t, root, "go.work", "go 1.23.0\n\nuse (\n\t./llmkit\n\t./codexsdk\n\t./llmcaller/codex\n\t./internal/tools\n\t./tools/extra\n)\n")
