@@ -13,8 +13,8 @@ func TestCurrentRepositoryContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := Verify(root); err != nil {
-		t.Fatal(err)
+	if violations := verifyArchitecture(root); len(violations) != 0 {
+		t.Fatalf("repository contract violations:\n- %s", strings.Join(violations, "\n- "))
 	}
 }
 
@@ -27,86 +27,79 @@ func TestArchitectureRejectsBoundaryViolations(t *testing.T) {
 		{
 			name: "toolkit imports sdk",
 			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "llmkit/forbidden.go", "package llmkit\nimport _ \"example.com/codexsdk\"\n")
+				writeFile(t, root, "llmkit/forbidden.go", "package llmkit\nimport _ \"github.com/ronhuafeng/llm-go/codexsdk\"\n")
 			},
 			want: "module llmkit file llmkit/forbidden.go imports forbidden repository module codexsdk",
 		},
 		{
 			name: "sdk imports toolkit",
 			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "codexsdk/forbidden.go", "package codexsdk\nimport _ \"example.com/llmkit\"\n")
+				writeFile(t, root, "codexsdk/forbidden.go", "package codexsdk\nimport _ \"github.com/ronhuafeng/llm-go/llmkit\"\n")
 			},
 			want: "module codexsdk file codexsdk/forbidden.go imports forbidden repository module llmkit",
 		},
 		{
 			name: "public module imports repository tools",
 			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "llmcaller/codex/forbidden.go", "package codex\nimport _ \"example.com/llm-go/internal/tools/helper\"\n")
+				writeFile(t, root, "llmcaller/codex/forbidden.go", "package codex\nimport _ \"github.com/ronhuafeng/llm-go/internal/tools/helper\"\n")
 			},
 			want: "module codex-adapter file llmcaller/codex/forbidden.go imports forbidden repository module repo-tools",
 		},
 		{
 			name: "toolkit requires sdk",
 			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "llmkit/go.mod", "module example.com/llmkit\n\ngo 1.23.0\n\nrequire example.com/codexsdk v0.0.0\n")
+				writeFile(t, root, "llmkit/go.mod", "module "+llmkitPath+"\n\ngo 1.23.0\n\nrequire "+codexSDKPath+" v0.8.0\n")
 			},
 			want: "module llmkit requires forbidden repository module codexsdk",
 		},
 		{
 			name: "module omits minimum Go version",
 			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "llmkit/go.mod", "module example.com/llmkit\n")
+				writeFile(t, root, "llmkit/go.mod", "module "+llmkitPath+"\n")
 			},
 			want: "module llmkit: go.mod has no go directive",
 		},
 		{
 			name: "local replacement",
 			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "llmkit/go.mod", "module example.com/llmkit\n\ngo 1.23.0\n\nrequire example.com/alias v0.0.0\nreplace example.com/alias => ../codexsdk\n")
+				writeFile(t, root, "llmkit/go.mod", "module "+llmkitPath+"\n\ngo 1.23.0\n\nrequire example.com/alias v0.0.0\nreplace example.com/alias => ../codexsdk\n")
 			},
 			want: "module llmkit contains prohibited replace example.com/alias => ../codexsdk",
 		},
 		{
 			name: "version replacement",
 			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "codexsdk/go.mod", "module example.com/codexsdk\n\ngo 1.23.0\n\nrequire example.com/alias v1.0.0\nreplace example.com/alias v1.0.0 => example.com/other v1.0.1\n")
+				writeFile(t, root, "codexsdk/go.mod", "module "+codexSDKPath+"\n\ngo 1.23.0\n\nrequire example.com/alias v1.0.0\nreplace example.com/alias v1.0.0 => example.com/other v1.0.1\n")
 			},
 			want: "module codexsdk contains prohibited replace example.com/alias@v1.0.0 => example.com/other@v1.0.1",
 		},
 		{
 			name: "excluded module",
 			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "llmcaller/codex/go.mod", "module example.com/llmcaller/codex\n\ngo 1.23.0\n\nexclude example.com/alias v1.0.0\n")
+				writeFile(t, root, "llmcaller/codex/go.mod", "module "+adapterPath+"\n\ngo 1.23.0\n\nexclude example.com/alias v1.0.0\n")
 			},
 			want: "module codex-adapter contains prohibited exclude example.com/alias@v1.0.0",
 		},
 		{
 			name: "adapter omits toolkit",
 			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "llmcaller/codex/go.mod", "module example.com/llmcaller/codex\n\ngo 1.23.0\n\nrequire example.com/codexsdk v0.6.0\n")
+				writeFile(t, root, "llmcaller/codex/go.mod", "module "+adapterPath+"\n\ngo 1.23.0\n\nrequire "+codexSDKPath+" v0.8.0\n")
 			},
 			want: "module codex-adapter must directly require repository module llmkit",
 		},
 		{
 			name: "adapter uses pseudo-version",
 			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "llmcaller/codex/go.mod", "module example.com/llmcaller/codex\n\ngo 1.23.0\n\nrequire (\n\texample.com/llmkit v0.6.1-0.20260715000000-0123456789ab\n\texample.com/codexsdk v0.6.0\n)\n")
+				writeFile(t, root, "llmcaller/codex/go.mod", "module "+adapterPath+"\n\ngo 1.23.0\n\nrequire (\n\t"+llmkitPath+" v0.12.1-0.20260715000000-0123456789ab\n\t"+codexSDKPath+" v0.8.0\n)\n")
 			},
 			want: "module codex-adapter requires repository module llmkit at non-stable version",
 		},
 		{
-			name: "adapter uses prerelease",
-			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "llmcaller/codex/go.mod", "module example.com/llmcaller/codex\n\ngo 1.23.0\n\nrequire (\n\texample.com/llmkit v0.6.0\n\texample.com/codexsdk v0.7.0-rc.1\n)\n")
-			},
-			want: "module codex-adapter requires repository module codexsdk at non-stable version",
-		},
-		{
-			name: "unregistered module",
+			name: "untracked workspace module",
 			mutate: func(t *testing.T, root string) {
 				writeFile(t, root, "shared/go.mod", "module example.com/shared\n\ngo 1.23.0\n")
 			},
-			want: "unregistered Go module at shared",
+			want: "Go module shared is not listed in go.work",
 		},
 		{
 			name: "root module",
@@ -127,7 +120,7 @@ func TestArchitectureRejectsBoundaryViolations(t *testing.T) {
 			mutate: func(t *testing.T, root string) {
 				writeFile(t, root, "go.work", "go 1.23.0\n\nuse (\n\t./llmkit\n\t./codexsdk\n\t./llmcaller/codex\n)\n")
 			},
-			want: "go.work is missing registered module internal/tools",
+			want: "Go module internal/tools is not listed in go.work",
 		},
 	}
 
@@ -135,11 +128,7 @@ func TestArchitectureRejectsBoundaryViolations(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			root := newArchitectureFixture(t)
 			test.mutate(t, root)
-			registered, err := loadRegistry(root)
-			if err != nil {
-				t.Fatal(err)
-			}
-			violations := strings.Join(verifyArchitecture(root, &registered), "\n")
+			violations := strings.Join(verifyArchitecture(root), "\n")
 			if !strings.Contains(violations, test.want) {
 				t.Fatalf("violations %q do not contain %q", violations, test.want)
 			}
@@ -147,46 +136,20 @@ func TestArchitectureRejectsBoundaryViolations(t *testing.T) {
 	}
 }
 
-func TestRegistryRejectsMirroredModuleFacts(t *testing.T) {
-	root := newArchitectureFixture(t)
-	writeFile(t, root, registryFilename, `{
-  "format_version": 1,
-  "modules": [
-    {"id":"llmkit","dir":"llmkit","published":true,"path":"example.com/llmkit"},
-    {"id":"codexsdk","dir":"codexsdk","published":true},
-    {"id":"codex-adapter","dir":"llmcaller/codex","published":true},
-    {"id":"repo-tools","dir":"internal/tools","published":false}
-  ]
-}`)
-	_, err := loadRegistry(root)
-	if err == nil || !strings.Contains(err.Error(), "unknown field") {
-		t.Fatalf("loadRegistry error = %v, want unknown-field rejection", err)
-	}
-}
-
 func newArchitectureFixture(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	writeFile(t, root, registryFilename, `{
-  "format_version": 1,
-  "modules": [
-    {"id":"llmkit","dir":"llmkit","published":true},
-    {"id":"codexsdk","dir":"codexsdk","published":true},
-    {"id":"codex-adapter","dir":"llmcaller/codex","published":true},
-    {"id":"repo-tools","dir":"internal/tools","published":false}
-  ]
-}`)
 	writeFile(t, root, "go.work", "go 1.23.0\n\nuse (\n\t./llmkit\n\t./codexsdk\n\t./llmcaller/codex\n\t./internal/tools\n)\n")
 	modules := map[string]string{
-		"llmkit":          "example.com/llmkit",
-		"codexsdk":        "example.com/codexsdk",
-		"llmcaller/codex": "example.com/llmcaller/codex",
-		"internal/tools":  "example.com/llm-go/internal/tools",
+		"llmkit":          llmkitPath,
+		"codexsdk":        codexSDKPath,
+		"llmcaller/codex": adapterPath,
+		"internal/tools":  toolsPath,
 	}
 	for directory, modulePath := range modules {
 		contents := fmt.Sprintf("module %s\n\ngo 1.23.0\n", modulePath)
 		if directory == "llmcaller/codex" {
-			contents += "\nrequire (\n\texample.com/llmkit v0.6.0\n\texample.com/codexsdk v0.6.0\n)\n"
+			contents += "\nrequire (\n\t" + llmkitPath + " v0.12.0\n\t" + codexSDKPath + " v0.8.0\n)\n"
 		}
 		writeFile(t, root, filepath.Join(directory, "go.mod"), contents)
 		writeFile(t, root, filepath.Join(directory, "package.go"), "package fixture\n")
