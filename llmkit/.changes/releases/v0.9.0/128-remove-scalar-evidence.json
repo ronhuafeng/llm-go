@@ -1,8 +1,0 @@
-{
-  "format_version": 1,
-  "module": "llmkit",
-  "impact": "minor",
-  "breaking": true,
-  "summary": "Remove leftover scalar execution-evidence compatibility fields so unknown stays distinct from zero.",
-  "issue": 128
-}

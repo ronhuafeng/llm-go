@@ -1,8 +1,0 @@
-{
-  "format_version": 1,
-  "module": "llmkit",
-  "impact": "minor",
-  "breaking": false,
-  "summary": "Add Observation presence for unknown neutral execution facts.",
-  "issue": 107
-}

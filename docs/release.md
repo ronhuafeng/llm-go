@@ -1,61 +1,58 @@
-# Protected release operation
+# Release
 
-Tags are created only by the manually dispatched `Release public module`
-workflow. It accepts the next stable SemVer for one registered public module.
+A release is a tag on code that already passed deterministic verification. It
+must not introduce a second model of API shape, README state, or authorization.
 
-The plan diffs the module's derived exported API against the latest stable
-tag. Fragments may raise impact; they cannot lower the mechanical floor.
-The adapter's published `go.mod` owns the `llmkit`/`codexsdk` tuple.
+## Before dispatch
 
-Seams: `release-plan` → `finalize-release` → Environment approval →
-`authorize-tag` → empty-expectation tag create → Draft Release → `verify-tag`
-against the public proxy.
+1. Merge the source change to `main` through the required `PR verification`
+   check.
+2. For user-visible changes, update the owning module's `CHANGELOG.md` in that
+   source PR.
+3. Choose the module's next stable SemVer.
 
-## Hosted identity
+README install commands use `@latest`; they are not release-version state and
+are never stamped during publication.
 
-Inspect these before every dispatch. A workflow file cannot prove them.
+## Publish
 
-1. Exactly one repository Deploy Key, write-capable, dedicated to this
-   workflow. GitHub's `DeployKey` bypass uses `actor_id: null`, so it matches
-   every Deploy Key. Extra keys enlarge the tag-create identity.
-2. Private key only as `RELEASE_DEPLOY_KEY` on the `production-release`
-   Environment. Never a repository or organization secret.
-3. Environment: `protected_branches=true`, reviewer `ronhuafeng`,
-   `prevent_self_review=false` (single maintainer). The workflow still rejects
-   any ref other than `refs/heads/main`.
-4. Two active tag rulesets on the same formal prefixes:
-   - creation-only `18935608`: `DeployKey` bypass, `bypass_mode: always`
-   - immutability `18924050`: delete + `non_fast_forward`, empty bypass
+Dispatch **Release public module** from `main` with only:
 
-The release key may create an absent tag. It cannot move or delete one.
+- `module`: `llmkit`, `codexsdk`, or `codex-adapter`;
+- `version`: a stable version such as `v0.13.0`.
 
-Rotate by stopping dispatches, deleting the old key first, then installing a
-new pair. On compromise, delete the key and secret; never move a tag.
+The release commit is the trusted `github.sha` captured when the workflow is
+dispatched. After the protected `production-release` approval, the workflow:
 
-## Transaction
+1. runs `./scripts/verify.sh` on that exact commit;
+2. verifies remote `main` still points to that commit;
+3. refuses to reuse an existing version tag;
+4. creates the module-prefixed annotated tag with the dedicated release key;
+5. creates the GitHub Release for that tag.
 
-1. Archive `.changes` fragments, give `CHANGELOG.md` a `## [version]`
-   section, and stamp the module README install line to that same version.
-   `release-plan` and `verify-tag` both require the tagged artifact to name
-   the version being published, not the previous release.
-2. Dispatch from `main` with module ID, version, and current commit.
-3. Approve the authorization digest that hashes the plan plus
-   minimum/current/race/checkout evidence.
-4. After approval, `authorize-tag` re-derives the plan on freshly fetched
-   `main`. Git cannot make tag create conditional on `main` staying still
-   without updating `main`; the job reads `main` and creates the tag with an
-   empty-expectation lease instead.
-5. `verify-tag` binds the immutable tag to the proxy artifact, official sums,
-   the published README self-version, an isolated consumer, and the module's
-   own `example_test.go` compiled against that published artifact with
-   `GOWORK=off` and no `replace`. The GitHub Release stays Draft until that
-   evidence is uploaded.
+If `main` advances while approval or tests are in progress, the release fails;
+dispatch it again from the new main. If tag creation succeeds but GitHub
+Release creation fails, create the GitHub Release for that existing immutable
+tag; never move or recreate the tag.
 
-## Failure
+Module prefixes remain independent:
 
-Before the tag exists: fix source and run a new preflight. An old digest never
-authorizes a new plan.
+```text
+llmkit/vX.Y.Z
+codexsdk/vX.Y.Z
+llmcaller/codex/vX.Y.Z
+```
 
-After the tag exists: never delete, move, or recreate it. Defects get a new
-version. A lost Draft response is recovered by rerunning the Draft job; do
-not create a second release.
+There is no README version stamping, release-plan digest,
+release-authorization artifact, published-evidence artifact,
+Draft/verify/publish state machine, structured `.changes` release ledger, or
+public-proxy polling gate.
+
+## Hosted configuration
+
+Tag creation keeps the existing `production-release` Environment and
+`RELEASE_DEPLOY_KEY`, because the current formal-tag rules delegate tag
+creation to that dedicated Deploy Key. No new release secret is required.
+
+The optional live Codex smoke is separate from release and uses the
+`codex-live-smoke` Environment; see [`verify.md`](verify.md).

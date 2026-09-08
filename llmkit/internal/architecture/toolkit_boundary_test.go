@@ -1,111 +1,14 @@
 package architecture
 
 import (
-	"go/ast"
 	"go/parser"
 	"go/token"
-	"go/types"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strconv"
 	"strings"
 	"testing"
 )
-
-func TestPublicAPIIsDerivedFromExportedSource(t *testing.T) {
-	actual, err := ExportPublicAPI(repoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(actual, "type github.com/ronhuafeng/llm-go/llmkit/llmadapter.Caller interface") {
-		t.Fatalf("derived public API omitted llmadapter.Caller:\n%s", actual)
-	}
-	second, err := ExportPublicAPI(repoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if actual != second {
-		t.Fatal("derived public API is not deterministic")
-	}
-}
-
-func TestExportedDeclarationsIgnorePrivateImplementationDetails(t *testing.T) {
-	before := exportedDeclarations(fixturePackage(t, `package fixture
-type Public struct {
-	Exported string
-	private int
-}
-`))
-	afterPrivateChange := exportedDeclarations(fixturePackage(t, `package fixture
-type Public struct {
-	Exported string
-	renamedPrivate bool
-}
-func privateHelper() {}
-`))
-	if !reflect.DeepEqual(before, afterPrivateChange) {
-		t.Fatalf("private implementation changed API inventory:\nbefore: %v\nafter:  %v", before, afterPrivateChange)
-	}
-	afterExportedChange := exportedDeclarations(fixturePackage(t, `package fixture
-type Public struct {
-	Exported string
-	Added bool
-	private int
-}
-`))
-	if reflect.DeepEqual(before, afterExportedChange) {
-		t.Fatalf("exported field did not change API inventory: %v", before)
-	}
-}
-
-func fixturePackage(t *testing.T, source string) *types.Package {
-	t.Helper()
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, "fixture.go", source, parser.SkipObjectResolution)
-	if err != nil {
-		t.Fatal(err)
-	}
-	pkg, err := (&types.Config{}).Check("example.com/fixture", fset, []*ast.File{file}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return pkg
-}
-
-func TestPublicPackageDiscoveryUsesLiveTree(t *testing.T) {
-	root := t.TempDir()
-	writePackage := func(name string) {
-		dir := filepath.Join(root, name)
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(dir, name+".go"), []byte("package "+name+"\n"), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	writePackage("alpha")
-	writePackage("beta")
-	writePackage("internal")
-	if err := os.Mkdir(filepath.Join(root, ".hidden"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	got, err := publicPackageNames(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	found := map[string]bool{}
-	for _, name := range got {
-		found[name] = true
-		if name == "internal" || strings.HasPrefix(name, ".") {
-			t.Fatalf("discovered non-public package %q from %v", name, got)
-		}
-	}
-	if !found["alpha"] || !found["beta"] {
-		t.Fatalf("live public packages = %v, want discovery of alpha and beta", got)
-	}
-}
 
 func TestLLMKitImportBoundaries(t *testing.T) {
 	root := repoRoot(t)
@@ -174,7 +77,6 @@ func TestOnlyLLMSchemaOwnsGoTypeSchemaProjection(t *testing.T) {
 
 type importRule struct {
 	dir            string
-	stdlibOnly     bool
 	forbidden      []string
 	violationLabel string
 }
@@ -197,9 +99,6 @@ func checkImportRule(t *testing.T, root string, rule importRule) {
 			importPath, err := strconv.Unquote(imported.Path.Value)
 			if err != nil {
 				return err
-			}
-			if rule.stdlibOnly && !isStdlibImport(importPath) {
-				t.Fatalf("%s: %s imports %q", rule.violationLabel, relPath(root, path), importPath)
 			}
 			for _, forbidden := range rule.forbidden {
 				if importPath == forbidden || strings.HasPrefix(importPath, forbidden+"/") {
@@ -229,10 +128,6 @@ func relPath(root string, path string) string {
 		return path
 	}
 	return filepath.ToSlash(rel)
-}
-
-func isStdlibImport(importPath string) bool {
-	return !strings.Contains(importPath, ".")
 }
 
 func shouldSkipDir(name string) bool {

@@ -1,0 +1,54 @@
+name: Live Codex smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Optional Codex model override; blank uses the CLI default
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Real app-server composition
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: codex-live-smoke
+    steps:
+      - name: Require dispatch from main
+        if: github.ref != 'refs/heads/main'
+        working-directory: ${{ github.workspace }}
+        run: |
+          echo "live smoke must run from refs/heads/main" >&2
+          exit 1
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache-dependency-path: |
+            llmkit/go.sum
+            codexsdk/go.sum
+            llmcaller/codex/go.sum
+            internal/tools/go.sum
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+      - name: Install Codex CLI
+        run: npm install --global @openai/codex@latest
+      - name: Run real Codex smoke
+        env:
+          LLMGO_LIVE_CODEX: "1"
+          LLMGO_LIVE_CODEX_MODEL: ${{ inputs.model }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          test -n "$OPENAI_API_KEY" || {
+            echo "codex-live-smoke is missing OPENAI_API_KEY" >&2
+            exit 1
+          }
+          go test ./internal/tools/integration -run '^TestLiveCodexSmoke$' -count=1 -v

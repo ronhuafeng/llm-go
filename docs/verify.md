@@ -1,53 +1,52 @@
-# Repository verification
+# Verification
 
-Pull-request verification is owned by `repoctl` in `internal/tools`. GitHub
-Actions only wires jobs.
-
-`repoctl affected` maps changed paths to the module registry and closes over
-`go.mod` requirements. A root change affects every public module. A tools-only
-change stays in `internal/tools`.
-
-For each affected public module, CI runs `repoctl verify-module` three times
-with `GOWORK=off`:
-
-- `minimum` — tests on the module's declared Go version
-- `current` — format, metadata, vet, tests, derived public API, generator drift
-- `race` — race detector
-
-`repoctl verify-checkout` then runs the repository boundary contract, tool
-tests under `cmd` and `internal`, the three-layer canary, and one isolated
-consumer per affected public module. Consumers replace only the module under
-test. Upstream versions stay those in that module's `go.mod`. When a public module is
-affected, checkout also compiles current `example_test.go` files against the
-README install version with `GOWORK=off` and no `replace`. If the module has
-already archived fragments for that version and the version is not a local
-module tag (`<module-dir>/<version>`), checkout skips the compile. That
-decision uses local tags only; it does not probe `proxy.golang.org`. A
-pre-tag proxy lookup plants a negative cache that can make the first
-`verify-tag` miss the artifact. `verify-tag` compiles the zip examples after
-the tag exists. That is consumer-facing documentation evidence, not proxy zip
-identity. PR verification fetches tags so a published version is compiled,
-not treated as pending.
-Integration tests belong to the workspace canary, not the GOWORK=off
-tool-test sweep.
-
-The canary copies `go.work` ephemerally and must not write `go.work.sum`.
-Minimum-Go jobs build `repoctl` with current Go, then switch the module to its
-minimum.
-
-The ordinary checkout gate uses the fast canary. Extended transport cases:
+The repository has one ordinary pre-merge command:
 
 ```sh
-LLMGO_FULL_CANARY=1 \
-go test ./internal/tools/integration -run '^TestThreeLayerCanaryFull$' -count=1 -v
+./scripts/verify.sh
 ```
 
-## Evidence boundary
+Run it locally before opening a pull request. `PR verification` first runs a
+plain public-module test pass on Go 1.23, then runs the same script on the
+current Go toolchain.
 
-JSON evidence is `module_source` or `checkout_source`. Checkout evidence is
-not published-artifact proof: it does not establish proxy identity, checksum
-database records, module zip identity, README self-version truth, or
-documented-example compilation against the published zip. Those belong to
-[`docs/release.md`](release.md).
+The script provides two deterministic proof layers:
 
-The required GitHub check is `PR verification`.
+1. **Semantic and architecture tests** — repository ownership/import rules,
+   package unit tests, vet, race tests, and the exact provider/neutral evidence
+   invariants owned by each module.
+2. **Executable composition examples** — Go `Example...` functions are normal
+   package tests. The three-layer fake canary composes `llmkit`, the Codex
+   adapter, and `codexsdk` from current source without requiring credentials or
+   network access.
+
+Public modules are also tested with `GOWORK=off`, so module tests do not pass
+only because the repository workspace repairs dependency resolution. The
+workspace canary is separate because its purpose is current-source composition.
+
+This verification deliberately does **not** model release state, mirror public
+API inventories, compile README Markdown, probe unpublished module versions, or
+produce custom evidence/authorization artifacts. Git source, Go tests, module
+`go.mod` files, and immutable tags are the authorities for those facts.
+
+## Optional real Codex smoke
+
+Real provider availability is a third, optional layer. It is not a required PR
+check because credentials, service availability, quotas, CLI versions, and
+model behavior are external observations rather than deterministic semantic
+proofs.
+
+Locally, install and authenticate the Codex CLI, then run:
+
+```sh
+LLMGO_LIVE_CODEX=1 \
+go test ./internal/tools/integration -run '^TestLiveCodexSmoke$' -count=1 -v
+```
+
+Set `LLMGO_LIVE_CODEX_MODEL` only when you intentionally want to pin a model;
+otherwise the Codex CLI default is used.
+
+GitHub Actions exposes the same test through the manually dispatched
+`Live Codex smoke` workflow. Its credential belongs in the protected
+`codex-live-smoke` Environment as the `OPENAI_API_KEY` secret. The workflow is
+manual and never runs for untrusted pull-request code.

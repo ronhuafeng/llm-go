@@ -1,8 +1,0 @@
-{
-  "format_version": 1,
-  "module": "llmkit",
-  "impact": "patch",
-  "breaking": false,
-  "summary": "Define Caller as an inference capability that cannot grant effect authority.",
-  "issue": 109
-}

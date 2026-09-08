@@ -1,8 +1,0 @@
-{
-  "format_version": 1,
-  "module": "llmkit",
-  "impact": "patch",
-  "breaking": false,
-  "summary": "Describe Value as the default typed-inference path and ValueWithContract as the explicit Contract-reuse path.",
-  "issue": 153
-}

@@ -15,12 +15,93 @@ import (
 	"golang.org/x/mod/modfile"
 )
 
-func verifyArchitecture(root string, registered *registry) []string {
+const llmkitPath = "github.com/ronhuafeng/llm-go/llmkit"
+const codexSDKPath = "github.com/ronhuafeng/llm-go/codexsdk"
+const adapterPath = "github.com/ronhuafeng/llm-go/llmcaller/codex"
+
+type workspaceModule struct {
+	dir      string
+	metadata moduleMetadata
+}
+
+type moduleMetadata struct {
+	path            string
+	goVersion       string
+	requires        []string
+	requireVersions map[string]string
+	replaces        []moduleReplacement
+	excludes        []string
+}
+
+type moduleReplacement struct {
+	oldPath    string
+	oldVersion string
+	newPath    string
+	newVersion string
+}
+
+func verifyArchitecture(root string) []string {
 	var violations []string
 	violations = append(violations, verifyOrchestrationRoot(root)...)
-	violations = append(violations, verifyRegisteredModules(root, registered)...)
-	violations = append(violations, verifyWorkspace(root, *registered)...)
-	violations = append(violations, verifyModuleGraph(root, *registered)...)
+
+	uses, err := parseGoWork(filepath.Join(root, "go.work"))
+	if err != nil {
+		return append(violations, err.Error())
+	}
+	useSet := make(map[string]bool, len(uses))
+	for _, use := range uses {
+		if useSet[use] {
+			violations = append(violations, fmt.Sprintf("go.work contains duplicate use %s", use))
+		}
+		useSet[use] = true
+	}
+	violations = append(violations, verifyEveryModuleIsInWorkspace(root, useSet)...)
+
+	modules := make([]workspaceModule, 0, len(uses))
+	owners := make(map[string]string, len(uses))
+	for _, dir := range uses {
+		metadata, err := parseGoMod(filepath.Join(root, filepath.FromSlash(dir), "go.mod"))
+		if err != nil {
+			violations = append(violations, fmt.Sprintf("module %s: %v", dir, err))
+			continue
+		}
+		if prior, exists := owners[metadata.path]; exists {
+			violations = append(violations, fmt.Sprintf("workspace modules %s and %s declare duplicate path %s", prior, dir, metadata.path))
+		} else {
+			owners[metadata.path] = dir
+		}
+		for _, replacement := range metadata.replaces {
+			oldModule := replacement.oldPath
+			if replacement.oldVersion != "" {
+				oldModule += "@" + replacement.oldVersion
+			}
+			newModule := replacement.newPath
+			if replacement.newVersion != "" {
+				newModule += "@" + replacement.newVersion
+			}
+			violations = append(violations, fmt.Sprintf("module %s contains prohibited replace %s => %s", moduleLabel(metadata.path), oldModule, newModule))
+		}
+		for _, excluded := range metadata.excludes {
+			violations = append(violations, fmt.Sprintf("module %s contains prohibited exclude %s", moduleLabel(metadata.path), excluded))
+		}
+		modules = append(modules, workspaceModule{dir: dir, metadata: metadata})
+	}
+
+	for _, required := range []string{llmkitPath, codexSDKPath, adapterPath} {
+		if owners[required] == "" {
+			violations = append(violations, fmt.Sprintf("go.work is missing semantic owner %s", moduleLabel(required)))
+		}
+	}
+
+	for _, candidate := range modules {
+		for _, required := range candidate.metadata.requires {
+			if target := ownerForImport(required, owners); target != "" && !allowedRepositoryDependency(candidate.metadata.path, target) {
+				violations = append(violations, fmt.Sprintf("module %s requires forbidden repository module %s", moduleLabel(candidate.metadata.path), moduleLabel(target)))
+			}
+		}
+		violations = append(violations, verifyModuleImports(root, candidate, owners)...)
+	}
+	violations = append(violations, verifyAdapterUpstreamRequirements(modules)...)
 	return violations
 }
 
@@ -31,7 +112,6 @@ func verifyOrchestrationRoot(root string) []string {
 	} else if !os.IsNotExist(err) {
 		violations = append(violations, fmt.Sprintf("inspect root go.mod: %v", err))
 	}
-
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		return append(violations, fmt.Sprintf("read repository root: %v", err))
@@ -44,42 +124,13 @@ func verifyOrchestrationRoot(root string) []string {
 	return violations
 }
 
-func verifyRegisteredModules(root string, registered *registry) []string {
+func verifyEveryModuleIsInWorkspace(root string, uses map[string]bool) []string {
 	var violations []string
-	wantDirs := make(map[string]bool, len(registered.Modules))
-	for index := range registered.Modules {
-		candidate := &registered.Modules[index]
-		wantDirs[candidate.Dir] = true
-		metadata, err := parseGoMod(filepath.Join(root, filepath.FromSlash(candidate.Dir), "go.mod"))
-		if err != nil {
-			violations = append(violations, fmt.Sprintf("module %s: %v", candidate.ID, err))
-			continue
-		}
-		candidate.path = metadata.path
-		candidate.goVersion = metadata.goVersion
-		candidate.requires = metadata.requires
-		candidate.requireVersions = metadata.requireVersions
-		candidate.replaces = metadata.replaces
-		candidate.excludes = metadata.excludes
-	}
-
-	seenPaths := map[string]string{}
-	for _, candidate := range registered.Modules {
-		if candidate.path == "" {
-			continue
-		}
-		if prior, exists := seenPaths[candidate.path]; exists {
-			violations = append(violations, fmt.Sprintf("modules %s and %s declare duplicate path %s", prior, candidate.ID, candidate.path))
-		} else {
-			seenPaths[candidate.path] = candidate.ID
-		}
-	}
-
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
-		if entry.IsDir() && entry.Name() == ".git" {
+		if entry.IsDir() && (entry.Name() == ".git" || entry.Name() == "vendor") {
 			return filepath.SkipDir
 		}
 		if entry.IsDir() || entry.Name() != "go.mod" {
@@ -90,8 +141,11 @@ func verifyRegisteredModules(root string, registered *registry) []string {
 			return err
 		}
 		relative = filepath.ToSlash(relative)
-		if !wantDirs[relative] {
-			violations = append(violations, fmt.Sprintf("unregistered Go module at %s", relative))
+		if relative == "." {
+			return nil
+		}
+		if !uses[relative] {
+			violations = append(violations, fmt.Sprintf("Go module %s is not listed in go.work", relative))
 		}
 		return nil
 	})
@@ -101,151 +155,105 @@ func verifyRegisteredModules(root string, registered *registry) []string {
 	return violations
 }
 
-func verifyWorkspace(root string, registered registry) []string {
-	uses, err := parseGoWork(filepath.Join(root, "go.work"))
-	if err != nil {
-		return []string{err.Error()}
-	}
-	want := make(map[string]bool, len(registered.Modules))
-	for _, candidate := range registered.Modules {
-		want[candidate.Dir] = true
-	}
-	got := make(map[string]bool, len(uses))
+func verifyModuleImports(root string, candidate workspaceModule, owners map[string]string) []string {
 	var violations []string
-	for _, use := range uses {
-		if got[use] {
-			violations = append(violations, fmt.Sprintf("go.work contains duplicate use %s", use))
+	moduleRoot := filepath.Join(root, filepath.FromSlash(candidate.dir))
+	err := filepath.WalkDir(moduleRoot, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
 		}
-		got[use] = true
-		if !want[use] {
-			violations = append(violations, fmt.Sprintf("go.work contains unregistered module %s", use))
+		if entry.IsDir() && (entry.Name() == ".git" || entry.Name() == "vendor") {
+			return filepath.SkipDir
 		}
-	}
-	for directory := range want {
-		if !got[directory] {
-			violations = append(violations, fmt.Sprintf("go.work is missing registered module %s", directory))
-		}
-	}
-	return violations
-}
-
-func verifyModuleGraph(root string, registered registry) []string {
-	owners := make(map[string]string, len(registered.Modules))
-	modulesByID := make(map[string]module, len(registered.Modules))
-	for _, candidate := range registered.Modules {
-		modulesByID[candidate.ID] = candidate
-		if candidate.path != "" {
-			owners[candidate.path] = candidate.ID
-		}
-	}
-
-	var violations []string
-	for _, candidate := range registered.Modules {
-		policy := modulePolicies[candidate.ID]
-		for _, replacement := range candidate.replaces {
-			oldModule := replacement.oldPath
-			if replacement.oldVersion != "" {
-				oldModule += "@" + replacement.oldVersion
-			}
-			newModule := replacement.newPath
-			if replacement.newVersion != "" {
-				newModule += "@" + replacement.newVersion
-			}
-			violations = append(violations, fmt.Sprintf("module %s contains prohibited replace %s => %s", candidate.ID, oldModule, newModule))
-		}
-		for _, excluded := range candidate.excludes {
-			violations = append(violations, fmt.Sprintf("module %s contains prohibited exclude %s", candidate.ID, excluded))
-		}
-		for _, required := range candidate.requires {
-			if target := ownerForImport(required, owners); target != "" && !policy.allowed[target] {
-				violations = append(violations, fmt.Sprintf("module %s requires forbidden repository module %s", candidate.ID, target))
-			}
-		}
-
-		moduleRoot := filepath.Join(root, filepath.FromSlash(candidate.Dir))
-		err := filepath.WalkDir(moduleRoot, func(path string, entry fs.DirEntry, walkErr error) error {
-			if walkErr != nil {
-				return walkErr
-			}
-			if entry.IsDir() && (entry.Name() == ".git" || entry.Name() == "vendor") {
-				return filepath.SkipDir
-			}
-			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") {
-				return nil
-			}
-			parsed, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
-			if err != nil {
-				return fmt.Errorf("parse imports in %s: %w", path, err)
-			}
-			for _, imported := range parsed.Imports {
-				importPath, err := strconv.Unquote(imported.Path.Value)
-				if err != nil {
-					return fmt.Errorf("decode import in %s: %w", path, err)
-				}
-				target := ownerForImport(importPath, owners)
-				if target != "" && !policy.allowed[target] {
-					relative, _ := filepath.Rel(root, path)
-					violations = append(violations, fmt.Sprintf("module %s file %s imports forbidden repository module %s", candidate.ID, filepath.ToSlash(relative), target))
-				}
-			}
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") {
 			return nil
-		})
-		if err != nil {
-			violations = append(violations, fmt.Sprintf("scan module %s imports: %v", candidate.ID, err))
 		}
+		parsed, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+		if err != nil {
+			return fmt.Errorf("parse imports in %s: %w", path, err)
+		}
+		for _, imported := range parsed.Imports {
+			importPath, err := strconv.Unquote(imported.Path.Value)
+			if err != nil {
+				return fmt.Errorf("decode import in %s: %w", path, err)
+			}
+			target := ownerForImport(importPath, owners)
+			if target != "" && !allowedRepositoryDependency(candidate.metadata.path, target) {
+				relative, _ := filepath.Rel(root, path)
+				violations = append(violations, fmt.Sprintf("module %s file %s imports forbidden repository module %s", moduleLabel(candidate.metadata.path), filepath.ToSlash(relative), moduleLabel(target)))
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		violations = append(violations, fmt.Sprintf("scan module %s imports: %v", moduleLabel(candidate.metadata.path), err))
 	}
-	violations = append(violations, verifyAdapterUpstreamRequirements(modulesByID)...)
 	return violations
 }
 
-func verifyAdapterUpstreamRequirements(modulesByID map[string]module) []string {
-	adapter, ok := modulesByID["codex-adapter"]
-	if !ok || adapter.path == "" {
+func verifyAdapterUpstreamRequirements(modules []workspaceModule) []string {
+	var adapter *workspaceModule
+	for index := range modules {
+		if modules[index].metadata.path == adapterPath {
+			adapter = &modules[index]
+			break
+		}
+	}
+	if adapter == nil {
 		return nil
 	}
 	var violations []string
-	for _, upstreamID := range []string{"llmkit", "codexsdk"} {
-		upstream, ok := modulesByID[upstreamID]
-		if !ok || upstream.path == "" {
-			continue
-		}
-		version, ok := adapter.requireVersions[upstream.path]
+	for _, upstream := range []string{llmkitPath, codexSDKPath} {
+		version, ok := adapter.metadata.requireVersions[upstream]
 		if !ok {
-			violations = append(violations, fmt.Sprintf("module codex-adapter must directly require repository module %s", upstreamID))
+			violations = append(violations, fmt.Sprintf("module codex-adapter must directly require repository module %s", moduleLabel(upstream)))
 			continue
 		}
 		if !isStableVersion(version) {
-			violations = append(violations, fmt.Sprintf("module codex-adapter requires repository module %s at non-stable version %q", upstreamID, version))
+			violations = append(violations, fmt.Sprintf("module codex-adapter requires repository module %s at non-stable version %q", moduleLabel(upstream), version))
 		}
 	}
 	return violations
 }
 
-func ownerForImport(importPath string, owners map[string]string) string {
-	type match struct {
-		path string
-		id   string
+func moduleLabel(modulePath string) string {
+	switch modulePath {
+	case llmkitPath:
+		return "llmkit"
+	case codexSDKPath:
+		return "codexsdk"
+	case adapterPath:
+		return "codex-adapter"
+	default:
+		return modulePath
 	}
-	var matches []match
-	for modulePath, id := range owners {
+}
+
+func allowedRepositoryDependency(source, target string) bool {
+	switch source {
+	case llmkitPath:
+		return target == llmkitPath
+	case codexSDKPath:
+		return target == codexSDKPath
+	case adapterPath:
+		return target == adapterPath || target == llmkitPath || target == codexSDKPath
+	default:
+		return true
+	}
+}
+
+func ownerForImport(importPath string, owners map[string]string) string {
+	var matches []string
+	for modulePath := range owners {
 		if importPath == modulePath || strings.HasPrefix(importPath, modulePath+"/") {
-			matches = append(matches, match{path: modulePath, id: id})
+			matches = append(matches, modulePath)
 		}
 	}
 	if len(matches) == 0 {
 		return ""
 	}
-	sort.Slice(matches, func(i, j int) bool { return len(matches[i].path) > len(matches[j].path) })
-	return matches[0].id
-}
-
-type moduleMetadata struct {
-	path            string
-	goVersion       string
-	requires        []string
-	requireVersions map[string]string
-	replaces        []moduleReplacement
-	excludes        []string
+	sort.Slice(matches, func(i, j int) bool { return len(matches[i]) > len(matches[j]) })
+	return matches[0]
 }
 
 func parseGoMod(path string) (moduleMetadata, error) {
@@ -293,7 +301,6 @@ func parseGoWork(path string) ([]string, error) {
 		return nil, fmt.Errorf("read go.work: %w", err)
 	}
 	defer file.Close()
-
 	var uses []string
 	inUseBlock := false
 	scanner := bufio.NewScanner(file)

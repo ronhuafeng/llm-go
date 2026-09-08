@@ -38,24 +38,23 @@ Application-owned authority is required before any external effect; model
 output alone never grants it.
 
 **I6 — Published modules must stand alone.** Public-module compatibility is what
-a clean consumer can resolve and build without workspace repair. Verification
-of published module graphs runs outside `go.work`. If a downstream module needs
-a new upstream public API, publish the upstream expansion before migrating and
-publishing the downstream module.
+a clean consumer can resolve and build without workspace repair. If a
+downstream module needs a new upstream public API, publish the upstream module
+before changing the downstream module's `go.mod` to consume it.
 
 **I7 — Published identity is independent and append-only.** `llmkit`,
 `codexsdk`, and `llmcaller/codex` have independent SemVer identities and
-directory-prefixed tags. Publication is ordered, not atomic. Formal tags are
-created only by the authorized release path, are never moved, and defects are
-fixed with a new version. Repository-level coordination does not transfer
-semantic authority between modules.
+directory-prefixed tags. Formal tags are never moved or reused; defects get a
+new version. Repository location does not transfer semantic authority between
+modules.
 
 **I8 — Facts and proof stay with their owner.** Generated facts, protocol
-policy, schemas, fixtures, and tests stay with the semantic owner whose claim
-they prove. Module-local tests prove module-local invariants; repository-level
-tests prove only composed behavior. Public truth is established by exported
-artifacts and observable behavior, not by inventories, registries, change
-fragments, workspace builds, or documentation claims that disagree with them.
+policy, schemas, fixtures, tests, and executable examples stay with the
+semantic owner whose claim they prove. Module-local tests prove module-local
+invariants; repository-level tests prove composed behavior. Public truth is
+established by exported artifacts and observable behavior, not by inventories,
+release ledgers, verification attestations, workspace-only builds, or
+contradictory documentation.
 
 **I9 — Every persistent context has one current reason to exist.** Give each
 fact one canonical authority. Keep a document, registry, field, compatibility

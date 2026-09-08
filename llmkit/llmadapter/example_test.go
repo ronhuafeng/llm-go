@@ -6,6 +6,7 @@ import (
 	"maps"
 
 	"github.com/ronhuafeng/llm-go/llmkit/llmadapter"
+	"github.com/ronhuafeng/llm-go/llmkit/llmschema"
 )
 
 type isolatedDetails struct {
@@ -59,4 +60,22 @@ func ExampleValue_providerDetailsOwnership() {
 
 	// Output:
 	// trace-1
+}
+
+func ExampleValueWithContract() {
+	contract, err := llmschema.Compile[bool]()
+	if err != nil {
+		panic(err)
+	}
+	result, err := llmadapter.ValueWithContract(
+		context.Background(),
+		ownershipCaller{runtimeHeaders: map[string]string{}},
+		"Return true.",
+		contract,
+	)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(result.Value)
+	// Output: true
 }

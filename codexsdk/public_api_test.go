@@ -17,30 +17,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/ronhuafeng/llm-go/codexsdk/internal/publicapi"
 )
-
-func TestPublicAPIIsDerivedFromExportedSource(t *testing.T) {
-	root, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	actual, err := publicapi.Export(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(actual, "type github.com/ronhuafeng/llm-go/codexsdk.ThreadRunner interface") {
-		t.Fatalf("derived public API omitted ThreadRunner:\n%s", actual)
-	}
-	second, err := publicapi.Export(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if actual != second {
-		t.Fatal("derived public API is not deterministic")
-	}
-}
 
 func TestGeneratedFacadeAccessorsReturnConcreteOpaqueValues(t *testing.T) {
 	root, err := os.Getwd()
