@@ -87,6 +87,9 @@ type Client struct {
 	testBeforePendingAdmission            func()
 
 	readerDone chan struct{}
+
+	runtimeAppServer     RuntimeAppServerObservation
+	runtimeCompatibility RuntimeCompatibility
 }
 
 type rpcResponse struct {
@@ -166,10 +169,13 @@ func New(options ClientOptions) (*Client, error) {
 		_ = c.Close()
 		return nil, err
 	}
-	if err := validateInitializeResponse(initializeResult); err != nil {
+	initializeResponse, err := decodeInitializeResponse(initializeResult)
+	if err != nil {
 		_ = c.Close()
 		return nil, err
 	}
+	c.runtimeAppServer = ObserveRuntimeAppServer(initializeResponse)
+	c.runtimeCompatibility = RuntimeCompatibilityOf(initializeResponse)
 	if err := c.notify(protocolv2.NewClientNotificationInitialized()); err != nil {
 		_ = c.Close()
 		return nil, err
@@ -188,16 +194,16 @@ func initializeParams(options ClientOptions) protocolv2.InitializeParams {
 	}
 }
 
-func validateInitializeResponse(result map[string]any) error {
+func decodeInitializeResponse(result map[string]any) (protocolv2.InitializeResponse, error) {
 	raw, err := json.Marshal(result)
 	if err != nil {
-		return fmt.Errorf("codexsdk: initialize response invalid: %w", err)
+		return protocolv2.InitializeResponse{}, fmt.Errorf("codexsdk: initialize response invalid: %w", err)
 	}
 	var response protocolv2.InitializeResponse
 	if err := wirejson.Unmarshal(raw, &response, wirejson.ServerObservation); err != nil {
-		return fmt.Errorf("codexsdk: initialize response invalid: %w", err)
+		return protocolv2.InitializeResponse{}, fmt.Errorf("codexsdk: initialize response invalid: %w", err)
 	}
-	return nil
+	return response, nil
 }
 
 func validateOptions(options ClientOptions) (ClientOptions, error) {

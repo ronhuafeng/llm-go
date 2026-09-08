@@ -68,3 +68,25 @@ _Avoid_: delivery queue, event store
 **Shared Run Cancellation**:
 The lifecycle boundary that terminates an Exact Run for every observer.
 _Avoid_: waiter cancellation, timeout
+
+**Generated Baseline Provenance**:
+The checked-in upstream Codex protocol baseline from which the generated
+surface was built. Authority is `baseline_metadata.json`.
+_Avoid_: runtime version, compatibility proof, handwritten version registry
+
+**Runtime App-Server Observation**:
+Identity the connected app-server reported through a Server Observation,
+currently `initialize`.
+_Avoid_: inferred CLI version, command-path identity, requested model
+
+**Runtime Compatibility**:
+Whether protocol evidence supports a compatibility claim between the
+connected app-server and the generated baseline. Unknown unless the
+protocol reports a usable compatibility fact.
+_Avoid_: smoke success, whole-surface compatibility, userAgent equality
+
+**Connection Provenance**:
+The Root Client pairing of Generated Baseline Provenance with this
+connection's Runtime App-Server Observation and Runtime Compatibility.
+The three facts stay separate.
+_Avoid_: compatibility tuple, version registry

@@ -770,7 +770,11 @@ func runFakeAppServer(mode string, extra []string) {
 				send(map[string]any{"id": id, "result": map[string]any{"codexHome": "/tmp/codex-home", "platformFamily": "unix", "userAgent": "fake-app-server"}})
 				continue
 			}
-			send(map[string]any{"id": id, "result": map[string]any{"codexHome": "/tmp/codex-home", "platformFamily": "unix", "platformOs": "darwin", "userAgent": "fake-app-server"}})
+			userAgent := "fake-app-server"
+			if mode == "initialize-user-agent" && len(extra) > 0 && extra[0] != "" {
+				userAgent = extra[0]
+			}
+			send(map[string]any{"id": id, "result": map[string]any{"codexHome": "/tmp/codex-home", "platformFamily": "unix", "platformOs": "darwin", "userAgent": userAgent}})
 		case "initialized":
 		case "thread/start":
 			if mode == "stderr-exit" {

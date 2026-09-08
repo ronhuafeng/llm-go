@@ -52,6 +52,7 @@ unknown         != zero
 unreported      != absent
 response        != truth
 schema-valid    != semantically valid
+generated exactness != runtime compatibility
 proposed        != accepted
 accepted        != authorized
 authorized      != executed
@@ -178,6 +179,9 @@ validation policy, repair policy, workflow state, authorization, or a universal
 LLM client interface.
 
 The SDK may hide stdio and JSON-RPC mechanics. It must preserve protocol truth.
+Checked-in generated exactness is not runtime compatibility: a successful
+call or live smoke does not prove the generated surface is compatible with
+the connected app-server.
 
 ## Codex Adapter
 

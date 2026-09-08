@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+
+- Expose generated-baseline provenance and initialize runtime identity as
+  separate facts. Runtime compatibility stays unknown: `initialize` reports
+  identity, not whole-surface compatibility, and a successful turn does not
+  change that.
+
 ### Changed
 
 - **Breaking generated-surface change (pre-v1):** publish the `rust-v0.153.4`
