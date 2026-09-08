@@ -23,3 +23,8 @@ authentication, the app-server command, the working directory, and approval
 handling. See the adapter README for the named read-only profile: it is
 effect-safe, not disclosure-safe, and does not establish confidentiality or
 provider retention.
+
+Dependabot watches the workspace Go modules and GitHub Actions. The scheduled
+or manual `Go vulnerability scan` workflow runs `govulncheck` on those
+modules. Those results are maintenance signals, not a required pull-request
+correctness gate.

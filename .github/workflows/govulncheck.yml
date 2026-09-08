@@ -1,0 +1,52 @@
+name: Go vulnerability scan
+
+on:
+  schedule:
+    - cron: "41 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  govulncheck:
+    name: govulncheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.23.x"
+          cache: false
+
+      - name: Scan llmkit
+        working-directory: llmkit
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
+
+      - name: Scan codexsdk
+        working-directory: codexsdk
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
+
+      - name: Scan Codex adapter
+        working-directory: llmcaller/codex
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
+
+      - name: Scan repository tools
+        working-directory: internal/tools
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...

@@ -20,6 +20,31 @@ func TestCurrentRepositoryContract(t *testing.T) {
 	}
 }
 
+func TestDependabotCoversWorkspaceModulesAndActions(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	uses, err := parseGoWork(filepath.Join(root, "go.work"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, ".github", "dependabot.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(data)
+	if !strings.Contains(text, "package-ecosystem: github-actions") {
+		t.Fatal("dependabot.yml must cover the github-actions ecosystem")
+	}
+	for _, use := range uses {
+		directory := "/" + strings.TrimPrefix(filepath.ToSlash(use), "./")
+		if !strings.Contains(text, "package-ecosystem: gomod") || !strings.Contains(text, "directory: "+directory) {
+			t.Fatalf("dependabot.yml must cover gomod directory %s", directory)
+		}
+	}
+}
+
 func TestArchitectureAllowsAdditionalToolingWorkspaceModule(t *testing.T) {
 	root := newArchitectureFixture(t)
 	writeFile(t, root, "go.work", "go 1.23.0\n\nuse (\n\t./llmkit\n\t./codexsdk\n\t./llmcaller/codex\n\t./internal/tools\n\t./tools/extra\n)\n")

@@ -42,6 +42,14 @@ publish a sync PR. They are not an ordinary correctness gate for unrelated
 library changes. The upstream-sync workflow remains responsible for exercising
 that tooling when it performs a protocol synchronization.
 
+Scheduled Dependabot updates and the manual/scheduled `Go vulnerability scan`
+workflow surface dependency and Action maintenance. They are not required
+pull-request checks and do not own deterministic source correctness.
+Workflows that receive write credentials or provider/release secrets pin
+third-party Actions to immutable commit SHAs. Read-only workflows without
+those secrets keep moving major-version tags so Dependabot can update them
+without secret-bearing pin churn.
+
 Owner-local Go fuzz targets exercise schema and protocol parser boundaries.
 Ordinary `go test` runs only their seed corpus. The scheduled/manual `Fuzz`
 workflow may run bounded `go test -fuzz=... -fuzztime=...` steps; it is not a
