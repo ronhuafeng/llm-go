@@ -81,6 +81,7 @@ Reading path: [`AGENTS.md`](AGENTS.md).
 | Current public API and behavior | exported code, package docs, public behavior |
 | Generated facts | owner-local generator inputs and committed output |
 | Generated Baseline Provenance | `codexsdk` `baseline_metadata.json` |
-| Runtime Compatibility | `codexsdk` initialize Server Observation |
+| Runtime App-Server Observation | `codexsdk` initialize Server Observation |
+| Runtime Compatibility | current initialize cannot prove it; `codexsdk` keeps it unknown |
 | Verification procedure | `docs/verify.md` |
 | Release identity and procedure | `docs/release.md` |
