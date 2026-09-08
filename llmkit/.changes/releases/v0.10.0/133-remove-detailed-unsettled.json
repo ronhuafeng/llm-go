@@ -1,8 +1,0 @@
-{
-  "format_version": 1,
-  "module": "llmkit",
-  "impact": "minor",
-  "breaking": true,
-  "summary": "Rename ValueDetailed and RunDetailed to unsuffixed names and replace ErrUnsettled with ErrExhausted.",
-  "issue": 133
-}

@@ -1,8 +1,0 @@
-{
-  "format_version": 1,
-  "module": "codex-adapter",
-  "impact": "minor",
-  "breaking": true,
-  "summary": "Remove IsolatesNeutralFacts so published adapter versions are not a capability registry.",
-  "issue": 131
-}

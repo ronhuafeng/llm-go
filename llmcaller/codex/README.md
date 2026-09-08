@@ -1,120 +1,62 @@
 # Codex adapter
 
-A loss-aware join: toolkit-shaped calls, isolated Exact snapshots, independently
-projected neutral facts, and adapter-owned Codex policy only. Destination:
-[NORTHSTAR.md](../../NORTHSTAR.md). Language: [CONTEXT.md](CONTEXT.md).
+A loss-aware join between provider-neutral inference and exact Codex facts.
+Destination: [NORTHSTAR.md](../../NORTHSTAR.md). Language:
+[CONTEXT.md](CONTEXT.md).
 
-## Install
+Requires Go 1.23 or newer.
 
 ```sh
-go get github.com/ronhuafeng/llm-go/llmcaller/codex@v0.8.1
+go get github.com/ronhuafeng/llm-go/llmcaller/codex@latest
 ```
 
-Go 1.23 or newer is required. This tag's `llmkit` and `codexsdk` versions are
-the requirements in this module's `go.mod`.
+## Executable example
 
-## Typed Call
+[`example_test.go`](example_test.go) is the canonical three-layer consumer
+example. It composes `llmkit`, this adapter, and `codexsdk` with a deterministic
+fake `ThreadRunner`, so the example is compiled and executed by ordinary tests
+without credentials or provider availability.
 
-An SDK `ThreadRunner` satisfies the adapter's smaller consumer-owned interface.
-The named safety profile is required to construct a provider-neutral `Caller`.
-It sets ephemeral thread creation, read-only sandboxing, and never-approve
-policy at both thread and turn scope, then admits the effective decoded
-thread-start facts before `turn/start`. Effectful Codex use goes through the
-SDK Exact Run / `ThreadRunner` surfaces directly; it is not a neutral
-`llmadapter.Caller`.
-
-```go
-runner := client.ThreadRunner()
-options := codexcaller.ReadOnlyEphemeralOptions(runner)
-options.Defaults.Thread.Model = protocolv2.Value("gpt-5")
-options.Defaults.Thread.CWD = protocolv2.Value(workspace)
-
-caller, err := codexcaller.New(options)
-if err != nil {
-	return err
-}
-
-type Result struct {
-	Answer string `json:"answer"`
-}
-
-result, err := llmadapter.Value[Result](ctx, caller, "Return JSON.")
+```sh
+GOWORK=off go test ./...
 ```
 
-A compile-checked fake-runner version of the complete three-layer path is in
-[`example_test.go`](example_test.go).
+The optional repository-level live smoke runs the same public composition
+against a real local Codex app-server; see
+[`../../docs/verify.md`](../../docs/verify.md).
 
-## Exact Defaults
+## Effect-safe neutral caller
 
-`Options.Defaults` is `codexsdk.StartThreadRunRequest`, so every generated
-Codex request fact remains expressible without a copied option model. The
-adapter owns and rejects non-zero values for:
+A provider-neutral `llmadapter.Caller` can be constructed only through the
+named read-only, never-approve, ephemeral profile. The adapter applies that
+profile at thread and turn scope and admits the decoded effective thread-start
+facts before `turn/start`. Unknown or mismatched required facts reject
+continuation before the model-directed turn can execute.
 
-- `Defaults.Turn.ThreadID`;
-- `Defaults.Turn.Input`;
-- `Defaults.Turn.OutputSchema`;
-- `Defaults.AdmitTurn`.
+Effectful or provider-specific Codex operations use `codexsdk` Exact Run /
+`ThreadRunner` surfaces directly; they are not neutral `llmadapter.Caller`
+operations.
 
-`New` rejects a caller-owned `AdmitTurn` and every request attaches the
-adapter's Effective-profile admission callback. For options returned by
-`ReadOnlyEphemeralOptions`, the adapter additionally owns thread ephemeral,
-sandbox, and approval fields plus turn sandbox and approval fields. `New` fills unset profile fields with their safe values and
-rejects explicit conflicts before a caller can be constructed. It then clones
-the normalized defaults. Every request reapplies those profile values before
-the SDK runner is invoked, while model, CWD, effort, service tier, workspace
-roots, and all other non-profile generated defaults remain caller-controlled.
+`Options.Defaults` is the exact `codexsdk.StartThreadRunRequest`. The adapter
+owns `Turn.ThreadID`, `Turn.Input`, `Turn.OutputSchema`, `AdmitTurn`, and the
+named profile fields. Other generated defaults such as model, CWD, reasoning
+effort, service tier, and workspace roots remain caller-controlled.
 
-## Result Paths
+## Evidence paths
 
-- `Call` implements `llmadapter.Caller` and projects final text, provider name,
-  observed model, and observed token usage.
-- `CallDetailed` returns the exact `codexsdk.StartedThreadRun` and is the core
-  execution path.
-- `CallStream` returns an adapter-owned exact stream wrapper and uses the same
-  request builder. `Stream.SDKStream` is the adjacent typed SDK escape hatch.
+- `Call` implements `llmadapter.Caller` and publishes final text plus sound
+  provider-neutral observations.
+- `CallDetailed` returns the exact `codexsdk.StartedThreadRun`, including
+  partial evidence on failure.
+- `CallStream` preserves the exact streaming lifecycle and applies the same
+  pre-turn admission.
 
-`Call` places an isolated Exact Run snapshot in `codexcaller.Details`. Notifications,
-diagnostics, IDs, exact usage, sandbox, approval, service tier, and generated
-configuration remain available there. If the SDK returns a partial run and an
-error, the adapter returns both the available response evidence and the same
-error cause chain.
-
-If an exact run cannot be isolated, `Call` returns the snapshot error and omits
-`ProviderDetails` rather than publishing mutable runner state. Neutral facts
-that can themselves be isolated stay published: final text, provider name,
-thread-start or independently isolated `model/rerouted` model, and cloned
-total token usage. Requested or default model values never fill an unknown
-observation. An observed zero token count stays distinct from an unreported
-dimension.
-
-Requested-policy enforcement happens before transport for `Call`,
-`CallDetailed`, and `CallStream`: no explicitly conflicting named-profile
-defaults can reach the SDK runner, and `New` rejects construction without a
-named profile. All three paths attach `StartThreadRunRequest.AdmitTurn` so
-effective approval, sandbox, and ephemeral facts are checked from the decoded
-thread-start observation before `turn/start`. An unknown or mismatched
-required fact rejects continuation, preserves the exact thread-start
-evidence, and reports `ErrEffectiveProfile`. That rejection happens before
-`turn/start`.
-Requested or default profile values are never substituted for missing
-effective facts. A decoded start remains profile-checked and observable even
-when its required thread ID is missing; failures before a start response is
-decoded do not synthesize a profile mismatch. `Stream.Wait` returns the
-complete exact terminal or partial result together with SDK and profile
-causes; `Stream.Err` exposes the same joined terminal causes. Use
-`Stream.SDKStream` when a lower-level SDK operation is required, and observe
-the terminal result through the adapter wrapper when named-profile
-verification is required.
-
-```go
-response, err := caller.Call(ctx, request)
-if details, ok := response.ProviderDetails.(codexcaller.Details); ok {
-	inspect(details.Run)
-}
-if err != nil {
-	return err
-}
-```
+`Call` publishes an isolated `codexcaller.Details` snapshot when it can do so
+safely. Failure to isolate exact details omits `ProviderDetails` and returns the
+isolation error, but independently isolated neutral model/usage observations
+remain available. Requested/default model values never fill an unknown
+observation, and observed zero token counts remain distinct from unreported
+counts.
 
 ## Schema Policy
 

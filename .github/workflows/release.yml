@@ -4,16 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       module:
-        description: Registered public module ID
+        description: Public module
         required: true
         type: choice
         options: [llmkit, codexsdk, codex-adapter]
       version:
-        description: Exact next stable SemVer
-        required: true
-        type: string
-      commit:
-        description: Exact current main commit to release
+        description: Stable SemVer, for example v0.13.0
         required: true
         type: string
 
@@ -25,103 +21,23 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  preflight:
-    name: Typed release preflight
+  release:
+    name: Test, tag, release
     runs-on: ubuntu-latest
-    outputs:
-      digest: ${{ steps.authorization.outputs.digest }}
-      tag: ${{ steps.plan.outputs.tag }}
-    timeout-minutes: 30
-    steps:
-      - name: Require dispatch from main
-        if: github.ref != 'refs/heads/main'
-        run: |
-          echo "release dispatch must originate from refs/heads/main" >&2
-          exit 1
-      - name: Check out the requested source identity
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          ref: ${{ inputs.commit }}
-      - name: Set up current Go for repository tooling
-        uses: actions/setup-go@v6
-        with:
-          go-version: stable
-          cache: false
-      - name: Build typed release tool
-        working-directory: internal/tools
-        env:
-          GOWORK: "off"
-        run: go build -o "$RUNNER_TEMP/repoctl" ./cmd/repoctl
-      - name: Construct digest-bound release plan
-        id: plan
-        env:
-          MODULE: ${{ inputs.module }}
-          VERSION: ${{ inputs.version }}
-          COMMIT: ${{ inputs.commit }}
-        run: |
-          "$RUNNER_TEMP/repoctl" release-plan -root . -module "$MODULE" -version "$VERSION" -commit "$COMMIT" -main origin/main -output "$RUNNER_TEMP/release-plan.json"
-          "$RUNNER_TEMP/repoctl" release-notes -plan "$RUNNER_TEMP/release-plan.json" -output "$RUNNER_TEMP/release-notes.md"
-          echo "tag=$(jq -r '.subject.tag' "$RUNNER_TEMP/release-plan.json")" >> "$GITHUB_OUTPUT"
-          module_dir=$(jq -r '.subject.module_dir' "$RUNNER_TEMP/release-plan.json")
-          echo "module_dir=$module_dir" >> "$GITHUB_OUTPUT"
-      - name: Verify standalone module on minimum Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: ${{ steps.plan.outputs.module_dir }}/go.mod
-          cache: false
-      - name: Run minimum-Go evidence
-        run: >-
-          "$RUNNER_TEMP/repoctl" verify-module -root . -module "${{ inputs.module }}"
-          -stage minimum -evidence "$RUNNER_TEMP/evidence-minimum.json"
-      - name: Restore current Go
-        uses: actions/setup-go@v6
-        with:
-          go-version: stable
-          cache: false
-      - name: Run current-Go and race evidence
-        run: |
-          "$RUNNER_TEMP/repoctl" verify-module -root . -module "${{ inputs.module }}" -stage current -evidence "$RUNNER_TEMP/evidence-current.json"
-          "$RUNNER_TEMP/repoctl" verify-module -root . -module "${{ inputs.module }}" -stage race -evidence "$RUNNER_TEMP/evidence-race.json"
-      - name: Verify exact checkout composition
-        env:
-          COMMIT: ${{ inputs.commit }}
-        run: |
-          "$RUNNER_TEMP/repoctl" affected -root . -base "$COMMIT^" -head "$COMMIT" -output affected-plan.json
-          "$RUNNER_TEMP/repoctl" verify-checkout -root . -plan affected-plan.json -evidence "$RUNNER_TEMP/evidence-checkout.json"
-          rm affected-plan.json
-      - name: Finalize evidence-bound release authorization
-        id: authorization
-        run: |
-          "$RUNNER_TEMP/repoctl" finalize-release -plan "$RUNNER_TEMP/release-plan.json" -minimum "$RUNNER_TEMP/evidence-minimum.json" -current "$RUNNER_TEMP/evidence-current.json" -race "$RUNNER_TEMP/evidence-race.json" -checkout "$RUNNER_TEMP/evidence-checkout.json" -output "$RUNNER_TEMP/release-authorization.json"
-          echo "digest=$(jq -r '.authorization_digest' "$RUNNER_TEMP/release-authorization.json")" >> "$GITHUB_OUTPUT"
-      - name: Upload immutable preflight evidence
-        uses: actions/upload-artifact@v7
-        with:
-          name: release-preflight
-          if-no-files-found: error
-          retention-days: 90
-          path: |
-            ${{ runner.temp }}/release-plan.json
-            ${{ runner.temp }}/release-authorization.json
-            ${{ runner.temp }}/release-notes.md
-            ${{ runner.temp }}/evidence-minimum.json
-            ${{ runner.temp }}/evidence-current.json
-            ${{ runner.temp }}/evidence-race.json
-            ${{ runner.temp }}/evidence-checkout.json
-            ${{ runner.temp }}/repoctl
-
-  tag:
-    name: Approved immutable tag
-    needs: preflight
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 40
     environment:
       name: production-release
     permissions:
-      contents: read
+      contents: write
     steps:
-      - name: Require the protected release Deploy Key
+      - name: Require dispatch from main
+        if: github.ref != 'refs/heads/main'
+        working-directory: ${{ github.workspace }}
+        run: |
+          echo "release dispatch must originate from refs/heads/main" >&2
+          exit 1
+      - name: Require release credential
+        working-directory: ${{ github.workspace }}
         env:
           RELEASE_DEPLOY_KEY: ${{ secrets.RELEASE_DEPLOY_KEY }}
         run: |
@@ -129,159 +45,63 @@ jobs:
             echo "production-release is missing RELEASE_DEPLOY_KEY" >&2
             exit 1
           }
-      - name: Check out current main after approval
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          ref: main
-          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
-          ssh-strict: true
-          persist-credentials: true
-      - name: Pin the release remote to SSH
-        run: |
-          git remote set-url origin "git@github.com:${GITHUB_REPOSITORY}.git"
-          test "$(git remote get-url origin)" = "git@github.com:${GITHUB_REPOSITORY}.git"
-      - uses: actions/setup-go@v6
-        with:
-          go-version: stable
-          cache: false
-      - uses: actions/download-artifact@v8
-        with:
-          name: release-preflight
-          path: ${{ runner.temp }}/release-preflight
-      - name: Build release tool before the final main observation
-        working-directory: internal/tools
-        env:
-          GOWORK: "off"
-        run: go build -o "$RUNNER_TEMP/repoctl" ./cmd/repoctl
-      - name: Reauthorize against fresh main and create exactly one tag
-        env:
-          DIGEST: ${{ needs.preflight.outputs.digest }}
-          COMMIT: ${{ inputs.commit }}
-          TAG: ${{ needs.preflight.outputs.tag }}
-          PLAN: ${{ runner.temp }}/release-preflight/release-plan.json
-          AUTHORIZATION: ${{ runner.temp }}/release-preflight/release-authorization.json
-          EVIDENCE_DIR: ${{ runner.temp }}/release-preflight
-          GOWORK: "off"
-        run: |
-          git fetch --no-tags origin "+refs/heads/main:refs/remotes/origin/main"
-          "$RUNNER_TEMP/repoctl" authorize-tag -root . -plan "$PLAN" -authorization "$AUTHORIZATION" -evidence-dir "$EVIDENCE_DIR" -digest "$DIGEST" -commit "$COMMIT" -tag "$TAG" -main refs/remotes/origin/main
-
-          git fetch --no-tags origin "+refs/heads/main:refs/remotes/origin/main"
-          test "$(git rev-parse refs/remotes/origin/main^{commit})" = "$COMMIT"
-          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$COMMIT"
-          test -z "$(git ls-remote --tags origin "refs/tags/$TAG")"
-
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git tag -a "$TAG" "$COMMIT" -m "$TAG" -m "release-authorization: $DIGEST"
-
-          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$COMMIT"
-          git push --atomic --force-with-lease="refs/tags/$TAG:" origin "refs/tags/$TAG"
-
-  draft-release:
-    name: Create unverified Draft Release
-    needs: [preflight, tag]
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: write
-    steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          ref: ${{ inputs.commit }}
-      - uses: actions/download-artifact@v8
-        with:
-          name: release-preflight
-          path: ${{ runner.temp }}/release-preflight
-      - name: Create Draft Release for the existing tag
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.preflight.outputs.tag }}
-          COMMIT: ${{ inputs.commit }}
-          NOTES: ${{ runner.temp }}/release-preflight/release-notes.md
-          REPOCTL: ${{ runner.temp }}/release-preflight/repoctl
-        run: |
-          chmod +x "$REPOCTL"
-          tag_refs="$RUNNER_TEMP/tag-refs.txt"
-
-          git ls-remote origin "refs/tags/$TAG" "refs/tags/$TAG^{}" > "$tag_refs"
-          "$REPOCTL" validate-tag-ref -input "$tag_refs" -tag "$TAG" -commit "$COMMIT"
-
-          bash .github/scripts/ensure-draft-release.sh
-
-          git ls-remote origin "refs/tags/$TAG" "refs/tags/$TAG^{}" > "$tag_refs"
-          "$REPOCTL" validate-tag-ref -input "$tag_refs" -tag "$TAG" -commit "$COMMIT"
-
-  post-tag:
-    name: Public proxy and clean consumer
-    needs: [preflight, draft-release]
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      contents: read
-    steps:
-      - name: Check out release tooling at the authorized commit
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          ref: ${{ inputs.commit }}
+          ref: ${{ github.sha }}
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
+          ssh-strict: true
+          persist-credentials: true
       - uses: actions/setup-go@v6
         with:
           go-version: stable
-          cache: false
-      - uses: actions/download-artifact@v8
-        with:
-          name: release-preflight
-          path: ${{ runner.temp }}/release-preflight
-      - name: Fetch and verify the immutable tag
+          cache-dependency-path: |
+            llmkit/go.sum
+            codexsdk/go.sum
+            llmcaller/codex/go.sum
+            internal/tools/go.sum
+      - name: Resolve release tag
+        id: release
         env:
-          TAG: ${{ needs.preflight.outputs.tag }}
-        run: git fetch origin "refs/tags/$TAG:refs/tags/$TAG"
-      - name: Verify only the public artifact
-        working-directory: internal/tools
+          MODULE: ${{ inputs.module }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [[ ! "$VERSION" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "version must be stable SemVer like v0.13.0" >&2
+            exit 1
+          fi
+          case "$MODULE" in
+            llmkit) TAG="llmkit/$VERSION" ;;
+            codexsdk) TAG="codexsdk/$VERSION" ;;
+            codex-adapter) TAG="llmcaller/codex/$VERSION" ;;
+            *) echo "unknown module $MODULE" >&2; exit 1 ;;
+          esac
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+      - name: Deterministic proofs and executable examples
+        run: ./scripts/verify.sh
+      - name: Create immutable tag at the tested commit
         env:
-          DIGEST: ${{ needs.preflight.outputs.digest }}
-          PLAN: ${{ runner.temp }}/release-preflight/release-plan.json
-          AUTHORIZATION: ${{ runner.temp }}/release-preflight/release-authorization.json
-          EVIDENCE_DIR: ${{ runner.temp }}/release-preflight
-          EVIDENCE: ${{ runner.temp }}/published-evidence.json
-          GOWORK: "off"
-        run: >-
-          go run ./cmd/repoctl verify-tag -root ../.. -plan "$PLAN"
-          -authorization "$AUTHORIZATION" -evidence-dir "$EVIDENCE_DIR"
-          -digest "$DIGEST" -evidence "$EVIDENCE"
-          -timeout 10m -retry 15s -command-timeout 5m
-      - name: Upload post-tag evidence
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: published-evidence
-          if-no-files-found: error
-          retention-days: 90
-          path: ${{ runner.temp }}/published-evidence.json
+          COMMIT: ${{ github.sha }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          git remote set-url origin "git@github.com:${GITHUB_REPOSITORY}.git"
+          git fetch --no-tags origin "+refs/heads/main:refs/remotes/origin/main"
+          test "$(git rev-parse refs/remotes/origin/main^{commit})" = "$COMMIT" || {
+            echo "main advanced after this release was dispatched; dispatch again" >&2
+            exit 1
+          }
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$COMMIT"
+          test -z "$(git ls-remote --tags origin "refs/tags/$TAG" "refs/tags/$TAG^{}")" || {
+            echo "tag $TAG already exists; release versions are append-only" >&2
+            exit 1
+          }
 
-  publish-release:
-    name: Mark GitHub Release verified
-    needs: [preflight, post-tag]
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v8
-        with:
-          name: release-preflight
-          path: ${{ runner.temp }}/release-preflight
-      - uses: actions/download-artifact@v8
-        with:
-          name: published-evidence
-          path: ${{ runner.temp }}/published-evidence
-      - name: Attach evidence before publishing
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git tag -a "$TAG" "$COMMIT" -m "$TAG"
+          git push --atomic --force-with-lease="refs/tags/$TAG:" origin "refs/tags/$TAG"
+      - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.preflight.outputs.tag }}
-        run: |
-          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber "$RUNNER_TEMP/release-preflight/release-plan.json" "$RUNNER_TEMP/release-preflight/release-authorization.json" "$RUNNER_TEMP/published-evidence/published-evidence.json"
-          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest=false --title "$TAG (verified)"
+          TAG: ${{ steps.release.outputs.tag }}
+        run: gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --title "$TAG" --generate-notes

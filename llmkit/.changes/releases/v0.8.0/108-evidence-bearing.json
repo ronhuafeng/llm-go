@@ -1,8 +1,0 @@
-{
-  "format_version": 1,
-  "module": "llmkit",
-  "impact": "minor",
-  "breaking": true,
-  "summary": "Remove evidence-erasing Value and Run wrappers; keep evidence-bearing result paths.",
-  "issue": 108
-}

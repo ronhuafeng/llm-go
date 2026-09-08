@@ -1,8 +1,0 @@
-{
-  "format_version": 1,
-  "module": "llmkit",
-  "impact": "minor",
-  "breaking": true,
-  "summary": "Require an explicit sanitizer before free-form retry feedback can be sent to a model.",
-  "issue": 50
-}

@@ -3,197 +3,49 @@
 Exact control of one local Codex app-server. Destination:
 [NORTHSTAR.md](../NORTHSTAR.md). Language: [CONTEXT.md](CONTEXT.md).
 
-This project is unofficial and experimental. It is not an OpenAI product.
-Use it to talk to a locally launched Codex app-server over stdio.
-
-## Packages
+This project is unofficial and experimental; it is not an OpenAI product.
 
 Public import paths:
 
-- `github.com/ronhuafeng/llm-go/codexsdk`: stdio client, generated typed
-  facades, exact `ThreadRunner`, exact notification streaming, and generated
-  server-request handling.
-- `github.com/ronhuafeng/llm-go/codexsdk/protocolv2`: generated app-server v2
+- `github.com/ronhuafeng/llm-go/codexsdk` — client lifecycle, generated typed
+  facades, Exact Run, notification streaming, and server-request handling.
+- `github.com/ronhuafeng/llm-go/codexsdk/protocolv2` — generated app-server v2
   params, responses, notifications, enums, unions, JSON helpers, and method
   registry.
 
-Generator sources, schema fixtures, and inventory commands live under
-`internal/` and are not importable API.
-
-Inbound app-server JSON-RPC frames are limited to 16 MiB, including the newline
-delimiter. Oversized or unterminated frames fail the Root Client with sanitized
-byte-count and hash diagnostics; outbound messages are not subject to this
-internal transport limit.
-
-## Installation
-
-Install the current release with:
+Requires Go 1.23 or newer.
 
 ```sh
-go get github.com/ronhuafeng/llm-go/codexsdk@v0.8.0
+go get github.com/ronhuafeng/llm-go/codexsdk@latest
 ```
 
-The module targets Go 1.23 or newer.
+## Executable example
 
-To run against a real app-server, install Codex CLI separately and make sure
-`codex` is on `PATH`:
+[`example_test.go`](example_test.go) is the canonical compile-checked client
+setup. It shows a locally launched `codex app-server` without making ordinary
+unit tests depend on a real CLI or credential.
 
 ```sh
-codex --version
+GOWORK=off go test ./...
 ```
 
-## Quick Start: Typed Client
+Use Exact Run when provider facts matter. `ThreadRunner` preserves decoded
+thread-start facts, turn state, notifications, usage, diagnostics, final text,
+and partial observation on failure. Admission between decoded `thread/start`
+and `turn/start` is consumer-supplied and policy-neutral; rejecting admission
+preserves the exact partial run and does not send `turn/start`.
 
-```go
-package main
+The generated protocol and app-server are the factual authority. The SDK does
+not translate Codex facts into provider-neutral LLM semantics and does not own
+application judgment or effect authority.
 
-import (
-	"context"
-	"log"
-	"os"
+Inbound app-server JSON-RPC frames are limited to 16 MiB including the newline
+delimiter. Oversized or unterminated frames fail the client with sanitized
+byte-count/hash diagnostics.
 
-	"github.com/ronhuafeng/llm-go/codexsdk"
-	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
-)
+Generator and protocol-sync rules stay owner-local. See
+[`Agents.test.md`](Agents.test.md) for SDK test design and the repository
+[`codexsdk-sync-upstream`](../.agents/skills/codexsdk-sync-upstream/SKILL.md)
+skill for protocol baseline updates.
 
-func main() {
-	ctx := context.Background()
-	workspace, err := os.Getwd()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	client, err := codexsdk.New(codexsdk.ClientOptions{
-		CWD:     workspace,
-		Command: []string{"codex", "app-server", "--listen", "stdio://"},
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer client.Close()
-
-	resp, err := client.Models().List(ctx, protocolv2.ModelListParams{})
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Printf("models: %d", len(resp.Data))
-}
-```
-
-## Quick Start: Exact ThreadRunner
-
-`ThreadRunner` transparently composes exact generated `thread/start` and
-`turn/start` params. The result retains the exact start response, terminal turn,
-usage, and every attributable generated notification.
-
-A successfully decoded lifecycle response remains observable as partial
-evidence even when a required thread or turn identity is missing. In that case,
-the simple operation returns the decoded facts with `ErrMissingThreadID` or
-`ErrMissingTurnID`; the streaming operation returns a non-nil terminal stream
-whose `Wait`, `Result`, and `Err` expose the same facts and cause. Identity
-failure prevents later lifecycle requests or live run registration without
-closing the Client.
-
-`StartThreadRunRequest.AdmitTurn` inspects the decoded `thread/start` Server
-Observation before `turn/start`. The callback is caller-owned. A non-nil
-error rejects continuation fail-closed: `Start` and `StartStream` publish the
-exact partial `StartedThreadRun` plus `ErrTurnAdmissionRejected`, and no
-`turn/start` is sent. A nil callback keeps current Exact Run behavior. The
-SDK does not interpret that decision as a read-only profile or
-provider-neutral authorization policy.
-
-```go
-package main
-
-import (
-	"context"
-	"log"
-	"os"
-
-	"github.com/ronhuafeng/llm-go/codexsdk"
-	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
-)
-
-func main() {
-	ctx := context.Background()
-	workspace, err := os.Getwd()
-	if err != nil {
-		log.Fatal(err)
-	}
-	model := os.Getenv("CODEXSDK_EXAMPLE_MODEL")
-	if model == "" {
-		log.Fatal("set CODEXSDK_EXAMPLE_MODEL")
-	}
-
-	root, err := codexsdk.New(codexsdk.ClientOptions{
-		CWD:     workspace,
-		Command: []string{"codex", "app-server", "--listen", "stdio://"},
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer root.Close()
-
-	result, err := root.ThreadRunner().Start(ctx, codexsdk.StartThreadRunRequest{
-		Thread: protocolv2.ThreadStartParams{
-			Ephemeral: protocolv2.Value(true),
-			Model:     protocolv2.Value(model),
-		},
-		Turn: protocolv2.TurnStartParams{
-			Input: []protocolv2.UserInput{
-				protocolv2.NewUserInputText(protocolv2.UserInputText{
-					Text: "Reply with a short confirmation.",
-				}),
-			},
-		},
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Println(result.Run.FinalResponse)
-}
-```
-
-`StartStream` and `ResumeStream` expose attributable generated
-`protocolv2.ServerNotification`s for that Exact Run. Client/global facts never
-enter per-run history. `Result` remains available on failures and contains the
-latest immutable partial snapshot. More compile-checked examples live in
-`examples_test.go`.
-
-Call `Stream.Wait` when multiple consumers need to observe the same run without
-coordinating ownership of `Next`. Any number of waiters can block independently
-and each receives an immutable result snapshot plus the run's stable terminal
-error. A waiter's context bounds only that call: cancellation returns the latest
-partial snapshot with `ctx.Err()` without canceling the run or changing
-`Stream.Err`. Use `Stream.Close` for Shared Run Cancellation. `Next` uses a
-cursor over the same immutable ordered history retained by `Result`, so `Wait`
-does not need to consume notifications and cannot cause per-run backpressure.
-`Next` context cancellation stops only that Exact Run History Cursor. The
-separately configurable global notification-handler queue remains bounded.
-
-For one thread, only one Exact Run may be waiting for `turn/start` to return its
-turn identity. An overlapping start fails before sending another `turn/start`.
-Once the first turn identity is attached, later turns on the same thread may
-start without waiting for the earlier live turn to finish.
-
-Configure `ServerRequestHandler` when the application can provide generated
-response data. With no handler, the
-SDK immediately returns a generated fail-closed response for requests that
-have a safe denial or empty-answer form. Requests requiring application data,
-including authentication refresh, dynamic tool output, and attestation, return
-a JSON-RPC error and fail the Root Client with `ErrExactServerRequest`. The
-first cause is published to active Exact Runs; partial notifications and run
-evidence remain available.
-
-Callback admission is atomic with client shutdown. Once `Close` or failure
-shutdown closes admission, no new server-request or notification handler is
-started. Normal close cancels exact server-request handler contexts and joins
-every callback accepted before that boundary before transport teardown;
-failure shutdown cancels accepted callbacks immediately while preserving the
-first failure cause and partial run evidence. Handlers must return when their
-context is canceled and must not call `Close` reentrantly.
-
-Protocol sync uses
-[`codexsdk-sync-upstream`](../.agents/skills/codexsdk-sync-upstream/SKILL.md).
-See repository [CONTRIBUTING.md](../CONTRIBUTING.md) and
-[SECURITY.md](../SECURITY.md). Changelog: [CHANGELOG.md](CHANGELOG.md).
+Changelog: [CHANGELOG.md](CHANGELOG.md). License: [LICENSE](LICENSE).
