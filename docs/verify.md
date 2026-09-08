@@ -20,6 +20,14 @@ current-source composition through the workspace, run from the repository root:
 go test -race ./internal/tools/integration
 ```
 
+Required pull-request verification runs on Linux only. The scheduled or
+manual `Advisory OS portability` workflow additionally runs `go vet ./...`
+and `go test ./...` for each public module with `GOWORK=off`, plus
+current-source `go test ./internal/tools/integration`, on Linux, macOS, and
+Windows. That matrix is advisory: it does not run `-race` or `go mod tidy
+-diff`, and it is not a required merge gate. See
+[`SUPPORT.md`](../SUPPORT.md).
+
 `PR verification` makes the complete ordinary gate explicit in its workflow:
 
 1. test each public module with Go 1.23 and `GOWORK=off`;

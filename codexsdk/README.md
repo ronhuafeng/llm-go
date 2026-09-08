@@ -13,7 +13,8 @@ Public import paths:
   params, responses, notifications, enums, unions, JSON helpers, and method
   registry.
 
-Requires Go 1.23 or newer.
+Requires Go 1.23 or newer. OS support and testing tiers are in
+[SUPPORT.md](../SUPPORT.md).
 
 ```sh
 go get github.com/ronhuafeng/llm-go/codexsdk@latest

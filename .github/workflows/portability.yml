@@ -1,0 +1,66 @@
+name: Advisory OS portability
+
+on:
+  schedule:
+    - cron: "23 6 * * 3"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public-modules:
+    name: Public modules
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        module: [llmkit, codexsdk, llmcaller/codex]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.23.x"
+          cache: false
+
+      - name: Vet
+        working-directory: ${{ matrix.module }}
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+        run: go vet ./...
+
+      - name: Test
+        working-directory: ${{ matrix.module }}
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+        run: go test ./...
+
+  integration:
+    name: Current-source integration
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.23.x"
+          cache: false
+
+      - name: Test integration
+        env:
+          GOTOOLCHAIN: local
+        run: go test ./internal/tools/integration

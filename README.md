@@ -20,3 +20,4 @@ Semantics: [`NORTHSTAR.md`](NORTHSTAR.md).
 Live invariants: [`DESIGN.md`](DESIGN.md).
 Maintainers: [`AGENTS.md`](AGENTS.md), [`CONTRIBUTING.md`](CONTRIBUTING.md).
 Vulnerabilities: [`SECURITY.md`](SECURITY.md).
+OS support: [`SUPPORT.md`](SUPPORT.md).
