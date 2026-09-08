@@ -34,22 +34,24 @@ func TestGeneratedBaselineMatchesCheckedInMetadata(t *testing.T) {
 }
 
 func TestObserveRuntimeAppServerPreservesReportedIdentity(t *testing.T) {
-	observation := ObserveRuntimeAppServer(protocolv2.InitializeResponse{
+	authority := readCheckedInBaselineMetadata(t)
+	response := protocolv2.InitializeResponse{
 		CodexHome:      "/tmp/codex-home",
 		PlatformFamily: "unix",
 		PlatformOs:     "linux",
-		UserAgent:      "codex-cli 0.153.4",
-	})
+		UserAgent:      authority.CodexVersion,
+	}
+	observation := ObserveRuntimeAppServer(response)
 	if !observation.Observed {
 		t.Fatal("reported initialize Server Observation must be Observed")
 	}
-	if observation.UserAgent != "codex-cli 0.153.4" {
-		t.Errorf("UserAgent = %q, want the initialize userAgent", observation.UserAgent)
+	if observation.UserAgent != authority.CodexVersion {
+		t.Errorf("UserAgent = %q, want the initialize userAgent %q", observation.UserAgent, authority.CodexVersion)
 	}
-	if observation.CodexHome != "/tmp/codex-home" || observation.PlatformFamily != "unix" || observation.PlatformOs != "linux" {
-		t.Errorf("identity fields = %#v, want the initialize Server Observation", observation)
+	if observation.CodexHome != response.CodexHome || observation.PlatformFamily != response.PlatformFamily || observation.PlatformOs != response.PlatformOs {
+		t.Errorf("identity fields = %#v, want the initialize Server Observation %#v", observation, response)
 	}
-	if !RuntimeCompatibilityOf(protocolv2.InitializeResponse{UserAgent: "codex-cli 0.153.4"}).Unknown() {
+	if !RuntimeCompatibilityOf(response).Unknown() {
 		t.Fatal("a reported userAgent is identity, not whole-surface compatibility")
 	}
 }
@@ -122,6 +124,9 @@ func TestRuntimeFactsAreNotInferredFromCommandOrRequestedModel(t *testing.T) {
 	if runtime.UserAgent == command[0] || runtime.UserAgent == filepath.Base(command[0]) {
 		t.Fatal("runtime identity must not be inferred from ClientOptions.Command")
 	}
+	if runtime.UserAgent == "requested-not-a-runtime-fact" {
+		t.Fatal("runtime identity must not be inferred from requested ClientInfo")
+	}
 	if !provenance.Compatibility.Unknown() {
 		t.Fatal("command path and requested clientInfo must not invent compatibility")
 	}
@@ -151,6 +156,29 @@ func TestSuccessfulTurnDoesNotProveRuntimeCompatibility(t *testing.T) {
 	}
 	if !provenance.Compatibility.Unknown() {
 		t.Fatal("one successful turn must not be exposed as whole-surface compatibility")
+	}
+}
+
+func TestFailedTurnRetainsEstablishedProvenance(t *testing.T) {
+	t.Setenv("CODEXSDK_FAKE_RECORD", tempRecord(t))
+	root, err := New(ClientOptions{CWD: t.TempDir(), Command: fakeCommand("failed")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+	before := root.Provenance()
+	_, err = root.ThreadRunner().Start(context.Background(), StartThreadRunRequest{
+		Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}},
+	})
+	if err == nil {
+		t.Fatal("expected failed Exact Run")
+	}
+	after := root.Provenance()
+	if after.RuntimeAppServer != before.RuntimeAppServer || after.GeneratedBaseline != before.GeneratedBaseline {
+		t.Fatalf("failed turn rewrote provenance: before %#v after %#v", before, after)
+	}
+	if !after.Compatibility.Unknown() {
+		t.Fatal("failed turn must not invent compatibility")
 	}
 }
 

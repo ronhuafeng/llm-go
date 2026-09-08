@@ -10,10 +10,9 @@ import (
 // are identity, not whole-surface compatibility.
 const RuntimeCompatibilityUnknown RuntimeCompatibilityKind = "unknown"
 
-// GeneratedBaselineProvenance identifies the checked-in upstream Codex
-// protocol baseline from which this module's generated surface was built.
-// It is derived from baseline_metadata.json, not a second handwritten
-// version registry.
+// GeneratedBaselineProvenance is Generated Baseline Provenance: the
+// checked-in upstream Codex protocol baseline from which this module's
+// generated surface was built. Values come from baseline_metadata.json.
 type GeneratedBaselineProvenance struct {
 	SourceRepo    string
 	SourceRefKind string
@@ -21,11 +20,11 @@ type GeneratedBaselineProvenance struct {
 	SourceCommit  string
 }
 
-// RuntimeAppServerObservation preserves identity the connected app-server
-// reported through initialize. Observed is false when no initialize Server
-// Observation has been established. Empty reported fields stay empty; they
-// are not inferred from Command, paths, requested values, or CI package
-// selection.
+// RuntimeAppServerObservation is a Runtime App-Server Observation:
+// identity the connected app-server reported through initialize. Observed
+// is false when no initialize Server Observation has been established.
+// Empty reported fields stay empty; they are not inferred from Command,
+// paths, requested values, or CI package selection.
 type RuntimeAppServerObservation struct {
 	Observed       bool
 	UserAgent      string
@@ -37,17 +36,18 @@ type RuntimeAppServerObservation struct {
 // RuntimeCompatibilityKind is a protocol-evidenced compatibility claim.
 type RuntimeCompatibilityKind string
 
-// RuntimeCompatibility is the relationship between the connected app-server
-// and the generated baseline. Current initialize reports no usable
-// compatibility fact, so the kind is unknown even when userAgent matches a
-// generator label.
+// RuntimeCompatibility is Runtime Compatibility: the relationship between
+// the connected app-server and the generated baseline. Current initialize
+// reports no usable compatibility fact, so the kind is unknown even when
+// userAgent matches a generator label.
 type RuntimeCompatibility struct {
 	Kind RuntimeCompatibilityKind
 }
 
-// ConnectionProvenance is the pair of checked-in generated baseline
-// provenance and whatever this connection has actually observed. The two
-// facts stay separate: a successful request does not rewrite either one.
+// ConnectionProvenance is Connection Provenance: Generated Baseline
+// Provenance plus this connection's Runtime App-Server Observation and
+// Runtime Compatibility. The facts stay separate; a successful request
+// does not rewrite them.
 type ConnectionProvenance struct {
 	GeneratedBaseline GeneratedBaselineProvenance
 	RuntimeAppServer  RuntimeAppServerObservation

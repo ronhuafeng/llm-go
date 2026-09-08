@@ -9,9 +9,8 @@ import (
 //go:embed baseline_metadata.json
 var baselineMetadataJSON []byte
 
-// BaselineMetadata is the checked-in generated-protocol provenance recorded
-// next to the schema baseline. It is the canonical authority for the
-// upstream ref/commit the generated surface was built from.
+// BaselineMetadata is the decoded form of checked-in baseline_metadata.json,
+// the authority for Generated Baseline Provenance.
 type BaselineMetadata struct {
 	SourceCommit  string `json:"source_commit"`
 	SourceRefKind string `json:"source_ref_kind"`
