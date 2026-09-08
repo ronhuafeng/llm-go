@@ -12,7 +12,8 @@ The adapter-owned fail-closed check that a named safety profile matches
 approval, sandbox, and ephemeral facts observed on the decoded thread-start
 Server Observation before `turn/start`, and on a missing-thread-id partial
 start that never continues. Those facts prove effect safety, not
-confidentiality, data-loss prevention, or provider retention.
+confidentiality or disclosure-safety, data-loss prevention, or provider
+retention.
 _Avoid_: Requested settings, SDK validation, confidentiality guarantee
 
 **Terminal observation**:

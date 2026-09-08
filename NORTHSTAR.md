@@ -102,8 +102,8 @@ Effect safety and confidentiality are different properties. A read-only,
 never-approve, or ephemeral execution profile can constrain mutation without
 proving that an allowed read stays confidential, that provider-bound context
 excludes secrets, or that the provider retains nothing. Application-owned
-CWD, workspace, and input selection remain the confidentiality boundary
-unless a separate proof exists.
+CWD, workspace, and input selection remain part of the confidentiality
+boundary unless a separate proof exists.
 
 ### P7. Public abstractions own semantics, not convenience
 

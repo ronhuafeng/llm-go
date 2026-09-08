@@ -36,8 +36,8 @@ continuation before the model-directed turn can execute.
 That named profile is **effect-safe, not disclosure-safe**. **Read-only is
 not confidential.** An allowed read can still expose workspace or prompt
 input to model and provider processing. Preventing sensitive disclosure is
-application-owned unless separately proven: CWD, workspace roots, and input
-selection remain the confidentiality boundary. **Ephemeral is not a
+application-owned unless separately proven. CWD, workspace roots, and input
+selection remain part of the confidentiality boundary. **Ephemeral is not a
 provider-retention guarantee.** Provider data handling and retention are not
 established by this adapter profile.
 

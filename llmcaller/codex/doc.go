@@ -5,7 +5,11 @@
 // named Codex safety profiles. A provider-neutral Caller can be constructed
 // only with a named effect-safe profile. That Caller remains an inference
 // capability: effect-safe is not disclosure-safe, and read-only is not
-// confidential. Named-profile request policy is
+// confidential. An allowed read can still expose workspace or input data to
+// model and provider processing. Prevention of sensitive disclosure is
+// application-owned unless separately proven; CWD, workspace, and input
+// selection remain part of the confidentiality boundary. Ephemeral is not a
+// provider-retention guarantee. Named-profile request policy is
 // enforced before every runner invocation. Effective approval, sandbox, and
 // ephemeral facts are admitted from the decoded thread-start Server
 // Observation through StartThreadRunRequest.AdmitTurn before turn/start.
