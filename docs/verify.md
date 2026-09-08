@@ -118,4 +118,12 @@ an isolated `CODEX_HOME` whose custom Responses provider points at localhost,
 so checked-out development code and the app-server process do not inherit
 either credential.
 
+The live smoke installs `@openai/codex@latest` as the system under test so
+compatibility stays current. The credential-handling
+`@openai/codex-responses-api-proxy` is a separate trust decision: both this
+workflow and the Codex runner action pin an explicit npm version in source.
+Bump that version in those two install sites after reviewing the proxy
+release; do not float `@latest` on the process that receives provider
+credentials.
+
 No additional live-smoke Environment or secret is required.

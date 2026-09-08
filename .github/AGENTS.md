@@ -15,7 +15,8 @@ remaining visible inside sandboxed Codex tool commands.
 
 The local Codex runner action may accept an API key through its interface, but
 only its proxy startup step may receive the key. Its Codex execution step must
-not inherit it.
+not inherit it. Proxy version versus floating Codex CLI is owned by
+[`docs/verify.md`](../docs/verify.md).
 
 The runner action owns only Codex runtime preparation and execution. Keep its
 prompt caller-supplied and protocol-agnostic; the selected skill owns protocol
