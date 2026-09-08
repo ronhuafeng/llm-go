@@ -50,7 +50,15 @@ Preserve compact pre-change evidence before overwriting checked-in clean reports
 
 ## Action Boundary
 
-One Codex invocation owns protocol implementation through local validation. It leaves the resulting tracked and untracked changes unstaged and uncommitted. GitHub Workflow steps outside Codex own authentication, commit, publication, and landed finalization.
+GitHub Actions is mechanical-first. Classify each step as:
+
+- upstream fact acquisition: resolve target, bind `origin`, fetch the selected commit;
+- deterministic generation: `codexsdk_track_upstream.sh` and `codexsdk_apply_sync_candidate.py`;
+- deterministic semantic validation: `codexsdk_validate_sync.sh` and owner-local Go tests;
+- handwritten compatibility reasoning: invoked only after `escalation.json` records unsupported drift;
+- PR/finalize publication control: workflow commit/publish and the finalize workflow.
+
+`scripts/codexsdk_mechanical_sync.py` owns the Actions mechanical path. An implementation agent, when invoked, leaves tracked and untracked changes unstaged. Workflow steps outside the agent own authentication, commit, publication, and landed finalization.
 
 ## Target Policy
 
@@ -122,7 +130,7 @@ Do not enter an unbounded loop chasing moving upstream refs. If the target moved
 ## Decision Rules
 
 - If drift is clean and the user only asked to check a target, report no SDK update is needed.
-- If an allowed forward target is clean, update provenance and clean reports through `metadata-sync`; the sync agent records that review found no repair or schema-derived Go changes.
+- If an allowed forward target is clean, update provenance and clean reports through `metadata-sync`. GitHub Actions publishes that path without an implementation agent. Invoke Codex or human compatibility work only when mechanical generation or owner-local Go proofs record unsupported semantic drift.
 - If target policy returns `block`, stop before drift generation.
 - After local validation and final-manifest capture pass, report `protocol implementation complete` and stop before staging or publication.
 - If generated Go fails because a new schema shape is unsupported, update focused generator rules and tests before regenerating.

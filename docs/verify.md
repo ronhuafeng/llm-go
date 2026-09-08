@@ -53,8 +53,10 @@ The Python and shell programs under `codexsdk/scripts` belong to the exceptional
 upstream synchronization control plane. They may acquire or classify upstream
 schemas, construct sync candidates, validate a requested upstream target, and
 publish a sync PR. They are not an ordinary correctness gate for unrelated
-library changes. The upstream-sync workflow remains responsible for exercising
-that tooling when it performs a protocol synchronization.
+library changes. The upstream-sync workflow is mechanical-first: resolve the
+target, generate and apply the schema/protocol surface, and run owner-local Go
+proofs before any implementation agent. The agent is invoked only when that
+path writes explicit escalation evidence.
 
 Scheduled Dependabot updates and the manual/scheduled `Go vulnerability scan`
 workflow surface dependency and Action maintenance. They are not required
