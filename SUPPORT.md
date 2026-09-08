@@ -13,6 +13,18 @@ Choose the owning module first:
 Application prompts and business validation remain consumer concerns.
 Sensitive reports must use [`SECURITY.md`](SECURITY.md), not a public issue.
 
+## Go versions
+
+The published `llmkit`, `codexsdk`, and `llmcaller/codex` modules support Go
+1.23 or newer. Their individual `go.mod` files are the authority for that
+consumer requirement and are tested with the workspace disabled.
+
+The repository workspace and `internal/tools` require Go 1.25 or newer. That
+repository-tooling baseline exists so current development and maintenance tools
+can use newer Go tooling APIs; it does not raise the minimum Go version for
+published-module consumers. Required CI also exercises the repository with the
+current stable Go release.
+
 ## Operating systems
 
 Writing these modules in Go does not by itself make every `GOOS` supported.
