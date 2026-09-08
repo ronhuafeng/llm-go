@@ -145,7 +145,7 @@ jobs:
         run: |
           git remote set-url origin "git@github.com:${GITHUB_REPOSITORY}.git"
           git fetch --no-tags origin "+refs/heads/main:refs/remotes/origin/main"
-          test "$(git rev-parse refs/remotes/origin/main^{commit})" = "$COMMIT" || {
+          test "$(git rev-parse "refs/remotes/origin/main^{commit}")" = "$COMMIT" || {
             echo "main advanced after this release was dispatched; dispatch again" >&2
             exit 1
           }
