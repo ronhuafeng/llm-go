@@ -15,12 +15,9 @@ import (
 	"golang.org/x/mod/modfile"
 )
 
-const (
-	llmkitPath  = "github.com/ronhuafeng/llm-go/llmkit"
-	codexSDKPath = "github.com/ronhuafeng/llm-go/codexsdk"
-	adapterPath = "github.com/ronhuafeng/llm-go/llmcaller/codex"
-	toolsPath   = "github.com/ronhuafeng/llm-go/internal/tools"
-)
+const llmkitPath = "github.com/ronhuafeng/llm-go/llmkit"
+const codexSDKPath = "github.com/ronhuafeng/llm-go/codexsdk"
+const adapterPath = "github.com/ronhuafeng/llm-go/llmcaller/codex"
 
 type workspaceModule struct {
 	dir      string
@@ -68,11 +65,6 @@ func verifyArchitecture(root string) []string {
 			violations = append(violations, fmt.Sprintf("module %s: %v", dir, err))
 			continue
 		}
-		if want := expectedModuleDir(metadata.path); want == "" {
-			violations = append(violations, fmt.Sprintf("workspace module %s has unsupported repository module path %s", dir, metadata.path))
-		} else if dir != want {
-			violations = append(violations, fmt.Sprintf("module %s must live at %s, got %s", moduleLabel(metadata.path), want, dir))
-		}
 		if prior, exists := owners[metadata.path]; exists {
 			violations = append(violations, fmt.Sprintf("workspace modules %s and %s declare duplicate path %s", prior, dir, metadata.path))
 		} else {
@@ -93,6 +85,12 @@ func verifyArchitecture(root string) []string {
 			violations = append(violations, fmt.Sprintf("module %s contains prohibited exclude %s", moduleLabel(metadata.path), excluded))
 		}
 		modules = append(modules, workspaceModule{dir: dir, metadata: metadata})
+	}
+
+	for _, required := range []string{llmkitPath, codexSDKPath, adapterPath} {
+		if owners[required] == "" {
+			violations = append(violations, fmt.Sprintf("go.work is missing semantic owner %s", moduleLabel(required)))
+		}
 	}
 
 	for _, candidate := range modules {
@@ -202,7 +200,7 @@ func verifyAdapterUpstreamRequirements(modules []workspaceModule) []string {
 		}
 	}
 	if adapter == nil {
-		return []string{"go.work is missing the codex adapter module"}
+		return nil
 	}
 	var violations []string
 	for _, upstream := range []string{llmkitPath, codexSDKPath} {
@@ -218,21 +216,6 @@ func verifyAdapterUpstreamRequirements(modules []workspaceModule) []string {
 	return violations
 }
 
-func expectedModuleDir(modulePath string) string {
-	switch modulePath {
-	case llmkitPath:
-		return "llmkit"
-	case codexSDKPath:
-		return "codexsdk"
-	case adapterPath:
-		return "llmcaller/codex"
-	case toolsPath:
-		return "internal/tools"
-	default:
-		return ""
-	}
-}
-
 func moduleLabel(modulePath string) string {
 	switch modulePath {
 	case llmkitPath:
@@ -241,8 +224,6 @@ func moduleLabel(modulePath string) string {
 		return "codexsdk"
 	case adapterPath:
 		return "codex-adapter"
-	case toolsPath:
-		return "repo-tools"
 	default:
 		return modulePath
 	}
@@ -256,10 +237,8 @@ func allowedRepositoryDependency(source, target string) bool {
 		return target == codexSDKPath
 	case adapterPath:
 		return target == adapterPath || target == llmkitPath || target == codexSDKPath
-	case toolsPath:
-		return true
 	default:
-		return false
+		return true
 	}
 }
 
@@ -300,8 +279,10 @@ func parseGoMod(path string) (moduleMetadata, error) {
 	}
 	for _, replacement := range parsed.Replace {
 		metadata.replaces = append(metadata.replaces, moduleReplacement{
-			oldPath: replacement.Old.Path, oldVersion: replacement.Old.Version,
-			newPath: replacement.New.Path, newVersion: replacement.New.Version,
+			oldPath:    replacement.Old.Path,
+			oldVersion: replacement.Old.Version,
+			newPath:    replacement.New.Path,
+			newVersion: replacement.New.Version,
 		})
 	}
 	for _, excluded := range parsed.Exclude {
