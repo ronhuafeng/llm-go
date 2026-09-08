@@ -30,6 +30,29 @@ func TestArchitectureAllowsAdditionalToolingWorkspaceModule(t *testing.T) {
 	}
 }
 
+func TestPublicModulesRejectLocalReplace(t *testing.T) {
+	modules := []struct {
+		dir   string
+		path  string
+		label string
+	}{
+		{dir: "llmkit", path: llmkitPath, label: "llmkit"},
+		{dir: "codexsdk", path: codexSDKPath, label: "codexsdk"},
+		{dir: "llmcaller/codex", path: adapterPath, label: "codex-adapter"},
+	}
+	for _, module := range modules {
+		t.Run(module.label, func(t *testing.T) {
+			root := newArchitectureFixture(t)
+			writeFile(t, root, filepath.Join(module.dir, "go.mod"), "module "+module.path+"\n\ngo 1.23.0\n\nrequire example.com/alias v0.0.0\nreplace example.com/alias => ../../llmkit\n")
+			want := "module " + module.label + " contains prohibited replace example.com/alias => ../../llmkit"
+			violations := strings.Join(verifyArchitecture(root), "\n")
+			if !strings.Contains(violations, want) {
+				t.Fatalf("violations %q do not contain %q", violations, want)
+			}
+		})
+	}
+}
+
 func TestArchitectureRejectsBoundaryViolations(t *testing.T) {
 	tests := []struct {
 		name   string

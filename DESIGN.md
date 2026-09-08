@@ -40,7 +40,10 @@ output alone never grants it.
 **I6 — Published modules must stand alone.** Public-module compatibility is what
 a clean consumer can resolve and build without workspace repair. If a
 downstream module needs a new upstream public API, publish the upstream module
-before changing the downstream module's `go.mod` to consume it.
+before changing the downstream module's `go.mod` to consume it. Public
+`llmkit`, `codexsdk`, and `llmcaller/codex` manifests must not contain
+`replace` or `exclude` directives; `go.work` is the only workspace composition
+mechanism.
 
 **I7 — Published identity is independent and append-only.** `llmkit`,
 `codexsdk`, and `llmcaller/codex` have independent SemVer identities and
