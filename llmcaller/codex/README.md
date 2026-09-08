@@ -4,7 +4,8 @@ A loss-aware join between provider-neutral inference and exact Codex facts.
 Destination: [NORTHSTAR.md](../../NORTHSTAR.md). Language:
 [CONTEXT.md](CONTEXT.md).
 
-Requires Go 1.23 or newer.
+Requires Go 1.23 or newer. OS support and testing tiers are in
+[SUPPORT.md](../../SUPPORT.md).
 
 ```sh
 go get github.com/ronhuafeng/llm-go/llmcaller/codex@latest

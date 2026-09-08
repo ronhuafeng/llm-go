@@ -12,7 +12,8 @@ provider SDK. Destination: [NORTHSTAR.md](../NORTHSTAR.md). Language:
 | `llmadapter` | Execute one provider-neutral typed inference call while preserving provider-neutral evidence and typed provider details. |
 | `llmstep` | Deterministically judge typed propositions and run bounded repair attempts. |
 
-Requires Go 1.23 or newer.
+Requires Go 1.23 or newer. OS support and testing tiers are in
+[SUPPORT.md](../SUPPORT.md).
 
 ```sh
 go get github.com/ronhuafeng/llm-go/llmkit@latest
