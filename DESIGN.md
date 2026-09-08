@@ -43,8 +43,7 @@ downstream module needs a new upstream public API, publish the upstream module
 before changing the downstream module's `go.mod` to consume it. Public
 `llmkit`, `codexsdk`, and `llmcaller/codex` manifests must not contain
 `replace` or `exclude` directives; `go.work` is the only workspace composition
-mechanism. The repository architecture tests parse those `go.mod` files and
-reject a local `replace` before merge.
+mechanism.
 
 **I7 — Published identity is independent and append-only.** `llmkit`,
 `codexsdk`, and `llmcaller/codex` have independent SemVer identities and
