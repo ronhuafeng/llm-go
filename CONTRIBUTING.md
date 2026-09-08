@@ -3,13 +3,13 @@
 Semantics: [`NORTHSTAR.md`](NORTHSTAR.md).
 Live invariants: [`DESIGN.md`](DESIGN.md).
 
-Requires Go 1.23 or newer.
+The published modules support Go 1.23 or newer. The repository workspace and
+`internal/tools` require Go 1.25 or newer; that tooling requirement does not
+raise the public modules' consumer baseline.
 
-Before opening a pull request, run the same deterministic suite used by CI:
-
-```sh
-./scripts/verify.sh
-```
+Before opening a pull request, follow the explicit Go commands and compatibility
+checks in [`docs/verify.md`](docs/verify.md). Ordinary verification has no
+repository-specific task runner.
 
 Public changes must update the owning module's code and behavior tests. Update
 package docs or the module README when consumer-visible usage changes, and add

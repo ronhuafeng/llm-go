@@ -1,12 +1,12 @@
 module github.com/ronhuafeng/llm-go/internal/tools
 
-go 1.23.0
+go 1.25.0
 
 require (
 	github.com/ronhuafeng/llm-go/codexsdk v0.8.0
 	github.com/ronhuafeng/llm-go/llmcaller/codex v0.8.1
 	github.com/ronhuafeng/llm-go/llmkit v0.12.0
-	golang.org/x/mod v0.25.0
+	golang.org/x/mod v0.40.0
 )
 
 require (
