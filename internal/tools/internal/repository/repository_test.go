@@ -45,6 +45,62 @@ func TestDependabotCoversWorkspaceModulesAndActions(t *testing.T) {
 	}
 }
 
+func TestPostReleaseModuleSmokeObservesPublicProxyOnce(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "post-release-module-smoke.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(data)
+	required := []string{
+		"types: [published]",
+		"workflow_dispatch:",
+		"github.com/ronhuafeng/llm-go/llmkit",
+		"github.com/ronhuafeng/llm-go/codexsdk",
+		"github.com/ronhuafeng/llm-go/llmcaller/codex",
+		"https://proxy.golang.org",
+		"sum.golang.org",
+		"go mod init",
+		"mktemp",
+	}
+	for _, want := range required {
+		if !strings.Contains(text, want) {
+			t.Fatalf("post-release smoke missing %q", want)
+		}
+	}
+	if !strings.Contains(text, "GOPROXY=https://proxy.golang.org") && !strings.Contains(text, "GOPROXY: https://proxy.golang.org") {
+		t.Fatal("post-release smoke must pin GOPROXY to proxy.golang.org")
+	}
+	if strings.Contains(text, "actions/checkout") {
+		t.Fatal("post-release smoke must not check out repository source")
+	}
+	if strings.Contains(text, ",direct") {
+		t.Fatal("post-release smoke must observe proxy.golang.org without a direct fallback")
+	}
+	for _, banned := range []string{"sleep ", "until ", "gh release", "git tag", "git push"} {
+		if strings.Contains(text, banned) {
+			t.Fatalf("post-release smoke must not contain %q", banned)
+		}
+	}
+	pr, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "pr-verification.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(pr), "post-release-module-smoke") {
+		t.Fatal("post-release smoke must not be part of PR verification")
+	}
+	release, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "release.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(release), "post-release-module-smoke") {
+		t.Fatal("post-release smoke must stay independent from Release public module")
+	}
+}
+
 func TestArchitectureAllowsAdditionalToolingWorkspaceModule(t *testing.T) {
 	root := newArchitectureFixture(t)
 	writeFile(t, root, "go.work", "go 1.23.0\n\nuse (\n\t./llmkit\n\t./codexsdk\n\t./llmcaller/codex\n\t./internal/tools\n\t./tools/extra\n)\n")

@@ -28,6 +28,10 @@ Windows. That matrix is advisory: it does not run `-race` or `go mod tidy
 -diff`, and it is not a required merge gate. See
 [`SUPPORT.md`](../SUPPORT.md).
 
+The `Post-release module resolution smoke` workflow is also not a merge
+gate and must never be treated as a pre-tag publication check. See
+[`docs/release.md`](release.md).
+
 `PR verification` makes the complete ordinary gate explicit in its workflow:
 
 1. test each public module with Go 1.23 and `GOWORK=off`;
