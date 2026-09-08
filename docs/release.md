@@ -60,7 +60,9 @@ public-proxy polling gate.
 
 Tag creation keeps the existing `production-release` Environment and
 `RELEASE_DEPLOY_KEY`, because the current formal-tag rules delegate tag
-creation to that dedicated Deploy Key. No new release secret is required.
+creation to that dedicated Deploy Key. The post-release observation
+dispatch reuses `github.token` with `actions: write` on the release job.
+No new release secret or Environment is required.
 
 The non-gating live Codex smoke is separate from release. It reuses the existing
 Responses-proxy credentials and requires no additional Environment or secret;
@@ -68,11 +70,12 @@ see [`verify.md`](verify.md).
 
 ## Post-release module resolution smoke
 
-After a GitHub Release exists for a module-prefixed tag, the
-`Post-release module resolution smoke` workflow may observe whether an
-ordinary external `go` consumer can resolve that version through the public
-module proxy. Manual `workflow_dispatch` can repeat that single observation
-if proxy propagation had not finished.
+After the immutable tag and GitHub Release exist, **Release public module**
+dispatches `Post-release module resolution smoke` once with that exact tag.
+The handoff uses `workflow_dispatch` through the existing repository token so
+it does not depend on `release: published` from `GITHUB_TOKEN`. Manual
+`workflow_dispatch` can repeat that single observation if proxy propagation
+had not finished.
 
 The smoke does not decide whether the tag is valid, does not move or
 recreate tags, and is not a prerequisite for **Release public module**.

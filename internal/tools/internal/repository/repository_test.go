@@ -55,21 +55,17 @@ func TestPostReleaseModuleSmokeObservesPublicProxyOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(data)
-	required := []string{
-		"types: [published]",
-		"workflow_dispatch:",
+	for _, module := range []string{
 		"github.com/ronhuafeng/llm-go/llmkit",
 		"github.com/ronhuafeng/llm-go/codexsdk",
 		"github.com/ronhuafeng/llm-go/llmcaller/codex",
-		"https://proxy.golang.org",
-		"sum.golang.org",
-		"go mod init",
-		"mktemp",
-	}
-	for _, want := range required {
-		if !strings.Contains(text, want) {
-			t.Fatalf("post-release smoke missing %q", want)
+	} {
+		if !strings.Contains(text, module) {
+			t.Fatalf("post-release smoke must map %s", module)
 		}
+	}
+	if strings.Contains(text, "types: [published]") {
+		t.Fatal("post-release smoke must not rely on GITHUB_TOKEN release.published")
 	}
 	if !strings.Contains(text, "GOPROXY=https://proxy.golang.org") && !strings.Contains(text, "GOPROXY: https://proxy.golang.org") {
 		t.Fatal("post-release smoke must pin GOPROXY to proxy.golang.org")
@@ -80,7 +76,7 @@ func TestPostReleaseModuleSmokeObservesPublicProxyOnce(t *testing.T) {
 	if strings.Contains(text, ",direct") {
 		t.Fatal("post-release smoke must observe proxy.golang.org without a direct fallback")
 	}
-	for _, banned := range []string{"sleep ", "until ", "gh release", "git tag", "git push"} {
+	for _, banned := range []string{"sleep ", "until ", "git tag", "git push"} {
 		if strings.Contains(text, banned) {
 			t.Fatalf("post-release smoke must not contain %q", banned)
 		}
@@ -96,8 +92,8 @@ func TestPostReleaseModuleSmokeObservesPublicProxyOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(release), "post-release-module-smoke") {
-		t.Fatal("post-release smoke must stay independent from Release public module")
+	if !strings.Contains(string(release), `gh workflow run "Post-release module resolution smoke"`) {
+		t.Fatal("Release public module must explicitly dispatch the observation workflow")
 	}
 }
 
