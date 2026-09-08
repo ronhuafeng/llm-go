@@ -257,7 +257,11 @@ def emit_outcome(module_root: Path, outcome: str, inputs: dict[str, Any], **extr
     write_json(module_root / OUTCOME_OUTPUT, payload)
     publish = "true" if outcome == "implemented" else "false"
     escalate = "true" if outcome == "escalate" else "false"
-    sync_mode = "metadata-sync" if outcome == "implemented" else ""
+    sync_mode = ""
+    if outcome == "implemented":
+        sync_mode = "metadata-sync"
+    elif outcome == "escalate":
+        sync_mode = "repair-sync"
     write_github_output(
         {
             "outcome": outcome,
@@ -304,6 +308,10 @@ def main() -> int:
     if drift.get("target", {}).get("source_commit") != inputs["target_sha"]:
         raise SystemExit("candidate source_commit does not match the resolved target")
     after_drift = decide_after_drift(force_compare=bool(inputs["force_compare"]), drift_status=str(drift.get("status") or ""))
+    if after_drift in {"comparison", "comparison_dirty"}:
+        dirty = sync_changes.changed_paths(repo_root)
+        if dirty:
+            raise SystemExit("force_compare must leave the protocol worktree unchanged:\n- " + "\n- ".join(dirty))
     if after_drift == "comparison":
         emit_outcome(module_root, "comparison", inputs, reason="read-only comparison found no protocol drift")
         return 0
@@ -355,7 +363,7 @@ def main() -> int:
         reason = "mechanical apply escaped the generated sync surface"
         detail = capture_detail
     else:
-        reason = "owner-local Go semantic tests failed after mechanical apply"
+        reason = "owner-local validation failed after mechanical apply"
         detail = validate_detail
     write_escalation(
         module_root / ESCALATION_OUTPUT,

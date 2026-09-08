@@ -23,13 +23,14 @@ Report `protocol implementation complete` only when:
 - the final tracked and untracked change manifest is captured and contains only reviewed `codexsdk/` implementation files;
 - the worktree changes remain unstaged and uncommitted.
 
-Start successful Action reports with exactly one of these machine-readable first lines:
+Start successful local reports with exactly one of these machine-readable first lines:
 
 - `protocol implementation complete` after an applied implementation passes full validation and final-manifest capture;
 - `protocol implementation current` when policy skips because the selected target is already the checked-in baseline;
 - `protocol comparison clean` when `force_compare` completes read-only and finds no drift.
 
 Do not include any of these exact lowercase lines in an incomplete, blocked, or drift-found final response.
+GitHub Actions does not use these lines as a publication gate.
 
 For a read-only comparison, report its target provenance and drift result without claiming implementation completion.
 

@@ -78,7 +78,7 @@ class MechanicalSyncEvidenceTest(unittest.TestCase):
                 target_ref="rust-v0.154.0",
                 target_kind="stable_rust_tag",
                 target_sha="a" * 40,
-                reason="owner-local Go semantic tests failed after mechanical apply",
+                reason="owner-local validation failed after mechanical apply",
                 detail="FAIL: TestGeneratedFacadeZeroValuesFailClosed",
                 artifacts={"candidate": "/tmp/schema", "reports": "/tmp/reports"},
             )
@@ -86,7 +86,7 @@ class MechanicalSyncEvidenceTest(unittest.TestCase):
             self.assertEqual(payload, loaded)
             self.assertEqual(loaded["target_ref"], "rust-v0.154.0")
             self.assertEqual(loaded["target_sha"], "a" * 40)
-            self.assertIn("Go semantic tests failed", loaded["reason"])
+            self.assertIn("validation failed after mechanical apply", loaded["reason"])
             self.assertIn("TestGeneratedFacadeZeroValuesFailClosed", loaded["detail"])
             self.assertEqual(loaded["artifacts"]["reports"], "/tmp/reports")
             self.assertNotIn("rediscover", json.dumps(loaded))

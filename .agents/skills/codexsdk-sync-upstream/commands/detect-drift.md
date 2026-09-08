@@ -13,6 +13,7 @@ Tools:
 - `scripts/codexsdk_track_upstream.sh`
 
 Policy gate:
+- On GitHub Actions, `scripts/codexsdk_mechanical_sync.py` owns policy, generation, apply, and validation. This command remains the local reference for the same tools.
 - In GitHub Actions, derive policy mode only from the event name and pass the baseline metadata file, not its schema directory:
 
   ```bash

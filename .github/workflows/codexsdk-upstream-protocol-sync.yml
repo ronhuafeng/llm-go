@@ -21,7 +21,7 @@ on:
         type: boolean
         default: false
       validation_only:
-        description: "Run Codex and local validation from the current open PR without committing or publishing protocol changes."
+        description: "Run mechanical sync and local validation from the current open PR without committing or publishing protocol changes."
         required: false
         type: boolean
         default: false
@@ -167,6 +167,25 @@ jobs:
             resolve a different target or rediscover the repository. Leave
             changes unstaged.
 
+      - name: Reject mismatched Codex escalation claim
+        if: steps.mechanical.outputs.escalate == 'true'
+        env:
+          CODEX_FINAL_MESSAGE_PATH: ${{ steps.codex.outputs.final-message-path }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          path = os.environ.get("CODEX_FINAL_MESSAGE_PATH", "")
+          if not path or not Path(path).is_file():
+              raise SystemExit(0)
+          first_line = Path(path).read_text(encoding="utf-8").splitlines()[0] if Path(path).stat().st_size else ""
+          if first_line in {"protocol implementation current", "protocol comparison clean"}:
+              raise SystemExit(
+                  f"escalation Codex claim {first_line!r} does not match repair worktree mode"
+              )
+          PY
+
       - name: Validate escalated protocol implementation
         id: escalation-validation
         if: steps.mechanical.outputs.escalate == 'true'
@@ -245,7 +264,7 @@ jobs:
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SYNC_MODE: ${{ steps.mechanical.outputs.escalate == 'true' && 'repair-sync' || 'metadata-sync' }}
+          SYNC_MODE: ${{ steps.mechanical.outputs.sync_mode }}
           TARGET_KIND: ${{ steps.mechanical.outputs.target_kind }}
           TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
           TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
