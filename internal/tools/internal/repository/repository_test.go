@@ -8,6 +8,8 @@ import (
 	"testing"
 )
 
+const fixtureToolsPath = "example.com/repository/tools"
+
 func TestCurrentRepositoryContract(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
 	if err != nil {
@@ -15,6 +17,16 @@ func TestCurrentRepositoryContract(t *testing.T) {
 	}
 	if violations := verifyArchitecture(root); len(violations) != 0 {
 		t.Fatalf("repository contract violations:\n- %s", strings.Join(violations, "\n- "))
+	}
+}
+
+func TestArchitectureAllowsAdditionalToolingWorkspaceModule(t *testing.T) {
+	root := newArchitectureFixture(t)
+	writeFile(t, root, "go.work", "go 1.23.0\n\nuse (\n\t./llmkit\n\t./codexsdk\n\t./llmcaller/codex\n\t./internal/tools\n\t./tools/extra\n)\n")
+	writeFile(t, root, "tools/extra/go.mod", "module example.com/repository/extra\n\ngo 1.23.0\n")
+	writeFile(t, root, "tools/extra/package.go", "package extra\n")
+	if violations := verifyArchitecture(root); len(violations) != 0 {
+		t.Fatalf("additional tooling module created topology violations:\n- %s", strings.Join(violations, "\n- "))
 	}
 }
 
@@ -41,9 +53,9 @@ func TestArchitectureRejectsBoundaryViolations(t *testing.T) {
 		{
 			name: "public module imports repository tools",
 			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "llmcaller/codex/forbidden.go", "package codex\nimport _ \"github.com/ronhuafeng/llm-go/internal/tools/helper\"\n")
+				writeFile(t, root, "llmcaller/codex/forbidden.go", "package codex\nimport _ \""+fixtureToolsPath+"/helper\"\n")
 			},
-			want: "module codex-adapter file llmcaller/codex/forbidden.go imports forbidden repository module repo-tools",
+			want: "module codex-adapter file llmcaller/codex/forbidden.go imports forbidden repository module " + fixtureToolsPath,
 		},
 		{
 			name: "toolkit requires sdk",
@@ -102,6 +114,13 @@ func TestArchitectureRejectsBoundaryViolations(t *testing.T) {
 			want: "Go module shared is not listed in go.work",
 		},
 		{
+			name: "semantic owner omission",
+			mutate: func(t *testing.T, root string) {
+				writeFile(t, root, "go.work", "go 1.23.0\n\nuse (\n\t./llmkit\n\t./llmcaller/codex\n\t./internal/tools\n)\n")
+			},
+			want: "go.work is missing semantic owner codexsdk",
+		},
+		{
 			name: "root module",
 			mutate: func(t *testing.T, root string) {
 				writeFile(t, root, "go.mod", "module example.com/facade\n\ngo 1.23.0\n")
@@ -116,7 +135,7 @@ func TestArchitectureRejectsBoundaryViolations(t *testing.T) {
 			want: "repository root Go file facade.go would create a root facade",
 		},
 		{
-			name: "workspace omission",
+			name: "workspace tooling omission",
 			mutate: func(t *testing.T, root string) {
 				writeFile(t, root, "go.work", "go 1.23.0\n\nuse (\n\t./llmkit\n\t./codexsdk\n\t./llmcaller/codex\n)\n")
 			},
@@ -144,7 +163,7 @@ func newArchitectureFixture(t *testing.T) string {
 		"llmkit":          llmkitPath,
 		"codexsdk":        codexSDKPath,
 		"llmcaller/codex": adapterPath,
-		"internal/tools":  toolsPath,
+		"internal/tools":  fixtureToolsPath,
 	}
 	for directory, modulePath := range modules {
 		contents := fmt.Sprintf("module %s\n\ngo 1.23.0\n", modulePath)
