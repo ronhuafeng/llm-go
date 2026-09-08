@@ -2,7 +2,7 @@
 
 Ordinary repository verification intentionally has no repository-specific task
 runner. Semantic proofs live in Go tests and executable examples; GitHub Actions
-shows the small amount of orchestration needed to run standard Go tools.
+runs standard Go tools and a version-pinned Actions workflow validator.
 
 For a public module, the local pattern is:
 
@@ -34,12 +34,14 @@ gate and must never be treated as a pre-tag publication check. See
 
 `PR verification` makes the complete ordinary gate explicit in its workflow:
 
-1. test each public module with Go 1.23 and `GOWORK=off`;
-2. require tracked Go files to be `gofmt`-clean and reject whitespace errors;
-3. on the current Go toolchain, run `go mod tidy -diff`, `go vet ./...`, and
+1. validate GitHub Actions workflow syntax and context usage with a
+   version-pinned `actionlint` binary;
+2. test each public module with Go 1.23 and `GOWORK=off`;
+3. require tracked Go files to be `gofmt`-clean and reject whitespace errors;
+4. on the current Go toolchain, run `go mod tidy -diff`, `go vet ./...`, and
    `go test -race ./...` for `llmkit`, `codexsdk`, `llmcaller/codex`, and
    `internal/tools`, with `GOWORK=off`; and
-4. run the repository integration package with the workspace enabled so the
+5. run the repository integration package with the workspace enabled so the
    three semantic owners are composed from current source.
 
 Go `Example...` functions and the three-layer fake canary are ordinary tests;
