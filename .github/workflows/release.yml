@@ -36,6 +36,7 @@ jobs:
         run: |
           echo "release dispatch must originate from refs/heads/main" >&2
           exit 1
+
       - name: Require release credential
         working-directory: ${{ github.workspace }}
         env:
@@ -45,6 +46,7 @@ jobs:
             echo "production-release is missing RELEASE_DEPLOY_KEY" >&2
             exit 1
           }
+
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
@@ -52,6 +54,7 @@ jobs:
           ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
           ssh-strict: true
           persist-credentials: true
+
       - uses: actions/setup-go@v6
         with:
           go-version: stable
@@ -60,6 +63,7 @@ jobs:
             codexsdk/go.sum
             llmcaller/codex/go.sum
             internal/tools/go.sum
+
       - name: Resolve release tag
         id: release
         env:
@@ -77,8 +81,63 @@ jobs:
             *) echo "unknown module $MODULE" >&2; exit 1 ;;
           esac
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-      - name: Deterministic proofs and executable examples
-        run: ./scripts/verify.sh
+
+      - name: Go formatting and whitespace
+        run: |
+          set -euo pipefail
+          unformatted="$(git ls-files -z -- '*.go' | xargs -0 gofmt -l)"
+          if [[ -n "${unformatted}" ]]; then
+            echo "gofmt required:" >&2
+            printf '%s\n' "${unformatted}" >&2
+            exit 1
+          fi
+          git diff --check
+
+      - name: Verify llmkit
+        working-directory: llmkit
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+        run: |
+          go mod tidy -diff
+          go vet ./...
+          go test -race ./...
+
+      - name: Verify codexsdk
+        working-directory: codexsdk
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+        run: |
+          go mod tidy -diff
+          go vet ./...
+          go test -race ./...
+
+      - name: Verify Codex adapter
+        working-directory: llmcaller/codex
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+        run: |
+          go mod tidy -diff
+          go vet ./...
+          go test -race ./...
+
+      - name: Verify repository tools
+        working-directory: internal/tools
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+        run: |
+          go mod tidy -diff
+          go vet ./...
+          go test -race ./...
+
+      - name: Current-source composition
+        env:
+          GOTOOLCHAIN: local
+        run: go test -race ./internal/tools/integration
+
       - name: Create immutable tag at the tested commit
         env:
           COMMIT: ${{ github.sha }}
@@ -100,6 +159,7 @@ jobs:
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git tag -a "$TAG" "$COMMIT" -m "$TAG"
           git push --atomic --force-with-lease="refs/tags/$TAG:" origin "refs/tags/$TAG"
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
