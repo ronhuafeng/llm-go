@@ -17,6 +17,8 @@ an `Unreleased` changelog entry when the change is user-visible. Do not create
 API inventories, release-state mirrors, compatibility facades, or change
 fragments solely for release bookkeeping; exported code, executable examples,
 behavior tests, `go.mod`, and immutable tags are the relevant authorities.
+Do not add `replace` or `exclude` directives to a public module `go.mod`;
+see [`DESIGN.md`](DESIGN.md) I6.
 
 Prefer executable Go examples over duplicate README programs. README prose
 should explain semantics and point to the example that CI actually compiles.
