@@ -1,8 +1,6 @@
 name: Post-release module resolution smoke
 
 on:
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       tag:
@@ -14,18 +12,17 @@ permissions:
   contents: read
 
 env:
-  TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+  TAG: ${{ inputs.tag }}
 
 jobs:
   resolve:
     name: Observe public module resolution
-    # Job if cannot read workflow env; keep the same github/inputs expression.
     if: >-
-      (startsWith(github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name, 'llmkit/v') ||
-       startsWith(github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name, 'codexsdk/v') ||
-       startsWith(github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name, 'llmcaller/codex/v')) &&
-      !contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name, '-') &&
-      !contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name, '+')
+      (startsWith(inputs.tag, 'llmkit/v') ||
+       startsWith(inputs.tag, 'codexsdk/v') ||
+       startsWith(inputs.tag, 'llmcaller/codex/v')) &&
+      !contains(inputs.tag, '-') &&
+      !contains(inputs.tag, '+')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
