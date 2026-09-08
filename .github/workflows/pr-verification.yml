@@ -24,16 +24,34 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
       - name: Minimum Go compatibility
         uses: actions/setup-go@v6
         with:
           go-version: '1.23.x'
           cache: false
-      - name: Test public modules on minimum Go
-        run: |
-          for module in llmkit codexsdk llmcaller/codex; do
-            (cd "$module" && GOWORK=off GOTOOLCHAIN=local go test ./...)
-          done
+
+      - name: Minimum Go - llmkit
+        working-directory: llmkit
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+        run: go test ./...
+
+      - name: Minimum Go - codexsdk
+        working-directory: codexsdk
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+        run: go test ./...
+
+      - name: Minimum Go - Codex adapter
+        working-directory: llmcaller/codex
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+        run: go test ./...
+
       - name: Current Go
         uses: actions/setup-go@v6
         with:
@@ -43,5 +61,59 @@ jobs:
             codexsdk/go.sum
             llmcaller/codex/go.sum
             internal/tools/go.sum
-      - name: Deterministic proofs and executable examples
-        run: ./scripts/verify.sh
+
+      - name: Go formatting and whitespace
+        run: |
+          set -euo pipefail
+          unformatted="$(git ls-files -z -- '*.go' | xargs -0 gofmt -l)"
+          if [[ -n "${unformatted}" ]]; then
+            echo "gofmt required:" >&2
+            printf '%s\n' "${unformatted}" >&2
+            exit 1
+          fi
+          git diff --check
+
+      - name: Verify llmkit
+        working-directory: llmkit
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+        run: |
+          go mod tidy -diff
+          go vet ./...
+          go test -race ./...
+
+      - name: Verify codexsdk
+        working-directory: codexsdk
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+        run: |
+          go mod tidy -diff
+          go vet ./...
+          go test -race ./...
+
+      - name: Verify Codex adapter
+        working-directory: llmcaller/codex
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+        run: |
+          go mod tidy -diff
+          go vet ./...
+          go test -race ./...
+
+      - name: Verify repository tools
+        working-directory: internal/tools
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+        run: |
+          go mod tidy -diff
+          go vet ./...
+          go test -race ./...
+
+      - name: Current-source composition
+        env:
+          GOTOOLCHAIN: local
+        run: go test -race ./internal/tools/integration
