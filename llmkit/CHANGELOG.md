@@ -5,6 +5,11 @@ changes may occur in minor releases.
 
 ## [Unreleased]
 
+### Changed
+
+- Point the executable-examples list at the repository authority-to-effect
+  proof that continues past `llmstep` judgment.
+
 ## [0.12.0] - 2026-09-07
 
 ### Changed

@@ -243,3 +243,9 @@ Before accepting a design, ask:
    second copy of the same fact?
 
 When convenience conflicts with these answers, reject the convenience.
+
+The executable proof of `accepted != authorized` and
+`authorized != executed` is
+[`internal/tools/integration/example_authority_to_effect_test.go`](internal/tools/integration/example_authority_to_effect_test.go).
+It reuses `llmstep` judgment and keeps authority and effect types local
+to the example.

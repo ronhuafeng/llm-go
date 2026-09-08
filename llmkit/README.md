@@ -29,6 +29,10 @@ and run as part of the ordinary module test suite:
   `Caller`, presence-aware evidence, and isolated provider details.
 - [`llmstep/example_test.go`](llmstep/example_test.go) — proposition →
   deterministic judgment → sanitized repair → accepted result.
+  The repository-level
+  [`example_authority_to_effect_test.go`](../internal/tools/integration/example_authority_to_effect_test.go)
+  continues from that accepted output through application-owned authority
+  and effect-execution evidence.
 
 Run them with:
 
