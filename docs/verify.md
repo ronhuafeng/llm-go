@@ -4,6 +4,12 @@ Ordinary repository verification intentionally has no repository-specific task
 runner. Semantic proofs live in Go tests and executable examples; GitHub Actions
 runs standard Go tools and a version-pinned Actions workflow validator.
 
+Published modules and repository tooling intentionally have different minimum
+Go versions. `llmkit`, `codexsdk`, and `llmcaller/codex` support Go 1.23 and are
+tested independently with `GOWORK=off`. The root workspace and `internal/tools`
+require Go 1.25. That repository-tooling baseline is not a stronger requirement
+for consumers of the published modules.
+
 For a public module, the local pattern is:
 
 ```sh
@@ -13,12 +19,16 @@ GOWORK=off go vet ./...
 GOWORK=off go test -race ./...
 ```
 
-Repository tools use the same standalone pattern from `internal/tools`. To prove
-current-source composition through the workspace, run from the repository root:
+Repository tools require Go 1.25 and use the same standalone pattern from
+`internal/tools`. To prove repository-minimum current-source composition through
+the workspace, run from the repository root with Go 1.25 or newer:
 
 ```sh
-go test -race ./internal/tools/integration
+go test ./internal/tools/integration
 ```
+
+Current-stable verification additionally runs the integration package with
+`-race`.
 
 Required pull-request verification runs on Linux only. The scheduled or
 manual `Advisory OS portability` workflow additionally runs `go vet ./...`
@@ -37,12 +47,13 @@ gate and must never be treated as a pre-tag publication check. See
 1. validate GitHub Actions workflow syntax and context usage with a
    version-pinned `actionlint` binary;
 2. test each public module with Go 1.23 and `GOWORK=off`;
-3. require tracked Go files to be `gofmt`-clean and reject whitespace errors;
-4. on the current Go toolchain, run `go mod tidy -diff`, `go vet ./...`, and
+3. test `internal/tools` standalone and current-source workspace composition
+   with Go 1.25;
+4. require tracked Go files to be `gofmt`-clean and reject whitespace errors;
+5. on the current Go toolchain, run `go mod tidy -diff`, `go vet ./...`, and
    `go test -race ./...` for `llmkit`, `codexsdk`, `llmcaller/codex`, and
-   `internal/tools`, with `GOWORK=off`; and
-5. run the repository integration package with the workspace enabled so the
-   three semantic owners are composed from current source.
+   `internal/tools`, with `GOWORK=off`, then run repository integration with
+   the workspace enabled.
 
 Go `Example...` functions and the three-layer fake canary are ordinary tests;
 they are not invoked again through a second verification framework. Codex SDK
