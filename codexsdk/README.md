@@ -40,6 +40,14 @@ The generated protocol and app-server are the factual authority. The SDK does
 not translate Codex facts into provider-neutral LLM semantics and does not own
 application judgment or effect authority.
 
+**Exact** means exact to the checked-in generated baseline
+(`GeneratedBaseline`), not "proven compatible with whatever app-server is
+running." `initialize` can preserve a [Runtime App-Server
+Observation](CONTEXT.md); current protocol fields do not prove [Runtime
+Compatibility](CONTEXT.md). A successful request, turn, or live smoke stays
+an observation of the exercised path. It does not upgrade the generated
+surface to a compatibility fact.
+
 Inbound app-server JSON-RPC frames are limited to 16 MiB including the newline
 delimiter. Oversized or unterminated frames fail the client with sanitized
 byte-count/hash diagnostics.

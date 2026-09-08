@@ -41,6 +41,11 @@
 // Client shutdown atomically closes callback admission and joins callbacks
 // accepted before that boundary before releasing transport resources.
 //
+// GeneratedBaseline is exact to the checked-in protocol baseline. Runtime
+// App-Server Observation preserves initialize identity when reported.
+// Runtime Compatibility remains unknown unless the protocol reports a usable
+// compatibility fact. A successful request is not whole-surface compatibility.
+//
 // It does not provide provider-neutral LLM abstractions, business validation,
 // workflow policy, or application safety profiles.
 package codexsdk

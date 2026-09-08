@@ -80,5 +80,6 @@ Reading path: [`AGENTS.md`](AGENTS.md).
 | Module vocabulary | module `CONTEXT.md` |
 | Current public API and behavior | exported code, package docs, public behavior |
 | Generated facts | owner-local generator inputs and committed output |
+| Generated baseline vs runtime compatibility | `codexsdk` exported provenance API |
 | Verification procedure | `docs/verify.md` |
 | Release identity and procedure | `docs/release.md` |

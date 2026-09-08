@@ -88,6 +88,10 @@ func TestCodexSDKPublicSurfaceHasNoRawProtocolEscapeHatch(t *testing.T) {
 		reflect.TypeOf(TurnError{}),
 		reflect.TypeOf(InputStats{}),
 		reflect.TypeOf(DiagnosticRef{}),
+		reflect.TypeOf(GeneratedBaselineProvenance{}),
+		reflect.TypeOf(RuntimeAppServerObservation{}),
+		reflect.TypeOf(RuntimeCompatibility{}),
+		reflect.TypeOf(ConnectionProvenance{}),
 	}
 	for _, typ := range publicRootStructs {
 		assertNoPublicRawProtocolType(t, typ.Name(), typ, map[reflect.Type]bool{})
