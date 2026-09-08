@@ -10,13 +10,14 @@ import (
 )
 
 func FuzzReadInboundJSONRPCFrame(f *testing.F) {
-	const limit = 64
+	const limit = 256
 	for _, seed := range [][]byte{
 		[]byte("{\"id\":1,\"result\":{}}\n"),
 		[]byte("{\"method\":\"thread/started\"}\n"),
-		[]byte(strings.Repeat("x", limit-1) + "\n"),
-		[]byte(strings.Repeat("stdout_secret", 8)),
+		[]byte(strings.Repeat("x", 63) + "\n"),
+		[]byte(strings.Repeat("stdout_secret", 32)),
 		[]byte(`{"value":"stdout_secret"}`),
+		[]byte("{not-json stdout_secret transcript\n"),
 		[]byte(""),
 		[]byte("{\"id\":\"go-sdk-1\",\"method\":\"secret/method\",\"result\":{\"value\":\"stdout_secret\"}}\n"),
 	} {
@@ -51,10 +52,13 @@ func FuzzReadInboundJSONRPCFrame(f *testing.F) {
 		if len(frame) > limit {
 			t.Fatalf("successful frame exceeded limit: %d", len(frame))
 		}
-		if envErr := validateJSONRPCEnvelope(frame); envErr != nil &&
-			bytes.Contains(frame, []byte("stdout_secret")) &&
-			strings.Contains(envErr.Error(), "stdout_secret") {
-			t.Fatalf("envelope error leaked raw contents: %v", envErr)
+		if envErr := validateJSONRPCEnvelope(frame); envErr != nil {
+			if !strings.Contains(envErr.Error(), "decode JSONRPCMessage") {
+				t.Fatalf("envelope error missing stable class: %v", envErr)
+			}
+			if bytes.Contains(frame, []byte("stdout_secret")) && strings.Contains(envErr.Error(), "stdout_secret") {
+				t.Fatalf("envelope error leaked raw contents: %v", envErr)
+			}
 		}
 	})
 }

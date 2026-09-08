@@ -29,12 +29,20 @@ func FuzzContractDecode(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, data []byte) {
+		instance, instanceErr := decodeJSON(data)
+		valid := instanceErr == nil && validateCompiled(contract.compiled, instance) == nil
 		value, err := contract.Decode(data)
-		if err != nil {
+		if !valid {
+			if err == nil {
+				t.Fatalf("invalid shape decoded successfully: %#v from %q", value, data)
+			}
 			if !reflect.DeepEqual(value, fuzzDecodeOutput{}) {
 				t.Fatalf("failed decode returned value %#v", value)
 			}
 			return
+		}
+		if err != nil {
+			t.Fatalf("contract-valid input failed Decode: %v", err)
 		}
 		again, againErr := contract.Decode(data)
 		if againErr != nil {
