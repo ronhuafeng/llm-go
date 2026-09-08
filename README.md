@@ -11,6 +11,11 @@ app-server control.
 
 Start with the README for the module matching the current use case.
 
+The repository-level authority-to-effect example continues past
+`llmstep` judgment: accepted output still needs application-owned
+authority, and authorization is not execution success. See
+[`internal/tools/integration/example_authority_to_effect_test.go`](internal/tools/integration/example_authority_to_effect_test.go).
+
 Semantics: [`NORTHSTAR.md`](NORTHSTAR.md).
 Live invariants: [`DESIGN.md`](DESIGN.md).
 Maintainers: [`AGENTS.md`](AGENTS.md), [`CONTRIBUTING.md`](CONTRIBUTING.md).
