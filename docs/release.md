@@ -24,11 +24,19 @@ Dispatch **Release public module** from `main` with only:
 The release commit is the trusted `github.sha` captured when the workflow is
 dispatched. After the protected `production-release` approval, the workflow:
 
-1. runs `./scripts/verify.sh` on that exact commit;
+1. runs the same explicit Go-native source proofs used by ordinary verification
+   on that exact commit: formatting/whitespace, each module's
+   `go mod tidy -diff`, `go vet ./...`, and `go test -race ./...`, plus the
+   current-source repository integration package;
 2. verifies remote `main` still points to that commit;
 3. refuses to reuse an existing version tag;
 4. creates the module-prefixed annotated tag with the dedicated release key;
 5. creates the GitHub Release for that tag.
+
+There is intentionally no repository verification wrapper between the release
+workflow and these Go proofs. The Python/Bash Codex upstream-sync control plane
+is not a release gate for unrelated source; Codex protocol source correctness
+needed for publication is protected by owner-local Go tests.
 
 If `main` advances while approval or tests are in progress, the release fails;
 dispatch it again from the new main. If tag creation succeeds but GitHub
@@ -54,5 +62,6 @@ Tag creation keeps the existing `production-release` Environment and
 `RELEASE_DEPLOY_KEY`, because the current formal-tag rules delegate tag
 creation to that dedicated Deploy Key. No new release secret is required.
 
-The optional live Codex smoke is separate from release and uses the
-`codex-live-smoke` Environment; see [`verify.md`](verify.md).
+The non-gating live Codex smoke is separate from release. It reuses the existing
+Responses-proxy credentials and requires no additional Environment or secret;
+see [`verify.md`](verify.md).
