@@ -19,12 +19,13 @@ env:
 jobs:
   resolve:
     name: Observe public module resolution
+    # Job if cannot read workflow env; keep the same github/inputs expression.
     if: >-
-      (startsWith(env.TAG, 'llmkit/v') ||
-       startsWith(env.TAG, 'codexsdk/v') ||
-       startsWith(env.TAG, 'llmcaller/codex/v')) &&
-      !contains(env.TAG, '-') &&
-      !contains(env.TAG, '+')
+      (startsWith(github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name, 'llmkit/v') ||
+       startsWith(github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name, 'codexsdk/v') ||
+       startsWith(github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name, 'llmcaller/codex/v')) &&
+      !contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name, '-') &&
+      !contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name, '+')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
