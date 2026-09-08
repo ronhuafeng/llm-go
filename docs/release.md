@@ -65,3 +65,17 @@ creation to that dedicated Deploy Key. No new release secret is required.
 The non-gating live Codex smoke is separate from release. It reuses the existing
 Responses-proxy credentials and requires no additional Environment or secret;
 see [`verify.md`](verify.md).
+
+## Post-release module resolution smoke
+
+After a GitHub Release exists for a module-prefixed tag, the
+`Post-release module resolution smoke` workflow may observe whether an
+ordinary external `go` consumer can resolve that version through the public
+module proxy. Manual `workflow_dispatch` can repeat that single observation
+if proxy propagation had not finished.
+
+The smoke does not decide whether the tag is valid, does not move or
+recreate tags, and is not a prerequisite for **Release public module**.
+A green result means only that the consumer resolution path worked at that
+time. A red result is an ecosystem observation to rerun later, not a
+release-state change.

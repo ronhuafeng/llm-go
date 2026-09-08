@@ -1,0 +1,74 @@
+name: Post-release module resolution smoke
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing module-prefixed tag, for example llmkit/v0.12.0
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    name: Observe public module resolution
+    if: >-
+      startsWith(github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name, 'llmkit/v') ||
+      startsWith(github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name, 'codexsdk/v') ||
+      startsWith(github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name, 'llmcaller/codex/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.23.x"
+          cache: false
+
+      - name: Resolve released module once
+        env:
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          tag="${TAG:?tag is required}"
+          case "${tag}" in
+            llmkit/v*)
+              module="github.com/ronhuafeng/llm-go/llmkit"
+              version="${tag#llmkit/}"
+              ;;
+            codexsdk/v*)
+              module="github.com/ronhuafeng/llm-go/codexsdk"
+              version="${tag#codexsdk/}"
+              ;;
+            llmcaller/codex/v*)
+              module="github.com/ronhuafeng/llm-go/llmcaller/codex"
+              version="${tag#llmcaller/codex/}"
+              ;;
+            *)
+              echo "unsupported tag ${tag}; expected llmkit/vX.Y.Z, codexsdk/vX.Y.Z, or llmcaller/codex/vX.Y.Z" >&2
+              exit 1
+              ;;
+          esac
+          if [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "refusing non-stable version ${version} from tag ${tag}" >&2
+            exit 1
+          fi
+
+          echo "tag=${tag}"
+          echo "module=${module}"
+          echo "version=${version}"
+          echo "This job observes public proxy resolution only. It does not validate, move, or recreate the immutable tag."
+
+          workdir="$(mktemp -d)"
+          trap 'rm -rf "${workdir}"' EXIT
+          cd "${workdir}"
+          go mod init example.com/llm-go-release-smoke
+          GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org GOPRIVATE= \
+            go get "${module}@${version}"
+          GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org GOPRIVATE= \
+            go list -m "${module}"
+          GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org GOPRIVATE= \
+            go list "${module}/..."
