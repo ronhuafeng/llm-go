@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       model:
-        description: Optional Codex model override; blank uses the CLI default
+        description: Optional Codex model override; blank uses the smoke default
         required: false
         type: string
 
@@ -16,8 +16,6 @@ jobs:
     name: Real app-server composition
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    environment:
-      name: codex-live-smoke
     steps:
       - name: Require dispatch from main
         if: github.ref != 'refs/heads/main'
@@ -38,17 +36,82 @@ jobs:
             internal/tools/go.sum
       - uses: actions/setup-node@v6
         with:
-          node-version: lts/*
-      - name: Install Codex CLI
-        run: npm install --global @openai/codex@latest
+          node-version: "24"
+      - name: Install Codex CLI and Responses proxy
+        run: |
+          npm install --global \
+            @openai/codex@latest \
+            @openai/codex-responses-api-proxy@latest
+          codex --version
+      - name: Start Codex Responses API proxy
+        id: proxy
+        env:
+          PROXY_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          SERVER_INFO_FILE: ${{ runner.temp }}/live-codex-responses-proxy.json
+          UPSTREAM_URL: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
+        run: |
+          set -euo pipefail
+          : "${PROXY_API_KEY:?AZURE_OPENAI_API_KEY is required}"
+          : "${UPSTREAM_URL:?CODEX_RESPONSES_API_ENDPOINT is required}"
+
+          (
+            printenv PROXY_API_KEY |
+              env -u PROXY_API_KEY -u UPSTREAM_URL \
+                codex-responses-api-proxy \
+                --server-info "${SERVER_INFO_FILE}" \
+                --upstream-url "${UPSTREAM_URL}"
+          ) &
+          proxy_pid=$!
+
+          for _ in {1..100}; do
+            if jq -e '.port | numbers' "${SERVER_INFO_FILE}" >/dev/null 2>&1; then
+              break
+            fi
+            sleep 0.1
+          done
+          proxy_port="$(jq -er '.port | numbers' "${SERVER_INFO_FILE}")"
+          {
+            echo "pid=${proxy_pid}"
+            echo "port=${proxy_port}"
+          } >> "${GITHUB_OUTPUT}"
+      - name: Configure isolated app-server provider
+        env:
+          CODEX_HOME: ${{ runner.temp }}/llm-go-live-codex-home
+          PROXY_PORT: ${{ steps.proxy.outputs.port }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${CODEX_HOME}"
+          cat > "${CODEX_HOME}/config.toml" <<EOF
+          model = "gpt-5.6-sol"
+          model_provider = "llm-go-smoke"
+          model_reasoning_effort = "high"
+
+          [model_providers.llm-go-smoke]
+          name = "llm-go smoke proxy"
+          base_url = "http://127.0.0.1:${PROXY_PORT}/v1"
+          wire_api = "responses"
+          request_max_retries = 0
+          stream_max_retries = 0
+          supports_websockets = false
+          requires_openai_auth = false
+          EOF
       - name: Run real Codex smoke
         env:
+          CODEX_HOME: ${{ runner.temp }}/llm-go-live-codex-home
           LLMGO_LIVE_CODEX: "1"
           LLMGO_LIVE_CODEX_MODEL: ${{ inputs.model }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          test -n "$OPENAI_API_KEY" || {
-            echo "codex-live-smoke is missing OPENAI_API_KEY" >&2
-            exit 1
-          }
-          go test ./internal/tools/integration -run '^TestLiveCodexSmoke$' -count=1 -v
+          set -euo pipefail
+          env -u AZURE_OPENAI_API_KEY -u CODEX_RESPONSES_API_ENDPOINT \
+            go test ./internal/tools/integration \
+              -run '^TestLiveCodexSmoke$' \
+              -count=1 \
+              -v
+      - name: Stop Codex Responses API proxy
+        if: ${{ always() }}
+        env:
+          PROXY_PID: ${{ steps.proxy.outputs.pid }}
+        run: |
+          if [[ -n "${PROXY_PID}" ]] && kill -0 "${PROXY_PID}" 2>/dev/null; then
+            kill "${PROXY_PID}"
+          fi
