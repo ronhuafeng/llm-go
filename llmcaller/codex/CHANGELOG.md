@@ -4,6 +4,12 @@ This project follows Semantic Versioning.
 
 ## [Unreleased]
 
+### Changed
+
+- Document that `ReadOnlyEphemeralOptions` is effect-safe, not
+  disclosure-safe: read-only is not confidential, and ephemeral is not a
+  provider-retention guarantee.
+
 ## [0.8.1] - 2026-09-07
 
 ### Changed

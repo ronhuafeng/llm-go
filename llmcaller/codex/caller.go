@@ -200,6 +200,14 @@ func New(options Options) (*Caller, error) {
 // ephemeral Codex profile. New rejects conflicting profile-owned defaults,
 // fills unset profile fields, and reapplies the profile before each runner
 // invocation.
+//
+// The profile is effect-safe, not disclosure-safe. Read-only is not
+// confidential: an allowed read can still expose workspace or input data to
+// model and provider processing. Prevention of sensitive disclosure is
+// application-owned unless separately proven. Application-owned CWD,
+// workspace, and input selection remain part of the confidentiality
+// boundary. Ephemeral is not a provider-retention guarantee; provider data
+// handling is not established by this profile.
 func ReadOnlyEphemeralOptions(runner ThreadRunner) Options {
 	return Options{
 		Runner: runner,

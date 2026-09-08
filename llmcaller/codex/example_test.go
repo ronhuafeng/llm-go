@@ -38,6 +38,8 @@ func (exampleRunner) StartStream(context.Context, codexsdk.StartThreadRunRequest
 }
 
 func Example() {
+	// Named profile is effect-safe only; see package docs for the
+	// confidentiality boundary.
 	caller, err := codexcaller.New(codexcaller.ReadOnlyEphemeralOptions(exampleRunner{}))
 	if err != nil {
 		panic(err)

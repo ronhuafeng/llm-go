@@ -20,4 +20,6 @@ SDK handling.
 
 The adapter does not read credentials or start processes. Applications own
 authentication, the app-server command, the working directory, and approval
-handling. See the adapter README for the named read-only profile.
+handling. See the adapter README for the named read-only profile: it is
+effect-safe, not disclosure-safe, and does not establish confidentiality or
+provider retention.
