@@ -13,13 +13,18 @@ on:
 permissions:
   contents: read
 
+env:
+  TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+
 jobs:
   resolve:
     name: Observe public module resolution
     if: >-
-      startsWith(github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name, 'llmkit/v') ||
-      startsWith(github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name, 'codexsdk/v') ||
-      startsWith(github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name, 'llmcaller/codex/v')
+      (startsWith(env.TAG, 'llmkit/v') ||
+       startsWith(env.TAG, 'codexsdk/v') ||
+       startsWith(env.TAG, 'llmcaller/codex/v')) &&
+      !contains(env.TAG, '-') &&
+      !contains(env.TAG, '+')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -30,7 +35,9 @@ jobs:
 
       - name: Resolve released module once
         env:
-          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+          GOPROXY: https://proxy.golang.org
+          GOSUMDB: sum.golang.org
+          GOPRIVATE: ""
         run: |
           set -euo pipefail
           tag="${TAG:?tag is required}"
@@ -48,13 +55,13 @@ jobs:
               version="${tag#llmcaller/codex/}"
               ;;
             *)
-              echo "unsupported tag ${tag}; expected llmkit/vX.Y.Z, codexsdk/vX.Y.Z, or llmcaller/codex/vX.Y.Z" >&2
-              exit 1
+              echo "skipping ${tag}: not a public module tag"
+              exit 0
               ;;
           esac
           if [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "refusing non-stable version ${version} from tag ${tag}" >&2
-            exit 1
+            echo "skipping ${tag}: not a stable module version; this job does not judge tag validity"
+            exit 0
           fi
 
           echo "tag=${tag}"
@@ -66,9 +73,6 @@ jobs:
           trap 'rm -rf "${workdir}"' EXIT
           cd "${workdir}"
           go mod init example.com/llm-go-release-smoke
-          GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org GOPRIVATE= \
-            go get "${module}@${version}"
-          GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org GOPRIVATE= \
-            go list -m "${module}"
-          GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org GOPRIVATE= \
-            go list "${module}/..."
+          go get "${module}@${version}"
+          go list -m "${module}"
+          go list "${module}/..."

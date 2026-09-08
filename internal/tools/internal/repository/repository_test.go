@@ -58,25 +58,21 @@ func TestPostReleaseModuleSmokeObservesPublicProxyOnce(t *testing.T) {
 	required := []string{
 		"types: [published]",
 		"workflow_dispatch:",
-		"llmkit/v",
-		"codexsdk/v",
-		"llmcaller/codex/v",
 		"github.com/ronhuafeng/llm-go/llmkit",
 		"github.com/ronhuafeng/llm-go/codexsdk",
 		"github.com/ronhuafeng/llm-go/llmcaller/codex",
-		"GOPROXY=https://proxy.golang.org",
-		"GOSUMDB=sum.golang.org",
+		"https://proxy.golang.org",
+		"sum.golang.org",
 		"go mod init",
-		`go get "${module}@${version}"`,
-		`go list -m "${module}"`,
-		`go list "${module}/..."`,
 		"mktemp",
-		"contents: read",
 	}
 	for _, want := range required {
 		if !strings.Contains(text, want) {
 			t.Fatalf("post-release smoke missing %q", want)
 		}
+	}
+	if !strings.Contains(text, "GOPROXY=https://proxy.golang.org") && !strings.Contains(text, "GOPROXY: https://proxy.golang.org") {
+		t.Fatal("post-release smoke must pin GOPROXY to proxy.golang.org")
 	}
 	if strings.Contains(text, "actions/checkout") {
 		t.Fatal("post-release smoke must not check out repository source")

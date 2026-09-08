@@ -29,9 +29,8 @@ Windows. That matrix is advisory: it does not run `-race` or `go mod tidy
 [`SUPPORT.md`](../SUPPORT.md).
 
 The `Post-release module resolution smoke` workflow is also not a merge
-gate. It observes whether an already published public-module tag is
-resolvable through `proxy.golang.org` and must never be treated as a
-pre-tag publication check. See [`docs/release.md`](release.md).
+gate and must never be treated as a pre-tag publication check. See
+[`docs/release.md`](release.md).
 
 `PR verification` makes the complete ordinary gate explicit in its workflow:
 
