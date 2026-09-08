@@ -1,33 +1,52 @@
 # Verification
 
-The repository has one ordinary pre-merge command:
+Ordinary repository verification intentionally has no repository-specific task
+runner. Semantic proofs live in Go tests and executable examples; GitHub Actions
+shows the small amount of orchestration needed to run standard Go tools.
+
+For a public module, the local pattern is:
 
 ```sh
-./scripts/verify.sh
+cd llmkit # or codexsdk or llmcaller/codex
+GOWORK=off go mod tidy -diff
+GOWORK=off go vet ./...
+GOWORK=off go test -race ./...
 ```
 
-Run it locally before opening a pull request. `PR verification` first runs a
-plain public-module test pass on Go 1.23, then runs the same script on the
-current Go toolchain.
+Repository tools use the same standalone pattern from `internal/tools`. To prove
+current-source composition through the workspace, run from the repository root:
 
-The script provides two deterministic proof layers:
+```sh
+go test -race ./internal/tools/integration
+```
 
-1. **Semantic and architecture tests** — repository ownership/import rules,
-   package unit tests, vet, race tests, and the exact provider/neutral evidence
-   invariants owned by each module.
-2. **Executable composition examples** — Go `Example...` functions are normal
-   package tests. The three-layer fake canary composes `llmkit`, the Codex
-   adapter, and `codexsdk` from current source without requiring credentials or
-   network access.
+`PR verification` makes the complete ordinary gate explicit in its workflow:
 
-Public modules are also tested with `GOWORK=off`, so module tests do not pass
-only because the repository workspace repairs dependency resolution. The
-workspace canary is separate because its purpose is current-source composition.
+1. test each public module with Go 1.23 and `GOWORK=off`;
+2. require tracked Go files to be `gofmt`-clean and reject whitespace errors;
+3. on the current Go toolchain, run `go mod tidy -diff`, `go vet ./...`, and
+   `go test -race ./...` for `llmkit`, `codexsdk`, `llmcaller/codex`, and
+   `internal/tools`, with `GOWORK=off`; and
+4. run the repository integration package with the workspace enabled so the
+   three semantic owners are composed from current source.
 
-This verification deliberately does **not** model release state, mirror public
-API inventories, compile README Markdown, probe unpublished module versions, or
-produce custom evidence/authorization artifacts. Git source, Go tests, module
-`go.mod` files, and immutable tags are the authorities for those facts.
+Go `Example...` functions and the three-layer fake canary are ordinary tests;
+they are not invoked again through a second verification framework. Codex SDK
+checked-in protocol artifacts, generated facade semantics, baseline provenance,
+and baseline hygiene are likewise protected by owner-local Go tests.
+
+The Python and shell programs under `codexsdk/scripts` belong to the exceptional
+upstream synchronization control plane. They may acquire or classify upstream
+schemas, construct sync candidates, validate a requested upstream target, and
+publish a sync PR. They are not an ordinary correctness gate for unrelated
+library changes. The upstream-sync workflow remains responsible for exercising
+that tooling when it performs a protocol synchronization.
+
+Ordinary verification deliberately does **not** model release state, mirror
+public API inventories, compile README Markdown, probe unpublished module
+versions, produce custom evidence/authorization artifacts, or wrap standard Go
+commands in another repository task runner. Git source, owner-local Go tests,
+module `go.mod` files, and immutable tags are the authorities for those facts.
 
 ## Real Codex smoke
 
