@@ -36,6 +36,20 @@ and partial observation on failure. Admission between decoded `thread/start`
 and `turn/start` is consumer-supplied and policy-neutral; rejecting admission
 preserves the exact partial run and does not send `turn/start`.
 
+Grok real-provider Live tests are ordinary `go test` cases in this module.
+They stay skipped unless the caller supplies a local Codex binary and an
+isolated Grok profile:
+
+```sh
+GROKEX_LIVE=1 \
+GROKEX_LIVE_CODEX_BIN=/path/to/codex \
+GROKEX_LIVE_CONFIG=/path/to/isolated-grok-config.toml \
+go test . -count=1 -timeout 30m -run '^TestGrok'
+```
+
+Do not put credentials, prompts, replies, or raw traffic in CI logs. Failure
+output names only the last semantic stage.
+
 The generated protocol and app-server are the factual authority. The SDK does
 not translate Codex facts into provider-neutral LLM semantics and does not own
 application judgment or effect authority.
