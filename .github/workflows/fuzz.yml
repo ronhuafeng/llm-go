@@ -1,0 +1,45 @@
+name: Fuzz
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    name: Bounded Go fuzz
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.23.x"
+          cache: false
+
+      - name: Fuzz llmkit contract decode
+        working-directory: llmkit
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+        run: go test ./llmschema -fuzz=FuzzContractDecode -fuzztime=30s
+
+      - name: Fuzz Codex inbound frames
+        working-directory: codexsdk
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+        run: go test . -fuzz=FuzzReadInboundJSONRPCFrame -fuzztime=30s
+
+      - name: Fuzz adapter schema policy
+        working-directory: llmcaller/codex
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+        run: go test . -fuzz=FuzzStrictOutputSchemaFromJSON -fuzztime=30s

@@ -42,6 +42,11 @@ publish a sync PR. They are not an ordinary correctness gate for unrelated
 library changes. The upstream-sync workflow remains responsible for exercising
 that tooling when it performs a protocol synchronization.
 
+Owner-local Go fuzz targets exercise schema and protocol parser boundaries.
+Ordinary `go test` runs only their seed corpus. The scheduled/manual `Fuzz`
+workflow may run bounded `go test -fuzz=... -fuzztime=...` steps; it is not a
+required pull-request check.
+
 Ordinary verification deliberately does **not** model release state, mirror
 public API inventories, compile README Markdown, probe unpublished module
 versions, produce custom evidence/authorization artifacts, or wrap standard Go
