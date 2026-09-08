@@ -7,8 +7,9 @@ changes may occur in minor releases.
 
 ### Changed
 
-- Point the executable-examples list at the repository authority-to-effect
-  proof that continues past `llmstep` judgment.
+- Point readers at the repository authority-to-effect proof that continues
+  past `llmstep` judgment. That example is workspace integration, not this
+  module's `GOWORK=off` suite.
 
 ## [0.12.0] - 2026-09-07
 
