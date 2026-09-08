@@ -21,3 +21,10 @@ SDK handling.
 The adapter does not read credentials or start processes. Applications own
 authentication, the app-server command, the working directory, and approval
 handling. See the adapter README for the named read-only profile.
+
+That named profile is effect-safe, not disclosure-safe. Read-only is not
+confidential: an allowed read can still expose workspace or input data to
+model and provider processing. Application-owned CWD, workspace, and input
+selection remain the confidentiality boundary. Ephemeral is not a
+provider-retention guarantee; provider data handling is not established by
+the adapter profile.

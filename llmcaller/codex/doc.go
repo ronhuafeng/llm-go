@@ -3,7 +3,9 @@
 //
 // It owns Codex schema policy, request/result projection, exact defaults, and
 // named Codex safety profiles. A provider-neutral Caller can be constructed
-// only with a named effect-safe profile. Named-profile request policy is
+// only with a named effect-safe profile. That Caller remains an inference
+// capability: effect-safe is not disclosure-safe, and read-only is not
+// confidential. Named-profile request policy is
 // enforced before every runner invocation. Effective approval, sandbox, and
 // ephemeral facts are admitted from the decoded thread-start Server
 // Observation through StartThreadRunRequest.AdmitTurn before turn/start.

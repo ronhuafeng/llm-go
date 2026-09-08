@@ -38,6 +38,8 @@ func (exampleRunner) StartStream(context.Context, codexsdk.StartThreadRunRequest
 }
 
 func Example() {
+	// ReadOnlyEphemeralOptions is effect-safe, not disclosure-safe: read-only
+	// is not confidential, and ephemeral is not a provider-retention guarantee.
 	caller, err := codexcaller.New(codexcaller.ReadOnlyEphemeralOptions(exampleRunner{}))
 	if err != nil {
 		panic(err)

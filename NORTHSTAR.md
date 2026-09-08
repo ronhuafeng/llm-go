@@ -55,6 +55,9 @@ schema-valid    != semantically valid
 proposed        != accepted
 accepted        != authorized
 authorized      != executed
+read-only       != confidential
+effect-safe     != disclosure-safe
+ephemeral       != provider-retention-disabled
 ```
 
 ## Principles
@@ -94,6 +97,13 @@ explicitly narrowed projection of those findings, not the judgment itself.
 Model output never grants mutation authority by itself. Application-owned rules
 must establish authority before files, repositories, deployments, messages, or
 other external state can change. Prompt wording is not a security boundary.
+
+Effect safety and confidentiality are different properties. A read-only,
+never-approve, or ephemeral execution profile can constrain mutation without
+proving that an allowed read stays confidential, that provider-bound context
+excludes secrets, or that the provider retains nothing. Application-owned
+CWD, workspace, and input selection remain the confidentiality boundary
+unless a separate proof exists.
 
 ### P7. Public abstractions own semantics, not convenience
 
@@ -187,7 +197,8 @@ meaning. If a neutral fact cannot be established soundly, it remains unknown.
 
 The adapter does not own general contract compilation, general judgment or
 repair orchestration, Codex transport or generated protocol facts, application
-state, authorization, or side effects.
+state, authorization, or side effects. Its named read-only profile proves
+effect-safety admission, not confidentiality or provider retention.
 
 ## Repository
 
