@@ -71,9 +71,11 @@ see [`verify.md`](verify.md).
 ## Post-release module resolution smoke
 
 After the immutable tag and GitHub Release exist, **Release public module**
-dispatches `Post-release module resolution smoke` once with that exact tag.
-The handoff uses `workflow_dispatch` through the existing repository token so
-it does not depend on `release: published` from `GITHUB_TOKEN`. Manual
+dispatches `post-release-module-smoke.yml` once with that exact tag. The
+handoff uses `workflow_dispatch` through the existing repository token so
+it does not depend on `release: published` from `GITHUB_TOKEN`. The dispatch
+step continues on error: a failed observation start does not mark the
+release job failed after publication already succeeded. Manual
 `workflow_dispatch` can repeat that single observation if proxy propagation
 had not finished.
 

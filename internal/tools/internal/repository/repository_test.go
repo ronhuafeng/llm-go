@@ -92,8 +92,11 @@ func TestPostReleaseModuleSmokeObservesPublicProxyOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(release), `gh workflow run "Post-release module resolution smoke"`) {
-		t.Fatal("Release public module must explicitly dispatch the observation workflow")
+	if !strings.Contains(string(release), "gh workflow run post-release-module-smoke.yml") {
+		t.Fatal("Release public module must dispatch the observation workflow by filename")
+	}
+	if !strings.Contains(string(release), "continue-on-error: true") {
+		t.Fatal("observation dispatch must not fail the release job after publication")
 	}
 }
 

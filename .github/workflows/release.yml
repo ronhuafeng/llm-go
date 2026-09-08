@@ -169,12 +169,13 @@ jobs:
         run: |
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --title "$TAG" --notes "Source commit: $COMMIT. See the module CHANGELOG.md in this tag."
 
-      - name: Observe public module resolution
+      - name: Dispatch post-release observation
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.release.outputs.tag }}
         run: |
-          gh workflow run "Post-release module resolution smoke" \
+          gh workflow run post-release-module-smoke.yml \
             --repo "$GITHUB_REPOSITORY" \
             --ref main \
             -f "tag=${TAG}"
