@@ -2121,6 +2121,7 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 		switch name {
 		case "AnalyticsConfig",
 			"AppConfig",
+			"AppLinksConfig",
 			"AppToolConfig",
 			"AppToolsConfig",
 			"AppsConfig",
@@ -2319,6 +2320,8 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 		default:
 			return false
 		}
+	case "v2/PluginReconcileResponse.json":
+		return name == "PluginReconcileChangedPlugin"
 	case "v2/PluginSearchResponse.json":
 		return name == "PluginSearchResult"
 	case "v2/PluginShareListResponse.json":
@@ -2371,7 +2374,8 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 		return name == "TurnPlanStep"
 	case "v2/TurnStartResponse.json":
 		switch name {
-		case "CollabAgentState",
+		case "AsyncUserInputQuestion",
+			"CollabAgentState",
 			"FileUpdateChange",
 			"HookPromptFragment",
 			"McpToolCallAppContext",
