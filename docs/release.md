@@ -16,10 +16,7 @@ are never stamped during publication.
 
 ## Publish
 
-Dispatch **Release public module** from `main` only. The workflow is
-`workflow_dispatch`-only and must remain a named, hosted-valid Actions
-workflow; see [`verify.md`](verify.md) for the syntax check. Dispatch with
-only:
+Dispatch **Release public module** from `main` with only:
 
 - `module`: `llmkit`, `codexsdk`, or `codex-adapter`;
 - `version`: a stable version such as `v0.13.0`.

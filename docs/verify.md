@@ -2,7 +2,7 @@
 
 Ordinary repository verification intentionally has no repository-specific task
 runner. Semantic proofs live in Go tests and executable examples; GitHub Actions
-shows the small amount of orchestration needed to run standard Go tools.
+runs standard Go tools and a version-pinned Actions workflow validator.
 
 For a public module, the local pattern is:
 
