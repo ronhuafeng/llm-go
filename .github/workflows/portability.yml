@@ -1,6 +1,7 @@
 name: Advisory OS portability
 
 on:
+  pull_request:
   schedule:
     - cron: "23 6 * * 3"
   workflow_dispatch:
