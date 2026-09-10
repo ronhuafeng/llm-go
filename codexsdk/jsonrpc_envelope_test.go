@@ -79,7 +79,7 @@ func TestValidateJSONRPCEnvelopeRejectsMalformedProtocol(t *testing.T) {
 		{
 			name:    "duplicate top-level key",
 			line:    `{"id":"go-sdk-1","id":"go-sdk-2","result":{"ok":true}}`,
-			wantErr: `decode JSONRPCMessage: duplicate object key "id"`,
+			wantErr: "decode JSONRPCMessage: duplicate object key",
 		},
 		{
 			name:    "error missing nested code",
@@ -99,7 +99,7 @@ func TestValidateJSONRPCEnvelopeRejectsMalformedProtocol(t *testing.T) {
 		{
 			name:    "response nested duplicate",
 			line:    `{"id":"go-sdk-1","result":{"ok":true,"ok":false}}`,
-			wantErr: `decode JSONRPCMessage.response: decode JSONRPCResponse.result: duplicate object key "ok"`,
+			wantErr: "decode JSONRPCMessage.response: decode JSONRPCResponse.result: invalid JSON value",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -109,6 +109,44 @@ func TestValidateJSONRPCEnvelopeRejectsMalformedProtocol(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), tc.wantErr) {
 				t.Fatalf("unexpected %s error: %v", tc.name, err)
+			}
+		})
+	}
+}
+
+func TestValidateJSONRPCEnvelopeErrorsDoNotReflectUntrustedObjectKeys(t *testing.T) {
+	const secret = "stdout_secret"
+	for _, tc := range []struct {
+		name string
+		line string
+	}{
+		{
+			name: "malformed top-level value",
+			line: `{"stdout_secret":`,
+		},
+		{
+			name: "duplicate top-level key",
+			line: `{"stdout_secret":null,"stdout_secret":null}`,
+		},
+		{
+			name: "duplicate nested result key",
+			line: `{"id":1,"result":{"stdout_secret":true,"stdout_secret":false}}`,
+		},
+		{
+			name: "invalid trace key",
+			line: `{"id":"go-sdk-1","method":"turn/start","trace":{"stdout_secret":true}}`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateJSONRPCEnvelope([]byte(tc.line))
+			if err == nil {
+				t.Fatalf("validateJSONRPCEnvelope accepted malformed %s", tc.name)
+			}
+			if !strings.Contains(err.Error(), "decode JSONRPCMessage") {
+				t.Fatalf("error lost stable JSON-RPC decode class: %v", err)
+			}
+			if strings.Contains(err.Error(), secret) {
+				t.Fatalf("error reflected untrusted object key: %v", err)
 			}
 		})
 	}
