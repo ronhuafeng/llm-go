@@ -14,7 +14,7 @@ import (
 )
 
 func TestGrokBasic(t *testing.T) {
-	h := startGrokexLive(t, liveOptions{})
+	h := startGrokLive(t, liveOptions{})
 	ctx := context.Background()
 	h.requireGrokCatalog(ctx)
 
@@ -37,7 +37,7 @@ func TestGrokBasic(t *testing.T) {
 }
 
 func TestGrokEncryptedReasoningContinuation(t *testing.T) {
-	h := startGrokexLive(t, liveOptions{probeTool: true})
+	h := startGrokLive(t, liveOptions{probeTool: true})
 	ctx := context.Background()
 	h.requireGrokCatalog(ctx)
 
@@ -81,7 +81,7 @@ func TestGrokEncryptedReasoningContinuation(t *testing.T) {
 }
 
 func TestGrokCollaboration(t *testing.T) {
-	h := startGrokexLive(t, liveOptions{})
+	h := startGrokLive(t, liveOptions{})
 	ctx := context.Background()
 	h.requireGrokCatalog(ctx)
 
@@ -160,7 +160,7 @@ func TestGrokCollaboration(t *testing.T) {
 }
 
 func TestGrokImageGenerationEdit(t *testing.T) {
-	h := startGrokexLive(t, liveOptions{})
+	h := startGrokLive(t, liveOptions{})
 	ctx := context.Background()
 	h.requireGrokCatalog(ctx)
 
@@ -245,7 +245,7 @@ func newestCompletedImage(h *liveHarness, previousPath string, previousBytes []b
 }
 
 func TestGrokCustomApplyPatch(t *testing.T) {
-	h := startGrokexLive(t, liveOptions{disableShell: true})
+	h := startGrokLive(t, liveOptions{disableShell: true})
 	if err := os.WriteFile(filepath.Join(h.workspace, applyPatchFile), []byte(applyPatchSeed), 0o644); err != nil {
 		t.Fatalf("seed workspace file: %v", err)
 	}

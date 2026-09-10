@@ -27,15 +27,15 @@ import (
 )
 
 const (
-	grokexLiveEnv       = "GROKEX_LIVE"
-	grokexLiveBinEnv    = "GROKEX_LIVE_CODEX_BIN"
-	grokexLiveConfigEnv = "GROKEX_LIVE_CONFIG"
+	grokLiveEnv       = "GROK_LIVE"
+	grokLiveBinEnv    = "GROK_LIVE_CODEX_BIN"
+	grokLiveConfigEnv = "GROK_LIVE_CONFIG"
 
 	grokProvider = "grok"
 	grokModel    = "grok-4.6"
 
-	probeToolName   = "grokex_live_probe"
-	probeToolOutput = "GROKEX_LIVE_TOOL_OK"
+	probeToolName   = "grok_live_probe"
+	probeToolOutput = "GROK_LIVE_TOOL_OK"
 	probeToolDesc   = "Return the fixed live validation marker."
 
 	applyPatchFile     = "hello.txt"
@@ -86,21 +86,21 @@ type liveOptions struct {
 	disableShell bool
 }
 
-func skipUnlessGrokexLive(t *testing.T) {
+func skipUnlessGrokLive(t *testing.T) {
 	t.Helper()
-	if os.Getenv(grokexLiveEnv) != "1" {
-		t.Skip("set GROKEX_LIVE=1, GROKEX_LIVE_CODEX_BIN, and GROKEX_LIVE_CONFIG to run Grok real-provider Live tests")
+	if os.Getenv(grokLiveEnv) != "1" {
+		t.Skip("set GROK_LIVE=1, GROK_LIVE_CODEX_BIN, and GROK_LIVE_CONFIG to run Grok real-provider Live tests")
 	}
 }
 
-func startGrokexLive(t *testing.T, opts liveOptions) *liveHarness {
+func startGrokLive(t *testing.T, opts liveOptions) *liveHarness {
 	t.Helper()
-	skipUnlessGrokexLive(t)
+	skipUnlessGrokLive(t)
 
-	binary := strings.TrimSpace(os.Getenv(grokexLiveBinEnv))
-	configPath := strings.TrimSpace(os.Getenv(grokexLiveConfigEnv))
+	binary := strings.TrimSpace(os.Getenv(grokLiveBinEnv))
+	configPath := strings.TrimSpace(os.Getenv(grokLiveConfigEnv))
 	if binary == "" || configPath == "" {
-		t.Fatal("GROKEX_LIVE_CODEX_BIN and GROKEX_LIVE_CONFIG are required when GROKEX_LIVE=1")
+		t.Fatal("GROK_LIVE_CODEX_BIN and GROK_LIVE_CONFIG are required when GROK_LIVE=1")
 	}
 	if _, err := os.Stat(binary); err != nil {
 		if _, pathErr := exec.LookPath(binary); pathErr != nil {
@@ -135,7 +135,7 @@ func startGrokexLive(t *testing.T, opts liveOptions) *liveHarness {
 		ServerRequestHandler:      requests.handler,
 		NotificationQueueCapacity: notificationQueueCapacity,
 		Initialize: protocolv2.InitializeParams{
-			ClientInfo: protocolv2.ClientInfo{Name: "llm-go-grokex-live", Version: "test"},
+			ClientInfo: protocolv2.ClientInfo{Name: "llm-go-grok-live", Version: "test"},
 			Capabilities: protocolv2.Value(protocolv2.InitializeCapabilities{
 				ExperimentalAPI: &experimental,
 			}),
@@ -659,11 +659,11 @@ func (s *liveServerRequests) handler(_ context.Context, request protocolv2.Serve
 		}), nil
 	case protocolv2.ServerRequestKindApplyPatchApproval:
 		return codexsdk.ApplyPatchApprovalResponse(protocolv2.ApplyPatchApprovalResponse{
-			Decision: protocolv2.NewReviewDecisionDenied(protocolv2.ReviewDecisionDenied{Rejection: "grokex live declines approvals"}),
+			Decision: protocolv2.NewReviewDecisionDenied(protocolv2.ReviewDecisionDenied{Rejection: "grok live declines approvals"}),
 		}), nil
 	case protocolv2.ServerRequestKindExecCommandApproval:
 		return codexsdk.ExecCommandApprovalResponse(protocolv2.ExecCommandApprovalResponse{
-			Decision: protocolv2.NewReviewDecisionDenied(protocolv2.ReviewDecisionDenied{Rejection: "grokex live declines approvals"}),
+			Decision: protocolv2.NewReviewDecisionDenied(protocolv2.ReviewDecisionDenied{Rejection: "grok live declines approvals"}),
 		}), nil
 	default:
 		return codexsdk.ServerRequestResponse{}, fmt.Errorf("no answer for server request %s", request.Kind())
