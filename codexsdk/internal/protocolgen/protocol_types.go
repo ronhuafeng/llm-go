@@ -2038,6 +2038,18 @@ func isGeneratedDefinitionStringEnumCheckpoint(schemaPath string, name string) b
 		default:
 			return false
 		}
+	case "v2/UserVerificationRpcError.json":
+		switch name {
+		case "UserVerificationCancellationReason",
+			"UserVerificationFailureReason",
+			"UserVerificationInvalidRequestReason",
+			"UserVerificationUnavailableReason":
+			return true
+		default:
+			return false
+		}
+	case "v2/UserVerificationStatusResponse.json":
+		return name == "UserVerificationUnavailableReason"
 	case "v2/TurnStartParams.json":
 		switch name {
 		case "AdditionalContextKind", "ImageDetail", "ModeKind", "NetworkAccess":
@@ -2060,7 +2072,7 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 		return name == "NetworkPolicyAmendment"
 	case "ClientRequest.json":
 		switch name {
-		case "GetAccountTokenUsageParams", "RemoteControlDisableParams", "RemoteControlEnableParams":
+		case "GetAccountRateLimitsParams", "GetAccountTokenUsageParams", "RemoteControlDisableParams", "RemoteControlEnableParams":
 			return true
 		default:
 			return false
@@ -2159,7 +2171,9 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 		}
 	case "v2/ConfigRequirementsReadResponse.json":
 		switch name {
-		case "AutoReviewRequirements",
+		case "ApplicationNetworkRequirements",
+			"ApplicationRequirements",
+			"AutoReviewRequirements",
 			"BrowserUseOriginPolicy",
 			"BrowserUseRequirements",
 			"ComputerUseMacosRequirements",
@@ -2396,6 +2410,7 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 		case "ActivePermissionProfile",
 			"GitInfo",
 			"Thread",
+			"ThreadEnvironment",
 			"ThreadExtra",
 			"ThreadSection",
 			"ThreadSectionAppearance":
@@ -2412,7 +2427,7 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 		}
 	case "v2/ThreadResumeParams.json":
 		switch name {
-		case "InternalChatMessageMetadataPassthrough", "ResponseItemMetadata", "ThreadResumeInitialTurnsPageParams":
+		case "ConfigurationReasoning", "InternalChatMessageMetadataPassthrough", "ResponseItemMetadata", "ThreadResumeInitialTurnsPageParams":
 			return true
 		default:
 			return false
@@ -2421,6 +2436,8 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 		return name == "TurnsPage"
 	case "v2/ThreadSettingsUpdatedNotification.json":
 		return name == "ThreadSettings"
+	case "v2/UserVerificationVerifyResponse.json":
+		return name == "UserVerificationProof"
 	case "v2/ThreadMetadataUpdateParams.json":
 		return name == "ThreadMetadataGitInfoUpdateParams"
 	case "v2/TurnStartParams.json":
@@ -2559,6 +2576,8 @@ func isGeneratedDefinitionTaggedUnionCheckpoint(schemaPath string, name string) 
 		return name == "ScheduledTaskSchedule"
 	case "v2/ReviewStartParams.json":
 		return name == "ReviewTarget"
+	case "v2/UserVerificationRpcError.json":
+		return name == "UserVerificationErrorDetails"
 	case "v2/ThreadResumeParams.json":
 		switch name {
 		case "AgentMessageInputContent",

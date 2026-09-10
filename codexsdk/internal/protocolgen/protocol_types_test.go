@@ -523,22 +523,41 @@ func TestSelectGeneratedTaggedUnions(t *testing.T) {
 	}
 }
 
-func TestSelectGeneratedTaggedUnionsSupportsReviewedNullableRefPayload(t *testing.T) {
+func TestSelectGeneratedTaggedUnionsSupportsReviewedNullableRefPayloads(t *testing.T) {
 	schema := mustParseSchema(t, `{
-		"oneOf": [{
-			"type": "object",
-			"required": ["method"],
-			"properties": {
-				"method": {"type": "string", "enum": ["account/usage/read"]},
-				"params": {
-					"anyOf": [
-						{"$ref": "#/definitions/GetAccountTokenUsageParams"},
-						{"type": "null"}
-					]
+		"oneOf": [
+			{
+				"type": "object",
+				"required": ["method"],
+				"properties": {
+					"method": {"type": "string", "enum": ["account/usage/read"]},
+					"params": {
+						"anyOf": [
+							{"$ref": "#/definitions/GetAccountTokenUsageParams"},
+							{"type": "null"}
+						]
+					}
+				}
+			},
+			{
+				"type": "object",
+				"required": ["method"],
+				"properties": {
+					"method": {"type": "string", "enum": ["account/rateLimits/read"]},
+					"params": {
+						"anyOf": [
+							{"$ref": "#/definitions/GetAccountRateLimitsParams"},
+							{"type": "null"}
+						]
+					}
 				}
 			}
-		}],
+		],
 		"definitions": {
+			"GetAccountRateLimitsParams": {
+				"type": "object",
+				"properties": {"excludeResetCreditDetails": {"type": "boolean"}}
+			},
 			"GetAccountTokenUsageParams": {
 				"type": "object",
 				"properties": {"threadId": {"type": ["string", "null"]}}
@@ -557,15 +576,25 @@ func TestSelectGeneratedTaggedUnionsSupportsReviewedNullableRefPayload(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(unions) != 1 || len(unions[0].Variants) != 1 || len(unions[0].Variants[0].Fields) != 1 {
+	if len(unions) != 1 || len(unions[0].Variants) != 2 {
 		t.Fatalf("nullable-ref tagged union plan = %#v", unions)
 	}
-	field := unions[0].Variants[0].Fields[0]
-	if field.Kind != FieldPlanNullableRef || field.GoType != "*protocolv2.Nullable[GetAccountTokenUsageParams]" {
-		t.Fatalf("nullable-ref params field = kind %s GoType %q", field.Kind, field.GoType)
-	}
-	if !field.WireAllowsNull || !field.WireOmitAllowed {
-		t.Fatal("optional nullable-ref params must preserve omit/null/value semantics")
+	variants := taggedVariantByValue(unions[0].Variants)
+	for method, wantType := range map[string]string{
+		"account/rateLimits/read": "*protocolv2.Nullable[GetAccountRateLimitsParams]",
+		"account/usage/read":      "*protocolv2.Nullable[GetAccountTokenUsageParams]",
+	} {
+		variant, ok := variants[method]
+		if !ok || len(variant.Fields) != 1 {
+			t.Fatalf("nullable-ref variant %q = %#v, ok=%t", method, variant, ok)
+		}
+		field := variant.Fields[0]
+		if field.Kind != FieldPlanNullableRef || field.GoType != wantType {
+			t.Fatalf("%s nullable-ref params field = kind %s GoType %q, want %q", method, field.Kind, field.GoType, wantType)
+		}
+		if !field.WireAllowsNull || !field.WireOmitAllowed {
+			t.Fatalf("%s optional nullable-ref params must preserve omit/null/value semantics", method)
+		}
 	}
 }
 
@@ -1174,9 +1203,18 @@ func TestSelectFirstPassGeneratedTypesIncludesReviewedServerDiagnosticsModels(t 
 	}
 }
 
-func TestSelectFirstPassGeneratedTypesIncludesReviewedThreadSectionAppearance(t *testing.T) {
+func TestSelectFirstPassGeneratedTypesIncludesReviewedThreadDependencies(t *testing.T) {
 	schema := mustParseSchema(t, `{
 		"definitions": {
+			"ThreadEnvironment": {
+				"type": "object",
+				"required": ["cwd", "environmentId", "runtimeWorkspaceRoots"],
+				"properties": {
+					"cwd": {"type": "string"},
+					"environmentId": {"type": "string"},
+					"runtimeWorkspaceRoots": {"type": "array", "items": {"type": "string"}}
+				}
+			},
 			"ThreadSectionAppearance": {
 				"type": "object",
 				"properties": {
@@ -1201,6 +1239,10 @@ func TestSelectFirstPassGeneratedTypesIncludesReviewedThreadSectionAppearance(t 
 			"Thread": {
 				"type": "object",
 				"properties": {
+					"environments": {
+						"type": ["array", "null"],
+						"items": {"$ref": "#/definitions/ThreadEnvironment"}
+					},
 					"section": {
 						"anyOf": [
 							{"$ref": "#/definitions/ThreadSection"},
@@ -1238,9 +1280,9 @@ func TestSelectFirstPassGeneratedTypesIncludesReviewedThreadSectionAppearance(t 
 	for _, typ := range selected {
 		selectedNames[typ.TypeName] = true
 	}
-	for _, name := range []string{"ThreadSectionAppearance", "ThreadSection", "Thread", "ThreadStartResponse"} {
+	for _, name := range []string{"ThreadEnvironment", "ThreadSectionAppearance", "ThreadSection", "Thread", "ThreadStartResponse"} {
 		if !selectedNames[name] {
-			t.Fatalf("selected thread section types %v do not include %s", selectedNames, name)
+			t.Fatalf("selected thread dependency types %v do not include %s", selectedNames, name)
 		}
 	}
 }
@@ -1414,6 +1456,8 @@ func TestFirstPassTypesIncludeReviewedRPCDependencies(t *testing.T) {
 		"ComputerUseWindowsExeConfig",
 		"ConfigRequirementsReadResponse",
 		"ConfigRequirements",
+		"ApplicationNetworkRequirements",
+		"ApplicationRequirements",
 		"BrowserUseOriginPolicy",
 		"BrowserUseRequirements",
 		"ComputerUseMacosRequirements",
@@ -1498,6 +1542,112 @@ func TestFirstPassTypesIncludeReviewedRPCDependencies(t *testing.T) {
 	if !foundScheduledTaskSchedule {
 		t.Error("generated tagged unions do not include ScheduledTaskSchedule")
 	}
+}
+
+func TestGeneratedResponseItemPreservesConfigurationReasoning(t *testing.T) {
+	plan, err := BuildProtocolTypePlan(filepath.Join("..", "protocolschema", "appserver", "v2"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	types, err := SelectFirstPassGeneratedTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	configurationReasoningGenerated := false
+	for _, typ := range types {
+		if typ.TypeName == "ConfigurationReasoning" {
+			configurationReasoningGenerated = true
+			break
+		}
+	}
+	if !configurationReasoningGenerated {
+		t.Fatal("first-pass generated types do not include ResponseItem's ConfigurationReasoning dependency")
+	}
+
+	unions, err := SelectGeneratedTaggedUnions(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, union := range unions {
+		if union.TypeName != "ResponseItem" {
+			continue
+		}
+		variant, ok := taggedVariantByValue(union.Variants)["configuration_update"]
+		if !ok || len(variant.Fields) != 1 {
+			t.Fatalf("configuration_update ResponseItem variant = %#v, ok=%t", variant, ok)
+		}
+		field := variant.Fields[0]
+		if field.FieldName != "reasoning" || field.Kind != FieldPlanRef || field.GoType != "ConfigurationReasoning" || !field.Required {
+			t.Fatalf("configuration_update reasoning field = %#v", field)
+		}
+		return
+	}
+	t.Fatal("generated tagged unions do not include ResponseItem")
+}
+
+func TestGeneratedUserVerificationTypesFollowSchemaClosure(t *testing.T) {
+	plan, err := BuildProtocolTypePlan(filepath.Join("..", "protocolschema", "appserver", "v2"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	types, err := SelectFirstPassGeneratedTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantTypes := map[string]bool{
+		"UserVerificationDeleteParams":   false,
+		"UserVerificationDeleteResponse": false,
+		"UserVerificationEnrollParams":   false,
+		"UserVerificationEnrollResponse": false,
+		"UserVerificationProof":          false,
+		"UserVerificationRpcError":       false,
+		"UserVerificationStatusParams":   false,
+		"UserVerificationStatusResponse": false,
+		"UserVerificationVerifyParams":   false,
+		"UserVerificationVerifyResponse": false,
+	}
+	for _, typ := range types {
+		if _, ok := wantTypes[typ.TypeName]; ok {
+			wantTypes[typ.TypeName] = true
+		}
+	}
+	for name, found := range wantTypes {
+		if !found {
+			t.Errorf("first-pass generated types do not include %s", name)
+		}
+	}
+
+	enums, err := SelectGeneratedEnums(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantEnums := map[string]bool{
+		"UserVerificationCancellationReason":   false,
+		"UserVerificationFailureReason":        false,
+		"UserVerificationInvalidRequestReason": false,
+		"UserVerificationUnavailableReason":    false,
+	}
+	for _, enum := range enums {
+		if _, ok := wantEnums[enum.TypeName]; ok {
+			wantEnums[enum.TypeName] = true
+		}
+	}
+	for name, found := range wantEnums {
+		if !found {
+			t.Errorf("generated enums do not include %s", name)
+		}
+	}
+
+	unions, err := SelectGeneratedTaggedUnions(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, union := range unions {
+		if union.TypeName == "UserVerificationErrorDetails" {
+			return
+		}
+	}
+	t.Fatal("generated tagged unions do not include UserVerificationErrorDetails")
 }
 
 func TestGeneratedDefinitionSelectionFollowsSchemaShape(t *testing.T) {

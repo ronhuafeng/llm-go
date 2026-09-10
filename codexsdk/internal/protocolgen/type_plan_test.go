@@ -126,6 +126,55 @@ func TestBuildProtocolTypePlanClassifiesReviewedNullableTokenUsageParams(t *test
 	}
 }
 
+func TestBuildProtocolTypePlanClassifiesReviewedNullableRateLimitsParams(t *testing.T) {
+	const coverage = `{
+		"status": "classified-manifest",
+		"types": [{
+			"schema": "v2/NullableGetAccountRateLimitsParams.json",
+			"stability": "stable",
+			"status": "deferred",
+			"type": "NullableGetAccountRateLimitsParams"
+		}],
+		"fields": []
+	}`
+	const schema = `{
+		"title": "Nullable_GetAccountRateLimitsParams",
+		"anyOf": [
+			{"$ref": "#/definitions/GetAccountRateLimitsParams"},
+			{"type": "null"}
+		],
+		"definitions": {
+			"GetAccountRateLimitsParams": {
+				"properties": {
+					"excludeResetCreditDetails": {"type": "boolean"},
+					"supportsLunaReserve": {"type": "boolean"}
+				},
+				"type": "object"
+			}
+		}
+	}`
+
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "v2"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "coverage_matrix.json"), []byte(coverage), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "v2", "NullableGetAccountRateLimitsParams.json"), []byte(schema), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	plan, err := BuildProtocolTypePlan(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	typePlan, ok := plan.TypeBySchema("v2/NullableGetAccountRateLimitsParams.json")
+	if !ok || typePlan.Kind != TypePlanAnyOfDeferred {
+		t.Fatalf("nullable rate limits params wrapper kind = %v, ok=%v; want %s", typePlan.Kind, ok, TypePlanAnyOfDeferred)
+	}
+}
+
 func TestBuildProtocolTypePlanAppliesReviewedOverlays(t *testing.T) {
 	plan, err := BuildProtocolTypePlan(schemaRoot())
 	if err != nil {
