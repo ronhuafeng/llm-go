@@ -69,7 +69,7 @@ func validateJSONRPCRequest(fields map[string]json.RawMessage) error {
 	if raw := fields["trace"]; raw != nil {
 		var trace protocolv2.Nullable[protocolv2.W3cTraceContext]
 		if err := json.Unmarshal(raw, &trace); err != nil {
-			return fmt.Errorf("decode JSONRPCMessage.request: decode JSONRPCRequest.trace: %w", err)
+			return fmt.Errorf("decode JSONRPCMessage.request: decode JSONRPCRequest.trace: invalid value")
 		}
 	}
 	return nil
@@ -136,11 +136,11 @@ func decodeJSONRPCObjectFields(data []byte, path string) (map[string]json.RawMes
 			return nil, fmt.Errorf("decode %s: expected object key", path)
 		}
 		if _, exists := fields[key]; exists {
-			return nil, fmt.Errorf("decode %s: duplicate object key %q", path, key)
+			return nil, fmt.Errorf("decode %s: duplicate object key", path)
 		}
 		var raw json.RawMessage
 		if err := decoder.Decode(&raw); err != nil {
-			return nil, fmt.Errorf("decode %s.%s: %w", path, key, err)
+			return nil, fmt.Errorf("decode %s: invalid object field: %w", path, err)
 		}
 		fields[key] = raw
 	}
@@ -214,7 +214,7 @@ func validateRequiredJSONValue(raw json.RawMessage, path string) error {
 	}
 	var value protocolv2.JSONValue
 	if err := json.Unmarshal(raw, &value); err != nil {
-		return fmt.Errorf("decode %s: %w", path, err)
+		return fmt.Errorf("decode %s: invalid JSON value", path)
 	}
 	return nil
 }
@@ -226,7 +226,7 @@ func validateOptionalJSONValue(fields map[string]json.RawMessage, name string, p
 	}
 	var value protocolv2.JSONValue
 	if err := json.Unmarshal(raw, &value); err != nil {
-		return fmt.Errorf("decode %s: %w", path, err)
+		return fmt.Errorf("decode %s: invalid JSON value", path)
 	}
 	return nil
 }
