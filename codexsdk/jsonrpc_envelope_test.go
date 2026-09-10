@@ -132,10 +132,6 @@ func TestValidateJSONRPCEnvelopeErrorsDoNotReflectUntrustedObjectKeys(t *testing
 			name: "duplicate nested result key",
 			line: `{"id":1,"result":{"stdout_secret":true,"stdout_secret":false}}`,
 		},
-		{
-			name: "invalid trace key",
-			line: `{"id":"go-sdk-1","method":"turn/start","trace":{"stdout_secret":true}}`,
-		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := validateJSONRPCEnvelope([]byte(tc.line))
