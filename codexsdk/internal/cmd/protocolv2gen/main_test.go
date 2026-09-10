@@ -9,12 +9,15 @@ import (
 )
 
 func TestResolveSchemaInputsUsesManifestDirectoryWhenSchemaRootOmitted(t *testing.T) {
-	schemaRoot, manifestPath := resolveSchemaInputs("", "/tmp/appserver/v2/manifest.json")
-	if schemaRoot != "/tmp/appserver/v2" {
-		t.Fatalf("schemaRoot = %q, want /tmp/appserver/v2", schemaRoot)
+	inputManifestPath := filepath.Join(t.TempDir(), "appserver", "v2", "manifest.json")
+	wantSchemaRoot := filepath.Dir(inputManifestPath)
+
+	schemaRoot, manifestPath := resolveSchemaInputs("", inputManifestPath)
+	if schemaRoot != wantSchemaRoot {
+		t.Fatalf("schemaRoot = %q, want %q", schemaRoot, wantSchemaRoot)
 	}
-	if manifestPath != "/tmp/appserver/v2/manifest.json" {
-		t.Fatalf("manifestPath = %q, want /tmp/appserver/v2/manifest.json", manifestPath)
+	if manifestPath != inputManifestPath {
+		t.Fatalf("manifestPath = %q, want %q", manifestPath, inputManifestPath)
 	}
 }
 
