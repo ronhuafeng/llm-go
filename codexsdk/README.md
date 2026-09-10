@@ -41,9 +41,9 @@ They stay skipped unless the caller supplies a local Codex binary and an
 isolated Grok profile:
 
 ```sh
-GROKEX_LIVE=1 \
-GROKEX_LIVE_CODEX_BIN=/path/to/codex \
-GROKEX_LIVE_CONFIG=/path/to/isolated-grok-config.toml \
+GROK_LIVE=1 \
+GROK_LIVE_CODEX_BIN=/path/to/codex \
+GROK_LIVE_CONFIG=/path/to/isolated-grok-config.toml \
 go test . -count=1 -timeout 30m -run '^TestGrok'
 ```
 
