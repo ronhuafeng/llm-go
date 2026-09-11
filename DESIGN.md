@@ -96,16 +96,20 @@ protocol admission rules, schemas, fixtures, tests, and executable examples stay
 with the semantic owner whose claim they prove. A generator that cannot
 faithfully represent a schema shape admitted to an exact public surface must
 fail generation; it must not silently drop known members, union variants,
-presence distinctions, or correlation facts. Application policy does not move
-into a toolkit, adapter, or SDK because that layer exposes the mechanism where
-policy is applied. An SDK may deliver an exact server request and encode a
-caller-supplied response; it must not invent application-owned approval, input,
-permission, environment, or equivalent semantic facts when the application
-supplied none. Module-local tests prove module-local invariants; repository-level
-tests prove composed behavior. Public truth is established by exported artifacts
-and observable behavior, not by inventories, release ledgers, verification
-attestations, workspace-only builds, current-source replacement proofs, or
-contradictory documentation.
+presence distinctions, or correlation facts. Stable-versus-experimental member
+classification is likewise generated/upstream protocol fact: runtime admission
+may enforce that classification, but a second handwritten member inventory must
+not become a competing authority or silently omit generated experimental
+members. Application policy does not move into a toolkit, adapter, or SDK
+because that layer exposes the mechanism where policy is applied. An SDK may
+deliver an exact server request and encode a caller-supplied response; it must
+not invent application-owned approval, input, permission, environment, or
+equivalent semantic facts when the application supplied none. Module-local
+tests prove module-local invariants; repository-level tests prove composed
+behavior. Public truth is established by exported artifacts and observable
+behavior, not by inventories, release ledgers, verification attestations,
+workspace-only builds, current-source replacement proofs, or contradictory
+documentation.
 
 **I9 — Every persistent context has one current reason to exist.** Give each
 fact one canonical authority. Keep a document, registry, field, compatibility
@@ -138,6 +142,7 @@ Reading path: [`AGENTS.md`](AGENTS.md).
 | Execution-backend identity | the runtime/adapter that can directly establish it |
 | Model-provider identity | attributable lower-layer observation; unknown when unobserved |
 | Generated facts | owner-local generator inputs and committed output; generation fails rather than silently erasing modeled schema facts |
+| Stable/experimental protocol classification | generated/upstream classification owned by `codexsdk`; runtime admission derives from it |
 | Generated Baseline Provenance | `codexsdk` `baseline_metadata.json` |
 | Runtime App-Server Observation | `codexsdk` initialize Server Observation |
 | Runtime Compatibility | current initialize cannot prove it; `codexsdk` keeps it unknown |
