@@ -18,7 +18,10 @@ _Avoid_: workflow API, convenience DSL
 **Generated Facade**:
 A protocol-derived concrete opaque value on the Root Client. Generated method
 growth adds capability without enlarging an application-implemented interface.
-_Avoid_: service abstraction, provider API
+If the generator cannot faithfully represent a schema shape selected for the
+exact public surface, generation fails instead of dropping known members, union
+variants, presence distinctions, or correlation facts.
+_Avoid_: service abstraction, provider API, lossy generated approximation
 
 **Classified Generated Surface**:
 Exported generated declarations classified by stable versus experimental schema
@@ -33,15 +36,20 @@ _Avoid_: type strictness, experimental decode mode
 **Server Observation**:
 A known RPC result or server notification authored by the app-server. Known
 members stay exact; additional unknown members do not invalidate it. Presence
-and value remain separate when the protocol distinguishes them. Measurement
-scope and identity meaning remain the scope and meaning stated by the protocol.
+and value remain separate when the protocol distinguishes them. Schema
+optionality describes which observations are legal; an optional identity,
+correlation, or measurement field that is present in this observation remains a
+fact. Measurement scope and identity meaning remain the scope and meaning stated
+by the protocol.
 _Avoid_: permissive payload, server request, convenience success criterion
 
 **Action-Bearing Message**:
 A client-authored instruction or response, or an app-server request that can
 cause or authorize action. Structural/protocol admission fails closed; semantic
-authority remains with the application.
-_Avoid_: Server Observation, SDK-owned policy, strict generated type
+authority remains with the application. Known schema-defined union payloads must
+remain represented exactly; fail-closed decoding is not authority to erase a
+known variant and reject its fields as unknown.
+_Avoid_: Server Observation, SDK-owned policy, strict generated type, lossy union
 
 **Application-owned server response**:
 A semantic answer, decision, permission, user input, environment fact, or other
@@ -53,8 +61,9 @@ _Avoid_: Default decline, empty-answer fallback, SDK clock fact, SDK policy
 
 **Additional Wire Member**:
 An object member absent from the checked-in protocol baseline. It is not an
-unknown method, enum value, union variant, or malformed known member.
-_Avoid_: unknown protocol meaning, unvalidated field
+unknown method, enum value, union variant, malformed known member, or a known
+member omitted by the generator.
+_Avoid_: unknown protocol meaning, unvalidated field, generator omission
 
 **Consumer-Owned Interface**:
 A narrow interface declared by an application where it consumes a Lifecycle
@@ -66,7 +75,9 @@ One composed thread/turn execution with its ordered attributable protocol
 evidence, partial result, and stable terminal cause. Server-reported status and
 presence are exact observations; convenience projections do not redefine them.
 Final-answer presence remains separate from final-answer text when the exact run
-observes that distinction.
+observes that distinction. A present optional thread/turn correlation remains
+attributable run evidence; schema optionality does not make that concrete
+identity global.
 _Avoid_: workflow, request, convenience success contract
 
 **Exact Run Waiter**:
@@ -101,9 +112,11 @@ _Avoid_: SDK safety profile, authorization engine, start-only gate, synthetic ef
 
 **Model routing observation**:
 An exact model-selection or routing fact such as a thread-start model or reroute
-target. It remains a routing fact unless the protocol itself establishes that
-it is the model that served the relevant inference.
-_Avoid_: Served model, requested-model inference
+target. It keeps the meaning and scope established by the protocol. When a
+reroute is derived from a server-reported model for one upstream response, that
+may be serving evidence for that response, but it does not automatically prove
+one model served an Exact Run that may contain multiple upstream responses.
+_Avoid_: Attempt-wide served model, requested-model inference, scope widening
 
 **Usage observation**:
 Exact token-accounting evidence with the aggregation boundary stated by the
