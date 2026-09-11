@@ -2,6 +2,7 @@ package codexcaller_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/ronhuafeng/llm-go/codexsdk"
@@ -12,20 +13,26 @@ import (
 
 type exampleRunner struct{}
 
-func (exampleRunner) Start(context.Context, codexsdk.StartThreadRunRequest) (codexsdk.StartedThreadRun, error) {
-	return codexsdk.StartedThreadRun{
-		Start: protocolv2.ThreadStartResponse{
-			ApprovalPolicy:    protocolv2.NewAskForApprovalNever(),
-			ApprovalsReviewer: protocolv2.ApprovalsReviewerUser,
-			Model:             "gpt-example",
-			Sandbox:           protocolv2.NewSandboxPolicyReadOnly(protocolv2.SandboxPolicyReadOnly{}),
-			Thread: protocolv2.Thread{
-				ID: "thread-example", Ephemeral: true,
-				Source: protocolv2.NewSessionSourceAppServer(),
-				Status: protocolv2.NewThreadStatusIdle(),
-				Turns:  []protocolv2.Turn{},
-			},
+func (exampleRunner) Start(_ context.Context, request codexsdk.StartThreadRunRequest) (codexsdk.StartedThreadRun, error) {
+	start := protocolv2.ThreadStartResponse{
+		ApprovalPolicy:    protocolv2.NewAskForApprovalNever(),
+		ApprovalsReviewer: protocolv2.ApprovalsReviewerUser,
+		Model:             "gpt-example",
+		Sandbox:           protocolv2.NewSandboxPolicyReadOnly(protocolv2.SandboxPolicyReadOnly{}),
+		Thread: protocolv2.Thread{
+			ID: "thread-example", Ephemeral: true,
+			Source: protocolv2.NewSessionSourceAppServer(),
+			Status: protocolv2.NewThreadStatusIdle(),
+			Turns:  []protocolv2.Turn{},
 		},
+	}
+	if request.AdmitTurn != nil {
+		if err := request.AdmitTurn(start); err != nil {
+			return codexsdk.StartedThreadRun{Start: start}, err
+		}
+	}
+	return codexsdk.StartedThreadRun{
+		Start: start,
 		Run: codexsdk.ThreadRunResult{
 			Turn:          protocolv2.Turn{ID: "turn-example", Items: []protocolv2.ThreadItem{}, Status: protocolv2.TurnStatusCompleted},
 			FinalResponse: `{"answer":"three layers"}`,
@@ -38,9 +45,31 @@ func (exampleRunner) StartStream(context.Context, codexsdk.StartThreadRunRequest
 }
 
 func Example() {
-	// Named profile is effect-safe only; see package docs for the
-	// confidentiality boundary.
-	caller, err := codexcaller.New(codexcaller.ReadOnlyEphemeralOptions(exampleRunner{}))
+	// The application owns both requested execution settings and the rule that
+	// admits effective thread/start facts before turn/start.
+	options := codexcaller.Options{
+		Runner: exampleRunner{},
+		Defaults: codexsdk.StartThreadRunRequest{
+			Thread: protocolv2.ThreadStartParams{
+				ApprovalPolicy: protocolv2.Value(protocolv2.NewAskForApprovalNever()),
+				Ephemeral:      protocolv2.Value(true),
+				Sandbox:        protocolv2.Value(protocolv2.SandboxModeReadOnly),
+			},
+			AdmitTurn: func(start protocolv2.ThreadStartResponse) error {
+				if !start.ApprovalPolicy.IsValid() || start.ApprovalPolicy.Kind() != protocolv2.AskForApprovalKindNever {
+					return errors.New("application rejected approval policy")
+				}
+				if !start.Sandbox.IsValid() || start.Sandbox.Kind() != protocolv2.SandboxPolicyKindReadOnly {
+					return errors.New("application rejected sandbox")
+				}
+				if !start.Thread.Ephemeral {
+					return errors.New("application rejected non-ephemeral thread")
+				}
+				return nil
+			},
+		},
+	}
+	caller, err := codexcaller.New(options)
 	if err != nil {
 		panic(err)
 	}

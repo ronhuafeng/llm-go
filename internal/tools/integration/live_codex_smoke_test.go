@@ -40,7 +40,7 @@ func TestLiveCodexSmoke(t *testing.T) {
 	}
 	defer client.Close()
 
-	options := codexcaller.ReadOnlyEphemeralOptions(client.ThreadRunner())
+	options := readOnlyApplicationOptions(client.ThreadRunner())
 	options.Defaults.Thread.CWD = protocolv2.Value(root)
 	if model := os.Getenv("LLMGO_LIVE_CODEX_MODEL"); model != "" {
 		options.Defaults.Thread.Model = protocolv2.Value(model)

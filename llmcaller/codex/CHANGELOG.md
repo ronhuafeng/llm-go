@@ -6,14 +6,16 @@ This project follows Semantic Versioning.
 
 ### Changed
 
+- **Breaking (pre-v1):** remove adapter-owned named execution safety profiles,
+  including `ReadOnlyEphemeralOptions`. Neutral `Caller` construction now
+  requires application-owned `Options.Defaults.AdmitTurn`; approval, sandbox,
+  ephemeral, permission, CWD, workspace, and related exact settings remain
+  caller-owned rather than being rewritten by the adapter.
 - **Breaking (pre-v1):** publish `"codex"` as execution-backend identity, not
   model-provider identity. Exact Codex details now use `BackendDetails` /
   `BackendName`; actual provider identity stays unknown unless exact lower-layer
   serving evidence establishes it independently. Effective model and usage
   observations remain independent.
-- Document that `ReadOnlyEphemeralOptions` is effect-safe, not
-  disclosure-safe: read-only is not confidential, and ephemeral is not a
-  provider-retention guarantee.
 
 ## [0.8.1] - 2026-09-07
 
