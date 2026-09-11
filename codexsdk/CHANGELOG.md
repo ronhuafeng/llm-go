@@ -11,6 +11,10 @@
 
 ### Changed
 
+- Preserve exact final-answer presence separately from its text value. An
+  observed empty `final_answer` remains present, and a server-reported
+  `completed` turn is no longer converted into an SDK failure merely because a
+  non-empty convenience final response is unavailable.
 - **Breaking generated-surface change (pre-v1):** publish the `rust-v0.153.4`
   classified protocol surface. Stable `ThreadItem` can carry
   `AsyncUserInputQuestion` lists. `plugin/reconcile` and

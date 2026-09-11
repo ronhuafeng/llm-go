@@ -86,9 +86,13 @@ type ThreadRunResult struct {
 	Turn          protocolv2.Turn
 	Usage         *protocolv2.ThreadTokenUsage
 	Notifications []protocolv2.ServerNotification
-	FinalResponse string
-	InputStats    InputStats
-	Diagnostics   []DiagnosticRef
+	// FinalResponse is the text of the last observed agent message whose phase
+	// is final_answer. FinalResponsePresent distinguishes an observed empty
+	// string from the absence of any final-answer observation.
+	FinalResponse        string
+	FinalResponsePresent bool
+	InputStats           InputStats
+	Diagnostics          []DiagnosticRef
 }
 
 type StartedThreadRun struct {

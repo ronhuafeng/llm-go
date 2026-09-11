@@ -511,15 +511,14 @@ func (s *exactRunState) applyTerminalLocked(notification protocolv2.ServerNotifi
 	}
 	turn := completed.Params.Turn
 	resultTurn, _ := cloneJSON(turn)
+	finalResponse, finalResponsePresent := finalResponseFromExactTurn(resultTurn)
 	s.updateRunLocked(func(run *ThreadRunResult) {
 		run.Turn = resultTurn
-		run.FinalResponse = finalResponseFromExactTurn(resultTurn)
+		run.FinalResponse = finalResponse
+		run.FinalResponsePresent = finalResponsePresent
 	})
 	switch turn.Status {
 	case protocolv2.TurnStatusCompleted:
-		if finalResponseFromExactTurn(turn) == "" {
-			return true, errors.New("codexsdk: turn completed without final_answer agent message")
-		}
 		return true, nil
 	case protocolv2.TurnStatusFailed:
 		errorTurn, _ := cloneJSON(turn)
@@ -601,17 +600,17 @@ func (s *exactRunState) cancel(err error) {
 	}
 }
 
-func finalResponseFromExactTurn(turn protocolv2.Turn) string {
+func finalResponseFromExactTurn(turn protocolv2.Turn) (string, bool) {
 	for index := len(turn.Items) - 1; index >= 0; index-- {
 		message, ok := turn.Items[index].AsAgentMessage()
-		if !ok || message.Text == "" || message.Phase == nil || message.Phase.Value == nil {
+		if !ok || message.Phase == nil || message.Phase.Value == nil {
 			continue
 		}
 		if *message.Phase.Value == protocolv2.MessagePhaseFinalAnswer {
-			return message.Text
+			return message.Text, true
 		}
 	}
-	return ""
+	return "", false
 }
 
 func exactInputStats(input []protocolv2.UserInput) InputStats {
