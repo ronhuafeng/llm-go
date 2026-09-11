@@ -23,6 +23,10 @@
 // Next advances a cursor over the same ordered history. The configurable
 // global notification-handler queue remains bounded, and its overflow closes
 // the client with ErrNotificationBackpressure.
+// FinalResponse is a convenience projection over the exact terminal Turn.
+// FinalResponsePresent distinguishes no observed final-answer item from an
+// observed final-answer item whose text is empty. The server-reported terminal
+// status remains authoritative and is not rewritten by that projection.
 // Exact run history follows generated-schema identity: turn-scoped facts attach
 // only to the matching turn; thread-scoped facts attach to every run currently
 // active or attaching for that thread and are not retained for a later run;
