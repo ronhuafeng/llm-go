@@ -7,9 +7,20 @@ changes may occur in minor releases.
 
 ### Changed
 
+- **Breaking (pre-v1):** make model-facing retry repair an explicit
+  application-owned projection. A rejected attempt that can retry now requires
+  `Step.Sanitizer`; with no projection configured it fails closed with
+  `ErrMissingRepairProjection`. The toolkit still owns retry bounds, iteration
+  stamping, and separation of validator judgment from later model input.
 - Point readers at the repository authority-to-effect proof that continues
   past `llmstep` judgment. That example is workspace integration, not this
   module's `GOWORK=off` suite.
+
+### Removed
+
+- **Breaking (pre-v1):** remove `StrictRepairSanitizer`, `ErrUnsafeRepair`, and
+  the built-in credential/URL/path/content inspection policy. Disclosure,
+  redaction, secret detection, and repair-content policy are application-owned.
 
 ## [0.12.0] - 2026-09-07
 
