@@ -24,15 +24,16 @@ caller's accepted instance language merely to obtain provider acceptance.
 
 **I3 — Semantic promotion requires evidence or authority.** A layer must not
 strengthen what it knows while projecting upward. In particular: requested is
-not effective, unknown is not zero, unreported is not absent, an observed
-empty/zero value is not an absent observation, execution-backend identity is
-not model-provider identity, a model identifier is not provider identity,
-selected/routed model is not served model, aggregate usage is not per-attempt
-usage, model output is not accepted fact, a preserved proposition is not an
-accepted result, accepted is not authorized, and authorized is not executed.
-Convenience projections must not rewrite exact terminal status, presence,
-identity, provenance, or measurement scope. Represent unknown and absence
-explicitly when the owner cannot establish a fact.
+not effective, unknown is not zero, unreported is not absent, schema optionality
+is not concrete observation absence, an observed empty/zero value is not an
+absent observation, execution-backend identity is not model-provider identity,
+a model identifier is not provider identity, selected/routed model is not
+attempt-wide served model, aggregate usage is not per-attempt usage, model
+output is not accepted fact, a preserved proposition is not an accepted result,
+accepted is not authorized, and authorized is not executed. Convenience
+projections must not rewrite exact terminal status, presence, correlation,
+identity, provenance, serving scope, or measurement scope. Represent unknown and
+absence explicitly when the owner cannot establish a fact.
 
 **I4 — Failure does not erase observation.** Call, decode, validation, retry,
 and provider failures must preserve attributable evidence already obtained.
@@ -92,16 +93,19 @@ modules.
 
 **I8 — Facts, policy, and proof stay with their owner.** Generated facts,
 protocol admission rules, schemas, fixtures, tests, and executable examples stay
-with the semantic owner whose claim they prove. Application policy does not
-move into a toolkit, adapter, or SDK because that layer exposes the mechanism
-where policy is applied. An SDK may deliver an exact server request and encode
-a caller-supplied response; it must not invent application-owned approval,
-input, permission, environment, or equivalent semantic facts when the
-application supplied none. Module-local tests prove module-local invariants;
-repository-level tests prove composed behavior. Public truth is established by
-exported artifacts and observable behavior, not by inventories, release
-ledgers, verification attestations, workspace-only builds, current-source
-replacement proofs, or contradictory documentation.
+with the semantic owner whose claim they prove. A generator that cannot
+faithfully represent a schema shape admitted to an exact public surface must
+fail generation; it must not silently drop known members, union variants,
+presence distinctions, or correlation facts. Application policy does not move
+into a toolkit, adapter, or SDK because that layer exposes the mechanism where
+policy is applied. An SDK may deliver an exact server request and encode a
+caller-supplied response; it must not invent application-owned approval, input,
+permission, environment, or equivalent semantic facts when the application
+supplied none. Module-local tests prove module-local invariants; repository-level
+tests prove composed behavior. Public truth is established by exported artifacts
+and observable behavior, not by inventories, release ledgers, verification
+attestations, workspace-only builds, current-source replacement proofs, or
+contradictory documentation.
 
 **I9 — Every persistent context has one current reason to exist.** Give each
 fact one canonical authority. Keep a document, registry, field, compatibility
@@ -125,14 +129,15 @@ Reading path: [`AGENTS.md`](AGENTS.md).
 | Current public API and behavior | exported code, package docs, public behavior |
 | Caller-owned structured-output semantics | caller contract as represented by `llmkit` |
 | Final-response presence | attributable lower-layer observation; neutral projection preserves it |
-| Served-model identity | attributable lower-layer serving evidence; requested/selected/routed model is insufficient |
+| Notification correlation | correlation identity actually present in the lower-layer observation |
+| Served-model identity | attributable lower-layer serving evidence at the scope it proves |
 | Usage measurement scope | attributable lower-layer observation; projection preserves or weakens scope |
 | Accepted step output | positive deterministic judgment |
 | Retry-feedback disclosure/redaction/content policy | application |
 | Execution/approval/sandbox/permission policy and effect authority | application |
 | Execution-backend identity | the runtime/adapter that can directly establish it |
 | Model-provider identity | attributable lower-layer observation; unknown when unobserved |
-| Generated facts | owner-local generator inputs and committed output |
+| Generated facts | owner-local generator inputs and committed output; generation fails rather than silently erasing modeled schema facts |
 | Generated Baseline Provenance | `codexsdk` `baseline_metadata.json` |
 | Runtime App-Server Observation | `codexsdk` initialize Server Observation |
 | Runtime Compatibility | current initialize cannot prove it; `codexsdk` keeps it unknown |
