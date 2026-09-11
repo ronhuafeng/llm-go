@@ -63,8 +63,8 @@ func TestValueDoesNotPromoteRequestIntoNeutralObservations(t *testing.T) {
 	if result.Response.Execution.Usage != nil {
 		t.Fatalf("Usage = %#v, want nil; request text must not become observed usage", result.Response.Execution.Usage)
 	}
-	if result.Response.Execution.ProviderName != "" {
-		t.Fatalf("ProviderName = %q, want empty when the caller reported no provider", result.Response.Execution.ProviderName)
+	if result.Response.Execution.ProviderName.Present() {
+		t.Fatalf("ProviderName = %#v, want unknown when the caller reported no provider", result.Response.Execution.ProviderName)
 	}
 }
 

@@ -13,7 +13,7 @@ type isolatedDetails struct {
 	Headers map[string]string
 }
 
-func (isolatedDetails) ProviderName() string { return "example" }
+func (isolatedDetails) BackendName() string { return "example-backend" }
 
 type ownershipCaller struct {
 	runtimeHeaders map[string]string
@@ -25,8 +25,8 @@ type ownershipCaller struct {
 func (caller ownershipCaller) Call(context.Context, llmadapter.Request) (llmadapter.Response, error) {
 	return llmadapter.Response{
 		FinalResponse: `true`,
-		Execution:     llmadapter.ExecutionEvidence{ProviderName: "example"},
-		ProviderDetails: isolatedDetails{
+		Execution:     llmadapter.ExecutionEvidence{BackendName: "example-backend"},
+		BackendDetails: isolatedDetails{
 			Headers: maps.Clone(caller.runtimeHeaders),
 		},
 	}, nil
@@ -43,7 +43,19 @@ func ExampleObservation() {
 	// true 0
 }
 
-func ExampleValue_providerDetailsOwnership() {
+func ExampleExecutionEvidence_identity() {
+	evidence := llmadapter.ExecutionEvidence{BackendName: "codex"}
+	_, providerKnown := evidence.ProviderName.Value()
+	fmt.Println(evidence.BackendName, providerKnown)
+	evidence.ObserveProviderName("observed-provider")
+	provider, providerKnown := evidence.ProviderName.Value()
+	fmt.Println(providerKnown, provider)
+	// Output:
+	// codex false
+	// true observed-provider
+}
+
+func ExampleValue_backendDetailsOwnership() {
 	runtimeHeaders := map[string]string{"trace": "trace-1"}
 	result, err := llmadapter.Value[bool](context.Background(), ownershipCaller{
 		runtimeHeaders: runtimeHeaders,
@@ -52,10 +64,10 @@ func ExampleValue_providerDetailsOwnership() {
 		panic(err)
 	}
 
-	// The adapter cloned its provider-specific reference fields before
+	// The adapter cloned its backend-specific reference fields before
 	// publication, so later runtime mutations cannot change published details.
 	runtimeHeaders["trace"] = "trace-2"
-	details := result.Response.ProviderDetails.(isolatedDetails)
+	details := result.Response.BackendDetails.(isolatedDetails)
 	fmt.Println(details.Headers["trace"])
 
 	// Output:

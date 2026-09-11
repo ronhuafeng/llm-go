@@ -20,9 +20,12 @@
 // observable and profile-checked when its required thread identity is
 // missing; pre-response failures do not create a synthetic profile mismatch.
 // Effectful Codex use stays on explicit Exact Run / ThreadRunner surfaces.
-// Call projects each provider-neutral fact from independently isolated
-// Codex evidence so an exact-details snapshot failure does not erase
-// attributable model or usage observation.
+// Call publishes "codex" only as execution-backend identity. Actual model-
+// provider identity remains unknown unless exact lower-layer evidence proves
+// it independently; adapter type, model name, requested settings, and Codex
+// thread configuration are not provider observations. Effective model and
+// usage facts are projected independently from attributable exact evidence, so
+// an exact-details snapshot failure does not erase them.
 // The package does not own Go type projection, decoding, validation, retries,
 // transport, or business semantics.
 //

@@ -62,15 +62,18 @@ func TestLiveCodexSmoke(t *testing.T) {
 	if got.Value.Answer == "" {
 		t.Fatal("typed result is empty")
 	}
-	if got.Response.Execution.ProviderName != "codex" {
-		t.Fatalf("provider = %q, want codex", got.Response.Execution.ProviderName)
+	if got.Response.Execution.BackendName != "codex" {
+		t.Fatalf("backend = %q, want codex", got.Response.Execution.BackendName)
+	}
+	if provider, ok := got.Response.Execution.ProviderName.Value(); ok {
+		t.Fatalf("provider = %q, want unknown without serving-provider evidence", provider)
 	}
 	if _, ok := got.Response.Execution.Model.Value(); !ok {
 		t.Fatal("served model was not observed")
 	}
-	details, ok := got.Response.ProviderDetails.(codexcaller.Details)
+	details, ok := got.Response.BackendDetails.(codexcaller.Details)
 	if !ok {
-		t.Fatalf("provider details = %T, want codexcaller.Details", got.Response.ProviderDetails)
+		t.Fatalf("backend details = %T, want codexcaller.Details", got.Response.BackendDetails)
 	}
 	if details.Run.Start.Thread.ID == "" || details.Run.Run.Turn.ID == "" {
 		t.Fatalf("exact run is missing thread/turn identity: %#v", details.Run)

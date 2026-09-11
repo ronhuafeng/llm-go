@@ -9,7 +9,7 @@ provider SDK. Destination: [NORTHSTAR.md](../NORTHSTAR.md). Language:
 | Package | Purpose |
 | --- | --- |
 | `llmschema` | Compile one typed structural contract, project its JSON Schema, validate responses, and decode Go values. |
-| `llmadapter` | Execute one provider-neutral typed inference call while preserving provider-neutral evidence and typed provider details. |
+| `llmadapter` | Execute one provider-neutral typed inference call while preserving provider-neutral evidence and typed backend details. |
 | `llmstep` | Deterministically judge typed propositions and run bounded repair attempts. |
 
 Requires Go 1.23 or newer. OS support and testing tiers are in
@@ -27,7 +27,8 @@ and run as part of the ordinary module test suite:
 - [`llmschema/example_test.go`](llmschema/example_test.go) — compile a
   `Contract[T]` once and decode with its structural validator.
 - [`llmadapter/example_test.go`](llmadapter/example_test.go) — inference-only
-  `Caller`, presence-aware evidence, and isolated provider details.
+  `Caller`, presence-aware evidence, backend/provider identity separation, and
+  isolated backend details.
 - [`llmstep/example_test.go`](llmstep/example_test.go) — proposition →
   deterministic judgment → application-projected repair → accepted result.
 
@@ -55,9 +56,12 @@ the explicit reuse path when the caller already owns a compiled contract. Both
 return the same evidence-bearing `ValueResult[T]`.
 
 Neutral execution facts use presence-aware observations: unknown stays unknown,
-and an observed zero or empty string remains distinct from absence. Provider
-adapters own isolated typed `ProviderDetails`; generic decoded values use
-ordinary Go value semantics.
+and an observed zero or empty string remains distinct from absence.
+`ExecutionEvidence.BackendName` identifies the runtime/adapter when known;
+`ProviderName` is a separate presence-aware model-provider observation and must
+not be inferred from the backend or model identifier. Backend adapters own
+isolated typed `BackendDetails`; generic decoded values use ordinary Go value
+semantics.
 
 `llmstep.Run` owns bounded inference adjudication. `Validate` is required before
 execution starts. Validator `Judgment` and model-facing `Repair` are distinct

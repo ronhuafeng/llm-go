@@ -147,8 +147,9 @@ func (s *Stream) finalizeRun(run codexsdk.StartedThreadRun, err error) (codexsdk
 	return s.finalize(run, err)
 }
 
-// ProviderName returns the stable provider identity used by neutral evidence.
-func (Details) ProviderName() string { return "codex" }
+// BackendName returns the execution backend identity used by neutral evidence.
+// It does not claim an upstream model-provider identity.
+func (Details) BackendName() string { return "codex" }
 
 // Caller adapts neutral structured calls to exact Codex thread runs.
 type Caller struct {
@@ -371,7 +372,7 @@ func projectNeutralResponse(run, cloned codexsdk.StartedThreadRun, cloneErr erro
 	response := llmadapter.Response{
 		FinalResponse: run.Run.FinalResponse,
 		Execution: llmadapter.ExecutionEvidence{
-			ProviderName: "codex",
+			BackendName: "codex",
 		},
 	}
 	if model, ok := isolatedServedModel(run); ok {
@@ -381,7 +382,7 @@ func projectNeutralResponse(run, cloned codexsdk.StartedThreadRun, cloneErr erro
 		response.Execution.Usage = usage
 	}
 	if cloneErr == nil {
-		response.ProviderDetails = Details{Run: cloned}
+		response.BackendDetails = Details{Run: cloned}
 	}
 	return response
 }

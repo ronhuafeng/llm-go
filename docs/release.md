@@ -14,6 +14,26 @@ must not introduce a second model of API shape, README state, or authorization.
 README install commands use `@latest`; they are not release-version state and
 are never stamped during publication.
 
+### Breaking module cohorts
+
+This repository is pre-v1 and may intentionally make clean breaking changes
+across independently tagged modules in one source commit. Source verification
+checks that cohort against the modules in the same checkout; it must not force
+legacy public API fields, aliases, dual-write behavior, or compatibility shims
+merely so an adapter can compile against an older dependency tag.
+
+When a downstream module's `go.mod` names the new dependency version before
+that tag exists, PR and release source proofs use an uncommitted temporary
+modfile with local replacements to the same checkout. No permanent `replace`
+is committed.
+
+Publish such a cohort in dependency order from the same tested `main` commit.
+For example, publish `llmkit` first, then publish `codex-adapter`. The adapter
+release performs an additional `GOWORK=off` published-dependency closure check
+using its committed `go.mod`; therefore its required llmkit tag must already
+exist before the adapter tag can be created. Published dependency closure is a
+release-boundary proof, not a reason to preserve obsolete source semantics.
+
 ## Publish
 
 Dispatch **Release public module** from `main` with only:
@@ -24,10 +44,11 @@ Dispatch **Release public module** from `main` with only:
 The release commit is the trusted `github.sha` captured when the workflow is
 dispatched. After the protected `production-release` approval, the workflow:
 
-1. runs the same explicit Go-native source proofs used by ordinary verification
-   on that exact commit: formatting/whitespace, each module's
-   `go mod tidy -diff`, `go vet ./...`, and `go test -race ./...`, plus the
-   current-source repository integration package;
+1. runs explicit Go-native source proofs on that exact commit:
+   formatting/whitespace, owner-local verification, current-source Codex
+   adapter verification against the same checkout, and the current-source
+   repository integration package; when publishing `codex-adapter`, it also
+   verifies the committed published dependency closure with `GOWORK=off`;
 2. verifies remote `main` still points to that commit;
 3. refuses to reuse an existing version tag;
 4. creates the module-prefixed annotated tag with the dedicated release key;

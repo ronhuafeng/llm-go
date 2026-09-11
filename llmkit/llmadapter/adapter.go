@@ -12,13 +12,16 @@ import (
 )
 
 var (
-	ErrNilCaller                = errors.New("llmadapter: caller is nil")
-	ErrEmptyResponse            = errors.New("llmadapter: final response is empty")
-	ErrProviderIdentityMismatch = errors.New("llmadapter: provider identity mismatch")
+	ErrNilCaller               = errors.New("llmadapter: caller is nil")
+	ErrEmptyResponse           = errors.New("llmadapter: final response is empty")
+	ErrBackendIdentityMismatch = errors.New("llmadapter: backend identity mismatch")
 )
 
-type ProviderDetails interface {
-	ProviderName() string
+// BackendDetails is typed backend-specific evidence published by an adapter.
+// BackendName identifies the execution runtime/adapter that owns those details;
+// it is not model-provider identity.
+type BackendDetails interface {
+	BackendName() string
 }
 
 // TokenUsage is observed token accounting for one adapter attempt. It is
@@ -34,16 +37,20 @@ type TokenUsage struct {
 	ReasoningOutput Observation[int64]
 }
 
-// ExecutionEvidence is provider-neutral facts attributable to one model
-// call. ProviderName is identity: empty means the caller published no
-// provider. Model and Usage use Observation / nil so unknown stays
-// unknown; requested settings do not fill them.
+// ExecutionEvidence is provider-neutral facts attributable to one model call.
+// BackendName identifies the execution runtime/adapter when known. ProviderName
+// is the actual model-provider identity only when directly observed. Backend,
+// provider, and model identities are independent facts and are never inferred
+// from one another.
 type ExecutionEvidence struct {
-	ProviderName string
-	// Model is the provider model identifier that actually served the
-	// request. Unknown means the provider did not report one. It is not
-	// inferred from the prompt and is not a capability or pricing lookup
-	// key.
+	BackendName string
+	// ProviderName is the observed model-provider identity. Unknown means the
+	// lower layer did not report a provider fact. Adapter names, model names,
+	// credentials, endpoints, and requested settings must not populate it.
+	ProviderName Observation[string]
+	// Model is the provider model identifier that actually served the request.
+	// Unknown means the provider did not report one. It is not inferred from the
+	// prompt and is not a capability or pricing lookup key.
 	Model Observation[string]
 	// Usage is observed token accounting for this attempt. Nil means the
 	// provider did not report a usage object. Unknown dimensions inside a
@@ -51,9 +58,9 @@ type ExecutionEvidence struct {
 	Usage *TokenUsage
 }
 
-// ObserveCounts records the four total token dimensions as present,
-// including an observed zero. Requested, default, or estimated counts
-// must not be passed here.
+// ObserveCounts records the four total token dimensions as present, including
+// an observed zero. Requested, default, or estimated counts must not be passed
+// here.
 func (u *TokenUsage) ObserveCounts(input, cachedInput, output, reasoningOutput int64) {
 	if u == nil {
 		return
@@ -64,9 +71,20 @@ func (u *TokenUsage) ObserveCounts(input, cachedInput, output, reasoningOutput i
 	u.ReasoningOutput = Observed(reasoningOutput)
 }
 
-// ObserveModel records the served model identifier as present, including
-// an observed empty string. Requested, default, heuristic, or inferred
-// names must not be passed here.
+// ObserveProviderName records actual model-provider identity as present,
+// including an observed empty string. Adapter/backend names, model identifiers,
+// requested providers, endpoints, credentials, and heuristics must not be
+// passed here.
+func (e *ExecutionEvidence) ObserveProviderName(provider string) {
+	if e == nil {
+		return
+	}
+	e.ProviderName = Observed(provider)
+}
+
+// ObserveModel records the served model identifier as present, including an
+// observed empty string. Requested, default, heuristic, or inferred names must
+// not be passed here.
 func (e *ExecutionEvidence) ObserveModel(model string) {
 	if e == nil {
 		return
@@ -76,10 +94,10 @@ func (e *ExecutionEvidence) ObserveModel(model string) {
 
 // Caller is a provider-neutral inference capability. It asks a model for a
 // typed proposition and publishes evidence. It does not grant mutation
-// authority. An implementation may satisfy Caller only when any
-// model-directed execution reachable through that implementation is already
-// effect-free or independently authorized outside the model request. Prompt
-// is not authority. Decoded model output cannot authorize an external effect.
+// authority. An implementation may satisfy Caller only when any model-directed
+// execution reachable through that implementation is already effect-free or
+// independently authorized outside the model request. Prompt is not authority.
+// Decoded model output cannot authorize an external effect.
 type Caller interface {
 	Call(ctx context.Context, request Request) (Response, error)
 }
@@ -102,10 +120,11 @@ type Response struct {
 	// publishing the response. Observation values copy by value; unknown stays
 	// unknown.
 	Execution ExecutionEvidence
-	// ProviderDetails is adapter-owned. Adapters must return an isolated typed
+	// BackendDetails is adapter-owned. Adapters must return an isolated typed
 	// value that does not alias mutable runtime state. Typed nil is invalid, and
-	// ProviderName must agree with Execution.ProviderName.
-	ProviderDetails ProviderDetails
+	// BackendName must agree with Execution.BackendName. Backend details do not
+	// establish model-provider identity.
+	BackendDetails BackendDetails
 }
 
 type ValueStage string
@@ -137,8 +156,7 @@ func (e *ValueError) Unwrap() error {
 
 type ValueResult[T any] struct {
 	// Value follows ordinary Go value semantics. The Value call does not
-	// generically deep-clone maps, slices, pointers, or other reference
-	// fields.
+	// generically deep-clone maps, slices, pointers, or other reference fields.
 	Value T
 	// Response preserves available call evidence on call and decode failures.
 	Response Response
@@ -154,9 +172,9 @@ func Value[T any](ctx context.Context, caller Caller, prompt string) (ValueResul
 	return ValueWithContract(ctx, caller, prompt, contract)
 }
 
-// ValueWithContract is the explicit reuse path: one compiled contract
-// supplies the request schema and the response decode. The zero contract
-// fails closed before Caller.Call.
+// ValueWithContract is the explicit reuse path: one compiled contract supplies
+// the request schema and the response decode. The zero contract fails closed
+// before Caller.Call.
 func ValueWithContract[T any](ctx context.Context, caller Caller, prompt string, contract llmschema.Contract[T]) (ValueResult[T], error) {
 	var result ValueResult[T]
 	if isNil(caller) {
@@ -171,7 +189,7 @@ func ValueWithContract[T any](ctx context.Context, caller Caller, prompt string,
 	}
 	response, callErr := caller.Call(ctx, cloneRequest(request))
 	result.Response = cloneResponse(response)
-	identityErr := validateProviderIdentity(response)
+	identityErr := validateBackendIdentity(response)
 	if callErr != nil || identityErr != nil {
 		return result, valueError(ValueStageCall, errors.Join(callErr, identityErr))
 	}
@@ -198,16 +216,16 @@ func valueError(stage ValueStage, err error) error {
 	return &ValueError{Stage: stage, Err: err}
 }
 
-func validateProviderIdentity(response Response) error {
-	if response.ProviderDetails == nil {
+func validateBackendIdentity(response Response) error {
+	if response.BackendDetails == nil {
 		return nil
 	}
-	value := reflect.ValueOf(response.ProviderDetails)
+	value := reflect.ValueOf(response.BackendDetails)
 	if isNilValue(value) {
-		return fmt.Errorf("%w: provider details is typed nil", ErrProviderIdentityMismatch)
+		return fmt.Errorf("%w: backend details is typed nil", ErrBackendIdentityMismatch)
 	}
-	if response.Execution.ProviderName != response.ProviderDetails.ProviderName() {
-		return fmt.Errorf("%w: execution=%q details=%q", ErrProviderIdentityMismatch, response.Execution.ProviderName, response.ProviderDetails.ProviderName())
+	if response.Execution.BackendName != response.BackendDetails.BackendName() {
+		return fmt.Errorf("%w: execution=%q details=%q", ErrBackendIdentityMismatch, response.Execution.BackendName, response.BackendDetails.BackendName())
 	}
 	return nil
 }

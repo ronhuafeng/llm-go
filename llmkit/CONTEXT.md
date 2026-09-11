@@ -12,7 +12,7 @@ _Avoid_: Immutable result
 
 **Execution evidence**:
 Provider-neutral facts attributable to one model call. Unknown facts remain
-unknown; provider-specific facts stay in Provider details. Backend identity,
+unknown; backend-specific facts stay in Backend details. Backend identity,
 model identity, and model-provider identity are separate facts and are not
 inferred from one another.
 _Avoid_: Requested settings, estimated usage, metadata bag, inferred provider
@@ -26,18 +26,22 @@ _Avoid_: Zero sentinel, empty-as-absence, estimated usage, inferred name
 
 **Execution backend**:
 The runtime or adapter through which an inference executes, when that identity
-is itself an attributable fact. It does not establish the model provider.
+is itself an attributable fact. `ExecutionEvidence.BackendName` and
+`BackendDetails.BackendName()` refer to this identity. It does not establish the
+model provider.
 _Avoid_: Provider name, model provider
 
 **Model provider**:
 The provider identity directly established by attributable lower-layer evidence.
-It remains unknown when only the backend or model identifier is known.
+`ExecutionEvidence.ProviderName` is a presence-aware Observation and remains
+unknown when only the backend or model identifier is known.
 _Avoid_: Adapter name, model-name heuristic, requested provider
 
-**Provider details**:
-Typed provider-specific evidence published by an adapter. It must not alias
-mutable runtime state.
-_Avoid_: Metadata bag, raw metadata
+**Backend details**:
+Typed backend-specific evidence published by an adapter. It must not alias
+mutable runtime state. Its backend identity must agree with neutral execution
+backend identity, but it does not establish model-provider identity.
+_Avoid_: Provider identity, metadata bag, raw metadata
 
 **Inference capability**:
 A provider-neutral `Caller` that obtains a typed proposition and evidence.

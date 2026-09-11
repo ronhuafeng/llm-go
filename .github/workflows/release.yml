@@ -114,7 +114,27 @@ jobs:
           go vet ./...
           go test -race ./...
 
-      - name: Verify Codex adapter
+      - name: Verify Codex adapter current source
+        working-directory: llmcaller/codex
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+        run: |
+          set -euo pipefail
+          cp go.mod .verify.mod
+          cp go.sum .verify.sum
+          trap 'rm -f .verify.mod .verify.sum' EXIT
+          go mod edit -modfile=.verify.mod \
+            -replace=github.com/ronhuafeng/llm-go/llmkit=../../llmkit \
+            -replace=github.com/ronhuafeng/llm-go/codexsdk=../../codexsdk
+          verify_mod="$(pwd)/.verify.mod"
+          export GOFLAGS="-modfile=${verify_mod}"
+          go mod tidy
+          go vet ./...
+          go test -race ./...
+
+      - name: Verify Codex adapter published dependency closure
+        if: inputs.module == 'codex-adapter'
         working-directory: llmcaller/codex
         env:
           GOWORK: "off"
@@ -124,20 +144,34 @@ jobs:
           go vet ./...
           go test -race ./...
 
-      - name: Verify repository tools
+      - name: Verify repository-local tools
         working-directory: internal/tools
         env:
           GOWORK: "off"
           GOTOOLCHAIN: local
         run: |
           go mod tidy -diff
-          go vet ./...
-          go test -race ./...
+          go vet ./internal/...
+          go test -race ./internal/...
 
       - name: Current-source composition
+        working-directory: internal/tools
         env:
+          GOWORK: "off"
           GOTOOLCHAIN: local
-        run: go test -race ./internal/tools/integration
+        run: |
+          set -euo pipefail
+          cp go.mod .verify.mod
+          cp go.sum .verify.sum
+          trap 'rm -f .verify.mod .verify.sum' EXIT
+          go mod edit -modfile=.verify.mod \
+            -replace=github.com/ronhuafeng/llm-go/llmkit=../../llmkit \
+            -replace=github.com/ronhuafeng/llm-go/codexsdk=../../codexsdk \
+            -replace=github.com/ronhuafeng/llm-go/llmcaller/codex=../../llmcaller/codex
+          verify_mod="$(pwd)/.verify.mod"
+          export GOFLAGS="-modfile=${verify_mod}"
+          go mod tidy
+          go test -race ./integration
 
       - name: Create immutable tag at the tested commit
         env:

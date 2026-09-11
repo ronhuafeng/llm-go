@@ -35,9 +35,13 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 		if !result.Value.Answer {
 			t.Fatalf("typed result = %#v", result)
 		}
+		if result.Response.Execution.BackendName != "codex" {
+			t.Fatalf("backend = %q, want codex", result.Response.Execution.BackendName)
+		}
+		requireUnknownProvider(t, result.Response.Execution)
 		requireObservedModel(t, result.Response.Execution, "canary-rerouted")
 		requireObservedInput(t, result.Response.Execution.Usage, 30)
-		details := result.Response.ProviderDetails.(codexcaller.Details)
+		details := result.Response.BackendDetails.(codexcaller.Details)
 		if details.Run.Run.FinalResponse != `{"answer":true}` || len(details.Run.Run.Notifications) != 4 || details.Run.Run.Usage.Total.OutputTokens != 20 {
 			t.Fatalf("exact details = %#v", details.Run)
 		}
@@ -47,14 +51,15 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 		client, caller := canaryCaller(t, "provider-failure", codexsdk.ClientOptions{})
 		defer client.Close()
 		response, err := caller.Call(context.Background(), validRequest())
-		if err == nil || response.FinalResponse != "partial" || response.Execution.ProviderName != "codex" {
+		if err == nil || response.FinalResponse != "partial" || response.Execution.BackendName != "codex" {
 			t.Fatalf("response=%#v err=%v", response, err)
 		}
+		requireUnknownProvider(t, response.Execution)
 		requireObservedModel(t, response.Execution, "canary-start")
 		if response.Execution.Usage != nil {
 			t.Fatalf("usage = %#v, want unreported on provider failure", response.Execution.Usage)
 		}
-		details := response.ProviderDetails.(codexcaller.Details)
+		details := response.BackendDetails.(codexcaller.Details)
 		if details.Run.Run.Turn.Status != protocolv2.TurnStatusFailed || len(details.Run.Run.Notifications) < 2 {
 			t.Fatalf("partial exact details = %#v", details.Run)
 		}
@@ -72,7 +77,7 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 		if err == nil || !errors.As(err, &protocolErr) || protocolErr.Method != protocolv2.MethodTurnStart {
 			t.Fatalf("response=%#v err=%v, want turn/start ProtocolError", response, err)
 		}
-		details := response.ProviderDetails.(codexcaller.Details)
+		details := response.BackendDetails.(codexcaller.Details)
 		if details.Run.Start.Thread.ID != "thread-1" || details.Run.Run.Turn.ID != "" {
 			t.Fatalf("post-thread/start evidence = %#v", details.Run)
 		}
@@ -85,9 +90,10 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 		if err == nil || result.Response.FinalResponse != "not-json" {
 			t.Fatalf("result=%#v err=%v", result, err)
 		}
-		if result.Response.ProviderDetails.(codexcaller.Details).Run.Run.Turn.Status != protocolv2.TurnStatusCompleted {
+		if result.Response.BackendDetails.(codexcaller.Details).Run.Run.Turn.Status != protocolv2.TurnStatusCompleted {
 			t.Fatalf("decode failure erased exact run: %#v", result.Response)
 		}
+		requireUnknownProvider(t, result.Response.Execution)
 		requireObservedModel(t, result.Response.Execution, "canary-rerouted")
 		requireObservedInput(t, result.Response.Execution.Usage, 30)
 	})
@@ -113,12 +119,13 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "Turn.items") {
 			t.Fatalf("result=%#v err=%v, want exact-details isolation failure", result, err)
 		}
-		if result.Response.ProviderDetails != nil {
-			t.Fatalf("ProviderDetails = %#v, want omitted unisolated run", result.Response.ProviderDetails)
+		if result.Response.BackendDetails != nil {
+			t.Fatalf("BackendDetails = %#v, want omitted unisolated run", result.Response.BackendDetails)
 		}
-		if result.Response.FinalResponse != `{"answer":true}` || result.Response.Execution.ProviderName != "codex" {
+		if result.Response.FinalResponse != `{"answer":true}` || result.Response.Execution.BackendName != "codex" {
 			t.Fatalf("independent neutral evidence = %#v", result.Response)
 		}
+		requireUnknownProvider(t, result.Response.Execution)
 		requireObservedModel(t, result.Response.Execution, "canary-rerouted")
 		requireObservedInput(t, result.Response.Execution.Usage, 30)
 	})
@@ -170,13 +177,14 @@ func TestEffectiveProfileContractAcrossPublicCallPaths(t *testing.T) {
 		{name: "Call", call: func(t *testing.T, caller *codexcaller.Caller, profileCase profileCase) (codexsdk.StartedThreadRun, error) {
 			t.Helper()
 			response, err := caller.Call(context.Background(), validRequest())
-			if response.Execution.ProviderName != "codex" {
-				t.Fatalf("neutral evidence = %#v, want decoded start projection", response.Execution)
+			if response.Execution.BackendName != "codex" {
+				t.Fatalf("neutral evidence = %#v, want decoded start backend projection", response.Execution)
 			}
+			requireUnknownProvider(t, response.Execution)
 			requireObservedModel(t, response.Execution, profileCase.wantModel)
-			details, ok := response.ProviderDetails.(codexcaller.Details)
+			details, ok := response.BackendDetails.(codexcaller.Details)
 			if !ok {
-				t.Fatalf("provider details = %#v, want typed exact evidence", response.ProviderDetails)
+				t.Fatalf("backend details = %#v, want typed exact evidence", response.BackendDetails)
 			}
 			return details.Run, err
 		}},
@@ -245,10 +253,11 @@ func TestThreeLayerCanaryFull(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "invalid app-server JSON-RPC") || !errors.Is(err, io.EOF) {
 			t.Fatalf("response=%#v err=%v", response, err)
 		}
-		details := response.ProviderDetails.(codexcaller.Details)
+		details := response.BackendDetails.(codexcaller.Details)
 		accepted, _ := json.Marshal(details.Run.Run.Notifications)
+		requireUnknownProvider(t, response.Execution)
 		requireObservedModel(t, response.Execution, "canary-start")
-		if response.Execution.ProviderName != "codex" || details.Run.Start.Thread.ID != "thread-1" || details.Run.Run.Turn.ID != "turn-1" || len(details.Run.Run.Notifications) != 1 || !strings.Contains(string(accepted), `"text":"partial"`) {
+		if response.Execution.BackendName != "codex" || details.Run.Start.Thread.ID != "thread-1" || details.Run.Run.Turn.ID != "turn-1" || len(details.Run.Run.Notifications) != 1 || !strings.Contains(string(accepted), `"text":"partial"`) {
 			t.Fatalf("transport failure erased partial evidence: %#v", response)
 		}
 		if closeErr := client.Close(); closeErr == nil || closeErr.Error() != err.Error() || !errors.Is(closeErr, io.EOF) {
@@ -482,6 +491,13 @@ func requireObservedModel(t *testing.T, evidence llmadapter.ExecutionEvidence, w
 	got, ok := evidence.Model.Value()
 	if !ok || got != want {
 		t.Fatalf("Model = (%q, %t), want observed %q", got, ok, want)
+	}
+}
+
+func requireUnknownProvider(t *testing.T, evidence llmadapter.ExecutionEvidence) {
+	t.Helper()
+	if got, ok := evidence.ProviderName.Value(); ok {
+		t.Fatalf("ProviderName = (%q, true), want unknown", got)
 	}
 }
 

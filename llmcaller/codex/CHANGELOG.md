@@ -6,6 +6,11 @@ This project follows Semantic Versioning.
 
 ### Changed
 
+- **Breaking (pre-v1):** publish `"codex"` as execution-backend identity, not
+  model-provider identity. Exact Codex details now use `BackendDetails` /
+  `BackendName`; actual provider identity stays unknown unless exact lower-layer
+  serving evidence establishes it independently. Effective model and usage
+  observations remain independent.
 - Document that `ReadOnlyEphemeralOptions` is effect-safe, not
   disclosure-safe: read-only is not confidential, and ephemeral is not a
   provider-retention guarantee.

@@ -18,7 +18,7 @@ type fakeCaller struct {
 
 type details struct{ name string }
 
-func (d details) ProviderName() string { return d.name }
+func (d details) BackendName() string { return d.name }
 
 type callerFunc func(context.Context, Request) (Response, error)
 
@@ -50,10 +50,10 @@ func TestValuePreservesCallAndDecodeEvidence(t *testing.T) {
 	partial := Response{
 		FinalResponse: `{"status":"partial"}`,
 		Execution: ExecutionEvidence{
-			ProviderName: "test",
-			Usage:        &TokenUsage{Input: Observed[int64](4)},
+			BackendName: "test-backend",
+			Usage:       &TokenUsage{Input: Observed[int64](4)},
 		},
-		ProviderDetails: details{name: "test"},
+		BackendDetails: details{name: "test-backend"},
 	}
 	result, err := Value[map[string]string](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
 		return partial, providerErr
@@ -79,33 +79,48 @@ func TestValuePreservesCallAndDecodeEvidence(t *testing.T) {
 	}
 }
 
-func TestValueChecksProviderIdentityWithoutReplacingCallError(t *testing.T) {
+func TestValueChecksBackendIdentityWithoutReplacingCallError(t *testing.T) {
 	providerErr := errors.New("provider failed")
 	response := Response{
-		Execution:       ExecutionEvidence{ProviderName: "one"},
-		ProviderDetails: details{name: "two"},
+		Execution:      ExecutionEvidence{BackendName: "one"},
+		BackendDetails: details{name: "two"},
 	}
 	_, err := Value[bool](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
 		return response, providerErr
 	}), "prompt")
-	if !errors.Is(err, providerErr) || !errors.Is(err, ErrProviderIdentityMismatch) {
-		t.Fatalf("error = %v, want provider and identity causes", err)
+	if !errors.Is(err, providerErr) || !errors.Is(err, ErrBackendIdentityMismatch) {
+		t.Fatalf("error = %v, want provider and backend-identity causes", err)
 	}
 }
 
-func TestValueRejectsTypedNilProviderDetails(t *testing.T) {
+func TestValueRejectsTypedNilBackendDetails(t *testing.T) {
 	var typedNil *testPointerDetails
 	_, err := Value[bool](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
-		return Response{FinalResponse: `true`, Execution: ExecutionEvidence{ProviderName: "test"}, ProviderDetails: typedNil}, nil
+		return Response{FinalResponse: `true`, Execution: ExecutionEvidence{BackendName: "test"}, BackendDetails: typedNil}, nil
 	}), "prompt")
-	if !errors.Is(err, ErrProviderIdentityMismatch) {
-		t.Fatalf("error = %v, want typed nil identity failure", err)
+	if !errors.Is(err, ErrBackendIdentityMismatch) {
+		t.Fatalf("error = %v, want typed nil backend identity failure", err)
 	}
 }
 
 type testPointerDetails struct{}
 
-func (*testPointerDetails) ProviderName() string { return "test" }
+func (*testPointerDetails) BackendName() string { return "test" }
+
+func TestExecutionIdentityKeepsBackendAndProviderIndependent(t *testing.T) {
+	evidence := ExecutionEvidence{BackendName: "codex"}
+	if _, ok := evidence.ProviderName.Value(); ok {
+		t.Fatal("backend identity manufactured provider identity")
+	}
+	evidence.ObserveProviderName("observed-provider")
+	provider, ok := evidence.ProviderName.Value()
+	if !ok || provider != "observed-provider" {
+		t.Fatalf("provider = (%q, %t), want observed provider", provider, ok)
+	}
+	if evidence.BackendName != "codex" {
+		t.Fatalf("backend = %q, want codex", evidence.BackendName)
+	}
+}
 
 func TestValueReturnsRequestStageForSchemaProjectionFailure(t *testing.T) {
 	called := false
@@ -257,7 +272,7 @@ func TestValueSupportsStructOutput(t *testing.T) {
 }
 
 func TestValueFailsClosed(t *testing.T) {
-	empty := Response{FinalResponse: `not-json`, Execution: ExecutionEvidence{ProviderName: "test"}}
+	empty := Response{FinalResponse: `not-json`, Execution: ExecutionEvidence{BackendName: "test"}}
 	if result, err := Value[bool](context.Background(), nil, "prompt"); !errors.Is(err, ErrNilCaller) {
 		t.Fatalf("nil caller error = %v, want ErrNilCaller", err)
 	} else if result.Response.FinalResponse != "" {
@@ -271,7 +286,7 @@ func TestValueFailsClosed(t *testing.T) {
 	}
 	if result, err := Value[bool](context.Background(), &fakeCaller{responses: []Response{empty}}, "prompt"); err == nil {
 		t.Fatal("Value accepted invalid JSON")
-	} else if result.Response.FinalResponse != empty.FinalResponse || result.Response.Execution.ProviderName != "test" {
+	} else if result.Response.FinalResponse != empty.FinalResponse || result.Response.Execution.BackendName != "test" {
 		t.Fatalf("decode failure discarded call evidence: %#v", result.Response)
 	}
 }
