@@ -6,6 +6,11 @@ This project follows Semantic Versioning.
 
 ### Changed
 
+- **Breaking (pre-v1):** stop rewriting caller-owned JSON Schemas by promoting
+  optional properties to required. Codex schema admission now preserves the
+  accepted JSON instance language or fails closed with
+  `optional_property_unsupported`; nullable/Go-decoding equivalence is no
+  longer used to justify semantic narrowing.
 - **Breaking (pre-v1):** remove adapter-owned named execution safety profiles,
   including `ReadOnlyEphemeralOptions`. Neutral `Caller` construction now
   requires application-owned `Options.Defaults.AdmitTurn`; approval, sandbox,

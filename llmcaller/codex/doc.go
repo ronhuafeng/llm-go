@@ -30,12 +30,14 @@
 // transport, application authorization, disclosure policy, or business
 // semantics.
 //
-// StrictOutputSchemaFromJSON preserves supported constraints and unknown
-// keyword JSON values, but currently narrows the JSON Schema instance language
-// by promoting an optional property to required only when its complete schema
-// admits null. That schema behavior is tracked separately from execution-policy
-// ownership. Unprovable null admission and unsupported references, draft
-// identifiers, or vocabulary declarations fail closed with a stable
-// SchemaPolicyError kind and JSON Pointer path before a Caller invokes its
-// runner. Serialization is not byte-preserving.
+// StrictOutputSchemaFromJSON is a representation-admission boundary. It may
+// accept a caller-owned schema without changing its JSON instance language or
+// reject an unrepresentable schema before execution. It never promotes optional
+// properties to required, widens types, or uses ordinary Go decoding behavior
+// as proof that two JSON contracts are equivalent. Codex representation
+// requirements that would need such a rewrite fail closed with a stable
+// SchemaPolicyError kind and JSON Pointer path. Supported constraints and
+// unknown keyword JSON values are preserved where the generated protocol can
+// carry them. Unsupported references, dialects, and vocabulary declarations
+// fail closed. Serialization is not byte-preserving.
 package codexcaller
