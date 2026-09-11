@@ -54,7 +54,28 @@ func TestDecodeProtocolServerRequestRejectsAdditionalMembersRecursively(t *testi
 	}
 }
 
-func TestNilServerRequestHandlerReturnsProtocolErrorForApplicationOwnedFamilies(t *testing.T) {
+func TestUnhandledExactServerRequestCauseCoversApplicationOwnedFamilies(t *testing.T) {
+	for _, kind := range []protocolv2.ServerRequestKind{
+		protocolv2.ServerRequestKindItemCommandExecutionRequestApproval,
+		protocolv2.ServerRequestKindItemFileChangeRequestApproval,
+		protocolv2.ServerRequestKindItemToolRequestUserInput,
+		protocolv2.ServerRequestKindMCPServerElicitationRequest,
+		protocolv2.ServerRequestKindItemPermissionsRequestApproval,
+		protocolv2.ServerRequestKindCurrentTimeRead,
+		protocolv2.ServerRequestKindApplyPatchApproval,
+		protocolv2.ServerRequestKindExecCommandApproval,
+	} {
+		failure := unhandledExactServerRequest(kind)
+		if failure.Kind != kind || failure.Reason != "no server request handler is configured" {
+			t.Fatalf("unhandled cause for %s = %#v", kind, failure)
+		}
+		if !errors.Is(failure, ErrExactServerRequest) {
+			t.Fatalf("unhandled cause for %s does not preserve ErrExactServerRequest: %v", kind, failure)
+		}
+	}
+}
+
+func TestNilServerRequestHandlerReturnsProtocolErrorForDecodedApplicationOwnedFamilies(t *testing.T) {
 	tests := []struct {
 		name   string
 		method string
@@ -66,18 +87,6 @@ func TestNilServerRequestHandlerReturnsProtocolErrorForApplicationOwnedFamilies(
 			method: protocolv2.MethodCurrentTimeRead,
 			params: map[string]any{"threadId": "thread-1"},
 			kind:   protocolv2.ServerRequestKindCurrentTimeRead,
-		},
-		{
-			name:   "MCP elicitation",
-			method: protocolv2.MethodMCPServerElicitationRequest,
-			params: map[string]any{
-				"serverName": "server-1",
-				"threadId":   "thread-1",
-				"mode":       "url",
-				"message":    "Open application-owned URL?",
-				"url":        "https://example.test/elicitation",
-			},
-			kind: protocolv2.ServerRequestKindMCPServerElicitationRequest,
 		},
 		{
 			name:   "permissions",
