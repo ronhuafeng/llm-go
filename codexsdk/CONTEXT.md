@@ -25,7 +25,10 @@ _Avoid_: service abstraction, provider API, lossy generated approximation
 
 **Classified Generated Surface**:
 Exported generated declarations classified by stable versus experimental schema
-visibility. A type may mix both classes; each member keeps its own class.
+visibility. A type may mix both classes; each member keeps its own class. That
+generated/upstream classification is the authority for protocol capability
+admission: runtime checks may enforce it, but they do not maintain a second
+handwritten classification inventory that can silently omit members.
 _Avoid_: API allowlist, handwritten inventory, frozen protocol, private API
 
 **Wire Message Role**:
