@@ -47,7 +47,7 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 		}
 	})
 
-	t.Run("provider failure retains partial evidence at detailed and neutral layers", func(t *testing.T) {
+	t.Run("provider failure retains partial evidence", func(t *testing.T) {
 		client, caller := canaryCaller(t, "provider-failure", codexsdk.ClientOptions{})
 		defer client.Close()
 		response, err := caller.Call(context.Background(), validRequest())
@@ -57,7 +57,7 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 		requireUnknownProvider(t, response.Execution)
 		requireObservedModel(t, response.Execution, "canary-start")
 		if response.Execution.Usage != nil {
-			t.Fatalf("usage = %#v, want unreported on provider failure", response.Execution.Usage)
+			t.Fatalf("usage = %#v, want unreported", response.Execution.Usage)
 		}
 		details := response.BackendDetails.(codexcaller.Details)
 		if details.Run.Run.Turn.Status != protocolv2.TurnStatusFailed || len(details.Run.Run.Notifications) < 2 {
@@ -98,18 +98,11 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 		requireObservedInput(t, result.Response.Execution.Usage, 30)
 	})
 
-	t.Run("read-only profile is sent and verified before projection", func(t *testing.T) {
-		client, caller := canaryCaller(t, "success", codexsdk.ClientOptions{})
-		defer closeCanary(t, client)
-		if _, err := caller.CallDetailed(context.Background(), validRequest()); err != nil {
-			t.Fatal(err)
-		}
-	})
-
 	t.Run("exact-details isolation failure keeps independent neutral facts", func(t *testing.T) {
 		client := startCanaryClient(t, "success", codexsdk.ClientOptions{})
 		defer closeCanary(t, client)
-		caller, err := codexcaller.New(codexcaller.ReadOnlyEphemeralOptions(isolationFailureRunner{inner: client.ThreadRunner()}))
+		options := readOnlyApplicationOptions(isolationFailureRunner{inner: client.ThreadRunner()})
+		caller, err := codexcaller.New(options)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -129,113 +122,78 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 		requireObservedModel(t, result.Response.Execution, "canary-rerouted")
 		requireObservedInput(t, result.Response.Execution.Usage, 30)
 	})
-
-	t.Run("stream rejects mismatched profile before turn/start", func(t *testing.T) {
-		client, caller := canaryCaller(t, "effective-profile-mismatch", codexsdk.ClientOptions{})
-		defer closeCanary(t, client)
-		stream, err := caller.CallStream(context.Background(), validRequest())
-		if err != nil {
-			t.Fatal(err)
-		}
-		if stream.SDKStream() == nil {
-			t.Fatal("CallStream did not retain the typed SDK stream escape hatch")
-		}
-		run, err := stream.Wait(context.Background())
-		if !errors.Is(err, codexcaller.ErrEffectiveProfile) {
-			t.Fatalf("Wait error = %v, want ErrEffectiveProfile", err)
-		}
-		if run.Start.Thread.ID != "thread-1" || run.Start.Model != "canary-start" || run.Run.Turn.ID != "" || run.Run.Turn.Status == protocolv2.TurnStatusCompleted || len(run.Run.Notifications) != 0 {
-			t.Fatalf("profile mismatch executed a turn: %#v", run)
-		}
-		if run.Start.ApprovalPolicy.Kind() != protocolv2.AskForApprovalKindOnRequest || run.Start.Sandbox.Kind() != protocolv2.SandboxPolicyKindDangerFullAccess || run.Start.Thread.Ephemeral {
-			t.Fatalf("effective profile facts were not preserved: %#v", run.Start)
-		}
-	})
 }
 
-func TestEffectiveProfileContractAcrossPublicCallPaths(t *testing.T) {
-	type profileCase struct {
-		name            string
-		scenario        string
-		want            string
-		wantModel       string
-		missingThreadID bool
+func TestApplicationAdmissionAcrossPublicCallPaths(t *testing.T) {
+	type admissionCase struct {
+		name      string
+		scenario  string
+		wantModel string
+		wantError bool
 	}
-	profileCases := []profileCase{
+	cases := []admissionCase{
 		{name: "valid", scenario: "success", wantModel: "canary-rerouted"},
-		{name: "approval", scenario: "effective-profile-approval", want: "not never", wantModel: "canary-start"},
-		{name: "sandbox", scenario: "effective-profile-sandbox", want: "not read-only", wantModel: "canary-start"},
-		{name: "ephemeral", scenario: "effective-profile-ephemeral", want: "not ephemeral", wantModel: "canary-start"},
-		{name: "missing-thread-id-approval", scenario: "missing-thread-id-approval", want: "not never", wantModel: "canary-start", missingThreadID: true},
-		{name: "missing-thread-id-sandbox", scenario: "missing-thread-id-sandbox", want: "not read-only", wantModel: "canary-start", missingThreadID: true},
-		{name: "missing-thread-id-ephemeral", scenario: "missing-thread-id-ephemeral", want: "not ephemeral", wantModel: "canary-start", missingThreadID: true},
+		{name: "approval", scenario: "admission-approval", wantModel: "canary-start", wantError: true},
+		{name: "sandbox", scenario: "admission-sandbox", wantModel: "canary-start", wantError: true},
+		{name: "ephemeral", scenario: "admission-ephemeral", wantModel: "canary-start", wantError: true},
 	}
 	paths := []struct {
 		name string
-		call func(*testing.T, *codexcaller.Caller, profileCase) (codexsdk.StartedThreadRun, error)
+		call func(*testing.T, *codexcaller.Caller, admissionCase) (codexsdk.StartedThreadRun, error)
 	}{
-		{name: "Call", call: func(t *testing.T, caller *codexcaller.Caller, profileCase profileCase) (codexsdk.StartedThreadRun, error) {
-			t.Helper()
+		{name: "Call", call: func(t *testing.T, caller *codexcaller.Caller, tc admissionCase) (codexsdk.StartedThreadRun, error) {
 			response, err := caller.Call(context.Background(), validRequest())
 			if response.Execution.BackendName != "codex" {
-				t.Fatalf("neutral evidence = %#v, want decoded start backend projection", response.Execution)
+				t.Fatalf("neutral evidence = %#v", response.Execution)
 			}
 			requireUnknownProvider(t, response.Execution)
-			requireObservedModel(t, response.Execution, profileCase.wantModel)
+			requireObservedModel(t, response.Execution, tc.wantModel)
 			details, ok := response.BackendDetails.(codexcaller.Details)
 			if !ok {
-				t.Fatalf("backend details = %#v, want typed exact evidence", response.BackendDetails)
+				t.Fatalf("backend details = %#v", response.BackendDetails)
 			}
 			return details.Run, err
 		}},
-		{name: "CallDetailed", call: func(_ *testing.T, caller *codexcaller.Caller, _ profileCase) (codexsdk.StartedThreadRun, error) {
+		{name: "CallDetailed", call: func(_ *testing.T, caller *codexcaller.Caller, _ admissionCase) (codexsdk.StartedThreadRun, error) {
 			return caller.CallDetailed(context.Background(), validRequest())
 		}},
-		{name: "CallStream", call: func(t *testing.T, caller *codexcaller.Caller, _ profileCase) (codexsdk.StartedThreadRun, error) {
-			t.Helper()
+		{name: "CallStream", call: func(t *testing.T, caller *codexcaller.Caller, _ admissionCase) (codexsdk.StartedThreadRun, error) {
 			stream, err := caller.CallStream(context.Background(), validRequest())
 			if err != nil {
 				return codexsdk.StartedThreadRun{}, err
 			}
+			if stream.SDKStream() == nil {
+				t.Fatal("CallStream did not retain SDK stream")
+			}
 			run, waitErr := stream.Wait(context.Background())
 			streamErr := stream.Err()
 			if (waitErr == nil) != (streamErr == nil) || (waitErr != nil && streamErr.Error() != waitErr.Error()) {
-				t.Fatalf("Err = %v, Wait error = %v, want stable terminal causes", streamErr, waitErr)
+				t.Fatalf("Err = %v, Wait error = %v", streamErr, waitErr)
 			}
 			return run, waitErr
 		}},
 	}
 
-	for _, profileCase := range profileCases {
+	for _, tc := range cases {
 		for _, path := range paths {
-			t.Run(profileCase.name+"/"+path.name, func(t *testing.T) {
-				client, caller := canaryCaller(t, profileCase.scenario, codexsdk.ClientOptions{})
+			t.Run(tc.name+"/"+path.name, func(t *testing.T) {
+				client, caller := canaryCaller(t, tc.scenario, codexsdk.ClientOptions{})
 				defer closeCanary(t, client)
-				run, err := path.call(t, caller, profileCase)
-				if profileCase.want == "" {
-					if err != nil {
-						t.Fatalf("call error = %v", err)
+				run, err := path.call(t, caller, tc)
+				if tc.wantError {
+					if !errors.Is(err, errApplicationAdmission) {
+						t.Fatalf("error = %v, want application admission cause", err)
 					}
-				} else if profileCase.missingThreadID {
-					requireMissingThreadProfileError(t, err, profileCase.want)
-				} else {
-					if !errors.Is(err, codexcaller.ErrEffectiveProfile) || !strings.Contains(err.Error(), profileCase.want) {
-						t.Fatalf("call error = %v, want ErrEffectiveProfile containing %q", err, profileCase.want)
+					if run.Start.Thread.ID != "thread-1" || run.Run.Turn.ID != "" || len(run.Run.Notifications) != 0 {
+						t.Fatalf("admission rejection continued execution: %#v", run)
 					}
+					return
 				}
-				if run.Start.Model != "canary-start" || run.Start.CWD != "/workspace" {
-					t.Fatalf("decoded start evidence = %#v", run.Start)
+				if err != nil {
+					t.Fatal(err)
 				}
-				if profileCase.missingThreadID {
-					if run.Start.Thread.ID != "" || run.Run.Turn.ID != "" {
-						t.Fatalf("exact partial run = %#v, want no lifecycle continuation", run)
-					}
-				} else if profileCase.want == "" {
-					if run.Start.Thread.ID != "thread-1" || run.Run.Turn.Status != protocolv2.TurnStatusCompleted || len(run.Run.Notifications) != 4 {
-						t.Fatalf("exact terminal run = %#v", run)
-					}
-				} else if run.Start.Thread.ID != "thread-1" || run.Run.Turn.ID != "" || run.Run.Turn.Status == protocolv2.TurnStatusCompleted || len(run.Run.Notifications) != 0 {
-					t.Fatalf("exact rejected run = %#v, want start-only evidence", run)
+				if run.Run.Turn.Status != protocolv2.TurnStatusCompleted || len(run.Run.Notifications) != 4 {
+					t.Fatalf("terminal run = %#v", run)
 				}
 			})
 		}
@@ -247,7 +205,7 @@ func TestThreeLayerCanaryFull(t *testing.T) {
 		t.Skip("set LLMGO_FULL_CANARY=1 for release/manual evidence")
 	}
 
-	t.Run("transport failure retains accepted partial evidence and first cause", func(t *testing.T) {
+	t.Run("transport failure retains partial evidence and first cause", func(t *testing.T) {
 		client, caller := canaryCaller(t, "transport-failure", codexsdk.ClientOptions{})
 		response, err := caller.Call(context.Background(), validRequest())
 		if err == nil || !strings.Contains(err.Error(), "invalid app-server JSON-RPC") || !errors.Is(err, io.EOF) {
@@ -265,7 +223,7 @@ func TestThreeLayerCanaryFull(t *testing.T) {
 		}
 	})
 
-	t.Run("server request is typed and notification order is conserved", func(t *testing.T) {
+	t.Run("server request is application-handled and notification order is conserved", func(t *testing.T) {
 		var mu sync.Mutex
 		var kinds []protocolv2.ServerNotificationKind
 		var requestKind protocolv2.ServerRequestKind
@@ -305,12 +263,14 @@ func TestThreeLayerCanaryFull(t *testing.T) {
 		}
 	})
 
-	t.Run("server request without handler declines safely", func(t *testing.T) {
+	t.Run("server request without handler fails instead of synthesizing a decision", func(t *testing.T) {
 		client, caller := canaryCaller(t, "approval", codexsdk.ClientOptions{})
-		defer closeCanary(t, client)
 		run, err := caller.CallDetailed(context.Background(), validRequest())
-		if err != nil || run.Run.Turn.Status != protocolv2.TurnStatusCompleted {
-			t.Fatalf("run=%#v err=%v", run, err)
+		if !errors.Is(err, codexsdk.ErrExactServerRequest) {
+			t.Fatalf("run=%#v err=%v, want ErrExactServerRequest", run, err)
+		}
+		if closeErr := client.Close(); !errors.Is(closeErr, codexsdk.ErrExactServerRequest) {
+			t.Fatalf("Close error=%v, want same exact server-request first cause", closeErr)
 		}
 	})
 
@@ -448,7 +408,8 @@ func startCanaryClient(t *testing.T, scenario string, options codexsdk.ClientOpt
 func canaryCaller(t *testing.T, scenario string, options codexsdk.ClientOptions) (canaryClient, *codexcaller.Caller) {
 	t.Helper()
 	client := startCanaryClient(t, scenario, options)
-	caller, err := codexcaller.New(codexcaller.ReadOnlyEphemeralOptions(client.ThreadRunner()))
+	callerOptions := readOnlyApplicationOptions(client.ThreadRunner())
+	caller, err := codexcaller.New(callerOptions)
 	if err != nil {
 		client.Close()
 		t.Fatal(err)
@@ -479,13 +440,6 @@ func validRequest() llmadapter.Request {
 	}
 }
 
-func requireMissingThreadProfileError(t *testing.T, err error, want string) {
-	t.Helper()
-	if !errors.Is(err, codexsdk.ErrMissingThreadID) || !errors.Is(err, codexcaller.ErrEffectiveProfile) || !strings.Contains(err.Error(), want) {
-		t.Fatalf("error = %v, want missing-thread and profile causes containing %q", err, want)
-	}
-}
-
 func requireObservedModel(t *testing.T, evidence llmadapter.ExecutionEvidence, want string) {
 	t.Helper()
 	got, ok := evidence.Model.Value()
@@ -512,9 +466,9 @@ func requireObservedInput(t *testing.T, usage *llmadapter.TokenUsage, want int64
 	}
 }
 
-func isProfileMismatchScenario(scenario string) bool {
+func isAdmissionMismatchScenario(scenario string) bool {
 	switch scenario {
-	case "effective-profile-mismatch", "effective-profile-approval", "effective-profile-sandbox", "effective-profile-ephemeral":
+	case "admission-approval", "admission-sandbox", "admission-ephemeral":
 		return true
 	default:
 		return false
@@ -573,29 +527,16 @@ func runThreeLayerFakeAppServer(scenario string) {
 			}
 			result := canaryThreadStart()
 			switch scenario {
-			case "effective-profile-mismatch":
+			case "admission-approval":
 				result["approvalPolicy"] = "on-request"
+			case "admission-sandbox":
 				result["sandbox"] = map[string]any{"type": "dangerFullAccess"}
-				result["thread"].(map[string]any)["ephemeral"] = false
-			case "effective-profile-approval":
-				result["approvalPolicy"] = "on-request"
-			case "effective-profile-sandbox":
-				result["sandbox"] = map[string]any{"type": "dangerFullAccess"}
-			case "effective-profile-ephemeral":
-				result["thread"].(map[string]any)["ephemeral"] = false
-			case "missing-thread-id-approval":
-				result["thread"].(map[string]any)["id"] = ""
-				result["approvalPolicy"] = "on-request"
-			case "missing-thread-id-sandbox":
-				result["thread"].(map[string]any)["id"] = ""
-				result["sandbox"] = map[string]any{"type": "dangerFullAccess"}
-			case "missing-thread-id-ephemeral":
-				result["thread"].(map[string]any)["id"] = ""
+			case "admission-ephemeral":
 				result["thread"].(map[string]any)["ephemeral"] = false
 			}
 			canarySend(map[string]any{"id": id, "result": result})
 		case "turn/start":
-			if isProfileMismatchScenario(scenario) {
+			if isAdmissionMismatchScenario(scenario) {
 				os.Exit(3)
 			}
 			params, _ := message["params"].(map[string]any)
@@ -638,11 +579,16 @@ func runThreeLayerFakeAppServer(scenario string) {
 			}
 		default:
 			if method == "" && scenario == "approval" {
-				result, _ := message["result"].(map[string]any)
-				if result["decision"] != "decline" {
-					os.Exit(4)
+				if result, ok := message["result"].(map[string]any); ok {
+					if result["decision"] != "decline" {
+						os.Exit(4)
+					}
+					canaryComplete("success")
+					continue
 				}
-				canaryComplete("success")
+				if _, failed := message["error"].(map[string]any); failed {
+					return
+				}
 			}
 		}
 	}
