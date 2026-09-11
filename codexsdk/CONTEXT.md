@@ -32,13 +32,23 @@ _Avoid_: type strictness, experimental decode mode
 
 **Server Observation**:
 A known RPC result or server notification authored by the app-server. Known
-members stay exact; additional unknown members do not invalidate it.
-_Avoid_: permissive payload, server request
+members stay exact; additional unknown members do not invalidate it. Presence
+and value remain separate when the protocol distinguishes them.
+_Avoid_: permissive payload, server request, convenience success criterion
 
 **Action-Bearing Message**:
 A client-authored instruction or response, or an app-server request that can
-cause or authorize action. Admission fails closed.
-_Avoid_: Server Observation, strict generated type
+cause or authorize action. Structural/protocol admission fails closed; semantic
+authority remains with the application.
+_Avoid_: Server Observation, SDK-owned policy, strict generated type
+
+**Application-owned server response**:
+A semantic answer, decision, permission, user input, environment fact, or other
+application-owned data requested by the app-server. The SDK owns exact request
+delivery and typed response encoding; the application owns the response value
+and authority. If none is supplied, absence remains failure/unanswered rather
+than becoming a default successful semantic response.
+_Avoid_: Default decline, empty-answer fallback, SDK clock fact, SDK policy
 
 **Additional Wire Member**:
 An object member absent from the checked-in protocol baseline. It is not an
@@ -52,8 +62,9 @@ _Avoid_: SDK umbrella interface
 
 **Exact Run**:
 One composed thread/turn execution with its ordered attributable protocol
-evidence, partial result, and stable terminal cause.
-_Avoid_: workflow, request
+evidence, partial result, and stable terminal cause. Server-reported status and
+presence are exact observations; convenience projections do not redefine them.
+_Avoid_: workflow, request, convenience success contract
 
 **Exact Run Waiter**:
 An independent observer of an Exact Run's completion and immutable result.
@@ -68,6 +79,12 @@ _Avoid_: delivery queue, event store
 **Shared Run Cancellation**:
 The lifecycle boundary that terminates an Exact Run for every observer.
 _Avoid_: waiter cancellation, timeout
+
+**Admission seam**:
+A lifecycle mechanism that lets caller-owned code inspect an exact Server
+Observation and allow or reject continuation before the next effect-capable
+stage. The seam does not own the policy used by the caller.
+_Avoid_: SDK safety profile, authorization engine
 
 **Generated Baseline Provenance**:
 The checked-in upstream Codex protocol baseline from which the generated

@@ -11,16 +11,18 @@ Resolve paths from the repository root that contains this file.
   → affected code and tests. Upstream sync uses
   [`codexsdk-sync-upstream`](.agents/skills/codexsdk-sync-upstream/SKILL.md).
   Apply [`Agents.test.md`](codexsdk/Agents.test.md) when changing SDK tests.
-- **Change adapter execution, projection, or profile policy:**
+- **Change adapter execution, projection, or admission wiring:**
   [`llmcaller/codex/CONTEXT.md`](llmcaller/codex/CONTEXT.md) → affected code and
-  tests.
-- **Change adapter schema policy:** read the
+  tests. Concrete execution/approval/sandbox/permission policy remains
+  application-owned even when the adapter provides the admission mechanism.
+- **Change adapter schema admission:** read the
   [`Schema Policy`](llmcaller/codex/README.md#schema-policy) contract and its
-  compatibility-matrix tests in addition to the adapter context.
-- **Change semantic ownership, evidence meaning, judgment/repair boundaries,
-  authority, repository shape, or publication:** [`NORTHSTAR.md`](NORTHSTAR.md)
-  → [`DESIGN.md`](DESIGN.md) → the directly affected implementation or
-  operation.
+  compatibility-matrix tests in addition to the adapter context. Representation
+  adaptation preserves caller-owned contract semantics or fails closed.
+- **Change semantic ownership, evidence meaning, judgment/retry-feedback
+  boundaries, authority, repository shape, or publication:**
+  [`NORTHSTAR.md`](NORTHSTAR.md) → [`DESIGN.md`](DESIGN.md) → the directly
+  affected implementation or operation.
 - **Verify or release:** [`docs/verify.md`](docs/verify.md) or
   [`docs/release.md`](docs/release.md).
 
