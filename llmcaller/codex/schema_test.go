@@ -10,99 +10,27 @@ import (
 
 	"github.com/ronhuafeng/llm-go/llmkit/llmadapter"
 	"github.com/ronhuafeng/llm-go/llmkit/llmschema"
-	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
-type nullAwareString struct {
-	SawNull bool
-}
-
-func (value *nullAwareString) UnmarshalJSON(data []byte) error {
-	value.SawNull = string(data) == "null"
-	return nil
-}
-
-func TestStrictOutputSchemaCompatibilityMatrix(t *testing.T) {
-	t.Run("required-scalar-preserved", func(t *testing.T) {
+func TestStrictOutputSchemaPreservesAcceptedContracts(t *testing.T) {
+	t.Run("required scalar", func(t *testing.T) {
 		type output struct {
 			Name string `json:"name"`
 		}
 		assertSchemaJSONValueEqual(t, schemaFor[output](t))
 	})
-	t.Run("optional-pointer-currently-promoted", func(t *testing.T) {
-		type output struct {
-			Name string  `json:"name"`
-			Note *string `json:"note,omitempty"`
-		}
-		schema, err := StrictOutputSchemaFromJSON(schemaFor[output](t))
-		if err != nil {
-			t.Fatal(err)
-		}
-		encoded, _ := schema.MarshalJSON()
-		if !strings.Contains(string(encoded), `"required":["name","note"]`) {
-			t.Fatalf("schema = %s", encoded)
-		}
-	})
-	t.Run("optional-scalar-fails-closed", func(t *testing.T) {
-		type output struct {
-			Name  string `json:"name"`
-			Score int    `json:"score,omitempty"`
-		}
-		assertSchemaError(t, schemaFor[output](t), "optional_non_nullable", "/properties/score")
-	})
-	t.Run("nested-optional-pointer-currently-promoted", func(t *testing.T) {
-		type child struct {
-			Note *string `json:"note,omitempty"`
-		}
-		type output struct {
-			Child child `json:"child"`
-		}
-		if _, err := StrictOutputSchemaFromJSON(schemaFor[output](t)); err != nil {
-			t.Fatal(err)
-		}
-	})
-	t.Run("presence-sensitive-decoding-remains-distinct", func(t *testing.T) {
-		type rawOutput struct {
-			Payload json.RawMessage `json:"payload,omitempty"`
-		}
-		var absentRaw, nullRaw rawOutput
-		if err := json.Unmarshal([]byte(`{}`), &absentRaw); err != nil {
-			t.Fatal(err)
-		}
-		if err := json.Unmarshal([]byte(`{"payload":null}`), &nullRaw); err != nil {
-			t.Fatal(err)
-		}
-		if absentRaw.Payload != nil || string(nullRaw.Payload) != "null" {
-			t.Fatalf("RawMessage distinction changed: absent=%q null=%q", absentRaw.Payload, nullRaw.Payload)
-		}
 
-		type customOutput struct {
-			Value nullAwareString `json:"value,omitempty"`
-		}
-		var absentCustom, nullCustom customOutput
-		if err := json.Unmarshal([]byte(`{}`), &absentCustom); err != nil {
-			t.Fatal(err)
-		}
-		if err := json.Unmarshal([]byte(`{"value":null}`), &nullCustom); err != nil {
-			t.Fatal(err)
-		}
-		if absentCustom.Value.SawNull || !nullCustom.Value.SawNull {
-			t.Fatal("custom unmarshaler did not preserve absence/null distinction")
-		}
+	t.Run("required nullable property", func(t *testing.T) {
+		raw := json.RawMessage(`{"type":"object","required":["note"],"properties":{"note":{"type":["string","null"]}}}`)
+		assertSchemaJSONValueEqual(t, raw)
 	})
-	t.Run("local-ref-preserved", func(t *testing.T) {
-		raw := json.RawMessage(`{"type":"object","properties":{"note":{"$ref":"#/$defs/note"}},"$defs":{"note":{"anyOf":[{"type":"string"},{"type":"null"}]}}}`)
-		schema, err := StrictOutputSchemaFromJSON(raw)
-		if err != nil {
-			t.Fatal(err)
-		}
-		encoded, _ := schema.MarshalJSON()
-		if !strings.Contains(string(encoded), `"$ref":"#/$defs/note"`) ||
-			!strings.Contains(string(encoded), `"required":["note"]`) {
-			t.Fatalf("schema = %s", encoded)
-		}
+
+	t.Run("required local ref", func(t *testing.T) {
+		raw := json.RawMessage(`{"type":"object","required":["note"],"properties":{"note":{"$ref":"#/$defs/note"}},"$defs":{"note":{"anyOf":[{"type":"string"},{"type":"null"}]}}}`)
+		assertSchemaJSONValueEqual(t, raw)
 	})
-	t.Run("drafts-and-unknown-keywords", func(t *testing.T) {
+
+	t.Run("unknown keyword value", func(t *testing.T) {
 		raw := json.RawMessage(`{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","required":["name"],"properties":{"name":{"type":"string","x-note":{"level":2}}}}`)
 		schema, err := StrictOutputSchemaFromJSON(raw)
 		if err != nil {
@@ -112,110 +40,99 @@ func TestStrictOutputSchemaCompatibilityMatrix(t *testing.T) {
 		if !strings.Contains(string(encoded), `"x-note":{"level":2}`) {
 			t.Fatalf("unknown keyword changed: %s", encoded)
 		}
-		assertSchemaErrorKind(t, json.RawMessage(`{"$schema":"https://json-schema.org/draft/9999/schema","type":"object"}`), "invalid_schema")
 	})
-	t.Run("reference-failures", func(t *testing.T) {
-		assertSchemaErrorKind(t, json.RawMessage(`{"$defs":{"node":{"$ref":"#/$defs/node"}},"$ref":"#/$defs/node"}`), "cyclic_ref")
-		assertSchemaErrorKind(t, json.RawMessage(`{"$ref":"https://example.test/schema"}`), "external_ref")
-		assertSchemaErrorKind(t, json.RawMessage(`{"$ref":"#/$defs/missing"}`), "unresolvable_ref")
-		assertSchemaErrorKind(t, json.RawMessage(`{"$dynamicRef":"#node"}`), "unsupported_dynamic_ref")
+
+	t.Run("boolean schemas", func(t *testing.T) {
+		assertSchemaJSONValueEqual(t, json.RawMessage(`true`))
+		assertSchemaJSONValueEqual(t, json.RawMessage(`false`))
 	})
 }
 
-func TestStrictOutputSchemaUsesJSONSchemaSemanticsForNullAdmission(t *testing.T) {
+func TestStrictOutputSchemaRejectsOptionalPropertiesWithoutMutation(t *testing.T) {
 	tests := []struct {
-		name     string
-		schema   string
-		wantKind string
+		name string
+		raw  json.RawMessage
+		path string
 	}{
 		{
-			name:     "ref rejects null",
-			schema:   `{"type":"object","properties":{"x":{"$ref":"#/$defs/nonNull","type":["string","null"]}},"$defs":{"nonNull":{"type":"string"}}}`,
-			wantKind: "optional_non_nullable",
+			name: "nullable optional",
+			raw:  json.RawMessage(`{"type":"object","properties":{"x":{"type":["string","null"]}}}`),
+			path: "/properties/x",
 		},
 		{
-			name:   "anyOf admits null",
-			schema: `{"type":"object","properties":{"x":{"anyOf":[{"type":"string"},{"type":"null"}]}}}`,
+			name: "nonnullable optional",
+			raw:  json.RawMessage(`{"type":"object","properties":{"x":{"type":"string"}}}`),
+			path: "/properties/x",
 		},
 		{
-			name:     "allOf rejects null",
-			schema:   `{"type":"object","properties":{"x":{"allOf":[{"type":["string","null"]},{"type":"string"}]}}}`,
-			wantKind: "optional_non_nullable",
+			name: "anyOf including null",
+			raw:  json.RawMessage(`{"type":"object","properties":{"x":{"anyOf":[{"type":"string"},{"type":"null"}]}}}`),
+			path: "/properties/x",
 		},
 		{
-			name:   "enum admits null",
-			schema: `{"type":"object","properties":{"x":{"enum":[null,"x"]}}}`,
+			name: "enum including null",
+			raw:  json.RawMessage(`{"type":"object","properties":{"x":{"enum":[null,"x"]}}}`),
+			path: "/properties/x",
 		},
 		{
-			name:     "not rejects null",
-			schema:   `{"type":"object","properties":{"x":{"not":{"const":null}}}}`,
-			wantKind: "optional_non_nullable",
+			name: "optional local ref",
+			raw:  json.RawMessage(`{"type":"object","properties":{"x":{"$ref":"#/$defs/value"}},"$defs":{"value":{"type":["string","null"]}}}`),
+			path: "/properties/x",
+		},
+		{
+			name: "nested optional",
+			raw:  json.RawMessage(`{"type":"object","required":["child"],"properties":{"child":{"type":"object","properties":{"note":{"type":["string","null"]}}}}}`),
+			path: "/properties/child/properties/note",
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			schema, err := StrictOutputSchemaFromJSON(json.RawMessage(test.schema))
-			if test.wantKind != "" {
-				var policyErr *SchemaPolicyError
-				if !errors.As(err, &policyErr) || policyErr.Kind != test.wantKind || policyErr.Path != "/properties/x" {
-					t.Fatalf("error = %#v, want %s at /properties/x", policyErr, test.wantKind)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			encoded, err := schema.MarshalJSON()
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !strings.Contains(string(encoded), `"required":["x"]`) {
-				t.Fatalf("schema = %s", encoded)
-			}
+			assertSchemaError(t, test.raw, "optional_property_unsupported", test.path)
 		})
 	}
 }
 
-func TestStrictOutputSchemaDecisionMatchesDirectValidator(t *testing.T) {
-	for _, propertySchema := range []string{
-		`{"type":"null"}`,
-		`{"type":"string"}`,
-		`{"anyOf":[{"type":"string"},{"enum":[null]}]}`,
-		`{"not":{"enum":[null]}}`,
-	} {
-		raw := json.RawMessage(`{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"x":` + propertySchema + `}}`)
-		var document any
-		decoder := json.NewDecoder(strings.NewReader(string(raw)))
-		decoder.UseNumber()
-		if err := decoder.Decode(&document); err != nil {
-			t.Fatal(err)
+func TestOptionalGoShapesAreNotUsedAsSemanticEquivalenceProof(t *testing.T) {
+	t.Run("pointer", func(t *testing.T) {
+		type output struct {
+			Name string  `json:"name"`
+			Note *string `json:"note,omitempty"`
 		}
-		compiler := jsonschema.NewCompiler()
-		if err := compiler.AddResource("https://test.invalid/schema.json", document); err != nil {
-			t.Fatal(err)
+		assertSchemaError(t, schemaFor[output](t), "optional_property_unsupported", "/properties/note")
+	})
+
+	t.Run("slice", func(t *testing.T) {
+		type output struct {
+			Items []string `json:"items,omitempty"`
 		}
-		property, err := compiler.Compile("https://test.invalid/schema.json#/properties/x")
-		if err != nil {
-			t.Fatal(err)
-		}
-		wantPromotion := property.Validate(nil) == nil
-		_, transformErr := StrictOutputSchemaFromJSON(raw)
-		if (transformErr == nil) != wantPromotion {
-			t.Errorf("property %s: accepted=%v null=%v error=%v", propertySchema, transformErr == nil, wantPromotion, transformErr)
-		}
-	}
+		assertSchemaError(t, schemaFor[output](t), "optional_property_unsupported", "/properties/items")
+	})
+
+	t.Run("raw message", func(t *testing.T) {
+		raw := json.RawMessage(`{"type":"object","properties":{"payload":{"type":["object","array","string","number","boolean","null"]}}}`)
+		assertSchemaError(t, raw, "optional_property_unsupported", "/properties/payload")
+	})
+}
+
+func TestStrictOutputSchemaRejectsUnsupportedRepresentationFeatures(t *testing.T) {
+	assertSchemaErrorKind(t, json.RawMessage(`{"$schema":"https://json-schema.org/draft/9999/schema","type":"object"}`), "invalid_schema")
+	assertSchemaErrorKind(t, json.RawMessage(`{"$defs":{"node":{"$ref":"#/$defs/node"}},"$ref":"#/$defs/node"}`), "cyclic_ref")
+	assertSchemaErrorKind(t, json.RawMessage(`{"$ref":"https://example.test/schema"}`), "external_ref")
+	assertSchemaErrorKind(t, json.RawMessage(`{"$ref":"#/$defs/missing"}`), "unresolvable_ref")
+	assertSchemaErrorKind(t, json.RawMessage(`{"$dynamicRef":"#node"}`), "unsupported_dynamic_ref")
+	assertSchemaErrorKind(t, json.RawMessage(`{"$vocabulary":{"https://example.test/vocab":true},"type":"object"}`), "unsupported_vocabulary")
 }
 
 func TestStrictOutputSchemaRejectsDuplicateKeysAndPreservesPointerPath(t *testing.T) {
 	assertSchemaErrorKind(t, json.RawMessage(`{"type":"object","type":"string"}`), "invalid_json")
 	_, err := StrictOutputSchemaFromJSON(json.RawMessage(`{"type":"object","properties":{"a/b~c":{"type":"string"}}}`))
 	var policyErr *SchemaPolicyError
-	if !errors.As(err, &policyErr) || policyErr.Path != "/properties/a~1b~0c" {
+	if !errors.As(err, &policyErr) || policyErr.Kind != "optional_property_unsupported" || policyErr.Path != "/properties/a~1b~0c" {
 		t.Fatalf("error = %#v", policyErr)
 	}
 }
 
-func TestCallerRejectsSchemaBeforeRunnerInvocation(t *testing.T) {
+func TestCallerRejectsUnrepresentableSchemaBeforeRunnerInvocation(t *testing.T) {
 	runner := &fakeRunner{}
 	caller, err := New(applicationOptions(runner))
 	if err != nil {
@@ -223,10 +140,10 @@ func TestCallerRejectsSchemaBeforeRunnerInvocation(t *testing.T) {
 	}
 	_, err = caller.CallDetailed(context.Background(), llmadapter.Request{
 		Prompt:       "must not run",
-		OutputSchema: json.RawMessage(`{"type":"object","properties":{"x":{"type":["null",1]}}}`),
+		OutputSchema: json.RawMessage(`{"type":"object","properties":{"x":{"type":["string","null"]}}}`),
 	})
 	var policyErr *SchemaPolicyError
-	if !errors.As(err, &policyErr) || policyErr.Kind != "nullable_analysis" || policyErr.Path != "/properties/x" {
+	if !errors.As(err, &policyErr) || policyErr.Kind != "optional_property_unsupported" || policyErr.Path != "/properties/x" {
 		t.Fatalf("error = %#v", policyErr)
 	}
 	if len(runner.requests) != 0 {

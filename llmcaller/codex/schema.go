@@ -5,14 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
-// SchemaPolicyError identifies a stable schema-policy kind and JSON pointer.
+// SchemaPolicyError identifies a stable schema-admission kind and JSON pointer.
 type SchemaPolicyError struct {
 	Path string
 	Kind string
@@ -33,8 +32,10 @@ func (e *SchemaPolicyError) Unwrap() error {
 	return e.Err
 }
 
-// StrictOutputSchemaFromJSON applies the Codex structured-output schema policy
-// without discarding unknown JSON keyword values.
+// StrictOutputSchemaFromJSON admits a caller-owned JSON Schema only when the
+// Codex representation can carry it without changing the accepted instance
+// language. Unsupported representation requirements fail closed; this function
+// never makes an optional property required or otherwise narrows the contract.
 func StrictOutputSchemaFromJSON(raw json.RawMessage) (protocolv2.OutputSchema, error) {
 	if len(bytes.TrimSpace(raw)) == 0 {
 		return protocolv2.OutputSchema{}, ErrMissingSchemaJSON
@@ -64,8 +65,8 @@ func StrictOutputSchemaFromJSON(raw json.RawMessage) (protocolv2.OutputSchema, e
 	if err := compiler.AddResource(schemaResourceURL, root); err != nil {
 		return protocolv2.OutputSchema{}, &SchemaPolicyError{Path: "", Kind: "invalid_schema", Err: err}
 	}
-	transformer := schemaTransformer{root: root, compiler: compiler, resourceURL: schemaResourceURL}
-	if err := transformer.walk(root, "", nil); err != nil {
+	admission := schemaAdmission{root: root}
+	if err := admission.walk(root, "", nil); err != nil {
 		return protocolv2.OutputSchema{}, err
 	}
 	if _, err := compiler.Compile(schemaResourceURL); err != nil {
@@ -82,10 +83,8 @@ func StrictOutputSchemaFromJSON(raw json.RawMessage) (protocolv2.OutputSchema, e
 	return schema, nil
 }
 
-type schemaTransformer struct {
-	root        any
-	compiler    *jsonschema.Compiler
-	resourceURL string
+type schemaAdmission struct {
+	root any
 }
 
 type rejectSchemaResourceLoader struct{}
@@ -94,7 +93,7 @@ func (rejectSchemaResourceLoader) Load(url string) (any, error) {
 	return nil, fmt.Errorf("external schema resource %q is unsupported", url)
 }
 
-func (t schemaTransformer) walk(value any, path string, refs map[string]bool) error {
+func (a schemaAdmission) walk(value any, path string, refs map[string]bool) error {
 	object, ok := value.(map[string]any)
 	if !ok {
 		if _, boolean := value.(bool); boolean {
@@ -113,18 +112,21 @@ func (t schemaTransformer) walk(value any, path string, refs map[string]bool) er
 		if refs[ref] {
 			return &SchemaPolicyError{Path: path + "/$ref", Kind: "cyclic_ref", Err: fmt.Errorf("cyclic reference %q", ref)}
 		}
-		resolved, err := resolveLocalRef(t.root, ref)
+		resolved, err := resolveLocalRef(a.root, ref)
 		if err != nil {
 			return &SchemaPolicyError{Path: path + "/$ref", Kind: "unresolvable_ref", Err: err}
 		}
 		nextRefs := copyRefSet(refs)
 		nextRefs[ref] = true
-		if err := t.walk(resolved, refPath(ref), nextRefs); err != nil {
+		if err := a.walk(resolved, refPath(ref), nextRefs); err != nil {
 			return err
 		}
 	}
 	if _, exists := object["$dynamicRef"]; exists {
-		return &SchemaPolicyError{Path: path + "/$dynamicRef", Kind: "unsupported_dynamic_ref", Err: errors.New("dynamic references are not supported by the Codex schema policy")}
+		return &SchemaPolicyError{Path: path + "/$dynamicRef", Kind: "unsupported_dynamic_ref", Err: errors.New("dynamic references are unsupported")}
+	}
+	if _, exists := object["$vocabulary"]; exists {
+		return &SchemaPolicyError{Path: path + "/$vocabulary", Kind: "unsupported_vocabulary", Err: errors.New("custom vocabulary declarations are unsupported")}
 	}
 	if properties, exists := objectMap(object["properties"]); exists {
 		required, err := requiredSet(object["required"], path)
@@ -133,38 +135,23 @@ func (t schemaTransformer) walk(value any, path string, refs map[string]bool) er
 		}
 		for name, property := range properties {
 			propertyPath := path + "/properties/" + escapePointer(name)
-			if err := t.walk(property, propertyPath, refs); err != nil {
+			if !required[name] {
+				return &SchemaPolicyError{
+					Path: propertyPath,
+					Kind: "optional_property_unsupported",
+					Err:  errors.New("Codex representation cannot require this property without narrowing the caller contract"),
+				}
+			}
+			if err := a.walk(property, propertyPath, refs); err != nil {
 				return err
 			}
-			if !required[name] {
-				admits, err := t.admitsNull(propertyPath)
-				if err != nil {
-					return &SchemaPolicyError{Path: propertyPath, Kind: "nullable_analysis", Err: err}
-				}
-				if !admits {
-					return &SchemaPolicyError{Path: propertyPath, Kind: "optional_non_nullable", Err: errors.New("optional property does not admit null")}
-				}
-				required[name] = true
-			}
-		}
-		if len(properties) > 0 {
-			names := make([]string, 0, len(required))
-			for name := range required {
-				names = append(names, name)
-			}
-			sort.Strings(names)
-			requiredValues := make([]any, len(names))
-			for index, name := range names {
-				requiredValues[index] = name
-			}
-			object["required"] = requiredValues
 		}
 	} else if _, present := object["properties"]; present {
 		return &SchemaPolicyError{Path: path + "/properties", Kind: "invalid_properties", Err: errors.New("properties must be an object")}
 	}
 	for _, key := range []string{"additionalProperties", "unevaluatedProperties", "propertyNames", "additionalItems", "contains", "unevaluatedItems", "not", "if", "then", "else", "contentSchema"} {
 		if child, exists := object[key]; exists {
-			if err := t.walk(child, path+"/"+escapePointer(key), refs); err != nil {
+			if err := a.walk(child, path+"/"+escapePointer(key), refs); err != nil {
 				return err
 			}
 		}
@@ -172,11 +159,11 @@ func (t schemaTransformer) walk(value any, path string, refs map[string]bool) er
 	if items, exists := object["items"]; exists {
 		if list, ok := items.([]any); ok {
 			for index, child := range list {
-				if err := t.walk(child, fmt.Sprintf("%s/items/%d", path, index), refs); err != nil {
+				if err := a.walk(child, fmt.Sprintf("%s/items/%d", path, index), refs); err != nil {
 					return err
 				}
 			}
-		} else if err := t.walk(items, path+"/items", refs); err != nil {
+		} else if err := a.walk(items, path+"/items", refs); err != nil {
 			return err
 		}
 	}
@@ -189,7 +176,7 @@ func (t schemaTransformer) walk(value any, path string, refs map[string]bool) er
 			if key == "properties" {
 				continue
 			}
-			if err := t.walk(child, path+"/"+escapePointer(key)+"/"+escapePointer(name), refs); err != nil {
+			if err := a.walk(child, path+"/"+escapePointer(key)+"/"+escapePointer(name), refs); err != nil {
 				return err
 			}
 		}
@@ -201,7 +188,7 @@ func (t schemaTransformer) walk(value any, path string, refs map[string]bool) er
 				return &SchemaPolicyError{Path: path + "/" + key, Kind: "invalid_subschemas", Err: errors.New("keyword must be an array")}
 			}
 			for index, child := range list {
-				if err := t.walk(child, fmt.Sprintf("%s/%s/%d", path, key, index), refs); err != nil {
+				if err := a.walk(child, fmt.Sprintf("%s/%s/%d", path, key, index), refs); err != nil {
 					return err
 				}
 			}
@@ -212,7 +199,7 @@ func (t schemaTransformer) walk(value any, path string, refs map[string]bool) er
 			if _, propertyList := dependency.([]any); propertyList {
 				continue
 			}
-			if err := t.walk(dependency, path+"/dependencies/"+escapePointer(name), refs); err != nil {
+			if err := a.walk(dependency, path+"/dependencies/"+escapePointer(name), refs); err != nil {
 				return err
 			}
 		}
@@ -220,14 +207,6 @@ func (t schemaTransformer) walk(value any, path string, refs map[string]bool) er
 		return &SchemaPolicyError{Path: path + "/dependencies", Kind: "invalid_dependencies", Err: errors.New("dependencies must be an object")}
 	}
 	return nil
-}
-
-func (t schemaTransformer) admitsNull(path string) (bool, error) {
-	schema, err := t.compiler.Compile(t.resourceURL + "#" + path)
-	if err != nil {
-		return false, err
-	}
-	return schema.Validate(nil) == nil, nil
 }
 
 func requiredSet(value any, path string) (map[string]bool, error) {

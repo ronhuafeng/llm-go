@@ -75,24 +75,27 @@ distinct from unreported counts.
 
 ## Schema admission
 
-`StrictOutputSchemaFromJSON` is the Codex-specific representation-admission
-boundary. It parses the exact caller JSON Schema, selects supported dialect
-semantics, rejects unsupported references/vocabularies, and preserves unknown
-keyword JSON values where the generated protocol representation can carry them.
-Failures are typed `*SchemaPolicyError` values and occur before runner
-invocation.
+`StrictOutputSchemaFromJSON` is a conservative Codex representation-admission
+boundary. It may accept the caller's JSON Schema without changing its accepted
+instance language, or it fails before runner invocation with a typed
+`*SchemaPolicyError`.
 
-The current implementation still contains a separately tracked semantic
-problem: some optional properties are promoted to required when their complete
-schema admits `null`. That changes the accepted JSON instance language and is
-not part of the execution-admission contract above. Issue #228 owns its removal;
-this execution-policy change does not preserve or justify that narrowing.
+The adapter does **not** make optional properties required, widen or narrow
+property types, or use ordinary Go decoding behavior to claim that absence and
+explicit `null` are equivalent. If Codex representation would require an
+optional property to become required, admission fails with
+`optional_property_unsupported` at that property's JSON Pointer. Nullable
+optional properties are treated exactly the same as any other optional
+property: nullability is not evidence that omission can be erased.
 
-Schemas without an explicit `$schema` use draft 2020-12. Draft 7 and draft
-2020-12 are the explicitly supported dialects. External resources,
-`$dynamicRef`, cyclic/unresolvable local references, unsupported dialects, and
-`$vocabulary` declarations fail closed. Serialization is semantic JSON
-serialization, not byte preservation.
+Accepted schemas retain their JSON value semantics. Supported local references,
+draft semantics, constraints, and unknown keyword values are preserved where
+the generated protocol representation can carry them. Schemas without an
+explicit `$schema` use draft 2020-12; draft 7 and draft 2020-12 are the
+explicitly supported dialects. External resources, `$dynamicRef`, cyclic or
+unresolvable local references, unsupported dialects, and `$vocabulary`
+declarations fail closed. Serialization can change key order, whitespace,
+number spelling, or escaping; byte identity is not promised.
 
 Changelog: [CHANGELOG.md](CHANGELOG.md). Notices:
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). See repository
