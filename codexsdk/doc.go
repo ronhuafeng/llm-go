@@ -38,10 +38,17 @@
 // first cause. If shutdown, failure, or bounded backpressure rejects handler
 // work before queue ownership transfers, its dispatch fence is released as
 // discarded without removing already accepted exact-run evidence.
-// Exact server-request failures likewise close callback admission and publish
-// their typed first cause to active runs before the fail-closed protocol
-// response can prompt a terminal notification; transport teardown starts only
-// after that response is written.
+// Exact server-request responses are application-owned. Client delivers exact
+// generated requests and encodes caller-supplied typed responses, but it does
+// not choose approvals, user answers, permissions, elicitation outcomes, or
+// environment facts. A missing ServerRequestHandler fails with a typed exact
+// server-request cause and JSON-RPC error rather than a synthesized successful
+// response. A request arriving after callback admission closes receives only a
+// protocol error; shutdown does not manufacture an application decision.
+// Exact server-request failures close callback admission and publish their
+// typed first cause to active runs before the fail-closed protocol response can
+// prompt a terminal notification; transport teardown starts only after that
+// response is written.
 // Client shutdown atomically closes callback admission and joins callbacks
 // accepted before that boundary before releasing transport resources.
 //
