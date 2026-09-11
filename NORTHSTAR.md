@@ -51,6 +51,7 @@ turn a convenience representation into a stronger fact.
 requested                 != effective
 unknown                   != zero
 unreported                != absent
+schema optionality        != absent observation
 empty observed value      != absent observation
 response                  != truth
 schema-valid              != semantically valid
@@ -107,6 +108,12 @@ projection may omit or reshape exact evidence, but it must not rewrite the
 lower-layer terminal status, presence, identity, provenance, or measurement
 scope that produced it.
 
+Schema optionality describes which observations are legal, not whether a field
+was absent in a concrete observation. When an optional correlation, identity,
+or measurement field is present, that presence is evidence. A projection must
+not erase it merely because another legal message of the same schema could omit
+it.
+
 Execution-backend identity and model-provider identity are different facts. A
 model identifier does not by itself establish provider identity. Each may be
 published only by the layer that can directly prove it; otherwise it remains
@@ -116,6 +123,12 @@ Model selection and routing are also distinct from model service. A requested,
 thread-selected, effective, or rerouted model identifier proves only the fact
 its owning observation actually states. It must not be promoted to "the model
 that served this inference" without attributable serving evidence.
+
+Serving evidence also has scope. A server-reported model for one provider
+response does not by itself establish one served model for a higher-layer
+attempt that may contain multiple provider responses. Projection preserves or
+weakens that scope; it does not silently widen a response-scoped fact into an
+attempt-wide identity.
 
 Measurement scope is part of evidence. Thread-total, session-total, cumulative,
 last-request, turn, and per-attempt usage are different claims. A projection may
@@ -293,6 +306,11 @@ facts, exact request/response models, attributable Exact Run history, terminal
 observation, typed server-request delivery/response encoding, and protocol
 admission.
 
+Generated exactness requires generator fidelity. Once a schema shape is part of
+the generated exact surface, an unsupported generator shape fails generation;
+it is not silently represented by dropping known members, union variants, or
+presence distinctions.
+
 Lifecycle composition must not create a policy bypass. Whenever a start,
 resume, re-entry, or equivalent Exact Run path obtains an exact observation and
 then proceeds into a model-directed stage governed by application policy, the
@@ -333,8 +351,10 @@ Exact typed Codex details remain available when a neutral projection would lose
 meaning. If a neutral fact cannot be established soundly, it remains unknown.
 Adapter/backend identity does not establish model-provider identity. Exact final
 response presence must remain distinguishable after neutral projection. A
-thread-start model or reroute target is not published as a served-model fact
-unless exact lower-layer evidence establishes that serving meaning. Usage is
+thread-start model or reroute target is not published as an attempt-wide
+served-model fact unless exact lower-layer evidence establishes that serving
+meaning at that scope. Response-scoped serving evidence remains response-scoped
+when one neutral attempt may contain multiple provider responses. Usage is
 published only under a neutral scope supported by the exact observation.
 
 The adapter does not own general contract compilation, general judgment or
@@ -393,7 +413,8 @@ Before accepting a design, ask:
 5. Does every model-directed lifecycle continuation expose application-owned
    admission before execution when policy depends on newly observed facts?
 6. Does a convenience projection collapse presence, narrow measurement scope,
-   or rewrite an exact protocol status, identity, or provenance fact?
+   erase a present optional correlation, or rewrite an exact protocol status,
+   identity, or provenance fact?
 7. Does a rejected or unjudged proposition get promoted into an accepted-result
    slot merely because preserving it is useful?
 8. Does model output cross into acceptance, state transition, or effect without
