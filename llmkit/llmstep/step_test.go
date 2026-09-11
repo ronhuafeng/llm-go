@@ -55,6 +55,18 @@ type stepOutput struct {
 	Status string `json:"status"`
 }
 
+func projectFindingsForTest(findings []Finding) ([]Repair, error) {
+	projected := make([]Repair, len(findings))
+	for i, finding := range findings {
+		projected[i] = Repair{
+			Summary:   finding.Summary,
+			Codes:     copyStrings(finding.Codes),
+			Locations: copyStrings(finding.Locations),
+		}
+	}
+	return projected, nil
+}
+
 func TestRunRendersFirstAttemptWithNoRepairAndReturnsAcceptedOutput(t *testing.T) {
 	caller := &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"ok"}`}}}
 	var renderRepairLens []int
@@ -174,7 +186,7 @@ func TestRunDistinguishesJudgmentStates(t *testing.T) {
 	})
 }
 
-func TestRunFeedsSanitizedFindingsAsRepairIntoNextRender(t *testing.T) {
+func TestRunFeedsProjectedFindingsAsRepairIntoNextRender(t *testing.T) {
 	caller := &fakeCaller{responses: []llmadapter.Response{
 		{FinalResponse: `{"status":"draft"}`},
 		{FinalResponse: `{"status":"ok"}`},
@@ -199,13 +211,10 @@ func TestRunFeedsSanitizedFindingsAsRepairIntoNextRender(t *testing.T) {
 			if output.Status == "ok" {
 				return Judgment{Accepted: true}, nil
 			}
-			return Judgment{
-				Findings: []Finding{{
-					Codes: []string{"invalid_status"},
-				}},
-			}, nil
+			return Judgment{Findings: []Finding{{Codes: []string{"invalid_status"}}}}, nil
 		},
-		MaxIter: 2,
+		Sanitizer: projectFindingsForTest,
+		MaxIter:   2,
 	}, stepInput{Question: "ready?"})
 	if err != nil {
 		t.Fatal(err)
@@ -237,7 +246,8 @@ func TestRunReusesCompiledContractSchemaAcrossAttempts(t *testing.T) {
 			}
 			return Judgment{Findings: []Finding{{Codes: []string{"retry"}}}}, nil
 		},
-		MaxIter: 2,
+		Sanitizer: projectFindingsForTest,
+		MaxIter:   2,
 	}, stepInput{})
 	if err != nil {
 		t.Fatal(err)
@@ -269,7 +279,8 @@ func TestRunExhaustedAttemptsWrapsErrExhausted(t *testing.T) {
 		Validate: func(_ context.Context, _ stepInput, _ stepOutput) (Judgment, error) {
 			return Judgment{Findings: []Finding{{Codes: []string{"not_ready"}}}}, nil
 		},
-		MaxIter: 2,
+		Sanitizer: projectFindingsForTest,
+		MaxIter:   2,
 	}, stepInput{})
 	if !errors.Is(err, ErrExhausted) {
 		t.Fatalf("Run error = %v, want errors.Is ErrExhausted", err)
@@ -282,13 +293,14 @@ func TestRunExhaustedAttemptsWrapsErrExhausted(t *testing.T) {
 	}
 }
 
-func TestRunFinalExhaustedAttemptSkipsNextRepairSanitization(t *testing.T) {
+func TestRunFinalExhaustedAttemptSkipsNextRepairProjection(t *testing.T) {
 	validation := Judgment{Findings: []Finding{{
 		Summary:   "terminal validator evidence",
 		Codes:     []string{"not_ready"},
 		Locations: []string{"status"},
 	}}}
-	sanitizerCalls := 0
+	projectionCalls := 0
+	projectionErr := errors.New("projection should not run")
 
 	result, err := Run(context.Background(), Step[stepInput, stepOutput]{
 		Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"draft"}`}}},
@@ -299,8 +311,8 @@ func TestRunFinalExhaustedAttemptSkipsNextRepairSanitization(t *testing.T) {
 			return validation, nil
 		},
 		Sanitizer: func([]Finding) ([]Repair, error) {
-			sanitizerCalls++
-			return nil, ErrUnsafeRepair
+			projectionCalls++
+			return nil, projectionErr
 		},
 		MaxIter: 1,
 	}, stepInput{})
@@ -308,11 +320,11 @@ func TestRunFinalExhaustedAttemptSkipsNextRepairSanitization(t *testing.T) {
 	if !errors.Is(err, ErrExhausted) {
 		t.Fatalf("Run error = %v, want ErrExhausted", err)
 	}
-	if errors.Is(err, ErrUnsafeRepair) {
-		t.Fatalf("Run error = %v, must not expose terminal sanitizer error", err)
+	if errors.Is(err, projectionErr) {
+		t.Fatalf("Run error = %v, must not expose terminal projection error", err)
 	}
-	if sanitizerCalls != 0 {
-		t.Fatalf("sanitizer calls = %d, want 0", sanitizerCalls)
+	if projectionCalls != 0 {
+		t.Fatalf("projection calls = %d, want 0", projectionCalls)
 	}
 	if len(result.Attempts) != 1 {
 		t.Fatalf("attempts = %d, want 1", len(result.Attempts))
@@ -335,7 +347,7 @@ func TestRunExhaustionPublishesNextRepairOnlyForRealRetries(t *testing.T) {
 		{FinalResponse: `{"status":"final"}`},
 	}}
 	var renderedRepair [][]Repair
-	sanitizerCalls := 0
+	projectionCalls := 0
 
 	result, err := Run(context.Background(), Step[stepInput, stepOutput]{
 		Caller: caller,
@@ -350,7 +362,7 @@ func TestRunExhaustionPublishesNextRepairOnlyForRealRetries(t *testing.T) {
 			}}}, nil
 		},
 		Sanitizer: func([]Finding) ([]Repair, error) {
-			sanitizerCalls++
+			projectionCalls++
 			return []Repair{{Codes: []string{"safe_retry"}}}, nil
 		},
 		MaxIter: 2,
@@ -359,12 +371,12 @@ func TestRunExhaustionPublishesNextRepairOnlyForRealRetries(t *testing.T) {
 	if !errors.Is(err, ErrExhausted) {
 		t.Fatalf("Run error = %v, want ErrExhausted", err)
 	}
-	if sanitizerCalls != 1 {
-		t.Fatalf("sanitizer calls = %d, want 1 for the only real retry", sanitizerCalls)
+	if projectionCalls != 1 {
+		t.Fatalf("projection calls = %d, want 1 for the only real retry", projectionCalls)
 	}
 	if len(renderedRepair) != 2 || renderedRepair[0] != nil ||
 		len(renderedRepair[1]) != 1 || renderedRepair[1][0].Codes[0] != "safe_retry" {
-		t.Fatalf("rendered feedback = %#v, want only sanitized feedback on retry", renderedRepair)
+		t.Fatalf("rendered feedback = %#v, want only projected feedback on retry", renderedRepair)
 	}
 	if len(result.Attempts) != 2 {
 		t.Fatalf("attempts = %d, want 2", len(result.Attempts))
@@ -372,7 +384,7 @@ func TestRunExhaustionPublishesNextRepairOnlyForRealRetries(t *testing.T) {
 	if len(result.Attempts[0].NextRepair) != 1 ||
 		result.Attempts[0].NextRepair[0].Iteration != 1 ||
 		result.Attempts[0].NextRepair[0].Codes[0] != "safe_retry" {
-		t.Fatalf("first NextRepair = %#v, want sanitized retry evidence", result.Attempts[0].NextRepair)
+		t.Fatalf("first NextRepair = %#v, want projected retry evidence", result.Attempts[0].NextRepair)
 	}
 	if result.Attempts[1].NextRepair != nil {
 		t.Fatalf("final NextRepair = %#v, want nil", result.Attempts[1].NextRepair)
@@ -562,7 +574,7 @@ func TestRunStopsOnDecodeFailureWithoutRetryingAsValidation(t *testing.T) {
 	}
 }
 
-func TestRunRejectsUnsafeFeedbackBeforeNextRender(t *testing.T) {
+func TestRunRequiresExplicitRepairProjectionBeforeNextRender(t *testing.T) {
 	caller := &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"draft"}`}}}
 	renderCalls := 0
 
@@ -573,55 +585,25 @@ func TestRunRejectsUnsafeFeedbackBeforeNextRender(t *testing.T) {
 			return "prompt", nil
 		},
 		Validate: func(_ context.Context, _ stepInput, _ stepOutput) (Judgment, error) {
-			return Judgment{Findings: []Finding{{Summary: "see https://example.com/secret"}}}, nil
+			return Judgment{Findings: []Finding{{Summary: "application-owned detail", Codes: []string{"retry"}}}}, nil
 		},
 		MaxIter: 2,
 	}, stepInput{})
-	if !errors.Is(err, ErrUnsafeRepair) {
-		t.Fatalf("Run error = %v, want ErrUnsafeRepair", err)
+	if !errors.Is(err, ErrMissingRepairProjection) {
+		t.Fatalf("Run error = %v, want ErrMissingRepairProjection", err)
+	}
+	var stepErr *StepError
+	if !errors.As(err, &stepErr) || stepErr.Stage != StageSanitize {
+		t.Fatalf("Run error = %v, want sanitize-stage projection failure", err)
 	}
 	if !result.HasOutput || result.Output.Status != "draft" || result.Attempts[0].Judgment == nil {
-		t.Fatalf("unsafe repair discarded proposition or judgment: %#v", result)
+		t.Fatalf("missing projection discarded proposition or judgment: %#v", result)
+	}
+	if result.Attempts[0].NextRepair != nil {
+		t.Fatalf("missing projection published retry feedback: %#v", result.Attempts[0].NextRepair)
 	}
 	if renderCalls != 1 {
 		t.Fatalf("render calls = %d, want 1", renderCalls)
-	}
-}
-
-func TestStrictRepairSanitizerRejectsFreeFormSummaries(t *testing.T) {
-	tests := map[string]string{
-		"AWS access key":      "AKIAIOSFODNN7EXAMPLE",
-		"GitHub token":        "ghp_1234567890abcdefghijklmnopqrstuvwxyz",
-		"PEM header":          "-----BEGIN PRIVATE KEY-----",
-		"database connection": "postgres://db.internal/app",
-		"email address":       "alice@example.com",
-		"phone number":        "+1 (415) 555-0132",
-		"customer identifier": "customer-48291",
-		"business fragment":   "premium renewal approved",
-		"source fragment":     "invoiceTotal := rate * units",
-	}
-
-	for name, summary := range tests {
-		t.Run(name, func(t *testing.T) {
-			_, err := StrictRepairSanitizer([]Finding{{Summary: summary}})
-			if !errors.Is(err, ErrUnsafeRepair) {
-				t.Fatalf("StrictRepairSanitizer(%q) error = %v, want ErrUnsafeRepair", summary, err)
-			}
-		})
-	}
-}
-
-func TestStrictRepairSanitizerAllowsStructuredFields(t *testing.T) {
-	got, err := StrictRepairSanitizer([]Finding{{
-		Summary:   "   ",
-		Codes:     []string{" invalid_status "},
-		Locations: []string{" result.status "},
-	}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(got) != 1 || got[0].Iteration != 0 || got[0].Summary != "" || got[0].Codes[0] != "invalid_status" || got[0].Locations[0] != "result.status" {
-		t.Fatalf("StrictRepairSanitizer result = %#v, want trimmed structured fields", got)
 	}
 }
 
@@ -705,19 +687,19 @@ func TestRunSeparatesValidationFromNextRepair(t *testing.T) {
 	}
 	retry := result.Attempts[0].NextRepair
 	if len(retry) != 1 || retry[0].Iteration != 1 || retry[0].Summary != "model-safe detail" || retry[0].Codes[0] != "safe_code" || retry[0].Locations != nil {
-		t.Fatalf("NextRepair = %#v, want sanitized and stamped feedback", retry)
+		t.Fatalf("NextRepair = %#v, want projected and stamped feedback", retry)
 	}
 	if len(rendered) != 1 || rendered[0].Summary != "model-safe detail" || rendered[0].Codes[0] != "safe_code" || result.Attempts[1].Repair[0].Summary != "model-safe detail" || result.Attempts[1].Repair[0].Codes[0] != "safe_code" || result.Attempts[0].NextRepair[0].Summary != "model-safe detail" || result.Attempts[0].NextRepair[0].Codes[0] != "safe_code" {
 		t.Fatalf("render feedback or snapshots aliased: rendered=%#v attempts=%#v", rendered, result.Attempts)
 	}
 	if sanitizerOutput[0].Iteration != 0 || sanitizerOutput[0].Summary != "model-safe detail" || sanitizerOutput[0].Codes[0] != "safe_code" {
-		t.Fatalf("framework mutated sanitizer-owned output: %#v", sanitizerOutput)
+		t.Fatalf("framework mutated application-owned projection output: %#v", sanitizerOutput)
 	}
 }
 
-func TestRunStampsValidatorNextRepairWithFrameworkIteration(t *testing.T) {
-	for _, validatorIteration := range []int{0, -1, 999} {
-		t.Run(fmt.Sprintf("validator iteration %d", validatorIteration), func(t *testing.T) {
+func TestRunStampsProjectedRepairWithFrameworkIteration(t *testing.T) {
+	for _, ignoredProjectionIteration := range []int{0, -1, 999} {
+		t.Run(fmt.Sprintf("source iteration %d", ignoredProjectionIteration), func(t *testing.T) {
 			caller := &fakeCaller{responses: []llmadapter.Response{
 				{FinalResponse: `{"status":"draft"}`},
 				{FinalResponse: `{"status":"ok"}`},
@@ -737,6 +719,9 @@ func TestRunStampsValidatorNextRepairWithFrameworkIteration(t *testing.T) {
 						return Judgment{Accepted: true}, nil
 					}
 					return Judgment{Findings: []Finding{{Codes: []string{"safe_retry"}}}}, nil
+				},
+				Sanitizer: func(findings []Finding) ([]Repair, error) {
+					return []Repair{{Iteration: ignoredProjectionIteration, Codes: copyStrings(findings[0].Codes)}}, nil
 				},
 				MaxIter: 2,
 			}, stepInput{})
@@ -864,7 +849,8 @@ func TestRunExposesAttemptHistory(t *testing.T) {
 			}
 			return Judgment{Findings: []Finding{{Codes: []string{"not_ok"}}}}, nil
 		},
-		MaxIter: 2,
+		Sanitizer: projectFindingsForTest,
+		MaxIter:   2,
 	}, stepInput{})
 	if err != nil {
 		t.Fatal(err)
@@ -882,13 +868,13 @@ func TestRunExposesAttemptHistory(t *testing.T) {
 		t.Fatalf("first attempt feedback = %#v, want nil", got.Attempts[0].Repair)
 	}
 	if len(got.Attempts[1].Repair) != 1 || got.Attempts[1].Repair[0].Codes[0] != "not_ok" {
-		t.Fatalf("second attempt feedback = %#v, want sanitized retry feedback", got.Attempts[1].Repair)
+		t.Fatalf("second attempt feedback = %#v, want projected retry feedback", got.Attempts[1].Repair)
 	}
 	if len(got.Attempts[0].Judgment.Findings) != 1 || got.Attempts[0].Judgment.Findings[0].Codes[0] != "not_ok" {
 		t.Fatalf("attempt judgment findings = %#v, want original validator findings", got.Attempts[0].Judgment.Findings)
 	}
 	if len(got.Attempts[0].NextRepair) != 1 || got.Attempts[0].NextRepair[0].Iteration != 1 || got.Attempts[0].NextRepair[0].Codes[0] != "not_ok" {
-		t.Fatalf("attempt retry feedback = %#v, want sanitized and stamped history", got.Attempts[0].NextRepair)
+		t.Fatalf("attempt retry feedback = %#v, want projected and stamped history", got.Attempts[0].NextRepair)
 	}
 }
 
@@ -981,7 +967,7 @@ func TestRunRecordsPartialCallAndDecodeFailures(t *testing.T) {
 	}
 }
 
-func TestRunPreservesOutputOnValidationAndSanitizeFailures(t *testing.T) {
+func TestRunPreservesOutputOnValidationAndProjectionFailures(t *testing.T) {
 	validationErr := errors.New("validate")
 	validationResult, err := Run(context.Background(), Step[stepInput, stepOutput]{
 		Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"draft"}`}}},
@@ -993,24 +979,26 @@ func TestRunPreservesOutputOnValidationAndSanitizeFailures(t *testing.T) {
 	}, stepInput{})
 	assertStepFailure(t, validationResult, err, StageValidate, validationErr, true)
 
-	sanitizeResult, err := Run(context.Background(), Step[stepInput, stepOutput]{
+	projectionErr := errors.New("application projection failed")
+	projectionResult, err := Run(context.Background(), Step[stepInput, stepOutput]{
 		Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"draft"}`}}},
 		Render: func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
 		Validate: func(context.Context, stepInput, stepOutput) (Judgment, error) {
-			return Judgment{Findings: []Finding{{Summary: "https://unsafe.example"}}}, nil
+			return Judgment{Findings: []Finding{{Summary: "application detail"}}}, nil
 		},
-		MaxIter: 2,
+		Sanitizer: func([]Finding) ([]Repair, error) { return nil, projectionErr },
+		MaxIter:   2,
 	}, stepInput{})
-	assertStepFailure(t, sanitizeResult, err, StageSanitize, ErrUnsafeRepair, true)
-	if sanitizeResult.Attempts[0].Call.Response.FinalResponse != `{"status":"draft"}` {
-		t.Fatalf("sanitize failure lost call evidence: %#v", sanitizeResult.Attempts[0].Call)
+	assertStepFailure(t, projectionResult, err, StageSanitize, projectionErr, true)
+	if projectionResult.Attempts[0].Call.Response.FinalResponse != `{"status":"draft"}` {
+		t.Fatalf("projection failure lost call evidence: %#v", projectionResult.Attempts[0].Call)
 	}
-	validation := sanitizeResult.Attempts[0].Judgment.Findings
-	if len(validation) != 1 || validation[0].Summary != "https://unsafe.example" {
-		t.Fatalf("sanitize failure lost validator decision: %#v", validation)
+	validation := projectionResult.Attempts[0].Judgment.Findings
+	if len(validation) != 1 || validation[0].Summary != "application detail" {
+		t.Fatalf("projection failure lost validator decision: %#v", validation)
 	}
-	if sanitizeResult.Attempts[0].NextRepair != nil {
-		t.Fatalf("sanitize failure published retry feedback: %#v", sanitizeResult.Attempts[0].NextRepair)
+	if projectionResult.Attempts[0].NextRepair != nil {
+		t.Fatalf("projection failure published retry feedback: %#v", projectionResult.Attempts[0].NextRepair)
 	}
 }
 

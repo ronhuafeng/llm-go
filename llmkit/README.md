@@ -29,7 +29,7 @@ and run as part of the ordinary module test suite:
 - [`llmadapter/example_test.go`](llmadapter/example_test.go) — inference-only
   `Caller`, presence-aware evidence, and isolated provider details.
 - [`llmstep/example_test.go`](llmstep/example_test.go) — proposition →
-  deterministic judgment → sanitized repair → accepted result.
+  deterministic judgment → application-projected repair → accepted result.
 
 The repository-level
 [`example_authority_to_effect_test.go`](../internal/tools/integration/example_authority_to_effect_test.go)
@@ -61,8 +61,10 @@ ordinary Go value semantics.
 
 `llmstep.Run` owns bounded inference adjudication. `Validate` is required before
 execution starts. Validator `Judgment` and model-facing `Repair` are distinct
-values. Only sanitized repair reaches a later model attempt. Exhaustion returns
-`ErrExhausted` while retaining the latest proposition and attempt evidence.
+values. Raw findings never automatically reach a later model attempt: an
+application-owned `Step.Sanitizer` projection is required when a rejected
+attempt will retry. Exhaustion returns `ErrExhausted` while retaining the latest
+proposition and attempt evidence.
 
 Detailed semantics belong in package documentation and [CONTEXT.md](CONTEXT.md),
 not in duplicate helper layers.

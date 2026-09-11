@@ -5,16 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"regexp"
-	"strings"
-	"unicode"
 
 	"github.com/ronhuafeng/llm-go/llmkit/llmadapter"
 	"github.com/ronhuafeng/llm-go/llmkit/llmschema"
 )
-
-// ErrUnsafeRepair reports model-facing repair input rejected by a sanitizer.
-var ErrUnsafeRepair = errors.New("llmstep: unsafe repair")
 
 var ErrNilRender = errors.New("llmstep: render is nil")
 
@@ -23,6 +17,10 @@ var ErrNilValidate = errors.New("llmstep: validate is nil")
 
 // ErrInvalidMaxIter reports a step configured with a non-positive retry bound.
 var ErrInvalidMaxIter = errors.New("llmstep: maxIter must be at least 1")
+
+// ErrMissingRepairProjection reports a rejected attempt that can retry but has
+// no application-owned projection for model-facing repair input.
+var ErrMissingRepairProjection = errors.New("llmstep: repair projection is required for retry")
 
 // ErrExhausted reports that no attempt produced an accepted judgment before
 // MaxIter was exhausted.
@@ -42,8 +40,8 @@ type Judgment struct {
 	Findings []Finding `json:"findings,omitempty"`
 }
 
-// Repair is sanitizer-owned, iteration-stamped information eligible for a
-// later prompt render. It is a projection of findings, not the judgment.
+// Repair is application-projected, iteration-stamped information eligible for
+// a later prompt render. It is a projection of findings, not the judgment.
 type Repair struct {
 	Iteration int      `json:"iteration,omitempty"`
 	Summary   string   `json:"summary,omitempty"`
@@ -51,12 +49,15 @@ type Repair struct {
 	Locations []string `json:"locations,omitempty"`
 }
 
-// RepairSanitizer projects judgment findings into model-facing repair input.
+// RepairSanitizer is the application-owned projection from judgment findings
+// to model-facing repair input. The toolkit does not inspect or reinterpret
+// the content returned by this hook.
 type RepairSanitizer func([]Finding) ([]Repair, error)
 
 // Step describes one typed structured-output LLM operation. Caller, Render,
 // and Validate are required configuration; a nil Validate is rejected before
-// Render or Caller.Call.
+// Render or Caller.Call. Sanitizer is required only when a rejected attempt
+// will actually retry with model-facing repair input.
 type Step[I any, O any] struct {
 	Caller    llmadapter.Caller
 	Render    func(context.Context, I, []Repair) (string, error)
@@ -108,8 +109,8 @@ type Attempt[O any] struct {
 	// means no judgment occurred. Generic values in Call retain ordinary Go
 	// value semantics.
 	Judgment *Judgment
-	// NextRepair is the sanitizer-owned, iteration-stamped repair supplied to
-	// the next Render call when another attempt exists, published as an
+	// NextRepair is the application-projected, iteration-stamped repair supplied
+	// to the next Render call when another attempt exists, published as an
 	// isolated snapshot. It is nil when no later render will run.
 	NextRepair []Repair
 	Err        error
@@ -125,8 +126,7 @@ type Result[O any] struct {
 	Attempts []Attempt[O]
 }
 
-// Run executes a step and returns the accepted output with attempt
-// history.
+// Run executes a step and returns the accepted output with attempt history.
 func Run[I any, O any](ctx context.Context, step Step[I, O], input I) (Result[O], error) {
 	var result Result[O]
 
@@ -146,11 +146,6 @@ func Run[I any, O any](ctx context.Context, step Step[I, O], input I) (Result[O]
 	contract, err := llmschema.Compile[O]()
 	if err != nil {
 		return result, err
-	}
-
-	sanitize := step.Sanitizer
-	if sanitize == nil {
-		sanitize = StrictRepairSanitizer
 	}
 
 	var repair []Repair
@@ -194,8 +189,11 @@ func Run[I any, O any](ctx context.Context, step Step[I, O], input I) (Result[O]
 			result.Attempts = append(result.Attempts, attempt)
 			return snapshotResult(result), fmt.Errorf("%w: maxIter=%d", ErrExhausted, step.MaxIter)
 		}
+		if step.Sanitizer == nil {
+			return fail(result, attempt, StageSanitize, ErrMissingRepairProjection)
+		}
 
-		nextRepair, err := sanitize(copyFindings(judgment.Findings))
+		nextRepair, err := step.Sanitizer(copyFindings(judgment.Findings))
 		if err != nil {
 			return fail(result, attempt, StageSanitize, err)
 		}
@@ -255,34 +253,6 @@ func snapshotResult[O any](result Result[O]) Result[O] {
 	return result
 }
 
-// StrictRepairSanitizer accepts identifier-oriented Codes and Locations and
-// rejects every non-empty free-form Summary. It is not a DLP system, secret
-// scanner, or privacy guarantee; applications must still redact validator
-// findings before returning them.
-func StrictRepairSanitizer(findings []Finding) ([]Repair, error) {
-	sanitized := make([]Repair, 0, len(findings))
-	for i, item := range findings {
-		if strings.TrimSpace(item.Summary) != "" {
-			return nil, fmt.Errorf("%w: findings[%d].summary", ErrUnsafeRepair, i)
-		}
-		next := Repair{
-			Codes:     sanitizeStrings(item.Codes),
-			Locations: sanitizeStrings(item.Locations),
-		}
-		if len(next.Codes) == 0 && len(next.Locations) == 0 {
-			continue
-		}
-		if err := safeTokens(next.Codes, "codes", i); err != nil {
-			return nil, err
-		}
-		if err := safeTokens(next.Locations, "locations", i); err != nil {
-			return nil, err
-		}
-		sanitized = append(sanitized, next)
-	}
-	return sanitized, nil
-}
-
 func stampIterations(repair []Repair, iteration int) {
 	for i := range repair {
 		repair[i].Iteration = iteration
@@ -334,47 +304,4 @@ func copyStrings(values []string) []string {
 		return nil
 	}
 	return append(make([]string, 0, len(values)), values...)
-}
-
-func sanitizeStrings(values []string) []string {
-	if len(values) == 0 {
-		return nil
-	}
-	sanitized := make([]string, 0, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value != "" {
-			sanitized = append(sanitized, value)
-		}
-	}
-	return sanitized
-}
-
-var unsafeRepairPattern = regexp.MustCompile(`(?i)(https?://|www\.|authorization\s*:|bearer\s+[a-z0-9._~+/=-]+|api[_ -]?key|password|passwd|secret|token\s*[:=]|sk-[a-z0-9]{12,}|[a-z]:\\|~[/\\]|/(users|home|var|etc|private|tmp)/)`)
-
-func safeTokens(tokens []string, field string, findingIndex int) error {
-	for tokenIndex, token := range tokens {
-		if !safeToken(token) {
-			return fmt.Errorf("%w: findings[%d].%s[%d]", ErrUnsafeRepair, findingIndex, field, tokenIndex)
-		}
-	}
-	return nil
-}
-
-func safeToken(token string) bool {
-	if token == "" || len(token) > 96 || unsafeRepairPattern.MatchString(token) {
-		return false
-	}
-	for _, r := range token {
-		if unicode.IsLetter(r) || unicode.IsDigit(r) {
-			continue
-		}
-		switch r {
-		case '_', '-', '.', ':', '#':
-			continue
-		default:
-			return false
-		}
-	}
-	return true
 }

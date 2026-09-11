@@ -53,6 +53,16 @@ func ExampleRun() {
 				}},
 			}, nil
 		},
+		Sanitizer: func(findings []llmstep.Finding) ([]llmstep.Repair, error) {
+			projected := make([]llmstep.Repair, len(findings))
+			for i, finding := range findings {
+				projected[i] = llmstep.Repair{
+					Codes:     append([]string(nil), finding.Codes...),
+					Locations: append([]string(nil), finding.Locations...),
+				}
+			}
+			return projected, nil
+		},
 		MaxIter: 2,
 	}, reviewInput{Question: "Review this patch."})
 	if err != nil {
