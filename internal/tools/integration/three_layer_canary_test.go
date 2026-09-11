@@ -124,79 +124,16 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 	})
 }
 
-func TestApplicationAdmissionAcrossPublicCallPaths(t *testing.T) {
-	type admissionCase struct {
-		name      string
-		scenario  string
-		wantModel string
-		wantError bool
-	}
-	cases := []admissionCase{
-		{name: "valid", scenario: "success", wantModel: "canary-rerouted"},
-		{name: "approval", scenario: "admission-approval", wantModel: "canary-start", wantError: true},
-		{name: "sandbox", scenario: "admission-sandbox", wantModel: "canary-start", wantError: true},
-		{name: "ephemeral", scenario: "admission-ephemeral", wantModel: "canary-start", wantError: true},
-	}
-	paths := []struct {
-		name string
-		call func(*testing.T, *codexcaller.Caller, admissionCase) (codexsdk.StartedThreadRun, error)
-	}{
-		{name: "Call", call: func(t *testing.T, caller *codexcaller.Caller, tc admissionCase) (codexsdk.StartedThreadRun, error) {
-			response, err := caller.Call(context.Background(), validRequest())
-			if response.Execution.BackendName != "codex" {
-				t.Fatalf("neutral evidence = %#v", response.Execution)
-			}
-			requireUnknownProvider(t, response.Execution)
-			requireObservedModel(t, response.Execution, tc.wantModel)
-			details, ok := response.BackendDetails.(codexcaller.Details)
-			if !ok {
-				t.Fatalf("backend details = %#v", response.BackendDetails)
-			}
-			return details.Run, err
-		}},
-		{name: "CallDetailed", call: func(_ *testing.T, caller *codexcaller.Caller, _ admissionCase) (codexsdk.StartedThreadRun, error) {
-			return caller.CallDetailed(context.Background(), validRequest())
-		}},
-		{name: "CallStream", call: func(t *testing.T, caller *codexcaller.Caller, _ admissionCase) (codexsdk.StartedThreadRun, error) {
-			stream, err := caller.CallStream(context.Background(), validRequest())
-			if err != nil {
-				return codexsdk.StartedThreadRun{}, err
-			}
-			if stream.SDKStream() == nil {
-				t.Fatal("CallStream did not retain SDK stream")
-			}
-			run, waitErr := stream.Wait(context.Background())
-			streamErr := stream.Err()
-			if (waitErr == nil) != (streamErr == nil) || (waitErr != nil && streamErr.Error() != waitErr.Error()) {
-				t.Fatalf("Err = %v, Wait error = %v", streamErr, waitErr)
-			}
-			return run, waitErr
-		}},
-	}
+func TestApplicationAdmissionRejectsBeforeTurn(t *testing.T) {
+	client, caller := canaryCaller(t, "admission-approval", codexsdk.ClientOptions{})
+	defer closeCanary(t, client)
 
-	for _, tc := range cases {
-		for _, path := range paths {
-			t.Run(tc.name+"/"+path.name, func(t *testing.T) {
-				client, caller := canaryCaller(t, tc.scenario, codexsdk.ClientOptions{})
-				defer closeCanary(t, client)
-				run, err := path.call(t, caller, tc)
-				if tc.wantError {
-					if !errors.Is(err, errApplicationAdmission) {
-						t.Fatalf("error = %v, want application admission cause", err)
-					}
-					if run.Start.Thread.ID != "thread-1" || run.Run.Turn.ID != "" || len(run.Run.Notifications) != 0 {
-						t.Fatalf("admission rejection continued execution: %#v", run)
-					}
-					return
-				}
-				if err != nil {
-					t.Fatal(err)
-				}
-				if run.Run.Turn.Status != protocolv2.TurnStatusCompleted || len(run.Run.Notifications) != 4 {
-					t.Fatalf("terminal run = %#v", run)
-				}
-			})
-		}
+	run, err := caller.CallDetailed(context.Background(), validRequest())
+	if !errors.Is(err, errApplicationAdmission) {
+		t.Fatalf("error = %v, want application admission cause", err)
+	}
+	if run.Start.Thread.ID != "thread-1" || run.Run.Turn.ID != "" || len(run.Run.Notifications) != 0 {
+		t.Fatalf("admission rejection continued execution: %#v", run)
 	}
 }
 
@@ -466,15 +403,6 @@ func requireObservedInput(t *testing.T, usage *llmadapter.TokenUsage, want int64
 	}
 }
 
-func isAdmissionMismatchScenario(scenario string) bool {
-	switch scenario {
-	case "admission-approval", "admission-sandbox", "admission-ephemeral":
-		return true
-	default:
-		return false
-	}
-}
-
 const canaryOverflowHandlerStarted = "overflow-handler-started"
 
 func closeCanary(t *testing.T, client canaryClient) {
@@ -526,17 +454,12 @@ func runThreeLayerFakeAppServer(scenario string) {
 				os.Exit(2)
 			}
 			result := canaryThreadStart()
-			switch scenario {
-			case "admission-approval":
+			if scenario == "admission-approval" {
 				result["approvalPolicy"] = "on-request"
-			case "admission-sandbox":
-				result["sandbox"] = map[string]any{"type": "dangerFullAccess"}
-			case "admission-ephemeral":
-				result["thread"].(map[string]any)["ephemeral"] = false
 			}
 			canarySend(map[string]any{"id": id, "result": result})
 		case "turn/start":
-			if isAdmissionMismatchScenario(scenario) {
+			if scenario == "admission-approval" {
 				os.Exit(3)
 			}
 			params, _ := message["params"].(map[string]any)

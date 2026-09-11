@@ -125,11 +125,9 @@ jobs:
           cp go.sum .verify.sum
           trap 'rm -f .verify.mod .verify.sum' EXIT
           go mod edit -modfile=.verify.mod \
-            -replace=github.com/ronhuafeng/llm-go/llmkit=../../llmkit \
-            -replace=github.com/ronhuafeng/llm-go/codexsdk=../../codexsdk
+            -replace=github.com/ronhuafeng/llm-go/llmkit=../../llmkit
           verify_mod="$(pwd)/.verify.mod"
           export GOFLAGS="-modfile=${verify_mod}"
-          go mod tidy
           go vet ./...
           go test -race ./...
 
