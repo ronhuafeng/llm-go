@@ -5,12 +5,12 @@ runner. Semantic proofs live in Go tests and executable examples; GitHub Actions
 runs standard Go tools and a version-pinned Actions workflow validator.
 
 Published modules and repository tooling intentionally have different minimum
-Go versions. `llmkit`, `codexsdk`, and `llmcaller/codex` support Go 1.23 and are
-tested independently with `GOWORK=off`. The root workspace and `internal/tools`
-require Go 1.25. That repository-tooling baseline is not a stronger requirement
-for consumers of the published modules.
+Go versions. `llmkit`, `codexsdk`, and `llmcaller/codex` support Go 1.23. The
+root workspace and `internal/tools` require Go 1.25. That repository-tooling
+baseline is not a stronger requirement for consumers of the published modules.
 
-For a public module, the local pattern is:
+For a public module whose committed dependencies are already published, the
+standalone local pattern is:
 
 ```sh
 cd llmkit # or codexsdk or llmcaller/codex
@@ -18,6 +18,20 @@ GOWORK=off go mod tidy -diff
 GOWORK=off go vet ./...
 GOWORK=off go test -race ./...
 ```
+
+A pre-v1 source cohort may intentionally commit a downstream `go.mod` that names
+the next upstream module version before that tag exists. During that source
+cohort, ordinary PR verification proves the downstream against repository
+current source with a temporary, uncommitted `-modfile` replacement. The
+committed module manifest remains unchanged and contains no `replace` or
+`exclude`. This is a current-source proof only; it does not claim the committed
+dependency version is already published or independently resolvable.
+
+For the current Codex adapter cohort, the canonical verification shape is the
+same one used by `PR verification`: copy `go.mod`/`go.sum` to temporary verify
+files, add only the required repository-source replacement to the temporary
+modfile, and run Go commands with `GOWORK=off` plus that `-modfile`. Do not add a
+committed replacement merely to make an unpublished dependency resolve.
 
 Repository tools require Go 1.25 and use the same standalone pattern from
 `internal/tools`. To prove repository-minimum current-source composition through
@@ -46,14 +60,25 @@ gate and must never be treated as a pre-tag publication check. See
 
 1. validate GitHub Actions workflow syntax and context usage with a
    version-pinned `actionlint` binary;
-2. test each public module with Go 1.23 and `GOWORK=off`;
-3. test `internal/tools` standalone and current-source workspace composition
+2. test `llmkit` and `codexsdk` at Go 1.23 with `GOWORK=off` against their
+   committed standalone manifests;
+3. test `llmcaller/codex` at Go 1.23 against repository current `llmkit` source
+   through the temporary verify modfile required by the active pre-v1 source
+   cohort, without modifying its committed manifest;
+4. test `internal/tools` standalone and current-source workspace composition
    with Go 1.25;
-4. require tracked Go files to be `gofmt`-clean and reject whitespace errors;
-5. on the current Go toolchain, run `go mod tidy -diff`, `go vet ./...`, and
-   `go test -race ./...` for `llmkit`, `codexsdk`, `llmcaller/codex`, and
-   `internal/tools`, with `GOWORK=off`, then run repository integration with
-   the workspace enabled.
+5. require tracked Go files to be `gofmt`-clean and reject whitespace errors;
+6. on the current Go toolchain, run `go mod tidy -diff`, `go vet ./...`, and
+   `go test -race ./...` for independently resolvable modules; run the Codex
+   adapter's `go vet` and `go test -race` through its temporary current-source
+   modfile; then run repository integration against current source.
+
+The adapter's temporary source replacement and repository integration proof
+answer only whether the checked-out source cohort composes. They do not answer
+whether a clean external consumer can resolve a future adapter tag. Published
+closure is a release-time proof owned by [`docs/release.md`](release.md), and a
+dependent module must not be tagged until every committed dependency version
+exists and resolves with `GOWORK=off`.
 
 Go `Example...` functions and the three-layer fake canary are ordinary tests;
 they are not invoked again through a second verification framework. Codex SDK
@@ -83,8 +108,9 @@ workflow may run bounded `go test -fuzz=... -fuzztime=...` steps; it is not a
 required pull-request check.
 
 Ordinary verification deliberately does **not** model release state, mirror
-public API inventories, compile README Markdown, probe unpublished module
-versions, produce custom evidence/authorization artifacts, or wrap standard Go
+public API inventories, compile README Markdown, or treat an unpublished module
+version as published merely because repository source can replace it. It does
+not produce custom evidence/authorization artifacts or wrap standard Go
 commands in another repository task runner. Git source, owner-local Go tests,
 module `go.mod` files, and immutable tags are the authorities for those facts.
 

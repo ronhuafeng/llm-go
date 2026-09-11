@@ -57,9 +57,12 @@ schema-valid              != semantically valid
 representation adaptation != semantic contract mutation
 execution backend         != model provider
 model identifier          != provider identity
+selected or routed model  != served model
+aggregate usage           != per-attempt usage
 generated exactness       != runtime compatibility
 protocol observation      != convenience projection
 proposed                  != accepted
+preserved proposition     != accepted result
 accepted                  != authorized
 authorized                != executed
 read-only                 != confidential
@@ -74,6 +77,10 @@ ephemeral                 != provider-retention-disabled
 Model output is a proposition, even after successful JSON parsing, schema
 validation, and Go decoding. Deterministic code owns semantic acceptance and
 rejection.
+
+A rejected proposition may remain available as attempt evidence. Preserving it
+does not promote it into an accepted result. Public result slots whose meaning
+is "accepted output" are populated only after deterministic acceptance.
 
 ### P2. Types constrain shape; caller contracts keep their meaning
 
@@ -97,13 +104,24 @@ a valid first-class result.
 Presence is part of evidence. An observed zero or empty value is not absence
 unless the owning protocol or contract defines that equivalence. A convenience
 projection may omit or reshape exact evidence, but it must not rewrite the
-lower-layer terminal status, presence, identity, or provenance that produced
-it.
+lower-layer terminal status, presence, identity, provenance, or measurement
+scope that produced it.
 
 Execution-backend identity and model-provider identity are different facts. A
 model identifier does not by itself establish provider identity. Each may be
 published only by the layer that can directly prove it; otherwise it remains
 unknown.
+
+Model selection and routing are also distinct from model service. A requested,
+thread-selected, effective, or rerouted model identifier proves only the fact
+its owning observation actually states. It must not be promoted to "the model
+that served this inference" without attributable serving evidence.
+
+Measurement scope is part of evidence. Thread-total, session-total, cumulative,
+last-request, turn, and per-attempt usage are different claims. A projection may
+publish a measurement only under a scope justified by the lower-layer
+observation; it must not relabel an aggregate as a narrower measurement merely
+because that shape is convenient.
 
 ### P4. Failure does not erase observation
 
@@ -128,6 +146,11 @@ classification are application policy. Raw validator findings do not become
 model input implicitly, and the toolkit does not become a DLP or content-policy
 engine by providing the projection seam.
 
+The accepted result is another distinct semantic state. Retry exhaustion,
+validation failure, or rejection may preserve the latest proposition inside
+attempt evidence, but none of those states may populate an accepted-result
+projection without a positive deterministic judgment.
+
 ### P6. Effects and execution policy require application authority
 
 Model output never grants mutation authority by itself. Application-owned rules
@@ -140,6 +163,12 @@ choices are not transferred to an SDK or adapter merely because that layer
 provides a callback, profile-shaped input, or admission hook. Lower layers may
 expose exact facts and fail-closed admission mechanisms; caller-owned policy
 uses those mechanisms to allow or reject continuation.
+
+An admission boundary must cover every model-directed continuation path whose
+execution depends on application-owned policy after exact facts become
+available. Start, resume, re-entry, retry, or another lifecycle spelling does
+not bypass the need for the same authority boundary. The mechanism may differ
+by protocol path; policy ownership does not.
 
 When a protocol asks for application-owned data or authority, an SDK may deliver
 the exact request and encode a caller-supplied typed response. If the application
@@ -162,6 +191,10 @@ runtime owner. If deleting an abstraction does not force important semantics to
 be reimplemented incorrectly by real consumers, keep it internal or use
 ordinary Go.
 
+Public names should describe the semantic owner they actually represent. A
+caller-owned projection hook should not be named as though a shared library
+owns sanitization, safety, or content policy.
+
 ## Shared semantics
 
 **Fact** — a statement established by the layer that can directly prove it.
@@ -171,7 +204,7 @@ partial or absent. Presence is distinct from the observed value.
 
 **Projection** — a representation of lower-layer evidence in higher-layer
 vocabulary. It may omit facts but must not create them or rewrite their
-presence, identity, provenance, or terminal meaning.
+presence, identity, provenance, terminal meaning, or measurement scope.
 
 **Contract** — a caller-defined restriction on the form of a model proposition.
 A JSON Schema is one provider-facing representation of that contract. Provider
@@ -182,6 +215,10 @@ is not a domain fact merely because it satisfies a contract.
 
 **Judgment** — a deterministic acceptance or rejection of a proposition, with
 optional validator-owned findings.
+
+**Accepted result** — a proposition promoted by a positive deterministic
+judgment into the result state promised by the higher-level API. Rejected or
+unjudged propositions remain attempt evidence, not accepted results.
 
 **Retry feedback** — application-projected information explicitly eligible for
 a later model attempt. It is not the judgment and does not inherit validator
@@ -197,6 +234,15 @@ executed. It is not evidence of the actual model provider.
 **Model provider** — the provider identity directly established by attributable
 lower-layer evidence. Model names, backend type, credentials, URLs, or requested
 configuration do not establish it by inference.
+
+**Served model** — the model identifier directly established as having served
+the relevant inference. Requested, selected, effective, or routed model facts
+are not equivalent unless the owning protocol explicitly establishes that
+semantics.
+
+**Measurement scope** — the execution interval or aggregation boundary to which
+an observed measurement applies. Projection preserves this scope or publishes a
+weaker claim; it does not silently narrow it.
 
 **Authority** — the application-owned right to cause a state transition or
 external effect.
@@ -217,7 +263,9 @@ policy, or effect authority.**
 The toolkit owns provider-neutral contracts, structured decoding, neutral
 execution evidence, deterministic validation orchestration, the explicit
 judgment-to-retry-feedback boundary, bounded repair attempts, failure-stage
-attribution, and attempt evidence.
+attribution, and attempt evidence. Neutral observations preserve presence and
+measurement scope; accepted-result state is distinct from retained proposition
+evidence.
 
 It does not own provider SDKs, transport, credentials, application state,
 workflow semantics, authorization, side-effect execution, execution safety
@@ -227,7 +275,9 @@ or business rules.
 
 A successful toolkit result means that a proposition satisfied the configured
 contract and judgment. It does not mean the proposition is globally true or
-that an application is authorized to act on it.
+that an application is authorized to act on it. A rejected or unjudged
+proposition may remain in attempt evidence without becoming the successful
+result.
 
 ## Codex SDK
 
@@ -242,6 +292,11 @@ behavior. The SDK owns process and transport lifecycle, generated protocol
 facts, exact request/response models, attributable Exact Run history, terminal
 observation, typed server-request delivery/response encoding, and protocol
 admission.
+
+Lifecycle composition must not create a policy bypass. Whenever a start,
+resume, re-entry, or equivalent Exact Run path obtains an exact observation and
+then proceeds into a model-directed stage governed by application policy, the
+SDK exposes the caller-owned admission seam before that continuation.
 
 It does not own provider-neutral LLM semantics, application contracts,
 validation policy, repair policy, workflow state, application execution policy,
@@ -266,9 +321,9 @@ boundary.**
 
 The adapter is the only runtime join between `llmkit` and `codexsdk`. It owns
 Codex request assembly, Codex-specific representation/schema admission,
-wiring caller-owned execution admission into the exact SDK lifecycle, execution
-through that lifecycle, and projection into toolkit-owned provider-neutral
-evidence.
+wiring caller-owned execution admission into every Exact Run lifecycle path it
+exposes, execution through that lifecycle, and projection into toolkit-owned
+provider-neutral evidence.
 
 Schema adaptation must preserve the caller-owned contract's accepted instance
 language; if Codex cannot represent that contract without semantic mutation,
@@ -276,7 +331,11 @@ the adapter rejects it before execution.
 
 Exact typed Codex details remain available when a neutral projection would lose
 meaning. If a neutral fact cannot be established soundly, it remains unknown.
-Adapter/backend identity does not establish model-provider identity.
+Adapter/backend identity does not establish model-provider identity. Exact final
+response presence must remain distinguishable after neutral projection. A
+thread-start model or reroute target is not published as a served-model fact
+unless exact lower-layer evidence establishes that serving meaning. Usage is
+published only under a neutral scope supported by the exact observation.
 
 The adapter does not own general contract compilation, general judgment or
 repair orchestration, Codex transport or generated protocol facts, application
@@ -313,26 +372,36 @@ The modules share review, CI, release coordination, and compatibility evidence
 because their boundaries must evolve in sight of each other. Shared repository
 location does not transfer semantic authority.
 
+Source evolution and publication are different observations. Pre-v1 modules may
+change together in one source cohort, including a downstream manifest naming the
+next upstream version before that tag exists. Publication remains
+dependency-ordered: a dependent module is not publishable until its committed
+dependency closure exists and resolves without workspace repair.
+
 ## Design test
 
 Before accepting a design, ask:
 
 1. Which semantic owner can directly prove the fact being represented?
-2. Does any projection turn unknown, requested, inferred, proposed, or
-   authorized state into a stronger claim without new evidence?
+2. Does any projection turn unknown, requested, inferred, selected, routed,
+   proposed, or authorized state into a stronger claim without new evidence?
 3. Does representation adaptation change the caller-owned contract instead of
    preserving it or rejecting it?
 4. Does a library mechanism make an application-owned disclosure, execution,
    approval, permission, or authority decision merely because it has a hook
    where that decision could be made?
-5. Does a convenience projection collapse presence or rewrite an exact protocol
-   status, identity, or provenance fact?
-6. Does model output cross into acceptance, state transition, or effect without
+5. Does every model-directed lifecycle continuation expose application-owned
+   admission before execution when policy depends on newly observed facts?
+6. Does a convenience projection collapse presence, narrow measurement scope,
+   or rewrite an exact protocol status, identity, or provenance fact?
+7. Does a rejected or unjudged proposition get promoted into an accepted-result
+   slot merely because preserving it is useful?
+8. Does model output cross into acceptance, state transition, or effect without
    deterministic application authority?
-7. Does each persistent abstraction protect a current invariant that would be
+9. Does each persistent abstraction protect a current invariant that would be
    materially harder to preserve without it?
-8. Can the common change path reach the canonical authority without reading a
-   second copy of the same fact?
+10. Can the common change path reach the canonical authority without reading a
+    second copy of the same fact?
 
 When convenience conflicts with these answers, reject the convenience.
 

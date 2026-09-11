@@ -17,14 +17,25 @@ are never stamped during publication.
 ### Breaking module cohorts
 
 This repository is pre-v1 and may intentionally make clean breaking changes
-across independently tagged modules in one source commit. Verify the current
-checkout and publish dependency modules before their dependents. Do not preserve
-obsolete source APIs merely so a downstream module compiles against an older
-tag.
+across independently tagged modules in one source commit. A source cohort may
+therefore commit a downstream `go.mod` that names the next upstream module
+version before that upstream tag exists. Required PR verification may prove the
+cohort against repository current source through temporary, uncommitted module
+replacements; that proof does not claim the future dependency version is already
+published.
+
+Publish dependency modules before their dependents. Do not preserve obsolete
+source APIs merely so a downstream module compiles against an older tag. Before
+a dependent module is tagged, every dependency version named by its committed
+`go.mod` must already exist and the exact committed dependency closure must
+resolve with `GOWORK=off` and without replacement. Current-source composition
+and published-closure resolution are deliberately separate proofs.
 
 A `codex-adapter` release additionally verifies its committed dependency closure
 with `GOWORK=off`, so every dependency version named by its `go.mod` must already
-exist before the adapter tag is created.
+exist before the adapter tag is created. A missing dependency tag is a release
+blocker, not a reason to commit `replace`, retain a migration alias, or weaken
+the source cohort.
 
 ## Publish
 

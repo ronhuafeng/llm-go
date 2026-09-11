@@ -33,7 +33,8 @@ _Avoid_: type strictness, experimental decode mode
 **Server Observation**:
 A known RPC result or server notification authored by the app-server. Known
 members stay exact; additional unknown members do not invalidate it. Presence
-and value remain separate when the protocol distinguishes them.
+and value remain separate when the protocol distinguishes them. Measurement
+scope and identity meaning remain the scope and meaning stated by the protocol.
 _Avoid_: permissive payload, server request, convenience success criterion
 
 **Action-Bearing Message**:
@@ -64,6 +65,8 @@ _Avoid_: SDK umbrella interface
 One composed thread/turn execution with its ordered attributable protocol
 evidence, partial result, and stable terminal cause. Server-reported status and
 presence are exact observations; convenience projections do not redefine them.
+Final-answer presence remains separate from final-answer text when the exact run
+observes that distinction.
 _Avoid_: workflow, request, convenience success contract
 
 **Exact Run Waiter**:
@@ -82,9 +85,31 @@ _Avoid_: waiter cancellation, timeout
 
 **Admission seam**:
 A lifecycle mechanism that lets caller-owned code inspect an exact Server
-Observation and allow or reject continuation before the next effect-capable
-stage. The seam does not own the policy used by the caller.
-_Avoid_: SDK safety profile, authorization engine
+Observation and allow or reject continuation before the next model-directed or
+effect-capable stage. The seam does not own the policy used by the caller.
+Every Lifecycle API path that obtains policy-relevant exact facts and then
+continues into such a stage must expose the seam; start, resume, re-entry, or
+another lifecycle spelling does not create a bypass.
+
+If the pending continuation request itself contains caller-owned,
+policy-relevant overrides that are applied after the Server Observation, the
+seam exposes an isolated exact copy of that pending request separately from the
+observation. The SDK does not hide those overrides, require caller policy to
+reconstruct the outbound request from duplicate state, or merge requested and
+observed values into a synthetic effective configuration.
+_Avoid_: SDK safety profile, authorization engine, start-only gate, synthetic effective policy
+
+**Model routing observation**:
+An exact model-selection or routing fact such as a thread-start model or reroute
+target. It remains a routing fact unless the protocol itself establishes that
+it is the model that served the relevant inference.
+_Avoid_: Served model, requested-model inference
+
+**Usage observation**:
+Exact token-accounting evidence with the aggregation boundary stated by the
+protocol, such as total versus last. The SDK preserves that scope; higher layers
+may weaken it but must not silently narrow it.
+_Avoid_: Per-call estimate, billing amount, re-scoped total
 
 **Generated Baseline Provenance**:
 The checked-in upstream Codex protocol baseline from which the generated
