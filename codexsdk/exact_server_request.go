@@ -22,10 +22,7 @@ func (c *Client) handleExactServerRequest(id any, request protocolv2.ServerReque
 
 func (c *Client) respondToExactServerRequest(ctx context.Context, id any, request protocolv2.ServerRequest) {
 	if c.options.ServerRequestHandler == nil {
-		c.failExactServerRequest(id, -32000, &ExactServerRequestError{
-			Kind:   request.Kind(),
-			Reason: "no server request handler is configured",
-		})
+		c.failExactServerRequest(id, -32000, unhandledExactServerRequest(request.Kind()))
 		return
 	}
 	response, err := invokeExactServerRequestHandler(ctx, c.options.ServerRequestHandler, request)
@@ -43,6 +40,13 @@ func (c *Client) respondToExactServerRequest(ctx context.Context, id any, reques
 	}
 	if err := c.writeExactServerRequestResponse(id, request, response); err != nil {
 		c.failClient(err)
+	}
+}
+
+func unhandledExactServerRequest(kind protocolv2.ServerRequestKind) *ExactServerRequestError {
+	return &ExactServerRequestError{
+		Kind:   kind,
+		Reason: "no server request handler is configured",
 	}
 }
 
