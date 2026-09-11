@@ -11,6 +11,11 @@
 
 ### Changed
 
+- **Breaking (pre-v1):** stop synthesizing application decisions and environment
+  facts for exact server requests. A missing `ServerRequestHandler` now fails
+  with a typed exact server-request cause and JSON-RPC error; callback shutdown
+  likewise returns a protocol error instead of implicit decline, empty answers,
+  empty permissions, or a locally generated current-time value.
 - Preserve exact final-answer presence separately from its text value. An
   observed empty `final_answer` remains present, and a server-reported
   `completed` turn is no longer converted into an SDK failure merely because a

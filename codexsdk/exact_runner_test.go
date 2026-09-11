@@ -884,15 +884,22 @@ func TestExactRunWithoutHandlerFailsClosedImmediately(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	result, runErr := root.ThreadRunner().Start(ctx, StartThreadRunRequest{Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}}})
-	if runErr != nil {
-		t.Fatalf("nil-handler command approval should decline and complete: %v (result %#v)", runErr, result)
+	if !errors.Is(runErr, ErrExactServerRequest) {
+		t.Fatalf("run error = %v, want typed exact server request failure (result %#v)", runErr, result)
 	}
-	if err := root.Close(); err != nil {
-		t.Fatal(err)
+	if errors.Is(runErr, context.DeadlineExceeded) {
+		t.Fatalf("missing handler retained application-owned request instead of rejecting it: %v", runErr)
+	}
+	var requestErr *ExactServerRequestError
+	if !errors.As(runErr, &requestErr) || requestErr.Kind != protocolv2.ServerRequestKindItemCommandExecutionRequestApproval {
+		t.Fatalf("exact server request error = %#v, want command approval kind", requestErr)
+	}
+	if closeErr := root.Close(); !errors.Is(closeErr, ErrExactServerRequest) {
+		t.Fatalf("Close error = %v, want first exact server request cause", closeErr)
 	}
 }
 
-func TestExactRunNilHandlerFailClosedResponsesAreDeterministic(t *testing.T) {
+func TestExactRunNilHandlerFailuresAreDeterministic(t *testing.T) {
 	for _, mode := range []string{"approval", "file-approval", "user-input", "approval-before-turn-start"} {
 		t.Run(mode, func(t *testing.T) {
 			t.Setenv("CODEXSDK_FAKE_RECORD", tempRecord(t))
@@ -902,11 +909,15 @@ func TestExactRunNilHandlerFailClosedResponsesAreDeterministic(t *testing.T) {
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
-			if _, err := root.ThreadRunner().Start(ctx, StartThreadRunRequest{Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}}}); err != nil {
-				t.Fatalf("exact nil-handler %s did not fail closed: %v", mode, err)
+			_, runErr := root.ThreadRunner().Start(ctx, StartThreadRunRequest{Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}}})
+			if !errors.Is(runErr, ErrExactServerRequest) {
+				t.Fatalf("exact nil-handler %s error = %v, want typed exact server request failure", mode, runErr)
 			}
-			if err := root.Close(); err != nil {
-				t.Fatal(err)
+			if errors.Is(runErr, context.DeadlineExceeded) {
+				t.Fatalf("exact nil-handler %s retained application-owned request: %v", mode, runErr)
+			}
+			if closeErr := root.Close(); !errors.Is(closeErr, ErrExactServerRequest) {
+				t.Fatalf("Close error = %v, want first exact server request cause", closeErr)
 			}
 		})
 	}

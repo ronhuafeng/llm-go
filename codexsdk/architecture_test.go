@@ -150,22 +150,6 @@ func TestServerRequestResponseConstructorsCoverGeneratedKinds(t *testing.T) {
 	}
 }
 
-func TestExactFailClosedDispatchCoversGeneratedKinds(t *testing.T) {
-	root, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	generated := referencedNames(t, filepath.Join(root, "protocolv2", "protocol_types.gen.go"), func(name string) bool {
-		return strings.HasPrefix(name, "ServerRequestKind") && name != "ServerRequestKind"
-	})
-	covered := referencedNames(t, filepath.Join(root, "exact_server_request.go"), func(name string) bool {
-		return strings.HasPrefix(name, "ServerRequestKind") && name != "ServerRequestKind"
-	})
-	if !reflect.DeepEqual(generated, covered) {
-		t.Fatalf("generated server request kinds and exact fail-closed dispatch differ:\ngenerated=%v\ncovered=%v", generated, covered)
-	}
-}
-
 func referencedNames(t *testing.T, path string, include func(string) bool) []string {
 	t.Helper()
 	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
