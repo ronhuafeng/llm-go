@@ -60,12 +60,19 @@ effort, service tier, and workspace roots remain caller-controlled.
 - `CallStream` preserves the exact streaming lifecycle and applies the same
   pre-turn admission.
 
-`Call` publishes an isolated `codexcaller.Details` snapshot when it can do so
-safely. Failure to isolate exact details omits `ProviderDetails` and returns the
-isolation error, but independently isolated neutral model/usage observations
-remain available. Requested/default model values never fill an unknown
-observation, and observed zero token counts remain distinct from unreported
-counts.
+`Call` publishes `Execution.BackendName == "codex"` and an isolated
+`codexcaller.Details` value through `BackendDetails` when the exact snapshot can
+be isolated safely. Backend identity means the request executed through this
+Codex adapter/runtime; it is not an upstream model-provider fact.
+
+`Execution.ProviderName` stays unknown unless exact lower-layer evidence proves
+the actual serving provider independently. In particular, adapter identity,
+requested/default model values, Codex thread configuration, credentials, and
+model names do not populate provider identity. Effective model evidence remains
+independent and follows attributable start/reroute observations. Failure to
+isolate exact details omits `BackendDetails` and returns the isolation error,
+but independently isolated neutral model/usage observations remain available.
+Observed zero token counts remain distinct from unreported counts.
 
 ## Schema Policy
 

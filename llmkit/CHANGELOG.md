@@ -7,6 +7,15 @@ changes may occur in minor releases.
 
 ### Changed
 
+- **Breaking (pre-v1):** separate execution-backend identity from actual
+  model-provider identity. `Response.BackendDetails` replaces
+  `ProviderDetails`; backend details expose `BackendName()`, and
+  `ExecutionEvidence.BackendName` records that runtime/adapter identity.
+  `ExecutionEvidence.ProviderName` is now a presence-aware `Observation` and
+  may be populated only from attributable provider evidence. Adapter names,
+  model identifiers, requested settings, endpoints, and heuristics do not
+  establish provider identity. `ErrBackendIdentityMismatch` replaces the old
+  provider-identity mismatch error for backend-details consistency.
 - **Breaking (pre-v1):** make model-facing retry repair an explicit
   application-owned projection. A rejected attempt that can retry now requires
   `Step.Sanitizer`; with no projection configured it fails closed with

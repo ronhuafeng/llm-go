@@ -108,6 +108,13 @@ func requireUnknownModel(t *testing.T, evidence llmadapter.ExecutionEvidence) {
 	}
 }
 
+func requireUnknownProvider(t *testing.T, evidence llmadapter.ExecutionEvidence) {
+	t.Helper()
+	if got, ok := evidence.ProviderName.Value(); ok {
+		t.Fatalf("ProviderName = (%q, true), want unknown", got)
+	}
+}
+
 func requireObservedInput(t *testing.T, usage *llmadapter.TokenUsage, want int64) {
 	t.Helper()
 	if usage == nil {
@@ -237,15 +244,16 @@ func TestCallerBuildsExactRequestAndProjectsEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.FinalResponse != "final" || response.Execution.ProviderName != "codex" {
+	if response.FinalResponse != "final" || response.Execution.BackendName != "codex" {
 		t.Fatalf("response = %#v", response)
 	}
+	requireUnknownProvider(t, response.Execution)
 	requireObservedModel(t, response.Execution, "gpt-rerouted")
 	requireObservedInput(t, response.Execution.Usage, 11)
 	requireObservedCount(t, response.Execution.Usage.ReasoningOutput, 2)
-	details, ok := response.ProviderDetails.(Details)
-	if !ok || details.ProviderName() != "codex" || !reflect.DeepEqual(details.Run, run) {
-		t.Fatalf("details = %#v", response.ProviderDetails)
+	details, ok := response.BackendDetails.(Details)
+	if !ok || details.BackendName() != "codex" || !reflect.DeepEqual(details.Run, run) {
+		t.Fatalf("details = %#v", response.BackendDetails)
 	}
 	if len(runner.requests) != 1 {
 		t.Fatalf("requests = %d", len(runner.requests))
@@ -275,10 +283,14 @@ func TestCallerPreservesStartOnlyPartialEvidence(t *testing.T) {
 	if !errors.Is(err, providerErr) {
 		t.Fatalf("response=%#v err=%v", response, err)
 	}
+	if response.Execution.BackendName != "codex" {
+		t.Fatalf("backend = %q", response.Execution.BackendName)
+	}
+	requireUnknownProvider(t, response.Execution)
 	requireObservedModel(t, response.Execution, "effective-model")
-	details, ok := response.ProviderDetails.(Details)
+	details, ok := response.BackendDetails.(Details)
 	if !ok || details.Run.Start.Model != "effective-model" {
-		t.Fatalf("details = %#v", response.ProviderDetails)
+		t.Fatalf("details = %#v", response.BackendDetails)
 	}
 }
 
@@ -296,10 +308,11 @@ func TestCallerPreservesPartialRunAndCause(t *testing.T) {
 	if !errors.Is(err, providerErr) {
 		t.Fatalf("error = %v, want provider cause", err)
 	}
-	if response.FinalResponse != "partial" || response.Execution.ProviderName != "codex" {
+	if response.FinalResponse != "partial" || response.Execution.BackendName != "codex" {
 		t.Fatalf("partial response = %#v", response)
 	}
-	details, ok := response.ProviderDetails.(Details)
+	requireUnknownProvider(t, response.Execution)
+	details, ok := response.BackendDetails.(Details)
 	if !ok || details.Run.Start.Thread.ID == "" || details.Run.Run.Turn.Status != protocolv2.TurnStatusFailed {
 		t.Fatalf("partial details = %#v", details)
 	}
@@ -369,9 +382,9 @@ func TestCallerPublishesImmutableDetailsAndDefaults(t *testing.T) {
 	if requestedRoots == nil || requestedRoots.Value == nil || (*requestedRoots.Value)[0] != "/one" {
 		t.Fatalf("defaults aliased caller input: %#v", requestedRoots)
 	}
-	details := response.ProviderDetails.(Details)
+	details := response.BackendDetails.(Details)
 	runner.result.Run.Notifications[0] = modelRerouted("mutated", "mutated")
-	detailsAgain := response.ProviderDetails.(Details)
+	detailsAgain := response.BackendDetails.(Details)
 	rerouted, ok := detailsAgain.Run.Run.Notifications[0].AsModelRerouted()
 	if !ok || rerouted.Params.FromModel != "gpt" || details.Run.Run.Notifications[0].Kind() != protocolv2.ServerNotificationKindModelRerouted {
 		t.Fatal("details snapshot was aliased")
@@ -390,7 +403,7 @@ func TestCallerIsolatesPartialTurnWithoutIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	details := response.ProviderDetails.(Details)
+	details := response.BackendDetails.(Details)
 	runner.result.Run.Turn.Items[0] = protocolv2.NewThreadItemAgentMessage(protocolv2.ThreadItemAgentMessage{
 		ID: "mutated", Text: "mutated",
 	})
@@ -400,7 +413,7 @@ func TestCallerIsolatesPartialTurnWithoutIdentity(t *testing.T) {
 	}
 }
 
-func TestCallOmitsProviderDetailsWhenSnapshotFails(t *testing.T) {
+func TestCallOmitsBackendDetailsWhenSnapshotFails(t *testing.T) {
 	run := validStartedRun("safe-final", "safe-model")
 	run.Run.Turn = unisolatableTurn()
 	run.Run.Notifications = []protocolv2.ServerNotification{modelRerouted("safe-model", "isolated-reroute")}
@@ -417,12 +430,13 @@ func TestCallOmitsProviderDetailsWhenSnapshotFails(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "Turn.items") {
 		t.Fatalf("Call error = %v, want snapshot failure", err)
 	}
-	if response.ProviderDetails != nil {
-		t.Fatalf("ProviderDetails = %#v, want no unisolated run", response.ProviderDetails)
+	if response.BackendDetails != nil {
+		t.Fatalf("BackendDetails = %#v, want no unisolated run", response.BackendDetails)
 	}
-	if response.FinalResponse != "safe-final" || response.Execution.ProviderName != "codex" {
+	if response.FinalResponse != "safe-final" || response.Execution.BackendName != "codex" {
 		t.Fatalf("independent neutral evidence = %#v", response)
 	}
+	requireUnknownProvider(t, response.Execution)
 	requireObservedModel(t, response.Execution, "isolated-reroute")
 	requireObservedInput(t, response.Execution.Usage, 3)
 	runner.result.Run.Usage.Total.InputTokens = 99
@@ -445,9 +459,10 @@ func TestCallPreservesRerouteWhenUnrelatedNotificationIsMalformed(t *testing.T) 
 	if err == nil || !strings.Contains(err.Error(), "ServerNotification") {
 		t.Fatalf("Call error = %v, want notification isolation failure", err)
 	}
-	if response.ProviderDetails != nil {
-		t.Fatalf("ProviderDetails = %#v, want omitted exact details", response.ProviderDetails)
+	if response.BackendDetails != nil {
+		t.Fatalf("BackendDetails = %#v, want omitted exact details", response.BackendDetails)
 	}
+	requireUnknownProvider(t, response.Execution)
 	requireObservedModel(t, response.Execution, "from-good-reroute")
 	requireObservedInput(t, response.Execution.Usage, 0)
 }
@@ -468,6 +483,7 @@ func TestCallDoesNotFillUnknownModelFromRequestedDefault(t *testing.T) {
 		t.Fatal(err)
 	}
 	requireUnknownModel(t, response.Execution)
+	requireUnknownProvider(t, response.Execution)
 }
 
 func TestCallLeavesUsageUnknownWhenProviderOmitsIt(t *testing.T) {
@@ -544,7 +560,6 @@ func TestReadOnlyEphemeralProfileSetsAndVerifiesExactPolicy(t *testing.T) {
 	if request.Turn.ApprovalPolicy == nil || request.Turn.ApprovalPolicy.Value == nil || request.Turn.ApprovalPolicy.Value.Kind() != protocolv2.AskForApprovalKindNever {
 		t.Fatalf("turn approval = %#v", request.Turn.ApprovalPolicy)
 	}
-
 }
 
 func TestEffectiveProfileContractIsSharedByCallAndDetailed(t *testing.T) {
@@ -571,7 +586,7 @@ func TestEffectiveProfileContractIsSharedByCallAndDetailed(t *testing.T) {
 	}{
 		{name: "Call", call: func(caller *Caller, _ *fakeRunner) (codexsdk.StartedThreadRun, error) {
 			response, err := caller.Call(context.Background(), validRequest())
-			if details, ok := response.ProviderDetails.(Details); ok {
+			if details, ok := response.BackendDetails.(Details); ok {
 				return details.Run, err
 			}
 			return codexsdk.StartedThreadRun{}, err
@@ -649,13 +664,14 @@ func TestCallValidatesDecodedMissingThreadIDSandboxAndProjectsEvidence(t *testin
 
 	response, err := caller.Call(context.Background(), validRequest())
 	requireMissingThreadProfileError(t, err, "not read-only")
-	if response.Execution.ProviderName != "codex" {
-		t.Fatalf("Call evidence = %#v, want decoded start projection", response.Execution)
+	if response.Execution.BackendName != "codex" {
+		t.Fatalf("Call evidence = %#v, want decoded backend projection", response.Execution)
 	}
+	requireUnknownProvider(t, response.Execution)
 	requireObservedModel(t, response.Execution, "decoded-model")
-	details, ok := response.ProviderDetails.(Details)
+	details, ok := response.BackendDetails.(Details)
 	if !ok || !reflect.DeepEqual(details.Run, partial) {
-		t.Fatalf("Call details = %#v, want exact partial evidence %#v", response.ProviderDetails, partial)
+		t.Fatalf("Call details = %#v, want exact partial evidence %#v", response.BackendDetails, partial)
 	}
 	(*runner.result.Start.RuntimeWorkspaceRoots)[0] = "/mutated"
 	gotRoots := details.Run.Start.RuntimeWorkspaceRoots
@@ -692,12 +708,13 @@ func TestCallProjectsZeroValuedDecodedMissingThreadIDEvidence(t *testing.T) {
 
 	response, err := caller.Call(context.Background(), validRequest())
 	requireMissingThreadProfileError(t, err, "unknown")
-	if response.Execution.ProviderName != "codex" {
-		t.Fatalf("Call evidence = %#v, want decoded start provider projection", response.Execution)
+	if response.Execution.BackendName != "codex" {
+		t.Fatalf("Call evidence = %#v, want decoded backend projection", response.Execution)
 	}
-	details, ok := response.ProviderDetails.(Details)
+	requireUnknownProvider(t, response.Execution)
+	details, ok := response.BackendDetails.(Details)
 	if !ok || !reflect.DeepEqual(details.Run, codexsdk.StartedThreadRun{}) {
-		t.Fatalf("Call details = %#v, want typed zero-valued decoded evidence", response.ProviderDetails)
+		t.Fatalf("Call details = %#v, want typed zero-valued decoded evidence", response.BackendDetails)
 	}
 }
 
@@ -924,9 +941,10 @@ func TestCallerWorksThroughLLMAdapterTypedPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !result.Value["answer"] || result.Response.Execution.ProviderName != "codex" {
+	if !result.Value["answer"] || result.Response.Execution.BackendName != "codex" {
 		t.Fatalf("result = %#v", result)
 	}
+	requireUnknownProvider(t, result.Response.Execution)
 }
 
 func TestStrictOutputSchemaCompatibilityMatrix(t *testing.T) {
