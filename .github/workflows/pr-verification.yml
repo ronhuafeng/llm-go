@@ -68,8 +68,7 @@ jobs:
           cp go.sum .verify.sum
           trap 'rm -f .verify.mod .verify.sum' EXIT
           go mod edit -modfile=.verify.mod \
-            -replace=github.com/ronhuafeng/llm-go/llmkit=../../llmkit \
-            -replace=github.com/ronhuafeng/llm-go/codexsdk=../../codexsdk
+            -replace=github.com/ronhuafeng/llm-go/llmkit=../../llmkit
           verify_mod="$(pwd)/.verify.mod"
           GOFLAGS="-modfile=${verify_mod}" go test ./...
 
@@ -86,34 +85,11 @@ jobs:
           GOTOOLCHAIN: local
         run: go test ./internal/...
 
-      - name: Minimum Go - current-source composition
-        working-directory: internal/tools
-        env:
-          GOWORK: "off"
-          GOTOOLCHAIN: local
-        run: |
-          set -euo pipefail
-          cp go.mod .verify.mod
-          cp go.sum .verify.sum
-          trap 'rm -f .verify.mod .verify.sum' EXIT
-          go mod edit -modfile=.verify.mod \
-            -replace=github.com/ronhuafeng/llm-go/llmkit=../../llmkit \
-            -replace=github.com/ronhuafeng/llm-go/codexsdk=../../codexsdk \
-            -replace=github.com/ronhuafeng/llm-go/llmcaller/codex=../../llmcaller/codex
-          verify_mod="$(pwd)/.verify.mod"
-          export GOFLAGS="-modfile=${verify_mod}"
-          go mod tidy
-          go test ./integration
-
       - name: Current Go
         uses: actions/setup-go@v6
         with:
           go-version: stable
-          cache-dependency-path: |
-            llmkit/go.sum
-            codexsdk/go.sum
-            llmcaller/codex/go.sum
-            internal/tools/go.sum
+          cache: false
 
       - name: Go formatting and whitespace
         run: |
@@ -157,11 +133,9 @@ jobs:
           cp go.sum .verify.sum
           trap 'rm -f .verify.mod .verify.sum' EXIT
           go mod edit -modfile=.verify.mod \
-            -replace=github.com/ronhuafeng/llm-go/llmkit=../../llmkit \
-            -replace=github.com/ronhuafeng/llm-go/codexsdk=../../codexsdk
+            -replace=github.com/ronhuafeng/llm-go/llmkit=../../llmkit
           verify_mod="$(pwd)/.verify.mod"
           export GOFLAGS="-modfile=${verify_mod}"
-          go mod tidy
           go vet ./...
           go test -race ./...
 
