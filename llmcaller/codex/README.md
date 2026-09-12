@@ -18,9 +18,19 @@ example. It composes `llmkit`, this adapter, and `codexsdk` with a deterministic
 fake `ThreadRunner`, so ordinary tests compile and execute the complete public
 shape without credentials or provider availability.
 
+For repository current source, run from this module directory with the
+repository workspace enabled:
+
 ```sh
-GOWORK=off go test ./...
+go test ./...
 ```
+
+Published adapter tags are a different proof: before an adapter tag is created,
+its committed dependency closure must resolve and pass with `GOWORK=off`.
+Current source may intentionally name the next upstream pre-v1 module version
+before that upstream tag exists; repository PR verification uses the source
+cohort for that case. See [`../../docs/verify.md`](../../docs/verify.md) and
+[`../../docs/release.md`](../../docs/release.md).
 
 The optional repository-level live smoke is documented in
 [`../../docs/verify.md`](../../docs/verify.md).
@@ -36,11 +46,15 @@ The lifecycle is deliberately split:
 1. the application chooses exact Codex request settings such as approval,
    sandbox, ephemeral mode, CWD, workspace roots, model, effort, and service
    tier;
-2. `codexsdk` performs `thread/start` and decodes the effective Server
+2. `codexsdk` performs `thread/start` and decodes the `thread/start` Server
    Observation;
 3. the application-owned `AdmitTurn` receives that observation before
    `turn/start`;
 4. only an accepted observation may proceed to the model-directed turn.
+
+The callback input is the observed `thread/start` response, not a synthetic
+merge of that observation with caller-owned `turn/start` overrides. Requested
+values must not be treated as observed effective facts.
 
 The adapter forwards the callback and caller-controlled exact defaults. It does
 not overwrite them with a named profile, classify a combination as safe, or
@@ -69,9 +83,10 @@ adapter/runtime; it is not an upstream model-provider fact.
 `Execution.ProviderName` stays unknown unless exact lower-layer evidence proves
 the actual serving provider independently. Adapter identity, model names,
 requested settings, credentials, and Codex thread configuration do not fill
-provider identity. Effective model and usage evidence remain independently
-projected from attributable exact observations. Observed zero counts remain
-distinct from unreported counts.
+provider identity. Model and usage fields are separate neutral projections and
+do not establish provider identity; exact Codex model/routing/usage observations
+remain available through `BackendDetails`. Observed zero counts remain distinct
+from unreported counts.
 
 ## Schema admission
 
