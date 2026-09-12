@@ -79,9 +79,18 @@ func (e *TurnAdmissionError) Unwrap() error {
 	return errors.Join(ErrTurnAdmissionRejected, e.Err)
 }
 
+// AdmitResumeTurn inspects the exact decoded thread-resume Server Observation
+// and the exact pending TurnStartParams after thread/resume and before any
+// turn/start. The pending params include the composition-owned observed thread
+// ID that will be sent. A non-nil error rejects continuation fail-closed. A
+// nil callback preserves current Exact Run behavior. The SDK does not merge
+// requested overrides into observed facts or define an authorization policy.
+type AdmitResumeTurn func(protocolv2.ThreadResumeResponse, protocolv2.TurnStartParams) error
+
 type ResumeThreadRunRequest struct {
-	Thread protocolv2.ThreadResumeParams
-	Turn   protocolv2.TurnStartParams
+	Thread    protocolv2.ThreadResumeParams
+	Turn      protocolv2.TurnStartParams
+	AdmitTurn AdmitResumeTurn
 }
 
 type ThreadRunResult struct {
