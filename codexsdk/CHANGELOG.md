@@ -9,6 +9,13 @@
   identity, not whole-surface compatibility, and a successful turn does not
   change that.
 
+### Fixed
+
+- Preserve caller-context cancellation on synchronous Exact Run `Start` and
+  `Resume`. A canceled or deadline-exceeded drain returns the caller cause with
+  the latest partial evidence while the shared run is still non-terminal;
+  `Stream.Next` remains cursor-local.
+
 ### Changed
 
 - **Breaking (pre-v1):** stop synthesizing application decisions and environment

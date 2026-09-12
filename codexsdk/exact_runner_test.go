@@ -1589,6 +1589,200 @@ func TestExactStreamNextCancellationIsCallerLocal(t *testing.T) {
 	}
 }
 
+func TestExactRunnerSynchronousDrainPreservesCallerContextCause(t *testing.T) {
+	startRun := func(ctx context.Context, root *Client) (string, error) {
+		result, err := root.ThreadRunner().Start(ctx, StartThreadRunRequest{
+			Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}},
+		})
+		return result.Start.Thread.ID, err
+	}
+	resumeRun := func(ctx context.Context, root *Client) (string, error) {
+		result, err := root.ThreadRunner().Resume(ctx, ResumeThreadRunRequest{
+			Thread: protocolv2.ThreadResumeParams{ThreadID: "thread-resume"},
+			Turn:   protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}},
+		})
+		return result.Resume.Thread.ID, err
+	}
+	for _, test := range []struct {
+		name  string
+		cause error
+		run   func(context.Context, *Client) (string, error)
+	}{
+		{name: "start canceled", cause: context.Canceled, run: startRun},
+		{name: "resume canceled", cause: context.Canceled, run: resumeRun},
+		{name: "start deadline", cause: context.DeadlineExceeded, run: startRun},
+		{name: "resume deadline", cause: context.DeadlineExceeded, run: resumeRun},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv("CODEXSDK_FAKE_RECORD", tempRecord(t))
+			root, err := New(ClientOptions{CWD: t.TempDir(), Command: fakeCommand("hang")})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer root.Close()
+
+			attached := make(chan struct{})
+			root.testAfterExactTurnPublished = func() {
+				root.testAfterExactTurnPublished = nil
+				close(attached)
+			}
+			ctx := newManualCauseContext()
+			done := make(chan struct{})
+			var threadID string
+			var runErr error
+			go func() {
+				defer close(done)
+				threadID, runErr = test.run(ctx, root)
+			}()
+			waitClosed(t, attached, "Exact Run did not attach before cancellation")
+			ctx.fail(test.cause)
+			waitClosed(t, done, "synchronous Exact Run did not return after cancellation")
+			if !errors.Is(runErr, test.cause) {
+				t.Fatalf("error = %v, want %v", runErr, test.cause)
+			}
+			if threadID == "" {
+				t.Fatal("cancelled drain dropped partial thread identity")
+			}
+
+			stream, err := root.ThreadRunner().ResumeStream(context.Background(), ResumeThreadRunRequest{
+				Thread: protocolv2.ThreadResumeParams{ThreadID: threadID},
+				Turn:   protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if errors.Is(stream.Err(), errConcurrentTurnStart) {
+				t.Fatal("synchronous cancellation leaked a shared Exact Run")
+			}
+			if err := stream.Close(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestExactRunnerSynchronousDrainPrefersPublishedTerminalOverCallerCancellation(t *testing.T) {
+	startRun := func(ctx context.Context, root *Client) (protocolv2.TurnStatus, error) {
+		result, err := root.ThreadRunner().Start(ctx, StartThreadRunRequest{
+			Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}},
+		})
+		return result.Run.Turn.Status, err
+	}
+	resumeRun := func(ctx context.Context, root *Client) (protocolv2.TurnStatus, error) {
+		result, err := root.ThreadRunner().Resume(ctx, ResumeThreadRunRequest{
+			Thread: protocolv2.ThreadResumeParams{ThreadID: "thread-resume"},
+			Turn:   protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}},
+		})
+		return result.Run.Turn.Status, err
+	}
+	for _, test := range []struct {
+		name string
+		run  func(context.Context, *Client) (protocolv2.TurnStatus, error)
+	}{
+		{name: "start", run: startRun},
+		{name: "resume", run: resumeRun},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv("CODEXSDK_FAKE_RECORD", tempRecord(t))
+			root, err := New(ClientOptions{CWD: t.TempDir(), Command: fakeCommand("failed")})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer root.Close()
+
+			ctx := newManualCauseContext()
+			done := make(chan struct{})
+			var status protocolv2.TurnStatus
+			var runErr error
+			go func() {
+				defer close(done)
+				status, runErr = test.run(ctx, root)
+			}()
+			waitExactRunTerminal(t, root)
+			ctx.fail(context.Canceled)
+			waitClosed(t, done, "synchronous Exact Run did not return")
+			if !errors.Is(runErr, ErrTurnFailed) {
+				t.Fatalf("error = %v, want published terminal ErrTurnFailed", runErr)
+			}
+			if errors.Is(runErr, context.Canceled) {
+				t.Fatalf("caller cancellation overrode published terminal cause: %v", runErr)
+			}
+			if status != protocolv2.TurnStatusFailed {
+				t.Fatalf("turn status = %s, want failed", status)
+			}
+		})
+	}
+}
+
+type manualCauseContext struct {
+	done chan struct{}
+	once sync.Once
+	mu   sync.Mutex
+	err  error
+}
+
+func newManualCauseContext() *manualCauseContext {
+	return &manualCauseContext{done: make(chan struct{})}
+}
+
+func (c *manualCauseContext) Deadline() (time.Time, bool) { return time.Time{}, false }
+func (c *manualCauseContext) Done() <-chan struct{}       { return c.done }
+func (c *manualCauseContext) Value(key any) any           { return nil }
+
+func (c *manualCauseContext) Err() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.err
+}
+
+func (c *manualCauseContext) fail(err error) {
+	c.once.Do(func() {
+		c.mu.Lock()
+		c.err = err
+		c.mu.Unlock()
+		close(c.done)
+	})
+}
+
+func waitClosed(t *testing.T, ch <-chan struct{}, message string) {
+	t.Helper()
+	select {
+	case <-ch:
+	case <-time.After(2 * time.Second):
+		t.Fatal(message)
+	}
+}
+
+func waitExactRunTerminal(t *testing.T, client *Client) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if exactRunTerminalPublished(client) {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("Exact Run did not publish a terminal result")
+}
+
+func exactRunTerminalPublished(client *Client) bool {
+	client.turnMu.Lock()
+	defer client.turnMu.Unlock()
+	for _, streams := range []map[string]map[*exactRunState]struct{}{client.exactStreams, client.exactAttaching} {
+		for _, states := range streams {
+			for state := range states {
+				state.mu.Lock()
+				terminal := state.terminal
+				state.mu.Unlock()
+				if terminal {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 func TestExactStreamWaitPrefersTerminalWhenContextIsAlsoDone(t *testing.T) {
 	t.Setenv("CODEXSDK_FAKE_RECORD", tempRecord(t))
 	root, err := New(ClientOptions{CWD: t.TempDir(), Command: fakeCommand("failed")})
