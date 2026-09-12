@@ -134,6 +134,12 @@ func TestRunDistinguishesJudgmentStates(t *testing.T) {
 		if !errors.Is(err, ErrExhausted) || result.Attempts[0].Judgment == nil || result.Attempts[0].Judgment.Accepted {
 			t.Fatalf("rejected path: err=%v judgment=%#v", err, result.Attempts[0].Judgment)
 		}
+		if result.HasOutput || result.Output.Status != "" {
+			t.Fatalf("rejected path published accepted output: %#v", result)
+		}
+		if result.Attempts[0].Call.Value.Status != "draft" {
+			t.Fatalf("rejected path lost attempt proposition: %#v", result.Attempts[0].Call.Value)
+		}
 		if result.Attempts[0].NextRepair != nil {
 			t.Fatalf("final rejected attempt synthesized repair: %#v", result.Attempts[0].NextRepair)
 		}
@@ -285,8 +291,11 @@ func TestRunExhaustedAttemptsWrapsErrExhausted(t *testing.T) {
 	if !errors.Is(err, ErrExhausted) {
 		t.Fatalf("Run error = %v, want errors.Is ErrExhausted", err)
 	}
-	if !result.HasOutput || result.Output.Status != "draft" || len(result.Attempts) != 2 {
-		t.Fatalf("exhaustion discarded latest proposition or attempts: %#v", result)
+	if result.HasOutput || result.Output.Status != "" || len(result.Attempts) != 2 {
+		t.Fatalf("exhaustion published rejected output as accepted: %#v", result)
+	}
+	if result.Attempts[1].Call.Value.Status != "draft" {
+		t.Fatalf("exhaustion lost last proposition: %#v", result.Attempts[1].Call.Value)
 	}
 	if len(caller.requests) != 2 {
 		t.Fatalf("requests = %d, want 2", len(caller.requests))
@@ -533,8 +542,11 @@ func TestRunRecordsCancellationAfterSuccessfulValidation(t *testing.T) {
 	if !errors.As(err, &stepErr) || stepErr.Stage != StageValidate || !errors.Is(err, context.Canceled) {
 		t.Fatalf("Run error = %v, want validate-stage context.Canceled", err)
 	}
-	if !result.HasOutput || result.Output.Status != "ok" || len(result.Attempts) != 1 {
-		t.Fatalf("result = %#v, want typed output plus one validation-stage failure", result)
+	if result.HasOutput || result.Output.Status != "" || len(result.Attempts) != 1 {
+		t.Fatalf("result = %#v, want context error without accepted output", result)
+	}
+	if result.Attempts[0].Call.Value.Status != "ok" {
+		t.Fatalf("context error lost attempt proposition: %#v", result.Attempts[0].Call.Value)
 	}
 	attempt := result.Attempts[0]
 	if !attempt.Judgment.Accepted || len(attempt.Judgment.Findings) != 1 || attempt.Judgment.Findings[0].Codes[0] != "accepted" {
@@ -596,8 +608,11 @@ func TestRunRequiresExplicitRepairProjectionBeforeNextRender(t *testing.T) {
 	if !errors.As(err, &stepErr) || stepErr.Stage != StageSanitize {
 		t.Fatalf("Run error = %v, want sanitize-stage projection failure", err)
 	}
-	if !result.HasOutput || result.Output.Status != "draft" || result.Attempts[0].Judgment == nil {
-		t.Fatalf("missing projection discarded proposition or judgment: %#v", result)
+	if result.HasOutput || result.Output.Status != "" || result.Attempts[0].Judgment == nil {
+		t.Fatalf("missing projection published rejected output: %#v", result)
+	}
+	if result.Attempts[0].Call.Value.Status != "draft" {
+		t.Fatalf("missing projection lost attempt proposition: %#v", result.Attempts[0].Call.Value)
 	}
 	if result.Attempts[0].NextRepair != nil {
 		t.Fatalf("missing projection published retry feedback: %#v", result.Attempts[0].NextRepair)
@@ -977,7 +992,10 @@ func TestRunPreservesOutputOnValidationAndProjectionFailures(t *testing.T) {
 		},
 		MaxIter: 1,
 	}, stepInput{})
-	assertStepFailure(t, validationResult, err, StageValidate, validationErr, true)
+	assertStepFailure(t, validationResult, err, StageValidate, validationErr, false)
+	if validationResult.Attempts[0].Call.Value.Status != "draft" {
+		t.Fatalf("validation failure lost attempt proposition: %#v", validationResult.Attempts[0].Call.Value)
+	}
 
 	projectionErr := errors.New("application projection failed")
 	projectionResult, err := Run(context.Background(), Step[stepInput, stepOutput]{
@@ -989,7 +1007,7 @@ func TestRunPreservesOutputOnValidationAndProjectionFailures(t *testing.T) {
 		Sanitizer: func([]Finding) ([]Repair, error) { return nil, projectionErr },
 		MaxIter:   2,
 	}, stepInput{})
-	assertStepFailure(t, projectionResult, err, StageSanitize, projectionErr, true)
+	assertStepFailure(t, projectionResult, err, StageSanitize, projectionErr, false)
 	if projectionResult.Attempts[0].Call.Response.FinalResponse != llmadapter.Observed(`{"status":"draft"}`) {
 		t.Fatalf("projection failure lost call evidence: %#v", projectionResult.Attempts[0].Call)
 	}

@@ -118,7 +118,9 @@ type Attempt[O any] struct {
 
 // Result is the typed output plus attempt history from Run.
 type Result[O any] struct {
-	// Output follows ordinary Go value semantics and is not generically cloned.
+	// Output is the accepted proposition only. Rejected or unjudged decoded
+	// values remain in Attempts[n].Call. Output follows ordinary Go value
+	// semantics and is not generically cloned.
 	Output    O
 	HasOutput bool
 	// Attempts is an owned snapshot. Its judgment and repair slices are
@@ -170,8 +172,6 @@ func Run[I any, O any](ctx context.Context, step Step[I, O], input I) (Result[O]
 			stage := valueStage(err)
 			return fail(result, attempt, stage, err)
 		}
-		result.Output = call.Value
-		result.HasOutput = true
 
 		judgment, err := step.Validate(ctx, input, call.Value)
 		attempt.Judgment = copyJudgment(&judgment)
@@ -182,6 +182,8 @@ func Run[I any, O any](ctx context.Context, step Step[I, O], input I) (Result[O]
 			return fail(result, attempt, StageValidate, err)
 		}
 		if judgment.Accepted {
+			result.Output = call.Value
+			result.HasOutput = true
 			result.Attempts = append(result.Attempts, attempt)
 			return snapshotResult(result), nil
 		}
