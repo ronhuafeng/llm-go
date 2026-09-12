@@ -83,7 +83,9 @@ func applyAdmission(request codexsdk.StartThreadRunRequest, start protocolv2.Thr
 	if start.Thread.ID == "" || request.AdmitTurn == nil {
 		return nil
 	}
-	return request.AdmitTurn(start)
+	pending := request.Turn
+	pending.ThreadID = start.Thread.ID
+	return request.AdmitTurn(start, pending)
 }
 
 func applicationOptions(runner ThreadRunner) Options {
@@ -104,7 +106,7 @@ func applicationOptions(runner ThreadRunner) Options {
 	}
 }
 
-func applicationReadOnlyAdmission(start protocolv2.ThreadStartResponse) error {
+func applicationReadOnlyAdmission(start protocolv2.ThreadStartResponse, pending protocolv2.TurnStartParams) error {
 	if !start.ApprovalPolicy.IsValid() || start.ApprovalPolicy.Kind() != protocolv2.AskForApprovalKindNever {
 		return errors.New("application: approval policy rejected")
 	}
@@ -113,6 +115,12 @@ func applicationReadOnlyAdmission(start protocolv2.ThreadStartResponse) error {
 	}
 	if !start.Thread.Ephemeral {
 		return errors.New("application: non-ephemeral thread rejected")
+	}
+	if pending.ApprovalPolicy != nil && (pending.ApprovalPolicy.Value == nil || !pending.ApprovalPolicy.Value.IsValid() || pending.ApprovalPolicy.Value.Kind() != protocolv2.AskForApprovalKindNever) {
+		return errors.New("application: pending approval policy rejected")
+	}
+	if pending.SandboxPolicy != nil && (pending.SandboxPolicy.Value == nil || !pending.SandboxPolicy.Value.IsValid() || pending.SandboxPolicy.Value.Kind() != protocolv2.SandboxPolicyKindReadOnly) {
+		return errors.New("application: pending sandbox policy rejected")
 	}
 	return nil
 }
@@ -211,10 +219,13 @@ func TestAdapterPreservesApplicationExecutionPolicyAndAdmission(t *testing.T) {
 				ApprovalPolicy: protocolv2.Value(protocolv2.NewAskForApprovalOnRequest()),
 				SandboxPolicy:  protocolv2.Value(protocolv2.NewSandboxPolicyDangerFullAccess()),
 			},
-			AdmitTurn: func(start protocolv2.ThreadStartResponse) error {
+			AdmitTurn: func(start protocolv2.ThreadStartResponse, pending protocolv2.TurnStartParams) error {
 				calls++
 				if start.Thread.ID != "thread-1" {
 					t.Fatalf("admission start = %#v", start)
+				}
+				if pending.ThreadID != start.Thread.ID {
+					t.Fatalf("pending turn thread id = %q, want %q", pending.ThreadID, start.Thread.ID)
 				}
 				return nil
 			},
@@ -259,7 +270,7 @@ func TestApplicationAdmissionRejectsBeforeTurnAcrossCallPaths(t *testing.T) {
 		t.Run(path.name, func(t *testing.T) {
 			runner := &fakeRunner{result: validStartedRun("must-not-execute", "gpt")}
 			options := applicationOptions(runner)
-			options.Defaults.AdmitTurn = func(protocolv2.ThreadStartResponse) error { return admissionErr }
+			options.Defaults.AdmitTurn = func(protocolv2.ThreadStartResponse, protocolv2.TurnStartParams) error { return admissionErr }
 			caller, err := New(options)
 			if err != nil {
 				t.Fatal(err)

@@ -2270,9 +2270,12 @@ func TestExactRunnerStartRejectedTurnAdmissionOmitsTurnStart(t *testing.T) {
 		Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{
 			protocolv2.NewUserInputText(protocolv2.UserInputText{Text: "hello"}),
 		}},
-		AdmitTurn: func(start protocolv2.ThreadStartResponse) error {
+		AdmitTurn: func(start protocolv2.ThreadStartResponse, pending protocolv2.TurnStartParams) error {
 			if firstRecord(readRecords(t, record), "recv", protocolv2.MethodTurnStart) != nil {
 				t.Fatal("turn/start was sent before AdmitTurn")
+			}
+			if pending.ThreadID != start.Thread.ID || pending.ThreadID == "" {
+				t.Fatalf("pending turn thread id = %q, observation = %q", pending.ThreadID, start.Thread.ID)
 			}
 			seen = start
 			return reject
@@ -2322,12 +2325,13 @@ func TestExactRunnerStartStreamRejectedTurnAdmissionOmitsTurnStart(t *testing.T)
 	stream, err := root.ThreadRunner().StartStream(context.Background(), StartThreadRunRequest{
 		Thread: protocolv2.ThreadStartParams{Model: protocolv2.Value("gpt-exact")},
 		Turn:   protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}},
-		AdmitTurn: func(start protocolv2.ThreadStartResponse) error {
+		AdmitTurn: func(start protocolv2.ThreadStartResponse, pending protocolv2.TurnStartParams) error {
 			if firstRecord(readRecords(t, record), "recv", protocolv2.MethodTurnStart) != nil {
 				t.Fatal("turn/start was sent before AdmitTurn")
 			}
 			start.Model = "mutated-by-callback"
 			start.Thread.ID = "mutated-id"
+			pending.ThreadID = "mutated-pending-id"
 			if start.Thread.ThreadSource != nil {
 				mutated := protocolv2.ThreadSource("mutated")
 				start.Thread.ThreadSource.Value = &mutated
@@ -2382,12 +2386,15 @@ func TestExactRunnerStartAcceptedTurnAdmissionSendsTurnStartAfterInspection(t *t
 		Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{
 			protocolv2.NewUserInputText(protocolv2.UserInputText{Text: "hello"}),
 		}},
-		AdmitTurn: func(start protocolv2.ThreadStartResponse) error {
+		AdmitTurn: func(start protocolv2.ThreadStartResponse, pending protocolv2.TurnStartParams) error {
 			if firstRecord(readRecords(t, record), "recv", protocolv2.MethodTurnStart) != nil {
 				t.Fatal("turn/start was sent before AdmitTurn")
 			}
 			if start.Thread.ID == "" || start.Model != "gpt-exact" || start.CWD != "/workspace/facade" {
 				t.Fatalf("AdmitTurn observation = %#v", start)
+			}
+			if pending.ThreadID != start.Thread.ID {
+				t.Fatalf("pending turn thread id = %q, want observed %q", pending.ThreadID, start.Thread.ID)
 			}
 			seen = start
 			return nil
@@ -2407,6 +2414,68 @@ func TestExactRunnerStartAcceptedTurnAdmissionSendsTurnStartAfterInspection(t *t
 	}
 }
 
+func TestExactRunnerStartAdmissionExposesIsolatedPendingTurnRequest(t *testing.T) {
+	record := tempRecord(t)
+	t.Setenv("CODEXSDK_FAKE_RECORD", record)
+	root, err := New(ClientOptions{CWD: t.TempDir(), Command: fakeCommand("happy")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+
+	var seenPending protocolv2.TurnStartParams
+	result, err := root.ThreadRunner().Start(context.Background(), StartThreadRunRequest{
+		Thread: protocolv2.ThreadStartParams{Model: protocolv2.Value("gpt-thread")},
+		Turn: protocolv2.TurnStartParams{
+			ApprovalPolicy: protocolv2.Value(protocolv2.NewAskForApprovalOnRequest()),
+			CWD:            protocolv2.Value("/turn/cwd"),
+			Input: []protocolv2.UserInput{
+				protocolv2.NewUserInputText(protocolv2.UserInputText{Text: "hello"}),
+			},
+			Model:         protocolv2.Value("gpt-turn"),
+			SandboxPolicy: protocolv2.Value(protocolv2.NewSandboxPolicyDangerFullAccess()),
+		},
+		AdmitTurn: func(start protocolv2.ThreadStartResponse, pending protocolv2.TurnStartParams) error {
+			if pending.ThreadID != start.Thread.ID || pending.ThreadID == "" {
+				t.Fatalf("pending thread id = %q, observation = %q", pending.ThreadID, start.Thread.ID)
+			}
+			if pending.CWD == nil || pending.CWD.Value == nil || *pending.CWD.Value != "/turn/cwd" {
+				t.Fatalf("pending cwd = %#v", pending.CWD)
+			}
+			if pending.Model == nil || pending.Model.Value == nil || *pending.Model.Value != "gpt-turn" {
+				t.Fatalf("pending model = %#v", pending.Model)
+			}
+			if pending.ApprovalPolicy == nil || pending.ApprovalPolicy.Value == nil || pending.ApprovalPolicy.Value.Kind() != protocolv2.AskForApprovalKindOnRequest {
+				t.Fatalf("pending approval = %#v", pending.ApprovalPolicy)
+			}
+			if pending.SandboxPolicy == nil || pending.SandboxPolicy.Value == nil || pending.SandboxPolicy.Value.Kind() != protocolv2.SandboxPolicyKindDangerFullAccess {
+				t.Fatalf("pending sandbox = %#v", pending.SandboxPolicy)
+			}
+			seenPending = pending
+			pending.ThreadID = "mutated-thread"
+			pending.CWD = protocolv2.Value("/mutated/cwd")
+			start.Model = "mutated-observation"
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Start.Model != "gpt-thread" {
+		t.Fatalf("observation mutated by AdmitTurn: %#v", result.Start)
+	}
+	params := firstRecord(readRecords(t, record), "recv", protocolv2.MethodTurnStart)["params"].(map[string]any)
+	if params["threadId"] != seenPending.ThreadID || params["threadId"] == "mutated-thread" {
+		t.Fatalf("outbound turn/start thread id = %#v, want inspected %q", params["threadId"], seenPending.ThreadID)
+	}
+	if params["cwd"] != "/turn/cwd" {
+		t.Fatalf("outbound turn/start cwd = %#v, want inspected override", params["cwd"])
+	}
+	if params["model"] != "gpt-turn" {
+		t.Fatalf("outbound turn/start model = %#v, want inspected override", params["model"])
+	}
+}
+
 func TestExactRunnerStartMissingThreadIDIsNotAdmissionRejection(t *testing.T) {
 	record := tempRecord(t)
 	t.Setenv("CODEXSDK_FAKE_RECORD", record)
@@ -2418,7 +2487,7 @@ func TestExactRunnerStartMissingThreadIDIsNotAdmissionRejection(t *testing.T) {
 
 	result, err := root.ThreadRunner().Start(context.Background(), StartThreadRunRequest{
 		Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}},
-		AdmitTurn: func(protocolv2.ThreadStartResponse) error {
+		AdmitTurn: func(protocolv2.ThreadStartResponse, protocolv2.TurnStartParams) error {
 			return errors.New("must not override missing thread id")
 		},
 	})

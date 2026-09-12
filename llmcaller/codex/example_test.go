@@ -27,7 +27,9 @@ func (exampleRunner) Start(_ context.Context, request codexsdk.StartThreadRunReq
 		},
 	}
 	if request.AdmitTurn != nil {
-		if err := request.AdmitTurn(start); err != nil {
+		pending := request.Turn
+		pending.ThreadID = start.Thread.ID
+		if err := request.AdmitTurn(start, pending); err != nil {
 			return codexsdk.StartedThreadRun{Start: start}, err
 		}
 	}
@@ -55,7 +57,7 @@ func Example() {
 				Ephemeral:      protocolv2.Value(true),
 				Sandbox:        protocolv2.Value(protocolv2.SandboxModeReadOnly),
 			},
-			AdmitTurn: func(start protocolv2.ThreadStartResponse) error {
+			AdmitTurn: func(start protocolv2.ThreadStartResponse, pending protocolv2.TurnStartParams) error {
 				if !start.ApprovalPolicy.IsValid() || start.ApprovalPolicy.Kind() != protocolv2.AskForApprovalKindNever {
 					return errors.New("application rejected approval policy")
 				}
@@ -64,6 +66,12 @@ func Example() {
 				}
 				if !start.Thread.Ephemeral {
 					return errors.New("application rejected non-ephemeral thread")
+				}
+				if pending.ApprovalPolicy != nil && (pending.ApprovalPolicy.Value == nil || pending.ApprovalPolicy.Value.Kind() != protocolv2.AskForApprovalKindNever) {
+					return errors.New("application rejected pending approval policy")
+				}
+				if pending.SandboxPolicy != nil && (pending.SandboxPolicy.Value == nil || pending.SandboxPolicy.Value.Kind() != protocolv2.SandboxPolicyKindReadOnly) {
+					return errors.New("application rejected pending sandbox")
 				}
 				return nil
 			},

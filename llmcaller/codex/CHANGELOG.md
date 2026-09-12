@@ -6,6 +6,10 @@ This project follows Semantic Versioning.
 
 ### Changed
 
+- **Breaking (pre-v1):** application-owned `AdmitTurn` now receives both the
+  exact thread-start observation and the exact pending `turn/start` request.
+  The adapter still does not merge those values or choose an execution policy.
+
 - **Breaking (pre-v1):** stop rewriting caller-owned JSON Schemas by promoting
   optional properties to required. Codex schema admission now preserves the
   accepted JSON instance language or fails closed with
