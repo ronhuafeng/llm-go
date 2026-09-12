@@ -62,6 +62,7 @@ trap 'rm -rf "${tmp}"' EXIT
 GOWORK=off go run ./internal/cmd/protocolv2gen -out "${tmp}"
 diff -u protocolv2/method_registry.gen.go "${tmp}/method_registry.gen.go"
 diff -u protocolv2/protocol_types.gen.go "${tmp}/protocol_types.gen.go"
+diff -u protocolv2/experimental_members.gen.go "${tmp}/experimental_members.gen.go"
 python3 scripts/codexsdk_generate_sdk_surface.py --out "${tmp}/sdk_surface.gen.go"
 gofmt -w "${tmp}/sdk_surface.gen.go"
 diff -u sdk_surface.gen.go "${tmp}/sdk_surface.gen.go"
