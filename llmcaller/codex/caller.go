@@ -29,8 +29,8 @@ type ThreadRunner interface {
 
 // Options configures a Caller with exact generated Codex defaults.
 // Defaults.AdmitTurn is application-owned and required. The adapter forwards it
-// unchanged so the application can decide whether decoded effective execution
-// facts are acceptable before turn/start.
+// unchanged so the application can inspect the decoded thread-start observation
+// and the exact pending turn/start request before turn/start.
 type Options struct {
 	Runner   ThreadRunner
 	Defaults codexsdk.StartThreadRunRequest

@@ -5,8 +5,8 @@
 // plumbing, and loss-aware neutral evidence projection. It does not own an
 // application execution policy. A neutral Caller requires the application to
 // provide StartThreadRunRequest.AdmitTurn. The adapter preserves that callback
-// unchanged so application-owned policy can inspect decoded effective Codex
-// facts after thread/start and before turn/start.
+// unchanged so application-owned policy can inspect the decoded thread-start
+// observation and the exact pending turn/start request before turn/start.
 //
 // Approval, sandbox, ephemeral, permission, CWD, workspace, and related exact
 // request values remain caller-owned Codex inputs. Their decoded effective

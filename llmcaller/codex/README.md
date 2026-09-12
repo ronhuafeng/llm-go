@@ -48,13 +48,13 @@ The lifecycle is deliberately split:
    tier;
 2. `codexsdk` performs `thread/start` and decodes the `thread/start` Server
    Observation;
-3. the application-owned `AdmitTurn` receives that observation before
-   `turn/start`;
-4. only an accepted observation may proceed to the model-directed turn.
+3. the application-owned `AdmitTurn` receives that observation and the exact
+   pending `turn/start` request before `turn/start`;
+4. only accepted continuation may proceed to the model-directed turn.
 
-The callback input is the observed `thread/start` response, not a synthetic
-merge of that observation with caller-owned `turn/start` overrides. Requested
-values must not be treated as observed effective facts.
+The callback keeps those two values separate. It is not a synthetic merge of
+the observation with caller-owned `turn/start` overrides. Requested values
+must not be treated as observed effective facts.
 
 The adapter forwards the callback and caller-controlled exact defaults. It does
 not overwrite them with a named profile, classify a combination as safe, or

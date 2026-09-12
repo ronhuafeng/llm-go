@@ -36,12 +36,14 @@ func (e *ExactServerRequestError) Error() string {
 
 func (e *ExactServerRequestError) Unwrap() error { return ErrExactServerRequest }
 
-// AdmitTurn inspects the exact decoded thread-start Server Observation after
-// thread/start and before any turn/start. A non-nil error rejects continuation
-// fail-closed. A nil callback preserves current Exact Run behavior.
-// The decision is caller-owned; the SDK does not define a read-only profile
-// or provider-neutral authorization policy.
-type AdmitTurn func(protocolv2.ThreadStartResponse) error
+// AdmitTurn inspects the exact decoded thread-start Server Observation and the
+// exact pending TurnStartParams after thread/start and before any turn/start.
+// The pending params include the composition-owned thread ID that will be sent.
+// A non-nil error rejects continuation fail-closed. A nil callback preserves
+// current Exact Run behavior. The decision is caller-owned; the SDK does not
+// merge requested overrides into observed facts or define an authorization
+// policy.
+type AdmitTurn func(protocolv2.ThreadStartResponse, protocolv2.TurnStartParams) error
 
 type StartThreadRunRequest struct {
 	Thread    protocolv2.ThreadStartParams

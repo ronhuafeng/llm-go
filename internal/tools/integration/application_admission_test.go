@@ -29,7 +29,7 @@ func readOnlyApplicationOptions(runner codexcaller.ThreadRunner) codexcaller.Opt
 	}
 }
 
-func admitReadOnlyEphemeral(start protocolv2.ThreadStartResponse) error {
+func admitReadOnlyEphemeral(start protocolv2.ThreadStartResponse, pending protocolv2.TurnStartParams) error {
 	if !start.ApprovalPolicy.IsValid() {
 		return fmt.Errorf("%w: approval policy is unknown", errApplicationAdmission)
 	}
@@ -44,6 +44,12 @@ func admitReadOnlyEphemeral(start protocolv2.ThreadStartResponse) error {
 	}
 	if !start.Thread.Ephemeral {
 		return fmt.Errorf("%w: thread is not ephemeral", errApplicationAdmission)
+	}
+	if pending.ApprovalPolicy != nil && (pending.ApprovalPolicy.Value == nil || pending.ApprovalPolicy.Value.Kind() != protocolv2.AskForApprovalKindNever) {
+		return fmt.Errorf("%w: pending approval policy is not never", errApplicationAdmission)
+	}
+	if pending.SandboxPolicy != nil && (pending.SandboxPolicy.Value == nil || pending.SandboxPolicy.Value.Kind() != protocolv2.SandboxPolicyKindReadOnly) {
+		return fmt.Errorf("%w: pending sandbox is not read-only", errApplicationAdmission)
 	}
 	return nil
 }
