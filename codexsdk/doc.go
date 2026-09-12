@@ -7,37 +7,39 @@
 // Client owns process transport, client lifecycle, generated protocol
 // facades, exact thread/turn composition, and typed callback delivery. Exact
 // run notifications retain ingestion order across stream attachment: pending
-// notifications are accepted before later live notifications for the same run.
-// A successfully decoded lifecycle response remains observable as exact
-// partial evidence when a required thread or turn identity is missing.
-// ErrMissingThreadID and ErrMissingTurnID fail closed before the next lifecycle
-// stage or live run registration; these malformed responses do not close the
-// Client.
+// notifications accepted for a run are applied before later live notifications
+// accepted for that same run. A successfully decoded lifecycle response remains
+// observable as exact partial evidence when a required thread or turn identity
+// is missing. ErrMissingThreadID and ErrMissingTurnID fail closed before the
+// next lifecycle stage or live run registration; these malformed responses do
+// not close the Client.
 // StartThreadRunRequest.AdmitTurn inspects the decoded thread-start Server
 // Observation before turn/start. Rejection finishes the Exact Run fail-closed
 // with the exact partial StartedThreadRun and ErrTurnAdmissionRejected, and
 // does not send turn/start. The callback is caller-owned and is not a
 // provider-neutral policy.
-// Exact run results retain complete immutable notification history independent
-// of observation. Wait observes completion without consuming notifications;
-// Next advances a cursor over the same ordered history. The configurable
-// global notification-handler queue remains bounded, and its overflow closes
-// the client with ErrNotificationBackpressure.
-// FinalResponse is a convenience projection over the exact terminal Turn.
-// FinalResponsePresent distinguishes no observed final-answer item from an
-// observed final-answer item whose text is empty. The server-reported terminal
-// status remains authoritative and is not rewritten by that projection.
-// Exact run history follows generated-schema identity: turn-scoped facts attach
-// only to the matching turn; thread-scoped facts attach to every run currently
-// active or attaching for that thread and are not retained for a later run;
-// client/global facts never enter per-run evidence. Every validated generated
-// notification is still enqueued for the global handler, in ingestion order,
-// after its justified per-run append completes. A terminal exact notification
-// cannot complete its affected stream until that notification's global handler
-// invocation has returned and any handler failure is published as the client
-// first cause. If shutdown, failure, or bounded backpressure rejects handler
-// work before queue ownership transfers, its dispatch fence is released as
-// discarded without removing already accepted exact-run evidence.
+// Exact run results expose immutable notification history already accepted by
+// Exact Run attribution, independent of cursor observation. Wait observes
+// completion without consuming notifications; Next advances a cursor over the
+// same accepted ordered history. The configurable global notification-handler
+// queue remains bounded, and its overflow closes the client with
+// ErrNotificationBackpressure.
+// FinalResponse is a convenience projection over explicit final_answer items in
+// the exact terminal Turn. FinalResponsePresent distinguishes no observed
+// final-answer item from an observed final-answer item whose text is empty. The
+// server-reported terminal status remains authoritative and is not rewritten by
+// that projection.
+// When Exact Run routing attributes a generated notification to a run, the
+// observation is appended only to that justified run/thread scope; missing
+// correlation is not inferred from timing, active-run count, or requested IDs.
+// Every validated generated notification is still enqueued for the global
+// handler, in ingestion order, after any accepted per-run append completes. A
+// terminal exact notification cannot complete its affected stream until that
+// notification's global handler invocation has returned and any handler failure
+// is published as the client first cause. If shutdown, failure, or bounded
+// backpressure rejects handler work before queue ownership transfers, its
+// dispatch fence is released as discarded without removing already accepted
+// exact-run evidence.
 // Exact server-request responses are application-owned. Client delivers exact
 // generated requests and encodes caller-supplied typed responses, but it does
 // not choose approvals, user answers, permissions, elicitation outcomes, or
