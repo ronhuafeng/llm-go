@@ -1,0 +1,125 @@
+name: Verify Go module
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        required: true
+        type: string
+      go-version:
+        required: true
+        type: string
+      packages:
+        required: false
+        type: string
+        default: ./...
+      race:
+        required: false
+        type: boolean
+        default: false
+      tidy:
+        required: false
+        type: boolean
+        default: false
+      vet:
+        required: false
+        type: boolean
+        default: false
+      current-source-replaces:
+        description: Newline-separated module=relativePath replacements from the module directory
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: ${{ inputs.working-directory }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ inputs.go-version }}
+          cache: false
+
+      - uses: actions/setup-go@v6
+        if: inputs.current-source-replaces != ''
+        with:
+          go-version: "1.25.x"
+          cache: false
+
+      - name: Write current-source modfile
+        if: inputs.current-source-replaces != ''
+        env:
+          REPLACES: ${{ inputs.current-source-replaces }}
+          MODULE_DIR: ${{ inputs.working-directory }}
+        run: |
+          set -euo pipefail
+          module_dir="$(pwd)/${MODULE_DIR}"
+          args=(
+            -go-mod "${module_dir}/go.mod"
+            -go-sum "${module_dir}/go.sum"
+            -out-mod "${RUNNER_TEMP}/verify.mod"
+            -out-sum "${RUNNER_TEMP}/verify.sum"
+          )
+          while IFS= read -r line; do
+            [[ -z "${line}" ]] && continue
+            args+=(-replace "${line}")
+          done <<< "${REPLACES}"
+          GOWORK=off go run -C internal/moduleproof ./cmd/verifymodfile "${args[@]}"
+          echo "GOFLAGS=-modfile=${RUNNER_TEMP}/verify.mod" >> "${GITHUB_ENV}"
+
+      - uses: actions/setup-go@v6
+        if: inputs.current-source-replaces != ''
+        with:
+          go-version: ${{ inputs.go-version }}
+          cache: false
+
+      - name: Module proof
+        working-directory: ${{ inputs.working-directory }}
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+          RUN_TIDY: ${{ inputs.tidy }}
+          RUN_VET: ${{ inputs.vet }}
+          RUN_RACE: ${{ inputs.race }}
+          PACKAGES: ${{ inputs.packages }}
+        run: |
+          set -euo pipefail
+          if [[ "${RUN_TIDY}" == "true" ]]; then
+            if [[ -n "${GOFLAGS:-}" ]]; then
+              go mod tidy
+            else
+              go mod tidy -diff
+            fi
+          fi
+          if [[ "${RUN_VET}" == "true" ]]; then
+            # shellcheck disable=SC2086
+            go vet ${PACKAGES}
+          fi
+          if [[ "${RUN_RACE}" == "true" ]]; then
+            # shellcheck disable=SC2086
+            go test -race ${PACKAGES}
+          else
+            # shellcheck disable=SC2086
+            go test ${PACKAGES}
+          fi
+
+      - name: Worktree remains clean
+        run: |
+          set -euo pipefail
+          git diff --check
+          if [[ -n "$(git status --porcelain --untracked-files=all)" ]]; then
+            git status --short >&2
+            echo "verification left a dirty worktree" >&2
+            exit 1
+          fi

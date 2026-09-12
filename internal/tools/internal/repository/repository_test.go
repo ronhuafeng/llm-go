@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -97,6 +98,317 @@ func TestPostReleaseModuleSmokeObservesPublicProxyOnce(t *testing.T) {
 	}
 	if !strings.Contains(string(release), "continue-on-error: true") {
 		t.Fatal("observation dispatch must not fail the release job after publication")
+	}
+}
+
+func TestPRVerificationIsANativeProofGraph(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pr, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "pr-verification.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(pr)
+	for _, want := range []string{
+		"uses: ./.github/workflows/verify-go-module.yml",
+		"uses: ./.github/workflows/verify-generated.yml",
+		"generated-reproducibility",
+		"current-source-replaces",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("PR verification missing %q", want)
+		}
+	}
+	if strings.Contains(text, "go mod edit") || strings.Contains(text, "cp go.mod") {
+		t.Fatal("PR verification must not own current-source composition in shell")
+	}
+	helper, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "verify-go-module.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(helper), "go run -C internal/moduleproof ./cmd/verifymodfile") {
+		t.Fatal("verify-go-module must invoke native current-source replacement")
+	}
+}
+
+func TestProtocolSyncAndRepairAreNaturallyFailClosed(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	syncText := readWorkflow(t, root, "codexsdk-upstream-protocol-sync.yml")
+	proofText := readWorkflow(t, root, "codexsdk-protocol-proof.yml")
+	repairText := readWorkflow(t, root, "codexsdk-upstream-protocol-repair.yml")
+
+	syncProof, ok := workflowJobByID(syncText, "proof")
+	if !ok {
+		t.Fatal("normal sync must invoke a proof job")
+	}
+	if !strings.Contains(syncProof, "needs: sync") {
+		t.Fatal("normal proof must depend on sync")
+	}
+	if !strings.Contains(syncProof, "uses: ./.github/workflows/codexsdk-protocol-proof.yml") {
+		t.Fatal("normal sync must call the reusable protocol proof before publication")
+	}
+
+	syncPublish, ok := workflowJobByID(syncText, "publish")
+	if !ok {
+		t.Fatal("normal sync must have a publish job")
+	}
+	if !strings.Contains(syncPublish, "needs: [sync, proof]") && !strings.Contains(syncPublish, "needs: [proof, sync]") {
+		t.Fatal("normal publication must naturally depend on proof")
+	}
+	if !strings.Contains(syncPublish, "--sync-mode metadata-sync") {
+		t.Fatal("normal publication must use fixed metadata-sync")
+	}
+	if strings.Contains(syncPublish, "repair-sync") {
+		t.Fatal("normal workflow cannot publish repair-sync")
+	}
+	if strings.Contains(jobIf(syncPublish), "always()") {
+		t.Fatal("normal publication must not use always() to run after proof failure")
+	}
+	if !strings.Contains(syncPublish, "inputs.validation_only != true") {
+		t.Fatal("validation-only comparison must skip publication")
+	}
+
+	if strings.Contains(syncText, "uses: ./.github/actions/codex-exec") {
+		t.Fatal("normal sync workflow contains no Codex repair action")
+	}
+	for _, banned := range []string{"reproof-gate", "original_ok", "reproof_ok", "failed=()", "continue-on-error"} {
+		if strings.Contains(syncText, banned) {
+			t.Fatalf("normal sync still contains recovery construct %q", banned)
+		}
+	}
+
+	for _, id := range []string{"generated", "owner-local", "schema-state", "script-tests"} {
+		job, ok := workflowJobByID(proofText, id)
+		if !ok {
+			t.Fatalf("reusable protocol proof missing owner job %s", id)
+		}
+		if strings.Contains(job, "continue-on-error") {
+			t.Fatalf("required proof job %s must not use continue-on-error", id)
+		}
+	}
+	generated, _ := workflowJobByID(proofText, "generated")
+	if !strings.Contains(generated, "./internal/cmd/generatedproof") {
+		t.Fatal("reusable generated proof must run generatedproof")
+	}
+	owner, _ := workflowJobByID(proofText, "owner-local")
+	if !strings.Contains(owner, "go test ./...") {
+		t.Fatal("reusable owner-local job must run go test")
+	}
+	schema, _ := workflowJobByID(proofText, "schema-state")
+	if !strings.Contains(schema, "codexsdk_sync_state.py") {
+		t.Fatal("reusable schema-state job must run candidate schema-state")
+	}
+	scripts, _ := workflowJobByID(proofText, "script-tests")
+	if !strings.Contains(scripts, "python3 -m unittest discover -s scripts -p '*_test.py'") {
+		t.Fatal("reusable script-tests job must run retained script tests")
+	}
+
+	repairOn, ok := workflowJobByID(repairText, "repair")
+	if !ok {
+		t.Fatal("repair workflow missing repair job")
+	}
+	if !strings.Contains(repairText, "failed_run_id:") {
+		t.Fatal("repair workflow must require an exact failed-run identity")
+	}
+	if strings.Index(repairOn, "codexsdk_repair_evidence.py admit") < 0 {
+		t.Fatal("repair workflow must admit failed-run evidence")
+	}
+	if strings.Index(repairOn, "codexsdk_repair_evidence.py admit") > strings.Index(repairOn, "uses: ./.github/actions/codex-exec") {
+		t.Fatal("repair workflow must admit failed-run evidence before Codex")
+	}
+	if strings.Index(repairOn, "uses: ./.github/actions/codex-exec") < 0 {
+		t.Fatal("repair workflow must invoke Codex")
+	}
+	admit, ok := workflowStepByID(repairText, "admission")
+	if !ok {
+		t.Fatal("repair workflow missing admission step")
+	}
+	if strings.Contains(admit, "continue-on-error") {
+		t.Fatal("admission must fail closed; Codex cannot run when admission rejects")
+	}
+	if !strings.Contains(repairOn, "failed-run/jobs.json") {
+		t.Fatal("repair admission must observe failed-run jobs")
+	}
+	if !strings.Contains(repairOn, "repair-input/admission.json") {
+		t.Fatal("repair must write normalized admission.json before Codex")
+	}
+	if !strings.Contains(repairOn, "repair-input/failed-logs") {
+		t.Fatal("repair must collect failed proof logs from the validated run")
+	}
+	if !strings.Contains(repairOn, "-n generated-proof") {
+		t.Fatal("repair must consume generated-proof JSON when the source run produced it")
+	}
+
+	repairProof, ok := workflowJobByID(repairText, "proof")
+	if !ok {
+		t.Fatal("repair workflow must invoke protocol proof")
+	}
+	if !strings.Contains(repairProof, "needs: repair") {
+		t.Fatal("repair proof must run after Codex repair")
+	}
+	if !strings.Contains(repairProof, "uses: ./.github/workflows/codexsdk-protocol-proof.yml") {
+		t.Fatal("repair workflow must reuse the same protocol proof")
+	}
+	if strings.Index(repairText, "id: codex") > strings.Index(repairText, "uses: ./.github/workflows/codexsdk-protocol-proof.yml") {
+		t.Fatal("repair workflow must invoke Codex before the reusable protocol proof")
+	}
+
+	repairPublish, ok := workflowJobByID(repairText, "publish")
+	if !ok {
+		t.Fatal("repair workflow missing publish job")
+	}
+	if !strings.Contains(repairPublish, "needs: [repair, proof]") && !strings.Contains(repairPublish, "needs: [proof, repair]") {
+		t.Fatal("repair publication must naturally depend on proof")
+	}
+	if !strings.Contains(repairPublish, "--sync-mode repair-sync") {
+		t.Fatal("repair publication must use fixed repair-sync")
+	}
+	if strings.Contains(repairPublish, "metadata-sync") {
+		t.Fatal("repair workflow cannot publish metadata-sync")
+	}
+	if strings.Contains(jobIf(repairPublish), "always()") {
+		t.Fatal("repair publication must not run when proof fails")
+	}
+
+	mechanical, err := os.ReadFile(filepath.Join(root, "codexsdk", "scripts", "codexsdk_mechanical_sync.py"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mechanicalText := string(mechanical)
+	if strings.Contains(mechanicalText, "metadata-sync") || strings.Contains(mechanicalText, "repair-sync") || strings.Contains(mechanicalText, "sync_mode") {
+		t.Fatal("mechanical sync must not own final publication mode")
+	}
+	if strings.Contains(mechanicalText, "./internal/cmd/generatedproof") || strings.Contains(mechanicalText, `"go", "test"`) {
+		t.Fatal("mechanical sync must not own generatedproof or go test correctness decisions")
+	}
+
+	evidence, ok := workflowStepByID(syncText, "evidence")
+	if !ok {
+		t.Fatal("normal sync must pack exact failure evidence")
+	}
+	if !strings.Contains(evidence, "always()") {
+		t.Fatal("evidence-upload may run on failure")
+	}
+	if strings.Contains(evidence, "--sync-mode") {
+		t.Fatal("evidence-upload must not decide publication")
+	}
+	if strings.Contains(evidence, "unknown") {
+		t.Fatal("evidence pack must not write unknown as a target identity")
+	}
+
+	if strings.Contains(syncText, "codexsdk_validate_sync.sh") {
+		t.Fatal("protocol sync must not keep the shell validator as the generated-artifact owner")
+	}
+}
+
+func TestWorkflowJobByIDIsolatesJobs(t *testing.T) {
+	yaml := "" +
+		"jobs:\n" +
+		"  sync:\n" +
+		"    steps:\n" +
+		"      - run: echo sync\n" +
+		"  proof:\n" +
+		"    needs: sync\n" +
+		"    uses: ./.github/workflows/codexsdk-protocol-proof.yml\n" +
+		"  publish:\n" +
+		"    needs: [sync, proof]\n" +
+		"    if: always()\n"
+	proof, ok := workflowJobByID(yaml, "proof")
+	if !ok {
+		t.Fatal("expected proof job")
+	}
+	if !strings.Contains(proof, "uses: ./.github/workflows/codexsdk-protocol-proof.yml") {
+		t.Fatalf("missing uses: %s", proof)
+	}
+	if strings.Contains(proof, "if: always()") || strings.Contains(proof, "run: echo sync") {
+		t.Fatalf("job extractor leaked siblings: %s", proof)
+	}
+}
+
+func TestWorkflowStepByIDKeepsWorkingDirectoryOnOwningStep(t *testing.T) {
+	yaml := "" +
+		"    steps:\n" +
+		"      - name: Prove checked-in generated artifacts\n" +
+		"        id: generated-proof\n" +
+		"        working-directory: leaked\n" +
+		"        run: go run ./internal/cmd/generatedproof\n" +
+		"      - name: Validate escalated protocol implementation\n" +
+		"        id: escalation-validation\n" +
+		"        working-directory: codexsdk\n" +
+		"        run: go run ./internal/cmd/generatedproof\n" +
+		"      - name: Upload generated proof\n" +
+		"        if: always()\n"
+	step, ok := workflowStepByID(yaml, "escalation-validation")
+	if !ok {
+		t.Fatal("expected escalation-validation step")
+	}
+	if !strings.Contains(step, "working-directory: codexsdk") {
+		t.Fatalf("missing owning working-directory: %s", step)
+	}
+	if strings.Contains(step, "working-directory: leaked") {
+		t.Fatalf("leaked sibling working-directory into escalation step: %s", step)
+	}
+	if strings.Contains(step, "id: generated-proof") || strings.Contains(step, "Upload generated proof") {
+		t.Fatalf("step extractor included siblings: %s", step)
+	}
+
+	missingCWD := strings.Replace(yaml, "        working-directory: codexsdk\n", "", 1)
+	leaky, ok := workflowStepByID(missingCWD, "escalation-validation")
+	if !ok {
+		t.Fatal("expected escalation-validation step after removing its working-directory")
+	}
+	if strings.Contains(leaky, "working-directory: codexsdk") {
+		t.Fatal("removed escalation working-directory still visible on that step")
+	}
+	if !strings.Contains(missingCWD, "id: escalation-validation") || !strings.Contains(missingCWD, "working-directory: leaked") {
+		t.Fatal("fixture must still contain a sibling working-directory so a file-wide search would pass")
+	}
+}
+
+func TestReleaseReusesNativeProofEntryPoints(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "release.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(data)
+	if strings.Contains(text, "go mod edit") || strings.Contains(text, "cp go.mod") {
+		t.Fatal("release verification must not own current-source composition in shell")
+	}
+	if !strings.Contains(text, "go run -C internal/moduleproof ./cmd/verifymodfile") {
+		t.Fatal("release verification must use native current-source replacement")
+	}
+	if !strings.Contains(text, "./internal/cmd/generatedproof") {
+		t.Fatal("release verification must reuse native generated-artifact proof")
+	}
+	if !strings.Contains(text, "if: inputs.module == 'codexsdk'") {
+		t.Fatal("release generated-artifact proof must be owned by the codexsdk module only")
+	}
+}
+
+func TestWorkflowLintUsesPinnedGoActionlint(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "verify-workflows.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(data)
+	if strings.Contains(text, "curl -fsSL") || strings.Contains(text, "download-actionlint.bash") {
+		t.Fatal("workflow lint must not extract actionlint with curl")
+	}
+	if !strings.Contains(text, "go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12") {
+		t.Fatal("workflow lint must run version-pinned actionlint through Go")
 	}
 }
 
@@ -315,4 +627,102 @@ func writeFile(t *testing.T, root, name, contents string) {
 	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func readWorkflow(t *testing.T, root, name string) string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(root, ".github", "workflows", name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
+}
+
+var workflowJobHeader = regexp.MustCompile(`^  ([A-Za-z0-9_-]+):$`)
+
+func workflowJobByID(yaml, id string) (string, bool) {
+	lines := strings.Split(yaml, "\n")
+	inJobs := false
+	start := -1
+	for i, line := range lines {
+		if line == "jobs:" {
+			inJobs = true
+			continue
+		}
+		if !inJobs {
+			continue
+		}
+		match := workflowJobHeader.FindStringSubmatch(line)
+		if match == nil {
+			continue
+		}
+		if start >= 0 {
+			return strings.Join(lines[start:i], "\n"), true
+		}
+		if match[1] == id {
+			start = i
+		}
+	}
+	if start >= 0 {
+		return strings.Join(lines[start:], "\n"), true
+	}
+	return "", false
+}
+
+func jobIf(job string) string {
+	for _, line := range strings.Split(job, "\n") {
+		if strings.HasPrefix(line, "    if:") && !strings.HasPrefix(line, "     ") {
+			return strings.TrimSpace(line)
+		}
+	}
+	return ""
+}
+
+func workflowStepByID(yaml, id string) (string, bool) {
+	lines := strings.Split(yaml, "\n")
+	idLine := -1
+	for i, line := range lines {
+		if strings.TrimSpace(line) == "id: "+id {
+			idLine = i
+			break
+		}
+	}
+	if idLine < 0 {
+		return "", false
+	}
+	idIndent := countLeadingSpaces(lines[idLine])
+	start := idLine
+	for start > 0 {
+		line := lines[start]
+		trimmed := strings.TrimLeft(line, " ")
+		if strings.HasPrefix(trimmed, "- ") && countLeadingSpaces(line) < idIndent {
+			break
+		}
+		start--
+	}
+	if !strings.HasPrefix(strings.TrimLeft(lines[start], " "), "- ") {
+		return "", false
+	}
+	startIndent := countLeadingSpaces(lines[start])
+	end := idLine + 1
+	for end < len(lines) {
+		line := lines[end]
+		trimmed := strings.TrimLeft(line, " ")
+		if strings.HasPrefix(trimmed, "- ") && countLeadingSpaces(line) == startIndent {
+			break
+		}
+		end++
+	}
+	return strings.Join(lines[start:end], "\n"), true
+}
+
+func countLeadingSpaces(s string) int {
+	n := 0
+	for _, r := range s {
+		if r != ' ' {
+			break
+		}
+		n++
+	}
+	return n
 }

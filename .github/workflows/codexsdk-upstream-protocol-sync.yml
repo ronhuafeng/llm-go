@@ -36,10 +36,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 360
     permissions:
-      actions: read
-      contents: write
-      pull-requests: write
-
+      contents: read
+      pull-requests: read
+    outputs:
+      outcome: ${{ steps.mechanical.outputs.outcome }}
+      applied: ${{ steps.mechanical.outputs.applied }}
+      target_ref: ${{ steps.mechanical.outputs.target_ref }}
+      target_kind: ${{ steps.mechanical.outputs.target_kind }}
+      target_sha: ${{ steps.mechanical.outputs.target_sha }}
+      restore_candidate: ${{ steps.evidence.outputs.restore_candidate }}
+      restore_worktree: ${{ steps.evidence.outputs.restore_worktree }}
     steps:
       - name: Guard control-plane ref
         env:
@@ -151,57 +157,126 @@ jobs:
         run: |
           python3 scripts/codexsdk_mechanical_sync.py --repo-root "${GITHUB_WORKSPACE}"
 
-      - name: Escalate unsupported semantic drift
-        id: codex
-        if: steps.mechanical.outputs.escalate == 'true'
-        uses: ./.github/actions/codex-exec
-        with:
-          api-key: ${{ secrets.AZURE_OPENAI_API_KEY }}
-          responses-api-endpoint: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
-          working-directory: codexsdk
-          prompt: >-
-            The mechanical protocol sync escalated. Read
-            ${{ github.workspace }}/codexsdk/.cache/codexsdk-sync/escalation.json
-            and use $codexsdk-sync-upstream only to repair the recorded
-            unsupported semantic drift for that upstream ref and commit. Do not
-            resolve a different target or rediscover the repository. Leave
-            changes unstaged.
-
-      - name: Reject mismatched Codex escalation claim
-        if: steps.mechanical.outputs.escalate == 'true'
-        env:
-          CODEX_FINAL_MESSAGE_PATH: ${{ steps.codex.outputs.final-message-path }}
-        run: |
-          python3 - <<'PY'
-          import os
-          from pathlib import Path
-
-          path = os.environ.get("CODEX_FINAL_MESSAGE_PATH", "")
-          if not path or not Path(path).is_file() or Path(path).stat().st_size == 0:
-              raise SystemExit("escalation Codex did not write a final message")
-          first_line = Path(path).read_text(encoding="utf-8").splitlines()[0]
-          if first_line in {"protocol implementation current", "protocol comparison clean"}:
-              raise SystemExit(
-                  f"escalation Codex claim {first_line!r} does not match repair worktree mode"
-              )
-          PY
-
-      - name: Validate escalated protocol implementation
-        id: escalation-validation
-        if: steps.mechanical.outputs.escalate == 'true'
+      - name: Pack sync evidence
+        id: evidence
+        if: always() && !cancelled()
         working-directory: codexsdk
         env:
-          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          REPOSITORY_SHA: ${{ github.sha }}
+          TARGET_REF: ${{ steps.mechanical.outputs.target_ref || steps.target.outputs.ref }}
+          TARGET_KIND: ${{ steps.mechanical.outputs.target_kind || steps.target.outputs.kind }}
+          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha || steps.target.outputs.sha }}
+          OUTCOME: ${{ steps.mechanical.outputs.outcome }}
+          APPLIED: ${{ steps.mechanical.outputs.applied }}
+          CANDIDATE: ${{ steps.mechanical.outputs.candidate }}
+          HEAD_BRANCH: ${{ github.ref_name }}
+          EVENT_NAME: ${{ github.event_name }}
+          VALIDATION_ONLY: ${{ inputs.validation_only || false }}
         run: |
-          scripts/codexsdk_validate_sync.sh --target-sha "${TARGET_SHA}"
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/protocol-sync-evidence"
+          args=(
+            pack
+            --out "${RUNNER_TEMP}/protocol-sync-evidence"
+            --repo-root "${GITHUB_WORKSPACE}"
+            --repository "${GH_REPO}"
+            --run-id "${RUN_ID}"
+            --repository-sha "${REPOSITORY_SHA}"
+            --head-branch "${HEAD_BRANCH}"
+            --event "${EVENT_NAME}"
+            --candidate "${CANDIDATE}"
+          )
+          if [[ -n "${TARGET_REF}" ]]; then
+            args+=(--target-ref "${TARGET_REF}")
+          fi
+          if [[ -n "${TARGET_KIND}" ]]; then
+            args+=(--target-kind "${TARGET_KIND}")
+          fi
+          if [[ -n "${TARGET_SHA}" ]]; then
+            args+=(--target-sha "${TARGET_SHA}")
+          fi
+          if [[ -n "${OUTCOME}" ]]; then
+            args+=(--outcome "${OUTCOME}")
+          fi
+          if [[ "${APPLIED}" == "true" ]]; then
+            args+=(--applied)
+          fi
+          if [[ "${VALIDATION_ONLY}" == "true" ]]; then
+            args+=(--validation-only)
+          fi
+          python3 scripts/codexsdk_repair_evidence.py "${args[@]}"
+
+      - name: Upload protocol sync evidence
+        if: always() && !cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: protocol-sync-evidence
+          path: ${{ runner.temp }}/protocol-sync-evidence
+          if-no-files-found: ignore
+
+      - name: Upload protocol candidate
+        if: always() && !cancelled() && steps.evidence.outputs.restore_candidate == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: protocol-candidate
+          path: ${{ runner.temp }}/protocol-sync-evidence/schema
+          if-no-files-found: error
+
+      - name: Upload protocol worktree
+        if: always() && !cancelled() && steps.evidence.outputs.restore_worktree == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: protocol-worktree
+          path: ${{ runner.temp }}/protocol-sync-evidence/protocol-worktree.patch
+          if-no-files-found: error
+
+  proof:
+    name: Protocol proof
+    needs: sync
+    uses: ./.github/workflows/codexsdk-protocol-proof.yml
+    with:
+      repository-sha: ${{ github.sha }}
+      target-ref: ${{ needs.sync.outputs.target_ref }}
+      target-sha: ${{ needs.sync.outputs.target_sha }}
+      restore-worktree: ${{ needs.sync.outputs.restore_worktree == 'true' }}
+      restore-candidate: ${{ needs.sync.outputs.restore_candidate == 'true' }}
+
+  publish:
+    name: Publish metadata-sync PR
+    needs: [sync, proof]
+    if: ${{ needs.sync.outputs.applied == 'true' && inputs.validation_only != true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check out trusted control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Restore applied worktree
+        if: needs.sync.outputs.restore_worktree == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: protocol-worktree
+          path: ${{ runner.temp }}/protocol-worktree
+
+      - name: Apply worktree patch
+        if: needs.sync.outputs.restore_worktree == 'true'
+        run: git apply --binary "${RUNNER_TEMP}/protocol-worktree/protocol-worktree.patch"
 
       - name: Confirm generated baseline provenance
-        if: steps.mechanical.outputs.publish == 'true' || steps.mechanical.outputs.escalate == 'true'
         working-directory: codexsdk
         env:
-          RESOLVED_TARGET_KIND: ${{ steps.mechanical.outputs.target_kind }}
-          RESOLVED_TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
-          RESOLVED_TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
+          RESOLVED_TARGET_KIND: ${{ needs.sync.outputs.target_kind }}
+          RESOLVED_TARGET_REF: ${{ needs.sync.outputs.target_ref }}
+          RESOLVED_TARGET_SHA: ${{ needs.sync.outputs.target_sha }}
         run: |
           python3 - <<'PY'
           import json
@@ -221,8 +296,6 @@ jobs:
           PY
 
       - name: Capture final protocol changes
-        id: capture
-        if: steps.mechanical.outputs.publish == 'true' || steps.mechanical.outputs.escalate == 'true'
         working-directory: codexsdk
         run: |
           python3 scripts/codexsdk_sync_changes.py capture \
@@ -232,14 +305,11 @@ jobs:
 
       - name: Commit validated protocol implementation
         id: commit
-        if: >-
-          (steps.mechanical.outputs.publish == 'true' || steps.mechanical.outputs.escalate == 'true') &&
-          inputs.validation_only != true
         working-directory: codexsdk
         env:
-          TARGET_KIND: ${{ steps.mechanical.outputs.target_kind }}
-          TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
-          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
+          TARGET_KIND: ${{ needs.sync.outputs.target_kind }}
+          TARGET_REF: ${{ needs.sync.outputs.target_ref }}
+          TARGET_SHA: ${{ needs.sync.outputs.target_sha }}
         run: |
           set -euo pipefail
           python3 scripts/codexsdk_sync_changes.py stage \
@@ -256,18 +326,13 @@ jobs:
           echo "validated_commit=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
 
       - name: Publish protected sync PR
-        id: publish
-        if: >-
-          (steps.mechanical.outputs.publish == 'true' || steps.mechanical.outputs.escalate == 'true') &&
-          inputs.validation_only != true
         working-directory: codexsdk
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SYNC_MODE: ${{ steps.mechanical.outputs.sync_mode }}
-          TARGET_KIND: ${{ steps.mechanical.outputs.target_kind }}
-          TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
-          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
+          TARGET_KIND: ${{ needs.sync.outputs.target_kind }}
+          TARGET_REF: ${{ needs.sync.outputs.target_ref }}
+          TARGET_SHA: ${{ needs.sync.outputs.target_sha }}
           VALIDATED_COMMIT: ${{ steps.commit.outputs.validated_commit }}
         run: |
           set -euo pipefail
@@ -280,47 +345,5 @@ jobs:
             --target-ref "${TARGET_REF}" \
             --target-kind "${TARGET_KIND}" \
             --target-sha "${TARGET_SHA}" \
-            --sync-mode "${SYNC_MODE}" \
+            --sync-mode metadata-sync \
             --validated-commit "${VALIDATED_COMMIT}"
-
-      - name: Report protocol sync outcome
-        if: >-
-          always() &&
-          steps.mechanical.outcome == 'success' &&
-          (steps.mechanical.outputs.escalate != 'true' || steps.escalation-validation.outcome == 'success') &&
-          (inputs.validation_only == true ||
-           (steps.mechanical.outputs.publish != 'true' && steps.mechanical.outputs.escalate != 'true') ||
-           (steps.commit.outcome == 'success' && steps.publish.outcome == 'success'))
-        env:
-          OUTCOME: ${{ steps.mechanical.outputs.outcome }}
-          PR_URL: ${{ steps.publish.outputs.pr_url }}
-          PUBLISH: ${{ steps.mechanical.outputs.publish }}
-          ESCALATE: ${{ steps.mechanical.outputs.escalate }}
-          TARGET_REF: ${{ steps.target.outputs.ref }}
-          TARGET_SHA: ${{ steps.target.outputs.sha }}
-          VALIDATION_ONLY: ${{ inputs.validation_only || false }}
-        run: |
-          {
-            echo
-            echo "## Protocol sync outcome"
-            echo
-            echo "- Mechanical outcome: \`${OUTCOME}\`"
-            echo "- Upstream target: \`${TARGET_REF}\`"
-            echo "- Upstream commit: \`${TARGET_SHA}\`"
-            if [[ "${ESCALATE}" == "true" ]]; then
-              echo "- Escalation: implementation agent received explicit drift evidence after mechanical generation and owner-local Go proofs failed."
-            elif [[ "${OUTCOME}" == "implemented" ]]; then
-              echo "- Mechanical generation and owner-local Go proofs were sufficient; no implementation agent was invoked."
-            elif [[ "${OUTCOME}" == "comparison" ]]; then
-              echo "- Read-only comparison found no protocol drift."
-            else
-              echo "- Checked-in protocol implementation is already current."
-            fi
-            if [[ "${PUBLISH}" == "true" || "${ESCALATE}" == "true" ]]; then
-              if [[ "${VALIDATION_ONLY}" == "true" ]]; then
-                echo "- PR validation: protocol implementation validated; commit and publication intentionally skipped."
-              else
-                echo "- Workflow publication: ${PR_URL}"
-              fi
-            fi
-          } >> "${GITHUB_STEP_SUMMARY}"

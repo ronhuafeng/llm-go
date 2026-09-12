@@ -1,0 +1,343 @@
+name: Codex Upstream Protocol Repair
+run-name: "Protocol repair ${{ inputs.failed_run_id }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      failed_run_id:
+        description: Failed Codex Upstream Protocol Sync run to repair
+        required: true
+        type: string
+
+concurrency:
+  group: codex-upstream-protocol-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    name: Load evidence and propose repair
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      repository_sha: ${{ steps.admission.outputs.repository_sha }}
+      target_ref: ${{ steps.admission.outputs.target_ref }}
+      target_kind: ${{ steps.admission.outputs.target_kind }}
+      target_sha: ${{ steps.admission.outputs.target_sha }}
+      restore_candidate: ${{ steps.pack.outputs.restore_candidate }}
+      restore_worktree: ${{ steps.pack.outputs.restore_worktree }}
+    steps:
+      - name: Guard control-plane ref
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_NAME}" != "${DEFAULT_BRANCH}" ]]; then
+            echo "Refusing to run protocol repair from ${GITHUB_REF_NAME}; use ${DEFAULT_BRANCH}." >&2
+            exit 1
+          fi
+
+      - name: Fetch failed-run identity
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FAILED_RUN_ID: ${{ inputs.failed_run_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/failed-run" "${RUNNER_TEMP}/repair-input/sync-evidence"
+          gh api "repos/${GH_REPO}/actions/runs/${FAILED_RUN_ID}" > "${RUNNER_TEMP}/failed-run/run.json"
+          gh api --paginate "repos/${GH_REPO}/actions/runs/${FAILED_RUN_ID}/jobs" --jq '.jobs[]' \
+            | jq -s '{jobs: .}' > "${RUNNER_TEMP}/failed-run/jobs.json"
+          gh api "repos/${GH_REPO}/actions/runs/${FAILED_RUN_ID}/artifacts" > "${RUNNER_TEMP}/failed-run/artifacts.json"
+          gh run download "${FAILED_RUN_ID}" \
+            --repo "${GH_REPO}" \
+            -n protocol-sync-evidence \
+            -D "${RUNNER_TEMP}/repair-input/sync-evidence"
+
+      - name: Check out trusted control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Admit failed-run for repair
+        id: admission
+        env:
+          GH_REPO: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          python3 codexsdk/scripts/codexsdk_repair_evidence.py admit \
+            --run-json "${RUNNER_TEMP}/failed-run/run.json" \
+            --jobs-json "${RUNNER_TEMP}/failed-run/jobs.json" \
+            --artifacts-json "${RUNNER_TEMP}/failed-run/artifacts.json" \
+            --evidence "${RUNNER_TEMP}/repair-input/sync-evidence/evidence.json" \
+            --repository "${GH_REPO}" \
+            --default-branch "${DEFAULT_BRANCH}" \
+            --out "${RUNNER_TEMP}/repair-input/admission.json"
+
+      - name: Keep control-plane repair helpers
+        run: |
+          set -euo pipefail
+          cp -a .github/actions/codex-exec "${RUNNER_TEMP}/codex-exec"
+          cp codexsdk/scripts/codexsdk_repair_evidence.py "${RUNNER_TEMP}/codexsdk_repair_evidence.py"
+
+      - name: Check out failed repository SHA
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.admission.outputs.repository_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Restore control-plane repair helpers
+        run: |
+          set -euo pipefail
+          mkdir -p .github/actions
+          rm -rf .github/actions/codex-exec
+          cp -a "${RUNNER_TEMP}/codex-exec" .github/actions/codex-exec
+
+      - name: Restore failed candidate
+        if: steps.admission.outputs.candidate_present == 'true'
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FAILED_RUN_ID: ${{ inputs.failed_run_id }}
+        run: |
+          set -euo pipefail
+          gh run download "${FAILED_RUN_ID}" \
+            --repo "${GH_REPO}" \
+            -n protocol-candidate \
+            -D "${RUNNER_TEMP}/protocol-candidate"
+
+      - name: Restore failed worktree
+        if: steps.admission.outputs.worktree_present == 'true'
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FAILED_RUN_ID: ${{ inputs.failed_run_id }}
+        run: |
+          set -euo pipefail
+          gh run download "${FAILED_RUN_ID}" \
+            --repo "${GH_REPO}" \
+            -n protocol-worktree \
+            -D "${RUNNER_TEMP}/failed-worktree"
+          git apply --binary "${RUNNER_TEMP}/failed-worktree/protocol-worktree.patch"
+
+      - name: Collect source-run proof evidence
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FAILED_RUN_ID: ${{ inputs.failed_run_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/repair-input/generated-proof" "${RUNNER_TEMP}/repair-input/failed-logs"
+          if jq -e '.artifacts[]? | select(.name == "generated-proof")' "${RUNNER_TEMP}/failed-run/artifacts.json" >/dev/null; then
+            gh run download "${FAILED_RUN_ID}" \
+              --repo "${GH_REPO}" \
+              -n generated-proof \
+              -D "${RUNNER_TEMP}/repair-input/generated-proof"
+          fi
+          gh run view "${FAILED_RUN_ID}" --repo "${GH_REPO}" --log-failed \
+            > "${RUNNER_TEMP}/repair-input/failed-logs/failed.log" || true
+          if [[ -d "${RUNNER_TEMP}/protocol-candidate" ]]; then
+            mkdir -p "${RUNNER_TEMP}/repair-input/candidate"
+            cp -a "${RUNNER_TEMP}/protocol-candidate/." "${RUNNER_TEMP}/repair-input/candidate/"
+          fi
+
+      - name: Escalate unsupported semantic drift
+        id: codex
+        uses: ./.github/actions/codex-exec
+        with:
+          api-key: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          responses-api-endpoint: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
+          working-directory: codexsdk
+          prompt: >-
+            Read ${{ runner.temp }}/repair-input/admission.json first.
+            Repair only the recorded failure class and failed proof owners for
+            the exact repository SHA / upstream ref / upstream commit. Use the
+            preserved candidate, mechanical reports, generated proof, and failed
+            logs under ${{ runner.temp }}/repair-input as evidence. Do not
+            resolve a different target. Do not decide whether the repair
+            succeeded. Leave changes unstaged.
+
+      - name: Reject mismatched Codex escalation claim
+        env:
+          CODEX_FINAL_MESSAGE_PATH: ${{ steps.codex.outputs.final-message-path }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          path = os.environ.get("CODEX_FINAL_MESSAGE_PATH", "")
+          if not path or not Path(path).is_file() or Path(path).stat().st_size == 0:
+              raise SystemExit("escalation Codex did not write a final message")
+          first_line = Path(path).read_text(encoding="utf-8").splitlines()[0]
+          if first_line in {"protocol implementation current", "protocol comparison clean"}:
+              raise SystemExit(
+                  f"escalation Codex claim {first_line!r} does not match repair worktree mode"
+              )
+          PY
+
+      - name: Pack repaired worktree
+        id: pack
+        working-directory: codexsdk
+        env:
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          REPOSITORY_SHA: ${{ steps.admission.outputs.repository_sha }}
+          TARGET_REF: ${{ steps.admission.outputs.target_ref }}
+          TARGET_KIND: ${{ steps.admission.outputs.target_kind }}
+          TARGET_SHA: ${{ steps.admission.outputs.target_sha }}
+          CANDIDATE: ${{ runner.temp }}/protocol-candidate
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/protocol-sync-evidence"
+          candidate=""
+          if [[ -d "${CANDIDATE}" ]]; then
+            candidate="${CANDIDATE}"
+          fi
+          python3 "${RUNNER_TEMP}/codexsdk_repair_evidence.py" pack \
+            --out "${RUNNER_TEMP}/protocol-sync-evidence" \
+            --repo-root "${GITHUB_WORKSPACE}" \
+            --repository "${GH_REPO}" \
+            --run-id "${RUN_ID}" \
+            --repository-sha "${REPOSITORY_SHA}" \
+            --target-ref "${TARGET_REF}" \
+            --target-kind "${TARGET_KIND}" \
+            --target-sha "${TARGET_SHA}" \
+            --outcome repair \
+            --applied \
+            --candidate "${candidate}"
+
+      - name: Upload repaired candidate
+        if: steps.pack.outputs.restore_candidate == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: protocol-candidate
+          path: ${{ runner.temp }}/protocol-sync-evidence/schema
+          if-no-files-found: error
+
+      - name: Upload repaired worktree
+        if: steps.pack.outputs.restore_worktree == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: protocol-worktree
+          path: ${{ runner.temp }}/protocol-sync-evidence/protocol-worktree.patch
+          if-no-files-found: error
+
+  proof:
+    name: Protocol proof
+    needs: repair
+    uses: ./.github/workflows/codexsdk-protocol-proof.yml
+    with:
+      repository-sha: ${{ needs.repair.outputs.repository_sha }}
+      target-ref: ${{ needs.repair.outputs.target_ref }}
+      target-sha: ${{ needs.repair.outputs.target_sha }}
+      restore-worktree: ${{ needs.repair.outputs.restore_worktree == 'true' }}
+      restore-candidate: ${{ needs.repair.outputs.restore_candidate == 'true' }}
+
+  publish:
+    name: Publish repair-sync PR
+    needs: [repair, proof]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check out failed repository SHA
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.repair.outputs.repository_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Restore repaired worktree
+        if: needs.repair.outputs.restore_worktree == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: protocol-worktree
+          path: ${{ runner.temp }}/protocol-worktree
+
+      - name: Apply worktree patch
+        if: needs.repair.outputs.restore_worktree == 'true'
+        run: git apply --binary "${RUNNER_TEMP}/protocol-worktree/protocol-worktree.patch"
+
+      - name: Confirm generated baseline provenance
+        working-directory: codexsdk
+        env:
+          RESOLVED_TARGET_KIND: ${{ needs.repair.outputs.target_kind }}
+          RESOLVED_TARGET_REF: ${{ needs.repair.outputs.target_ref }}
+          RESOLVED_TARGET_SHA: ${{ needs.repair.outputs.target_sha }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          metadata = json.loads(Path("internal/protocolschema/appserver/v2/baseline_metadata.json").read_text(encoding="utf-8"))
+          expected = {
+              "source_ref_name": os.environ["RESOLVED_TARGET_REF"],
+              "source_ref_kind": os.environ["RESOLVED_TARGET_KIND"],
+              "source_commit": os.environ["RESOLVED_TARGET_SHA"],
+          }
+          for key, value in expected.items():
+              actual = str(metadata.get(key) or "")
+              if actual != value:
+                  raise SystemExit(f"protocol implementation {key}={actual!r}, expected {value!r}")
+          PY
+
+      - name: Capture final protocol changes
+        working-directory: codexsdk
+        run: |
+          python3 scripts/codexsdk_sync_changes.py capture \
+            --repo-root "${GITHUB_WORKSPACE}" \
+            --phase final \
+            --output /tmp/codexsdk-final-changes.json
+
+      - name: Commit validated protocol implementation
+        id: commit
+        working-directory: codexsdk
+        env:
+          TARGET_KIND: ${{ needs.repair.outputs.target_kind }}
+          TARGET_REF: ${{ needs.repair.outputs.target_ref }}
+          TARGET_SHA: ${{ needs.repair.outputs.target_sha }}
+        run: |
+          set -euo pipefail
+          python3 scripts/codexsdk_sync_changes.py stage \
+            --repo-root "${GITHUB_WORKSPACE}" \
+            --manifest /tmp/codexsdk-final-changes.json
+          git diff --cached --check
+          git -c user.name="codexsdk-sync-bot" \
+            -c user.email="codexsdk-sync-bot@users.noreply.github.com" \
+            commit \
+            -m "Sync Codex protocol baseline to ${TARGET_REF}" \
+            -m "Upstream-ref: ${TARGET_REF}" \
+            -m "Upstream-ref-kind: ${TARGET_KIND}" \
+            -m "Upstream-commit: ${TARGET_SHA}"
+          echo "validated_commit=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
+
+      - name: Publish protected sync PR
+        working-directory: codexsdk
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_KIND: ${{ needs.repair.outputs.target_kind }}
+          TARGET_REF: ${{ needs.repair.outputs.target_ref }}
+          TARGET_SHA: ${{ needs.repair.outputs.target_sha }}
+          VALIDATED_COMMIT: ${{ steps.commit.outputs.validated_commit }}
+        run: |
+          set -euo pipefail
+          gh auth status
+          gh auth setup-git
+          scripts/codexsdk_publish_sync_pr.sh \
+            --land-ref "${DEFAULT_BRANCH}" \
+            --default-branch "${DEFAULT_BRANCH}" \
+            --branch-prefix "codex/sync-upstream/run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --target-ref "${TARGET_REF}" \
+            --target-kind "${TARGET_KIND}" \
+            --target-sha "${TARGET_SHA}" \
+            --sync-mode repair-sync \
+            --validated-commit "${VALIDATED_COMMIT}"

@@ -28,10 +28,12 @@ committed module manifest remains unchanged and contains no `replace` or
 dependency version is already published or independently resolvable.
 
 For the current Codex adapter cohort, the canonical verification shape is the
-same one used by `PR verification`: copy `go.mod`/`go.sum` to temporary verify
-files, add only the required repository-source replacement to the temporary
-modfile, and run Go commands with `GOWORK=off` plus that `-modfile`. Do not add a
-committed replacement merely to make an unpublished dependency resolve.
+same one used by `PR verification`: a native `internal/moduleproof` helper
+writes temporary module files with `golang.org/x/mod/modfile`, applies only the
+required repository-source replacements, and Go commands run with `GOWORK=off`
+plus that `-modfile`. The helper must leave committed manifests unchanged. Do
+not add a committed replacement merely to make an unpublished dependency
+resolve.
 
 Repository tools require Go 1.25 and use the same standalone pattern from
 `internal/tools`. To prove repository-minimum current-source composition through
@@ -56,22 +58,27 @@ The `Post-release module resolution smoke` workflow is also not a merge
 gate and must never be treated as a pre-tag publication check. See
 [`docs/release.md`](release.md).
 
-`PR verification` makes the complete ordinary gate explicit in its workflow:
+`PR verification` is a proof graph. GitHub Actions YAML orchestrates jobs;
+Go owns the proof commands.
 
 1. validate GitHub Actions workflow syntax and context usage with a
    version-pinned `actionlint` binary;
 2. test `llmkit` and `codexsdk` at Go 1.23 with `GOWORK=off` against their
    committed standalone manifests;
-3. test `llmcaller/codex` at Go 1.23 against repository current `llmkit` source
-   through the temporary verify modfile required by the active pre-v1 source
-   cohort, without modifying its committed manifest;
-4. test `internal/tools` standalone and current-source workspace composition
-   with Go 1.25;
+3. test `llmcaller/codex` at Go 1.23 against repository current `llmkit` and
+   `codexsdk` source through a temporary modfile written by
+   `internal/moduleproof`;
+4. test `internal/tools` and `internal/moduleproof` standalone, then
+   current-source workspace composition with Go 1.25;
 5. require tracked Go files to be `gofmt`-clean and reject whitespace errors;
 6. on the current Go toolchain, run `go mod tidy -diff`, `go vet ./...`, and
    `go test -race ./...` for independently resolvable modules; run the Codex
    adapter's `go vet` and `go test -race` through its temporary current-source
-   modfile; then run repository integration against current source.
+   modfile; then run repository integration against current source;
+7. regenerate and compare checked-in `codexsdk` protocol artifacts and SDK
+   surface with `go run ./internal/cmd/generatedproof`, which observes git HEAD
+   and baseline provenance itself and emits a machine-readable proof of those
+   facts. `-write-artifacts` only generates files and is not a proof.
 
 The adapter's temporary source replacement and repository integration proof
 answer only whether the checked-out source cohort composes. They do not answer
@@ -87,12 +94,27 @@ and baseline hygiene are likewise protected by owner-local Go tests.
 
 The Python and shell programs under `codexsdk/scripts` belong to the exceptional
 upstream synchronization control plane. They may acquire or classify upstream
-schemas, construct sync candidates, validate a requested upstream target, and
-publish a sync PR. They are not an ordinary correctness gate for unrelated
-library changes. The upstream-sync workflow is mechanical-first: resolve the
-target, generate and apply the schema/protocol surface, and run owner-local Go
-proofs before any implementation agent. The agent is invoked only when that
-path writes explicit escalation evidence.
+Rust-derived schemas, construct sync candidates, and publish a sync PR. They
+are not the owner of generated-Go reproducibility or current-source
+composition. Those proofs are Go-native: `codexsdk/internal/cmd/generatedproof`
+and `internal/moduleproof`. The upstream-sync workflow is mechanical-first:
+resolve the target, generate and compare upstream schemas, then call one
+reusable protocol-proof workflow for generated artifacts, owner-local Go tests,
+candidate schema-state, and retained script tests. A successful
+`force_compare=true` run must still execute that proof. A required stage
+failure fails that run; the same run does not recover itself. Repair is a
+separate `workflow_dispatch` continuation. It admits only mechanical
+`escalate` or `applied` plus an observed failed protocol-proof owner from the
+exact failed run, then lets Codex propose worktree changes and reuses the
+same proof workflow. `run.conclusion == failure` is not enough to authorize
+repair. Normal publication is structurally `metadata-sync`; repair
+publication is structurally `repair-sync`. The implementation agent does not
+certify its own repair.
+
+Retained Python/shell helpers that still have a mechanical role include
+upstream schema acquisition, candidate apply/report construction, and the
+compatibility-surface helper used by release reports. They must not decide
+protocol, runtime, or publication truth once the native proof exists.
 
 Scheduled Dependabot updates and the manual/scheduled `Go vulnerability scan`
 workflow surface dependency and Action maintenance. They are not required
@@ -110,9 +132,11 @@ required pull-request check.
 Ordinary verification deliberately does **not** model release state, mirror
 public API inventories, compile README Markdown, or treat an unpublished module
 version as published merely because repository source can replace it. It does
-not produce custom evidence/authorization artifacts or wrap standard Go
-commands in another repository task runner. Git source, owner-local Go tests,
-module `go.mod` files, and immutable tags are the authorities for those facts.
+not wrap standard Go commands in another repository task runner. A generated
+reproducibility run may write a small JSON proof of the commits and artifacts
+it actually observed; that file is evidence, not a publication authorization
+artifact. Git source, owner-local Go tests, module `go.mod` files, and
+immutable tags remain the authorities for those facts.
 
 ## Real Codex smoke
 

@@ -15,84 +15,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
-    name: PR verification
+  workflow-lint:
+    name: Workflow lint
+    uses: ./.github/workflows/verify-workflows.yml
+
+  format:
+    name: Go formatting and whitespace
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
-      - name: Validate GitHub Actions workflows
-        env:
-          ACTIONLINT_VERSION: "1.7.12"
-          ACTIONLINT_SHA256: "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
-        run: |
-          set -euo pipefail
-          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
-          curl -fsSL "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}" -o "${archive}"
-          echo "${ACTIONLINT_SHA256}  ${archive}" | sha256sum -c -
-          tar -xzf "${archive}" actionlint
-          ./actionlint
-
-      - name: Public Go minimum
-        uses: actions/setup-go@v6
-        with:
-          go-version: '1.23.x'
-          cache: false
-
-      - name: Minimum Go - llmkit
-        working-directory: llmkit
-        env:
-          GOWORK: "off"
-          GOTOOLCHAIN: local
-        run: go test ./...
-
-      - name: Minimum Go - codexsdk
-        working-directory: codexsdk
-        env:
-          GOWORK: "off"
-          GOTOOLCHAIN: local
-        run: go test ./...
-
-      - name: Minimum Go - Codex adapter current source
-        working-directory: llmcaller/codex
-        env:
-          GOWORK: "off"
-          GOTOOLCHAIN: local
-        run: |
-          set -euo pipefail
-          cp go.mod .verify.mod
-          cp go.sum .verify.sum
-          trap 'rm -f .verify.mod .verify.sum' EXIT
-          go mod edit -modfile=.verify.mod \
-            -replace=github.com/ronhuafeng/llm-go/llmkit=../../llmkit \
-            -replace=github.com/ronhuafeng/llm-go/codexsdk=../../codexsdk
-          verify_mod="$(pwd)/.verify.mod"
-          GOFLAGS="-modfile=${verify_mod}" go test ./...
-
-      - name: Repository Go minimum
-        uses: actions/setup-go@v6
-        with:
-          go-version: '1.25.x'
-          cache: false
-
-      - name: Minimum Go - repository-local tools
-        working-directory: internal/tools
-        env:
-          GOWORK: "off"
-          GOTOOLCHAIN: local
-        run: go test ./internal/...
-
-      - name: Current Go
-        uses: actions/setup-go@v6
+          persist-credentials: false
+      - uses: actions/setup-go@v6
         with:
           go-version: stable
           cache: false
-
-      - name: Go formatting and whitespace
+      - name: gofmt and whitespace
         run: |
           set -euo pipefail
           unformatted="$(git ls-files -z -- '*.go' | xargs -0 gofmt -l)"
@@ -103,69 +44,120 @@ jobs:
           fi
           git diff --check
 
-      - name: Verify llmkit
-        working-directory: llmkit
-        env:
-          GOWORK: "off"
-          GOTOOLCHAIN: local
-        run: |
-          go mod tidy -diff
-          go vet ./...
-          go test -race ./...
+  min-llmkit:
+    name: Minimum Go - llmkit
+    uses: ./.github/workflows/verify-go-module.yml
+    with:
+      working-directory: llmkit
+      go-version: "1.23.x"
+      packages: ./...
 
-      - name: Verify codexsdk
-        working-directory: codexsdk
-        env:
-          GOWORK: "off"
-          GOTOOLCHAIN: local
-        run: |
-          go mod tidy -diff
-          go vet ./...
-          go test -race ./...
+  min-codexsdk:
+    name: Minimum Go - codexsdk
+    uses: ./.github/workflows/verify-go-module.yml
+    with:
+      working-directory: codexsdk
+      go-version: "1.23.x"
+      packages: ./...
 
-      - name: Verify Codex adapter current source
-        working-directory: llmcaller/codex
-        env:
-          GOWORK: "off"
-          GOTOOLCHAIN: local
-        run: |
-          set -euo pipefail
-          cp go.mod .verify.mod
-          cp go.sum .verify.sum
-          trap 'rm -f .verify.mod .verify.sum' EXIT
-          go mod edit -modfile=.verify.mod \
-            -replace=github.com/ronhuafeng/llm-go/llmkit=../../llmkit \
-            -replace=github.com/ronhuafeng/llm-go/codexsdk=../../codexsdk
-          verify_mod="$(pwd)/.verify.mod"
-          export GOFLAGS="-modfile=${verify_mod}"
-          go vet ./...
-          go test -race ./...
+  min-adapter:
+    name: Minimum Go - Codex adapter current source
+    uses: ./.github/workflows/verify-go-module.yml
+    with:
+      working-directory: llmcaller/codex
+      go-version: "1.23.x"
+      packages: ./...
+      current-source-replaces: |
+        github.com/ronhuafeng/llm-go/llmkit=../../llmkit
+        github.com/ronhuafeng/llm-go/codexsdk=../../codexsdk
 
-      - name: Verify repository-local tools
-        working-directory: internal/tools
-        env:
-          GOWORK: "off"
-          GOTOOLCHAIN: local
-        run: |
-          go mod tidy -diff
-          go vet ./internal/...
-          go test -race ./internal/...
+  min-tools:
+    name: Minimum Go - repository-local tools
+    uses: ./.github/workflows/verify-go-module.yml
+    with:
+      working-directory: internal/tools
+      go-version: "1.25.x"
+      packages: ./internal/...
 
-      - name: Current-source composition
-        working-directory: internal/tools
-        env:
-          GOWORK: "off"
-          GOTOOLCHAIN: local
-        run: |
-          set -euo pipefail
-          cp go.mod .verify.mod
-          cp go.sum .verify.sum
-          trap 'rm -f .verify.mod .verify.sum' EXIT
-          go mod edit -modfile=.verify.mod \
-            -replace=github.com/ronhuafeng/llm-go/llmkit=../../llmkit \
-            -replace=github.com/ronhuafeng/llm-go/codexsdk=../../codexsdk \
-            -replace=github.com/ronhuafeng/llm-go/llmcaller/codex=../../llmcaller/codex
-          verify_mod="$(pwd)/.verify.mod"
-          export GOFLAGS="-modfile=${verify_mod}"
-          go mod tidy
-          go test -race ./integration
+  min-moduleproof:
+    name: Minimum Go - moduleproof
+    uses: ./.github/workflows/verify-go-module.yml
+    with:
+      working-directory: internal/moduleproof
+      go-version: "1.25.x"
+      packages: ./...
+
+  verify-llmkit:
+    name: Verify llmkit
+    uses: ./.github/workflows/verify-go-module.yml
+    with:
+      working-directory: llmkit
+      go-version: stable
+      packages: ./...
+      tidy: true
+      vet: true
+      race: true
+
+  verify-codexsdk:
+    name: Verify codexsdk
+    uses: ./.github/workflows/verify-go-module.yml
+    with:
+      working-directory: codexsdk
+      go-version: stable
+      packages: ./...
+      tidy: true
+      vet: true
+      race: true
+
+  verify-adapter:
+    name: Verify Codex adapter current source
+    uses: ./.github/workflows/verify-go-module.yml
+    with:
+      working-directory: llmcaller/codex
+      go-version: stable
+      packages: ./...
+      vet: true
+      race: true
+      current-source-replaces: |
+        github.com/ronhuafeng/llm-go/llmkit=../../llmkit
+        github.com/ronhuafeng/llm-go/codexsdk=../../codexsdk
+
+  verify-tools:
+    name: Verify repository-local tools
+    uses: ./.github/workflows/verify-go-module.yml
+    with:
+      working-directory: internal/tools
+      go-version: stable
+      packages: ./internal/...
+      tidy: true
+      vet: true
+      race: true
+
+  verify-moduleproof:
+    name: Verify moduleproof
+    uses: ./.github/workflows/verify-go-module.yml
+    with:
+      working-directory: internal/moduleproof
+      go-version: stable
+      packages: ./...
+      tidy: true
+      vet: true
+      race: true
+
+  current-source-composition:
+    name: Current-source composition
+    uses: ./.github/workflows/verify-go-module.yml
+    with:
+      working-directory: internal/tools
+      go-version: stable
+      packages: ./integration
+      tidy: true
+      race: true
+      current-source-replaces: |
+        github.com/ronhuafeng/llm-go/llmkit=../../llmkit
+        github.com/ronhuafeng/llm-go/codexsdk=../../codexsdk
+        github.com/ronhuafeng/llm-go/llmcaller/codex=../../llmcaller/codex
+
+  generated-reproducibility:
+    name: Codexsdk generated reproducibility
+    uses: ./.github/workflows/verify-generated.yml

@@ -115,22 +115,24 @@ jobs:
           go test -race ./...
 
       - name: Verify Codex adapter current source
-        working-directory: llmcaller/codex
         env:
           GOWORK: "off"
           GOTOOLCHAIN: local
         run: |
           set -euo pipefail
-          cp go.mod .verify.mod
-          cp go.sum .verify.sum
-          trap 'rm -f .verify.mod .verify.sum' EXIT
-          go mod edit -modfile=.verify.mod \
-            -replace=github.com/ronhuafeng/llm-go/llmkit=../../llmkit \
-            -replace=github.com/ronhuafeng/llm-go/codexsdk=../../codexsdk
-          verify_mod="$(pwd)/.verify.mod"
-          export GOFLAGS="-modfile=${verify_mod}"
-          go vet ./...
-          go test -race ./...
+          GOWORK=off go run -C internal/moduleproof ./cmd/verifymodfile \
+            -go-mod "$(pwd)/llmcaller/codex/go.mod" \
+            -go-sum "$(pwd)/llmcaller/codex/go.sum" \
+            -replace github.com/ronhuafeng/llm-go/llmkit=../../llmkit \
+            -replace github.com/ronhuafeng/llm-go/codexsdk=../../codexsdk \
+            -out-mod "${RUNNER_TEMP}/codex.verify.mod" \
+            -out-sum "${RUNNER_TEMP}/codex.verify.sum"
+          export GOFLAGS="-modfile=${RUNNER_TEMP}/codex.verify.mod"
+          (
+            cd llmcaller/codex
+            go vet ./...
+            go test -race ./...
+          )
 
       - name: Verify Codex adapter published dependency closure
         if: inputs.module == 'codex-adapter'
@@ -153,24 +155,49 @@ jobs:
           go vet ./internal/...
           go test -race ./internal/...
 
-      - name: Current-source composition
-        working-directory: internal/tools
+      - name: Verify moduleproof
+        working-directory: internal/moduleproof
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+        run: |
+          go mod tidy -diff
+          go vet ./...
+          go test -race ./...
+
+      - name: Prove generated protocol artifacts
+        if: inputs.module == 'codexsdk'
+        working-directory: codexsdk
         env:
           GOWORK: "off"
           GOTOOLCHAIN: local
         run: |
           set -euo pipefail
-          cp go.mod .verify.mod
-          cp go.sum .verify.sum
-          trap 'rm -f .verify.mod .verify.sum' EXIT
-          go mod edit -modfile=.verify.mod \
-            -replace=github.com/ronhuafeng/llm-go/llmkit=../../llmkit \
-            -replace=github.com/ronhuafeng/llm-go/codexsdk=../../codexsdk \
-            -replace=github.com/ronhuafeng/llm-go/llmcaller/codex=../../llmcaller/codex
-          verify_mod="$(pwd)/.verify.mod"
-          export GOFLAGS="-modfile=${verify_mod}"
-          go mod tidy
-          go test -race ./integration
+          mkdir -p "${RUNNER_TEMP}/proof"
+          go run ./internal/cmd/generatedproof \
+            -expected-repository-commit "${GITHUB_SHA}" \
+            -json-out "${RUNNER_TEMP}/proof/generated.json"
+
+      - name: Current-source composition
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+        run: |
+          set -euo pipefail
+          GOWORK=off go run -C internal/moduleproof ./cmd/verifymodfile \
+            -go-mod "$(pwd)/internal/tools/go.mod" \
+            -go-sum "$(pwd)/internal/tools/go.sum" \
+            -replace github.com/ronhuafeng/llm-go/llmkit=../../llmkit \
+            -replace github.com/ronhuafeng/llm-go/codexsdk=../../codexsdk \
+            -replace github.com/ronhuafeng/llm-go/llmcaller/codex=../../llmcaller/codex \
+            -out-mod "${RUNNER_TEMP}/tools.verify.mod" \
+            -out-sum "${RUNNER_TEMP}/tools.verify.sum"
+          export GOFLAGS="-modfile=${RUNNER_TEMP}/tools.verify.mod"
+          (
+            cd internal/tools
+            go mod tidy
+            go test -race ./integration
+          )
 
       - name: Create immutable tag at the tested commit
         env:
