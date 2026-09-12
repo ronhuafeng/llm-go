@@ -50,9 +50,12 @@ type ExecutionEvidence struct {
 	// lower layer did not report a provider fact. Adapter names, model names,
 	// credentials, endpoints, and requested settings must not populate it.
 	ProviderName Observation[string]
-	// Model is the provider model identifier that actually served the request.
-	// Unknown means the provider did not report one. It is not inferred from the
-	// prompt and is not a capability or pricing lookup key.
+	// Model is the provider model identifier that actually served this
+	// inference/adapter attempt. Unknown means the lower layer did not prove a
+	// unique served model at that scope. Requested, default, thread-start, and
+	// response-scoped reroute identifiers stay exact backend details unless
+	// they prove attempt-wide serving. It is not inferred from the prompt and
+	// is not a capability or pricing lookup key.
 	Model Observation[string]
 	// Usage is observed token accounting for this inference/adapter attempt.
 	// Nil means the lower layer did not report a usage object at that scope.
@@ -88,8 +91,9 @@ func (e *ExecutionEvidence) ObserveProviderName(provider string) {
 }
 
 // ObserveModel records the served model identifier as present, including an
-// observed empty string. Requested, default, heuristic, or inferred names must
-// not be passed here.
+// observed empty string. Requested, default, thread-start, heuristic, inferred,
+// or response-scoped names must not be passed here unless they prove serving
+// for this attempt.
 func (e *ExecutionEvidence) ObserveModel(model string) {
 	if e == nil {
 		return

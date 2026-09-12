@@ -39,7 +39,7 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 			t.Fatalf("backend = %q, want codex", result.Response.Execution.BackendName)
 		}
 		requireUnknownProvider(t, result.Response.Execution)
-		requireObservedModel(t, result.Response.Execution, "canary-rerouted")
+		requireUnknownModel(t, result.Response.Execution)
 		requireObservedInput(t, result.Response.Execution.Usage, 30)
 		details := result.Response.BackendDetails.(codexcaller.Details)
 		if details.Run.Run.FinalResponse != `{"answer":true}` || len(details.Run.Run.Notifications) != 4 || details.Run.Run.Usage.Total.OutputTokens != 20 {
@@ -55,7 +55,7 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 			t.Fatalf("response=%#v err=%v", response, err)
 		}
 		requireUnknownProvider(t, response.Execution)
-		requireObservedModel(t, response.Execution, "canary-start")
+		requireUnknownModel(t, response.Execution)
 		if response.Execution.Usage != nil {
 			t.Fatalf("usage = %#v, want unreported", response.Execution.Usage)
 		}
@@ -94,7 +94,7 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 			t.Fatalf("decode failure erased exact run: %#v", result.Response)
 		}
 		requireUnknownProvider(t, result.Response.Execution)
-		requireObservedModel(t, result.Response.Execution, "canary-rerouted")
+		requireUnknownModel(t, result.Response.Execution)
 		requireObservedInput(t, result.Response.Execution.Usage, 30)
 	})
 
@@ -119,7 +119,7 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 			t.Fatalf("independent neutral evidence = %#v", result.Response)
 		}
 		requireUnknownProvider(t, result.Response.Execution)
-		requireObservedModel(t, result.Response.Execution, "canary-rerouted")
+		requireUnknownModel(t, result.Response.Execution)
 		requireObservedInput(t, result.Response.Execution.Usage, 30)
 	})
 }
@@ -151,7 +151,7 @@ func TestThreeLayerCanaryFull(t *testing.T) {
 		details := response.BackendDetails.(codexcaller.Details)
 		accepted, _ := json.Marshal(details.Run.Run.Notifications)
 		requireUnknownProvider(t, response.Execution)
-		requireObservedModel(t, response.Execution, "canary-start")
+		requireUnknownModel(t, response.Execution)
 		if response.Execution.BackendName != "codex" || details.Run.Start.Thread.ID != "thread-1" || details.Run.Run.Turn.ID != "turn-1" || len(details.Run.Run.Notifications) != 1 || !strings.Contains(string(accepted), `"text":"partial"`) {
 			t.Fatalf("transport failure erased partial evidence: %#v", response)
 		}
@@ -377,11 +377,10 @@ func validRequest() llmadapter.Request {
 	}
 }
 
-func requireObservedModel(t *testing.T, evidence llmadapter.ExecutionEvidence, want string) {
+func requireUnknownModel(t *testing.T, evidence llmadapter.ExecutionEvidence) {
 	t.Helper()
-	got, ok := evidence.Model.Value()
-	if !ok || got != want {
-		t.Fatalf("Model = (%q, %t), want observed %q", got, ok, want)
+	if got, ok := evidence.Model.Value(); ok {
+		t.Fatalf("Model = (%q, true), want unknown", got)
 	}
 }
 
