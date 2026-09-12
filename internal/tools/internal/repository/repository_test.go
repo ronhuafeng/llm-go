@@ -153,7 +153,10 @@ func TestProtocolSyncRunsGeneratedProofOnComparison(t *testing.T) {
 		"owner-local-tests",
 		"schema-state",
 		"script-tests",
-		"escalation-validation",
+		"reproof-generated",
+		"reproof-owner",
+		"reproof-schema",
+		"reproof-scripts",
 	} {
 		step, ok := workflowStepByID(text, id)
 		if !ok {
@@ -163,18 +166,18 @@ func TestProtocolSyncRunsGeneratedProofOnComparison(t *testing.T) {
 			t.Fatalf("%s must set working-directory: codexsdk on that step", id)
 		}
 	}
-	escalation, ok := workflowStepByID(text, "escalation-validation")
+	reproofGenerated, ok := workflowStepByID(text, "reproof-generated")
 	if !ok {
-		t.Fatal("missing escalation-validation step")
+		t.Fatal("missing reproof-generated step")
 	}
-	if !strings.Contains(escalation, "./internal/cmd/generatedproof") {
-		t.Fatal("escalation validation must run generatedproof inside the codexsdk module")
+	if !strings.Contains(reproofGenerated, "./internal/cmd/generatedproof") {
+		t.Fatal("post-repair generated proof must run generatedproof inside the codexsdk module")
 	}
-	if strings.Index(text, "id: escalation-validation") > strings.Index(text, "name: Upload generated proof") {
-		t.Fatal("generated proof upload must follow escalation validation")
+	if strings.Index(text, "id: reproof-generated") > strings.Index(text, "name: Upload generated proof") {
+		t.Fatal("generated proof upload must follow post-repair generated proof")
 	}
 	if !strings.Contains(text, "always() && (steps.generated-proof.outcome == 'success' || steps.generated-proof.outcome == 'failure'") {
-		t.Fatal("generated proof artifacts must upload on proof failure, including escalation")
+		t.Fatal("generated proof artifacts must upload on proof failure, including post-repair proof")
 	}
 	if strings.Contains(text, `"${OUTCOME}" == "implemented"`) || strings.Contains(text, `"${PUBLISH}" == "true"`) {
 		t.Fatal("protocol sync report must not treat retired mechanical implemented/publish outputs as success")
@@ -225,7 +228,7 @@ func TestProtocolSyncEscalatesAppliedProofFailures(t *testing.T) {
 			t.Fatalf("%s must continue-on-error only after mechanical apply so outcome stays failure", id)
 		}
 	}
-	for _, id := range []string{"escalation-validation", "fail-closed"} {
+	for _, id := range []string{"reproof-gate", "fail-closed"} {
 		step, ok := workflowStepByID(text, id)
 		if !ok {
 			t.Fatalf("missing protocol sync step id %s", id)
@@ -239,7 +242,11 @@ func TestProtocolSyncEscalatesAppliedProofFailures(t *testing.T) {
 		"record-proof-failure",
 		"codex",
 		"escalation-claim",
-		"escalation-validation",
+		"reproof-generated",
+		"reproof-owner",
+		"reproof-schema",
+		"reproof-scripts",
+		"reproof-gate",
 		"provenance",
 		"capture",
 		"commit",
@@ -282,16 +289,152 @@ func TestProtocolSyncEscalatesAppliedProofFailures(t *testing.T) {
 		`"comparison"`,
 		`"current"`,
 		`"applied"`,
-		"escalation-validation",
-		"original proofs or successful escalation-validation",
+		"reproof-gate",
+		"original proofs or successful reproof-gate",
 		"comparison/current requires successful generated proof",
 	} {
 		if !strings.Contains(gate, want) {
 			t.Fatalf("fail-closed missing %q", want)
 		}
 	}
-	if strings.Index(text, "id: fail-closed") < strings.Index(text, "id: escalation-validation") {
-		t.Fatal("fail-closed must run after escalation-validation")
+	if strings.Index(text, "id: fail-closed") < strings.Index(text, "id: reproof-gate") {
+		t.Fatal("fail-closed must run after reproof-gate")
+	}
+}
+
+func TestProtocolSyncReprovesFullCohortAfterRepair(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "codexsdk-upstream-protocol-sync.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(data)
+
+	reproofIDs := []string{"reproof-generated", "reproof-owner", "reproof-schema", "reproof-scripts"}
+	for _, id := range reproofIDs {
+		step, ok := workflowStepByID(text, id)
+		if !ok {
+			t.Fatalf("missing post-repair proof step %s", id)
+		}
+		if !strings.Contains(step, "continue-on-error: true") {
+			t.Fatalf("%s must continue-on-error so one re-proof failure still observes the rest", id)
+		}
+		if strings.Contains(step, "steps.reproof-generated.outcome") && id != "reproof-generated" {
+			t.Fatalf("%s must not wait on another re-proof outcome", id)
+		}
+		if strings.Contains(step, "steps.reproof-owner.outcome") && id != "reproof-owner" {
+			t.Fatalf("%s must not wait on another re-proof outcome", id)
+		}
+	}
+
+	generated, ok := workflowStepByID(text, "reproof-generated")
+	if !ok {
+		t.Fatal("missing reproof-generated")
+	}
+	for _, want := range []string{
+		"working-directory: codexsdk",
+		"-expected-repository-commit",
+		"-expected-upstream-commit",
+		"-expected-upstream-ref",
+		"./internal/cmd/generatedproof",
+	} {
+		if !strings.Contains(generated, want) {
+			t.Fatalf("reproof-generated missing %q", want)
+		}
+	}
+
+	schema, ok := workflowStepByID(text, "reproof-schema")
+	if !ok {
+		t.Fatal("missing reproof-schema")
+	}
+	if !strings.Contains(schema, `CANDIDATE: ${{ steps.mechanical.outputs.candidate }}`) {
+		t.Fatal("reproof-schema must consume the exact mechanical candidate output")
+	}
+	if !strings.Contains(schema, "codexsdk_sync_state.py") {
+		t.Fatal("reproof-schema must rerun candidate schema-state")
+	}
+
+	scripts, ok := workflowStepByID(text, "reproof-scripts")
+	if !ok {
+		t.Fatal("missing reproof-scripts")
+	}
+	if !strings.Contains(scripts, "python3 -m unittest discover -s scripts -p '*_test.py'") {
+		t.Fatal("reproof-scripts must rerun retained sync-script tests")
+	}
+
+	gate, ok := workflowStepByID(text, "reproof-gate")
+	if !ok {
+		t.Fatal("missing reproof-gate")
+	}
+	if strings.Contains(gate, "continue-on-error:") {
+		t.Fatal("reproof-gate must not continue-on-error")
+	}
+	for _, want := range []string{
+		`steps.reproof-generated.outcome`,
+		`steps.reproof-owner.outcome`,
+		`steps.reproof-schema.outcome`,
+		`steps.reproof-scripts.outcome`,
+		`[[ "${GENERATED}" == "success" ]]`,
+		`[[ "${OWNER}" == "success" ]]`,
+		`[[ "${SCHEMA}" == "success" ]]`,
+		`[[ "${SCRIPTS}" == "success" ]]`,
+		"generated-artifacts",
+		"owner-local-tests",
+		"schema-state",
+		"script-tests",
+	} {
+		if !strings.Contains(gate, want) {
+			t.Fatalf("reproof-gate missing %q", want)
+		}
+	}
+
+	for _, id := range []string{"provenance", "capture", "commit", "publish", "fail-closed"} {
+		step, ok := workflowStepByID(text, id)
+		if !ok {
+			t.Fatalf("missing %s", id)
+		}
+		if !strings.Contains(step, "steps.reproof-gate.outcome == 'success'") && !strings.Contains(step, "steps.reproof-gate.outcome") {
+			t.Fatalf("%s must use reproof-gate as the recovery success signal", id)
+		}
+		if strings.Contains(step, "escalation-validation") {
+			t.Fatalf("%s must not accept retired escalation-validation as recovery", id)
+		}
+		if strings.Contains(step, "steps.reproof-generated.outcome == 'success'") {
+			t.Fatalf("%s must not treat generated re-proof alone as full recovery", id)
+		}
+		if strings.Contains(step, "steps.reproof-owner.outcome == 'success'") {
+			t.Fatalf("%s must not treat owner-local re-proof alone as full recovery", id)
+		}
+	}
+
+	record, ok := workflowStepByID(text, "record-proof-failure")
+	if !ok {
+		t.Fatal("missing record-proof-failure")
+	}
+	for _, want := range []string{
+		"proof_failure_evidence",
+		`"generated-proof": os.environ.get("GENERATED", "")`,
+		`"schema-state": os.environ.get("SCHEMA", "")`,
+		`"script-tests": os.environ.get("SCRIPTS", "")`,
+	} {
+		if !strings.Contains(record, want) {
+			t.Fatalf("record-proof-failure missing %q", want)
+		}
+	}
+
+	mechanical, err := os.ReadFile(filepath.Join(root, "codexsdk", "scripts", "codexsdk_mechanical_sync.py"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mechanicalText := string(mechanical)
+	if !strings.Contains(mechanicalText, "emit_outcome(module_root, \"escalate\", inputs, reason=reason, **candidate_output(sync_out))") {
+		t.Fatal("mechanical escalate must publish the exact candidate path")
+	}
+	if !strings.Contains(mechanicalText, "if state not in OBSERVED_PROOF_STATES") {
+		t.Fatal("escalation evidence must omit unobserved proof states")
 	}
 }
 

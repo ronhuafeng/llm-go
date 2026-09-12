@@ -104,9 +104,12 @@ generated artifacts, and run owner-local Go tests. A successful
 mechanical apply, a failed owner proof is continue-on-error evidence rather than
 an immediate job death: YAML records it, may invoke the implementation agent,
 then native-reproofs. The job fail-closes unless comparison/current original
-proofs succeeded, applied original proofs succeeded, or escalation-validation
-succeeded. The implementation agent is invoked only when that path writes
-explicit escalation evidence.
+proofs succeeded, applied original proofs succeeded, or the post-repair
+`reproof-gate` succeeded. A repair is accepted only after the same four-owner
+cohort is re-observed: generated artifacts, owner-local Go tests, candidate
+schema-state, and retained script tests. The implementation agent is invoked
+only when that path writes explicit escalation evidence; it does not certify
+its own repair.
 
 Retained Python/shell helpers that still have a mechanical role include
 upstream schema acquisition, candidate apply/report construction, and the
