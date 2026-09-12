@@ -49,32 +49,32 @@ type Repair struct {
 	Locations []string `json:"locations,omitempty"`
 }
 
-// RepairSanitizer is the application-owned projection from judgment findings
+// RepairProjector is the application-owned projection from judgment findings
 // to model-facing repair input. The toolkit does not inspect or reinterpret
 // the content returned by this hook.
-type RepairSanitizer func([]Finding) ([]Repair, error)
+type RepairProjector func([]Finding) ([]Repair, error)
 
 // Step describes one typed structured-output LLM operation. Caller, Render,
 // and Validate are required configuration; a nil Validate is rejected before
-// Render or Caller.Call. Sanitizer is required only when a rejected attempt
-// will actually retry with model-facing repair input.
+// Render or Caller.Call. ProjectRepair is required only when a rejected
+// attempt will actually retry with model-facing repair input.
 type Step[I any, O any] struct {
-	Caller    llmadapter.Caller
-	Render    func(context.Context, I, []Repair) (string, error)
-	Validate  func(context.Context, I, O) (Judgment, error)
-	MaxIter   int
-	Sanitizer RepairSanitizer
+	Caller        llmadapter.Caller
+	Render        func(context.Context, I, []Repair) (string, error)
+	Validate      func(context.Context, I, O) (Judgment, error)
+	MaxIter       int
+	ProjectRepair RepairProjector
 }
 
 type Stage string
 
 const (
-	StageRender   Stage = "render"
-	StageRequest  Stage = "request"
-	StageCall     Stage = "call"
-	StageDecode   Stage = "decode"
-	StageValidate Stage = "validate"
-	StageSanitize Stage = "sanitize"
+	StageRender        Stage = "render"
+	StageRequest       Stage = "request"
+	StageCall          Stage = "call"
+	StageDecode        Stage = "decode"
+	StageValidate      Stage = "validate"
+	StageProjectRepair Stage = "project_repair"
 )
 
 type StepError struct {
@@ -191,13 +191,13 @@ func Run[I any, O any](ctx context.Context, step Step[I, O], input I) (Result[O]
 			result.Attempts = append(result.Attempts, attempt)
 			return snapshotResult(result), fmt.Errorf("%w: maxIter=%d", ErrExhausted, step.MaxIter)
 		}
-		if step.Sanitizer == nil {
-			return fail(result, attempt, StageSanitize, ErrMissingRepairProjection)
+		if step.ProjectRepair == nil {
+			return fail(result, attempt, StageProjectRepair, ErrMissingRepairProjection)
 		}
 
-		nextRepair, err := step.Sanitizer(copyFindings(judgment.Findings))
+		nextRepair, err := step.ProjectRepair(copyFindings(judgment.Findings))
 		if err != nil {
-			return fail(result, attempt, StageSanitize, err)
+			return fail(result, attempt, StageProjectRepair, err)
 		}
 		nextRepair = copyRepair(nextRepair)
 		stampIterations(nextRepair, iter)

@@ -69,7 +69,7 @@ values use ordinary Go value semantics.
 `llmstep.Run` owns bounded inference adjudication. `Validate` is required before
 execution starts. Validator `Judgment` and model-facing `Repair` are distinct
 values. Raw findings never automatically reach a later model attempt: an
-application-owned `Step.Sanitizer` projection is required when a rejected
+application-owned `Step.ProjectRepair` projection is required when a rejected
 attempt will retry. Exhaustion returns `ErrExhausted` while retaining the latest
 proposition in attempt evidence; top-level `Result.Output` is only the
 accepted proposition.

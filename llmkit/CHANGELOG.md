@@ -22,6 +22,10 @@ changes may occur in minor releases.
 - **Breaking (pre-v1):** `llmstep.Result.Output` is only the accepted
   proposition. Rejected or unjudged decoded values stay in attempt evidence
   and no longer set `HasOutput`.
+- **Breaking (pre-v1):** rename llmstep retry-feedback vocabulary from
+  sanitizer to application projection. `RepairProjector` replaces
+  `RepairSanitizer`, `Step.ProjectRepair` replaces `Step.Sanitizer`, and
+  `StageProjectRepair` replaces `StageSanitize`. No aliases remain.
 - **Breaking (pre-v1):** separate execution-backend identity from actual
   model-provider identity. `Response.BackendDetails` replaces
   `ProviderDetails`; backend details expose `BackendName()`, and

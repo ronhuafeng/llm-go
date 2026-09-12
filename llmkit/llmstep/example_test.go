@@ -53,7 +53,7 @@ func ExampleRun() {
 				}},
 			}, nil
 		},
-		Sanitizer: func(findings []llmstep.Finding) ([]llmstep.Repair, error) {
+		ProjectRepair: func(findings []llmstep.Finding) ([]llmstep.Repair, error) {
 			projected := make([]llmstep.Repair, len(findings))
 			for i, finding := range findings {
 				projected[i] = llmstep.Repair{
