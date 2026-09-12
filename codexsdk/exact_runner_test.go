@@ -661,6 +661,7 @@ func TestProtocolCancellationReleasesPendingTerminalHandlerFence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	root.testBeforeExactTurnAttach = func() { <-root.closeCausePublished }
 	root.testPendingExactNotification = func(notification rpcNotification) {
 		if notification.method == protocolv2.MethodTurnCompleted {
 			close(pendingTerminalSeen)
@@ -725,6 +726,7 @@ func TestNormalCloseDrainsPendingExactHandlerAfterEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	root.testBeforeExactTurnAttach = func() { <-root.closeCausePublished }
 	root.testPendingExactNotification = func(notification rpcNotification) {
 		if notification.method == protocolv2.MethodTurnCompleted {
 			close(pendingSeen)

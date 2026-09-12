@@ -69,6 +69,7 @@ type Client struct {
 	exactAttaching             map[string]map[*exactRunState]struct{}
 	pendingEvents              map[string][]rpcNotification
 	armedThreadAttach          map[string]struct{}
+	armedTurnAttach            map[string]struct{}
 	pendingThreadNotifications map[string][]protocolv2.ServerNotification
 	// replayingEvents keeps accepted evidence visible to terminalization after
 	// attachment removes it from pendingEvents and until replay commits it.
@@ -144,6 +145,7 @@ func New(options ClientOptions) (*Client, error) {
 		exactAttaching:             map[string]map[*exactRunState]struct{}{},
 		pendingEvents:              map[string][]rpcNotification{},
 		armedThreadAttach:          map[string]struct{}{},
+		armedTurnAttach:            map[string]struct{}{},
 		pendingThreadNotifications: map[string][]protocolv2.ServerNotification{},
 		pendingDiagnostics:         map[string][]DiagnosticRef{},
 		pending:                    map[string]pendingCall{},
@@ -492,12 +494,23 @@ func (c *Client) routeResponse(message map[string]any) {
 			c.armThreadAttach(threadID)
 		}
 	}
+	if pending.method == protocolv2.MethodTurnStart {
+		if turnID := turnIDFromProtocolResult(result); turnID != "" {
+			c.armTurnAttach(turnID)
+		}
+	}
 	pending.response <- rpcResponse{result: result}
 }
 
 func threadIDFromProtocolResult(result map[string]any) string {
 	thread, _ := result["thread"].(map[string]any)
 	id, _ := thread["id"].(string)
+	return id
+}
+
+func turnIDFromProtocolResult(result map[string]any) string {
+	turn, _ := result["turn"].(map[string]any)
+	id, _ := turn["id"].(string)
 	return id
 }
 
@@ -508,6 +521,18 @@ func (c *Client) armThreadAttach(threadID string) {
 		c.armedThreadAttach = map[string]struct{}{}
 	}
 	c.armedThreadAttach[threadID] = struct{}{}
+}
+
+func (c *Client) armTurnAttach(turnID string) {
+	if turnID == "" {
+		return
+	}
+	c.turnMu.Lock()
+	defer c.turnMu.Unlock()
+	if c.armedTurnAttach == nil {
+		c.armedTurnAttach = map[string]struct{}{}
+	}
+	c.armedTurnAttach[turnID] = struct{}{}
 }
 
 func protocolError(id any, method string, rawError any) error {
@@ -589,7 +614,6 @@ func (c *Client) routeExactNotificationBeforeTerminalCompletion(notification rpc
 	}
 	c.turnMu.Lock()
 	var targets []*exactRunState
-	var pendingExact []*exactRunState
 	switch class {
 	case notificationAttributionTurn:
 		if identity.turnID == "" {
@@ -600,11 +624,8 @@ func (c *Client) routeExactNotificationBeforeTerminalCompletion(notification rpc
 			targets = append(targets, stream)
 		}
 		for stream := range c.exactAttaching[identity.threadID] {
-			turnID := stream.turnIDSnapshot()
-			if turnID == identity.turnID {
+			if stream.turnIDSnapshot() == identity.turnID {
 				targets = append(targets, stream)
-			} else if turnID == "" {
-				pendingExact = append(pendingExact, stream)
 			}
 		}
 	case notificationAttributionThread:
@@ -635,18 +656,24 @@ func (c *Client) routeExactNotificationBeforeTerminalCompletion(notification rpc
 			}
 		}
 	}
-	if len(targets) == 0 && len(pendingExact) == 1 {
-		evidence := &notificationEvidence{ready: make(chan struct{}), state: pendingExact[0]}
-		if c.options.ServerNotificationHandler != nil {
-			evidence.dispatched = make(chan struct{})
+	if len(targets) == 0 {
+		if _, armed := c.armedTurnAttach[identity.turnID]; armed && identity.turnID != "" {
+			evidence := &notificationEvidence{ready: make(chan struct{})}
+			for stream := range c.exactAttaching[identity.threadID] {
+				evidence.state = stream
+				break
+			}
+			if c.options.ServerNotificationHandler != nil {
+				evidence.dispatched = make(chan struct{})
+			}
+			notification.evidence = evidence
+			c.pendingEvents[identity.turnID] = append(c.pendingEvents[identity.turnID], notification)
+			c.turnMu.Unlock()
+			if c.testPendingExactNotification != nil {
+				c.testPendingExactNotification(notification)
+			}
+			return true, nil, evidence
 		}
-		notification.evidence = evidence
-		c.pendingEvents[identity.turnID] = append(c.pendingEvents[identity.turnID], notification)
-		c.turnMu.Unlock()
-		if c.testPendingExactNotification != nil {
-			c.testPendingExactNotification(notification)
-		}
-		return true, nil, evidence
 	}
 	c.turnMu.Unlock()
 	var deliveryErr error
@@ -716,6 +743,7 @@ func (c *Client) attachExactStreamLocked(stream *exactRunState) {
 	terminal := stream.terminal
 	stream.mu.Unlock()
 	turnID := stream.turnIDSnapshot()
+	delete(c.armedTurnAttach, turnID)
 	delete(c.exactAttaching[stream.threadID], stream)
 	if len(c.exactAttaching[stream.threadID]) == 0 {
 		delete(c.exactAttaching, stream.threadID)

@@ -38,6 +38,10 @@
 - Exact Run notification attribution now uses present correlation, including
   optional `threadId` and nested `thread.id`. `thread/started` is preserved
   across the thread/start-to-attach window.
+- Attaching Exact Runs no longer treat an unpublished turn ID as a wildcard
+  for same-thread turn-scoped notifications. Proven `turn/start` identity is
+  armed before later frames are routed, so resume restored usage for a
+  historical turn is not attached to the new turn.
 - **Breaking (pre-v1):** `AdmitTurn` now receives the exact decoded
   `ThreadStartResponse` and the exact pending `TurnStartParams`, including the
   composition-owned thread ID that will be sent. The SDK still does not merge
