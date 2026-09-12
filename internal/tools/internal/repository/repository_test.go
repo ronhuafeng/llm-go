@@ -205,6 +205,96 @@ func TestProtocolSyncRunsGeneratedProofOnComparison(t *testing.T) {
 	}
 }
 
+func TestProtocolSyncEscalatesAppliedProofFailures(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "codexsdk-upstream-protocol-sync.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(data)
+	continueOnError := "continue-on-error: ${{ steps.mechanical.outputs.applied == 'true' }}"
+	for _, id := range []string{"generated-proof", "owner-local-tests", "schema-state", "script-tests"} {
+		step, ok := workflowStepByID(text, id)
+		if !ok {
+			t.Fatalf("missing protocol sync step id %s", id)
+		}
+		if !strings.Contains(step, continueOnError) {
+			t.Fatalf("%s must continue-on-error only after mechanical apply so outcome stays failure", id)
+		}
+	}
+	for _, id := range []string{"escalation-validation", "fail-closed"} {
+		step, ok := workflowStepByID(text, id)
+		if !ok {
+			t.Fatalf("missing protocol sync step id %s", id)
+		}
+		if strings.Contains(step, "continue-on-error:") {
+			t.Fatalf("%s must not continue-on-error; re-proof and the gate fail closed", id)
+		}
+	}
+
+	recoveryIDs := []string{
+		"record-proof-failure",
+		"codex",
+		"escalation-claim",
+		"escalation-validation",
+		"provenance",
+		"capture",
+		"commit",
+		"publish",
+		"fail-closed",
+	}
+	for _, id := range recoveryIDs {
+		step, ok := workflowStepByID(text, id)
+		if !ok {
+			t.Fatalf("missing recovery step id %s", id)
+		}
+		if !strings.Contains(step, "always()") || !strings.Contains(step, "!cancelled()") {
+			t.Fatalf("%s must use always() && !cancelled() so implicit success() cannot skip repair", id)
+		}
+		if strings.Contains(step, "failure()") {
+			t.Fatalf("%s must not use failure(); continue-on-error keeps the job successful so failure() is false", id)
+		}
+	}
+
+	record, ok := workflowStepByID(text, "record-proof-failure")
+	if !ok {
+		t.Fatal("missing record-proof-failure step")
+	}
+	for _, want := range []string{
+		"steps.generated-proof.outcome == 'failure'",
+		"steps.owner-local-tests.outcome == 'failure'",
+		"steps.schema-state.outcome == 'failure'",
+		"steps.script-tests.outcome == 'failure'",
+	} {
+		if !strings.Contains(record, want) {
+			t.Fatalf("record-proof-failure must treat %s as escalation evidence", want)
+		}
+	}
+
+	gate, ok := workflowStepByID(text, "fail-closed")
+	if !ok {
+		t.Fatal("missing fail-closed step")
+	}
+	for _, want := range []string{
+		`"comparison"`,
+		`"current"`,
+		`"applied"`,
+		"escalation-validation",
+		"original proofs or successful escalation-validation",
+		"comparison/current requires successful generated proof",
+	} {
+		if !strings.Contains(gate, want) {
+			t.Fatalf("fail-closed missing %q", want)
+		}
+	}
+	if strings.Index(text, "id: fail-closed") < strings.Index(text, "id: escalation-validation") {
+		t.Fatal("fail-closed must run after escalation-validation")
+	}
+}
+
 func TestWorkflowStepByIDKeepsWorkingDirectoryOnOwningStep(t *testing.T) {
 	yaml := "" +
 		"    steps:\n" +
