@@ -1927,8 +1927,14 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"MarketplaceUpgradeResponse": {
 		"errors": "MarketplaceUpgradeErrorInfo",
 	},
+	"McpElicitationSchema": {
+		"type": "McpElicitationObjectType",
+	},
 	"McpResourceReadResponse": {
 		"contents": "ResourceContent",
+	},
+	"McpServerElicitationRequestParamsForm": {
+		"requestedSchema": "McpElicitationSchema",
 	},
 	"McpServerElicitationRequestResponse": {
 		"action": "McpServerElicitationAction",
