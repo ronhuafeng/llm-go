@@ -2679,6 +2679,8 @@ func isGeneratedDefinitionTaggedUnionCheckpoint(schemaPath string, name string) 
 		}
 	case "v2/TurnStartParams.json":
 		return name == "UserInput"
+	case "v2/UserVerificationRpcError.json":
+		return name == "UserVerificationErrorDetails"
 	default:
 		return false
 	}
