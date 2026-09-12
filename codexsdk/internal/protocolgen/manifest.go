@@ -31,6 +31,7 @@ type SurfaceEntry struct {
 
 type ManifestEntry struct {
 	Direction             string `json:"direction"`
+	FacadeStatus          string `json:"facade_status"`
 	FacadeTarget          string `json:"facade_target"`
 	Family                string `json:"family"`
 	Kind                  string `json:"kind"`
@@ -38,6 +39,7 @@ type ManifestEntry struct {
 	ParamsOrPayloadSchema string `json:"params_or_payload_schema"`
 	ResponseSchema        string `json:"response_schema"`
 	ResponseSchemaStatus  string `json:"response_schema_status"`
+	ResponseType          string `json:"response_type"`
 	SourceSchema          string `json:"source_schema"`
 	Stability             string `json:"stability"`
 }
