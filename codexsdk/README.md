@@ -32,8 +32,8 @@ GOWORK=off go test ./...
 
 Use Exact Run when provider facts matter. `ThreadRunner` preserves decoded
 thread-start facts, turn state, notifications, usage, diagnostics, final text,
-and partial observation on failure. Admission between decoded `thread/start`
-and `turn/start` is consumer-supplied and policy-neutral: the callback inspects
+and partial observation on failure. Admission after decoded `thread/start` or `thread/resume` and before
+`turn/start` is consumer-supplied and policy-neutral: the callback inspects
 the observation and the exact pending turn request, then rejecting admission
 preserves the exact partial run and does not send `turn/start`.
 

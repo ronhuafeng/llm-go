@@ -24,6 +24,9 @@
   `ThreadStartResponse` and the exact pending `TurnStartParams`, including the
   composition-owned thread ID that will be sent. The SDK still does not merge
   requested turn overrides into observed thread facts.
+- **Breaking (pre-v1):** resumed Exact Runs expose the same two-input admission
+  seam after `thread/resume` and before `turn/start`. Missing observed resume
+  thread identity still fails closed before admission.
 
 - **Breaking (pre-v1):** stop synthesizing application decisions and environment
   facts for exact server requests. A missing `ServerRequestHandler` now fails

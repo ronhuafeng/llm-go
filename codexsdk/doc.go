@@ -13,11 +13,11 @@
 // ErrMissingThreadID and ErrMissingTurnID fail closed before the next lifecycle
 // stage or live run registration; these malformed responses do not close the
 // Client.
-// StartThreadRunRequest.AdmitTurn inspects the decoded thread-start Server
-// Observation and the exact pending turn/start params before turn/start.
-// Rejection finishes the Exact Run fail-closed with the exact partial
-// StartedThreadRun and ErrTurnAdmissionRejected, and does not send turn/start.
-// The callback is caller-owned and is not a provider-neutral policy.
+// StartThreadRunRequest.AdmitTurn and ResumeThreadRunRequest.AdmitTurn inspect
+// the decoded lifecycle Server Observation and the exact pending turn/start
+// params before turn/start. Rejection finishes the Exact Run fail-closed with
+// the exact partial result and ErrTurnAdmissionRejected, and does not send
+// turn/start. The callback is caller-owned and is not a provider-neutral policy.
 // Exact run results retain complete immutable notification history independent
 // of observation. Wait observes completion without consuming notifications;
 // Next advances a cursor over the same ordered history. The configurable

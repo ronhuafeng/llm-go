@@ -2516,6 +2516,10 @@ func TestExactRunnerResumePreservesDecodedResponseMissingThreadID(t *testing.T) 
 
 	result, err := root.ThreadRunner().Resume(context.Background(), ResumeThreadRunRequest{
 		Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}},
+		AdmitTurn: func(protocolv2.ThreadResumeResponse, protocolv2.TurnStartParams) error {
+			t.Fatal("resume admission must not run without observed thread identity")
+			return nil
+		},
 	})
 	if !errors.Is(err, ErrMissingThreadID) {
 		t.Fatalf("Resume error = %v, want missing thread id", err)
@@ -2553,6 +2557,10 @@ func TestExactRunnerResumeStreamPreservesDecodedResponseMissingThreadID(t *testi
 
 	stream, err := root.ThreadRunner().ResumeStream(context.Background(), ResumeThreadRunRequest{
 		Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{protocolv2.NewUserInputText(protocolv2.UserInputText{Text: "resume"})}},
+		AdmitTurn: func(protocolv2.ThreadResumeResponse, protocolv2.TurnStartParams) error {
+			t.Fatal("resume admission must not run without observed thread identity")
+			return nil
+		},
 	})
 	if err != nil || stream == nil {
 		t.Fatalf("ResumeStream = (%v, %v), want observable terminal stream", stream, err)
@@ -2575,6 +2583,144 @@ func TestExactRunnerResumeStreamPreservesDecodedResponseMissingThreadID(t *testi
 	}
 	if firstRecord(readRecords(t, record), "recv", protocolv2.MethodTurnStart) != nil {
 		t.Fatal("turn/start was sent after missing thread id")
+	}
+}
+
+func TestExactRunnerResumeRejectedTurnAdmissionOmitsTurnStart(t *testing.T) {
+	record := tempRecord(t)
+	t.Setenv("CODEXSDK_FAKE_RECORD", record)
+	root, err := New(ClientOptions{CWD: t.TempDir(), Command: fakeCommand("happy")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+
+	reject := errors.New("consumer rejected resumed thread")
+	var seen protocolv2.ThreadResumeResponse
+	result, err := root.ThreadRunner().Resume(context.Background(), ResumeThreadRunRequest{
+		Thread: protocolv2.ThreadResumeParams{ThreadID: "thread-requested", Model: protocolv2.Value("gpt-resume")},
+		Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{
+			protocolv2.NewUserInputText(protocolv2.UserInputText{Text: "resume"}),
+		}},
+		AdmitTurn: func(resume protocolv2.ThreadResumeResponse, pending protocolv2.TurnStartParams) error {
+			if firstRecord(readRecords(t, record), "recv", protocolv2.MethodTurnStart) != nil {
+				t.Fatal("turn/start was sent before AdmitTurn")
+			}
+			if pending.ThreadID != resume.Thread.ID || pending.ThreadID == "" {
+				t.Fatalf("pending turn thread id = %q, observation = %q", pending.ThreadID, resume.Thread.ID)
+			}
+			seen = resume
+			resume.Model = "mutated-observation"
+			pending.ThreadID = "mutated-pending"
+			return reject
+		},
+	})
+	if !errors.Is(err, ErrTurnAdmissionRejected) || !errors.Is(err, reject) {
+		t.Fatalf("Resume error = %v, want ErrTurnAdmissionRejected wrapping consumer rejection", err)
+	}
+	if result.Resume.Thread.ID == "" || result.Resume.Model != "gpt-resume" || result.Resume.Thread.ID != seen.Thread.ID {
+		t.Fatalf("Resume partial evidence = %#v, seen %#v", result.Resume, seen)
+	}
+	if result.Resume.Model == "mutated-observation" {
+		t.Fatal("callback mutated the stored resume observation")
+	}
+	if result.Run.Turn.ID != "" || result.Run.Turn.Status != "" {
+		t.Fatalf("unexpected turn evidence = %#v", result.Run.Turn)
+	}
+	if firstRecord(readRecords(t, record), "recv", protocolv2.MethodThreadResume) == nil {
+		t.Fatal("thread/resume was not sent")
+	}
+	if firstRecord(readRecords(t, record), "recv", protocolv2.MethodTurnStart) != nil {
+		t.Fatal("turn/start was sent after rejected resume admission")
+	}
+}
+
+func TestExactRunnerResumeAcceptedTurnAdmissionSendsInspectedTurnStart(t *testing.T) {
+	record := tempRecord(t)
+	t.Setenv("CODEXSDK_FAKE_RECORD", record)
+	root, err := New(ClientOptions{CWD: t.TempDir(), Command: fakeCommand("happy")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+
+	var seenPending protocolv2.TurnStartParams
+	result, err := root.ThreadRunner().Resume(context.Background(), ResumeThreadRunRequest{
+		Thread: protocolv2.ThreadResumeParams{ThreadID: "thread-resume", Model: protocolv2.Value("gpt-resume")},
+		Turn: protocolv2.TurnStartParams{
+			CWD: protocolv2.Value("/resume/cwd"),
+			Input: []protocolv2.UserInput{
+				protocolv2.NewUserInputText(protocolv2.UserInputText{Text: "resume"}),
+			},
+			SandboxPolicy: protocolv2.Value(protocolv2.NewSandboxPolicyReadOnly(protocolv2.SandboxPolicyReadOnly{})),
+		},
+		AdmitTurn: func(resume protocolv2.ThreadResumeResponse, pending protocolv2.TurnStartParams) error {
+			if firstRecord(readRecords(t, record), "recv", protocolv2.MethodTurnStart) != nil {
+				t.Fatal("turn/start was sent before AdmitTurn")
+			}
+			if pending.ThreadID != resume.Thread.ID || pending.ThreadID != "thread-resume" {
+				t.Fatalf("pending turn thread id = %q, observation = %q", pending.ThreadID, resume.Thread.ID)
+			}
+			if pending.CWD == nil || pending.CWD.Value == nil || *pending.CWD.Value != "/resume/cwd" {
+				t.Fatalf("pending cwd = %#v", pending.CWD)
+			}
+			seenPending = pending
+			pending.ThreadID = "mutated-thread"
+			pending.CWD = protocolv2.Value("/mutated/cwd")
+			resume.Model = "mutated-observation"
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Resume.Thread.ID != "thread-resume" || result.Resume.Model != "gpt-resume" {
+		t.Fatalf("resume observation mutated by AdmitTurn: %#v", result.Resume)
+	}
+	if result.Run.Turn.Status != protocolv2.TurnStatusCompleted {
+		t.Fatalf("accepted resume did not preserve Exact Run behavior: %#v", result.Run)
+	}
+	params := firstRecord(readRecords(t, record), "recv", protocolv2.MethodTurnStart)["params"].(map[string]any)
+	if params["threadId"] != seenPending.ThreadID || params["threadId"] == "mutated-thread" {
+		t.Fatalf("outbound turn/start thread id = %#v, want inspected %q", params["threadId"], seenPending.ThreadID)
+	}
+	if params["cwd"] != "/resume/cwd" {
+		t.Fatalf("outbound turn/start cwd = %#v, want inspected override", params["cwd"])
+	}
+}
+
+func TestExactRunnerResumeStreamRejectedTurnAdmissionOmitsTurnStart(t *testing.T) {
+	record := tempRecord(t)
+	t.Setenv("CODEXSDK_FAKE_RECORD", record)
+	root, err := New(ClientOptions{CWD: t.TempDir(), Command: fakeCommand("happy")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+
+	reject := errors.New("consumer rejected resumed thread")
+	stream, err := root.ThreadRunner().ResumeStream(context.Background(), ResumeThreadRunRequest{
+		Thread: protocolv2.ThreadResumeParams{ThreadID: "thread-resume"},
+		Turn:   protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}},
+		AdmitTurn: func(resume protocolv2.ThreadResumeResponse, pending protocolv2.TurnStartParams) error {
+			if pending.ThreadID != resume.Thread.ID {
+				t.Fatalf("pending turn thread id = %q, observation = %q", pending.ThreadID, resume.Thread.ID)
+			}
+			return reject
+		},
+	})
+	if err != nil || stream == nil {
+		t.Fatalf("ResumeStream = (%v, %v), want observable terminal stream", stream, err)
+	}
+	result, err := stream.Wait(context.Background())
+	if !errors.Is(err, ErrTurnAdmissionRejected) || !errors.Is(err, reject) {
+		t.Fatalf("Wait error = %v, want ErrTurnAdmissionRejected wrapping consumer rejection", err)
+	}
+	if result.Resume.Thread.ID != "thread-resume" {
+		t.Fatalf("Wait partial evidence = %#v", result.Resume)
+	}
+	if firstRecord(readRecords(t, record), "recv", protocolv2.MethodTurnStart) != nil {
+		t.Fatal("turn/start was sent after rejected resume admission")
 	}
 }
 

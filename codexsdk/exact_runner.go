@@ -117,7 +117,7 @@ func (r *exactRunner) StartStream(ctx context.Context, request StartThreadRunReq
 		return stream, nil
 	}
 	turnParams.ThreadID = started.Thread.ID
-	if err := admitTurn(request.AdmitTurn, started, turnParams); err != nil {
+	if err := admitContinuation(request.AdmitTurn, started, turnParams); err != nil {
 		r.client.finishAttachingExactStream(state, err)
 		return stream, nil
 	}
@@ -173,6 +173,10 @@ func (r *exactRunner) ResumeStream(ctx context.Context, request ResumeThreadRunR
 		return stream, nil
 	}
 	turnParams.ThreadID = threadID
+	if err := admitContinuation(request.AdmitTurn, resumed, turnParams); err != nil {
+		r.client.finishAttachingExactStream(state, err)
+		return stream, nil
+	}
 	var turnStarted protocolv2.TurnStartResponse
 	if err := r.client.callProtocol(ctx, protocolv2.MethodTurnStart, turnParams, &turnStarted); err != nil {
 		r.client.finishAttachingExactStream(state, err)
@@ -186,19 +190,19 @@ func (r *exactRunner) ResumeStream(ctx context.Context, request ResumeThreadRunR
 	return stream, nil
 }
 
-func admitTurn(admit AdmitTurn, started protocolv2.ThreadStartResponse, pending protocolv2.TurnStartParams) error {
+func admitContinuation[Obs any](admit func(Obs, protocolv2.TurnStartParams) error, observed Obs, pending protocolv2.TurnStartParams) error {
 	if admit == nil {
 		return nil
 	}
-	observed, err := cloneJSON(started)
+	observedCopy, err := cloneJSON(observed)
 	if err != nil {
-		return fmt.Errorf("codexsdk: clone thread/start observation: %w", err)
+		return fmt.Errorf("codexsdk: clone lifecycle observation: %w", err)
 	}
 	pendingCopy, err := cloneJSON(pending)
 	if err != nil {
 		return fmt.Errorf("codexsdk: clone pending turn/start params: %w", err)
 	}
-	if err := admit(observed, pendingCopy); err != nil {
+	if err := admit(observedCopy, pendingCopy); err != nil {
 		return &TurnAdmissionError{Err: err}
 	}
 	return nil
