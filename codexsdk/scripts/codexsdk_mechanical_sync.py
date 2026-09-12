@@ -4,8 +4,8 @@
 The workflow owns this path. It acquires the upstream target, generates
 schemas, and applies the mechanical surface. Owner-local Go proofs and
 generated-artifact verification run in GitHub Actions YAML after this
-script returns. Unsupported semantic drift that the mechanical apply
-cannot complete writes explicit escalation evidence.
+script returns. Mechanical apply that cannot complete fails this process
+so a separate repair workflow can continue from uploaded evidence.
 """
 
 from __future__ import annotations
@@ -66,10 +66,6 @@ def write_json(path: Path, payload: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
-PROOF_OWNERS = ("generated-proof", "owner-local-tests", "schema-state", "script-tests")
-OBSERVED_PROOF_STATES = {"success", "failure"}
-
-
 def write_escalation(
     path: Path,
     *,
@@ -95,43 +91,6 @@ def write_escalation(
 
 def candidate_output(sync_out: Path) -> dict[str, str]:
     return {"candidate": str(sync_out / "schema")}
-
-
-def proof_failure_evidence(
-    *,
-    target_ref: str,
-    target_kind: str,
-    target_sha: str,
-    outcomes: dict[str, str],
-    candidate: str = "",
-    generated_proof_path: str = "",
-    generated_proof: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    observed: dict[str, str] = {}
-    failed: list[str] = []
-    for name in PROOF_OWNERS:
-        state = str(outcomes.get(name, "") or "")
-        if state not in OBSERVED_PROOF_STATES:
-            continue
-        observed[name] = state
-        if state == "failure":
-            failed.append(name)
-    artifacts: dict[str, Any] = {}
-    if candidate:
-        artifacts["candidate"] = candidate
-    if generated_proof_path:
-        artifacts["generated_proof"] = generated_proof_path
-    if generated_proof is not None:
-        artifacts["generated_proof_result"] = generated_proof
-    return {
-        "reason": "workflow owner-local proofs failed after mechanical apply",
-        "failed_proofs": failed,
-        "proof_outcomes": observed,
-        "target_ref": target_ref,
-        "target_kind": target_kind,
-        "target_sha": target_sha,
-        "artifacts": artifacts,
-    }
 
 
 def write_github_output(values: dict[str, str]) -> None:
@@ -287,21 +246,10 @@ def emit_outcome(module_root: Path, outcome: str, inputs: dict[str, Any], **extr
         **extra,
     }
     write_json(module_root / OUTCOME_OUTPUT, payload)
-    publish = "true" if outcome == "implemented" else "false"
-    escalate = "true" if outcome == "escalate" else "false"
-    applied = "true" if outcome == "applied" else "false"
-    sync_mode = ""
-    if outcome in {"implemented", "applied"}:
-        sync_mode = "metadata-sync"
-    elif outcome == "escalate":
-        sync_mode = "repair-sync"
     write_github_output(
         {
             "outcome": outcome,
-            "publish": publish,
-            "applied": applied,
-            "escalate": escalate,
-            "sync_mode": sync_mode,
+            "applied": "true" if outcome == "applied" else "false",
             "target_ref": str(inputs["target_ref"]),
             "target_kind": str(inputs["target_kind"]),
             "target_sha": str(inputs["target_sha"]),
@@ -405,7 +353,7 @@ def main() -> int:
         artifacts=artifacts,
     )
     emit_outcome(module_root, "escalate", inputs, reason=reason, **candidate_output(sync_out))
-    return 0
+    return 1
 
 
 if __name__ == "__main__":

@@ -110,66 +110,38 @@ class MechanicalSyncEvidenceTest(unittest.TestCase):
                     os.environ["GITHUB_OUTPUT"] = previous
             text = github_output.read_text(encoding="utf-8")
             self.assertIn("candidate=/exact/cache/codexsdk-upstream-6b9826e3aa83/schema", text)
-            self.assertIn("escalate=true", text)
+            self.assertIn("outcome=escalate", text)
+            self.assertNotIn("sync_mode=", text)
+            self.assertNotIn("metadata-sync", text)
+            self.assertNotIn("repair-sync", text)
 
-    def test_proof_failure_evidence_records_failed_owners_only(self) -> None:
-        payload = mechanical.proof_failure_evidence(
-            target_ref="rust-v0.154.0",
-            target_kind="stable_rust_tag",
-            target_sha="a" * 40,
-            outcomes={
-                "generated-proof": "success",
-                "owner-local-tests": "success",
-                "schema-state": "failure",
-                "script-tests": "success",
-            },
-            candidate="/exact/schema",
-        )
-        self.assertEqual(payload["failed_proofs"], ["schema-state"])
-        self.assertEqual(
-            payload["proof_outcomes"],
-            {
-                "generated-proof": "success",
-                "owner-local-tests": "success",
-                "schema-state": "failure",
-                "script-tests": "success",
-            },
-        )
-        self.assertEqual(payload["artifacts"]["candidate"], "/exact/schema")
-
-    def test_proof_failure_evidence_omits_unobserved_states(self) -> None:
-        payload = mechanical.proof_failure_evidence(
-            target_ref="rust-v0.154.0",
-            target_kind="stable_rust_tag",
-            target_sha="a" * 40,
-            outcomes={
-                "generated-proof": "failure",
-                "owner-local-tests": "skipped",
-                "schema-state": "",
-                "script-tests": "cancelled",
-            },
-        )
-        self.assertEqual(payload["failed_proofs"], ["generated-proof"])
-        self.assertEqual(payload["proof_outcomes"], {"generated-proof": "failure"})
-        self.assertNotIn("owner-local-tests", payload["proof_outcomes"])
-        self.assertNotIn("schema-state", payload["proof_outcomes"])
-        self.assertNotIn("script-tests", payload["proof_outcomes"])
-        self.assertNotIn("success", payload["proof_outcomes"].values())
-
-    def test_script_test_failure_is_not_schema_or_generated_success(self) -> None:
-        payload = mechanical.proof_failure_evidence(
-            target_ref="rust-v0.154.0",
-            target_kind="stable_rust_tag",
-            target_sha="a" * 40,
-            outcomes={
-                "generated-proof": "success",
-                "owner-local-tests": "success",
-                "schema-state": "success",
-                "script-tests": "failure",
-            },
-        )
-        self.assertEqual(payload["failed_proofs"], ["script-tests"])
-        self.assertEqual(payload["proof_outcomes"]["script-tests"], "failure")
+    def test_applied_output_does_not_predict_publication_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            module = Path(tmp)
+            github_output = module / "github-output"
+            previous = os.environ.get("GITHUB_OUTPUT")
+            os.environ["GITHUB_OUTPUT"] = str(github_output)
+            try:
+                mechanical.emit_outcome(
+                    module,
+                    "applied",
+                    {
+                        "target_ref": "rust-v0.154.0",
+                        "target_kind": "stable_rust_tag",
+                        "target_sha": "a" * 40,
+                    },
+                    candidate="/exact/schema",
+                )
+            finally:
+                if previous is None:
+                    os.environ.pop("GITHUB_OUTPUT", None)
+                else:
+                    os.environ["GITHUB_OUTPUT"] = previous
+            text = github_output.read_text(encoding="utf-8")
+            self.assertIn("applied=true", text)
+            self.assertNotIn("sync_mode=", text)
+            self.assertNotIn("metadata-sync", text)
+            self.assertNotIn("repair-sync", text)
 
 
 if __name__ == "__main__":
