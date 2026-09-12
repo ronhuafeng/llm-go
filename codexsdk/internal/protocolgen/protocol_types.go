@@ -201,6 +201,7 @@ type UntaggedObjectUnionVariantPlan struct {
 type TaggedUnionPlan struct {
 	Discriminator string
 	SchemaPath    string
+	SharedFields  []FieldPlan
 	TypeName      string
 	Variants      []TaggedUnionVariantPlan
 }
@@ -250,6 +251,12 @@ func classifyGeneratedDefinition(schema *Schema) generatedDefinitionKind {
 	switch {
 	case schema == nil:
 		return generatedDefinitionUnsupported
+	case isTaggedUnionDefinitionSchema(schema):
+		return generatedDefinitionTaggedUnion
+	case isMixedUnionDefinitionSchema(schema):
+		return generatedDefinitionMixedUnion
+	case isUntaggedObjectUnionDefinitionSchema(schema):
+		return generatedDefinitionUntaggedObjectUnion
 	case isObjectStructDefinitionSchema(schema):
 		return generatedDefinitionStruct
 	case isScalarAliasDefinitionSchema(schema):
@@ -258,12 +265,6 @@ func classifyGeneratedDefinition(schema *Schema) generatedDefinitionKind {
 		return generatedDefinitionScalarUnion
 	case isStringEnumDefinitionSchema(schema):
 		return generatedDefinitionStringEnum
-	case isTaggedUnionDefinitionSchema(schema):
-		return generatedDefinitionTaggedUnion
-	case isMixedUnionDefinitionSchema(schema):
-		return generatedDefinitionMixedUnion
-	case isUntaggedObjectUnionDefinitionSchema(schema):
-		return generatedDefinitionUntaggedObjectUnion
 	default:
 		return generatedDefinitionUnsupported
 	}
@@ -1572,6 +1573,12 @@ func buildTaggedUnionPlan(typ TypePlan, generatedNamedTypes map[string]bool, res
 		SchemaPath: typ.SchemaPath,
 		TypeName:   typ.TypeName,
 	}
+	sharedFields, err := taggedUnionSharedFields(typ, generatedNamedTypes, resolver)
+	if err != nil {
+		return TaggedUnionPlan{}, err
+	}
+	union.SharedFields = sharedFields
+	var values []string
 	for index, variant := range typ.Schema.OneOf {
 		if variant == nil || !variant.Type.Only("object") || len(variant.Properties) == 0 {
 			return TaggedUnionPlan{}, fmt.Errorf("tagged union %s variant %d is not an object with properties", typ.SchemaPath, index)
@@ -1590,13 +1597,16 @@ func buildTaggedUnionPlan(typ TypePlan, generatedNamedTypes map[string]bool, res
 			return TaggedUnionPlan{}, fmt.Errorf("tagged union %s discriminator value %q appears in both %s and %s", typ.SchemaPath, value, previous, variant.Title)
 		}
 		valueSet[value] = variant.Title
-
-		goName := variantGoName(value)
-		if previous, ok := nameSet[goName]; ok {
-			return TaggedUnionPlan{}, fmt.Errorf("tagged union %s variants %q and %q both map to Go name %s", typ.SchemaPath, previous, value, goName)
-		}
+		values = append(values, value)
+	}
+	goNames, err := taggedUnionGoNames(values)
+	if err != nil {
+		return TaggedUnionPlan{}, fmt.Errorf("tagged union %s: %w", typ.SchemaPath, err)
+	}
+	for index, variant := range typ.Schema.OneOf {
+		value := values[index]
+		goName := goNames[index]
 		nameSet[goName] = value
-
 		fields, nullFields, err := taggedUnionVariantFields(typ, variant, discriminator, index, generatedNamedTypes, resolver)
 		if err != nil {
 			return TaggedUnionPlan{}, err
@@ -1615,6 +1625,28 @@ func buildTaggedUnionPlan(typ TypePlan, generatedNamedTypes map[string]bool, res
 	return union, nil
 }
 
+func taggedUnionGoNames(values []string) ([]string, error) {
+	names := make([]string, len(values))
+	counts := map[string]int{}
+	for i, value := range values {
+		names[i] = variantGoName(value)
+		counts[names[i]]++
+	}
+	for i, value := range values {
+		if counts[names[i]] > 1 && strings.Contains(value, "/") {
+			names[i] = variantGoName(strings.ReplaceAll(value, "/", " Slash "))
+		}
+	}
+	seen := map[string]string{}
+	for i, name := range names {
+		if previous, ok := seen[name]; ok {
+			return nil, fmt.Errorf("variants %q and %q both map to Go name %s", previous, values[i], name)
+		}
+		seen[name] = values[i]
+	}
+	return names, nil
+}
+
 func variantDiscriminator(schema *Schema) (fieldName string, value string, err error) {
 	required := schema.RequiredSet()
 	var candidates []string
@@ -1623,7 +1655,7 @@ func variantDiscriminator(schema *Schema) (fieldName string, value string, err e
 			continue
 		}
 		switch name {
-		case "type", "method", "kind", "mode":
+		case "type", "method", "kind", "mode", "handlerType":
 			candidates = append(candidates, name)
 		}
 	}
@@ -1633,6 +1665,40 @@ func variantDiscriminator(schema *Schema) (fieldName string, value string, err e
 	}
 	fieldName = candidates[0]
 	return fieldName, schema.Properties[fieldName].Enum[0], nil
+}
+
+func taggedUnionSharedFields(typ TypePlan, generatedNamedTypes map[string]bool, resolver generatedDefinitionNameResolver) ([]FieldPlan, error) {
+	if typ.Schema == nil || len(typ.Schema.Properties) == 0 {
+		return nil, nil
+	}
+	required := typ.Schema.RequiredSet()
+	var names []string
+	for name := range typ.Schema.Properties {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	fields := make([]FieldPlan, 0, len(names))
+	for _, name := range names {
+		property := typ.Schema.Properties[name]
+		field, err := planField(CoverageField{
+			Field:     name,
+			Path:      typ.SchemaPath + "#/properties/" + name,
+			Required:  required[name],
+			Schema:    typ.SchemaPath,
+			Stability: typ.Stability,
+			Status:    "supported-generated",
+			Type:      typ.TypeName,
+		}, property)
+		if err != nil {
+			return nil, fmt.Errorf("tagged union %s shared field %s: %w", typ.SchemaPath, name, err)
+		}
+		field = resolver.ResolveField(field)
+		if !canGenerateFirstPassField(field, generatedNamedTypes) {
+			return nil, fmt.Errorf("tagged union %s shared field %s has unsupported generated kind %s", typ.SchemaPath, name, field.Kind)
+		}
+		fields = append(fields, field)
+	}
+	return fields, nil
 }
 
 func taggedUnionVariantFields(typ TypePlan, variant *Schema, discriminator string, variantIndex int, generatedNamedTypes map[string]bool, resolver generatedDefinitionNameResolver) ([]FieldPlan, []NullFieldPlan, error) {
@@ -1650,6 +1716,22 @@ func taggedUnionVariantFields(typ TypePlan, variant *Schema, discriminator strin
 	var nullFields []NullFieldPlan
 	for _, name := range fieldNames {
 		property := variant.Properties[name]
+		if property != nil && property.IsTrueSchema() {
+			field := FieldPlan{
+				FieldName:       name,
+				GoType:          optionalGoType(required[name], "protocolv2.JSONValue"),
+				Kind:            FieldPlanJSONValue,
+				Path:            fmt.Sprintf("%s#/oneOf/%d/properties/%s", typ.SchemaPath, variantIndex, name),
+				Required:        required[name],
+				SchemaPath:      typ.SchemaPath,
+				Stability:       typ.Stability,
+				TypeName:        typ.TypeName,
+				WireOmitAllowed: !required[name],
+				Reason:          "schema true in tagged-union variant is unconstrained JSON",
+			}
+			fields = append(fields, field)
+			continue
+		}
 		if property.Type.Only("null") {
 			if required[name] {
 				return nil, nil, fmt.Errorf("tagged union %s variant %d field %s is a required null field", typ.SchemaPath, variantIndex, name)
@@ -1918,6 +2000,7 @@ func enumConstName(typeName, value string) string {
 func isGeneratedTaggedUnionCheckpoint(path string) bool {
 	switch path {
 	case "ClientNotification.json", "ClientRequest.json", "ServerNotification.json", "ServerRequest.json",
+		"McpServerElicitationRequestParams.json",
 		"v2/BedrockSetupParams.json", "v2/LoginAccountParams.json", "v2/LoginAccountResponse.json":
 		return true
 	default:
@@ -1972,6 +2055,13 @@ func isGeneratedDefinitionScalarAliasCheckpoint(schemaPath string, name string) 
 
 func isGeneratedDefinitionStringEnumCheckpoint(schemaPath string, name string) bool {
 	switch schemaPath {
+	case "McpServerElicitationRequestParams.json":
+		switch name {
+		case "McpElicitationArrayType", "McpElicitationBooleanType", "McpElicitationNumberType", "McpElicitationObjectType", "McpElicitationStringType":
+			return true
+		default:
+			return false
+		}
 	case "v2/AccountUpdatedNotification.json":
 		return name == "AuthMode"
 	case "v2/AccountRateLimitsUpdatedNotification.json":
@@ -2236,6 +2326,8 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 		default:
 			return false
 		}
+	case "McpServerElicitationRequestParams.json":
+		return name == "McpElicitationSchema"
 	case "v2/HooksListResponse.json":
 		switch name {
 		case "HookErrorInfo", "HookMetadata", "HooksListEntry":
@@ -2449,7 +2541,7 @@ func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool 
 }
 
 func isObjectStructDefinitionSchema(schema *Schema) bool {
-	return schema != nil && schema.Type.Only("object")
+	return schema != nil && schema.Type.Only("object") && len(schema.OneOf) == 0 && len(schema.AnyOf) == 0
 }
 
 func isGeneratedDefinitionMixedUnionCheckpoint(schemaPath string, name string) bool {
@@ -3383,6 +3475,14 @@ func writeTaggedUnionType(out *bytes.Buffer, union TaggedUnionPlan) {
 	out.WriteString(")\n\n")
 
 	fmt.Fprintf(out, "type %s struct {\n", union.TypeName)
+	for _, field := range sortedFields(union.SharedFields) {
+		fmt.Fprintf(out, "\t%s %s `json:\"%s%s\"`\n",
+			fieldGoName(field.FieldName),
+			generatedGoType(field.GoType),
+			field.FieldName,
+			jsonTagOmitEmpty(field),
+		)
+	}
 	out.WriteString("\tkind " + kindTypeName + "\n")
 	for _, variant := range union.Variants {
 		fmt.Fprintf(out, "\t%s *%s\n", variant.PrivateFieldName, variant.PayloadTypeName)
@@ -3483,13 +3583,22 @@ func writeTaggedUnionMarshal(out *bytes.Buffer, union TaggedUnionPlan) {
 }
 
 func writeTaggedUnionVariantMarshal(out *bytes.Buffer, union TaggedUnionPlan, variant TaggedUnionVariantPlan) {
-	wireFields := append([]FieldPlan(nil), variant.Fields...)
+	wireFields := append([]FieldPlan(nil), union.SharedFields...)
+	wireFields = append(wireFields, variant.Fields...)
 	wireFields = append(wireFields, FieldPlan{
 		FieldName: union.Discriminator,
 		GoType:    "string",
 		Required:  true,
 	})
 	wireFields = sortedFields(wireFields)
+	for _, field := range sortedFields(union.SharedFields) {
+		fieldName := fieldGoName(field.FieldName)
+		if fieldNeedsMarshalNilCheck(field) {
+			fmt.Fprintf(out, "\t\tif value.%s == nil {\n", fieldName)
+			fmt.Fprintf(out, "\t\t\treturn nil, fmt.Errorf(\"encode %s.%s: nil is not allowed\")\n", union.TypeName, field.FieldName)
+			out.WriteString("\t\t}\n")
+		}
+	}
 	for _, field := range sortedFields(variant.Fields) {
 		fieldName := fieldGoName(field.FieldName)
 		if fieldNeedsMarshalNilCheck(field) {
@@ -3526,6 +3635,10 @@ func writeTaggedUnionVariantMarshal(out *bytes.Buffer, union TaggedUnionPlan, va
 			fmt.Fprintf(out, "\t\t\t%s: %s,\n", fieldName, quoted(variant.DiscriminatorValue))
 			continue
 		}
+		if taggedUnionSharedField(union, field.FieldName) {
+			fmt.Fprintf(out, "\t\t\t%s: value.%s,\n", fieldName, fieldName)
+			continue
+		}
 		fmt.Fprintf(out, "\t\t\t%s: value.%s.%s,\n", fieldName, variant.PrivateFieldName, fieldName)
 	}
 	out.WriteString("\t\t})\n")
@@ -3540,6 +3653,12 @@ func writeTaggedUnionUnmarshal(out *bytes.Buffer, union TaggedUnionPlan) {
 	out.WriteString("\tif err != nil {\n")
 	out.WriteString("\t\treturn err\n")
 	out.WriteString("\t}\n")
+	if len(union.SharedFields) > 0 {
+		fmt.Fprintf(out, "\tvar shared %s\n", union.TypeName)
+		for _, field := range sortedFields(union.SharedFields) {
+			writeNamedFieldDecoder(out, TypePlan{TypeName: union.TypeName}, field, "shared")
+		}
+	}
 	fmt.Fprintf(out, "\tvariant, err := decodeTaggedUnionDiscriminator(fields, %q, %q)\n", union.Discriminator, union.TypeName)
 	out.WriteString("\tif err != nil {\n")
 	out.WriteString("\t\treturn err\n")
@@ -3549,7 +3668,7 @@ func writeTaggedUnionUnmarshal(out *bytes.Buffer, union TaggedUnionPlan) {
 		fmt.Fprintf(out, "\tcase %s:\n", quoted(variant.DiscriminatorValue))
 		fmt.Fprintf(out, "\t\tvar decoded %s\n", variant.PayloadTypeName)
 		for _, field := range sortedFields(variant.Fields) {
-			writeFieldDecoder(out, TypePlan{TypeName: union.TypeName}, field)
+			writeNamedFieldDecoder(out, TypePlan{TypeName: union.TypeName}, field, "decoded")
 		}
 		for _, field := range variant.NullFields {
 			writeTaggedUnionNullFieldDecoder(out, union, variant, field)
@@ -3557,7 +3676,11 @@ func writeTaggedUnionUnmarshal(out *bytes.Buffer, union TaggedUnionPlan) {
 		fmt.Fprintf(out, "\t\tif err := rejectUnexpectedFieldsForMode(fields, %q, mode); err != nil {\n", union.TypeName+"."+variant.DiscriminatorValue)
 		out.WriteString("\t\t\treturn err\n")
 		out.WriteString("\t\t}\n")
-		fmt.Fprintf(out, "\t\t*value = %s{kind: %s, %s: &decoded}\n", union.TypeName, taggedUnionKindConstName(union, variant), variant.PrivateFieldName)
+		fmt.Fprintf(out, "\t\t*value = %s{", union.TypeName)
+		for _, field := range sortedFields(union.SharedFields) {
+			fmt.Fprintf(out, "%s: shared.%s, ", fieldGoName(field.FieldName), fieldGoName(field.FieldName))
+		}
+		fmt.Fprintf(out, "kind: %s, %s: &decoded}\n", taggedUnionKindConstName(union, variant), variant.PrivateFieldName)
 		out.WriteString("\t\treturn nil\n")
 	}
 	out.WriteString("\tdefault:\n")
@@ -3851,7 +3974,20 @@ func writeStructDecoder(out *bytes.Buffer, typ TypePlan, fields []FieldPlan) {
 	out.WriteString("}\n")
 }
 
+func taggedUnionSharedField(union TaggedUnionPlan, name string) bool {
+	for _, field := range union.SharedFields {
+		if field.FieldName == name {
+			return true
+		}
+	}
+	return false
+}
+
 func writeFieldDecoder(out *bytes.Buffer, typ TypePlan, field FieldPlan) {
+	writeNamedFieldDecoder(out, typ, field, "decoded")
+}
+
+func writeNamedFieldDecoder(out *bytes.Buffer, typ TypePlan, field FieldPlan, target string) {
 	fieldPath := typ.TypeName + "." + field.FieldName
 	decodeFn := "decodeJSONField"
 	typeArg := ""
@@ -3905,7 +4041,7 @@ func writeFieldDecoder(out *bytes.Buffer, typ TypePlan, field FieldPlan) {
 	if needsWireDecoder {
 		fmt.Fprintf(out, "mode, %s, ", wireDecoderExpression(decoderType))
 	}
-	fmt.Fprintf(out, "&decoded.%s)\n", fieldGoName(field.FieldName))
+	fmt.Fprintf(out, "&%s.%s)\n", target, fieldGoName(field.FieldName))
 	out.WriteString("\tif err != nil {\n")
 	out.WriteString("\t\treturn err\n")
 	out.WriteString("\t}\n")
@@ -3915,13 +4051,13 @@ func writeFieldDecoder(out *bytes.Buffer, typ TypePlan, field FieldPlan) {
 		out.WriteString("\t}\n")
 	}
 	if field.MinItems != nil {
-		condition := minItemsViolationCondition("decoded."+fieldGoName(field.FieldName), field.GoType, minItemsLiteral(field))
+		condition := minItemsViolationCondition(target+"."+fieldGoName(field.FieldName), field.GoType, minItemsLiteral(field))
 		fmt.Fprintf(out, "\tif %s {\n", condition)
 		fmt.Fprintf(out, "\t\treturn fmt.Errorf(\"decode %s: must contain at least %s item\")\n", fieldPath, minItemsLiteral(field))
 		out.WriteString("\t}\n")
 	}
 	if field.Minimum != nil {
-		condition := minimumViolationCondition("decoded."+fieldGoName(field.FieldName), field.GoType, minimumLiteral(field))
+		condition := minimumViolationCondition(target+"."+fieldGoName(field.FieldName), field.GoType, minimumLiteral(field))
 		fmt.Fprintf(out, "\tif %s {\n", condition)
 		fmt.Fprintf(out, "\t\treturn fmt.Errorf(\"decode %s: value must be >= %s\")\n", fieldPath, minimumLiteral(field))
 		out.WriteString("\t}\n")

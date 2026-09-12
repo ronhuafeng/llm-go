@@ -37,6 +37,69 @@ func TestBuildProtocolTypePlanClassifiesBaseline(t *testing.T) {
 	}
 }
 
+func TestPlanTypePreservesSharedObjectPropertiesAndOneOfPayload(t *testing.T) {
+	schema := mustParseSchema(t, `{
+		"type": "object",
+		"properties": {
+			"threadId": {"type": "string"}
+		},
+		"required": ["threadId"],
+		"oneOf": [
+			{
+				"type": "object",
+				"required": ["mode", "url"],
+				"properties": {
+					"mode": {"type": "string", "enum": ["url"]},
+					"url": {"type": "string"}
+				}
+			},
+			{
+				"type": "object",
+				"required": ["mode", "message"],
+				"properties": {
+					"mode": {"type": "string", "enum": ["form"]},
+					"message": {"type": "string"}
+				}
+			}
+		]
+	}`)
+	plan, err := planType(SchemaFile{
+		Path:      "McpServerElicitationRequestParams.json",
+		TypeName:  "SharedUnion",
+		Stability: "stable",
+		Schema:    schema,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Kind != TypePlanTaggedUnionCandidate {
+		t.Fatalf("kind = %s, want tagged union so shared properties do not erase oneOf", plan.Kind)
+	}
+	if !strings.Contains(plan.Reason, "properties plus oneOf") {
+		t.Fatalf("reason = %q, want shared-object plus union composition", plan.Reason)
+	}
+	if got, want := len(schema.Properties), 1; got != want {
+		t.Fatalf("schema properties dropped: %d", got)
+	}
+	if got, want := len(schema.OneOf), 2; got != want {
+		t.Fatalf("schema oneOf dropped: %d", got)
+	}
+}
+
+func TestBuildProtocolTypePlanKeepsElicitationUnionPayload(t *testing.T) {
+	plan, err := BuildProtocolTypePlan(schemaRoot())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, ok := plan.TypeBySchema("McpServerElicitationRequestParams.json")
+	if !ok || got.Kind != TypePlanTaggedUnionCandidate {
+		t.Fatalf("McpServerElicitationRequestParams kind = %v ok=%v, want tagged union", got.Kind, ok)
+	}
+	if got.Schema == nil || len(got.Schema.Properties) == 0 || len(got.Schema.OneOf) < 4 {
+		t.Fatalf("elicitation schema lost shared properties or oneOf: properties=%d oneOf=%d", len(got.Schema.Properties), len(got.Schema.OneOf))
+	}
+}
+
 func TestBuildProtocolTypePlanClassifiesReviewedNullableTokenUsageParams(t *testing.T) {
 	const coverage = `{
 		"status": "classified-manifest",

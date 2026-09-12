@@ -1529,21 +1529,23 @@ func facadeHooksListResponse() protocolv2.HooksListResponse {
 				Message: "missing command",
 				Path:    "/repo/.codex/hooks.json",
 			}},
-			Hooks: []protocolv2.HookMetadata{{
-				CurrentHash:   "hash-1",
-				DisplayOrder:  1,
-				Enabled:       true,
-				EventName:     protocolv2.HookEventNamePreToolUse,
-				IsManaged:     false,
-				Key:           "hook-1",
-				Matcher:       protocolv2.Value("shell"),
-				PluginID:      protocolv2.Null[string](),
-				Source:        protocolv2.HookSourceProject,
-				SourcePath:    "/repo/.codex/hooks.json",
-				StatusMessage: protocolv2.Value("trusted"),
-				TimeoutSec:    10,
-				TrustStatus:   protocolv2.HookTrustStatusTrusted,
-			}},
+			Hooks: []protocolv2.HookMetadata{func() protocolv2.HookMetadata {
+				hook := protocolv2.NewHookMetadataPrompt()
+				hook.CurrentHash = "hash-1"
+				hook.DisplayOrder = 1
+				hook.Enabled = true
+				hook.EventName = protocolv2.HookEventNamePreToolUse
+				hook.IsManaged = false
+				hook.Key = "hook-1"
+				hook.Matcher = protocolv2.Value("shell")
+				hook.PluginID = protocolv2.Null[string]()
+				hook.Source = protocolv2.HookSourceProject
+				hook.SourcePath = "/repo/.codex/hooks.json"
+				hook.StatusMessage = protocolv2.Value("trusted")
+				hook.TimeoutSec = 10
+				hook.TrustStatus = protocolv2.HookTrustStatusTrusted
+				return hook
+			}()},
 			Warnings: []string{"review hook"},
 		}},
 	}
