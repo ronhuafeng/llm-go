@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -28,13 +29,13 @@ var (
 	cacheMarkers   = []string{".cache/codexsdk-upstream", ".cache/openai-codex"}
 )
 
-// Request is the observed inputs for one generated-artifact proof.
+// Request is the expected identities a caller already believes. Prove observes
+// git HEAD and baseline metadata itself and fails closed on mismatch.
 type Request struct {
-	ModuleRoot             string
-	ExpectedUpstreamCommit string
-	UpstreamRef            string
-	RepositoryCommit       string
-	WriteArtifacts         bool
+	ModuleRoot               string
+	ExpectedRepositoryCommit string
+	ExpectedUpstreamCommit   string
+	ExpectedUpstreamRef      string
 }
 
 // Artifact names one compared generated file.
@@ -71,9 +72,16 @@ func Prove(req Request) (Result, error) {
 		return Result{}, err
 	}
 
-	result := Result{
-		RepositoryCommit: req.RepositoryCommit,
-		UpstreamRef:      req.UpstreamRef,
+	result := Result{}
+	if head, err := observeGitHEAD(root); err != nil {
+		if req.ExpectedRepositoryCommit != "" {
+			return result, fmt.Errorf("observe repository commit: %w", err)
+		}
+	} else {
+		result.RepositoryCommit = head
+		if req.ExpectedRepositoryCommit != "" && head != req.ExpectedRepositoryCommit {
+			return result, fmt.Errorf("repository commit=%s, want %s", head, req.ExpectedRepositoryCommit)
+		}
 	}
 
 	metadata, err := loadBaselineMetadata(filepath.Join(root, baselineRel, "baseline_metadata.json"))
@@ -81,9 +89,7 @@ func Prove(req Request) (Result, error) {
 		return result, err
 	}
 	result.UpstreamCommit = metadata.SourceCommit
-	if result.UpstreamRef == "" {
-		result.UpstreamRef = metadata.SourceRefName
-	}
+	result.UpstreamRef = metadata.SourceRefName
 
 	if req.ExpectedUpstreamCommit != "" {
 		matches := metadata.SourceCommit == req.ExpectedUpstreamCommit
@@ -91,6 +97,9 @@ func Prove(req Request) (Result, error) {
 		if !matches {
 			return result, fmt.Errorf("baseline source_commit=%s, want %s", metadata.SourceCommit, req.ExpectedUpstreamCommit)
 		}
+	}
+	if req.ExpectedUpstreamRef != "" && metadata.SourceRefName != req.ExpectedUpstreamRef {
+		return result, fmt.Errorf("baseline source_ref_name=%s, want %s", metadata.SourceRefName, req.ExpectedUpstreamRef)
 	}
 
 	leaks, err := scanBaselinePathLeaks(filepath.Join(root, baselineRel))
@@ -130,17 +139,44 @@ func Prove(req Request) (Result, error) {
 			artifact.Diagnostic = mismatchDiagnostic(item.rel, want, item.data)
 		}
 		result.Artifacts = append(result.Artifacts, artifact)
-		if req.WriteArtifacts {
-			if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(item.rel)), item.data, 0o644); err != nil {
-				return result, err
-			}
-		}
 	}
 	result.GeneratedArtifactsReproducible = allMatch
 	if !allMatch {
-		return result, fmt.Errorf("generated artifacts do not match checked-in outputs")
+		return result, fmt.Errorf("generated artifacts do not match checked-in outputs: %s", mismatchSummary(result.Artifacts))
 	}
 	return result, nil
+}
+
+// WriteArtifacts regenerates protocol artifacts and writes them. It does not
+// compare against checked-in files and is not a proof.
+func WriteArtifacts(moduleRoot string) error {
+	root := moduleRoot
+	if root == "" {
+		root = "."
+	}
+	root, err := filepath.Abs(root)
+	if err != nil {
+		return err
+	}
+	generated, err := generateArtifacts(root)
+	if err != nil {
+		return err
+	}
+	files := []struct {
+		rel  string
+		data []byte
+	}{
+		{methodRegistry, generated.methodRegistry},
+		{protocolTypes, generated.protocolTypes},
+		{experimentalMem, generated.experimentalMembers},
+		{sdkSurface, generated.sdkSurface},
+	}
+	for _, item := range files {
+		if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(item.rel)), item.data, 0o644); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type generatedSet struct {
@@ -233,4 +269,30 @@ func scanBaselinePathLeaks(root string) ([]string, error) {
 
 func mismatchDiagnostic(rel string, want, got []byte) string {
 	return fmt.Sprintf("%s mismatch: checked-in sha256=%x generated sha256=%x", rel, sha256.Sum256(want), sha256.Sum256(got))
+}
+
+func mismatchSummary(artifacts []Artifact) string {
+	var parts []string
+	for _, artifact := range artifacts {
+		if !artifact.Reproducible && artifact.Diagnostic != "" {
+			parts = append(parts, artifact.Diagnostic)
+		}
+	}
+	if len(parts) == 0 {
+		return "one or more artifacts differ"
+	}
+	return strings.Join(parts, "; ")
+}
+
+func observeGitHEAD(dir string) (string, error) {
+	cmd := exec.Command("git", "-C", dir, "rev-parse", "HEAD")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("git rev-parse HEAD: %w", err)
+	}
+	sha := strings.TrimSpace(string(out))
+	if !sourceCommitRE.MatchString(sha) {
+		return "", fmt.Errorf("git HEAD %q is not a full git sha", sha)
+	}
+	return sha, nil
 }

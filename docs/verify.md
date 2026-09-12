@@ -76,8 +76,9 @@ Go owns the proof commands.
    adapter's `go vet` and `go test -race` through its temporary current-source
    modfile; then run repository integration against current source;
 7. regenerate and compare checked-in `codexsdk` protocol artifacts and SDK
-   surface with `go run ./internal/cmd/generatedproof`, emitting a
-   machine-readable proof bound to the observed repository commit.
+   surface with `go run ./internal/cmd/generatedproof`, which observes git HEAD
+   and baseline provenance itself and emits a machine-readable proof of those
+   facts. `-write-artifacts` only generates files and is not a proof.
 
 The adapter's temporary source replacement and repository integration proof
 answer only whether the checked-out source cohort composes. They do not answer

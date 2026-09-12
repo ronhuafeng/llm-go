@@ -169,20 +169,16 @@ write_output() {
   fi
 }
 
-validate_sync() {
-  GOWORK=off go run ./internal/cmd/generatedproof -expected-upstream-commit "${target_sha}" || return 1
-  GOWORK=off go test ./... || return 1
-  PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts -p '*_test.py' || return 1
-  local sync_state_args=(
-    --baseline internal/protocolschema/appserver/v2
-    --target-sha "${target_sha}"
-  )
-  if [[ -n "${candidate}" ]]; then
-    sync_state_args+=(--candidate "${candidate}")
+require_validated_commit() {
+  if [[ -z "${validated_commit}" ]]; then
+    echo "publish requires a workflow-validated commit; correctness proofs are owned by Actions YAML" >&2
+    return 1
   fi
-  python3 scripts/codexsdk_sync_state.py "${sync_state_args[@]}" || return 1
+}
+
+confirm_clean_tree() {
   if [[ -n "$(git status --porcelain --untracked-files=all)" ]]; then
-    echo "validation changed the committed sync tree; commit validation changes before publishing" >&2
+    echo "publication tree is dirty; workflow proofs must leave a clean worktree" >&2
     git status --short >&2
     return 1
   fi
@@ -359,18 +355,15 @@ EOF
   printf '%s\n' "${pr_url}"
 }
 
-if [[ -n "${validated_commit}" ]]; then
-  if [[ "$(git rev-parse HEAD)" != "${validated_commit}" ]]; then
-    echo "validated commit ${validated_commit} does not match HEAD $(git rev-parse HEAD)" >&2
-    exit 1
-  fi
-else
-  validate_sync
+require_validated_commit
+if [[ "$(git rev-parse HEAD)" != "${validated_commit}" ]]; then
+  echo "validated commit ${validated_commit} does not match HEAD $(git rev-parse HEAD)" >&2
+  exit 1
 fi
 fetch_landing_ref
 git rebase "${remote}/${land_ref}"
 confirm_target_still_points_at_sha
-validate_sync
+confirm_clean_tree
 
 existing_pr="$(find_existing_target_pr)"
 if [[ -n "${existing_pr}" ]]; then

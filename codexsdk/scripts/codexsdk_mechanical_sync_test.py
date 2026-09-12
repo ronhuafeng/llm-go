@@ -44,27 +44,21 @@ class MechanicalSyncDecisionTest(unittest.TestCase):
     def test_allowed_drift_applies_mechanically(self) -> None:
         self.assertEqual(mechanical.decide_after_drift(force_compare=False, drift_status="review-required"), "apply")
 
-    def test_clean_mechanical_apply_and_tests_publish_without_agent(self) -> None:
+    def test_clean_mechanical_apply_waits_for_workflow_proofs(self) -> None:
         self.assertEqual(
-            mechanical.decide_after_validate(apply_ok=True, validate_ok=True, mechanical_only=True),
-            "implemented",
-        )
-
-    def test_test_failure_escalates_with_evidence(self) -> None:
-        self.assertEqual(
-            mechanical.decide_after_validate(apply_ok=True, validate_ok=False, mechanical_only=True),
-            "escalate",
+            mechanical.decide_after_apply(apply_ok=True, mechanical_only=True),
+            "applied",
         )
 
     def test_apply_failure_escalates_before_agent(self) -> None:
         self.assertEqual(
-            mechanical.decide_after_validate(apply_ok=False, validate_ok=False, mechanical_only=True),
+            mechanical.decide_after_apply(apply_ok=False, mechanical_only=True),
             "escalate",
         )
 
     def test_non_mechanical_changes_escalate(self) -> None:
         self.assertEqual(
-            mechanical.decide_after_validate(apply_ok=True, validate_ok=True, mechanical_only=False),
+            mechanical.decide_after_apply(apply_ok=True, mechanical_only=False),
             "escalate",
         )
 

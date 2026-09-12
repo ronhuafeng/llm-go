@@ -2,10 +2,10 @@
 """Run the mechanical-first Codex protocol sync path.
 
 The workflow owns this path. It acquires the upstream target, generates
-schemas, applies the mechanical surface, and runs owner-local Go proofs
-before any implementation agent is invoked. Unsupported semantic drift
-writes explicit escalation evidence instead of asking an agent to
-rediscover the repository.
+schemas, and applies the mechanical surface. Owner-local Go proofs and
+generated-artifact verification run in GitHub Actions YAML after this
+script returns. Unsupported semantic drift that the mechanical apply
+cannot complete writes explicit escalation evidence.
 """
 
 from __future__ import annotations
@@ -54,9 +54,9 @@ def decide_after_drift(*, force_compare: bool, drift_status: str) -> str:
     return "apply"
 
 
-def decide_after_validate(*, apply_ok: bool, validate_ok: bool, mechanical_only: bool) -> str:
-    if apply_ok and validate_ok and mechanical_only:
-        return "implemented"
+def decide_after_apply(*, apply_ok: bool, mechanical_only: bool) -> str:
+    if apply_ok and mechanical_only:
+        return "applied"
     return "escalate"
 
 
@@ -233,41 +233,6 @@ def capture_mechanical(repo_root: Path, output: Path) -> list[str]:
     return paths
 
 
-def validate_sync(module_root: Path, target_sha: str, candidate: Path) -> None:
-    env = {**os.environ, "GOWORK": "off", "PYTHONDONTWRITEBYTECODE": "1"}
-    run_command(
-        [
-            "go",
-            "run",
-            "./internal/cmd/generatedproof",
-            "-expected-upstream-commit",
-            target_sha,
-        ],
-        cwd=module_root,
-        env=env,
-    )
-    run_command(["go", "test", "./..."], cwd=module_root, env=env)
-    run_command(
-        [sys.executable, "-m", "unittest", "discover", "-s", "scripts", "-p", "*_test.py"],
-        cwd=module_root,
-        env=env,
-    )
-    run_command(
-        [
-            sys.executable,
-            "scripts/codexsdk_sync_state.py",
-            "--baseline",
-            str(BASELINE),
-            "--candidate",
-            str(candidate),
-            "--target-sha",
-            target_sha,
-        ],
-        cwd=module_root,
-        env=env,
-    )
-
-
 def emit_outcome(module_root: Path, outcome: str, inputs: dict[str, Any], **extra: str) -> dict[str, Any]:
     payload = {
         "outcome": outcome,
@@ -279,8 +244,9 @@ def emit_outcome(module_root: Path, outcome: str, inputs: dict[str, Any], **extr
     write_json(module_root / OUTCOME_OUTPUT, payload)
     publish = "true" if outcome == "implemented" else "false"
     escalate = "true" if outcome == "escalate" else "false"
+    applied = "true" if outcome == "applied" else "false"
     sync_mode = ""
-    if outcome == "implemented":
+    if outcome in {"implemented", "applied"}:
         sync_mode = "metadata-sync"
     elif outcome == "escalate":
         sync_mode = "repair-sync"
@@ -288,6 +254,7 @@ def emit_outcome(module_root: Path, outcome: str, inputs: dict[str, Any], **extr
         {
             "outcome": outcome,
             "publish": publish,
+            "applied": applied,
             "escalate": escalate,
             "sync_mode": sync_mode,
             "target_ref": str(inputs["target_ref"]),
@@ -360,33 +327,23 @@ def main() -> int:
         mechanical_only = False
         capture_detail = str(exc)
 
-    validate_ok = True
-    validate_detail = ""
-    if apply_ok:
-        try:
-            validate_sync(module_root, str(inputs["target_sha"]), sync_out / "schema")
-        except CommandError as exc:
-            validate_ok = False
-            validate_detail = exc.output or str(exc)
-
-    after_validate = decide_after_validate(
-        apply_ok=apply_ok,
-        validate_ok=validate_ok,
-        mechanical_only=mechanical_only,
-    )
-    if after_validate == "implemented":
-        emit_outcome(module_root, "implemented", inputs, reason="mechanical generation and owner-local Go proofs succeeded")
+    after_apply = decide_after_apply(apply_ok=apply_ok, mechanical_only=mechanical_only)
+    if after_apply == "applied":
+        emit_outcome(
+            module_root,
+            "applied",
+            inputs,
+            reason="mechanical generation applied; owner-local proofs run by the workflow",
+            candidate=str(sync_out / "schema"),
+        )
         return 0
 
     if not apply_ok:
         reason = "mechanical apply failed with a deterministic incompatibility"
         detail = apply_detail
-    elif not mechanical_only:
+    else:
         reason = "mechanical apply escaped the generated sync surface"
         detail = capture_detail
-    else:
-        reason = "owner-local validation failed after mechanical apply"
-        detail = validate_detail
     write_escalation(
         module_root / ESCALATION_OUTPUT,
         target_ref=str(inputs["target_ref"]),

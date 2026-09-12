@@ -166,8 +166,8 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/proof"
           go run ./internal/cmd/generatedproof \
             -expected-upstream-commit "${TARGET_SHA}" \
-            -upstream-ref "${TARGET_REF}" \
-            -repository-commit "${REPOSITORY_COMMIT}" \
+            -expected-upstream-ref "${TARGET_REF}" \
+            -expected-repository-commit "${REPOSITORY_COMMIT}" \
             -json-out "${RUNNER_TEMP}/proof/generated.json"
 
       - name: Owner-local codexsdk tests
@@ -179,17 +179,75 @@ jobs:
           GOTOOLCHAIN: local
         run: go test ./...
 
-      - name: Upload generated proof
-        if: steps.generated-proof.outcome == 'success'
-        uses: actions/upload-artifact@v4
-        with:
-          name: generated-proof
-          path: ${{ runner.temp }}/proof/generated.json
-          if-no-files-found: error
+      - name: Candidate schema state
+        id: schema-state
+        if: steps.mechanical.outputs.applied == 'true'
+        working-directory: codexsdk
+        env:
+          CANDIDATE: ${{ steps.mechanical.outputs.candidate }}
+          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
+        run: |
+          set -euo pipefail
+          python3 scripts/codexsdk_sync_state.py \
+            --baseline internal/protocolschema/appserver/v2 \
+            --candidate "${CANDIDATE}" \
+            --target-sha "${TARGET_SHA}"
+
+      - name: Remaining script tests
+        id: script-tests
+        if: steps.mechanical.outputs.applied == 'true'
+        working-directory: codexsdk
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python3 -m unittest discover -s scripts -p '*_test.py'
+
+      - name: Record workflow proof failure
+        if: >-
+          steps.mechanical.outputs.applied == 'true' &&
+          (steps.generated-proof.outcome == 'failure' ||
+           steps.owner-local-tests.outcome == 'failure' ||
+           steps.schema-state.outcome == 'failure' ||
+           steps.script-tests.outcome == 'failure')
+        working-directory: codexsdk
+        env:
+          TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
+          TARGET_KIND: ${{ steps.mechanical.outputs.target_kind }}
+          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
+          CANDIDATE: ${{ steps.mechanical.outputs.candidate }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          path = Path(".cache/codexsdk-sync/escalation.json")
+          path.parent.mkdir(parents=True, exist_ok=True)
+          path.write_text(
+              json.dumps(
+                  {
+                      "target_ref": os.environ["TARGET_REF"],
+                      "target_kind": os.environ["TARGET_KIND"],
+                      "target_sha": os.environ["TARGET_SHA"],
+                      "reason": "workflow owner-local proofs failed after mechanical apply",
+                      "detail": "generatedproof, owner-local tests, schema-state, or remaining script tests failed",
+                      "artifacts": {"candidate": os.environ.get("CANDIDATE", "")},
+                  },
+                  indent=2,
+                  sort_keys=True,
+              )
+              + "\n",
+              encoding="utf-8",
+          )
+          PY
 
       - name: Escalate unsupported semantic drift
         id: codex
-        if: steps.mechanical.outputs.escalate == 'true'
+        if: >-
+          steps.mechanical.outputs.escalate == 'true' ||
+          (steps.mechanical.outputs.applied == 'true' &&
+           (steps.generated-proof.outcome == 'failure' ||
+            steps.owner-local-tests.outcome == 'failure' ||
+            steps.schema-state.outcome == 'failure' ||
+            steps.script-tests.outcome == 'failure'))
         uses: ./.github/actions/codex-exec
         with:
           api-key: ${{ secrets.AZURE_OPENAI_API_KEY }}
@@ -204,7 +262,7 @@ jobs:
             changes unstaged.
 
       - name: Reject mismatched Codex escalation claim
-        if: steps.mechanical.outputs.escalate == 'true'
+        if: always() && (steps.codex.outcome == 'success' || steps.codex.outcome == 'failure')
         env:
           CODEX_FINAL_MESSAGE_PATH: ${{ steps.codex.outputs.final-message-path }}
         run: |
@@ -224,7 +282,8 @@ jobs:
 
       - name: Validate escalated protocol implementation
         id: escalation-validation
-        if: steps.mechanical.outputs.escalate == 'true'
+        if: steps.codex.outcome == 'success'
+        working-directory: codexsdk
         env:
           GOWORK: "off"
           GOTOOLCHAIN: local
@@ -236,13 +295,27 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/proof"
           go run ./internal/cmd/generatedproof \
             -expected-upstream-commit "${TARGET_SHA}" \
-            -upstream-ref "${TARGET_REF}" \
-            -repository-commit "${REPOSITORY_COMMIT}" \
+            -expected-upstream-ref "${TARGET_REF}" \
+            -expected-repository-commit "${REPOSITORY_COMMIT}" \
             -json-out "${RUNNER_TEMP}/proof/generated.json"
           go test ./...
 
+      - name: Upload generated proof
+        if: always() && (steps.generated-proof.outcome == 'success' || steps.generated-proof.outcome == 'failure' || steps.escalation-validation.outcome == 'success' || steps.escalation-validation.outcome == 'failure')
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-proof
+          path: ${{ runner.temp }}/proof/generated.json
+          if-no-files-found: error
+
       - name: Confirm generated baseline provenance
-        if: steps.mechanical.outputs.publish == 'true' || steps.mechanical.outputs.escalate == 'true'
+        if: >-
+          (steps.mechanical.outputs.applied == 'true' &&
+           steps.generated-proof.outcome == 'success' &&
+           steps.owner-local-tests.outcome == 'success' &&
+           steps.schema-state.outcome == 'success' &&
+           steps.script-tests.outcome == 'success') ||
+          steps.escalation-validation.outcome == 'success'
         working-directory: codexsdk
         env:
           RESOLVED_TARGET_KIND: ${{ steps.mechanical.outputs.target_kind }}
@@ -268,7 +341,13 @@ jobs:
 
       - name: Capture final protocol changes
         id: capture
-        if: steps.mechanical.outputs.publish == 'true' || steps.mechanical.outputs.escalate == 'true'
+        if: >-
+          (steps.mechanical.outputs.applied == 'true' &&
+           steps.generated-proof.outcome == 'success' &&
+           steps.owner-local-tests.outcome == 'success' &&
+           steps.schema-state.outcome == 'success' &&
+           steps.script-tests.outcome == 'success') ||
+          steps.escalation-validation.outcome == 'success'
         working-directory: codexsdk
         run: |
           python3 scripts/codexsdk_sync_changes.py capture \
@@ -279,8 +358,13 @@ jobs:
       - name: Commit validated protocol implementation
         id: commit
         if: >-
-          (steps.mechanical.outputs.publish == 'true' || steps.mechanical.outputs.escalate == 'true') &&
-          inputs.validation_only != true
+          inputs.validation_only != true &&
+          ((steps.mechanical.outputs.applied == 'true' &&
+            steps.generated-proof.outcome == 'success' &&
+            steps.owner-local-tests.outcome == 'success' &&
+            steps.schema-state.outcome == 'success' &&
+            steps.script-tests.outcome == 'success') ||
+           steps.escalation-validation.outcome == 'success')
         working-directory: codexsdk
         env:
           TARGET_KIND: ${{ steps.mechanical.outputs.target_kind }}
@@ -304,8 +388,13 @@ jobs:
       - name: Publish protected sync PR
         id: publish
         if: >-
-          (steps.mechanical.outputs.publish == 'true' || steps.mechanical.outputs.escalate == 'true') &&
-          inputs.validation_only != true
+          inputs.validation_only != true &&
+          ((steps.mechanical.outputs.applied == 'true' &&
+            steps.generated-proof.outcome == 'success' &&
+            steps.owner-local-tests.outcome == 'success' &&
+            steps.schema-state.outcome == 'success' &&
+            steps.script-tests.outcome == 'success') ||
+           steps.escalation-validation.outcome == 'success')
         working-directory: codexsdk
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -336,7 +425,7 @@ jobs:
           (steps.mechanical.outputs.escalate != 'true' || steps.escalation-validation.outcome == 'success') &&
           (steps.mechanical.outputs.escalate == 'true' || steps.generated-proof.outcome == 'success') &&
           (inputs.validation_only == true ||
-           (steps.mechanical.outputs.publish != 'true' && steps.mechanical.outputs.escalate != 'true') ||
+           (steps.mechanical.outputs.applied != 'true' && steps.mechanical.outputs.escalate != 'true') ||
            (steps.commit.outcome == 'success' && steps.publish.outcome == 'success'))
         env:
           OUTCOME: ${{ steps.mechanical.outputs.outcome }}

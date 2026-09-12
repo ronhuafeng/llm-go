@@ -44,18 +44,19 @@ jobs:
           set -euo pipefail
           mkdir -p "${RUNNER_TEMP}/proof"
           args=(
-            -repository-commit "${REPOSITORY_COMMIT}"
+            -expected-repository-commit "${REPOSITORY_COMMIT}"
             -json-out "${RUNNER_TEMP}/proof/generated.json"
           )
           if [[ -n "${EXPECTED_COMMIT}" ]]; then
             args+=(-expected-upstream-commit "${EXPECTED_COMMIT}")
           fi
           if [[ -n "${UPSTREAM_REF}" ]]; then
-            args+=(-upstream-ref "${UPSTREAM_REF}")
+            args+=(-expected-upstream-ref "${UPSTREAM_REF}")
           fi
           go run ./internal/cmd/generatedproof "${args[@]}"
 
       - name: Upload generated proof
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: generated-proof

@@ -148,8 +148,29 @@ func TestProtocolSyncRunsGeneratedProofOnComparison(t *testing.T) {
 	if !strings.Contains(text, "steps.mechanical.outputs.escalate != 'true'") {
 		t.Fatal("protocol sync must run generated proof on ordinary comparison, not only escalation")
 	}
+	if !strings.Contains(text, "id: escalation-validation") || !strings.Contains(text, "working-directory: codexsdk") {
+		t.Fatal("escalation validation must run inside the codexsdk module")
+	}
+	if !strings.Contains(text, "always() && (steps.generated-proof.outcome == 'success' || steps.generated-proof.outcome == 'failure'") {
+		t.Fatal("generated proof artifacts must upload on proof failure, including escalation")
+	}
 	if strings.Contains(text, "codexsdk_validate_sync.sh") {
 		t.Fatal("protocol sync must not keep the shell validator as the generated-artifact owner")
+	}
+	mechanical, err := os.ReadFile(filepath.Join(root, "codexsdk", "scripts", "codexsdk_mechanical_sync.py"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mechanicalText := string(mechanical)
+	if strings.Contains(mechanicalText, "./internal/cmd/generatedproof") || strings.Contains(mechanicalText, `"go", "test"`) {
+		t.Fatal("mechanical sync must not own generatedproof or go test correctness decisions")
+	}
+	publish, err := os.ReadFile(filepath.Join(root, "codexsdk", "scripts", "codexsdk_publish_sync_pr.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(publish), "generatedproof") || strings.Contains(string(publish), "go test") {
+		t.Fatal("publish script must not own generatedproof or go test correctness decisions")
 	}
 }
 
@@ -171,6 +192,27 @@ func TestReleaseReusesNativeProofEntryPoints(t *testing.T) {
 	}
 	if !strings.Contains(text, "./internal/cmd/generatedproof") {
 		t.Fatal("release verification must reuse native generated-artifact proof")
+	}
+	if !strings.Contains(text, "if: inputs.module == 'codexsdk'") {
+		t.Fatal("release generated-artifact proof must be owned by the codexsdk module only")
+	}
+}
+
+func TestWorkflowLintUsesPinnedGoActionlint(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "verify-workflows.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(data)
+	if strings.Contains(text, "curl -fsSL") || strings.Contains(text, "download-actionlint.bash") {
+		t.Fatal("workflow lint must not extract actionlint with curl")
+	}
+	if !strings.Contains(text, "go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12") {
+		t.Fatal("workflow lint must run version-pinned actionlint through Go")
 	}
 }
 

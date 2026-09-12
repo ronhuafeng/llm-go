@@ -41,14 +41,6 @@ class PublishSyncPrTest(unittest.TestCase):
                 f"#!/usr/bin/env python3\nprint('{{\"peeled_commit_sha\": \"{TARGET_SHA}\"}}')\n",
                 encoding="utf-8",
             )
-            (scripts / "codexsdk_sync_state.py").write_text(
-                "#!/usr/bin/env python3\nprint('sync-state')\n",
-                encoding="utf-8",
-            )
-            (fake_bin / "go").write_text(
-                "#!/usr/bin/env bash\nset -euo pipefail\nprintf 'validate\\n' >> \"${VALIDATION_LOG}\"\n",
-                encoding="utf-8",
-            )
             (fake_bin / "gh").write_text(
                 textwrap.dedent(
                     """\
@@ -74,8 +66,6 @@ class PublishSyncPrTest(unittest.TestCase):
             for executable in (
                 scripts / SCRIPT.name,
                 scripts / "codexsdk_resolve_upstream.py",
-                scripts / "codexsdk_sync_state.py",
-                fake_bin / "go",
                 fake_bin / "gh",
             ):
                 executable.chmod(0o755)
@@ -92,13 +82,11 @@ class PublishSyncPrTest(unittest.TestCase):
             run("git", "add", "codexsdk/sync.txt", cwd=root)
             run("git", "commit", "-q", "-m", "sync", cwd=root)
             validated_commit = run("git", "rev-parse", "HEAD", cwd=root).stdout.strip()
-            validation_log = Path(tmp) / "validation.log"
             output = Path(tmp) / "github-output.txt"
             env = {
                 **os.environ,
                 "GITHUB_OUTPUT": str(output),
                 "PATH": f"{fake_bin}:{os.environ['PATH']}",
-                "VALIDATION_LOG": str(validation_log),
             }
 
             run(
@@ -121,7 +109,6 @@ class PublishSyncPrTest(unittest.TestCase):
                 env=env,
             )
 
-            self.assertIn("validate\n", validation_log.read_text(encoding="utf-8"))
             github_output = output.read_text(encoding="utf-8")
             self.assertIn(f"-{TARGET_SHA[:12]}\n", github_output)
 
