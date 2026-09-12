@@ -430,7 +430,6 @@ jobs:
         env:
           OUTCOME: ${{ steps.mechanical.outputs.outcome }}
           PR_URL: ${{ steps.publish.outputs.pr_url }}
-          PUBLISH: ${{ steps.mechanical.outputs.publish }}
           ESCALATE: ${{ steps.mechanical.outputs.escalate }}
           TARGET_REF: ${{ steps.target.outputs.ref }}
           TARGET_SHA: ${{ steps.target.outputs.sha }}
@@ -468,17 +467,19 @@ jobs:
             fi
             if [[ "${ESCALATE}" == "true" ]]; then
               echo "- Escalation: implementation agent received explicit drift evidence after mechanical generation and owner-local Go proofs failed."
-            elif [[ "${OUTCOME}" == "implemented" ]]; then
+            elif [[ "${OUTCOME}" == "applied" ]]; then
               echo "- Mechanical generation and owner-local Go proofs were sufficient; no implementation agent was invoked."
             elif [[ "${OUTCOME}" == "comparison" ]]; then
               echo "- Read-only comparison found no protocol drift."
-            else
+            elif [[ "${OUTCOME}" == "current" ]]; then
               echo "- Checked-in protocol implementation is already current."
+            else
+              echo "- Unrecognized mechanical outcome \`${OUTCOME}\`; not treated as current."
             fi
-            if [[ "${PUBLISH}" == "true" || "${ESCALATE}" == "true" ]]; then
+            if [[ "${OUTCOME}" == "applied" || "${ESCALATE}" == "true" ]]; then
               if [[ "${VALIDATION_ONLY}" == "true" ]]; then
                 echo "- PR validation: protocol implementation validated; commit and publication intentionally skipped."
-              else
+              elif [[ -n "${PR_URL}" ]]; then
                 echo "- Workflow publication: ${PR_URL}"
               fi
             fi
