@@ -210,10 +210,8 @@ func finishMissingTurnID(client *Client, state *exactRunState, turn protocolv2.T
 
 func drainExactStream[R any](ctx context.Context, stream *Stream[R]) (R, error) {
 	defer stream.Close()
-	for stream.Next(ctx) {
-	}
-	result, _ := stream.Result()
-	return result, stream.Err()
+	// Wait, not Next: cursor-local cancellation must remain the caller's cause.
+	return stream.Wait(ctx)
 }
 
 // Next advances this Exact Run History Cursor over the immutable
