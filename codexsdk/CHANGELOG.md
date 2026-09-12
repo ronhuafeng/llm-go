@@ -15,6 +15,8 @@
   `Resume`. A canceled or deadline-exceeded drain returns the caller cause with
   the latest partial evidence while the shared run is still non-terminal;
   `Stream.Next` remains cursor-local.
+- Fail closed on resume when `ThreadResumeResponse.Thread.ID` is empty instead
+  of substituting the requested `ThreadResumeParams.ThreadID`.
 
 ### Changed
 
