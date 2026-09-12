@@ -359,6 +359,14 @@ func decodeWireProtocolValue(data []byte, target any, role wirejson.Role) error 
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *TurnSteerResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
+	case *UserVerificationDeleteResponse:
+		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
+	case *UserVerificationEnrollResponse:
+		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
+	case *UserVerificationStatusResponse:
+		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
+	case *UserVerificationVerifyResponse:
+		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *WindowsSandboxReadinessResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *WindowsSandboxSetupStartResponse:
@@ -6125,6 +6133,164 @@ func (value *TurnStatus) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+type UserVerificationCancellationReason string
+
+const (
+	UserVerificationCancellationReasonUserCancelled UserVerificationCancellationReason = "userCancelled"
+	UserVerificationCancellationReasonInterrupted   UserVerificationCancellationReason = "interrupted"
+)
+
+func (value UserVerificationCancellationReason) IsValid() bool {
+	switch value {
+	case UserVerificationCancellationReasonUserCancelled:
+		return true
+	case UserVerificationCancellationReasonInterrupted:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value UserVerificationCancellationReason) MarshalJSON() ([]byte, error) {
+	if !value.IsValid() {
+		return nil, invalidEnumValue("UserVerificationCancellationReason", string(value))
+	}
+	return json.Marshal(string(value))
+}
+
+func (value *UserVerificationCancellationReason) UnmarshalJSON(data []byte) error {
+	var raw string
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	parsed := UserVerificationCancellationReason(raw)
+	if !parsed.IsValid() {
+		return invalidEnumValue("UserVerificationCancellationReason", raw)
+	}
+	*value = parsed
+	return nil
+}
+
+type UserVerificationFailureReason string
+
+const (
+	UserVerificationFailureReasonAuthenticationFailed UserVerificationFailureReason = "authenticationFailed"
+	UserVerificationFailureReasonTimeout              UserVerificationFailureReason = "timeout"
+	UserVerificationFailureReasonProviderError        UserVerificationFailureReason = "providerError"
+	UserVerificationFailureReasonServiceError         UserVerificationFailureReason = "serviceError"
+)
+
+func (value UserVerificationFailureReason) IsValid() bool {
+	switch value {
+	case UserVerificationFailureReasonAuthenticationFailed:
+		return true
+	case UserVerificationFailureReasonTimeout:
+		return true
+	case UserVerificationFailureReasonProviderError:
+		return true
+	case UserVerificationFailureReasonServiceError:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value UserVerificationFailureReason) MarshalJSON() ([]byte, error) {
+	if !value.IsValid() {
+		return nil, invalidEnumValue("UserVerificationFailureReason", string(value))
+	}
+	return json.Marshal(string(value))
+}
+
+func (value *UserVerificationFailureReason) UnmarshalJSON(data []byte) error {
+	var raw string
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	parsed := UserVerificationFailureReason(raw)
+	if !parsed.IsValid() {
+		return invalidEnumValue("UserVerificationFailureReason", raw)
+	}
+	*value = parsed
+	return nil
+}
+
+type UserVerificationInvalidRequestReason string
+
+const (
+	UserVerificationInvalidRequestReasonInvalidParams UserVerificationInvalidRequestReason = "invalidParams"
+)
+
+func (value UserVerificationInvalidRequestReason) IsValid() bool {
+	switch value {
+	case UserVerificationInvalidRequestReasonInvalidParams:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value UserVerificationInvalidRequestReason) MarshalJSON() ([]byte, error) {
+	if !value.IsValid() {
+		return nil, invalidEnumValue("UserVerificationInvalidRequestReason", string(value))
+	}
+	return json.Marshal(string(value))
+}
+
+func (value *UserVerificationInvalidRequestReason) UnmarshalJSON(data []byte) error {
+	var raw string
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	parsed := UserVerificationInvalidRequestReason(raw)
+	if !parsed.IsValid() {
+		return invalidEnumValue("UserVerificationInvalidRequestReason", raw)
+	}
+	*value = parsed
+	return nil
+}
+
+type UserVerificationUnavailableReason string
+
+const (
+	UserVerificationUnavailableReasonCredentialMissing     UserVerificationUnavailableReason = "credentialMissing"
+	UserVerificationUnavailableReasonBiometricsUnavailable UserVerificationUnavailableReason = "biometricsUnavailable"
+	UserVerificationUnavailableReasonProviderUnavailable   UserVerificationUnavailableReason = "providerUnavailable"
+)
+
+func (value UserVerificationUnavailableReason) IsValid() bool {
+	switch value {
+	case UserVerificationUnavailableReasonCredentialMissing:
+		return true
+	case UserVerificationUnavailableReasonBiometricsUnavailable:
+		return true
+	case UserVerificationUnavailableReasonProviderUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value UserVerificationUnavailableReason) MarshalJSON() ([]byte, error) {
+	if !value.IsValid() {
+		return nil, invalidEnumValue("UserVerificationUnavailableReason", string(value))
+	}
+	return json.Marshal(string(value))
+}
+
+func (value *UserVerificationUnavailableReason) UnmarshalJSON(data []byte) error {
+	var raw string
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	parsed := UserVerificationUnavailableReason(raw)
+	if !parsed.IsValid() {
+		return invalidEnumValue("UserVerificationUnavailableReason", raw)
+	}
+	*value = parsed
+	return nil
+}
+
 type Verbosity string
 
 const (
@@ -7445,6 +7611,75 @@ func (value *AppToolsConfig) unmarshalJSON(data []byte, mode wireDecodeMode) err
 	return nil
 }
 
+type ApplicationNetworkRequirements struct {
+	Domains map[string]NetworkDomainPermission `json:"domains"`
+	Enabled bool                               `json:"enabled"`
+}
+
+func (value ApplicationNetworkRequirements) MarshalJSON() ([]byte, error) {
+	if value.Domains == nil {
+		return nil, fmt.Errorf("encode ApplicationNetworkRequirements.domains: nil is not allowed")
+	}
+	type wire ApplicationNetworkRequirements
+	return json.Marshal(wire(value))
+}
+
+func (value *ApplicationNetworkRequirements) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ApplicationNetworkRequirements) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ApplicationNetworkRequirements")
+	if err != nil {
+		return err
+	}
+	var decoded ApplicationNetworkRequirements
+	seenDomains, err := decodeJSONField(fields, "domains", "ApplicationNetworkRequirements.domains", false, mode, wireMapDecoder(decodeWireValue[NetworkDomainPermission]), &decoded.Domains)
+	if err != nil {
+		return err
+	}
+	if !seenDomains {
+		return missingRequiredField("ApplicationNetworkRequirements.domains")
+	}
+	seenEnabled, err := decodeJSONField(fields, "enabled", "ApplicationNetworkRequirements.enabled", false, mode, decodeWireValue[bool], &decoded.Enabled)
+	if err != nil {
+		return err
+	}
+	if !seenEnabled {
+		return missingRequiredField("ApplicationNetworkRequirements.enabled")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ApplicationNetworkRequirements", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ApplicationRequirements struct {
+	Network *Nullable[ApplicationNetworkRequirements] `json:"network,omitempty"`
+}
+
+func (value *ApplicationRequirements) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ApplicationRequirements) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ApplicationRequirements")
+	if err != nil {
+		return err
+	}
+	var decoded ApplicationRequirements
+	_, err = decodeNullableJSONField[ApplicationNetworkRequirements](fields, "network", "ApplicationRequirements.network", mode, decodeWireValue[ApplicationNetworkRequirements], &decoded.Network)
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ApplicationRequirements", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
 type ApplyPatchApprovalParams struct {
 	CallID         string                `json:"callId"`
 	ConversationID string                `json:"conversationId"`
@@ -8288,6 +8523,7 @@ func (value *BrowserUseOriginPolicyConfig) unmarshalJSON(data []byte, mode wireD
 type BrowserUseRequirements struct {
 	AllowGlobalPersistentApproval *Nullable[bool]                              `json:"allowGlobalPersistentApproval,omitempty"`
 	AllowHistoryAccess            *Nullable[bool]                              `json:"allowHistoryAccess,omitempty"`
+	AllowWebmcp                   *Nullable[bool]                              `json:"allowWebmcp,omitempty"`
 	DefaultOriginPolicy           *Nullable[BrowserUseOriginPolicy]            `json:"defaultOriginPolicy,omitempty"`
 	DisableAutoReview             *Nullable[bool]                              `json:"disableAutoReview,omitempty"`
 	Origins                       *Nullable[map[string]BrowserUseOriginPolicy] `json:"origins,omitempty"`
@@ -8308,6 +8544,10 @@ func (value *BrowserUseRequirements) unmarshalJSON(data []byte, mode wireDecodeM
 		return err
 	}
 	_, err = decodeNullableJSONField[bool](fields, "allowHistoryAccess", "BrowserUseRequirements.allowHistoryAccess", mode, decodeWireValue[bool], &decoded.AllowHistoryAccess)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[bool](fields, "allowWebmcp", "BrowserUseRequirements.allowWebmcp", mode, decodeWireValue[bool], &decoded.AllowWebmcp)
 	if err != nil {
 		return err
 	}
@@ -10161,6 +10401,7 @@ type ConfigRequirements struct {
 	AllowedSandboxModes                  *Nullable[[]SandboxMode]               `json:"allowedSandboxModes,omitempty"`
 	AllowedWebSearchModes                *Nullable[[]WebSearchMode]             `json:"allowedWebSearchModes,omitempty"`
 	AllowedWindowsSandboxImplementations *Nullable[[]WindowsSandboxSetupMode]   `json:"allowedWindowsSandboxImplementations,omitempty"`
+	Application                          *Nullable[ApplicationRequirements]     `json:"application,omitempty"`
 	AutoReview                           *Nullable[AutoReviewRequirements]      `json:"autoReview,omitempty"`
 	BrowserUse                           *Nullable[BrowserUseRequirements]      `json:"browserUse,omitempty"`
 	ChatGPTBaseURL                       *Nullable[string]                      `json:"chatgptBaseUrl,omitempty"`
@@ -10236,6 +10477,10 @@ func (value *ConfigRequirements) unmarshalJSON(data []byte, mode wireDecodeMode)
 		return err
 	}
 	_, err = decodeNullableJSONField[[]WindowsSandboxSetupMode](fields, "allowedWindowsSandboxImplementations", "ConfigRequirements.allowedWindowsSandboxImplementations", mode, wireSliceDecoder(decodeWireValue[WindowsSandboxSetupMode]), &decoded.AllowedWindowsSandboxImplementations)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[ApplicationRequirements](fields, "application", "ConfigRequirements.application", mode, decodeWireValue[ApplicationRequirements], &decoded.Application)
 	if err != nil {
 		return err
 	}
@@ -10483,6 +10728,34 @@ func (value *ConfigWriteResponse) unmarshalJSON(data []byte, mode wireDecodeMode
 		return missingRequiredField("ConfigWriteResponse.version")
 	}
 	if err := rejectUnexpectedFieldsForMode(fields, "ConfigWriteResponse", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ConfigurationReasoning struct {
+	Effort ReasoningEffort `json:"effort"`
+}
+
+func (value *ConfigurationReasoning) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ConfigurationReasoning) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ConfigurationReasoning")
+	if err != nil {
+		return err
+	}
+	var decoded ConfigurationReasoning
+	seenEffort, err := decodeJSONField(fields, "effort", "ConfigurationReasoning.effort", false, mode, decodeWireValue[ReasoningEffort], &decoded.Effort)
+	if err != nil {
+		return err
+	}
+	if !seenEffort {
+		return missingRequiredField("ConfigurationReasoning.effort")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ConfigurationReasoning", mode); err != nil {
 		return err
 	}
 	*value = decoded
@@ -13777,8 +14050,39 @@ func (value *GetAccountParams) unmarshalJSON(data []byte, mode wireDecodeMode) e
 	return nil
 }
 
+type GetAccountRateLimitsParams struct {
+	ExcludeResetCreditDetails *bool `json:"excludeResetCreditDetails,omitempty"`
+	SupportsLunaReserve       *bool `json:"supportsLunaReserve,omitempty"`
+}
+
+func (value *GetAccountRateLimitsParams) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *GetAccountRateLimitsParams) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "GetAccountRateLimitsParams")
+	if err != nil {
+		return err
+	}
+	var decoded GetAccountRateLimitsParams
+	_, err = decodeJSONField(fields, "excludeResetCreditDetails", "GetAccountRateLimitsParams.excludeResetCreditDetails", false, mode, wirePointerDecoder(decodeWireValue[bool]), &decoded.ExcludeResetCreditDetails)
+	if err != nil {
+		return err
+	}
+	_, err = decodeJSONField(fields, "supportsLunaReserve", "GetAccountRateLimitsParams.supportsLunaReserve", false, mode, wirePointerDecoder(decodeWireValue[bool]), &decoded.SupportsLunaReserve)
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "GetAccountRateLimitsParams", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
 type GetAccountRateLimitsResponse struct {
 	AccountID             *Nullable[string]                       `json:"accountId,omitempty"`
+	OrdinaryUsageAllowed  *Nullable[bool]                         `json:"ordinaryUsageAllowed,omitempty"`
 	RateLimitResetCredits *Nullable[RateLimitResetCreditsSummary] `json:"rateLimitResetCredits,omitempty"`
 	RateLimitUpsell       *JSONValue                              `json:"rateLimitUpsell,omitempty"`
 	RateLimits            RateLimitSnapshot                       `json:"rateLimits"`
@@ -13796,6 +14100,10 @@ func (value *GetAccountRateLimitsResponse) unmarshalJSON(data []byte, mode wireD
 	}
 	var decoded GetAccountRateLimitsResponse
 	_, err = decodeNullableJSONField[string](fields, "accountId", "GetAccountRateLimitsResponse.accountId", mode, decodeWireValue[string], &decoded.AccountID)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[bool](fields, "ordinaryUsageAllowed", "GetAccountRateLimitsResponse.ordinaryUsageAllowed", mode, decodeWireValue[bool], &decoded.OrdinaryUsageAllowed)
 	if err != nil {
 		return err
 	}
@@ -16234,6 +16542,7 @@ type McpServerStatus struct {
 	RuntimeStatus     *Nullable[McpServerConnectionStatus] `json:"runtimeStatus,omitempty"`
 	ServerInfo        *Nullable[McpServerInfo]             `json:"serverInfo,omitempty"`
 	Tools             map[string]Tool                      `json:"tools"`
+	ToolsError        *Nullable[string]                    `json:"toolsError,omitempty"`
 }
 
 func (value McpServerStatus) MarshalJSON() ([]byte, error) {
@@ -16306,6 +16615,10 @@ func (value *McpServerStatus) unmarshalJSON(data []byte, mode wireDecodeMode) er
 	}
 	if !seenTools {
 		return missingRequiredField("McpServerStatus.tools")
+	}
+	_, err = decodeNullableJSONField[string](fields, "toolsError", "McpServerStatus.toolsError", mode, decodeWireValue[string], &decoded.ToolsError)
+	if err != nil {
+		return err
 	}
 	if err := rejectUnexpectedFieldsForMode(fields, "McpServerStatus", mode); err != nil {
 		return err
@@ -20994,6 +21307,7 @@ type RateLimitSnapshot struct {
 	IndividualLimit      *Nullable[SpendControlLimitSnapshot] `json:"individualLimit,omitempty"`
 	LimitID              *Nullable[string]                    `json:"limitId,omitempty"`
 	LimitName            *Nullable[string]                    `json:"limitName,omitempty"`
+	NormalModelSlug      *Nullable[string]                    `json:"normalModelSlug,omitempty"`
 	PlanType             *Nullable[PlanType]                  `json:"planType,omitempty"`
 	Primary              *Nullable[RateLimitWindow]           `json:"primary,omitempty"`
 	RateLimitReachedType *Nullable[RateLimitReachedType]      `json:"rateLimitReachedType,omitempty"`
@@ -21024,6 +21338,10 @@ func (value *RateLimitSnapshot) unmarshalJSON(data []byte, mode wireDecodeMode) 
 		return err
 	}
 	_, err = decodeNullableJSONField[string](fields, "limitName", "RateLimitSnapshot.limitName", mode, decodeWireValue[string], &decoded.LimitName)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[string](fields, "normalModelSlug", "RateLimitSnapshot.normalModelSlug", mode, decodeWireValue[string], &decoded.NormalModelSlug)
 	if err != nil {
 		return err
 	}
@@ -23455,35 +23773,38 @@ func (value *TextRange) unmarshalJSON(data []byte, mode wireDecodeMode) error {
 }
 
 type Thread struct {
-	AgentNickname        *Nullable[string]          `json:"agentNickname,omitempty"`
-	AgentRole            *Nullable[string]          `json:"agentRole,omitempty"`
-	CanAcceptDirectInput *Nullable[bool]            `json:"canAcceptDirectInput,omitempty"`
-	CliVersion           string                     `json:"cliVersion"`
-	CreatedAt            int64                      `json:"createdAt"`
-	CWD                  string                     `json:"cwd"`
-	Ephemeral            bool                       `json:"ephemeral"`
-	Extra                *Nullable[ThreadExtra]     `json:"extra,omitempty"`
-	ForkedFromID         *Nullable[string]          `json:"forkedFromId,omitempty"`
-	GitInfo              *Nullable[GitInfo]         `json:"gitInfo,omitempty"`
-	HistoryMode          *ThreadHistoryMode         `json:"historyMode,omitempty"`
-	ID                   string                     `json:"id"`
-	Model                *Nullable[string]          `json:"model,omitempty"`
-	ModelProvider        string                     `json:"modelProvider"`
-	Name                 *Nullable[string]          `json:"name,omitempty"`
-	ParentThreadID       *Nullable[string]          `json:"parentThreadId,omitempty"`
-	Path                 *Nullable[string]          `json:"path,omitempty"`
-	Preview              string                     `json:"preview"`
-	ProjectID            Nullable[string]           `json:"projectId"`
-	ReasoningEffort      *Nullable[ReasoningEffort] `json:"reasoningEffort,omitempty"`
-	RecencyAt            *Nullable[int64]           `json:"recencyAt,omitempty"`
-	Section              *Nullable[ThreadSection]   `json:"section,omitempty"`
-	SectionEnteredAt     *Nullable[int64]           `json:"sectionEnteredAt,omitempty"`
-	SessionID            string                     `json:"sessionId"`
-	Source               SessionSource              `json:"source"`
-	Status               ThreadStatus               `json:"status"`
-	ThreadSource         *Nullable[ThreadSource]    `json:"threadSource,omitempty"`
-	Turns                []Turn                     `json:"turns"`
-	UpdatedAt            int64                      `json:"updatedAt"`
+	AgentNickname        *Nullable[string]              `json:"agentNickname,omitempty"`
+	AgentRole            *Nullable[string]              `json:"agentRole,omitempty"`
+	CanAcceptDirectInput *Nullable[bool]                `json:"canAcceptDirectInput,omitempty"`
+	CliVersion           string                         `json:"cliVersion"`
+	CreatedAt            int64                          `json:"createdAt"`
+	CWD                  string                         `json:"cwd"`
+	DaybreakEnabled      *Nullable[bool]                `json:"daybreakEnabled,omitempty"`
+	Environments         *Nullable[[]ThreadEnvironment] `json:"environments,omitempty"`
+	Ephemeral            bool                           `json:"ephemeral"`
+	Extra                *Nullable[ThreadExtra]         `json:"extra,omitempty"`
+	ForkedFromID         *Nullable[string]              `json:"forkedFromId,omitempty"`
+	GitInfo              *Nullable[GitInfo]             `json:"gitInfo,omitempty"`
+	HistoryMode          *ThreadHistoryMode             `json:"historyMode,omitempty"`
+	ID                   string                         `json:"id"`
+	Model                *Nullable[string]              `json:"model,omitempty"`
+	ModelProvider        string                         `json:"modelProvider"`
+	Name                 *Nullable[string]              `json:"name,omitempty"`
+	Originator           *Nullable[string]              `json:"originator,omitempty"`
+	ParentThreadID       *Nullable[string]              `json:"parentThreadId,omitempty"`
+	Path                 *Nullable[string]              `json:"path,omitempty"`
+	Preview              string                         `json:"preview"`
+	ProjectID            Nullable[string]               `json:"projectId"`
+	ReasoningEffort      *Nullable[ReasoningEffort]     `json:"reasoningEffort,omitempty"`
+	RecencyAt            *Nullable[int64]               `json:"recencyAt,omitempty"`
+	Section              *Nullable[ThreadSection]       `json:"section,omitempty"`
+	SectionEnteredAt     *Nullable[int64]               `json:"sectionEnteredAt,omitempty"`
+	SessionID            string                         `json:"sessionId"`
+	Source               SessionSource                  `json:"source"`
+	Status               ThreadStatus                   `json:"status"`
+	ThreadSource         *Nullable[ThreadSource]        `json:"threadSource,omitempty"`
+	Turns                []Turn                         `json:"turns"`
+	UpdatedAt            int64                          `json:"updatedAt"`
 }
 
 func (value Thread) MarshalJSON() ([]byte, error) {
@@ -23537,6 +23858,14 @@ func (value *Thread) unmarshalJSON(data []byte, mode wireDecodeMode) error {
 	if !seenCWD {
 		return missingRequiredField("Thread.cwd")
 	}
+	_, err = decodeNullableJSONField[bool](fields, "daybreakEnabled", "Thread.daybreakEnabled", mode, decodeWireValue[bool], &decoded.DaybreakEnabled)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[[]ThreadEnvironment](fields, "environments", "Thread.environments", mode, wireSliceDecoder(decodeWireValue[ThreadEnvironment]), &decoded.Environments)
+	if err != nil {
+		return err
+	}
 	seenEphemeral, err := decodeJSONField(fields, "ephemeral", "Thread.ephemeral", false, mode, decodeWireValue[bool], &decoded.Ephemeral)
 	if err != nil {
 		return err
@@ -23579,6 +23908,10 @@ func (value *Thread) unmarshalJSON(data []byte, mode wireDecodeMode) error {
 		return missingRequiredField("Thread.modelProvider")
 	}
 	_, err = decodeNullableJSONField[string](fields, "name", "Thread.name", mode, decodeWireValue[string], &decoded.Name)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[string](fields, "originator", "Thread.originator", mode, decodeWireValue[string], &decoded.Originator)
 	if err != nil {
 		return err
 	}
@@ -24148,6 +24481,58 @@ func (value *ThreadDeletedNotification) unmarshalJSON(data []byte, mode wireDeco
 		return missingRequiredField("ThreadDeletedNotification.threadId")
 	}
 	if err := rejectUnexpectedFieldsForMode(fields, "ThreadDeletedNotification", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ThreadEnvironment struct {
+	CWD                   string   `json:"cwd"`
+	EnvironmentID         string   `json:"environmentId"`
+	RuntimeWorkspaceRoots []string `json:"runtimeWorkspaceRoots"`
+}
+
+func (value ThreadEnvironment) MarshalJSON() ([]byte, error) {
+	if value.RuntimeWorkspaceRoots == nil {
+		return nil, fmt.Errorf("encode ThreadEnvironment.runtimeWorkspaceRoots: nil is not allowed")
+	}
+	type wire ThreadEnvironment
+	return json.Marshal(wire(value))
+}
+
+func (value *ThreadEnvironment) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ThreadEnvironment) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ThreadEnvironment")
+	if err != nil {
+		return err
+	}
+	var decoded ThreadEnvironment
+	seenCWD, err := decodeJSONField(fields, "cwd", "ThreadEnvironment.cwd", false, mode, decodeWireValue[string], &decoded.CWD)
+	if err != nil {
+		return err
+	}
+	if !seenCWD {
+		return missingRequiredField("ThreadEnvironment.cwd")
+	}
+	seenEnvironmentID, err := decodeJSONField(fields, "environmentId", "ThreadEnvironment.environmentId", false, mode, decodeWireValue[string], &decoded.EnvironmentID)
+	if err != nil {
+		return err
+	}
+	if !seenEnvironmentID {
+		return missingRequiredField("ThreadEnvironment.environmentId")
+	}
+	seenRuntimeWorkspaceRoots, err := decodeJSONField(fields, "runtimeWorkspaceRoots", "ThreadEnvironment.runtimeWorkspaceRoots", false, mode, wireSliceDecoder(decodeWireValue[string]), &decoded.RuntimeWorkspaceRoots)
+	if err != nil {
+		return err
+	}
+	if !seenRuntimeWorkspaceRoots {
+		return missingRequiredField("ThreadEnvironment.runtimeWorkspaceRoots")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ThreadEnvironment", mode); err != nil {
 		return err
 	}
 	*value = decoded
@@ -24994,6 +25379,7 @@ type ThreadListParams struct {
 	CWD              *Nullable[ThreadListCwdFilter] `json:"cwd,omitempty"`
 	Limit            *Nullable[uint32]              `json:"limit,omitempty"`
 	ModelProviders   *Nullable[[]string]            `json:"modelProviders,omitempty"`
+	Originators      *Nullable[[]string]            `json:"originators,omitempty"`
 	ParentThreadID   *Nullable[string]              `json:"parentThreadId,omitempty"`
 	ProjectID        *Nullable[string]              `json:"projectId,omitempty"`
 	SearchTerm       *Nullable[string]              `json:"searchTerm,omitempty"`
@@ -25035,6 +25421,10 @@ func (value *ThreadListParams) unmarshalJSON(data []byte, mode wireDecodeMode) e
 		return err
 	}
 	_, err = decodeNullableJSONField[[]string](fields, "modelProviders", "ThreadListParams.modelProviders", mode, wireSliceDecoder(decodeWireValue[string]), &decoded.ModelProviders)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[[]string](fields, "originators", "ThreadListParams.originators", mode, wireSliceDecoder(decodeWireValue[string]), &decoded.Originators)
 	if err != nil {
 		return err
 	}
@@ -25284,9 +25674,10 @@ func (value *ThreadMetadataGitInfoUpdateParams) unmarshalJSON(data []byte, mode 
 }
 
 type ThreadMetadataUpdateParams struct {
-	GitInfo   *Nullable[ThreadMetadataGitInfoUpdateParams] `json:"gitInfo,omitempty"`
-	ProjectID *Nullable[string]                            `json:"projectId,omitempty"`
-	ThreadID  string                                       `json:"threadId"`
+	DaybreakEnabled *Nullable[bool]                              `json:"daybreakEnabled,omitempty"`
+	GitInfo         *Nullable[ThreadMetadataGitInfoUpdateParams] `json:"gitInfo,omitempty"`
+	ProjectID       *Nullable[string]                            `json:"projectId,omitempty"`
+	ThreadID        string                                       `json:"threadId"`
 }
 
 func (value *ThreadMetadataUpdateParams) UnmarshalJSON(data []byte) error {
@@ -25299,6 +25690,10 @@ func (value *ThreadMetadataUpdateParams) unmarshalJSON(data []byte, mode wireDec
 		return err
 	}
 	var decoded ThreadMetadataUpdateParams
+	_, err = decodeNullableJSONField[bool](fields, "daybreakEnabled", "ThreadMetadataUpdateParams.daybreakEnabled", mode, decodeWireValue[bool], &decoded.DaybreakEnabled)
+	if err != nil {
+		return err
+	}
 	_, err = decodeNullableJSONField[ThreadMetadataGitInfoUpdateParams](fields, "gitInfo", "ThreadMetadataUpdateParams.gitInfo", mode, decodeWireValue[ThreadMetadataGitInfoUpdateParams], &decoded.GitInfo)
 	if err != nil {
 		return err
@@ -30251,6 +30646,249 @@ func (value *TurnsPage) unmarshalJSON(data []byte, mode wireDecodeMode) error {
 	return nil
 }
 
+type UserVerificationDeleteParams struct{}
+
+func (value *UserVerificationDeleteParams) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *UserVerificationDeleteParams) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "UserVerificationDeleteParams")
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "UserVerificationDeleteParams", mode); err != nil {
+		return err
+	}
+	*value = UserVerificationDeleteParams{}
+	return nil
+}
+
+type UserVerificationDeleteResponse struct{}
+
+func (value *UserVerificationDeleteResponse) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *UserVerificationDeleteResponse) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "UserVerificationDeleteResponse")
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "UserVerificationDeleteResponse", mode); err != nil {
+		return err
+	}
+	*value = UserVerificationDeleteResponse{}
+	return nil
+}
+
+type UserVerificationEnrollParams struct{}
+
+func (value *UserVerificationEnrollParams) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *UserVerificationEnrollParams) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "UserVerificationEnrollParams")
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "UserVerificationEnrollParams", mode); err != nil {
+		return err
+	}
+	*value = UserVerificationEnrollParams{}
+	return nil
+}
+
+type UserVerificationEnrollResponse struct {
+	CredentialID string `json:"credentialId"`
+}
+
+func (value *UserVerificationEnrollResponse) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *UserVerificationEnrollResponse) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "UserVerificationEnrollResponse")
+	if err != nil {
+		return err
+	}
+	var decoded UserVerificationEnrollResponse
+	seenCredentialID, err := decodeJSONField(fields, "credentialId", "UserVerificationEnrollResponse.credentialId", false, mode, decodeWireValue[string], &decoded.CredentialID)
+	if err != nil {
+		return err
+	}
+	if !seenCredentialID {
+		return missingRequiredField("UserVerificationEnrollResponse.credentialId")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "UserVerificationEnrollResponse", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type UserVerificationProof struct {
+	CredentialID string `json:"credentialId"`
+	Signature    string `json:"signature"`
+}
+
+func (value *UserVerificationProof) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *UserVerificationProof) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "UserVerificationProof")
+	if err != nil {
+		return err
+	}
+	var decoded UserVerificationProof
+	seenCredentialID, err := decodeJSONField(fields, "credentialId", "UserVerificationProof.credentialId", false, mode, decodeWireValue[string], &decoded.CredentialID)
+	if err != nil {
+		return err
+	}
+	if !seenCredentialID {
+		return missingRequiredField("UserVerificationProof.credentialId")
+	}
+	seenSignature, err := decodeJSONField(fields, "signature", "UserVerificationProof.signature", false, mode, decodeWireValue[string], &decoded.Signature)
+	if err != nil {
+		return err
+	}
+	if !seenSignature {
+		return missingRequiredField("UserVerificationProof.signature")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "UserVerificationProof", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type UserVerificationStatusParams struct{}
+
+func (value *UserVerificationStatusParams) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *UserVerificationStatusParams) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "UserVerificationStatusParams")
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "UserVerificationStatusParams", mode); err != nil {
+		return err
+	}
+	*value = UserVerificationStatusParams{}
+	return nil
+}
+
+type UserVerificationStatusResponse struct {
+	CredentialID       *Nullable[string]                            `json:"credentialId,omitempty"`
+	UnavailableMessage *Nullable[string]                            `json:"unavailableMessage,omitempty"`
+	UnavailableReason  *Nullable[UserVerificationUnavailableReason] `json:"unavailableReason,omitempty"`
+}
+
+func (value *UserVerificationStatusResponse) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *UserVerificationStatusResponse) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "UserVerificationStatusResponse")
+	if err != nil {
+		return err
+	}
+	var decoded UserVerificationStatusResponse
+	_, err = decodeNullableJSONField[string](fields, "credentialId", "UserVerificationStatusResponse.credentialId", mode, decodeWireValue[string], &decoded.CredentialID)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[string](fields, "unavailableMessage", "UserVerificationStatusResponse.unavailableMessage", mode, decodeWireValue[string], &decoded.UnavailableMessage)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[UserVerificationUnavailableReason](fields, "unavailableReason", "UserVerificationStatusResponse.unavailableReason", mode, decodeWireValue[UserVerificationUnavailableReason], &decoded.UnavailableReason)
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "UserVerificationStatusResponse", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type UserVerificationVerifyParams struct {
+	Challenge   string `json:"challenge"`
+	Description string `json:"description"`
+	Title       string `json:"title"`
+}
+
+func (value *UserVerificationVerifyParams) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *UserVerificationVerifyParams) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "UserVerificationVerifyParams")
+	if err != nil {
+		return err
+	}
+	var decoded UserVerificationVerifyParams
+	seenChallenge, err := decodeJSONField(fields, "challenge", "UserVerificationVerifyParams.challenge", false, mode, decodeWireValue[string], &decoded.Challenge)
+	if err != nil {
+		return err
+	}
+	if !seenChallenge {
+		return missingRequiredField("UserVerificationVerifyParams.challenge")
+	}
+	seenDescription, err := decodeJSONField(fields, "description", "UserVerificationVerifyParams.description", false, mode, decodeWireValue[string], &decoded.Description)
+	if err != nil {
+		return err
+	}
+	if !seenDescription {
+		return missingRequiredField("UserVerificationVerifyParams.description")
+	}
+	seenTitle, err := decodeJSONField(fields, "title", "UserVerificationVerifyParams.title", false, mode, decodeWireValue[string], &decoded.Title)
+	if err != nil {
+		return err
+	}
+	if !seenTitle {
+		return missingRequiredField("UserVerificationVerifyParams.title")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "UserVerificationVerifyParams", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type UserVerificationVerifyResponse struct {
+	Proof UserVerificationProof `json:"proof"`
+}
+
+func (value *UserVerificationVerifyResponse) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *UserVerificationVerifyResponse) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "UserVerificationVerifyResponse")
+	if err != nil {
+		return err
+	}
+	var decoded UserVerificationVerifyResponse
+	seenProof, err := decodeJSONField(fields, "proof", "UserVerificationVerifyResponse.proof", false, mode, decodeWireValue[UserVerificationProof], &decoded.Proof)
+	if err != nil {
+		return err
+	}
+	if !seenProof {
+		return missingRequiredField("UserVerificationVerifyResponse.proof")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "UserVerificationVerifyResponse", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
 type W3cTraceContext struct {
 	Traceparent *Nullable[string] `json:"traceparent,omitempty"`
 	Tracestate  *Nullable[string] `json:"tracestate,omitempty"`
@@ -33955,6 +34593,10 @@ type ClientRequestKind string
 const (
 	ClientRequestKindInitialize                             ClientRequestKind = "initialize"
 	ClientRequestKindServerDiagnostics                      ClientRequestKind = "server/diagnostics"
+	ClientRequestKindUserVerificationStatus                 ClientRequestKind = "userVerification/status"
+	ClientRequestKindUserVerificationEnroll                 ClientRequestKind = "userVerification/enroll"
+	ClientRequestKindUserVerificationDelete                 ClientRequestKind = "userVerification/delete"
+	ClientRequestKindUserVerificationVerify                 ClientRequestKind = "userVerification/verify"
 	ClientRequestKindThreadStart                            ClientRequestKind = "thread/start"
 	ClientRequestKindThreadResume                           ClientRequestKind = "thread/resume"
 	ClientRequestKindThreadFork                             ClientRequestKind = "thread/fork"
@@ -34114,6 +34756,10 @@ type ClientRequest struct {
 	kind                                          ClientRequestKind
 	variantInitialize                             *ClientRequestInitialize
 	variantServerDiagnostics                      *ClientRequestServerDiagnostics
+	variantUserVerificationStatus                 *ClientRequestUserVerificationStatus
+	variantUserVerificationEnroll                 *ClientRequestUserVerificationEnroll
+	variantUserVerificationDelete                 *ClientRequestUserVerificationDelete
+	variantUserVerificationVerify                 *ClientRequestUserVerificationVerify
 	variantThreadStart                            *ClientRequestThreadStart
 	variantThreadResume                           *ClientRequestThreadResume
 	variantThreadFork                             *ClientRequestThreadFork
@@ -34277,6 +34923,26 @@ type ClientRequestInitialize struct {
 type ClientRequestServerDiagnostics struct {
 	ID     RequestId               `json:"id"`
 	Params ServerDiagnosticsParams `json:"params"`
+}
+
+type ClientRequestUserVerificationStatus struct {
+	ID     RequestId                    `json:"id"`
+	Params UserVerificationStatusParams `json:"params"`
+}
+
+type ClientRequestUserVerificationEnroll struct {
+	ID     RequestId                    `json:"id"`
+	Params UserVerificationEnrollParams `json:"params"`
+}
+
+type ClientRequestUserVerificationDelete struct {
+	ID     RequestId                    `json:"id"`
+	Params UserVerificationDeleteParams `json:"params"`
+}
+
+type ClientRequestUserVerificationVerify struct {
+	ID     RequestId                    `json:"id"`
+	Params UserVerificationVerifyParams `json:"params"`
 }
 
 type ClientRequestThreadStart struct {
@@ -34905,7 +35571,8 @@ type ClientRequestAccountLogout struct {
 }
 
 type ClientRequestAccountRateLimitsRead struct {
-	ID RequestId `json:"id"`
+	ID     RequestId                             `json:"id"`
+	Params *Nullable[GetAccountRateLimitsParams] `json:"params,omitempty"`
 }
 
 type ClientRequestAccountRateLimitResetCreditConsume struct {
@@ -35041,6 +35708,22 @@ func NewClientRequestInitialize(payload ClientRequestInitialize) ClientRequest {
 
 func NewClientRequestServerDiagnostics(payload ClientRequestServerDiagnostics) ClientRequest {
 	return ClientRequest{kind: ClientRequestKindServerDiagnostics, variantServerDiagnostics: &payload}
+}
+
+func NewClientRequestUserVerificationStatus(payload ClientRequestUserVerificationStatus) ClientRequest {
+	return ClientRequest{kind: ClientRequestKindUserVerificationStatus, variantUserVerificationStatus: &payload}
+}
+
+func NewClientRequestUserVerificationEnroll(payload ClientRequestUserVerificationEnroll) ClientRequest {
+	return ClientRequest{kind: ClientRequestKindUserVerificationEnroll, variantUserVerificationEnroll: &payload}
+}
+
+func NewClientRequestUserVerificationDelete(payload ClientRequestUserVerificationDelete) ClientRequest {
+	return ClientRequest{kind: ClientRequestKindUserVerificationDelete, variantUserVerificationDelete: &payload}
+}
+
+func NewClientRequestUserVerificationVerify(payload ClientRequestUserVerificationVerify) ClientRequest {
+	return ClientRequest{kind: ClientRequestKindUserVerificationVerify, variantUserVerificationVerify: &payload}
 }
 
 func NewClientRequestThreadStart(payload ClientRequestThreadStart) ClientRequest {
@@ -35665,6 +36348,14 @@ func (value ClientRequest) IsValid() bool {
 		return value.variantInitialize != nil
 	case ClientRequestKindServerDiagnostics:
 		return value.variantServerDiagnostics != nil
+	case ClientRequestKindUserVerificationStatus:
+		return value.variantUserVerificationStatus != nil
+	case ClientRequestKindUserVerificationEnroll:
+		return value.variantUserVerificationEnroll != nil
+	case ClientRequestKindUserVerificationDelete:
+		return value.variantUserVerificationDelete != nil
+	case ClientRequestKindUserVerificationVerify:
+		return value.variantUserVerificationVerify != nil
 	case ClientRequestKindThreadStart:
 		return value.variantThreadStart != nil
 	case ClientRequestKindThreadResume:
@@ -35988,6 +36679,34 @@ func (value ClientRequest) AsServerDiagnostics() (ClientRequestServerDiagnostics
 		return ClientRequestServerDiagnostics{}, false
 	}
 	return *value.variantServerDiagnostics, true
+}
+
+func (value ClientRequest) AsUserVerificationStatus() (ClientRequestUserVerificationStatus, bool) {
+	if value.kind != ClientRequestKindUserVerificationStatus || value.variantUserVerificationStatus == nil {
+		return ClientRequestUserVerificationStatus{}, false
+	}
+	return *value.variantUserVerificationStatus, true
+}
+
+func (value ClientRequest) AsUserVerificationEnroll() (ClientRequestUserVerificationEnroll, bool) {
+	if value.kind != ClientRequestKindUserVerificationEnroll || value.variantUserVerificationEnroll == nil {
+		return ClientRequestUserVerificationEnroll{}, false
+	}
+	return *value.variantUserVerificationEnroll, true
+}
+
+func (value ClientRequest) AsUserVerificationDelete() (ClientRequestUserVerificationDelete, bool) {
+	if value.kind != ClientRequestKindUserVerificationDelete || value.variantUserVerificationDelete == nil {
+		return ClientRequestUserVerificationDelete{}, false
+	}
+	return *value.variantUserVerificationDelete, true
+}
+
+func (value ClientRequest) AsUserVerificationVerify() (ClientRequestUserVerificationVerify, bool) {
+	if value.kind != ClientRequestKindUserVerificationVerify || value.variantUserVerificationVerify == nil {
+		return ClientRequestUserVerificationVerify{}, false
+	}
+	return *value.variantUserVerificationVerify, true
 }
 
 func (value ClientRequest) AsThreadStart() (ClientRequestThreadStart, bool) {
@@ -37088,6 +37807,58 @@ func (value ClientRequest) MarshalJSON() ([]byte, error) {
 			ID:     value.variantServerDiagnostics.ID,
 			Method: "server/diagnostics",
 			Params: value.variantServerDiagnostics.Params,
+		})
+	case ClientRequestKindUserVerificationStatus:
+		if value.variantUserVerificationStatus == nil {
+			return nil, invalidUnionVariant("ClientRequest", "userVerification/status")
+		}
+		return json.Marshal(struct {
+			ID     RequestId                    `json:"id"`
+			Method string                       `json:"method"`
+			Params UserVerificationStatusParams `json:"params"`
+		}{
+			ID:     value.variantUserVerificationStatus.ID,
+			Method: "userVerification/status",
+			Params: value.variantUserVerificationStatus.Params,
+		})
+	case ClientRequestKindUserVerificationEnroll:
+		if value.variantUserVerificationEnroll == nil {
+			return nil, invalidUnionVariant("ClientRequest", "userVerification/enroll")
+		}
+		return json.Marshal(struct {
+			ID     RequestId                    `json:"id"`
+			Method string                       `json:"method"`
+			Params UserVerificationEnrollParams `json:"params"`
+		}{
+			ID:     value.variantUserVerificationEnroll.ID,
+			Method: "userVerification/enroll",
+			Params: value.variantUserVerificationEnroll.Params,
+		})
+	case ClientRequestKindUserVerificationDelete:
+		if value.variantUserVerificationDelete == nil {
+			return nil, invalidUnionVariant("ClientRequest", "userVerification/delete")
+		}
+		return json.Marshal(struct {
+			ID     RequestId                    `json:"id"`
+			Method string                       `json:"method"`
+			Params UserVerificationDeleteParams `json:"params"`
+		}{
+			ID:     value.variantUserVerificationDelete.ID,
+			Method: "userVerification/delete",
+			Params: value.variantUserVerificationDelete.Params,
+		})
+	case ClientRequestKindUserVerificationVerify:
+		if value.variantUserVerificationVerify == nil {
+			return nil, invalidUnionVariant("ClientRequest", "userVerification/verify")
+		}
+		return json.Marshal(struct {
+			ID     RequestId                    `json:"id"`
+			Method string                       `json:"method"`
+			Params UserVerificationVerifyParams `json:"params"`
+		}{
+			ID:     value.variantUserVerificationVerify.ID,
+			Method: "userVerification/verify",
+			Params: value.variantUserVerificationVerify.Params,
 		})
 	case ClientRequestKindThreadStart:
 		if value.variantThreadStart == nil {
@@ -38722,11 +39493,13 @@ func (value ClientRequest) MarshalJSON() ([]byte, error) {
 			return nil, invalidUnionVariant("ClientRequest", "account/rateLimits/read")
 		}
 		return json.Marshal(struct {
-			ID     RequestId `json:"id"`
-			Method string    `json:"method"`
+			ID     RequestId                             `json:"id"`
+			Method string                                `json:"method"`
+			Params *Nullable[GetAccountRateLimitsParams] `json:"params,omitempty"`
 		}{
 			ID:     value.variantAccountRateLimitsRead.ID,
 			Method: "account/rateLimits/read",
+			Params: value.variantAccountRateLimitsRead.Params,
 		})
 	case ClientRequestKindAccountRateLimitResetCreditConsume:
 		if value.variantAccountRateLimitResetCreditConsume == nil {
@@ -39120,6 +39893,90 @@ func (value *ClientRequest) unmarshalJSON(data []byte, mode wireDecodeMode) erro
 			return err
 		}
 		*value = ClientRequest{kind: ClientRequestKindServerDiagnostics, variantServerDiagnostics: &decoded}
+		return nil
+	case "userVerification/status":
+		var decoded ClientRequestUserVerificationStatus
+		seenID, err := decodeJSONField(fields, "id", "ClientRequest.id", false, mode, decodeWireValue[RequestId], &decoded.ID)
+		if err != nil {
+			return err
+		}
+		if !seenID {
+			return missingRequiredField("ClientRequest.id")
+		}
+		seenParams, err := decodeJSONField(fields, "params", "ClientRequest.params", false, mode, decodeWireValue[UserVerificationStatusParams], &decoded.Params)
+		if err != nil {
+			return err
+		}
+		if !seenParams {
+			return missingRequiredField("ClientRequest.params")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ClientRequest.userVerification/status", mode); err != nil {
+			return err
+		}
+		*value = ClientRequest{kind: ClientRequestKindUserVerificationStatus, variantUserVerificationStatus: &decoded}
+		return nil
+	case "userVerification/enroll":
+		var decoded ClientRequestUserVerificationEnroll
+		seenID, err := decodeJSONField(fields, "id", "ClientRequest.id", false, mode, decodeWireValue[RequestId], &decoded.ID)
+		if err != nil {
+			return err
+		}
+		if !seenID {
+			return missingRequiredField("ClientRequest.id")
+		}
+		seenParams, err := decodeJSONField(fields, "params", "ClientRequest.params", false, mode, decodeWireValue[UserVerificationEnrollParams], &decoded.Params)
+		if err != nil {
+			return err
+		}
+		if !seenParams {
+			return missingRequiredField("ClientRequest.params")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ClientRequest.userVerification/enroll", mode); err != nil {
+			return err
+		}
+		*value = ClientRequest{kind: ClientRequestKindUserVerificationEnroll, variantUserVerificationEnroll: &decoded}
+		return nil
+	case "userVerification/delete":
+		var decoded ClientRequestUserVerificationDelete
+		seenID, err := decodeJSONField(fields, "id", "ClientRequest.id", false, mode, decodeWireValue[RequestId], &decoded.ID)
+		if err != nil {
+			return err
+		}
+		if !seenID {
+			return missingRequiredField("ClientRequest.id")
+		}
+		seenParams, err := decodeJSONField(fields, "params", "ClientRequest.params", false, mode, decodeWireValue[UserVerificationDeleteParams], &decoded.Params)
+		if err != nil {
+			return err
+		}
+		if !seenParams {
+			return missingRequiredField("ClientRequest.params")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ClientRequest.userVerification/delete", mode); err != nil {
+			return err
+		}
+		*value = ClientRequest{kind: ClientRequestKindUserVerificationDelete, variantUserVerificationDelete: &decoded}
+		return nil
+	case "userVerification/verify":
+		var decoded ClientRequestUserVerificationVerify
+		seenID, err := decodeJSONField(fields, "id", "ClientRequest.id", false, mode, decodeWireValue[RequestId], &decoded.ID)
+		if err != nil {
+			return err
+		}
+		if !seenID {
+			return missingRequiredField("ClientRequest.id")
+		}
+		seenParams, err := decodeJSONField(fields, "params", "ClientRequest.params", false, mode, decodeWireValue[UserVerificationVerifyParams], &decoded.Params)
+		if err != nil {
+			return err
+		}
+		if !seenParams {
+			return missingRequiredField("ClientRequest.params")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ClientRequest.userVerification/verify", mode); err != nil {
+			return err
+		}
+		*value = ClientRequest{kind: ClientRequestKindUserVerificationVerify, variantUserVerificationVerify: &decoded}
 		return nil
 	case "thread/start":
 		var decoded ClientRequestThreadStart
@@ -41770,12 +42627,9 @@ func (value *ClientRequest) unmarshalJSON(data []byte, mode wireDecodeMode) erro
 		if !seenID {
 			return missingRequiredField("ClientRequest.id")
 		}
-		variantParams, seenParams := fields["params"]
-		if seenParams {
-			delete(fields, "params")
-			if variantParams.Kind() != JSONKindNull {
-				return fmt.Errorf("decode ClientRequest.account/rateLimits/read.params: expected null")
-			}
+		_, err = decodeNullableJSONField[GetAccountRateLimitsParams](fields, "params", "ClientRequest.params", mode, decodeWireValue[GetAccountRateLimitsParams], &decoded.Params)
+		if err != nil {
+			return err
 		}
 		if err := rejectUnexpectedFieldsForMode(fields, "ClientRequest.account/rateLimits/read", mode); err != nil {
 			return err
@@ -46695,21 +47549,29 @@ func (value *LoginAccountResponse) unmarshalJSON(data []byte, mode wireDecodeMod
 type McpServerElicitationRequestParamsKind string
 
 const (
-	McpServerElicitationRequestParamsKindForm            McpServerElicitationRequestParamsKind = "form"
-	McpServerElicitationRequestParamsKindOpenaiSlashForm McpServerElicitationRequestParamsKind = "openai/form"
-	McpServerElicitationRequestParamsKindOpenaiForm      McpServerElicitationRequestParamsKind = "openaiForm"
-	McpServerElicitationRequestParamsKindURL             McpServerElicitationRequestParamsKind = "url"
+	McpServerElicitationRequestParamsKindOpenaiUserVerification McpServerElicitationRequestParamsKind = "openai/userVerification"
+	McpServerElicitationRequestParamsKindForm                   McpServerElicitationRequestParamsKind = "form"
+	McpServerElicitationRequestParamsKindOpenaiSlashForm        McpServerElicitationRequestParamsKind = "openai/form"
+	McpServerElicitationRequestParamsKindOpenaiForm             McpServerElicitationRequestParamsKind = "openaiForm"
+	McpServerElicitationRequestParamsKindURL                    McpServerElicitationRequestParamsKind = "url"
 )
 
 type McpServerElicitationRequestParams struct {
-	ServerName             string            `json:"serverName"`
-	ThreadID               string            `json:"threadId"`
-	TurnID                 *Nullable[string] `json:"turnId,omitempty"`
-	kind                   McpServerElicitationRequestParamsKind
-	variantForm            *McpServerElicitationRequestParamsForm
-	variantOpenaiSlashForm *McpServerElicitationRequestParamsOpenaiSlashForm
-	variantOpenaiForm      *McpServerElicitationRequestParamsOpenaiForm
-	variantURL             *McpServerElicitationRequestParamsURL
+	ServerName                    string            `json:"serverName"`
+	ThreadID                      string            `json:"threadId"`
+	TurnID                        *Nullable[string] `json:"turnId,omitempty"`
+	kind                          McpServerElicitationRequestParamsKind
+	variantOpenaiUserVerification *McpServerElicitationRequestParamsOpenaiUserVerification
+	variantForm                   *McpServerElicitationRequestParamsForm
+	variantOpenaiSlashForm        *McpServerElicitationRequestParamsOpenaiSlashForm
+	variantOpenaiForm             *McpServerElicitationRequestParamsOpenaiForm
+	variantURL                    *McpServerElicitationRequestParamsURL
+}
+
+type McpServerElicitationRequestParamsOpenaiUserVerification struct {
+	Challenge   string `json:"challenge"`
+	Description string `json:"description"`
+	Title       string `json:"title"`
 }
 
 type McpServerElicitationRequestParamsForm struct {
@@ -46737,6 +47599,10 @@ type McpServerElicitationRequestParamsURL struct {
 	URL           string     `json:"url"`
 }
 
+func NewMcpServerElicitationRequestParamsOpenaiUserVerification(payload McpServerElicitationRequestParamsOpenaiUserVerification) McpServerElicitationRequestParams {
+	return McpServerElicitationRequestParams{kind: McpServerElicitationRequestParamsKindOpenaiUserVerification, variantOpenaiUserVerification: &payload}
+}
+
 func NewMcpServerElicitationRequestParamsForm(payload McpServerElicitationRequestParamsForm) McpServerElicitationRequestParams {
 	return McpServerElicitationRequestParams{kind: McpServerElicitationRequestParamsKindForm, variantForm: &payload}
 }
@@ -46759,6 +47625,8 @@ func (value McpServerElicitationRequestParams) Kind() McpServerElicitationReques
 
 func (value McpServerElicitationRequestParams) IsValid() bool {
 	switch value.kind {
+	case McpServerElicitationRequestParamsKindOpenaiUserVerification:
+		return value.variantOpenaiUserVerification != nil
 	case McpServerElicitationRequestParamsKindForm:
 		return value.variantForm != nil
 	case McpServerElicitationRequestParamsKindOpenaiSlashForm:
@@ -46770,6 +47638,13 @@ func (value McpServerElicitationRequestParams) IsValid() bool {
 	default:
 		return false
 	}
+}
+
+func (value McpServerElicitationRequestParams) AsOpenaiUserVerification() (McpServerElicitationRequestParamsOpenaiUserVerification, bool) {
+	if value.kind != McpServerElicitationRequestParamsKindOpenaiUserVerification || value.variantOpenaiUserVerification == nil {
+		return McpServerElicitationRequestParamsOpenaiUserVerification{}, false
+	}
+	return *value.variantOpenaiUserVerification, true
 }
 
 func (value McpServerElicitationRequestParams) AsForm() (McpServerElicitationRequestParamsForm, bool) {
@@ -46802,6 +47677,27 @@ func (value McpServerElicitationRequestParams) AsURL() (McpServerElicitationRequ
 
 func (value McpServerElicitationRequestParams) MarshalJSON() ([]byte, error) {
 	switch value.kind {
+	case McpServerElicitationRequestParamsKindOpenaiUserVerification:
+		if value.variantOpenaiUserVerification == nil {
+			return nil, invalidUnionVariant("McpServerElicitationRequestParams", "openai/userVerification")
+		}
+		return json.Marshal(struct {
+			Challenge   string            `json:"challenge"`
+			Description string            `json:"description"`
+			Mode        string            `json:"mode"`
+			ServerName  string            `json:"serverName"`
+			ThreadID    string            `json:"threadId"`
+			Title       string            `json:"title"`
+			TurnID      *Nullable[string] `json:"turnId,omitempty"`
+		}{
+			Challenge:   value.variantOpenaiUserVerification.Challenge,
+			Description: value.variantOpenaiUserVerification.Description,
+			Mode:        "openai/userVerification",
+			ServerName:  value.ServerName,
+			ThreadID:    value.ThreadID,
+			Title:       value.variantOpenaiUserVerification.Title,
+			TurnID:      value.TurnID,
+		})
 	case McpServerElicitationRequestParamsKindForm:
 		if value.variantForm == nil {
 			return nil, invalidUnionVariant("McpServerElicitationRequestParams", "form")
@@ -46926,6 +47822,34 @@ func (value *McpServerElicitationRequestParams) unmarshalJSON(data []byte, mode 
 		return err
 	}
 	switch variant {
+	case "openai/userVerification":
+		var decoded McpServerElicitationRequestParamsOpenaiUserVerification
+		seenChallenge, err := decodeJSONField(fields, "challenge", "McpServerElicitationRequestParams.challenge", false, mode, decodeWireValue[string], &decoded.Challenge)
+		if err != nil {
+			return err
+		}
+		if !seenChallenge {
+			return missingRequiredField("McpServerElicitationRequestParams.challenge")
+		}
+		seenDescription, err := decodeJSONField(fields, "description", "McpServerElicitationRequestParams.description", false, mode, decodeWireValue[string], &decoded.Description)
+		if err != nil {
+			return err
+		}
+		if !seenDescription {
+			return missingRequiredField("McpServerElicitationRequestParams.description")
+		}
+		seenTitle, err := decodeJSONField(fields, "title", "McpServerElicitationRequestParams.title", false, mode, decodeWireValue[string], &decoded.Title)
+		if err != nil {
+			return err
+		}
+		if !seenTitle {
+			return missingRequiredField("McpServerElicitationRequestParams.title")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "McpServerElicitationRequestParams.openai/userVerification", mode); err != nil {
+			return err
+		}
+		*value = McpServerElicitationRequestParams{ServerName: shared.ServerName, ThreadID: shared.ThreadID, TurnID: shared.TurnID, kind: McpServerElicitationRequestParamsKindOpenaiUserVerification, variantOpenaiUserVerification: &decoded}
+		return nil
 	case "form":
 		var decoded McpServerElicitationRequestParamsForm
 		_, err = decodeOptionalJSONValueField(fields, "_meta", "McpServerElicitationRequestParams._meta", &decoded.Meta)
@@ -47943,6 +48867,7 @@ const (
 	ResponseItemKindWebSearchCall        ResponseItemKind = "web_search_call"
 	ResponseItemKindImageGenerationCall  ResponseItemKind = "image_generation_call"
 	ResponseItemKindCompaction           ResponseItemKind = "compaction"
+	ResponseItemKindConfigurationUpdate  ResponseItemKind = "configuration_update"
 	ResponseItemKindCompactionTrigger    ResponseItemKind = "compaction_trigger"
 	ResponseItemKindContextCompaction    ResponseItemKind = "context_compaction"
 	ResponseItemKindOther                ResponseItemKind = "other"
@@ -47963,6 +48888,7 @@ type ResponseItem struct {
 	variantWebSearchCall        *ResponseItemWebSearchCall
 	variantImageGenerationCall  *ResponseItemImageGenerationCall
 	variantCompaction           *ResponseItemCompaction
+	variantConfigurationUpdate  *ResponseItemConfigurationUpdate
 	variantCompactionTrigger    *ResponseItemCompactionTrigger
 	variantContextCompaction    *ResponseItemContextCompaction
 	variantOther                *ResponseItemOther
@@ -48076,6 +49002,10 @@ type ResponseItemCompaction struct {
 	InternalChatMessageMetadataPassthrough *Nullable[InternalChatMessageMetadataPassthrough] `json:"internal_chat_message_metadata_passthrough,omitempty"`
 }
 
+type ResponseItemConfigurationUpdate struct {
+	Reasoning ConfigurationReasoning `json:"reasoning"`
+}
+
 type ResponseItemCompactionTrigger struct{}
 
 type ResponseItemContextCompaction struct {
@@ -48138,6 +49068,10 @@ func NewResponseItemCompaction(payload ResponseItemCompaction) ResponseItem {
 	return ResponseItem{kind: ResponseItemKindCompaction, variantCompaction: &payload}
 }
 
+func NewResponseItemConfigurationUpdate(payload ResponseItemConfigurationUpdate) ResponseItem {
+	return ResponseItem{kind: ResponseItemKindConfigurationUpdate, variantConfigurationUpdate: &payload}
+}
+
 func NewResponseItemCompactionTrigger() ResponseItem {
 	payload := ResponseItemCompactionTrigger{}
 	return ResponseItem{kind: ResponseItemKindCompactionTrigger, variantCompactionTrigger: &payload}
@@ -48184,6 +49118,8 @@ func (value ResponseItem) IsValid() bool {
 		return value.variantImageGenerationCall != nil
 	case ResponseItemKindCompaction:
 		return value.variantCompaction != nil
+	case ResponseItemKindConfigurationUpdate:
+		return value.variantConfigurationUpdate != nil
 	case ResponseItemKindCompactionTrigger:
 		return value.variantCompactionTrigger != nil
 	case ResponseItemKindContextCompaction:
@@ -48284,6 +49220,13 @@ func (value ResponseItem) AsCompaction() (ResponseItemCompaction, bool) {
 		return ResponseItemCompaction{}, false
 	}
 	return *value.variantCompaction, true
+}
+
+func (value ResponseItem) AsConfigurationUpdate() (ResponseItemConfigurationUpdate, bool) {
+	if value.kind != ResponseItemKindConfigurationUpdate || value.variantConfigurationUpdate == nil {
+		return ResponseItemConfigurationUpdate{}, false
+	}
+	return *value.variantConfigurationUpdate, true
 }
 
 func (value ResponseItem) AsCompactionTrigger() (ResponseItemCompactionTrigger, bool) {
@@ -48575,6 +49518,17 @@ func (value ResponseItem) MarshalJSON() ([]byte, error) {
 			ID:                                     value.variantCompaction.ID,
 			InternalChatMessageMetadataPassthrough: value.variantCompaction.InternalChatMessageMetadataPassthrough,
 			Type:                                   "compaction",
+		})
+	case ResponseItemKindConfigurationUpdate:
+		if value.variantConfigurationUpdate == nil {
+			return nil, invalidUnionVariant("ResponseItem", "configuration_update")
+		}
+		return json.Marshal(struct {
+			Reasoning ConfigurationReasoning `json:"reasoning"`
+			Type      string                 `json:"type"`
+		}{
+			Reasoning: value.variantConfigurationUpdate.Reasoning,
+			Type:      "configuration_update",
 		})
 	case ResponseItemKindCompactionTrigger:
 		if value.variantCompactionTrigger == nil {
@@ -49069,6 +50023,20 @@ func (value *ResponseItem) unmarshalJSON(data []byte, mode wireDecodeMode) error
 			return err
 		}
 		*value = ResponseItem{kind: ResponseItemKindCompaction, variantCompaction: &decoded}
+		return nil
+	case "configuration_update":
+		var decoded ResponseItemConfigurationUpdate
+		seenReasoning, err := decodeJSONField(fields, "reasoning", "ResponseItem.reasoning", false, mode, decodeWireValue[ConfigurationReasoning], &decoded.Reasoning)
+		if err != nil {
+			return err
+		}
+		if !seenReasoning {
+			return missingRequiredField("ResponseItem.reasoning")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ResponseItem.configuration_update", mode); err != nil {
+			return err
+		}
+		*value = ResponseItem{kind: ResponseItemKindConfigurationUpdate, variantConfigurationUpdate: &decoded}
 		return nil
 	case "compaction_trigger":
 		var decoded ResponseItemCompactionTrigger

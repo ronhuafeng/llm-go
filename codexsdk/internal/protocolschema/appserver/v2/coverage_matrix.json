@@ -3811,6 +3811,19 @@
       "type": "GetAccountRateLimitsResponse"
     },
     {
+      "exit_condition": "Regenerate if upstream schema drift changes GetAccountRateLimitsResponse.ordinaryUsageAllowed semantics.",
+      "field": "ordinaryUsageAllowed",
+      "owner": "codex-go-sdk",
+      "path": "v2/GetAccountRateLimitsResponse.json#/properties/ordinaryUsageAllowed",
+      "reason": "Generated as a strict typed GetAccountRateLimitsResponse field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/GetAccountRateLimitsResponse.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "GetAccountRateLimitsResponse"
+    },
+    {
       "exit_condition": "Regenerate if upstream schema drift changes GetAccountRateLimitsResponse.rateLimitResetCredits semantics.",
       "field": "rateLimitResetCredits",
       "owner": "codex-go-sdk",
@@ -9284,6 +9297,19 @@
       "type": "ThreadListParams"
     },
     {
+      "exit_condition": "Regenerate if upstream schema drift changes ThreadListParams.originators semantics.",
+      "field": "originators",
+      "owner": "codex-go-sdk",
+      "path": "v2/ThreadListParams.json#/properties/originators",
+      "reason": "Generated as a strict typed ThreadListParams field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadListParams.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "ThreadListParams"
+    },
+    {
       "exit_condition": "Regenerate if upstream schema drift changes ThreadListParams.parentThreadId semantics.",
       "field": "parentThreadId",
       "owner": "codex-go-sdk",
@@ -9503,6 +9529,19 @@
       "stability": "experimental",
       "status": "supported-generated",
       "type": "ThreadMemoryModeSetParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes ThreadMetadataUpdateParams.daybreakEnabled semantics.",
+      "field": "daybreakEnabled",
+      "owner": "codex-go-sdk",
+      "path": "v2/ThreadMetadataUpdateParams.json#/properties/daybreakEnabled",
+      "reason": "Generated as a strict typed ThreadMetadataUpdateParams field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadMetadataUpdateParams.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "ThreadMetadataUpdateParams"
     },
     {
       "exit_condition": "Regenerate if upstream schema drift changes field names, requiredness, union shape, or omit/null/value semantics.",
@@ -13418,6 +13457,149 @@
       "type": "TurnSteerResponse"
     },
     {
+      "exit_condition": "Regenerate if upstream schema drift changes UserVerificationEnrollResponse.credentialId semantics.",
+      "field": "credentialId",
+      "owner": "codex-go-sdk",
+      "path": "v2/UserVerificationEnrollResponse.json#/properties/credentialId",
+      "reason": "Generated as a strict typed UserVerificationEnrollResponse field.",
+      "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/UserVerificationEnrollResponse.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "UserVerificationEnrollResponse"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes UserVerificationRpcError.code semantics.",
+      "field": "code",
+      "owner": "codex-go-sdk",
+      "path": "v2/UserVerificationRpcError.json#/properties/code",
+      "reason": "Generated as a strict typed UserVerificationRpcError field.",
+      "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/UserVerificationRpcError.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "UserVerificationRpcError"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes UserVerificationRpcError.data semantics.",
+      "field": "data",
+      "owner": "codex-go-sdk",
+      "path": "v2/UserVerificationRpcError.json#/properties/data",
+      "reason": "Generated as a strict typed UserVerificationRpcError field.",
+      "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/UserVerificationRpcError.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "UserVerificationRpcError"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes UserVerificationRpcError.message semantics.",
+      "field": "message",
+      "owner": "codex-go-sdk",
+      "path": "v2/UserVerificationRpcError.json#/properties/message",
+      "reason": "Generated as a strict typed UserVerificationRpcError field.",
+      "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/UserVerificationRpcError.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "UserVerificationRpcError"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes UserVerificationStatusResponse.credentialId semantics.",
+      "field": "credentialId",
+      "owner": "codex-go-sdk",
+      "path": "v2/UserVerificationStatusResponse.json#/properties/credentialId",
+      "reason": "Generated as a strict typed UserVerificationStatusResponse field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/UserVerificationStatusResponse.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "UserVerificationStatusResponse"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes UserVerificationStatusResponse.unavailableMessage semantics.",
+      "field": "unavailableMessage",
+      "owner": "codex-go-sdk",
+      "path": "v2/UserVerificationStatusResponse.json#/properties/unavailableMessage",
+      "reason": "Generated as a strict typed UserVerificationStatusResponse field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/UserVerificationStatusResponse.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "UserVerificationStatusResponse"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes UserVerificationStatusResponse.unavailableReason semantics.",
+      "field": "unavailableReason",
+      "owner": "codex-go-sdk",
+      "path": "v2/UserVerificationStatusResponse.json#/properties/unavailableReason",
+      "reason": "Generated as a strict typed UserVerificationStatusResponse field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/UserVerificationStatusResponse.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "UserVerificationStatusResponse"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes UserVerificationVerifyParams.challenge semantics.",
+      "field": "challenge",
+      "owner": "codex-go-sdk",
+      "path": "v2/UserVerificationVerifyParams.json#/properties/challenge",
+      "reason": "Generated as a strict typed UserVerificationVerifyParams field.",
+      "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/UserVerificationVerifyParams.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "UserVerificationVerifyParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes UserVerificationVerifyParams.description semantics.",
+      "field": "description",
+      "owner": "codex-go-sdk",
+      "path": "v2/UserVerificationVerifyParams.json#/properties/description",
+      "reason": "Generated as a strict typed UserVerificationVerifyParams field.",
+      "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/UserVerificationVerifyParams.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "UserVerificationVerifyParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes UserVerificationVerifyParams.title semantics.",
+      "field": "title",
+      "owner": "codex-go-sdk",
+      "path": "v2/UserVerificationVerifyParams.json#/properties/title",
+      "reason": "Generated as a strict typed UserVerificationVerifyParams field.",
+      "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/UserVerificationVerifyParams.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "UserVerificationVerifyParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes UserVerificationVerifyResponse.proof semantics.",
+      "field": "proof",
+      "owner": "codex-go-sdk",
+      "path": "v2/UserVerificationVerifyResponse.json#/properties/proof",
+      "reason": "Generated as a strict typed UserVerificationVerifyResponse field.",
+      "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/UserVerificationVerifyResponse.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "UserVerificationVerifyResponse"
+    },
+    {
       "exit_condition": "Regenerate if upstream stable notification field drift changes type, requiredness, enum values, or omit/null/value semantics.",
       "field": "message",
       "owner": "codex-go-sdk",
@@ -16492,6 +16674,54 @@
       "status": "supported"
     },
     {
+      "direction": "client_to_server",
+      "exit_condition": "Regenerate method registry and add handwritten facade coverage only if this upstream method becomes part of the public SDK surface.",
+      "kind": "request",
+      "method": "userVerification/delete",
+      "owner": "codex-go-sdk",
+      "reason": "Generated protocolv2 method registry coverage for client_to_server request method; no handwritten facade is claimed until explicitly added.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "source_schema": "ClientRequest.json",
+      "stability": "experimental",
+      "status": "supported-generated"
+    },
+    {
+      "direction": "client_to_server",
+      "exit_condition": "Regenerate method registry and add handwritten facade coverage only if this upstream method becomes part of the public SDK surface.",
+      "kind": "request",
+      "method": "userVerification/enroll",
+      "owner": "codex-go-sdk",
+      "reason": "Generated protocolv2 method registry coverage for client_to_server request method; no handwritten facade is claimed until explicitly added.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "source_schema": "ClientRequest.json",
+      "stability": "experimental",
+      "status": "supported-generated"
+    },
+    {
+      "direction": "client_to_server",
+      "exit_condition": "Regenerate method registry and add handwritten facade coverage only if this upstream method becomes part of the public SDK surface.",
+      "kind": "request",
+      "method": "userVerification/status",
+      "owner": "codex-go-sdk",
+      "reason": "Generated protocolv2 method registry coverage for client_to_server request method; no handwritten facade is claimed until explicitly added.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "source_schema": "ClientRequest.json",
+      "stability": "experimental",
+      "status": "supported-generated"
+    },
+    {
+      "direction": "client_to_server",
+      "exit_condition": "Regenerate method registry and add handwritten facade coverage only if this upstream method becomes part of the public SDK surface.",
+      "kind": "request",
+      "method": "userVerification/verify",
+      "owner": "codex-go-sdk",
+      "reason": "Generated protocolv2 method registry coverage for client_to_server request method; no handwritten facade is claimed until explicitly added.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "source_schema": "ClientRequest.json",
+      "stability": "experimental",
+      "status": "supported-generated"
+    },
+    {
       "direction": "server_to_client",
       "exit_condition": "Regenerate if upstream ServerNotification aggregate, method set, params payload schema, requiredness, or nullability changes.",
       "kind": "notification",
@@ -18374,6 +18604,16 @@
       "stability": "stable",
       "status": "supported-generated",
       "type": "ModelVerificationNotification"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes this generated protocol type.",
+      "owner": "codex-go-sdk",
+      "reason": "Generated from the checked-in upstream app-server schema baseline.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/NullableGetAccountRateLimitsParams.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "Nullable_GetAccountRateLimitsParams"
     },
     {
       "exit_condition": "Regenerate if upstream schema drift changes this generated protocol type.",
@@ -20654,6 +20894,96 @@
       "stability": "stable",
       "status": "supported-generated",
       "type": "TurnSteerResponse"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes this generated protocol type.",
+      "owner": "codex-go-sdk",
+      "reason": "Generated from the checked-in upstream app-server schema baseline.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/UserVerificationDeleteParams.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "UserVerificationDeleteParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes this generated protocol type.",
+      "owner": "codex-go-sdk",
+      "reason": "Generated from the checked-in upstream app-server schema baseline.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/UserVerificationDeleteResponse.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "UserVerificationDeleteResponse"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes this generated protocol type.",
+      "owner": "codex-go-sdk",
+      "reason": "Generated from the checked-in upstream app-server schema baseline.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/UserVerificationEnrollParams.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "UserVerificationEnrollParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes this generated protocol type.",
+      "owner": "codex-go-sdk",
+      "reason": "Generated from the checked-in upstream app-server schema baseline.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/UserVerificationEnrollResponse.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "UserVerificationEnrollResponse"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes this generated protocol type.",
+      "owner": "codex-go-sdk",
+      "reason": "Generated from the checked-in upstream app-server schema baseline.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/UserVerificationRpcError.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "UserVerificationRpcError"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes this generated protocol type.",
+      "owner": "codex-go-sdk",
+      "reason": "Generated from the checked-in upstream app-server schema baseline.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/UserVerificationStatusParams.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "UserVerificationStatusParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes this generated protocol type.",
+      "owner": "codex-go-sdk",
+      "reason": "Generated from the checked-in upstream app-server schema baseline.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/UserVerificationStatusResponse.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "UserVerificationStatusResponse"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes this generated protocol type.",
+      "owner": "codex-go-sdk",
+      "reason": "Generated from the checked-in upstream app-server schema baseline.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/UserVerificationVerifyParams.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "UserVerificationVerifyParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes this generated protocol type.",
+      "owner": "codex-go-sdk",
+      "reason": "Generated from the checked-in upstream app-server schema baseline.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/UserVerificationVerifyResponse.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "UserVerificationVerifyResponse"
     },
     {
       "exit_condition": "Regenerate if upstream stable notification schema drift changes field shape, requiredness, enum values, or omit/null/value semantics.",

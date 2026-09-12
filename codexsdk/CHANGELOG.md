@@ -23,6 +23,11 @@
 
 ### Changed
 
+- **Breaking generated-surface change (pre-v1):** publish the `rust-v0.154.0`
+  classified protocol surface. MCP elicitation keeps the `openai/userVerification`
+  variant with its schema-defined payload. Optional `account/rateLimits/read`
+  params, thread `environments`, and experimental `userVerification/*` methods
+  are generated from the same classified baseline.
 - **Breaking generated-surface change (pre-v1):** protocol generation preserves
   shared object properties together with `oneOf` payloads. MCP elicitation
   request params now retain every schema-defined variant, and

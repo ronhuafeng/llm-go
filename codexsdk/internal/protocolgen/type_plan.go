@@ -406,7 +406,8 @@ func planType(file SchemaFile) (TypePlan, error) {
 
 func isReviewedTopLevelNullableParamsWrapper(path string, variants []*Schema) bool {
 	switch path {
-	case "v2/NullableGetAccountTokenUsageParams.json",
+	case "v2/NullableGetAccountRateLimitsParams.json",
+		"v2/NullableGetAccountTokenUsageParams.json",
 		"v2/NullableRemoteControlDisableParams.json",
 		"v2/NullableRemoteControlEnableParams.json":
 	default:

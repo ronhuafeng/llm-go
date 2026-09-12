@@ -278,6 +278,15 @@ func (c *Client) Turns() Turns {
 	return Turns{client: c}
 }
 
+// UserVerification is an opaque generated facade for exact Codex operations.
+type UserVerification struct {
+	client *Client
+}
+
+func (c *Client) UserVerification() UserVerification {
+	return UserVerification{client: c}
+}
+
 // WindowsSandbox is an opaque generated facade for exact Codex operations.
 type WindowsSandbox struct {
 	client *Client
@@ -1443,6 +1452,38 @@ func (f Turns) Steer(ctx context.Context, params protocolv2.TurnSteerParams) (pr
 	var response protocolv2.TurnSteerResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodTurnSteer, params, &response); err != nil {
 		return protocolv2.TurnSteerResponse{}, err
+	}
+	return response, nil
+}
+
+func (f UserVerification) Delete(ctx context.Context, params protocolv2.UserVerificationDeleteParams) (protocolv2.UserVerificationDeleteResponse, error) {
+	var response protocolv2.UserVerificationDeleteResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodUserVerificationDelete, params, &response); err != nil {
+		return protocolv2.UserVerificationDeleteResponse{}, err
+	}
+	return response, nil
+}
+
+func (f UserVerification) Enroll(ctx context.Context, params protocolv2.UserVerificationEnrollParams) (protocolv2.UserVerificationEnrollResponse, error) {
+	var response protocolv2.UserVerificationEnrollResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodUserVerificationEnroll, params, &response); err != nil {
+		return protocolv2.UserVerificationEnrollResponse{}, err
+	}
+	return response, nil
+}
+
+func (f UserVerification) Status(ctx context.Context, params protocolv2.UserVerificationStatusParams) (protocolv2.UserVerificationStatusResponse, error) {
+	var response protocolv2.UserVerificationStatusResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodUserVerificationStatus, params, &response); err != nil {
+		return protocolv2.UserVerificationStatusResponse{}, err
+	}
+	return response, nil
+}
+
+func (f UserVerification) Verify(ctx context.Context, params protocolv2.UserVerificationVerifyParams) (protocolv2.UserVerificationVerifyResponse, error) {
+	var response protocolv2.UserVerificationVerifyResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodUserVerificationVerify, params, &response); err != nil {
+		return protocolv2.UserVerificationVerifyResponse{}, err
 	}
 	return response, nil
 }
