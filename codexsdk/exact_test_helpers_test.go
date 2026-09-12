@@ -826,6 +826,16 @@ func runFakeAppServer(mode string, extra []string) {
 			threadID, _ := params["threadId"].(string)
 			model, _ := params["model"].(string)
 			sendProtocolResult(id, facadeThreadResumeResponse(threadID, model))
+			if mode == "resume-restored-usage" {
+				send(map[string]any{
+					"method": "thread/tokenUsage/updated",
+					"params": map[string]any{
+						"threadId":   defaultString(threadID, "thread-resume"),
+						"turnId":     "turn-history",
+						"tokenUsage": map[string]any{"last": fakeTokenUsageBreakdown(9, 1, 2, 1, 12), "total": fakeTokenUsageBreakdown(90, 10, 20, 5, 115)},
+					},
+				})
+			}
 		case "thread/fork":
 			if mode == "facade" {
 				params, _ := message["params"].(map[string]any)
@@ -1097,14 +1107,29 @@ func runFakeAppServer(mode string, extra []string) {
 				send(map[string]any{"id": "server-approval-1", "method": "item/commandExecution/requestApproval", "params": fakeCommandApprovalParams(threadID, turnID)})
 			}
 			if mode == "pending-terminal-protocol-failure" {
+				sendProtocolResult(id, protocolv2.TurnStartResponse{
+					Turn: protocolv2.Turn{
+						ID:     turnID,
+						Items:  []protocolv2.ThreadItem{},
+						Status: protocolv2.TurnStatusInProgress,
+					},
+				})
 				completeTurn(threadID, turnID)
 				waitForFakePath(extra[0])
 				_, _ = fmt.Fprintln(os.Stdout, "{")
 				return
 			}
 			if mode == "pending-terminal-close" {
+				sendProtocolResult(id, protocolv2.TurnStartResponse{
+					Turn: protocolv2.Turn{
+						ID:     turnID,
+						Items:  []protocolv2.ThreadItem{},
+						Status: protocolv2.TurnStatusInProgress,
+					},
+				})
 				completeTurn(threadID, turnID)
 				waitForFakePath(extra[0])
+				continue
 			}
 			sendProtocolResult(id, protocolv2.TurnStartResponse{
 				Turn: protocolv2.Turn{
