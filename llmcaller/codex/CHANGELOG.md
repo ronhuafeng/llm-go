@@ -15,6 +15,8 @@ This project follows Semantic Versioning.
   scope.
 - **Breaking (pre-v1):** project exact `FinalResponsePresent` into neutral
   `Observation[string]`. Present-empty stays observed; absence stays unknown.
+- Delete unused `responseFromRun`; `Call` still projects through
+  `projectNeutralResponse`.
 - **Breaking (pre-v1):** application-owned `AdmitTurn` now receives both the
   exact thread-start observation and the exact pending `turn/start` request.
   The adapter still does not merge those values or choose an execution policy.
