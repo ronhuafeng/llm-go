@@ -22,10 +22,10 @@ jobs:
       actions: read
       contents: read
     outputs:
-      repository_sha: ${{ steps.evidence.outputs.repository_sha }}
-      target_ref: ${{ steps.evidence.outputs.target_ref }}
-      target_kind: ${{ steps.evidence.outputs.target_kind }}
-      target_sha: ${{ steps.evidence.outputs.target_sha }}
+      repository_sha: ${{ steps.admission.outputs.repository_sha }}
+      target_ref: ${{ steps.admission.outputs.target_ref }}
+      target_kind: ${{ steps.admission.outputs.target_kind }}
+      target_sha: ${{ steps.admission.outputs.target_sha }}
       restore_candidate: ${{ steps.pack.outputs.restore_candidate }}
       restore_worktree: ${{ steps.pack.outputs.restore_worktree }}
     steps:
@@ -46,13 +46,15 @@ jobs:
           FAILED_RUN_ID: ${{ inputs.failed_run_id }}
         run: |
           set -euo pipefail
-          mkdir -p "${RUNNER_TEMP}/failed-run"
+          mkdir -p "${RUNNER_TEMP}/failed-run" "${RUNNER_TEMP}/repair-input/sync-evidence"
           gh api "repos/${GH_REPO}/actions/runs/${FAILED_RUN_ID}" > "${RUNNER_TEMP}/failed-run/run.json"
+          gh api --paginate "repos/${GH_REPO}/actions/runs/${FAILED_RUN_ID}/jobs" --jq '.jobs[]' \
+            | jq -s '{jobs: .}' > "${RUNNER_TEMP}/failed-run/jobs.json"
           gh api "repos/${GH_REPO}/actions/runs/${FAILED_RUN_ID}/artifacts" > "${RUNNER_TEMP}/failed-run/artifacts.json"
           gh run download "${FAILED_RUN_ID}" \
             --repo "${GH_REPO}" \
             -n protocol-sync-evidence \
-            -D "${RUNNER_TEMP}/failed-run/evidence"
+            -D "${RUNNER_TEMP}/repair-input/sync-evidence"
 
       - name: Check out trusted control plane
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -60,29 +62,21 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Validate failed-run evidence
-        id: evidence
+      - name: Admit failed-run for repair
+        id: admission
         env:
           GH_REPO: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
-          python3 codexsdk/scripts/codexsdk_repair_evidence.py validate \
+          python3 codexsdk/scripts/codexsdk_repair_evidence.py admit \
             --run-json "${RUNNER_TEMP}/failed-run/run.json" \
-            --evidence "${RUNNER_TEMP}/failed-run/evidence/evidence.json" \
+            --jobs-json "${RUNNER_TEMP}/failed-run/jobs.json" \
+            --artifacts-json "${RUNNER_TEMP}/failed-run/artifacts.json" \
+            --evidence "${RUNNER_TEMP}/repair-input/sync-evidence/evidence.json" \
             --repository "${GH_REPO}" \
-            --artifacts-json "${RUNNER_TEMP}/failed-run/artifacts.json"
-          python3 - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-          evidence = json.loads(Path(os.environ["RUNNER_TEMP"] + "/failed-run/evidence/evidence.json").read_text(encoding="utf-8"))
-          output = os.environ["GITHUB_OUTPUT"]
-          with Path(output).open("a", encoding="utf-8") as handle:
-              for key in ("repository_sha", "target_ref", "target_kind", "target_sha"):
-                  handle.write(f"{key}={evidence[key]}\n")
-              handle.write(f"candidate_present={'true' if evidence.get('candidate_present') else 'false'}\n")
-              handle.write(f"worktree_present={'true' if evidence.get('worktree_present') else 'false'}\n")
-          PY
+            --default-branch "${DEFAULT_BRANCH}" \
+            --out "${RUNNER_TEMP}/repair-input/admission.json"
 
       - name: Keep control-plane repair helpers
         run: |
@@ -93,7 +87,7 @@ jobs:
       - name: Check out failed repository SHA
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ steps.evidence.outputs.repository_sha }}
+          ref: ${{ steps.admission.outputs.repository_sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -105,7 +99,7 @@ jobs:
           cp -a "${RUNNER_TEMP}/codex-exec" .github/actions/codex-exec
 
       - name: Restore failed candidate
-        if: steps.evidence.outputs.candidate_present == 'true'
+        if: steps.admission.outputs.candidate_present == 'true'
         env:
           GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -118,7 +112,7 @@ jobs:
             -D "${RUNNER_TEMP}/protocol-candidate"
 
       - name: Restore failed worktree
-        if: steps.evidence.outputs.worktree_present == 'true'
+        if: steps.admission.outputs.worktree_present == 'true'
         env:
           GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -131,6 +125,27 @@ jobs:
             -D "${RUNNER_TEMP}/failed-worktree"
           git apply --binary "${RUNNER_TEMP}/failed-worktree/protocol-worktree.patch"
 
+      - name: Collect source-run proof evidence
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FAILED_RUN_ID: ${{ inputs.failed_run_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/repair-input/generated-proof" "${RUNNER_TEMP}/repair-input/failed-logs"
+          if jq -e '.artifacts[]? | select(.name == "generated-proof")' "${RUNNER_TEMP}/failed-run/artifacts.json" >/dev/null; then
+            gh run download "${FAILED_RUN_ID}" \
+              --repo "${GH_REPO}" \
+              -n generated-proof \
+              -D "${RUNNER_TEMP}/repair-input/generated-proof"
+          fi
+          gh run view "${FAILED_RUN_ID}" --repo "${GH_REPO}" --log-failed \
+            > "${RUNNER_TEMP}/repair-input/failed-logs/failed.log" || true
+          if [[ -d "${RUNNER_TEMP}/protocol-candidate" ]]; then
+            mkdir -p "${RUNNER_TEMP}/repair-input/candidate"
+            cp -a "${RUNNER_TEMP}/protocol-candidate/." "${RUNNER_TEMP}/repair-input/candidate/"
+          fi
+
       - name: Escalate unsupported semantic drift
         id: codex
         uses: ./.github/actions/codex-exec
@@ -139,13 +154,13 @@ jobs:
           responses-api-endpoint: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
           working-directory: codexsdk
           prompt: >-
-            The protocol sync run failed. Read
-            ${{ runner.temp }}/failed-run/evidence/evidence.json
-            and any restored candidate under ${{ runner.temp }}/protocol-candidate.
-            Use $codexsdk-sync-upstream only to repair the recorded unsupported
-            semantic drift for that upstream ref and commit. Do not resolve a
-            different target or rediscover the repository. Do not decide whether
-            the repair succeeded. Leave changes unstaged.
+            Read ${{ runner.temp }}/repair-input/admission.json first.
+            Repair only the recorded failure class and failed proof owners for
+            the exact repository SHA / upstream ref / upstream commit. Use the
+            preserved candidate, mechanical reports, generated proof, and failed
+            logs under ${{ runner.temp }}/repair-input as evidence. Do not
+            resolve a different target. Do not decide whether the repair
+            succeeded. Leave changes unstaged.
 
       - name: Reject mismatched Codex escalation claim
         env:
@@ -171,10 +186,10 @@ jobs:
         env:
           GH_REPO: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
-          REPOSITORY_SHA: ${{ steps.evidence.outputs.repository_sha }}
-          TARGET_REF: ${{ steps.evidence.outputs.target_ref }}
-          TARGET_KIND: ${{ steps.evidence.outputs.target_kind }}
-          TARGET_SHA: ${{ steps.evidence.outputs.target_sha }}
+          REPOSITORY_SHA: ${{ steps.admission.outputs.repository_sha }}
+          TARGET_REF: ${{ steps.admission.outputs.target_ref }}
+          TARGET_KIND: ${{ steps.admission.outputs.target_kind }}
+          TARGET_SHA: ${{ steps.admission.outputs.target_sha }}
           CANDIDATE: ${{ runner.temp }}/protocol-candidate
         run: |
           set -euo pipefail
