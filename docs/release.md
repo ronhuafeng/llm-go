@@ -48,7 +48,9 @@ The release commit is the trusted `github.sha` captured when the workflow is
 dispatched. After the protected `production-release` approval, the workflow:
 
 1. runs explicit Go-native proofs on that exact commit: formatting/whitespace,
-   owner-local verification, current-source composition, and, when publishing
+   owner-local verification, native current-source composition via
+   `internal/moduleproof`, generated-artifact reproducibility via
+   `codexsdk/internal/cmd/generatedproof`, and, when publishing
    `codex-adapter`, the committed published-dependency closure;
 2. verifies remote `main` still points to that commit;
 3. refuses to reuse an existing version tag;
@@ -58,7 +60,8 @@ dispatched. After the protected `production-release` approval, the workflow:
 There is intentionally no repository verification wrapper between the release
 workflow and these Go proofs. The Python/Bash Codex upstream-sync control plane
 is not a release gate for unrelated source; Codex protocol source correctness
-needed for publication is protected by owner-local Go tests.
+needed for publication is protected by owner-local Go tests and the native
+generated-artifact proof.
 
 If `main` advances while approval or tests are in progress, the release fails;
 dispatch it again from the new main. If tag creation succeeds but GitHub

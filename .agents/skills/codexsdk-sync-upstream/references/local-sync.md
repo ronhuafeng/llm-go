@@ -54,7 +54,7 @@ GitHub Actions is mechanical-first. Classify each step as:
 
 - upstream fact acquisition: resolve target, bind `origin`, fetch the selected commit;
 - deterministic generation: `codexsdk_track_upstream.sh` and `codexsdk_apply_sync_candidate.py`;
-- deterministic semantic validation: `codexsdk_validate_sync.sh` and owner-local Go tests;
+- deterministic semantic validation: `go run ./internal/cmd/generatedproof` and owner-local Go tests;
 - handwritten compatibility reasoning: invoked only after `escalation.json` records unsupported drift;
 - PR/finalize publication control: workflow commit/publish and the finalize workflow.
 
@@ -105,7 +105,7 @@ Prefer typed `protocolv2` params/responses over raw JSON-RPC escape hatches.
 
 ## Validation
 
-Use `scripts/codexsdk_validate_sync.sh` for the full local validation path when candidate and target inputs are available.
+Use `go run ./internal/cmd/generatedproof` for generated-artifact reproducibility when candidate and target inputs are available. Keep `scripts/codexsdk_sync_state.py` for candidate-versus-baseline schema comparison.
 
 Validation should prove:
 

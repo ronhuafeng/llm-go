@@ -668,14 +668,9 @@ def main() -> int:
 
     if not args.skip_codegen:
         subprocess.run(
-            ["go", "run", "./internal/cmd/protocolv2gen"],
+            ["go", "run", "./internal/cmd/generatedproof", "-write-artifacts"],
             cwd=Path.cwd(),
             env={**dict(os.environ), "GOWORK": "off"},
-            check=True,
-        )
-        subprocess.run(
-            ["python3", "scripts/codexsdk_generate_sdk_surface.py"],
-            cwd=Path.cwd(),
             check=True,
         )
 

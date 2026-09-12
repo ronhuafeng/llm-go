@@ -19,7 +19,7 @@ Report `protocol implementation complete` only when:
 
 - baseline metadata and schemas identify the selected upstream ref, kind, and commit;
 - generated Go and any necessary handwritten compatibility implementation match that baseline;
-- focused checks and `scripts/codexsdk_validate_sync.sh` pass for the same target SHA;
+- focused checks and `go run ./internal/cmd/generatedproof` pass for the same target SHA;
 - the final tracked and untracked change manifest is captured and contains only reviewed `codexsdk/` implementation files;
 - the worktree changes remain unstaged and uncommitted.
 

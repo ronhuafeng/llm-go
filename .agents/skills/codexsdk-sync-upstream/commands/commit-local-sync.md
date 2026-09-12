@@ -18,7 +18,7 @@ Boundaries:
 - Must not claim `sync PR published` or `landed sync finalized`.
 
 Checks:
-- Validation evidence names `scripts/codexsdk_validate_sync.sh` or equivalent focused checks and matches the target SHA.
+- Validation evidence names `go run ./internal/cmd/generatedproof` or equivalent focused checks and matches the target SHA.
 - The final change manifest was captured after repair, includes untracked files, and was reviewed before validation and staging.
 - Automation asserted a clean tracked/untracked worktree before apply, so every final manifest path was introduced by the current sync attempt.
 - Live changed paths still exactly match the final manifest when staging begins.

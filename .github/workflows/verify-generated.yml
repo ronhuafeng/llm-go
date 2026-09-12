@@ -1,0 +1,73 @@
+name: Verify generated protocol artifacts
+
+on:
+  workflow_call:
+    inputs:
+      expected-upstream-commit:
+        required: false
+        type: string
+        default: ""
+      upstream-ref:
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  generated:
+    name: Generated reproducibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: codexsdk/go.mod
+          cache: false
+
+      - name: Prove generated artifacts
+        working-directory: codexsdk
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+          EXPECTED_COMMIT: ${{ inputs.expected-upstream-commit }}
+          UPSTREAM_REF: ${{ inputs.upstream-ref }}
+          REPOSITORY_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/proof"
+          args=(
+            -repository-commit "${REPOSITORY_COMMIT}"
+            -json-out "${RUNNER_TEMP}/proof/generated.json"
+          )
+          if [[ -n "${EXPECTED_COMMIT}" ]]; then
+            args+=(-expected-upstream-commit "${EXPECTED_COMMIT}")
+          fi
+          if [[ -n "${UPSTREAM_REF}" ]]; then
+            args+=(-upstream-ref "${UPSTREAM_REF}")
+          fi
+          go run ./internal/cmd/generatedproof "${args[@]}"
+
+      - name: Upload generated proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-proof
+          path: ${{ runner.temp }}/proof/generated.json
+          if-no-files-found: error
+
+      - name: Worktree remains clean
+        run: |
+          set -euo pipefail
+          git diff --check
+          if [[ -n "$(git status --porcelain --untracked-files=all)" ]]; then
+            git status --short >&2
+            echo "generated proof left a dirty worktree" >&2
+            exit 1
+          fi
