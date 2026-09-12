@@ -54,6 +54,35 @@ func TestDecodeProtocolServerRequestRejectsAdditionalMembersRecursively(t *testi
 	}
 }
 
+func TestDecodeProtocolServerRequestPreservesURLModeElicitationPayload(t *testing.T) {
+	request, err := decodeProtocolServerRequest(map[string]any{
+		"id":     "elicit-1",
+		"method": protocolv2.MethodMCPServerElicitationRequest,
+		"params": map[string]any{
+			"elicitationId": "elicit-1",
+			"message":       "open the approval page",
+			"mode":          "url",
+			"serverName":    "mcp-server",
+			"threadId":      "thread-1",
+			"url":           "https://example.test/elicit",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, ok := request.AsMCPServerElicitationRequest()
+	if !ok {
+		t.Fatalf("request kind = %s, want elicitation", request.Kind())
+	}
+	if payload.Params.ServerName != "mcp-server" || payload.Params.ThreadID != "thread-1" {
+		t.Fatalf("shared elicitation fields = %#v", payload.Params)
+	}
+	urlPayload, ok := payload.Params.AsURL()
+	if !ok || urlPayload.ElicitationID != "elicit-1" || urlPayload.Message != "open the approval page" || urlPayload.URL != "https://example.test/elicit" {
+		t.Fatalf("url elicitation payload = %#v ok=%v", urlPayload, ok)
+	}
+}
+
 func TestUnhandledExactServerRequestCauseCoversApplicationOwnedFamilies(t *testing.T) {
 	for _, kind := range []protocolv2.ServerRequestKind{
 		protocolv2.ServerRequestKindItemCommandExecutionRequestApproval,

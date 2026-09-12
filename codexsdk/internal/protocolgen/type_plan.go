@@ -366,18 +366,22 @@ func planType(file SchemaFile) (TypePlan, error) {
 	case isAggregateBundle(file.Path):
 		plan.Kind = TypePlanAggregateBundle
 		plan.Reason = "aggregate schema bundle is a generator input, not a public protocol type"
+	case len(schema.OneOf) > 0:
+		if !topLevelUnionHasKnownDiscriminator(file.Path) {
+			return TypePlan{}, fmt.Errorf("top-level oneOf schema %s has no reviewed discriminator policy", file.Path)
+		}
+		plan.Kind = TypePlanTaggedUnionCandidate
+		if len(schema.Properties) > 0 {
+			plan.Reason = "top-level object properties plus oneOf payload with reviewed discriminator policy"
+		} else {
+			plan.Reason = "top-level oneOf with reviewed discriminator policy"
+		}
 	case schema.Type.Only("object") && len(schema.Properties) > 0:
 		plan.Kind = TypePlanObjectStructCandidate
 		plan.Reason = "object schema with top-level properties"
 	case schema.Type.Only("object"):
 		plan.Kind = TypePlanEmptyStructCandidate
 		plan.Reason = "object schema without top-level properties"
-	case len(schema.OneOf) > 0:
-		if !topLevelUnionHasKnownDiscriminator(file.Path) {
-			return TypePlan{}, fmt.Errorf("top-level oneOf schema %s has no reviewed discriminator policy", file.Path)
-		}
-		plan.Kind = TypePlanTaggedUnionCandidate
-		plan.Reason = "top-level oneOf with reviewed discriminator policy"
 	case len(schema.AnyOf) > 0:
 		if file.Path == "RequestId.json" && isReviewedScalarUnion(schema.AnyOf) {
 			plan.Kind = TypePlanScalarUnionCandidate
@@ -686,6 +690,14 @@ func overlayFieldPlan(plan FieldPlan, schema *Schema) (FieldPlan, bool, error) {
 		plan.Kind = FieldPlanJSONValue
 		plan.GoType = optionalGoType(plan.Required, "protocolv2.JSONValue")
 		plan.Reason = "reviewed backend-owned rate limit upsell JSON value"
+		return plan, true, nil
+	case plan.Path == "McpServerElicitationRequestParams.json#/definitions/McpElicitationSchema/properties/properties":
+		if !schema.Type.Only("object") || schema.AdditionalProperties.Schema == nil || schema.AdditionalProperties.Schema.Ref != "#/definitions/McpElicitationPrimitiveSchema" {
+			return FieldPlan{}, true, fmt.Errorf("field %s elicitation properties overlay no longer matches primitive schema map", plan.Path)
+		}
+		plan.Kind = FieldPlanJSONValueMap
+		plan.GoType = nullableAwareGoType(plan.Required, plan.WireAllowsNull, "map[string]protocolv2.JSONValue")
+		plan.Reason = "reviewed MCP elicitation form properties preserved as JSON values"
 		return plan, true, nil
 	case plan.Path == "McpServerElicitationRequestResponse.json#/properties/_meta" ||
 		plan.Path == "McpServerElicitationRequestResponse.json#/properties/content":
@@ -1265,6 +1277,7 @@ func isAggregateBundle(path string) bool {
 func topLevelUnionHasKnownDiscriminator(path string) bool {
 	switch path {
 	case "ClientNotification.json", "ClientRequest.json", "ServerNotification.json", "ServerRequest.json",
+		"McpServerElicitationRequestParams.json",
 		"v2/BedrockSetupParams.json", "v2/LoginAccountParams.json", "v2/LoginAccountResponse.json":
 		return true
 	default:

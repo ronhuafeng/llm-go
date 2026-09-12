@@ -14148,126 +14148,6 @@ func (value *HookErrorInfo) unmarshalJSON(data []byte, mode wireDecodeMode) erro
 	return nil
 }
 
-type HookMetadata struct {
-	AdditionalContextLimit *Nullable[uint64] `json:"additionalContextLimit,omitempty"`
-	CurrentHash            string            `json:"currentHash"`
-	DisplayOrder           int64             `json:"displayOrder"`
-	Enabled                bool              `json:"enabled"`
-	EventName              HookEventName     `json:"eventName"`
-	IsManaged              bool              `json:"isManaged"`
-	Key                    string            `json:"key"`
-	Matcher                *Nullable[string] `json:"matcher,omitempty"`
-	PluginID               *Nullable[string] `json:"pluginId,omitempty"`
-	Source                 HookSource        `json:"source"`
-	SourcePath             string            `json:"sourcePath"`
-	StatusMessage          *Nullable[string] `json:"statusMessage,omitempty"`
-	TimeoutSec             uint64            `json:"timeoutSec"`
-	TrustStatus            HookTrustStatus   `json:"trustStatus"`
-}
-
-func (value *HookMetadata) UnmarshalJSON(data []byte) error {
-	return value.unmarshalJSON(data, wireDecodeClosed)
-}
-
-func (value *HookMetadata) unmarshalJSON(data []byte, mode wireDecodeMode) error {
-	fields, err := decodeObjectFields(data, "HookMetadata")
-	if err != nil {
-		return err
-	}
-	var decoded HookMetadata
-	_, err = decodeNullableJSONField[uint64](fields, "additionalContextLimit", "HookMetadata.additionalContextLimit", mode, decodeWireValue[uint64], &decoded.AdditionalContextLimit)
-	if err != nil {
-		return err
-	}
-	seenCurrentHash, err := decodeJSONField(fields, "currentHash", "HookMetadata.currentHash", false, mode, decodeWireValue[string], &decoded.CurrentHash)
-	if err != nil {
-		return err
-	}
-	if !seenCurrentHash {
-		return missingRequiredField("HookMetadata.currentHash")
-	}
-	seenDisplayOrder, err := decodeJSONField(fields, "displayOrder", "HookMetadata.displayOrder", false, mode, decodeWireValue[int64], &decoded.DisplayOrder)
-	if err != nil {
-		return err
-	}
-	if !seenDisplayOrder {
-		return missingRequiredField("HookMetadata.displayOrder")
-	}
-	seenEnabled, err := decodeJSONField(fields, "enabled", "HookMetadata.enabled", false, mode, decodeWireValue[bool], &decoded.Enabled)
-	if err != nil {
-		return err
-	}
-	if !seenEnabled {
-		return missingRequiredField("HookMetadata.enabled")
-	}
-	seenEventName, err := decodeJSONField(fields, "eventName", "HookMetadata.eventName", false, mode, decodeWireValue[HookEventName], &decoded.EventName)
-	if err != nil {
-		return err
-	}
-	if !seenEventName {
-		return missingRequiredField("HookMetadata.eventName")
-	}
-	seenIsManaged, err := decodeJSONField(fields, "isManaged", "HookMetadata.isManaged", false, mode, decodeWireValue[bool], &decoded.IsManaged)
-	if err != nil {
-		return err
-	}
-	if !seenIsManaged {
-		return missingRequiredField("HookMetadata.isManaged")
-	}
-	seenKey, err := decodeJSONField(fields, "key", "HookMetadata.key", false, mode, decodeWireValue[string], &decoded.Key)
-	if err != nil {
-		return err
-	}
-	if !seenKey {
-		return missingRequiredField("HookMetadata.key")
-	}
-	_, err = decodeNullableJSONField[string](fields, "matcher", "HookMetadata.matcher", mode, decodeWireValue[string], &decoded.Matcher)
-	if err != nil {
-		return err
-	}
-	_, err = decodeNullableJSONField[string](fields, "pluginId", "HookMetadata.pluginId", mode, decodeWireValue[string], &decoded.PluginID)
-	if err != nil {
-		return err
-	}
-	seenSource, err := decodeJSONField(fields, "source", "HookMetadata.source", false, mode, decodeWireValue[HookSource], &decoded.Source)
-	if err != nil {
-		return err
-	}
-	if !seenSource {
-		return missingRequiredField("HookMetadata.source")
-	}
-	seenSourcePath, err := decodeJSONField(fields, "sourcePath", "HookMetadata.sourcePath", false, mode, decodeWireValue[string], &decoded.SourcePath)
-	if err != nil {
-		return err
-	}
-	if !seenSourcePath {
-		return missingRequiredField("HookMetadata.sourcePath")
-	}
-	_, err = decodeNullableJSONField[string](fields, "statusMessage", "HookMetadata.statusMessage", mode, decodeWireValue[string], &decoded.StatusMessage)
-	if err != nil {
-		return err
-	}
-	seenTimeoutSec, err := decodeJSONField(fields, "timeoutSec", "HookMetadata.timeoutSec", false, mode, decodeWireValue[uint64], &decoded.TimeoutSec)
-	if err != nil {
-		return err
-	}
-	if !seenTimeoutSec {
-		return missingRequiredField("HookMetadata.timeoutSec")
-	}
-	seenTrustStatus, err := decodeJSONField(fields, "trustStatus", "HookMetadata.trustStatus", false, mode, decodeWireValue[HookTrustStatus], &decoded.TrustStatus)
-	if err != nil {
-		return err
-	}
-	if !seenTrustStatus {
-		return missingRequiredField("HookMetadata.trustStatus")
-	}
-	if err := rejectUnexpectedFieldsForMode(fields, "HookMetadata", mode); err != nil {
-		return err
-	}
-	*value = decoded
-	return nil
-}
-
 type HookMigration struct {
 	Name string `json:"name"`
 }
@@ -15736,6 +15616,60 @@ func (value *MarketplaceUpgradeResponse) unmarshalJSON(data []byte, mode wireDec
 	return nil
 }
 
+type McpElicitationSchema struct {
+	Schema     *Nullable[string]        `json:"$schema,omitempty"`
+	Properties map[string]JSONValue     `json:"properties"`
+	Required   *Nullable[[]string]      `json:"required,omitempty"`
+	Type       McpElicitationObjectType `json:"type"`
+}
+
+func (value McpElicitationSchema) MarshalJSON() ([]byte, error) {
+	if value.Properties == nil {
+		return nil, fmt.Errorf("encode McpElicitationSchema.properties: nil is not allowed")
+	}
+	type wire McpElicitationSchema
+	return json.Marshal(wire(value))
+}
+
+func (value *McpElicitationSchema) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *McpElicitationSchema) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "McpElicitationSchema")
+	if err != nil {
+		return err
+	}
+	var decoded McpElicitationSchema
+	_, err = decodeNullableJSONField[string](fields, "$schema", "McpElicitationSchema.$schema", mode, decodeWireValue[string], &decoded.Schema)
+	if err != nil {
+		return err
+	}
+	seenProperties, err := decodeJSONField(fields, "properties", "McpElicitationSchema.properties", false, mode, wireMapDecoder(decodeWireValue[JSONValue]), &decoded.Properties)
+	if err != nil {
+		return err
+	}
+	if !seenProperties {
+		return missingRequiredField("McpElicitationSchema.properties")
+	}
+	_, err = decodeNullableJSONField[[]string](fields, "required", "McpElicitationSchema.required", mode, wireSliceDecoder(decodeWireValue[string]), &decoded.Required)
+	if err != nil {
+		return err
+	}
+	seenType, err := decodeJSONField(fields, "type", "McpElicitationSchema.type", false, mode, decodeWireValue[McpElicitationObjectType], &decoded.Type)
+	if err != nil {
+		return err
+	}
+	if !seenType {
+		return missingRequiredField("McpElicitationSchema.type")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "McpElicitationSchema", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
 type McpResourceReadParams struct {
 	ConnectorID  *Nullable[string] `json:"connectorId,omitempty"`
 	OriginCallID *Nullable[string] `json:"originCallId,omitempty"`
@@ -15822,47 +15756,6 @@ func (value *McpResourceReadResponse) unmarshalJSON(data []byte, mode wireDecode
 		return err
 	}
 	if err := rejectUnexpectedFieldsForMode(fields, "McpResourceReadResponse", mode); err != nil {
-		return err
-	}
-	*value = decoded
-	return nil
-}
-
-type McpServerElicitationRequestParams struct {
-	ServerName string            `json:"serverName"`
-	ThreadID   string            `json:"threadId"`
-	TurnID     *Nullable[string] `json:"turnId,omitempty"`
-}
-
-func (value *McpServerElicitationRequestParams) UnmarshalJSON(data []byte) error {
-	return value.unmarshalJSON(data, wireDecodeClosed)
-}
-
-func (value *McpServerElicitationRequestParams) unmarshalJSON(data []byte, mode wireDecodeMode) error {
-	fields, err := decodeObjectFields(data, "McpServerElicitationRequestParams")
-	if err != nil {
-		return err
-	}
-	var decoded McpServerElicitationRequestParams
-	seenServerName, err := decodeJSONField(fields, "serverName", "McpServerElicitationRequestParams.serverName", false, mode, decodeWireValue[string], &decoded.ServerName)
-	if err != nil {
-		return err
-	}
-	if !seenServerName {
-		return missingRequiredField("McpServerElicitationRequestParams.serverName")
-	}
-	seenThreadID, err := decodeJSONField(fields, "threadId", "McpServerElicitationRequestParams.threadId", false, mode, decodeWireValue[string], &decoded.ThreadID)
-	if err != nil {
-		return err
-	}
-	if !seenThreadID {
-		return missingRequiredField("McpServerElicitationRequestParams.threadId")
-	}
-	_, err = decodeNullableJSONField[string](fields, "turnId", "McpServerElicitationRequestParams.turnId", mode, decodeWireValue[string], &decoded.TurnID)
-	if err != nil {
-		return err
-	}
-	if err := rejectUnexpectedFieldsForMode(fields, "McpServerElicitationRequestParams", mode); err != nil {
 		return err
 	}
 	*value = decoded
@@ -45518,6 +45411,438 @@ func (value *GuardianApprovalReviewAction) unmarshalJSON(data []byte, mode wireD
 	}
 }
 
+type HookMetadataKind string
+
+const (
+	HookMetadataKindCommand HookMetadataKind = "command"
+	HookMetadataKindMCPTool HookMetadataKind = "mcpTool"
+	HookMetadataKindPrompt  HookMetadataKind = "prompt"
+	HookMetadataKindAgent   HookMetadataKind = "agent"
+)
+
+type HookMetadata struct {
+	AdditionalContextLimit *Nullable[uint64] `json:"additionalContextLimit,omitempty"`
+	CurrentHash            string            `json:"currentHash"`
+	DisplayOrder           int64             `json:"displayOrder"`
+	Enabled                bool              `json:"enabled"`
+	EventName              HookEventName     `json:"eventName"`
+	IsManaged              bool              `json:"isManaged"`
+	Key                    string            `json:"key"`
+	Matcher                *Nullable[string] `json:"matcher,omitempty"`
+	PluginID               *Nullable[string] `json:"pluginId,omitempty"`
+	Source                 HookSource        `json:"source"`
+	SourcePath             string            `json:"sourcePath"`
+	StatusMessage          *Nullable[string] `json:"statusMessage,omitempty"`
+	TimeoutSec             uint64            `json:"timeoutSec"`
+	TrustStatus            HookTrustStatus   `json:"trustStatus"`
+	kind                   HookMetadataKind
+	variantCommand         *HookMetadataCommand
+	variantMCPTool         *HookMetadataMCPTool
+	variantPrompt          *HookMetadataPrompt
+	variantAgent           *HookMetadataAgent
+}
+
+type HookMetadataCommand struct {
+	Async   *bool  `json:"async,omitempty"`
+	Command string `json:"command"`
+}
+
+type HookMetadataMCPTool struct {
+	Server string `json:"server"`
+	Tool   string `json:"tool"`
+}
+
+type HookMetadataPrompt struct{}
+
+type HookMetadataAgent struct{}
+
+func NewHookMetadataCommand(payload HookMetadataCommand) HookMetadata {
+	return HookMetadata{kind: HookMetadataKindCommand, variantCommand: &payload}
+}
+
+func NewHookMetadataMCPTool(payload HookMetadataMCPTool) HookMetadata {
+	return HookMetadata{kind: HookMetadataKindMCPTool, variantMCPTool: &payload}
+}
+
+func NewHookMetadataPrompt() HookMetadata {
+	payload := HookMetadataPrompt{}
+	return HookMetadata{kind: HookMetadataKindPrompt, variantPrompt: &payload}
+}
+
+func NewHookMetadataAgent() HookMetadata {
+	payload := HookMetadataAgent{}
+	return HookMetadata{kind: HookMetadataKindAgent, variantAgent: &payload}
+}
+
+func (value HookMetadata) Kind() HookMetadataKind {
+	return value.kind
+}
+
+func (value HookMetadata) IsValid() bool {
+	switch value.kind {
+	case HookMetadataKindCommand:
+		return value.variantCommand != nil
+	case HookMetadataKindMCPTool:
+		return value.variantMCPTool != nil
+	case HookMetadataKindPrompt:
+		return value.variantPrompt != nil
+	case HookMetadataKindAgent:
+		return value.variantAgent != nil
+	default:
+		return false
+	}
+}
+
+func (value HookMetadata) AsCommand() (HookMetadataCommand, bool) {
+	if value.kind != HookMetadataKindCommand || value.variantCommand == nil {
+		return HookMetadataCommand{}, false
+	}
+	return *value.variantCommand, true
+}
+
+func (value HookMetadata) AsMCPTool() (HookMetadataMCPTool, bool) {
+	if value.kind != HookMetadataKindMCPTool || value.variantMCPTool == nil {
+		return HookMetadataMCPTool{}, false
+	}
+	return *value.variantMCPTool, true
+}
+
+func (value HookMetadata) AsPrompt() (HookMetadataPrompt, bool) {
+	if value.kind != HookMetadataKindPrompt || value.variantPrompt == nil {
+		return HookMetadataPrompt{}, false
+	}
+	return *value.variantPrompt, true
+}
+
+func (value HookMetadata) AsAgent() (HookMetadataAgent, bool) {
+	if value.kind != HookMetadataKindAgent || value.variantAgent == nil {
+		return HookMetadataAgent{}, false
+	}
+	return *value.variantAgent, true
+}
+
+func (value HookMetadata) MarshalJSON() ([]byte, error) {
+	switch value.kind {
+	case HookMetadataKindCommand:
+		if value.variantCommand == nil {
+			return nil, invalidUnionVariant("HookMetadata", "command")
+		}
+		return json.Marshal(struct {
+			AdditionalContextLimit *Nullable[uint64] `json:"additionalContextLimit,omitempty"`
+			Async                  *bool             `json:"async,omitempty"`
+			Command                string            `json:"command"`
+			CurrentHash            string            `json:"currentHash"`
+			DisplayOrder           int64             `json:"displayOrder"`
+			Enabled                bool              `json:"enabled"`
+			EventName              HookEventName     `json:"eventName"`
+			HandlerType            string            `json:"handlerType"`
+			IsManaged              bool              `json:"isManaged"`
+			Key                    string            `json:"key"`
+			Matcher                *Nullable[string] `json:"matcher,omitempty"`
+			PluginID               *Nullable[string] `json:"pluginId,omitempty"`
+			Source                 HookSource        `json:"source"`
+			SourcePath             string            `json:"sourcePath"`
+			StatusMessage          *Nullable[string] `json:"statusMessage,omitempty"`
+			TimeoutSec             uint64            `json:"timeoutSec"`
+			TrustStatus            HookTrustStatus   `json:"trustStatus"`
+		}{
+			AdditionalContextLimit: value.AdditionalContextLimit,
+			Async:                  value.variantCommand.Async,
+			Command:                value.variantCommand.Command,
+			CurrentHash:            value.CurrentHash,
+			DisplayOrder:           value.DisplayOrder,
+			Enabled:                value.Enabled,
+			EventName:              value.EventName,
+			HandlerType:            "command",
+			IsManaged:              value.IsManaged,
+			Key:                    value.Key,
+			Matcher:                value.Matcher,
+			PluginID:               value.PluginID,
+			Source:                 value.Source,
+			SourcePath:             value.SourcePath,
+			StatusMessage:          value.StatusMessage,
+			TimeoutSec:             value.TimeoutSec,
+			TrustStatus:            value.TrustStatus,
+		})
+	case HookMetadataKindMCPTool:
+		if value.variantMCPTool == nil {
+			return nil, invalidUnionVariant("HookMetadata", "mcpTool")
+		}
+		return json.Marshal(struct {
+			AdditionalContextLimit *Nullable[uint64] `json:"additionalContextLimit,omitempty"`
+			CurrentHash            string            `json:"currentHash"`
+			DisplayOrder           int64             `json:"displayOrder"`
+			Enabled                bool              `json:"enabled"`
+			EventName              HookEventName     `json:"eventName"`
+			HandlerType            string            `json:"handlerType"`
+			IsManaged              bool              `json:"isManaged"`
+			Key                    string            `json:"key"`
+			Matcher                *Nullable[string] `json:"matcher,omitempty"`
+			PluginID               *Nullable[string] `json:"pluginId,omitempty"`
+			Server                 string            `json:"server"`
+			Source                 HookSource        `json:"source"`
+			SourcePath             string            `json:"sourcePath"`
+			StatusMessage          *Nullable[string] `json:"statusMessage,omitempty"`
+			TimeoutSec             uint64            `json:"timeoutSec"`
+			Tool                   string            `json:"tool"`
+			TrustStatus            HookTrustStatus   `json:"trustStatus"`
+		}{
+			AdditionalContextLimit: value.AdditionalContextLimit,
+			CurrentHash:            value.CurrentHash,
+			DisplayOrder:           value.DisplayOrder,
+			Enabled:                value.Enabled,
+			EventName:              value.EventName,
+			HandlerType:            "mcpTool",
+			IsManaged:              value.IsManaged,
+			Key:                    value.Key,
+			Matcher:                value.Matcher,
+			PluginID:               value.PluginID,
+			Server:                 value.variantMCPTool.Server,
+			Source:                 value.Source,
+			SourcePath:             value.SourcePath,
+			StatusMessage:          value.StatusMessage,
+			TimeoutSec:             value.TimeoutSec,
+			Tool:                   value.variantMCPTool.Tool,
+			TrustStatus:            value.TrustStatus,
+		})
+	case HookMetadataKindPrompt:
+		if value.variantPrompt == nil {
+			return nil, invalidUnionVariant("HookMetadata", "prompt")
+		}
+		return json.Marshal(struct {
+			AdditionalContextLimit *Nullable[uint64] `json:"additionalContextLimit,omitempty"`
+			CurrentHash            string            `json:"currentHash"`
+			DisplayOrder           int64             `json:"displayOrder"`
+			Enabled                bool              `json:"enabled"`
+			EventName              HookEventName     `json:"eventName"`
+			HandlerType            string            `json:"handlerType"`
+			IsManaged              bool              `json:"isManaged"`
+			Key                    string            `json:"key"`
+			Matcher                *Nullable[string] `json:"matcher,omitempty"`
+			PluginID               *Nullable[string] `json:"pluginId,omitempty"`
+			Source                 HookSource        `json:"source"`
+			SourcePath             string            `json:"sourcePath"`
+			StatusMessage          *Nullable[string] `json:"statusMessage,omitempty"`
+			TimeoutSec             uint64            `json:"timeoutSec"`
+			TrustStatus            HookTrustStatus   `json:"trustStatus"`
+		}{
+			AdditionalContextLimit: value.AdditionalContextLimit,
+			CurrentHash:            value.CurrentHash,
+			DisplayOrder:           value.DisplayOrder,
+			Enabled:                value.Enabled,
+			EventName:              value.EventName,
+			HandlerType:            "prompt",
+			IsManaged:              value.IsManaged,
+			Key:                    value.Key,
+			Matcher:                value.Matcher,
+			PluginID:               value.PluginID,
+			Source:                 value.Source,
+			SourcePath:             value.SourcePath,
+			StatusMessage:          value.StatusMessage,
+			TimeoutSec:             value.TimeoutSec,
+			TrustStatus:            value.TrustStatus,
+		})
+	case HookMetadataKindAgent:
+		if value.variantAgent == nil {
+			return nil, invalidUnionVariant("HookMetadata", "agent")
+		}
+		return json.Marshal(struct {
+			AdditionalContextLimit *Nullable[uint64] `json:"additionalContextLimit,omitempty"`
+			CurrentHash            string            `json:"currentHash"`
+			DisplayOrder           int64             `json:"displayOrder"`
+			Enabled                bool              `json:"enabled"`
+			EventName              HookEventName     `json:"eventName"`
+			HandlerType            string            `json:"handlerType"`
+			IsManaged              bool              `json:"isManaged"`
+			Key                    string            `json:"key"`
+			Matcher                *Nullable[string] `json:"matcher,omitempty"`
+			PluginID               *Nullable[string] `json:"pluginId,omitempty"`
+			Source                 HookSource        `json:"source"`
+			SourcePath             string            `json:"sourcePath"`
+			StatusMessage          *Nullable[string] `json:"statusMessage,omitempty"`
+			TimeoutSec             uint64            `json:"timeoutSec"`
+			TrustStatus            HookTrustStatus   `json:"trustStatus"`
+		}{
+			AdditionalContextLimit: value.AdditionalContextLimit,
+			CurrentHash:            value.CurrentHash,
+			DisplayOrder:           value.DisplayOrder,
+			Enabled:                value.Enabled,
+			EventName:              value.EventName,
+			HandlerType:            "agent",
+			IsManaged:              value.IsManaged,
+			Key:                    value.Key,
+			Matcher:                value.Matcher,
+			PluginID:               value.PluginID,
+			Source:                 value.Source,
+			SourcePath:             value.SourcePath,
+			StatusMessage:          value.StatusMessage,
+			TimeoutSec:             value.TimeoutSec,
+			TrustStatus:            value.TrustStatus,
+		})
+	default:
+		return nil, invalidUnionValue("HookMetadata")
+	}
+}
+
+func (value *HookMetadata) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *HookMetadata) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "HookMetadata")
+	if err != nil {
+		return err
+	}
+	var shared HookMetadata
+	_, err = decodeNullableJSONField[uint64](fields, "additionalContextLimit", "HookMetadata.additionalContextLimit", mode, decodeWireValue[uint64], &shared.AdditionalContextLimit)
+	if err != nil {
+		return err
+	}
+	seenCurrentHash, err := decodeJSONField(fields, "currentHash", "HookMetadata.currentHash", false, mode, decodeWireValue[string], &shared.CurrentHash)
+	if err != nil {
+		return err
+	}
+	if !seenCurrentHash {
+		return missingRequiredField("HookMetadata.currentHash")
+	}
+	seenDisplayOrder, err := decodeJSONField(fields, "displayOrder", "HookMetadata.displayOrder", false, mode, decodeWireValue[int64], &shared.DisplayOrder)
+	if err != nil {
+		return err
+	}
+	if !seenDisplayOrder {
+		return missingRequiredField("HookMetadata.displayOrder")
+	}
+	seenEnabled, err := decodeJSONField(fields, "enabled", "HookMetadata.enabled", false, mode, decodeWireValue[bool], &shared.Enabled)
+	if err != nil {
+		return err
+	}
+	if !seenEnabled {
+		return missingRequiredField("HookMetadata.enabled")
+	}
+	seenEventName, err := decodeJSONField(fields, "eventName", "HookMetadata.eventName", false, mode, decodeWireValue[HookEventName], &shared.EventName)
+	if err != nil {
+		return err
+	}
+	if !seenEventName {
+		return missingRequiredField("HookMetadata.eventName")
+	}
+	seenIsManaged, err := decodeJSONField(fields, "isManaged", "HookMetadata.isManaged", false, mode, decodeWireValue[bool], &shared.IsManaged)
+	if err != nil {
+		return err
+	}
+	if !seenIsManaged {
+		return missingRequiredField("HookMetadata.isManaged")
+	}
+	seenKey, err := decodeJSONField(fields, "key", "HookMetadata.key", false, mode, decodeWireValue[string], &shared.Key)
+	if err != nil {
+		return err
+	}
+	if !seenKey {
+		return missingRequiredField("HookMetadata.key")
+	}
+	_, err = decodeNullableJSONField[string](fields, "matcher", "HookMetadata.matcher", mode, decodeWireValue[string], &shared.Matcher)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[string](fields, "pluginId", "HookMetadata.pluginId", mode, decodeWireValue[string], &shared.PluginID)
+	if err != nil {
+		return err
+	}
+	seenSource, err := decodeJSONField(fields, "source", "HookMetadata.source", false, mode, decodeWireValue[HookSource], &shared.Source)
+	if err != nil {
+		return err
+	}
+	if !seenSource {
+		return missingRequiredField("HookMetadata.source")
+	}
+	seenSourcePath, err := decodeJSONField(fields, "sourcePath", "HookMetadata.sourcePath", false, mode, decodeWireValue[string], &shared.SourcePath)
+	if err != nil {
+		return err
+	}
+	if !seenSourcePath {
+		return missingRequiredField("HookMetadata.sourcePath")
+	}
+	_, err = decodeNullableJSONField[string](fields, "statusMessage", "HookMetadata.statusMessage", mode, decodeWireValue[string], &shared.StatusMessage)
+	if err != nil {
+		return err
+	}
+	seenTimeoutSec, err := decodeJSONField(fields, "timeoutSec", "HookMetadata.timeoutSec", false, mode, decodeWireValue[uint64], &shared.TimeoutSec)
+	if err != nil {
+		return err
+	}
+	if !seenTimeoutSec {
+		return missingRequiredField("HookMetadata.timeoutSec")
+	}
+	seenTrustStatus, err := decodeJSONField(fields, "trustStatus", "HookMetadata.trustStatus", false, mode, decodeWireValue[HookTrustStatus], &shared.TrustStatus)
+	if err != nil {
+		return err
+	}
+	if !seenTrustStatus {
+		return missingRequiredField("HookMetadata.trustStatus")
+	}
+	variant, err := decodeTaggedUnionDiscriminator(fields, "handlerType", "HookMetadata")
+	if err != nil {
+		return err
+	}
+	switch variant {
+	case "command":
+		var decoded HookMetadataCommand
+		_, err = decodeJSONField(fields, "async", "HookMetadata.async", false, mode, wirePointerDecoder(decodeWireValue[bool]), &decoded.Async)
+		if err != nil {
+			return err
+		}
+		seenCommand, err := decodeJSONField(fields, "command", "HookMetadata.command", false, mode, decodeWireValue[string], &decoded.Command)
+		if err != nil {
+			return err
+		}
+		if !seenCommand {
+			return missingRequiredField("HookMetadata.command")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "HookMetadata.command", mode); err != nil {
+			return err
+		}
+		*value = HookMetadata{AdditionalContextLimit: shared.AdditionalContextLimit, CurrentHash: shared.CurrentHash, DisplayOrder: shared.DisplayOrder, Enabled: shared.Enabled, EventName: shared.EventName, IsManaged: shared.IsManaged, Key: shared.Key, Matcher: shared.Matcher, PluginID: shared.PluginID, Source: shared.Source, SourcePath: shared.SourcePath, StatusMessage: shared.StatusMessage, TimeoutSec: shared.TimeoutSec, TrustStatus: shared.TrustStatus, kind: HookMetadataKindCommand, variantCommand: &decoded}
+		return nil
+	case "mcpTool":
+		var decoded HookMetadataMCPTool
+		seenServer, err := decodeJSONField(fields, "server", "HookMetadata.server", false, mode, decodeWireValue[string], &decoded.Server)
+		if err != nil {
+			return err
+		}
+		if !seenServer {
+			return missingRequiredField("HookMetadata.server")
+		}
+		seenTool, err := decodeJSONField(fields, "tool", "HookMetadata.tool", false, mode, decodeWireValue[string], &decoded.Tool)
+		if err != nil {
+			return err
+		}
+		if !seenTool {
+			return missingRequiredField("HookMetadata.tool")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "HookMetadata.mcpTool", mode); err != nil {
+			return err
+		}
+		*value = HookMetadata{AdditionalContextLimit: shared.AdditionalContextLimit, CurrentHash: shared.CurrentHash, DisplayOrder: shared.DisplayOrder, Enabled: shared.Enabled, EventName: shared.EventName, IsManaged: shared.IsManaged, Key: shared.Key, Matcher: shared.Matcher, PluginID: shared.PluginID, Source: shared.Source, SourcePath: shared.SourcePath, StatusMessage: shared.StatusMessage, TimeoutSec: shared.TimeoutSec, TrustStatus: shared.TrustStatus, kind: HookMetadataKindMCPTool, variantMCPTool: &decoded}
+		return nil
+	case "prompt":
+		var decoded HookMetadataPrompt
+		if err := rejectUnexpectedFieldsForMode(fields, "HookMetadata.prompt", mode); err != nil {
+			return err
+		}
+		*value = HookMetadata{AdditionalContextLimit: shared.AdditionalContextLimit, CurrentHash: shared.CurrentHash, DisplayOrder: shared.DisplayOrder, Enabled: shared.Enabled, EventName: shared.EventName, IsManaged: shared.IsManaged, Key: shared.Key, Matcher: shared.Matcher, PluginID: shared.PluginID, Source: shared.Source, SourcePath: shared.SourcePath, StatusMessage: shared.StatusMessage, TimeoutSec: shared.TimeoutSec, TrustStatus: shared.TrustStatus, kind: HookMetadataKindPrompt, variantPrompt: &decoded}
+		return nil
+	case "agent":
+		var decoded HookMetadataAgent
+		if err := rejectUnexpectedFieldsForMode(fields, "HookMetadata.agent", mode); err != nil {
+			return err
+		}
+		*value = HookMetadata{AdditionalContextLimit: shared.AdditionalContextLimit, CurrentHash: shared.CurrentHash, DisplayOrder: shared.DisplayOrder, Enabled: shared.Enabled, EventName: shared.EventName, IsManaged: shared.IsManaged, Key: shared.Key, Matcher: shared.Matcher, PluginID: shared.PluginID, Source: shared.Source, SourcePath: shared.SourcePath, StatusMessage: shared.StatusMessage, TimeoutSec: shared.TimeoutSec, TrustStatus: shared.TrustStatus, kind: HookMetadataKindAgent, variantAgent: &decoded}
+		return nil
+	default:
+		return unknownUnionVariant("HookMetadata", "handlerType", variant)
+	}
+}
+
 type ImageGenerationFailureKind string
 
 const (
@@ -46364,6 +46689,352 @@ func (value *LoginAccountResponse) unmarshalJSON(data []byte, mode wireDecodeMod
 		return nil
 	default:
 		return unknownUnionVariant("LoginAccountResponse", "type", variant)
+	}
+}
+
+type McpServerElicitationRequestParamsKind string
+
+const (
+	McpServerElicitationRequestParamsKindForm            McpServerElicitationRequestParamsKind = "form"
+	McpServerElicitationRequestParamsKindOpenaiSlashForm McpServerElicitationRequestParamsKind = "openai/form"
+	McpServerElicitationRequestParamsKindOpenaiForm      McpServerElicitationRequestParamsKind = "openaiForm"
+	McpServerElicitationRequestParamsKindURL             McpServerElicitationRequestParamsKind = "url"
+)
+
+type McpServerElicitationRequestParams struct {
+	ServerName             string            `json:"serverName"`
+	ThreadID               string            `json:"threadId"`
+	TurnID                 *Nullable[string] `json:"turnId,omitempty"`
+	kind                   McpServerElicitationRequestParamsKind
+	variantForm            *McpServerElicitationRequestParamsForm
+	variantOpenaiSlashForm *McpServerElicitationRequestParamsOpenaiSlashForm
+	variantOpenaiForm      *McpServerElicitationRequestParamsOpenaiForm
+	variantURL             *McpServerElicitationRequestParamsURL
+}
+
+type McpServerElicitationRequestParamsForm struct {
+	Meta            *JSONValue           `json:"_meta,omitempty"`
+	Message         string               `json:"message"`
+	RequestedSchema McpElicitationSchema `json:"requestedSchema"`
+}
+
+type McpServerElicitationRequestParamsOpenaiSlashForm struct {
+	Meta            *JSONValue `json:"_meta,omitempty"`
+	Message         string     `json:"message"`
+	RequestedSchema JSONValue  `json:"requestedSchema"`
+}
+
+type McpServerElicitationRequestParamsOpenaiForm struct {
+	Meta            *JSONValue `json:"_meta,omitempty"`
+	Message         string     `json:"message"`
+	RequestedSchema JSONValue  `json:"requestedSchema"`
+}
+
+type McpServerElicitationRequestParamsURL struct {
+	Meta          *JSONValue `json:"_meta,omitempty"`
+	ElicitationID string     `json:"elicitationId"`
+	Message       string     `json:"message"`
+	URL           string     `json:"url"`
+}
+
+func NewMcpServerElicitationRequestParamsForm(payload McpServerElicitationRequestParamsForm) McpServerElicitationRequestParams {
+	return McpServerElicitationRequestParams{kind: McpServerElicitationRequestParamsKindForm, variantForm: &payload}
+}
+
+func NewMcpServerElicitationRequestParamsOpenaiSlashForm(payload McpServerElicitationRequestParamsOpenaiSlashForm) McpServerElicitationRequestParams {
+	return McpServerElicitationRequestParams{kind: McpServerElicitationRequestParamsKindOpenaiSlashForm, variantOpenaiSlashForm: &payload}
+}
+
+func NewMcpServerElicitationRequestParamsOpenaiForm(payload McpServerElicitationRequestParamsOpenaiForm) McpServerElicitationRequestParams {
+	return McpServerElicitationRequestParams{kind: McpServerElicitationRequestParamsKindOpenaiForm, variantOpenaiForm: &payload}
+}
+
+func NewMcpServerElicitationRequestParamsURL(payload McpServerElicitationRequestParamsURL) McpServerElicitationRequestParams {
+	return McpServerElicitationRequestParams{kind: McpServerElicitationRequestParamsKindURL, variantURL: &payload}
+}
+
+func (value McpServerElicitationRequestParams) Kind() McpServerElicitationRequestParamsKind {
+	return value.kind
+}
+
+func (value McpServerElicitationRequestParams) IsValid() bool {
+	switch value.kind {
+	case McpServerElicitationRequestParamsKindForm:
+		return value.variantForm != nil
+	case McpServerElicitationRequestParamsKindOpenaiSlashForm:
+		return value.variantOpenaiSlashForm != nil
+	case McpServerElicitationRequestParamsKindOpenaiForm:
+		return value.variantOpenaiForm != nil
+	case McpServerElicitationRequestParamsKindURL:
+		return value.variantURL != nil
+	default:
+		return false
+	}
+}
+
+func (value McpServerElicitationRequestParams) AsForm() (McpServerElicitationRequestParamsForm, bool) {
+	if value.kind != McpServerElicitationRequestParamsKindForm || value.variantForm == nil {
+		return McpServerElicitationRequestParamsForm{}, false
+	}
+	return *value.variantForm, true
+}
+
+func (value McpServerElicitationRequestParams) AsOpenaiSlashForm() (McpServerElicitationRequestParamsOpenaiSlashForm, bool) {
+	if value.kind != McpServerElicitationRequestParamsKindOpenaiSlashForm || value.variantOpenaiSlashForm == nil {
+		return McpServerElicitationRequestParamsOpenaiSlashForm{}, false
+	}
+	return *value.variantOpenaiSlashForm, true
+}
+
+func (value McpServerElicitationRequestParams) AsOpenaiForm() (McpServerElicitationRequestParamsOpenaiForm, bool) {
+	if value.kind != McpServerElicitationRequestParamsKindOpenaiForm || value.variantOpenaiForm == nil {
+		return McpServerElicitationRequestParamsOpenaiForm{}, false
+	}
+	return *value.variantOpenaiForm, true
+}
+
+func (value McpServerElicitationRequestParams) AsURL() (McpServerElicitationRequestParamsURL, bool) {
+	if value.kind != McpServerElicitationRequestParamsKindURL || value.variantURL == nil {
+		return McpServerElicitationRequestParamsURL{}, false
+	}
+	return *value.variantURL, true
+}
+
+func (value McpServerElicitationRequestParams) MarshalJSON() ([]byte, error) {
+	switch value.kind {
+	case McpServerElicitationRequestParamsKindForm:
+		if value.variantForm == nil {
+			return nil, invalidUnionVariant("McpServerElicitationRequestParams", "form")
+		}
+		return json.Marshal(struct {
+			Meta            *JSONValue           `json:"_meta,omitempty"`
+			Message         string               `json:"message"`
+			Mode            string               `json:"mode"`
+			RequestedSchema McpElicitationSchema `json:"requestedSchema"`
+			ServerName      string               `json:"serverName"`
+			ThreadID        string               `json:"threadId"`
+			TurnID          *Nullable[string]    `json:"turnId,omitempty"`
+		}{
+			Meta:            value.variantForm.Meta,
+			Message:         value.variantForm.Message,
+			Mode:            "form",
+			RequestedSchema: value.variantForm.RequestedSchema,
+			ServerName:      value.ServerName,
+			ThreadID:        value.ThreadID,
+			TurnID:          value.TurnID,
+		})
+	case McpServerElicitationRequestParamsKindOpenaiSlashForm:
+		if value.variantOpenaiSlashForm == nil {
+			return nil, invalidUnionVariant("McpServerElicitationRequestParams", "openai/form")
+		}
+		return json.Marshal(struct {
+			Meta            *JSONValue        `json:"_meta,omitempty"`
+			Message         string            `json:"message"`
+			Mode            string            `json:"mode"`
+			RequestedSchema JSONValue         `json:"requestedSchema"`
+			ServerName      string            `json:"serverName"`
+			ThreadID        string            `json:"threadId"`
+			TurnID          *Nullable[string] `json:"turnId,omitempty"`
+		}{
+			Meta:            value.variantOpenaiSlashForm.Meta,
+			Message:         value.variantOpenaiSlashForm.Message,
+			Mode:            "openai/form",
+			RequestedSchema: value.variantOpenaiSlashForm.RequestedSchema,
+			ServerName:      value.ServerName,
+			ThreadID:        value.ThreadID,
+			TurnID:          value.TurnID,
+		})
+	case McpServerElicitationRequestParamsKindOpenaiForm:
+		if value.variantOpenaiForm == nil {
+			return nil, invalidUnionVariant("McpServerElicitationRequestParams", "openaiForm")
+		}
+		return json.Marshal(struct {
+			Meta            *JSONValue        `json:"_meta,omitempty"`
+			Message         string            `json:"message"`
+			Mode            string            `json:"mode"`
+			RequestedSchema JSONValue         `json:"requestedSchema"`
+			ServerName      string            `json:"serverName"`
+			ThreadID        string            `json:"threadId"`
+			TurnID          *Nullable[string] `json:"turnId,omitempty"`
+		}{
+			Meta:            value.variantOpenaiForm.Meta,
+			Message:         value.variantOpenaiForm.Message,
+			Mode:            "openaiForm",
+			RequestedSchema: value.variantOpenaiForm.RequestedSchema,
+			ServerName:      value.ServerName,
+			ThreadID:        value.ThreadID,
+			TurnID:          value.TurnID,
+		})
+	case McpServerElicitationRequestParamsKindURL:
+		if value.variantURL == nil {
+			return nil, invalidUnionVariant("McpServerElicitationRequestParams", "url")
+		}
+		return json.Marshal(struct {
+			Meta          *JSONValue        `json:"_meta,omitempty"`
+			ElicitationID string            `json:"elicitationId"`
+			Message       string            `json:"message"`
+			Mode          string            `json:"mode"`
+			ServerName    string            `json:"serverName"`
+			ThreadID      string            `json:"threadId"`
+			TurnID        *Nullable[string] `json:"turnId,omitempty"`
+			URL           string            `json:"url"`
+		}{
+			Meta:          value.variantURL.Meta,
+			ElicitationID: value.variantURL.ElicitationID,
+			Message:       value.variantURL.Message,
+			Mode:          "url",
+			ServerName:    value.ServerName,
+			ThreadID:      value.ThreadID,
+			TurnID:        value.TurnID,
+			URL:           value.variantURL.URL,
+		})
+	default:
+		return nil, invalidUnionValue("McpServerElicitationRequestParams")
+	}
+}
+
+func (value *McpServerElicitationRequestParams) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *McpServerElicitationRequestParams) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "McpServerElicitationRequestParams")
+	if err != nil {
+		return err
+	}
+	var shared McpServerElicitationRequestParams
+	seenServerName, err := decodeJSONField(fields, "serverName", "McpServerElicitationRequestParams.serverName", false, mode, decodeWireValue[string], &shared.ServerName)
+	if err != nil {
+		return err
+	}
+	if !seenServerName {
+		return missingRequiredField("McpServerElicitationRequestParams.serverName")
+	}
+	seenThreadID, err := decodeJSONField(fields, "threadId", "McpServerElicitationRequestParams.threadId", false, mode, decodeWireValue[string], &shared.ThreadID)
+	if err != nil {
+		return err
+	}
+	if !seenThreadID {
+		return missingRequiredField("McpServerElicitationRequestParams.threadId")
+	}
+	_, err = decodeNullableJSONField[string](fields, "turnId", "McpServerElicitationRequestParams.turnId", mode, decodeWireValue[string], &shared.TurnID)
+	if err != nil {
+		return err
+	}
+	variant, err := decodeTaggedUnionDiscriminator(fields, "mode", "McpServerElicitationRequestParams")
+	if err != nil {
+		return err
+	}
+	switch variant {
+	case "form":
+		var decoded McpServerElicitationRequestParamsForm
+		_, err = decodeOptionalJSONValueField(fields, "_meta", "McpServerElicitationRequestParams._meta", &decoded.Meta)
+		if err != nil {
+			return err
+		}
+		seenMessage, err := decodeJSONField(fields, "message", "McpServerElicitationRequestParams.message", false, mode, decodeWireValue[string], &decoded.Message)
+		if err != nil {
+			return err
+		}
+		if !seenMessage {
+			return missingRequiredField("McpServerElicitationRequestParams.message")
+		}
+		seenRequestedSchema, err := decodeJSONField(fields, "requestedSchema", "McpServerElicitationRequestParams.requestedSchema", false, mode, decodeWireValue[McpElicitationSchema], &decoded.RequestedSchema)
+		if err != nil {
+			return err
+		}
+		if !seenRequestedSchema {
+			return missingRequiredField("McpServerElicitationRequestParams.requestedSchema")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "McpServerElicitationRequestParams.form", mode); err != nil {
+			return err
+		}
+		*value = McpServerElicitationRequestParams{ServerName: shared.ServerName, ThreadID: shared.ThreadID, TurnID: shared.TurnID, kind: McpServerElicitationRequestParamsKindForm, variantForm: &decoded}
+		return nil
+	case "openai/form":
+		var decoded McpServerElicitationRequestParamsOpenaiSlashForm
+		_, err = decodeOptionalJSONValueField(fields, "_meta", "McpServerElicitationRequestParams._meta", &decoded.Meta)
+		if err != nil {
+			return err
+		}
+		seenMessage, err := decodeJSONField(fields, "message", "McpServerElicitationRequestParams.message", false, mode, decodeWireValue[string], &decoded.Message)
+		if err != nil {
+			return err
+		}
+		if !seenMessage {
+			return missingRequiredField("McpServerElicitationRequestParams.message")
+		}
+		seenRequestedSchema, err := decodeJSONValueField(fields, "requestedSchema", "McpServerElicitationRequestParams.requestedSchema", &decoded.RequestedSchema)
+		if err != nil {
+			return err
+		}
+		if !seenRequestedSchema {
+			return missingRequiredField("McpServerElicitationRequestParams.requestedSchema")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "McpServerElicitationRequestParams.openai/form", mode); err != nil {
+			return err
+		}
+		*value = McpServerElicitationRequestParams{ServerName: shared.ServerName, ThreadID: shared.ThreadID, TurnID: shared.TurnID, kind: McpServerElicitationRequestParamsKindOpenaiSlashForm, variantOpenaiSlashForm: &decoded}
+		return nil
+	case "openaiForm":
+		var decoded McpServerElicitationRequestParamsOpenaiForm
+		_, err = decodeOptionalJSONValueField(fields, "_meta", "McpServerElicitationRequestParams._meta", &decoded.Meta)
+		if err != nil {
+			return err
+		}
+		seenMessage, err := decodeJSONField(fields, "message", "McpServerElicitationRequestParams.message", false, mode, decodeWireValue[string], &decoded.Message)
+		if err != nil {
+			return err
+		}
+		if !seenMessage {
+			return missingRequiredField("McpServerElicitationRequestParams.message")
+		}
+		seenRequestedSchema, err := decodeJSONValueField(fields, "requestedSchema", "McpServerElicitationRequestParams.requestedSchema", &decoded.RequestedSchema)
+		if err != nil {
+			return err
+		}
+		if !seenRequestedSchema {
+			return missingRequiredField("McpServerElicitationRequestParams.requestedSchema")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "McpServerElicitationRequestParams.openaiForm", mode); err != nil {
+			return err
+		}
+		*value = McpServerElicitationRequestParams{ServerName: shared.ServerName, ThreadID: shared.ThreadID, TurnID: shared.TurnID, kind: McpServerElicitationRequestParamsKindOpenaiForm, variantOpenaiForm: &decoded}
+		return nil
+	case "url":
+		var decoded McpServerElicitationRequestParamsURL
+		_, err = decodeOptionalJSONValueField(fields, "_meta", "McpServerElicitationRequestParams._meta", &decoded.Meta)
+		if err != nil {
+			return err
+		}
+		seenElicitationID, err := decodeJSONField(fields, "elicitationId", "McpServerElicitationRequestParams.elicitationId", false, mode, decodeWireValue[string], &decoded.ElicitationID)
+		if err != nil {
+			return err
+		}
+		if !seenElicitationID {
+			return missingRequiredField("McpServerElicitationRequestParams.elicitationId")
+		}
+		seenMessage, err := decodeJSONField(fields, "message", "McpServerElicitationRequestParams.message", false, mode, decodeWireValue[string], &decoded.Message)
+		if err != nil {
+			return err
+		}
+		if !seenMessage {
+			return missingRequiredField("McpServerElicitationRequestParams.message")
+		}
+		seenURL, err := decodeJSONField(fields, "url", "McpServerElicitationRequestParams.url", false, mode, decodeWireValue[string], &decoded.URL)
+		if err != nil {
+			return err
+		}
+		if !seenURL {
+			return missingRequiredField("McpServerElicitationRequestParams.url")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "McpServerElicitationRequestParams.url", mode); err != nil {
+			return err
+		}
+		*value = McpServerElicitationRequestParams{ServerName: shared.ServerName, ThreadID: shared.ThreadID, TurnID: shared.TurnID, kind: McpServerElicitationRequestParamsKindURL, variantURL: &decoded}
+		return nil
+	default:
+		return unknownUnionVariant("McpServerElicitationRequestParams", "mode", variant)
 	}
 }
 
@@ -49426,6 +50097,7 @@ const (
 )
 
 type ServerNotification struct {
+	EmittedAtMS                                    *int64 `json:"emittedAtMs,omitempty"`
 	kind                                           ServerNotificationKind
 	variantError                                   *ServerNotificationError
 	variantThreadStarted                           *ServerNotificationThreadStarted
@@ -50905,891 +51577,1053 @@ func (value ServerNotification) MarshalJSON() ([]byte, error) {
 			return nil, invalidUnionVariant("ServerNotification", "error")
 		}
 		return json.Marshal(struct {
-			Method string            `json:"method"`
-			Params ErrorNotification `json:"params"`
+			EmittedAtMS *int64            `json:"emittedAtMs,omitempty"`
+			Method      string            `json:"method"`
+			Params      ErrorNotification `json:"params"`
 		}{
-			Method: "error",
-			Params: value.variantError.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "error",
+			Params:      value.variantError.Params,
 		})
 	case ServerNotificationKindThreadStarted:
 		if value.variantThreadStarted == nil {
 			return nil, invalidUnionVariant("ServerNotification", "thread/started")
 		}
 		return json.Marshal(struct {
-			Method string                    `json:"method"`
-			Params ThreadStartedNotification `json:"params"`
+			EmittedAtMS *int64                    `json:"emittedAtMs,omitempty"`
+			Method      string                    `json:"method"`
+			Params      ThreadStartedNotification `json:"params"`
 		}{
-			Method: "thread/started",
-			Params: value.variantThreadStarted.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "thread/started",
+			Params:      value.variantThreadStarted.Params,
 		})
 	case ServerNotificationKindThreadStatusChanged:
 		if value.variantThreadStatusChanged == nil {
 			return nil, invalidUnionVariant("ServerNotification", "thread/status/changed")
 		}
 		return json.Marshal(struct {
-			Method string                          `json:"method"`
-			Params ThreadStatusChangedNotification `json:"params"`
+			EmittedAtMS *int64                          `json:"emittedAtMs,omitempty"`
+			Method      string                          `json:"method"`
+			Params      ThreadStatusChangedNotification `json:"params"`
 		}{
-			Method: "thread/status/changed",
-			Params: value.variantThreadStatusChanged.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "thread/status/changed",
+			Params:      value.variantThreadStatusChanged.Params,
 		})
 	case ServerNotificationKindThreadArchived:
 		if value.variantThreadArchived == nil {
 			return nil, invalidUnionVariant("ServerNotification", "thread/archived")
 		}
 		return json.Marshal(struct {
-			Method string                     `json:"method"`
-			Params ThreadArchivedNotification `json:"params"`
+			EmittedAtMS *int64                     `json:"emittedAtMs,omitempty"`
+			Method      string                     `json:"method"`
+			Params      ThreadArchivedNotification `json:"params"`
 		}{
-			Method: "thread/archived",
-			Params: value.variantThreadArchived.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "thread/archived",
+			Params:      value.variantThreadArchived.Params,
 		})
 	case ServerNotificationKindThreadDeleted:
 		if value.variantThreadDeleted == nil {
 			return nil, invalidUnionVariant("ServerNotification", "thread/deleted")
 		}
 		return json.Marshal(struct {
-			Method string                    `json:"method"`
-			Params ThreadDeletedNotification `json:"params"`
+			EmittedAtMS *int64                    `json:"emittedAtMs,omitempty"`
+			Method      string                    `json:"method"`
+			Params      ThreadDeletedNotification `json:"params"`
 		}{
-			Method: "thread/deleted",
-			Params: value.variantThreadDeleted.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "thread/deleted",
+			Params:      value.variantThreadDeleted.Params,
 		})
 	case ServerNotificationKindThreadUnarchived:
 		if value.variantThreadUnarchived == nil {
 			return nil, invalidUnionVariant("ServerNotification", "thread/unarchived")
 		}
 		return json.Marshal(struct {
-			Method string                       `json:"method"`
-			Params ThreadUnarchivedNotification `json:"params"`
+			EmittedAtMS *int64                       `json:"emittedAtMs,omitempty"`
+			Method      string                       `json:"method"`
+			Params      ThreadUnarchivedNotification `json:"params"`
 		}{
-			Method: "thread/unarchived",
-			Params: value.variantThreadUnarchived.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "thread/unarchived",
+			Params:      value.variantThreadUnarchived.Params,
 		})
 	case ServerNotificationKindThreadClosed:
 		if value.variantThreadClosed == nil {
 			return nil, invalidUnionVariant("ServerNotification", "thread/closed")
 		}
 		return json.Marshal(struct {
-			Method string                   `json:"method"`
-			Params ThreadClosedNotification `json:"params"`
+			EmittedAtMS *int64                   `json:"emittedAtMs,omitempty"`
+			Method      string                   `json:"method"`
+			Params      ThreadClosedNotification `json:"params"`
 		}{
-			Method: "thread/closed",
-			Params: value.variantThreadClosed.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "thread/closed",
+			Params:      value.variantThreadClosed.Params,
 		})
 	case ServerNotificationKindThreadReverted:
 		if value.variantThreadReverted == nil {
 			return nil, invalidUnionVariant("ServerNotification", "thread/reverted")
 		}
 		return json.Marshal(struct {
-			Method string                     `json:"method"`
-			Params ThreadRevertedNotification `json:"params"`
+			EmittedAtMS *int64                     `json:"emittedAtMs,omitempty"`
+			Method      string                     `json:"method"`
+			Params      ThreadRevertedNotification `json:"params"`
 		}{
-			Method: "thread/reverted",
-			Params: value.variantThreadReverted.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "thread/reverted",
+			Params:      value.variantThreadReverted.Params,
 		})
 	case ServerNotificationKindSkillsChanged:
 		if value.variantSkillsChanged == nil {
 			return nil, invalidUnionVariant("ServerNotification", "skills/changed")
 		}
 		return json.Marshal(struct {
-			Method string                    `json:"method"`
-			Params SkillsChangedNotification `json:"params"`
+			EmittedAtMS *int64                    `json:"emittedAtMs,omitempty"`
+			Method      string                    `json:"method"`
+			Params      SkillsChangedNotification `json:"params"`
 		}{
-			Method: "skills/changed",
-			Params: value.variantSkillsChanged.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "skills/changed",
+			Params:      value.variantSkillsChanged.Params,
 		})
 	case ServerNotificationKindThreadNameUpdated:
 		if value.variantThreadNameUpdated == nil {
 			return nil, invalidUnionVariant("ServerNotification", "thread/name/updated")
 		}
 		return json.Marshal(struct {
-			Method string                        `json:"method"`
-			Params ThreadNameUpdatedNotification `json:"params"`
+			EmittedAtMS *int64                        `json:"emittedAtMs,omitempty"`
+			Method      string                        `json:"method"`
+			Params      ThreadNameUpdatedNotification `json:"params"`
 		}{
-			Method: "thread/name/updated",
-			Params: value.variantThreadNameUpdated.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "thread/name/updated",
+			Params:      value.variantThreadNameUpdated.Params,
 		})
 	case ServerNotificationKindThreadGoalUpdated:
 		if value.variantThreadGoalUpdated == nil {
 			return nil, invalidUnionVariant("ServerNotification", "thread/goal/updated")
 		}
 		return json.Marshal(struct {
-			Method string                        `json:"method"`
-			Params ThreadGoalUpdatedNotification `json:"params"`
+			EmittedAtMS *int64                        `json:"emittedAtMs,omitempty"`
+			Method      string                        `json:"method"`
+			Params      ThreadGoalUpdatedNotification `json:"params"`
 		}{
-			Method: "thread/goal/updated",
-			Params: value.variantThreadGoalUpdated.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "thread/goal/updated",
+			Params:      value.variantThreadGoalUpdated.Params,
 		})
 	case ServerNotificationKindThreadGoalCleared:
 		if value.variantThreadGoalCleared == nil {
 			return nil, invalidUnionVariant("ServerNotification", "thread/goal/cleared")
 		}
 		return json.Marshal(struct {
-			Method string                        `json:"method"`
-			Params ThreadGoalClearedNotification `json:"params"`
+			EmittedAtMS *int64                        `json:"emittedAtMs,omitempty"`
+			Method      string                        `json:"method"`
+			Params      ThreadGoalClearedNotification `json:"params"`
 		}{
-			Method: "thread/goal/cleared",
-			Params: value.variantThreadGoalCleared.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "thread/goal/cleared",
+			Params:      value.variantThreadGoalCleared.Params,
 		})
 	case ServerNotificationKindThreadQueueChanged:
 		if value.variantThreadQueueChanged == nil {
 			return nil, invalidUnionVariant("ServerNotification", "thread/queue/changed")
 		}
 		return json.Marshal(struct {
-			Method string                         `json:"method"`
-			Params ThreadQueueChangedNotification `json:"params"`
+			EmittedAtMS *int64                         `json:"emittedAtMs,omitempty"`
+			Method      string                         `json:"method"`
+			Params      ThreadQueueChangedNotification `json:"params"`
 		}{
-			Method: "thread/queue/changed",
-			Params: value.variantThreadQueueChanged.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "thread/queue/changed",
+			Params:      value.variantThreadQueueChanged.Params,
 		})
 	case ServerNotificationKindProjectChanged:
 		if value.variantProjectChanged == nil {
 			return nil, invalidUnionVariant("ServerNotification", "project/changed")
 		}
 		return json.Marshal(struct {
-			Method string                     `json:"method"`
-			Params ProjectChangedNotification `json:"params"`
+			EmittedAtMS *int64                     `json:"emittedAtMs,omitempty"`
+			Method      string                     `json:"method"`
+			Params      ProjectChangedNotification `json:"params"`
 		}{
-			Method: "project/changed",
-			Params: value.variantProjectChanged.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "project/changed",
+			Params:      value.variantProjectChanged.Params,
 		})
 	case ServerNotificationKindThreadProjectUpdated:
 		if value.variantThreadProjectUpdated == nil {
 			return nil, invalidUnionVariant("ServerNotification", "thread/project/updated")
 		}
 		return json.Marshal(struct {
-			Method string                           `json:"method"`
-			Params ThreadProjectUpdatedNotification `json:"params"`
+			EmittedAtMS *int64                           `json:"emittedAtMs,omitempty"`
+			Method      string                           `json:"method"`
+			Params      ThreadProjectUpdatedNotification `json:"params"`
 		}{
-			Method: "thread/project/updated",
-			Params: value.variantThreadProjectUpdated.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "thread/project/updated",
+			Params:      value.variantThreadProjectUpdated.Params,
 		})
 	case ServerNotificationKindThreadEnvironmentConnected:
 		if value.variantThreadEnvironmentConnected == nil {
 			return nil, invalidUnionVariant("ServerNotification", "thread/environment/connected")
 		}
 		return json.Marshal(struct {
-			Method string                            `json:"method"`
-			Params EnvironmentConnectionNotification `json:"params"`
+			EmittedAtMS *int64                            `json:"emittedAtMs,omitempty"`
+			Method      string                            `json:"method"`
+			Params      EnvironmentConnectionNotification `json:"params"`
 		}{
-			Method: "thread/environment/connected",
-			Params: value.variantThreadEnvironmentConnected.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "thread/environment/connected",
+			Params:      value.variantThreadEnvironmentConnected.Params,
 		})
 	case ServerNotificationKindThreadEnvironmentDisconnected:
 		if value.variantThreadEnvironmentDisconnected == nil {
 			return nil, invalidUnionVariant("ServerNotification", "thread/environment/disconnected")
 		}
 		return json.Marshal(struct {
-			Method string                            `json:"method"`
-			Params EnvironmentConnectionNotification `json:"params"`
+			EmittedAtMS *int64                            `json:"emittedAtMs,omitempty"`
+			Method      string                            `json:"method"`
+			Params      EnvironmentConnectionNotification `json:"params"`
 		}{
-			Method: "thread/environment/disconnected",
-			Params: value.variantThreadEnvironmentDisconnected.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "thread/environment/disconnected",
+			Params:      value.variantThreadEnvironmentDisconnected.Params,
 		})
 	case ServerNotificationKindThreadSettingsUpdated:
 		if value.variantThreadSettingsUpdated == nil {
 			return nil, invalidUnionVariant("ServerNotification", "thread/settings/updated")
 		}
 		return json.Marshal(struct {
-			Method string                            `json:"method"`
-			Params ThreadSettingsUpdatedNotification `json:"params"`
+			EmittedAtMS *int64                            `json:"emittedAtMs,omitempty"`
+			Method      string                            `json:"method"`
+			Params      ThreadSettingsUpdatedNotification `json:"params"`
 		}{
-			Method: "thread/settings/updated",
-			Params: value.variantThreadSettingsUpdated.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "thread/settings/updated",
+			Params:      value.variantThreadSettingsUpdated.Params,
 		})
 	case ServerNotificationKindThreadTokenUsageUpdated:
 		if value.variantThreadTokenUsageUpdated == nil {
 			return nil, invalidUnionVariant("ServerNotification", "thread/tokenUsage/updated")
 		}
 		return json.Marshal(struct {
-			Method string                              `json:"method"`
-			Params ThreadTokenUsageUpdatedNotification `json:"params"`
+			EmittedAtMS *int64                              `json:"emittedAtMs,omitempty"`
+			Method      string                              `json:"method"`
+			Params      ThreadTokenUsageUpdatedNotification `json:"params"`
 		}{
-			Method: "thread/tokenUsage/updated",
-			Params: value.variantThreadTokenUsageUpdated.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "thread/tokenUsage/updated",
+			Params:      value.variantThreadTokenUsageUpdated.Params,
 		})
 	case ServerNotificationKindTurnStarted:
 		if value.variantTurnStarted == nil {
 			return nil, invalidUnionVariant("ServerNotification", "turn/started")
 		}
 		return json.Marshal(struct {
-			Method string                  `json:"method"`
-			Params TurnStartedNotification `json:"params"`
+			EmittedAtMS *int64                  `json:"emittedAtMs,omitempty"`
+			Method      string                  `json:"method"`
+			Params      TurnStartedNotification `json:"params"`
 		}{
-			Method: "turn/started",
-			Params: value.variantTurnStarted.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "turn/started",
+			Params:      value.variantTurnStarted.Params,
 		})
 	case ServerNotificationKindHookStarted:
 		if value.variantHookStarted == nil {
 			return nil, invalidUnionVariant("ServerNotification", "hook/started")
 		}
 		return json.Marshal(struct {
-			Method string                  `json:"method"`
-			Params HookStartedNotification `json:"params"`
+			EmittedAtMS *int64                  `json:"emittedAtMs,omitempty"`
+			Method      string                  `json:"method"`
+			Params      HookStartedNotification `json:"params"`
 		}{
-			Method: "hook/started",
-			Params: value.variantHookStarted.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "hook/started",
+			Params:      value.variantHookStarted.Params,
 		})
 	case ServerNotificationKindTurnCompleted:
 		if value.variantTurnCompleted == nil {
 			return nil, invalidUnionVariant("ServerNotification", "turn/completed")
 		}
 		return json.Marshal(struct {
-			Method string                    `json:"method"`
-			Params TurnCompletedNotification `json:"params"`
+			EmittedAtMS *int64                    `json:"emittedAtMs,omitempty"`
+			Method      string                    `json:"method"`
+			Params      TurnCompletedNotification `json:"params"`
 		}{
-			Method: "turn/completed",
-			Params: value.variantTurnCompleted.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "turn/completed",
+			Params:      value.variantTurnCompleted.Params,
 		})
 	case ServerNotificationKindHookCompleted:
 		if value.variantHookCompleted == nil {
 			return nil, invalidUnionVariant("ServerNotification", "hook/completed")
 		}
 		return json.Marshal(struct {
-			Method string                    `json:"method"`
-			Params HookCompletedNotification `json:"params"`
+			EmittedAtMS *int64                    `json:"emittedAtMs,omitempty"`
+			Method      string                    `json:"method"`
+			Params      HookCompletedNotification `json:"params"`
 		}{
-			Method: "hook/completed",
-			Params: value.variantHookCompleted.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "hook/completed",
+			Params:      value.variantHookCompleted.Params,
 		})
 	case ServerNotificationKindTurnDiffUpdated:
 		if value.variantTurnDiffUpdated == nil {
 			return nil, invalidUnionVariant("ServerNotification", "turn/diff/updated")
 		}
 		return json.Marshal(struct {
-			Method string                      `json:"method"`
-			Params TurnDiffUpdatedNotification `json:"params"`
+			EmittedAtMS *int64                      `json:"emittedAtMs,omitempty"`
+			Method      string                      `json:"method"`
+			Params      TurnDiffUpdatedNotification `json:"params"`
 		}{
-			Method: "turn/diff/updated",
-			Params: value.variantTurnDiffUpdated.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "turn/diff/updated",
+			Params:      value.variantTurnDiffUpdated.Params,
 		})
 	case ServerNotificationKindTurnPlanUpdated:
 		if value.variantTurnPlanUpdated == nil {
 			return nil, invalidUnionVariant("ServerNotification", "turn/plan/updated")
 		}
 		return json.Marshal(struct {
-			Method string                      `json:"method"`
-			Params TurnPlanUpdatedNotification `json:"params"`
+			EmittedAtMS *int64                      `json:"emittedAtMs,omitempty"`
+			Method      string                      `json:"method"`
+			Params      TurnPlanUpdatedNotification `json:"params"`
 		}{
-			Method: "turn/plan/updated",
-			Params: value.variantTurnPlanUpdated.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "turn/plan/updated",
+			Params:      value.variantTurnPlanUpdated.Params,
 		})
 	case ServerNotificationKindItemStarted:
 		if value.variantItemStarted == nil {
 			return nil, invalidUnionVariant("ServerNotification", "item/started")
 		}
 		return json.Marshal(struct {
-			Method string                  `json:"method"`
-			Params ItemStartedNotification `json:"params"`
+			EmittedAtMS *int64                  `json:"emittedAtMs,omitempty"`
+			Method      string                  `json:"method"`
+			Params      ItemStartedNotification `json:"params"`
 		}{
-			Method: "item/started",
-			Params: value.variantItemStarted.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "item/started",
+			Params:      value.variantItemStarted.Params,
 		})
 	case ServerNotificationKindItemAutoApprovalReviewStarted:
 		if value.variantItemAutoApprovalReviewStarted == nil {
 			return nil, invalidUnionVariant("ServerNotification", "item/autoApprovalReview/started")
 		}
 		return json.Marshal(struct {
-			Method string                                        `json:"method"`
-			Params ItemGuardianApprovalReviewStartedNotification `json:"params"`
+			EmittedAtMS *int64                                        `json:"emittedAtMs,omitempty"`
+			Method      string                                        `json:"method"`
+			Params      ItemGuardianApprovalReviewStartedNotification `json:"params"`
 		}{
-			Method: "item/autoApprovalReview/started",
-			Params: value.variantItemAutoApprovalReviewStarted.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "item/autoApprovalReview/started",
+			Params:      value.variantItemAutoApprovalReviewStarted.Params,
 		})
 	case ServerNotificationKindItemAutoApprovalReviewCompleted:
 		if value.variantItemAutoApprovalReviewCompleted == nil {
 			return nil, invalidUnionVariant("ServerNotification", "item/autoApprovalReview/completed")
 		}
 		return json.Marshal(struct {
-			Method string                                          `json:"method"`
-			Params ItemGuardianApprovalReviewCompletedNotification `json:"params"`
+			EmittedAtMS *int64                                          `json:"emittedAtMs,omitempty"`
+			Method      string                                          `json:"method"`
+			Params      ItemGuardianApprovalReviewCompletedNotification `json:"params"`
 		}{
-			Method: "item/autoApprovalReview/completed",
-			Params: value.variantItemAutoApprovalReviewCompleted.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "item/autoApprovalReview/completed",
+			Params:      value.variantItemAutoApprovalReviewCompleted.Params,
 		})
 	case ServerNotificationKindAutoApprovalReviewStrictReviewRequired:
 		if value.variantAutoApprovalReviewStrictReviewRequired == nil {
 			return nil, invalidUnionVariant("ServerNotification", "autoApprovalReview/strictReviewRequired")
 		}
 		return json.Marshal(struct {
-			Method string                           `json:"method"`
-			Params StrictReviewRequiredNotification `json:"params"`
+			EmittedAtMS *int64                           `json:"emittedAtMs,omitempty"`
+			Method      string                           `json:"method"`
+			Params      StrictReviewRequiredNotification `json:"params"`
 		}{
-			Method: "autoApprovalReview/strictReviewRequired",
-			Params: value.variantAutoApprovalReviewStrictReviewRequired.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "autoApprovalReview/strictReviewRequired",
+			Params:      value.variantAutoApprovalReviewStrictReviewRequired.Params,
 		})
 	case ServerNotificationKindItemCompleted:
 		if value.variantItemCompleted == nil {
 			return nil, invalidUnionVariant("ServerNotification", "item/completed")
 		}
 		return json.Marshal(struct {
-			Method string                    `json:"method"`
-			Params ItemCompletedNotification `json:"params"`
+			EmittedAtMS *int64                    `json:"emittedAtMs,omitempty"`
+			Method      string                    `json:"method"`
+			Params      ItemCompletedNotification `json:"params"`
 		}{
-			Method: "item/completed",
-			Params: value.variantItemCompleted.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "item/completed",
+			Params:      value.variantItemCompleted.Params,
 		})
 	case ServerNotificationKindItemAgentMessageDelta:
 		if value.variantItemAgentMessageDelta == nil {
 			return nil, invalidUnionVariant("ServerNotification", "item/agentMessage/delta")
 		}
 		return json.Marshal(struct {
-			Method string                        `json:"method"`
-			Params AgentMessageDeltaNotification `json:"params"`
+			EmittedAtMS *int64                        `json:"emittedAtMs,omitempty"`
+			Method      string                        `json:"method"`
+			Params      AgentMessageDeltaNotification `json:"params"`
 		}{
-			Method: "item/agentMessage/delta",
-			Params: value.variantItemAgentMessageDelta.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "item/agentMessage/delta",
+			Params:      value.variantItemAgentMessageDelta.Params,
 		})
 	case ServerNotificationKindItemPlanDelta:
 		if value.variantItemPlanDelta == nil {
 			return nil, invalidUnionVariant("ServerNotification", "item/plan/delta")
 		}
 		return json.Marshal(struct {
-			Method string                `json:"method"`
-			Params PlanDeltaNotification `json:"params"`
+			EmittedAtMS *int64                `json:"emittedAtMs,omitempty"`
+			Method      string                `json:"method"`
+			Params      PlanDeltaNotification `json:"params"`
 		}{
-			Method: "item/plan/delta",
-			Params: value.variantItemPlanDelta.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "item/plan/delta",
+			Params:      value.variantItemPlanDelta.Params,
 		})
 	case ServerNotificationKindCommandExecOutputDelta:
 		if value.variantCommandExecOutputDelta == nil {
 			return nil, invalidUnionVariant("ServerNotification", "command/exec/outputDelta")
 		}
 		return json.Marshal(struct {
-			Method string                             `json:"method"`
-			Params CommandExecOutputDeltaNotification `json:"params"`
+			EmittedAtMS *int64                             `json:"emittedAtMs,omitempty"`
+			Method      string                             `json:"method"`
+			Params      CommandExecOutputDeltaNotification `json:"params"`
 		}{
-			Method: "command/exec/outputDelta",
-			Params: value.variantCommandExecOutputDelta.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "command/exec/outputDelta",
+			Params:      value.variantCommandExecOutputDelta.Params,
 		})
 	case ServerNotificationKindProcessOutputDelta:
 		if value.variantProcessOutputDelta == nil {
 			return nil, invalidUnionVariant("ServerNotification", "process/outputDelta")
 		}
 		return json.Marshal(struct {
-			Method string                         `json:"method"`
-			Params ProcessOutputDeltaNotification `json:"params"`
+			EmittedAtMS *int64                         `json:"emittedAtMs,omitempty"`
+			Method      string                         `json:"method"`
+			Params      ProcessOutputDeltaNotification `json:"params"`
 		}{
-			Method: "process/outputDelta",
-			Params: value.variantProcessOutputDelta.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "process/outputDelta",
+			Params:      value.variantProcessOutputDelta.Params,
 		})
 	case ServerNotificationKindProcessExited:
 		if value.variantProcessExited == nil {
 			return nil, invalidUnionVariant("ServerNotification", "process/exited")
 		}
 		return json.Marshal(struct {
-			Method string                    `json:"method"`
-			Params ProcessExitedNotification `json:"params"`
+			EmittedAtMS *int64                    `json:"emittedAtMs,omitempty"`
+			Method      string                    `json:"method"`
+			Params      ProcessExitedNotification `json:"params"`
 		}{
-			Method: "process/exited",
-			Params: value.variantProcessExited.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "process/exited",
+			Params:      value.variantProcessExited.Params,
 		})
 	case ServerNotificationKindItemCommandExecutionOutputDelta:
 		if value.variantItemCommandExecutionOutputDelta == nil {
 			return nil, invalidUnionVariant("ServerNotification", "item/commandExecution/outputDelta")
 		}
 		return json.Marshal(struct {
-			Method string                                  `json:"method"`
-			Params CommandExecutionOutputDeltaNotification `json:"params"`
+			EmittedAtMS *int64                                  `json:"emittedAtMs,omitempty"`
+			Method      string                                  `json:"method"`
+			Params      CommandExecutionOutputDeltaNotification `json:"params"`
 		}{
-			Method: "item/commandExecution/outputDelta",
-			Params: value.variantItemCommandExecutionOutputDelta.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "item/commandExecution/outputDelta",
+			Params:      value.variantItemCommandExecutionOutputDelta.Params,
 		})
 	case ServerNotificationKindItemCommandExecutionTerminalInteraction:
 		if value.variantItemCommandExecutionTerminalInteraction == nil {
 			return nil, invalidUnionVariant("ServerNotification", "item/commandExecution/terminalInteraction")
 		}
 		return json.Marshal(struct {
-			Method string                          `json:"method"`
-			Params TerminalInteractionNotification `json:"params"`
+			EmittedAtMS *int64                          `json:"emittedAtMs,omitempty"`
+			Method      string                          `json:"method"`
+			Params      TerminalInteractionNotification `json:"params"`
 		}{
-			Method: "item/commandExecution/terminalInteraction",
-			Params: value.variantItemCommandExecutionTerminalInteraction.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "item/commandExecution/terminalInteraction",
+			Params:      value.variantItemCommandExecutionTerminalInteraction.Params,
 		})
 	case ServerNotificationKindItemFileChangeOutputDelta:
 		if value.variantItemFileChangeOutputDelta == nil {
 			return nil, invalidUnionVariant("ServerNotification", "item/fileChange/outputDelta")
 		}
 		return json.Marshal(struct {
-			Method string                            `json:"method"`
-			Params FileChangeOutputDeltaNotification `json:"params"`
+			EmittedAtMS *int64                            `json:"emittedAtMs,omitempty"`
+			Method      string                            `json:"method"`
+			Params      FileChangeOutputDeltaNotification `json:"params"`
 		}{
-			Method: "item/fileChange/outputDelta",
-			Params: value.variantItemFileChangeOutputDelta.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "item/fileChange/outputDelta",
+			Params:      value.variantItemFileChangeOutputDelta.Params,
 		})
 	case ServerNotificationKindItemFileChangePatchUpdated:
 		if value.variantItemFileChangePatchUpdated == nil {
 			return nil, invalidUnionVariant("ServerNotification", "item/fileChange/patchUpdated")
 		}
 		return json.Marshal(struct {
-			Method string                             `json:"method"`
-			Params FileChangePatchUpdatedNotification `json:"params"`
+			EmittedAtMS *int64                             `json:"emittedAtMs,omitempty"`
+			Method      string                             `json:"method"`
+			Params      FileChangePatchUpdatedNotification `json:"params"`
 		}{
-			Method: "item/fileChange/patchUpdated",
-			Params: value.variantItemFileChangePatchUpdated.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "item/fileChange/patchUpdated",
+			Params:      value.variantItemFileChangePatchUpdated.Params,
 		})
 	case ServerNotificationKindServerRequestResolved:
 		if value.variantServerRequestResolved == nil {
 			return nil, invalidUnionVariant("ServerNotification", "serverRequest/resolved")
 		}
 		return json.Marshal(struct {
-			Method string                            `json:"method"`
-			Params ServerRequestResolvedNotification `json:"params"`
+			EmittedAtMS *int64                            `json:"emittedAtMs,omitempty"`
+			Method      string                            `json:"method"`
+			Params      ServerRequestResolvedNotification `json:"params"`
 		}{
-			Method: "serverRequest/resolved",
-			Params: value.variantServerRequestResolved.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "serverRequest/resolved",
+			Params:      value.variantServerRequestResolved.Params,
 		})
 	case ServerNotificationKindItemMCPToolCallProgress:
 		if value.variantItemMCPToolCallProgress == nil {
 			return nil, invalidUnionVariant("ServerNotification", "item/mcpToolCall/progress")
 		}
 		return json.Marshal(struct {
-			Method string                          `json:"method"`
-			Params McpToolCallProgressNotification `json:"params"`
+			EmittedAtMS *int64                          `json:"emittedAtMs,omitempty"`
+			Method      string                          `json:"method"`
+			Params      McpToolCallProgressNotification `json:"params"`
 		}{
-			Method: "item/mcpToolCall/progress",
-			Params: value.variantItemMCPToolCallProgress.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "item/mcpToolCall/progress",
+			Params:      value.variantItemMCPToolCallProgress.Params,
 		})
 	case ServerNotificationKindMCPServerOAuthLoginCompleted:
 		if value.variantMCPServerOAuthLoginCompleted == nil {
 			return nil, invalidUnionVariant("ServerNotification", "mcpServer/oauthLogin/completed")
 		}
 		return json.Marshal(struct {
-			Method string                                   `json:"method"`
-			Params McpServerOauthLoginCompletedNotification `json:"params"`
+			EmittedAtMS *int64                                   `json:"emittedAtMs,omitempty"`
+			Method      string                                   `json:"method"`
+			Params      McpServerOauthLoginCompletedNotification `json:"params"`
 		}{
-			Method: "mcpServer/oauthLogin/completed",
-			Params: value.variantMCPServerOAuthLoginCompleted.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "mcpServer/oauthLogin/completed",
+			Params:      value.variantMCPServerOAuthLoginCompleted.Params,
 		})
 	case ServerNotificationKindMCPServerStartupStatusUpdated:
 		if value.variantMCPServerStartupStatusUpdated == nil {
 			return nil, invalidUnionVariant("ServerNotification", "mcpServer/startupStatus/updated")
 		}
 		return json.Marshal(struct {
-			Method string                             `json:"method"`
-			Params McpServerStatusUpdatedNotification `json:"params"`
+			EmittedAtMS *int64                             `json:"emittedAtMs,omitempty"`
+			Method      string                             `json:"method"`
+			Params      McpServerStatusUpdatedNotification `json:"params"`
 		}{
-			Method: "mcpServer/startupStatus/updated",
-			Params: value.variantMCPServerStartupStatusUpdated.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "mcpServer/startupStatus/updated",
+			Params:      value.variantMCPServerStartupStatusUpdated.Params,
 		})
 	case ServerNotificationKindMCPServerEventStreamNotification:
 		if value.variantMCPServerEventStreamNotification == nil {
 			return nil, invalidUnionVariant("ServerNotification", "mcpServer/event/stream/notification")
 		}
 		return json.Marshal(struct {
-			Method string                           `json:"method"`
-			Params McpServerEventStreamNotification `json:"params"`
+			EmittedAtMS *int64                           `json:"emittedAtMs,omitempty"`
+			Method      string                           `json:"method"`
+			Params      McpServerEventStreamNotification `json:"params"`
 		}{
-			Method: "mcpServer/event/stream/notification",
-			Params: value.variantMCPServerEventStreamNotification.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "mcpServer/event/stream/notification",
+			Params:      value.variantMCPServerEventStreamNotification.Params,
 		})
 	case ServerNotificationKindAccountUpdated:
 		if value.variantAccountUpdated == nil {
 			return nil, invalidUnionVariant("ServerNotification", "account/updated")
 		}
 		return json.Marshal(struct {
-			Method string                     `json:"method"`
-			Params AccountUpdatedNotification `json:"params"`
+			EmittedAtMS *int64                     `json:"emittedAtMs,omitempty"`
+			Method      string                     `json:"method"`
+			Params      AccountUpdatedNotification `json:"params"`
 		}{
-			Method: "account/updated",
-			Params: value.variantAccountUpdated.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "account/updated",
+			Params:      value.variantAccountUpdated.Params,
 		})
 	case ServerNotificationKindAccountRateLimitsUpdated:
 		if value.variantAccountRateLimitsUpdated == nil {
 			return nil, invalidUnionVariant("ServerNotification", "account/rateLimits/updated")
 		}
 		return json.Marshal(struct {
-			Method string                               `json:"method"`
-			Params AccountRateLimitsUpdatedNotification `json:"params"`
+			EmittedAtMS *int64                               `json:"emittedAtMs,omitempty"`
+			Method      string                               `json:"method"`
+			Params      AccountRateLimitsUpdatedNotification `json:"params"`
 		}{
-			Method: "account/rateLimits/updated",
-			Params: value.variantAccountRateLimitsUpdated.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "account/rateLimits/updated",
+			Params:      value.variantAccountRateLimitsUpdated.Params,
 		})
 	case ServerNotificationKindAppListUpdated:
 		if value.variantAppListUpdated == nil {
 			return nil, invalidUnionVariant("ServerNotification", "app/list/updated")
 		}
 		return json.Marshal(struct {
-			Method string                     `json:"method"`
-			Params AppListUpdatedNotification `json:"params"`
+			EmittedAtMS *int64                     `json:"emittedAtMs,omitempty"`
+			Method      string                     `json:"method"`
+			Params      AppListUpdatedNotification `json:"params"`
 		}{
-			Method: "app/list/updated",
-			Params: value.variantAppListUpdated.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "app/list/updated",
+			Params:      value.variantAppListUpdated.Params,
 		})
 	case ServerNotificationKindRemoteControlStatusChanged:
 		if value.variantRemoteControlStatusChanged == nil {
 			return nil, invalidUnionVariant("ServerNotification", "remoteControl/status/changed")
 		}
 		return json.Marshal(struct {
-			Method string                                 `json:"method"`
-			Params RemoteControlStatusChangedNotification `json:"params"`
+			EmittedAtMS *int64                                 `json:"emittedAtMs,omitempty"`
+			Method      string                                 `json:"method"`
+			Params      RemoteControlStatusChangedNotification `json:"params"`
 		}{
-			Method: "remoteControl/status/changed",
-			Params: value.variantRemoteControlStatusChanged.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "remoteControl/status/changed",
+			Params:      value.variantRemoteControlStatusChanged.Params,
 		})
 	case ServerNotificationKindExternalAgentConfigImportProgress:
 		if value.variantExternalAgentConfigImportProgress == nil {
 			return nil, invalidUnionVariant("ServerNotification", "externalAgentConfig/import/progress")
 		}
 		return json.Marshal(struct {
-			Method string                                        `json:"method"`
-			Params ExternalAgentConfigImportProgressNotification `json:"params"`
+			EmittedAtMS *int64                                        `json:"emittedAtMs,omitempty"`
+			Method      string                                        `json:"method"`
+			Params      ExternalAgentConfigImportProgressNotification `json:"params"`
 		}{
-			Method: "externalAgentConfig/import/progress",
-			Params: value.variantExternalAgentConfigImportProgress.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "externalAgentConfig/import/progress",
+			Params:      value.variantExternalAgentConfigImportProgress.Params,
 		})
 	case ServerNotificationKindExternalAgentConfigImportCompleted:
 		if value.variantExternalAgentConfigImportCompleted == nil {
 			return nil, invalidUnionVariant("ServerNotification", "externalAgentConfig/import/completed")
 		}
 		return json.Marshal(struct {
-			Method string                                         `json:"method"`
-			Params ExternalAgentConfigImportCompletedNotification `json:"params"`
+			EmittedAtMS *int64                                         `json:"emittedAtMs,omitempty"`
+			Method      string                                         `json:"method"`
+			Params      ExternalAgentConfigImportCompletedNotification `json:"params"`
 		}{
-			Method: "externalAgentConfig/import/completed",
-			Params: value.variantExternalAgentConfigImportCompleted.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "externalAgentConfig/import/completed",
+			Params:      value.variantExternalAgentConfigImportCompleted.Params,
 		})
 	case ServerNotificationKindFSChanged:
 		if value.variantFSChanged == nil {
 			return nil, invalidUnionVariant("ServerNotification", "fs/changed")
 		}
 		return json.Marshal(struct {
-			Method string                `json:"method"`
-			Params FsChangedNotification `json:"params"`
+			EmittedAtMS *int64                `json:"emittedAtMs,omitempty"`
+			Method      string                `json:"method"`
+			Params      FsChangedNotification `json:"params"`
 		}{
-			Method: "fs/changed",
-			Params: value.variantFSChanged.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "fs/changed",
+			Params:      value.variantFSChanged.Params,
 		})
 	case ServerNotificationKindItemReasoningSummaryTextDelta:
 		if value.variantItemReasoningSummaryTextDelta == nil {
 			return nil, invalidUnionVariant("ServerNotification", "item/reasoning/summaryTextDelta")
 		}
 		return json.Marshal(struct {
-			Method string                                `json:"method"`
-			Params ReasoningSummaryTextDeltaNotification `json:"params"`
+			EmittedAtMS *int64                                `json:"emittedAtMs,omitempty"`
+			Method      string                                `json:"method"`
+			Params      ReasoningSummaryTextDeltaNotification `json:"params"`
 		}{
-			Method: "item/reasoning/summaryTextDelta",
-			Params: value.variantItemReasoningSummaryTextDelta.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "item/reasoning/summaryTextDelta",
+			Params:      value.variantItemReasoningSummaryTextDelta.Params,
 		})
 	case ServerNotificationKindItemReasoningSummaryPartAdded:
 		if value.variantItemReasoningSummaryPartAdded == nil {
 			return nil, invalidUnionVariant("ServerNotification", "item/reasoning/summaryPartAdded")
 		}
 		return json.Marshal(struct {
-			Method string                                `json:"method"`
-			Params ReasoningSummaryPartAddedNotification `json:"params"`
+			EmittedAtMS *int64                                `json:"emittedAtMs,omitempty"`
+			Method      string                                `json:"method"`
+			Params      ReasoningSummaryPartAddedNotification `json:"params"`
 		}{
-			Method: "item/reasoning/summaryPartAdded",
-			Params: value.variantItemReasoningSummaryPartAdded.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "item/reasoning/summaryPartAdded",
+			Params:      value.variantItemReasoningSummaryPartAdded.Params,
 		})
 	case ServerNotificationKindItemReasoningTextDelta:
 		if value.variantItemReasoningTextDelta == nil {
 			return nil, invalidUnionVariant("ServerNotification", "item/reasoning/textDelta")
 		}
 		return json.Marshal(struct {
-			Method string                         `json:"method"`
-			Params ReasoningTextDeltaNotification `json:"params"`
+			EmittedAtMS *int64                         `json:"emittedAtMs,omitempty"`
+			Method      string                         `json:"method"`
+			Params      ReasoningTextDeltaNotification `json:"params"`
 		}{
-			Method: "item/reasoning/textDelta",
-			Params: value.variantItemReasoningTextDelta.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "item/reasoning/textDelta",
+			Params:      value.variantItemReasoningTextDelta.Params,
 		})
 	case ServerNotificationKindThreadCompacted:
 		if value.variantThreadCompacted == nil {
 			return nil, invalidUnionVariant("ServerNotification", "thread/compacted")
 		}
 		return json.Marshal(struct {
-			Method string                       `json:"method"`
-			Params ContextCompactedNotification `json:"params"`
+			EmittedAtMS *int64                       `json:"emittedAtMs,omitempty"`
+			Method      string                       `json:"method"`
+			Params      ContextCompactedNotification `json:"params"`
 		}{
-			Method: "thread/compacted",
-			Params: value.variantThreadCompacted.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "thread/compacted",
+			Params:      value.variantThreadCompacted.Params,
 		})
 	case ServerNotificationKindModelRerouted:
 		if value.variantModelRerouted == nil {
 			return nil, invalidUnionVariant("ServerNotification", "model/rerouted")
 		}
 		return json.Marshal(struct {
-			Method string                    `json:"method"`
-			Params ModelReroutedNotification `json:"params"`
+			EmittedAtMS *int64                    `json:"emittedAtMs,omitempty"`
+			Method      string                    `json:"method"`
+			Params      ModelReroutedNotification `json:"params"`
 		}{
-			Method: "model/rerouted",
-			Params: value.variantModelRerouted.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "model/rerouted",
+			Params:      value.variantModelRerouted.Params,
 		})
 	case ServerNotificationKindModelVerification:
 		if value.variantModelVerification == nil {
 			return nil, invalidUnionVariant("ServerNotification", "model/verification")
 		}
 		return json.Marshal(struct {
-			Method string                        `json:"method"`
-			Params ModelVerificationNotification `json:"params"`
+			EmittedAtMS *int64                        `json:"emittedAtMs,omitempty"`
+			Method      string                        `json:"method"`
+			Params      ModelVerificationNotification `json:"params"`
 		}{
-			Method: "model/verification",
-			Params: value.variantModelVerification.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "model/verification",
+			Params:      value.variantModelVerification.Params,
 		})
 	case ServerNotificationKindModelProviderAuthRecoveryStarted:
 		if value.variantModelProviderAuthRecoveryStarted == nil {
 			return nil, invalidUnionVariant("ServerNotification", "modelProvider/authRecoveryStarted")
 		}
 		return json.Marshal(struct {
-			Method string                   `json:"method"`
-			Params AuthRecoveryNotification `json:"params"`
+			EmittedAtMS *int64                   `json:"emittedAtMs,omitempty"`
+			Method      string                   `json:"method"`
+			Params      AuthRecoveryNotification `json:"params"`
 		}{
-			Method: "modelProvider/authRecoveryStarted",
-			Params: value.variantModelProviderAuthRecoveryStarted.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "modelProvider/authRecoveryStarted",
+			Params:      value.variantModelProviderAuthRecoveryStarted.Params,
 		})
 	case ServerNotificationKindModelProviderAuthRecoveryCompleted:
 		if value.variantModelProviderAuthRecoveryCompleted == nil {
 			return nil, invalidUnionVariant("ServerNotification", "modelProvider/authRecoveryCompleted")
 		}
 		return json.Marshal(struct {
-			Method string                   `json:"method"`
-			Params AuthRecoveryNotification `json:"params"`
+			EmittedAtMS *int64                   `json:"emittedAtMs,omitempty"`
+			Method      string                   `json:"method"`
+			Params      AuthRecoveryNotification `json:"params"`
 		}{
-			Method: "modelProvider/authRecoveryCompleted",
-			Params: value.variantModelProviderAuthRecoveryCompleted.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "modelProvider/authRecoveryCompleted",
+			Params:      value.variantModelProviderAuthRecoveryCompleted.Params,
 		})
 	case ServerNotificationKindTurnModerationMetadata:
 		if value.variantTurnModerationMetadata == nil {
 			return nil, invalidUnionVariant("ServerNotification", "turn/moderationMetadata")
 		}
 		return json.Marshal(struct {
-			Method string                             `json:"method"`
-			Params TurnModerationMetadataNotification `json:"params"`
+			EmittedAtMS *int64                             `json:"emittedAtMs,omitempty"`
+			Method      string                             `json:"method"`
+			Params      TurnModerationMetadataNotification `json:"params"`
 		}{
-			Method: "turn/moderationMetadata",
-			Params: value.variantTurnModerationMetadata.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "turn/moderationMetadata",
+			Params:      value.variantTurnModerationMetadata.Params,
 		})
 	case ServerNotificationKindModelSafetyBufferingUpdated:
 		if value.variantModelSafetyBufferingUpdated == nil {
 			return nil, invalidUnionVariant("ServerNotification", "model/safetyBuffering/updated")
 		}
 		return json.Marshal(struct {
-			Method string                                  `json:"method"`
-			Params ModelSafetyBufferingUpdatedNotification `json:"params"`
+			EmittedAtMS *int64                                  `json:"emittedAtMs,omitempty"`
+			Method      string                                  `json:"method"`
+			Params      ModelSafetyBufferingUpdatedNotification `json:"params"`
 		}{
-			Method: "model/safetyBuffering/updated",
-			Params: value.variantModelSafetyBufferingUpdated.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "model/safetyBuffering/updated",
+			Params:      value.variantModelSafetyBufferingUpdated.Params,
 		})
 	case ServerNotificationKindWarning:
 		if value.variantWarning == nil {
 			return nil, invalidUnionVariant("ServerNotification", "warning")
 		}
 		return json.Marshal(struct {
-			Method string              `json:"method"`
-			Params WarningNotification `json:"params"`
+			EmittedAtMS *int64              `json:"emittedAtMs,omitempty"`
+			Method      string              `json:"method"`
+			Params      WarningNotification `json:"params"`
 		}{
-			Method: "warning",
-			Params: value.variantWarning.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "warning",
+			Params:      value.variantWarning.Params,
 		})
 	case ServerNotificationKindGuardianWarning:
 		if value.variantGuardianWarning == nil {
 			return nil, invalidUnionVariant("ServerNotification", "guardianWarning")
 		}
 		return json.Marshal(struct {
-			Method string                      `json:"method"`
-			Params GuardianWarningNotification `json:"params"`
+			EmittedAtMS *int64                      `json:"emittedAtMs,omitempty"`
+			Method      string                      `json:"method"`
+			Params      GuardianWarningNotification `json:"params"`
 		}{
-			Method: "guardianWarning",
-			Params: value.variantGuardianWarning.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "guardianWarning",
+			Params:      value.variantGuardianWarning.Params,
 		})
 	case ServerNotificationKindDeprecationNotice:
 		if value.variantDeprecationNotice == nil {
 			return nil, invalidUnionVariant("ServerNotification", "deprecationNotice")
 		}
 		return json.Marshal(struct {
-			Method string                        `json:"method"`
-			Params DeprecationNoticeNotification `json:"params"`
+			EmittedAtMS *int64                        `json:"emittedAtMs,omitempty"`
+			Method      string                        `json:"method"`
+			Params      DeprecationNoticeNotification `json:"params"`
 		}{
-			Method: "deprecationNotice",
-			Params: value.variantDeprecationNotice.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "deprecationNotice",
+			Params:      value.variantDeprecationNotice.Params,
 		})
 	case ServerNotificationKindConfigWarning:
 		if value.variantConfigWarning == nil {
 			return nil, invalidUnionVariant("ServerNotification", "configWarning")
 		}
 		return json.Marshal(struct {
-			Method string                    `json:"method"`
-			Params ConfigWarningNotification `json:"params"`
+			EmittedAtMS *int64                    `json:"emittedAtMs,omitempty"`
+			Method      string                    `json:"method"`
+			Params      ConfigWarningNotification `json:"params"`
 		}{
-			Method: "configWarning",
-			Params: value.variantConfigWarning.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "configWarning",
+			Params:      value.variantConfigWarning.Params,
 		})
 	case ServerNotificationKindFuzzyFileSearchSessionUpdated:
 		if value.variantFuzzyFileSearchSessionUpdated == nil {
 			return nil, invalidUnionVariant("ServerNotification", "fuzzyFileSearch/sessionUpdated")
 		}
 		return json.Marshal(struct {
-			Method string                                    `json:"method"`
-			Params FuzzyFileSearchSessionUpdatedNotification `json:"params"`
+			EmittedAtMS *int64                                    `json:"emittedAtMs,omitempty"`
+			Method      string                                    `json:"method"`
+			Params      FuzzyFileSearchSessionUpdatedNotification `json:"params"`
 		}{
-			Method: "fuzzyFileSearch/sessionUpdated",
-			Params: value.variantFuzzyFileSearchSessionUpdated.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "fuzzyFileSearch/sessionUpdated",
+			Params:      value.variantFuzzyFileSearchSessionUpdated.Params,
 		})
 	case ServerNotificationKindFuzzyFileSearchSessionCompleted:
 		if value.variantFuzzyFileSearchSessionCompleted == nil {
 			return nil, invalidUnionVariant("ServerNotification", "fuzzyFileSearch/sessionCompleted")
 		}
 		return json.Marshal(struct {
-			Method string                                      `json:"method"`
-			Params FuzzyFileSearchSessionCompletedNotification `json:"params"`
+			EmittedAtMS *int64                                      `json:"emittedAtMs,omitempty"`
+			Method      string                                      `json:"method"`
+			Params      FuzzyFileSearchSessionCompletedNotification `json:"params"`
 		}{
-			Method: "fuzzyFileSearch/sessionCompleted",
-			Params: value.variantFuzzyFileSearchSessionCompleted.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "fuzzyFileSearch/sessionCompleted",
+			Params:      value.variantFuzzyFileSearchSessionCompleted.Params,
 		})
 	case ServerNotificationKindThreadRealtimeStarted:
 		if value.variantThreadRealtimeStarted == nil {
 			return nil, invalidUnionVariant("ServerNotification", "thread/realtime/started")
 		}
 		return json.Marshal(struct {
-			Method string                            `json:"method"`
-			Params ThreadRealtimeStartedNotification `json:"params"`
+			EmittedAtMS *int64                            `json:"emittedAtMs,omitempty"`
+			Method      string                            `json:"method"`
+			Params      ThreadRealtimeStartedNotification `json:"params"`
 		}{
-			Method: "thread/realtime/started",
-			Params: value.variantThreadRealtimeStarted.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "thread/realtime/started",
+			Params:      value.variantThreadRealtimeStarted.Params,
 		})
 	case ServerNotificationKindThreadRealtimeItemAdded:
 		if value.variantThreadRealtimeItemAdded == nil {
 			return nil, invalidUnionVariant("ServerNotification", "thread/realtime/itemAdded")
 		}
 		return json.Marshal(struct {
-			Method string                              `json:"method"`
-			Params ThreadRealtimeItemAddedNotification `json:"params"`
+			EmittedAtMS *int64                              `json:"emittedAtMs,omitempty"`
+			Method      string                              `json:"method"`
+			Params      ThreadRealtimeItemAddedNotification `json:"params"`
 		}{
-			Method: "thread/realtime/itemAdded",
-			Params: value.variantThreadRealtimeItemAdded.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "thread/realtime/itemAdded",
+			Params:      value.variantThreadRealtimeItemAdded.Params,
 		})
 	case ServerNotificationKindThreadRealtimeItemStarted:
 		if value.variantThreadRealtimeItemStarted == nil {
 			return nil, invalidUnionVariant("ServerNotification", "thread/realtime/item/started")
 		}
 		return json.Marshal(struct {
-			Method string                                `json:"method"`
-			Params ThreadRealtimeItemStartedNotification `json:"params"`
+			EmittedAtMS *int64                                `json:"emittedAtMs,omitempty"`
+			Method      string                                `json:"method"`
+			Params      ThreadRealtimeItemStartedNotification `json:"params"`
 		}{
-			Method: "thread/realtime/item/started",
-			Params: value.variantThreadRealtimeItemStarted.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "thread/realtime/item/started",
+			Params:      value.variantThreadRealtimeItemStarted.Params,
 		})
 	case ServerNotificationKindThreadRealtimeItemTranscriptDelta:
 		if value.variantThreadRealtimeItemTranscriptDelta == nil {
 			return nil, invalidUnionVariant("ServerNotification", "thread/realtime/item/transcript/delta")
 		}
 		return json.Marshal(struct {
-			Method string                                        `json:"method"`
-			Params ThreadRealtimeItemTranscriptDeltaNotification `json:"params"`
+			EmittedAtMS *int64                                        `json:"emittedAtMs,omitempty"`
+			Method      string                                        `json:"method"`
+			Params      ThreadRealtimeItemTranscriptDeltaNotification `json:"params"`
 		}{
-			Method: "thread/realtime/item/transcript/delta",
-			Params: value.variantThreadRealtimeItemTranscriptDelta.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "thread/realtime/item/transcript/delta",
+			Params:      value.variantThreadRealtimeItemTranscriptDelta.Params,
 		})
 	case ServerNotificationKindThreadRealtimeItemCompleted:
 		if value.variantThreadRealtimeItemCompleted == nil {
 			return nil, invalidUnionVariant("ServerNotification", "thread/realtime/item/completed")
 		}
 		return json.Marshal(struct {
-			Method string                                  `json:"method"`
-			Params ThreadRealtimeItemCompletedNotification `json:"params"`
+			EmittedAtMS *int64                                  `json:"emittedAtMs,omitempty"`
+			Method      string                                  `json:"method"`
+			Params      ThreadRealtimeItemCompletedNotification `json:"params"`
 		}{
-			Method: "thread/realtime/item/completed",
-			Params: value.variantThreadRealtimeItemCompleted.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "thread/realtime/item/completed",
+			Params:      value.variantThreadRealtimeItemCompleted.Params,
 		})
 	case ServerNotificationKindThreadRealtimeTranscriptDelta:
 		if value.variantThreadRealtimeTranscriptDelta == nil {
 			return nil, invalidUnionVariant("ServerNotification", "thread/realtime/transcript/delta")
 		}
 		return json.Marshal(struct {
-			Method string                                    `json:"method"`
-			Params ThreadRealtimeTranscriptDeltaNotification `json:"params"`
+			EmittedAtMS *int64                                    `json:"emittedAtMs,omitempty"`
+			Method      string                                    `json:"method"`
+			Params      ThreadRealtimeTranscriptDeltaNotification `json:"params"`
 		}{
-			Method: "thread/realtime/transcript/delta",
-			Params: value.variantThreadRealtimeTranscriptDelta.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "thread/realtime/transcript/delta",
+			Params:      value.variantThreadRealtimeTranscriptDelta.Params,
 		})
 	case ServerNotificationKindThreadRealtimeTranscriptDone:
 		if value.variantThreadRealtimeTranscriptDone == nil {
 			return nil, invalidUnionVariant("ServerNotification", "thread/realtime/transcript/done")
 		}
 		return json.Marshal(struct {
-			Method string                                   `json:"method"`
-			Params ThreadRealtimeTranscriptDoneNotification `json:"params"`
+			EmittedAtMS *int64                                   `json:"emittedAtMs,omitempty"`
+			Method      string                                   `json:"method"`
+			Params      ThreadRealtimeTranscriptDoneNotification `json:"params"`
 		}{
-			Method: "thread/realtime/transcript/done",
-			Params: value.variantThreadRealtimeTranscriptDone.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "thread/realtime/transcript/done",
+			Params:      value.variantThreadRealtimeTranscriptDone.Params,
 		})
 	case ServerNotificationKindThreadRealtimeOutputAudioDelta:
 		if value.variantThreadRealtimeOutputAudioDelta == nil {
 			return nil, invalidUnionVariant("ServerNotification", "thread/realtime/outputAudio/delta")
 		}
 		return json.Marshal(struct {
-			Method string                                     `json:"method"`
-			Params ThreadRealtimeOutputAudioDeltaNotification `json:"params"`
+			EmittedAtMS *int64                                     `json:"emittedAtMs,omitempty"`
+			Method      string                                     `json:"method"`
+			Params      ThreadRealtimeOutputAudioDeltaNotification `json:"params"`
 		}{
-			Method: "thread/realtime/outputAudio/delta",
-			Params: value.variantThreadRealtimeOutputAudioDelta.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "thread/realtime/outputAudio/delta",
+			Params:      value.variantThreadRealtimeOutputAudioDelta.Params,
 		})
 	case ServerNotificationKindThreadRealtimeSDP:
 		if value.variantThreadRealtimeSDP == nil {
 			return nil, invalidUnionVariant("ServerNotification", "thread/realtime/sdp")
 		}
 		return json.Marshal(struct {
-			Method string                        `json:"method"`
-			Params ThreadRealtimeSdpNotification `json:"params"`
+			EmittedAtMS *int64                        `json:"emittedAtMs,omitempty"`
+			Method      string                        `json:"method"`
+			Params      ThreadRealtimeSdpNotification `json:"params"`
 		}{
-			Method: "thread/realtime/sdp",
-			Params: value.variantThreadRealtimeSDP.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "thread/realtime/sdp",
+			Params:      value.variantThreadRealtimeSDP.Params,
 		})
 	case ServerNotificationKindThreadRealtimeError:
 		if value.variantThreadRealtimeError == nil {
 			return nil, invalidUnionVariant("ServerNotification", "thread/realtime/error")
 		}
 		return json.Marshal(struct {
-			Method string                          `json:"method"`
-			Params ThreadRealtimeErrorNotification `json:"params"`
+			EmittedAtMS *int64                          `json:"emittedAtMs,omitempty"`
+			Method      string                          `json:"method"`
+			Params      ThreadRealtimeErrorNotification `json:"params"`
 		}{
-			Method: "thread/realtime/error",
-			Params: value.variantThreadRealtimeError.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "thread/realtime/error",
+			Params:      value.variantThreadRealtimeError.Params,
 		})
 	case ServerNotificationKindThreadRealtimeClosed:
 		if value.variantThreadRealtimeClosed == nil {
 			return nil, invalidUnionVariant("ServerNotification", "thread/realtime/closed")
 		}
 		return json.Marshal(struct {
-			Method string                           `json:"method"`
-			Params ThreadRealtimeClosedNotification `json:"params"`
+			EmittedAtMS *int64                           `json:"emittedAtMs,omitempty"`
+			Method      string                           `json:"method"`
+			Params      ThreadRealtimeClosedNotification `json:"params"`
 		}{
-			Method: "thread/realtime/closed",
-			Params: value.variantThreadRealtimeClosed.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "thread/realtime/closed",
+			Params:      value.variantThreadRealtimeClosed.Params,
 		})
 	case ServerNotificationKindWindowsWorldWritableWarning:
 		if value.variantWindowsWorldWritableWarning == nil {
 			return nil, invalidUnionVariant("ServerNotification", "windows/worldWritableWarning")
 		}
 		return json.Marshal(struct {
-			Method string                                  `json:"method"`
-			Params WindowsWorldWritableWarningNotification `json:"params"`
+			EmittedAtMS *int64                                  `json:"emittedAtMs,omitempty"`
+			Method      string                                  `json:"method"`
+			Params      WindowsWorldWritableWarningNotification `json:"params"`
 		}{
-			Method: "windows/worldWritableWarning",
-			Params: value.variantWindowsWorldWritableWarning.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "windows/worldWritableWarning",
+			Params:      value.variantWindowsWorldWritableWarning.Params,
 		})
 	case ServerNotificationKindWindowsSandboxSetupCompleted:
 		if value.variantWindowsSandboxSetupCompleted == nil {
 			return nil, invalidUnionVariant("ServerNotification", "windowsSandbox/setupCompleted")
 		}
 		return json.Marshal(struct {
-			Method string                                   `json:"method"`
-			Params WindowsSandboxSetupCompletedNotification `json:"params"`
+			EmittedAtMS *int64                                   `json:"emittedAtMs,omitempty"`
+			Method      string                                   `json:"method"`
+			Params      WindowsSandboxSetupCompletedNotification `json:"params"`
 		}{
-			Method: "windowsSandbox/setupCompleted",
-			Params: value.variantWindowsSandboxSetupCompleted.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "windowsSandbox/setupCompleted",
+			Params:      value.variantWindowsSandboxSetupCompleted.Params,
 		})
 	case ServerNotificationKindAccountLoginCompleted:
 		if value.variantAccountLoginCompleted == nil {
 			return nil, invalidUnionVariant("ServerNotification", "account/login/completed")
 		}
 		return json.Marshal(struct {
-			Method string                            `json:"method"`
-			Params AccountLoginCompletedNotification `json:"params"`
+			EmittedAtMS *int64                            `json:"emittedAtMs,omitempty"`
+			Method      string                            `json:"method"`
+			Params      AccountLoginCompletedNotification `json:"params"`
 		}{
-			Method: "account/login/completed",
-			Params: value.variantAccountLoginCompleted.Params,
+			EmittedAtMS: value.EmittedAtMS,
+			Method:      "account/login/completed",
+			Params:      value.variantAccountLoginCompleted.Params,
 		})
 	default:
 		return nil, invalidUnionValue("ServerNotification")
@@ -51802,6 +52636,11 @@ func (value *ServerNotification) UnmarshalJSON(data []byte) error {
 
 func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode) error {
 	fields, err := decodeObjectFields(data, "ServerNotification")
+	if err != nil {
+		return err
+	}
+	var shared ServerNotification
+	_, err = decodeJSONField(fields, "emittedAtMs", "ServerNotification.emittedAtMs", false, mode, wirePointerDecoder(decodeWireValue[int64]), &shared.EmittedAtMS)
 	if err != nil {
 		return err
 	}
@@ -51822,7 +52661,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.error", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindError, variantError: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindError, variantError: &decoded}
 		return nil
 	case "thread/started":
 		var decoded ServerNotificationThreadStarted
@@ -51836,7 +52675,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/started", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindThreadStarted, variantThreadStarted: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindThreadStarted, variantThreadStarted: &decoded}
 		return nil
 	case "thread/status/changed":
 		var decoded ServerNotificationThreadStatusChanged
@@ -51850,7 +52689,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/status/changed", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindThreadStatusChanged, variantThreadStatusChanged: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindThreadStatusChanged, variantThreadStatusChanged: &decoded}
 		return nil
 	case "thread/archived":
 		var decoded ServerNotificationThreadArchived
@@ -51864,7 +52703,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/archived", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindThreadArchived, variantThreadArchived: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindThreadArchived, variantThreadArchived: &decoded}
 		return nil
 	case "thread/deleted":
 		var decoded ServerNotificationThreadDeleted
@@ -51878,7 +52717,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/deleted", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindThreadDeleted, variantThreadDeleted: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindThreadDeleted, variantThreadDeleted: &decoded}
 		return nil
 	case "thread/unarchived":
 		var decoded ServerNotificationThreadUnarchived
@@ -51892,7 +52731,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/unarchived", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindThreadUnarchived, variantThreadUnarchived: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindThreadUnarchived, variantThreadUnarchived: &decoded}
 		return nil
 	case "thread/closed":
 		var decoded ServerNotificationThreadClosed
@@ -51906,7 +52745,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/closed", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindThreadClosed, variantThreadClosed: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindThreadClosed, variantThreadClosed: &decoded}
 		return nil
 	case "thread/reverted":
 		var decoded ServerNotificationThreadReverted
@@ -51920,7 +52759,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/reverted", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindThreadReverted, variantThreadReverted: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindThreadReverted, variantThreadReverted: &decoded}
 		return nil
 	case "skills/changed":
 		var decoded ServerNotificationSkillsChanged
@@ -51934,7 +52773,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.skills/changed", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindSkillsChanged, variantSkillsChanged: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindSkillsChanged, variantSkillsChanged: &decoded}
 		return nil
 	case "thread/name/updated":
 		var decoded ServerNotificationThreadNameUpdated
@@ -51948,7 +52787,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/name/updated", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindThreadNameUpdated, variantThreadNameUpdated: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindThreadNameUpdated, variantThreadNameUpdated: &decoded}
 		return nil
 	case "thread/goal/updated":
 		var decoded ServerNotificationThreadGoalUpdated
@@ -51962,7 +52801,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/goal/updated", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindThreadGoalUpdated, variantThreadGoalUpdated: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindThreadGoalUpdated, variantThreadGoalUpdated: &decoded}
 		return nil
 	case "thread/goal/cleared":
 		var decoded ServerNotificationThreadGoalCleared
@@ -51976,7 +52815,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/goal/cleared", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindThreadGoalCleared, variantThreadGoalCleared: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindThreadGoalCleared, variantThreadGoalCleared: &decoded}
 		return nil
 	case "thread/queue/changed":
 		var decoded ServerNotificationThreadQueueChanged
@@ -51990,7 +52829,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/queue/changed", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindThreadQueueChanged, variantThreadQueueChanged: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindThreadQueueChanged, variantThreadQueueChanged: &decoded}
 		return nil
 	case "project/changed":
 		var decoded ServerNotificationProjectChanged
@@ -52004,7 +52843,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.project/changed", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindProjectChanged, variantProjectChanged: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindProjectChanged, variantProjectChanged: &decoded}
 		return nil
 	case "thread/project/updated":
 		var decoded ServerNotificationThreadProjectUpdated
@@ -52018,7 +52857,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/project/updated", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindThreadProjectUpdated, variantThreadProjectUpdated: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindThreadProjectUpdated, variantThreadProjectUpdated: &decoded}
 		return nil
 	case "thread/environment/connected":
 		var decoded ServerNotificationThreadEnvironmentConnected
@@ -52032,7 +52871,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/environment/connected", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindThreadEnvironmentConnected, variantThreadEnvironmentConnected: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindThreadEnvironmentConnected, variantThreadEnvironmentConnected: &decoded}
 		return nil
 	case "thread/environment/disconnected":
 		var decoded ServerNotificationThreadEnvironmentDisconnected
@@ -52046,7 +52885,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/environment/disconnected", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindThreadEnvironmentDisconnected, variantThreadEnvironmentDisconnected: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindThreadEnvironmentDisconnected, variantThreadEnvironmentDisconnected: &decoded}
 		return nil
 	case "thread/settings/updated":
 		var decoded ServerNotificationThreadSettingsUpdated
@@ -52060,7 +52899,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/settings/updated", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindThreadSettingsUpdated, variantThreadSettingsUpdated: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindThreadSettingsUpdated, variantThreadSettingsUpdated: &decoded}
 		return nil
 	case "thread/tokenUsage/updated":
 		var decoded ServerNotificationThreadTokenUsageUpdated
@@ -52074,7 +52913,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/tokenUsage/updated", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindThreadTokenUsageUpdated, variantThreadTokenUsageUpdated: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindThreadTokenUsageUpdated, variantThreadTokenUsageUpdated: &decoded}
 		return nil
 	case "turn/started":
 		var decoded ServerNotificationTurnStarted
@@ -52088,7 +52927,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.turn/started", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindTurnStarted, variantTurnStarted: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindTurnStarted, variantTurnStarted: &decoded}
 		return nil
 	case "hook/started":
 		var decoded ServerNotificationHookStarted
@@ -52102,7 +52941,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.hook/started", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindHookStarted, variantHookStarted: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindHookStarted, variantHookStarted: &decoded}
 		return nil
 	case "turn/completed":
 		var decoded ServerNotificationTurnCompleted
@@ -52116,7 +52955,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.turn/completed", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindTurnCompleted, variantTurnCompleted: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindTurnCompleted, variantTurnCompleted: &decoded}
 		return nil
 	case "hook/completed":
 		var decoded ServerNotificationHookCompleted
@@ -52130,7 +52969,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.hook/completed", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindHookCompleted, variantHookCompleted: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindHookCompleted, variantHookCompleted: &decoded}
 		return nil
 	case "turn/diff/updated":
 		var decoded ServerNotificationTurnDiffUpdated
@@ -52144,7 +52983,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.turn/diff/updated", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindTurnDiffUpdated, variantTurnDiffUpdated: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindTurnDiffUpdated, variantTurnDiffUpdated: &decoded}
 		return nil
 	case "turn/plan/updated":
 		var decoded ServerNotificationTurnPlanUpdated
@@ -52158,7 +52997,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.turn/plan/updated", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindTurnPlanUpdated, variantTurnPlanUpdated: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindTurnPlanUpdated, variantTurnPlanUpdated: &decoded}
 		return nil
 	case "item/started":
 		var decoded ServerNotificationItemStarted
@@ -52172,7 +53011,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.item/started", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindItemStarted, variantItemStarted: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindItemStarted, variantItemStarted: &decoded}
 		return nil
 	case "item/autoApprovalReview/started":
 		var decoded ServerNotificationItemAutoApprovalReviewStarted
@@ -52186,7 +53025,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.item/autoApprovalReview/started", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindItemAutoApprovalReviewStarted, variantItemAutoApprovalReviewStarted: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindItemAutoApprovalReviewStarted, variantItemAutoApprovalReviewStarted: &decoded}
 		return nil
 	case "item/autoApprovalReview/completed":
 		var decoded ServerNotificationItemAutoApprovalReviewCompleted
@@ -52200,7 +53039,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.item/autoApprovalReview/completed", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindItemAutoApprovalReviewCompleted, variantItemAutoApprovalReviewCompleted: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindItemAutoApprovalReviewCompleted, variantItemAutoApprovalReviewCompleted: &decoded}
 		return nil
 	case "autoApprovalReview/strictReviewRequired":
 		var decoded ServerNotificationAutoApprovalReviewStrictReviewRequired
@@ -52214,7 +53053,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.autoApprovalReview/strictReviewRequired", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindAutoApprovalReviewStrictReviewRequired, variantAutoApprovalReviewStrictReviewRequired: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindAutoApprovalReviewStrictReviewRequired, variantAutoApprovalReviewStrictReviewRequired: &decoded}
 		return nil
 	case "item/completed":
 		var decoded ServerNotificationItemCompleted
@@ -52228,7 +53067,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.item/completed", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindItemCompleted, variantItemCompleted: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindItemCompleted, variantItemCompleted: &decoded}
 		return nil
 	case "item/agentMessage/delta":
 		var decoded ServerNotificationItemAgentMessageDelta
@@ -52242,7 +53081,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.item/agentMessage/delta", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindItemAgentMessageDelta, variantItemAgentMessageDelta: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindItemAgentMessageDelta, variantItemAgentMessageDelta: &decoded}
 		return nil
 	case "item/plan/delta":
 		var decoded ServerNotificationItemPlanDelta
@@ -52256,7 +53095,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.item/plan/delta", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindItemPlanDelta, variantItemPlanDelta: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindItemPlanDelta, variantItemPlanDelta: &decoded}
 		return nil
 	case "command/exec/outputDelta":
 		var decoded ServerNotificationCommandExecOutputDelta
@@ -52270,7 +53109,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.command/exec/outputDelta", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindCommandExecOutputDelta, variantCommandExecOutputDelta: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindCommandExecOutputDelta, variantCommandExecOutputDelta: &decoded}
 		return nil
 	case "process/outputDelta":
 		var decoded ServerNotificationProcessOutputDelta
@@ -52284,7 +53123,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.process/outputDelta", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindProcessOutputDelta, variantProcessOutputDelta: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindProcessOutputDelta, variantProcessOutputDelta: &decoded}
 		return nil
 	case "process/exited":
 		var decoded ServerNotificationProcessExited
@@ -52298,7 +53137,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.process/exited", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindProcessExited, variantProcessExited: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindProcessExited, variantProcessExited: &decoded}
 		return nil
 	case "item/commandExecution/outputDelta":
 		var decoded ServerNotificationItemCommandExecutionOutputDelta
@@ -52312,7 +53151,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.item/commandExecution/outputDelta", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindItemCommandExecutionOutputDelta, variantItemCommandExecutionOutputDelta: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindItemCommandExecutionOutputDelta, variantItemCommandExecutionOutputDelta: &decoded}
 		return nil
 	case "item/commandExecution/terminalInteraction":
 		var decoded ServerNotificationItemCommandExecutionTerminalInteraction
@@ -52326,7 +53165,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.item/commandExecution/terminalInteraction", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindItemCommandExecutionTerminalInteraction, variantItemCommandExecutionTerminalInteraction: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindItemCommandExecutionTerminalInteraction, variantItemCommandExecutionTerminalInteraction: &decoded}
 		return nil
 	case "item/fileChange/outputDelta":
 		var decoded ServerNotificationItemFileChangeOutputDelta
@@ -52340,7 +53179,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.item/fileChange/outputDelta", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindItemFileChangeOutputDelta, variantItemFileChangeOutputDelta: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindItemFileChangeOutputDelta, variantItemFileChangeOutputDelta: &decoded}
 		return nil
 	case "item/fileChange/patchUpdated":
 		var decoded ServerNotificationItemFileChangePatchUpdated
@@ -52354,7 +53193,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.item/fileChange/patchUpdated", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindItemFileChangePatchUpdated, variantItemFileChangePatchUpdated: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindItemFileChangePatchUpdated, variantItemFileChangePatchUpdated: &decoded}
 		return nil
 	case "serverRequest/resolved":
 		var decoded ServerNotificationServerRequestResolved
@@ -52368,7 +53207,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.serverRequest/resolved", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindServerRequestResolved, variantServerRequestResolved: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindServerRequestResolved, variantServerRequestResolved: &decoded}
 		return nil
 	case "item/mcpToolCall/progress":
 		var decoded ServerNotificationItemMCPToolCallProgress
@@ -52382,7 +53221,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.item/mcpToolCall/progress", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindItemMCPToolCallProgress, variantItemMCPToolCallProgress: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindItemMCPToolCallProgress, variantItemMCPToolCallProgress: &decoded}
 		return nil
 	case "mcpServer/oauthLogin/completed":
 		var decoded ServerNotificationMCPServerOAuthLoginCompleted
@@ -52396,7 +53235,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.mcpServer/oauthLogin/completed", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindMCPServerOAuthLoginCompleted, variantMCPServerOAuthLoginCompleted: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindMCPServerOAuthLoginCompleted, variantMCPServerOAuthLoginCompleted: &decoded}
 		return nil
 	case "mcpServer/startupStatus/updated":
 		var decoded ServerNotificationMCPServerStartupStatusUpdated
@@ -52410,7 +53249,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.mcpServer/startupStatus/updated", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindMCPServerStartupStatusUpdated, variantMCPServerStartupStatusUpdated: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindMCPServerStartupStatusUpdated, variantMCPServerStartupStatusUpdated: &decoded}
 		return nil
 	case "mcpServer/event/stream/notification":
 		var decoded ServerNotificationMCPServerEventStreamNotification
@@ -52424,7 +53263,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.mcpServer/event/stream/notification", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindMCPServerEventStreamNotification, variantMCPServerEventStreamNotification: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindMCPServerEventStreamNotification, variantMCPServerEventStreamNotification: &decoded}
 		return nil
 	case "account/updated":
 		var decoded ServerNotificationAccountUpdated
@@ -52438,7 +53277,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.account/updated", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindAccountUpdated, variantAccountUpdated: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindAccountUpdated, variantAccountUpdated: &decoded}
 		return nil
 	case "account/rateLimits/updated":
 		var decoded ServerNotificationAccountRateLimitsUpdated
@@ -52452,7 +53291,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.account/rateLimits/updated", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindAccountRateLimitsUpdated, variantAccountRateLimitsUpdated: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindAccountRateLimitsUpdated, variantAccountRateLimitsUpdated: &decoded}
 		return nil
 	case "app/list/updated":
 		var decoded ServerNotificationAppListUpdated
@@ -52466,7 +53305,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.app/list/updated", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindAppListUpdated, variantAppListUpdated: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindAppListUpdated, variantAppListUpdated: &decoded}
 		return nil
 	case "remoteControl/status/changed":
 		var decoded ServerNotificationRemoteControlStatusChanged
@@ -52480,7 +53319,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.remoteControl/status/changed", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindRemoteControlStatusChanged, variantRemoteControlStatusChanged: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindRemoteControlStatusChanged, variantRemoteControlStatusChanged: &decoded}
 		return nil
 	case "externalAgentConfig/import/progress":
 		var decoded ServerNotificationExternalAgentConfigImportProgress
@@ -52494,7 +53333,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.externalAgentConfig/import/progress", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindExternalAgentConfigImportProgress, variantExternalAgentConfigImportProgress: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindExternalAgentConfigImportProgress, variantExternalAgentConfigImportProgress: &decoded}
 		return nil
 	case "externalAgentConfig/import/completed":
 		var decoded ServerNotificationExternalAgentConfigImportCompleted
@@ -52508,7 +53347,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.externalAgentConfig/import/completed", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindExternalAgentConfigImportCompleted, variantExternalAgentConfigImportCompleted: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindExternalAgentConfigImportCompleted, variantExternalAgentConfigImportCompleted: &decoded}
 		return nil
 	case "fs/changed":
 		var decoded ServerNotificationFSChanged
@@ -52522,7 +53361,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.fs/changed", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindFSChanged, variantFSChanged: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindFSChanged, variantFSChanged: &decoded}
 		return nil
 	case "item/reasoning/summaryTextDelta":
 		var decoded ServerNotificationItemReasoningSummaryTextDelta
@@ -52536,7 +53375,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.item/reasoning/summaryTextDelta", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindItemReasoningSummaryTextDelta, variantItemReasoningSummaryTextDelta: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindItemReasoningSummaryTextDelta, variantItemReasoningSummaryTextDelta: &decoded}
 		return nil
 	case "item/reasoning/summaryPartAdded":
 		var decoded ServerNotificationItemReasoningSummaryPartAdded
@@ -52550,7 +53389,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.item/reasoning/summaryPartAdded", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindItemReasoningSummaryPartAdded, variantItemReasoningSummaryPartAdded: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindItemReasoningSummaryPartAdded, variantItemReasoningSummaryPartAdded: &decoded}
 		return nil
 	case "item/reasoning/textDelta":
 		var decoded ServerNotificationItemReasoningTextDelta
@@ -52564,7 +53403,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.item/reasoning/textDelta", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindItemReasoningTextDelta, variantItemReasoningTextDelta: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindItemReasoningTextDelta, variantItemReasoningTextDelta: &decoded}
 		return nil
 	case "thread/compacted":
 		var decoded ServerNotificationThreadCompacted
@@ -52578,7 +53417,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/compacted", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindThreadCompacted, variantThreadCompacted: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindThreadCompacted, variantThreadCompacted: &decoded}
 		return nil
 	case "model/rerouted":
 		var decoded ServerNotificationModelRerouted
@@ -52592,7 +53431,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.model/rerouted", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindModelRerouted, variantModelRerouted: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindModelRerouted, variantModelRerouted: &decoded}
 		return nil
 	case "model/verification":
 		var decoded ServerNotificationModelVerification
@@ -52606,7 +53445,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.model/verification", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindModelVerification, variantModelVerification: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindModelVerification, variantModelVerification: &decoded}
 		return nil
 	case "modelProvider/authRecoveryStarted":
 		var decoded ServerNotificationModelProviderAuthRecoveryStarted
@@ -52620,7 +53459,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.modelProvider/authRecoveryStarted", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindModelProviderAuthRecoveryStarted, variantModelProviderAuthRecoveryStarted: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindModelProviderAuthRecoveryStarted, variantModelProviderAuthRecoveryStarted: &decoded}
 		return nil
 	case "modelProvider/authRecoveryCompleted":
 		var decoded ServerNotificationModelProviderAuthRecoveryCompleted
@@ -52634,7 +53473,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.modelProvider/authRecoveryCompleted", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindModelProviderAuthRecoveryCompleted, variantModelProviderAuthRecoveryCompleted: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindModelProviderAuthRecoveryCompleted, variantModelProviderAuthRecoveryCompleted: &decoded}
 		return nil
 	case "turn/moderationMetadata":
 		var decoded ServerNotificationTurnModerationMetadata
@@ -52648,7 +53487,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.turn/moderationMetadata", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindTurnModerationMetadata, variantTurnModerationMetadata: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindTurnModerationMetadata, variantTurnModerationMetadata: &decoded}
 		return nil
 	case "model/safetyBuffering/updated":
 		var decoded ServerNotificationModelSafetyBufferingUpdated
@@ -52662,7 +53501,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.model/safetyBuffering/updated", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindModelSafetyBufferingUpdated, variantModelSafetyBufferingUpdated: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindModelSafetyBufferingUpdated, variantModelSafetyBufferingUpdated: &decoded}
 		return nil
 	case "warning":
 		var decoded ServerNotificationWarning
@@ -52676,7 +53515,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.warning", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindWarning, variantWarning: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindWarning, variantWarning: &decoded}
 		return nil
 	case "guardianWarning":
 		var decoded ServerNotificationGuardianWarning
@@ -52690,7 +53529,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.guardianWarning", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindGuardianWarning, variantGuardianWarning: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindGuardianWarning, variantGuardianWarning: &decoded}
 		return nil
 	case "deprecationNotice":
 		var decoded ServerNotificationDeprecationNotice
@@ -52704,7 +53543,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.deprecationNotice", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindDeprecationNotice, variantDeprecationNotice: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindDeprecationNotice, variantDeprecationNotice: &decoded}
 		return nil
 	case "configWarning":
 		var decoded ServerNotificationConfigWarning
@@ -52718,7 +53557,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.configWarning", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindConfigWarning, variantConfigWarning: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindConfigWarning, variantConfigWarning: &decoded}
 		return nil
 	case "fuzzyFileSearch/sessionUpdated":
 		var decoded ServerNotificationFuzzyFileSearchSessionUpdated
@@ -52732,7 +53571,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.fuzzyFileSearch/sessionUpdated", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindFuzzyFileSearchSessionUpdated, variantFuzzyFileSearchSessionUpdated: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindFuzzyFileSearchSessionUpdated, variantFuzzyFileSearchSessionUpdated: &decoded}
 		return nil
 	case "fuzzyFileSearch/sessionCompleted":
 		var decoded ServerNotificationFuzzyFileSearchSessionCompleted
@@ -52746,7 +53585,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.fuzzyFileSearch/sessionCompleted", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindFuzzyFileSearchSessionCompleted, variantFuzzyFileSearchSessionCompleted: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindFuzzyFileSearchSessionCompleted, variantFuzzyFileSearchSessionCompleted: &decoded}
 		return nil
 	case "thread/realtime/started":
 		var decoded ServerNotificationThreadRealtimeStarted
@@ -52760,7 +53599,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/realtime/started", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindThreadRealtimeStarted, variantThreadRealtimeStarted: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindThreadRealtimeStarted, variantThreadRealtimeStarted: &decoded}
 		return nil
 	case "thread/realtime/itemAdded":
 		var decoded ServerNotificationThreadRealtimeItemAdded
@@ -52774,7 +53613,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/realtime/itemAdded", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindThreadRealtimeItemAdded, variantThreadRealtimeItemAdded: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindThreadRealtimeItemAdded, variantThreadRealtimeItemAdded: &decoded}
 		return nil
 	case "thread/realtime/item/started":
 		var decoded ServerNotificationThreadRealtimeItemStarted
@@ -52788,7 +53627,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/realtime/item/started", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindThreadRealtimeItemStarted, variantThreadRealtimeItemStarted: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindThreadRealtimeItemStarted, variantThreadRealtimeItemStarted: &decoded}
 		return nil
 	case "thread/realtime/item/transcript/delta":
 		var decoded ServerNotificationThreadRealtimeItemTranscriptDelta
@@ -52802,7 +53641,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/realtime/item/transcript/delta", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindThreadRealtimeItemTranscriptDelta, variantThreadRealtimeItemTranscriptDelta: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindThreadRealtimeItemTranscriptDelta, variantThreadRealtimeItemTranscriptDelta: &decoded}
 		return nil
 	case "thread/realtime/item/completed":
 		var decoded ServerNotificationThreadRealtimeItemCompleted
@@ -52816,7 +53655,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/realtime/item/completed", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindThreadRealtimeItemCompleted, variantThreadRealtimeItemCompleted: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindThreadRealtimeItemCompleted, variantThreadRealtimeItemCompleted: &decoded}
 		return nil
 	case "thread/realtime/transcript/delta":
 		var decoded ServerNotificationThreadRealtimeTranscriptDelta
@@ -52830,7 +53669,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/realtime/transcript/delta", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindThreadRealtimeTranscriptDelta, variantThreadRealtimeTranscriptDelta: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindThreadRealtimeTranscriptDelta, variantThreadRealtimeTranscriptDelta: &decoded}
 		return nil
 	case "thread/realtime/transcript/done":
 		var decoded ServerNotificationThreadRealtimeTranscriptDone
@@ -52844,7 +53683,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/realtime/transcript/done", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindThreadRealtimeTranscriptDone, variantThreadRealtimeTranscriptDone: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindThreadRealtimeTranscriptDone, variantThreadRealtimeTranscriptDone: &decoded}
 		return nil
 	case "thread/realtime/outputAudio/delta":
 		var decoded ServerNotificationThreadRealtimeOutputAudioDelta
@@ -52858,7 +53697,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/realtime/outputAudio/delta", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindThreadRealtimeOutputAudioDelta, variantThreadRealtimeOutputAudioDelta: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindThreadRealtimeOutputAudioDelta, variantThreadRealtimeOutputAudioDelta: &decoded}
 		return nil
 	case "thread/realtime/sdp":
 		var decoded ServerNotificationThreadRealtimeSDP
@@ -52872,7 +53711,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/realtime/sdp", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindThreadRealtimeSDP, variantThreadRealtimeSDP: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindThreadRealtimeSDP, variantThreadRealtimeSDP: &decoded}
 		return nil
 	case "thread/realtime/error":
 		var decoded ServerNotificationThreadRealtimeError
@@ -52886,7 +53725,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/realtime/error", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindThreadRealtimeError, variantThreadRealtimeError: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindThreadRealtimeError, variantThreadRealtimeError: &decoded}
 		return nil
 	case "thread/realtime/closed":
 		var decoded ServerNotificationThreadRealtimeClosed
@@ -52900,7 +53739,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.thread/realtime/closed", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindThreadRealtimeClosed, variantThreadRealtimeClosed: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindThreadRealtimeClosed, variantThreadRealtimeClosed: &decoded}
 		return nil
 	case "windows/worldWritableWarning":
 		var decoded ServerNotificationWindowsWorldWritableWarning
@@ -52914,7 +53753,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.windows/worldWritableWarning", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindWindowsWorldWritableWarning, variantWindowsWorldWritableWarning: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindWindowsWorldWritableWarning, variantWindowsWorldWritableWarning: &decoded}
 		return nil
 	case "windowsSandbox/setupCompleted":
 		var decoded ServerNotificationWindowsSandboxSetupCompleted
@@ -52928,7 +53767,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.windowsSandbox/setupCompleted", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindWindowsSandboxSetupCompleted, variantWindowsSandboxSetupCompleted: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindWindowsSandboxSetupCompleted, variantWindowsSandboxSetupCompleted: &decoded}
 		return nil
 	case "account/login/completed":
 		var decoded ServerNotificationAccountLoginCompleted
@@ -52942,7 +53781,7 @@ func (value *ServerNotification) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if err := rejectUnexpectedFieldsForMode(fields, "ServerNotification.account/login/completed", mode); err != nil {
 			return err
 		}
-		*value = ServerNotification{kind: ServerNotificationKindAccountLoginCompleted, variantAccountLoginCompleted: &decoded}
+		*value = ServerNotification{EmittedAtMS: shared.EmittedAtMS, kind: ServerNotificationKindAccountLoginCompleted, variantAccountLoginCompleted: &decoded}
 		return nil
 	default:
 		return unknownUnionVariant("ServerNotification", "method", variant)

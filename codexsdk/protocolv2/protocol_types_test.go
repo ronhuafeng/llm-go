@@ -5312,23 +5312,25 @@ func TestGeneratedSmallUtilityPayloadsProtocolMarshalAndUnmarshal(t *testing.T) 
 		{name: "hooks list response", value: HooksListResponse{Data: []HooksListEntry{{
 			CWD:    "/repo",
 			Errors: []HookErrorInfo{{Message: "missing command", Path: "/repo/.codex/hooks.json"}},
-			Hooks: []HookMetadata{{
-				CurrentHash:   "hash-1",
-				DisplayOrder:  1,
-				Enabled:       true,
-				EventName:     HookEventNamePreToolUse,
-				IsManaged:     false,
-				Key:           "hook-1",
-				Matcher:       Value("shell"),
-				PluginID:      Null[string](),
-				Source:        HookSourceProject,
-				SourcePath:    "/repo/.codex/hooks.json",
-				StatusMessage: Value("trusted"),
-				TimeoutSec:    10,
-				TrustStatus:   HookTrustStatusTrusted,
-			}},
+			Hooks: []HookMetadata{func() HookMetadata {
+				hook := NewHookMetadataPrompt()
+				hook.CurrentHash = "hash-1"
+				hook.DisplayOrder = 1
+				hook.Enabled = true
+				hook.EventName = HookEventNamePreToolUse
+				hook.IsManaged = false
+				hook.Key = "hook-1"
+				hook.Matcher = Value("shell")
+				hook.PluginID = Null[string]()
+				hook.Source = HookSourceProject
+				hook.SourcePath = "/repo/.codex/hooks.json"
+				hook.StatusMessage = Value("trusted")
+				hook.TimeoutSec = 10
+				hook.TrustStatus = HookTrustStatusTrusted
+				return hook
+			}()},
 			Warnings: []string{"review hook"},
-		}}}, target: &HooksListResponse{}, want: `{"data":[{"cwd":"/repo","errors":[{"message":"missing command","path":"/repo/.codex/hooks.json"}],"hooks":[{"currentHash":"hash-1","displayOrder":1,"enabled":true,"eventName":"preToolUse","isManaged":false,"key":"hook-1","matcher":"shell","pluginId":null,"source":"project","sourcePath":"/repo/.codex/hooks.json","statusMessage":"trusted","timeoutSec":10,"trustStatus":"trusted"}],"warnings":["review hook"]}]}`},
+		}}}, target: &HooksListResponse{}, want: `{"data":[{"cwd":"/repo","errors":[{"message":"missing command","path":"/repo/.codex/hooks.json"}],"hooks":[{"currentHash":"hash-1","displayOrder":1,"enabled":true,"eventName":"preToolUse","handlerType":"prompt","isManaged":false,"key":"hook-1","matcher":"shell","pluginId":null,"source":"project","sourcePath":"/repo/.codex/hooks.json","statusMessage":"trusted","timeoutSec":10,"trustStatus":"trusted"}],"warnings":["review hook"]}]}`},
 		{name: "skills config write response", value: SkillsConfigWriteResponse{EffectiveEnabled: true}, target: &SkillsConfigWriteResponse{}, want: `{"effectiveEnabled":true}`},
 		{name: "skills list params", value: SkillsListParams{CWDs: &[]string{"/repo"}, ForceReload: boolPtr(true)}, target: &SkillsListParams{}, want: `{"cwds":["/repo"],"forceReload":true}`},
 		{name: "skills list response", value: SkillsListResponse{Data: []SkillsListEntry{{
@@ -6131,7 +6133,17 @@ func TestGeneratedMcpPayloadsProtocolMarshalAndUnmarshal(t *testing.T) {
 		target any
 		want   string
 	}{
-		{name: "elicitation request params", value: McpServerElicitationRequestParams{ServerName: "server-1", ThreadID: "thread-1", TurnID: Null[string]()}, target: &McpServerElicitationRequestParams{}, want: `{"serverName":"server-1","threadId":"thread-1","turnId":null}`},
+		{name: "elicitation request params", value: func() McpServerElicitationRequestParams {
+			params := NewMcpServerElicitationRequestParamsURL(McpServerElicitationRequestParamsURL{
+				ElicitationID: "elicit-1",
+				Message:       "open the approval page",
+				URL:           "https://example.test/elicit",
+			})
+			params.ServerName = "server-1"
+			params.ThreadID = "thread-1"
+			params.TurnID = Null[string]()
+			return params
+		}(), target: &McpServerElicitationRequestParams{}, want: `{"elicitationId":"elicit-1","message":"open the approval page","mode":"url","serverName":"server-1","threadId":"thread-1","turnId":null,"url":"https://example.test/elicit"}`},
 		{name: "resource read params", value: McpResourceReadParams{Server: "server-1", ThreadID: Value("thread-1"), URI: "file://README.md"}, target: &McpResourceReadParams{}, want: `{"server":"server-1","threadId":"thread-1","uri":"file://README.md"}`},
 		{name: "oauth login params", value: McpServerOauthLoginParams{Name: "server-1", Scopes: Value([]string{"repo", "user"}), TimeoutSecs: Value(int64(30))}, target: &McpServerOauthLoginParams{}, want: `{"name":"server-1","scopes":["repo","user"],"timeoutSecs":30}`},
 		{name: "oauth login response", value: McpServerOauthLoginResponse{AuthorizationURL: "https://example.test/oauth"}, target: &McpServerOauthLoginResponse{}, want: `{"authorizationUrl":"https://example.test/oauth"}`},
@@ -6182,6 +6194,96 @@ func TestGeneratedMcpPayloadsProtocolMarshalAndUnmarshal(t *testing.T) {
 			}
 			if err := json.Unmarshal(raw, tc.target); err != nil {
 				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestMcpServerElicitationRequestParamsPreserveSchemaDefinedVariants(t *testing.T) {
+	formSchema := McpElicitationSchema{
+		Properties: map[string]JSONValue{"reason": JSONObject(map[string]JSONValue{"type": JSONString("string")})},
+		Type:       McpElicitationObjectTypeObject,
+	}
+	for _, test := range []struct {
+		name  string
+		value McpServerElicitationRequestParams
+		want  string
+	}{
+		{
+			name: "form",
+			value: func() McpServerElicitationRequestParams {
+				params := NewMcpServerElicitationRequestParamsForm(McpServerElicitationRequestParamsForm{
+					Message:         "fill the form",
+					RequestedSchema: formSchema,
+				})
+				params.ServerName = "server-1"
+				params.ThreadID = "thread-1"
+				return params
+			}(),
+			want: `{"message":"fill the form","mode":"form","requestedSchema":{"properties":{"reason":{"type":"string"}},"type":"object"},"serverName":"server-1","threadId":"thread-1"}`,
+		},
+		{
+			name: "openai/form",
+			value: func() McpServerElicitationRequestParams {
+				params := NewMcpServerElicitationRequestParamsOpenaiSlashForm(McpServerElicitationRequestParamsOpenaiSlashForm{
+					Message:         "openai slash form",
+					RequestedSchema: JSONObject(map[string]JSONValue{"type": JSONString("object")}),
+				})
+				params.ServerName = "server-1"
+				params.ThreadID = "thread-1"
+				return params
+			}(),
+			want: `{"message":"openai slash form","mode":"openai/form","requestedSchema":{"type":"object"},"serverName":"server-1","threadId":"thread-1"}`,
+		},
+		{
+			name: "openaiForm",
+			value: func() McpServerElicitationRequestParams {
+				params := NewMcpServerElicitationRequestParamsOpenaiForm(McpServerElicitationRequestParamsOpenaiForm{
+					Message:         "openai form",
+					RequestedSchema: JSONObject(map[string]JSONValue{"type": JSONString("object")}),
+				})
+				params.ServerName = "server-1"
+				params.ThreadID = "thread-1"
+				return params
+			}(),
+			want: `{"message":"openai form","mode":"openaiForm","requestedSchema":{"type":"object"},"serverName":"server-1","threadId":"thread-1"}`,
+		},
+		{
+			name: "url",
+			value: func() McpServerElicitationRequestParams {
+				params := NewMcpServerElicitationRequestParamsURL(McpServerElicitationRequestParamsURL{
+					ElicitationID: "elicit-1",
+					Message:       "open url",
+					URL:           "https://example.test/elicit",
+				})
+				params.ServerName = "server-1"
+				params.ThreadID = "thread-1"
+				return params
+			}(),
+			want: `{"elicitationId":"elicit-1","message":"open url","mode":"url","serverName":"server-1","threadId":"thread-1","url":"https://example.test/elicit"}`,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			raw, err := json.Marshal(test.value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := string(raw); got != test.want {
+				t.Fatalf("JSON = %s, want %s", got, test.want)
+			}
+			var decoded McpServerElicitationRequestParams
+			if err := json.Unmarshal(raw, &decoded); err != nil {
+				t.Fatal(err)
+			}
+			if decoded.Kind() != test.value.Kind() || decoded.ServerName != "server-1" || decoded.ThreadID != "thread-1" {
+				t.Fatalf("decoded = %#v", decoded)
+			}
+			roundTrip, err := json.Marshal(decoded)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(roundTrip) != test.want {
+				t.Fatalf("round-trip JSON = %s, want %s", roundTrip, test.want)
 			}
 		})
 	}
