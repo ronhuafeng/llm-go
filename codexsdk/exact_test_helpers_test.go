@@ -1121,6 +1121,16 @@ func runFakeAppServer(mode string, extra []string) {
 				completeTurn(threadID, turnID)
 			case "failed":
 				send(map[string]any{"method": "turn/completed", "params": map[string]any{"threadId": threadID, "turn": map[string]any{"id": turnID, "items": []map[string]any{}, "status": "failed", "error": map[string]any{"message": "native failed", "codexErrorInfo": "usageLimitExceeded"}}}})
+			case "phase-none-final":
+				item := map[string]any{"id": "item-" + turnID, "type": "agentMessage", "text": "legacy-final"}
+				send(map[string]any{"method": "item/completed", "params": map[string]any{"completedAtMs": 1234, "threadId": threadID, "turnId": turnID, "item": item}})
+				send(map[string]any{"method": "turn/completed", "params": map[string]any{"threadId": threadID, "turn": map[string]any{"id": turnID, "status": "completed", "items": []map[string]any{item}}}})
+			case "final-answer-over-phase-none":
+				legacy := map[string]any{"id": "item-legacy-" + turnID, "type": "agentMessage", "text": "ignored-legacy"}
+				explicit := map[string]any{"id": "item-final-" + turnID, "type": "agentMessage", "text": "chosen-final", "phase": "final_answer"}
+				send(map[string]any{"method": "item/completed", "params": map[string]any{"completedAtMs": 1, "threadId": threadID, "turnId": turnID, "item": legacy}})
+				send(map[string]any{"method": "item/completed", "params": map[string]any{"completedAtMs": 2, "threadId": threadID, "turnId": turnID, "item": explicit}})
+				send(map[string]any{"method": "turn/completed", "params": map[string]any{"threadId": threadID, "turn": map[string]any{"id": turnID, "status": "completed", "items": []map[string]any{legacy, explicit}}}})
 			case "interrupted":
 				send(map[string]any{"method": "turn/completed", "params": map[string]any{"threadId": threadID, "turn": map[string]any{"id": turnID, "items": []map[string]any{}, "status": "interrupted"}}})
 			case "delta-without-final":

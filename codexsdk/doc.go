@@ -24,9 +24,11 @@
 // global notification-handler queue remains bounded, and its overflow closes
 // the client with ErrNotificationBackpressure.
 // FinalResponse is a convenience projection over the exact terminal Turn.
-// FinalResponsePresent distinguishes no observed final-answer item from an
-// observed final-answer item whose text is empty. The server-reported terminal
-// status remains authoritative and is not rewritten by that projection.
+// An explicit final_answer agent message wins; otherwise the latest
+// phase-absent completed agent message is the legacy completion fallback.
+// FinalResponsePresent distinguishes no qualifying completion message from an
+// observed empty final_answer. The server-reported terminal status remains
+// authoritative and is not rewritten by that projection.
 // Exact run history follows generated-schema identity: turn-scoped facts attach
 // only to the matching turn; thread-scoped facts attach to every run currently
 // active or attaching for that thread and are not retained for a later run;

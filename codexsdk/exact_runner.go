@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
@@ -604,14 +605,26 @@ func (s *exactRunState) cancel(err error) {
 }
 
 func finalResponseFromExactTurn(turn protocolv2.Turn) (string, bool) {
+	var fallback string
+	hasFallback := false
 	for index := len(turn.Items) - 1; index >= 0; index-- {
 		message, ok := turn.Items[index].AsAgentMessage()
-		if !ok || message.Phase == nil || message.Phase.Value == nil {
+		if !ok {
 			continue
 		}
-		if *message.Phase.Value == protocolv2.MessagePhaseFinalAnswer {
-			return message.Text, true
+		if message.Phase != nil && message.Phase.Value != nil {
+			if *message.Phase.Value == protocolv2.MessagePhaseFinalAnswer {
+				return message.Text, true
+			}
+			continue
 		}
+		if !hasFallback && strings.TrimSpace(message.Text) != "" {
+			fallback = message.Text
+			hasFallback = true
+		}
+	}
+	if hasFallback {
+		return fallback, true
 	}
 	return "", false
 }
