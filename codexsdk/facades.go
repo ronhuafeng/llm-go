@@ -65,55 +65,57 @@ func (c *Client) checkProtocolMethodAllowed(method string) error {
 }
 
 func (c *Client) checkProtocolParamsAllowed(method string, params any) error {
-	if c.experimentalAPIEnabled() {
+	if c.experimentalAPIEnabled() || params == nil {
 		return nil
 	}
-	switch typed := params.(type) {
-	case protocolv2.CommandExecParams:
-		return rejectCommandExecExperimentalFields(method, typed)
-	case *protocolv2.CommandExecParams:
-		if typed == nil {
-			return nil
-		}
-		return rejectCommandExecExperimentalFields(method, *typed)
-	case protocolv2.ThreadForkParams:
-		return rejectThreadForkExperimentalFields(method, typed)
-	case *protocolv2.ThreadForkParams:
-		if typed == nil {
-			return nil
-		}
-		return rejectThreadForkExperimentalFields(method, *typed)
-	case protocolv2.ThreadResumeParams:
-		return rejectThreadResumeExperimentalFields(method, typed)
-	case *protocolv2.ThreadResumeParams:
-		if typed == nil {
-			return nil
-		}
-		return rejectThreadResumeExperimentalFields(method, *typed)
-	case protocolv2.ThreadStartParams:
-		return rejectThreadStartExperimentalFields(method, typed)
-	case *protocolv2.ThreadStartParams:
-		if typed == nil {
-			return nil
-		}
-		return rejectThreadStartExperimentalFields(method, *typed)
-	case protocolv2.TurnStartParams:
-		return rejectTurnStartExperimentalFields(method, typed)
-	case *protocolv2.TurnStartParams:
-		if typed == nil {
-			return nil
-		}
-		return rejectTurnStartExperimentalFields(method, *typed)
-	case protocolv2.TurnSteerParams:
-		return rejectTurnSteerExperimentalFields(method, typed)
-	case *protocolv2.TurnSteerParams:
-		if typed == nil {
-			return nil
-		}
-		return rejectTurnSteerExperimentalFields(method, *typed)
-	default:
+	info, ok := protocolv2.LookupMethod(method)
+	if !ok || info.ParamsOrPayloadSchema == "" {
 		return nil
 	}
+	encoded, err := encodeProtocolParams(method, params)
+	if err != nil {
+		return err
+	}
+	return rejectExperimentalJSON(method, info.ParamsOrPayloadSchema, encoded)
+}
+
+func rejectExperimentalJSON(method, typeName string, value any) error {
+	switch typed := value.(type) {
+	case map[string]any:
+		if disc := experimentalDiscriminatorValue(typed); disc != "" {
+			if _, experimental := protocolv2.ExperimentalUnionValues[typeName][disc]; experimental {
+				return fmt.Errorf("codexsdk: experimental variant %s.%s requires ClientCapabilities.ExperimentalAPI", method, disc)
+			}
+		}
+		fields := protocolv2.ExperimentalJSONFields[typeName]
+		children := protocolv2.ExperimentalChildTypes[typeName]
+		for key, child := range typed {
+			if _, experimental := fields[key]; experimental {
+				return experimentalFieldError(method, key)
+			}
+			if childType := children[key]; childType != "" {
+				if err := rejectExperimentalJSON(method, childType, child); err != nil {
+					return err
+				}
+			}
+		}
+	case []any:
+		for _, child := range typed {
+			if err := rejectExperimentalJSON(method, typeName, child); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func experimentalDiscriminatorValue(fields map[string]any) string {
+	for _, key := range []string{"type", "method", "kind", "mode", "handlerType"} {
+		if raw, ok := fields[key].(string); ok && raw != "" {
+			return raw
+		}
+	}
+	return ""
 }
 
 func (c *Client) experimentalAPIEnabled() bool {
@@ -126,84 +128,6 @@ func (c *Client) experimentalAPIEnabled() bool {
 
 func experimentalFieldError(method, field string) error {
 	return fmt.Errorf("codexsdk: experimental field %s.%s requires ClientCapabilities.ExperimentalAPI", method, field)
-}
-
-func rejectCommandExecExperimentalFields(method string, params protocolv2.CommandExecParams) error {
-	if params.PermissionProfile != nil {
-		return experimentalFieldError(method, "permissionProfile")
-	}
-	return nil
-}
-
-func rejectThreadForkExperimentalFields(method string, params protocolv2.ThreadForkParams) error {
-	if params.ExcludeTurns != nil {
-		return experimentalFieldError(method, "excludeTurns")
-	}
-	if params.Path != nil {
-		return experimentalFieldError(method, "path")
-	}
-	if params.Permissions != nil {
-		return experimentalFieldError(method, "permissions")
-	}
-	return nil
-}
-
-func rejectThreadResumeExperimentalFields(method string, params protocolv2.ThreadResumeParams) error {
-	if params.ExcludeTurns != nil {
-		return experimentalFieldError(method, "excludeTurns")
-	}
-	if params.History != nil {
-		return experimentalFieldError(method, "history")
-	}
-	if params.Path != nil {
-		return experimentalFieldError(method, "path")
-	}
-	if params.Permissions != nil {
-		return experimentalFieldError(method, "permissions")
-	}
-	return nil
-}
-
-func rejectThreadStartExperimentalFields(method string, params protocolv2.ThreadStartParams) error {
-	if params.DynamicTools != nil {
-		return experimentalFieldError(method, "dynamicTools")
-	}
-	if params.Environments != nil {
-		return experimentalFieldError(method, "environments")
-	}
-	if params.ExperimentalRawEvents != nil {
-		return experimentalFieldError(method, "experimentalRawEvents")
-	}
-	if params.MockExperimentalField != nil {
-		return experimentalFieldError(method, "mockExperimentalField")
-	}
-	if params.Permissions != nil {
-		return experimentalFieldError(method, "permissions")
-	}
-	return nil
-}
-
-func rejectTurnStartExperimentalFields(method string, params protocolv2.TurnStartParams) error {
-	if params.CollaborationMode != nil {
-		return experimentalFieldError(method, "collaborationMode")
-	}
-	if params.Environments != nil {
-		return experimentalFieldError(method, "environments")
-	}
-	if params.Permissions != nil {
-		return experimentalFieldError(method, "permissions")
-	}
-	if params.ResponsesapiClientMetadata != nil {
-		return experimentalFieldError(method, "responsesapiClientMetadata")
-	}
-	return nil
-}
-
-func rejectTurnSteerExperimentalFields(method string, params protocolv2.TurnSteerParams) error {
-	if params.ResponsesapiClientMetadata != nil {
-		return experimentalFieldError(method, "responsesapiClientMetadata")
-	}
-	return nil
 }
 
 func encodeProtocolParams(method string, params any) (map[string]any, error) {

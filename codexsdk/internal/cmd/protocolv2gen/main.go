@@ -87,7 +87,22 @@ func run(schemaRootFlag, manifestPathFlag, outDir, stdout, stableSource, complet
 	if err := os.WriteFile(filepath.Join(outDir, "protocol_types.gen.go"), protocolTypes, 0o644); err != nil {
 		return err
 	}
+	experimentalMembers, err := generateExperimentalMembers(manifestPath)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(outDir, "experimental_members.gen.go"), experimentalMembers, 0o644); err != nil {
+		return err
+	}
 	return nil
+}
+
+func generateExperimentalMembers(manifestPath string) ([]byte, error) {
+	manifest, err := protocolgen.LoadManifest(manifestPath)
+	if err != nil {
+		return nil, err
+	}
+	return protocolgen.GenerateExperimentalMembers(manifest)
 }
 
 func readGeneratedSources(path string) ([][]byte, error) {
