@@ -48,7 +48,7 @@ func (caller *fakeCaller) Call(ctx context.Context, request Request) (Response, 
 func TestValuePreservesCallAndDecodeEvidence(t *testing.T) {
 	providerErr := errors.New("provider failed")
 	partial := Response{
-		FinalResponse: `{"status":"partial"}`,
+		FinalResponse: Observed(`{"status":"partial"}`),
 		Execution: ExecutionEvidence{
 			BackendName: "test-backend",
 			Usage:       &TokenUsage{Input: Observed[int64](4)},
@@ -67,7 +67,7 @@ func TestValuePreservesCallAndDecodeEvidence(t *testing.T) {
 	}
 
 	decodeResponse := partial
-	decodeResponse.FinalResponse = `{"status":7}`
+	decodeResponse.FinalResponse = Observed(`{"status":7}`)
 	result, err = Value[map[string]string](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
 		return decodeResponse, nil
 	}), "prompt")
@@ -96,7 +96,7 @@ func TestValueChecksBackendIdentityWithoutReplacingCallError(t *testing.T) {
 func TestValueRejectsTypedNilBackendDetails(t *testing.T) {
 	var typedNil *testPointerDetails
 	_, err := Value[bool](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
-		return Response{FinalResponse: `true`, Execution: ExecutionEvidence{BackendName: "test"}, BackendDetails: typedNil}, nil
+		return Response{FinalResponse: Observed(`true`), Execution: ExecutionEvidence{BackendName: "test"}, BackendDetails: typedNil}, nil
 	}), "prompt")
 	if !errors.Is(err, ErrBackendIdentityMismatch) {
 		t.Fatalf("error = %v, want typed nil backend identity failure", err)
@@ -140,7 +140,7 @@ func TestValueReturnsRequestStageForSchemaProjectionFailure(t *testing.T) {
 func TestValuePublishesUsageSnapshot(t *testing.T) {
 	usage := &TokenUsage{Input: Observed[int64](3)}
 	result, err := Value[bool](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
-		return Response{FinalResponse: `true`, Execution: ExecutionEvidence{Usage: usage}}, nil
+		return Response{FinalResponse: Observed(`true`), Execution: ExecutionEvidence{Usage: usage}}, nil
 	}), "prompt")
 	if err != nil {
 		t.Fatal(err)
@@ -162,7 +162,7 @@ func TestValueProvidesIsolatedRequestSchemaPerCall(t *testing.T) {
 		} else if request.OutputSchema[0] == '!' {
 			t.Fatal("second call reused caller-mutated schema bytes")
 		}
-		return Response{FinalResponse: `true`}, nil
+		return Response{FinalResponse: Observed(`true`)}, nil
 	})
 
 	if _, err := Value[bool](context.Background(), caller, "first"); err != nil {
@@ -181,7 +181,7 @@ func TestValueGenericValueUsesOrdinaryGoSemantics(t *testing.T) {
 		Labels map[string]string `json:"labels"`
 	}
 	result, err := Value[output](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
-		return Response{FinalResponse: `{"labels":{"status":"draft"}}`}, nil
+		return Response{FinalResponse: Observed(`{"labels":{"status":"draft"}}`)}, nil
 	}), "prompt")
 	if err != nil {
 		t.Fatal(err)
@@ -195,7 +195,7 @@ func TestValueGenericValueUsesOrdinaryGoSemantics(t *testing.T) {
 }
 
 func TestValueProjectsSchemaCallsBackendAndDecodes(t *testing.T) {
-	caller := &fakeCaller{responses: []Response{{FinalResponse: `true`}}}
+	caller := &fakeCaller{responses: []Response{{FinalResponse: Observed(`true`)}}}
 
 	got, err := Value[bool](context.Background(), caller, "Is Paris the capital of France?")
 	if err != nil {
@@ -223,7 +223,7 @@ func TestValueWithContractUsesOwnedSchemaAndDecode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	caller := &fakeCaller{responses: []Response{{FinalResponse: `{"status":"ok"}`}}}
+	caller := &fakeCaller{responses: []Response{{FinalResponse: Observed(`{"status":"ok"}`)}}}
 	got, err := ValueWithContract[verdict](context.Background(), caller, "review", contract)
 	if err != nil {
 		t.Fatal(err)
@@ -237,7 +237,7 @@ func TestValueWithContractUsesOwnedSchemaAndDecode(t *testing.T) {
 }
 
 func TestValueWithContractRejectsZeroContractBeforeCall(t *testing.T) {
-	caller := &fakeCaller{responses: []Response{{FinalResponse: `true`}}}
+	caller := &fakeCaller{responses: []Response{{FinalResponse: Observed(`true`)}}}
 	var contract llmschema.Contract[bool]
 	result, err := ValueWithContract[bool](context.Background(), caller, "prompt", contract)
 	if !errors.Is(err, llmschema.ErrUncompiledContract) {
@@ -246,7 +246,7 @@ func TestValueWithContractRejectsZeroContractBeforeCall(t *testing.T) {
 	if len(caller.requests) != 0 {
 		t.Fatalf("zero contract invoked caller: %#v", caller.requests)
 	}
-	if result.Response.FinalResponse != "" {
+	if result.Response.FinalResponse.Present() {
 		t.Fatalf("zero contract published evidence: %#v", result.Response)
 	}
 }
@@ -256,7 +256,7 @@ func TestValueSupportsStructOutput(t *testing.T) {
 		Status string `json:"status,omitempty"`
 		Passed *bool  `json:"passed,omitempty"`
 	}
-	caller := &fakeCaller{responses: []Response{{FinalResponse: `{"status":"passed","passed":true}`}}}
+	caller := &fakeCaller{responses: []Response{{FinalResponse: Observed(`{"status":"passed","passed":true}`)}}}
 
 	got, err := Value[verdict](context.Background(), caller, "review")
 	if err != nil {
@@ -272,16 +272,15 @@ func TestValueSupportsStructOutput(t *testing.T) {
 }
 
 func TestValueFailsClosed(t *testing.T) {
-	empty := Response{FinalResponse: `not-json`, Execution: ExecutionEvidence{BackendName: "test"}}
+	empty := Response{FinalResponse: Observed(`not-json`), Execution: ExecutionEvidence{BackendName: "test"}}
 	if result, err := Value[bool](context.Background(), nil, "prompt"); !errors.Is(err, ErrNilCaller) {
 		t.Fatalf("nil caller error = %v, want ErrNilCaller", err)
-	} else if result.Response.FinalResponse != "" {
+	} else if result.Response.FinalResponse.Present() {
 		t.Fatalf("nil caller response = %#v, want empty evidence", result.Response)
 	}
-	if result, err := Value[bool](context.Background(), &fakeCaller{}, "prompt"); err == nil ||
-		!strings.Contains(err.Error(), "final response is empty") {
-		t.Fatalf("empty final response error = %v", err)
-	} else if result.Response.FinalResponse != "" {
+	if result, err := Value[bool](context.Background(), &fakeCaller{}, "prompt"); !errors.Is(err, ErrMissingResponse) {
+		t.Fatalf("missing final response error = %v, want ErrMissingResponse", err)
+	} else if result.Response.FinalResponse.Present() {
 		t.Fatalf("empty caller response = %#v", result.Response)
 	}
 	if result, err := Value[bool](context.Background(), &fakeCaller{responses: []Response{empty}}, "prompt"); err == nil {
@@ -289,4 +288,45 @@ func TestValueFailsClosed(t *testing.T) {
 	} else if result.Response.FinalResponse != empty.FinalResponse || result.Response.Execution.BackendName != "test" {
 		t.Fatalf("decode failure discarded call evidence: %#v", result.Response)
 	}
+}
+
+func TestValueDistinguishesFinalResponsePresence(t *testing.T) {
+	t.Run("absent", func(t *testing.T) {
+		result, err := Value[bool](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
+			return Response{}, nil
+		}), "prompt")
+		if !errors.Is(err, ErrMissingResponse) {
+			t.Fatalf("error = %v, want ErrMissingResponse", err)
+		}
+		if result.Response.FinalResponse.Present() {
+			t.Fatalf("absent response = %#v", result.Response.FinalResponse)
+		}
+	})
+	t.Run("present empty", func(t *testing.T) {
+		result, err := Value[bool](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
+			return Response{FinalResponse: Observed("")}, nil
+		}), "prompt")
+		if !errors.Is(err, ErrEmptyResponse) {
+			t.Fatalf("error = %v, want ErrEmptyResponse", err)
+		}
+		got, ok := result.Response.FinalResponse.Value()
+		if !ok || got != "" {
+			t.Fatalf("present-empty = (%q, %t)", got, ok)
+		}
+	})
+	t.Run("present nonempty", func(t *testing.T) {
+		result, err := Value[bool](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
+			return Response{FinalResponse: Observed("true")}, nil
+		}), "prompt")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.Value != true {
+			t.Fatalf("value = %#v", result.Value)
+		}
+		got, ok := result.Response.FinalResponse.Value()
+		if !ok || got != "true" {
+			t.Fatalf("present-nonempty = (%q, %t)", got, ok)
+		}
+	})
 }

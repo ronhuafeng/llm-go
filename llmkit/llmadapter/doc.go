@@ -14,10 +14,12 @@
 // call and decode failures. Concrete backend adapters own transport and
 // provider-specific schema policy; business code owns semantic acceptance.
 //
-// Neutral token counts, effective model, and actual model-provider identity use
-// Observation so an unreported fact stays unknown and an observed zero or empty
-// value stays present. TokenUsage is accounting for one inference/adapter
-// attempt, not one lower-level provider RPC. Execution backend identity is
+// Neutral token counts, final response text, effective model, and actual
+// model-provider identity use Observation so an unreported fact stays unknown
+// and an observed zero or empty value stays present. Absent final response is
+// ErrMissingResponse; observed empty text is ErrEmptyResponse. TokenUsage is
+// accounting for one inference/adapter attempt, not one lower-level provider
+// RPC. Execution backend identity is
 // separate: the fact that a call ran through a named runtime/adapter does not
 // establish which model provider served it. Requested settings, defaults,
 // estimates, heuristics, adapter names, and inferred names cannot populate an

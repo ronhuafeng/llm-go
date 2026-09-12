@@ -254,10 +254,12 @@ func responseFromRun(run codexsdk.StartedThreadRun) llmadapter.Response {
 
 func projectNeutralResponse(run, cloned codexsdk.StartedThreadRun, cloneErr error) llmadapter.Response {
 	response := llmadapter.Response{
-		FinalResponse: run.Run.FinalResponse,
 		Execution: llmadapter.ExecutionEvidence{
 			BackendName: "codex",
 		},
+	}
+	if run.Run.FinalResponsePresent {
+		response.FinalResponse = llmadapter.Observed(run.Run.FinalResponse)
 	}
 	if usage, err := isolatedNeutralUsage(run.Run.Usage); err == nil {
 		response.Execution.Usage = usage

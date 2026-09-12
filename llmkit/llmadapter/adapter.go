@@ -13,6 +13,7 @@ import (
 
 var (
 	ErrNilCaller               = errors.New("llmadapter: caller is nil")
+	ErrMissingResponse         = errors.New("llmadapter: final response is missing")
 	ErrEmptyResponse           = errors.New("llmadapter: final response is empty")
 	ErrBackendIdentityMismatch = errors.New("llmadapter: backend identity mismatch")
 )
@@ -122,9 +123,11 @@ type Request struct {
 }
 
 type Response struct {
-	// FinalResponse is copied as a Go string value and is retained on call and
-	// decode errors when available.
-	FinalResponse string
+	// FinalResponse is the observed final-response text for this attempt.
+	// Unknown means no final response was observed. Observed("") is a present
+	// empty value and is not absence. Call and decode errors retain this
+	// presence-aware evidence.
+	FinalResponse Observation[string]
 	// Execution is provider-neutral evidence. Value clones Usage before
 	// publishing the response. Observation values copy by value; unknown stays
 	// unknown.
@@ -213,8 +216,12 @@ func ValueWithContract[T any](ctx context.Context, caller Caller, prompt string,
 	return result, nil
 }
 
-func decodeFinalResponse[T any](raw string, contract llmschema.Contract[T]) (T, error) {
+func decodeFinalResponse[T any](final Observation[string], contract llmschema.Contract[T]) (T, error) {
 	var zero T
+	raw, ok := final.Value()
+	if !ok {
+		return zero, ErrMissingResponse
+	}
 	if strings.TrimSpace(raw) == "" {
 		return zero, ErrEmptyResponse
 	}

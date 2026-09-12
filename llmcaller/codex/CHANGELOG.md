@@ -13,6 +13,8 @@ This project follows Semantic Versioning.
   served-model evidence. Those exact facts remain in `BackendDetails`;
   `ExecutionEvidence.Model` stays unknown unless serving is proven at attempt
   scope.
+- **Breaking (pre-v1):** project exact `FinalResponsePresent` into neutral
+  `Observation[string]`. Present-empty stays observed; absence stays unknown.
 - **Breaking (pre-v1):** application-owned `AdmitTurn` now receives both the
   exact thread-start observation and the exact pending `turn/start` request.
   The adapter still does not merge those values or choose an execution policy.

@@ -47,7 +47,7 @@ type exampleCaller struct {
 }
 
 func (caller exampleCaller) Call(context.Context, llmadapter.Request) (llmadapter.Response, error) {
-	return llmadapter.Response{FinalResponse: caller.body}, nil
+	return llmadapter.Response{FinalResponse: llmadapter.Observed(caller.body)}, nil
 }
 
 func authorizeDeploy(prop deployProposition, allow []string) bool {

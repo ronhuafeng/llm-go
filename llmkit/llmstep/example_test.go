@@ -31,8 +31,8 @@ type reviewResult struct {
 
 func ExampleRun() {
 	caller := &exampleCaller{responses: []llmadapter.Response{
-		{FinalResponse: `{"verdict":"maybe"}`},
-		{FinalResponse: `{"verdict":"pass"}`},
+		{FinalResponse: llmadapter.Observed(`{"verdict":"maybe"}`)},
+		{FinalResponse: llmadapter.Observed(`{"verdict":"pass"}`)},
 	}}
 
 	result, err := llmstep.Run(context.Background(), llmstep.Step[reviewInput, reviewResult]{

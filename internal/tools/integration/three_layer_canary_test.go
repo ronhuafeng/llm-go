@@ -51,7 +51,7 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 		client, caller := canaryCaller(t, "provider-failure", codexsdk.ClientOptions{})
 		defer client.Close()
 		response, err := caller.Call(context.Background(), validRequest())
-		if err == nil || response.FinalResponse != "partial" || response.Execution.BackendName != "codex" {
+		if err == nil || response.FinalResponse != llmadapter.Observed("partial") || response.Execution.BackendName != "codex" {
 			t.Fatalf("response=%#v err=%v", response, err)
 		}
 		requireUnknownProvider(t, response.Execution)
@@ -87,7 +87,7 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 		client, caller := canaryCaller(t, "decode-failure", codexsdk.ClientOptions{})
 		defer closeCanary(t, client)
 		result, err := llmadapter.Value[map[string]bool](context.Background(), caller, "answer")
-		if err == nil || result.Response.FinalResponse != "not-json" {
+		if err == nil || result.Response.FinalResponse != llmadapter.Observed("not-json") {
 			t.Fatalf("result=%#v err=%v", result, err)
 		}
 		if result.Response.BackendDetails.(codexcaller.Details).Run.Run.Turn.Status != protocolv2.TurnStatusCompleted {
@@ -115,7 +115,7 @@ func TestThreeLayerCanaryFast(t *testing.T) {
 		if result.Response.BackendDetails != nil {
 			t.Fatalf("BackendDetails = %#v, want omitted unisolated run", result.Response.BackendDetails)
 		}
-		if result.Response.FinalResponse != `{"answer":true}` || result.Response.Execution.BackendName != "codex" {
+		if result.Response.FinalResponse != llmadapter.Observed(`{"answer":true}`) || result.Response.Execution.BackendName != "codex" {
 			t.Fatalf("independent neutral evidence = %#v", result.Response)
 		}
 		requireUnknownProvider(t, result.Response.Execution)

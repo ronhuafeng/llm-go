@@ -36,8 +36,9 @@ func (exampleRunner) Start(_ context.Context, request codexsdk.StartThreadRunReq
 	return codexsdk.StartedThreadRun{
 		Start: start,
 		Run: codexsdk.ThreadRunResult{
-			Turn:          protocolv2.Turn{ID: "turn-example", Items: []protocolv2.ThreadItem{}, Status: protocolv2.TurnStatusCompleted},
-			FinalResponse: `{"answer":"three layers"}`,
+			Turn:                 protocolv2.Turn{ID: "turn-example", Items: []protocolv2.ThreadItem{}, Status: protocolv2.TurnStatusCompleted},
+			FinalResponse:        `{"answer":"three layers"}`,
+			FinalResponsePresent: true,
 		},
 	}, nil
 }
