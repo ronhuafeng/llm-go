@@ -56,7 +56,9 @@ the explicit reuse path when the caller already owns a compiled contract. Both
 return the same evidence-bearing `ValueResult[T]`.
 
 Neutral execution facts use presence-aware observations: unknown stays unknown,
-and an observed zero or empty string remains distinct from absence.
+and an observed zero or empty string remains distinct from absence. Final
+response text uses the same `Observation` mechanism: missing and present-empty
+are distinct.
 `ExecutionEvidence` and `TokenUsage` describe one inference/adapter attempt, not
 one lower-level provider call. `ExecutionEvidence.BackendName` identifies the
 runtime/adapter when known; `ProviderName` is a separate presence-aware

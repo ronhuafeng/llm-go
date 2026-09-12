@@ -309,7 +309,7 @@ func TestCallerBuildsExactRequestAndProjectsEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.FinalResponse != "final" || response.Execution.BackendName != "codex" {
+	if response.FinalResponse != llmadapter.Observed("final") || response.Execution.BackendName != "codex" {
 		t.Fatalf("response = %#v", response)
 	}
 	requireUnknownProvider(t, response.Execution)
@@ -334,6 +334,46 @@ func TestCallerBuildsExactRequestAndProjectsEvidence(t *testing.T) {
 	if request.Thread.Model == nil || request.Thread.Model.Value == nil || *request.Thread.Model.Value != "gpt-request" {
 		t.Fatalf("exact defaults were not preserved: %#v", request.Thread)
 	}
+}
+
+func TestNeutralFinalResponsePreservesExactPresence(t *testing.T) {
+	t.Run("absent", func(t *testing.T) {
+		run := validStartedRun("", "gpt-start")
+		run.Run.FinalResponse = ""
+		run.Run.FinalResponsePresent = false
+		caller := newApplicationCaller(t, &fakeRunner{result: run})
+		response, err := caller.Call(context.Background(), validRequest())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if response.FinalResponse.Present() {
+			t.Fatalf("absent final response = %#v", response.FinalResponse)
+		}
+	})
+	t.Run("present empty", func(t *testing.T) {
+		run := validStartedRun("", "gpt-start")
+		run.Run.FinalResponse = ""
+		run.Run.FinalResponsePresent = true
+		caller := newApplicationCaller(t, &fakeRunner{result: run})
+		response, err := caller.Call(context.Background(), validRequest())
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, ok := response.FinalResponse.Value()
+		if !ok || got != "" {
+			t.Fatalf("present-empty = (%q, %t)", got, ok)
+		}
+	})
+	t.Run("present nonempty", func(t *testing.T) {
+		caller := newApplicationCaller(t, &fakeRunner{result: validStartedRun("legacy-final", "gpt-start")})
+		response, err := caller.Call(context.Background(), validRequest())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if response.FinalResponse != llmadapter.Observed("legacy-final") {
+			t.Fatalf("present-nonempty = %#v", response.FinalResponse)
+		}
+	})
 }
 
 func TestNeutralUsageProjectsAttemptTotalNotLastProviderCall(t *testing.T) {
@@ -365,13 +405,14 @@ func TestCallerPreservesPartialRunAndCause(t *testing.T) {
 	run := validStartedRun("", "gpt-start")
 	run.Run.Turn.Status = protocolv2.TurnStatusFailed
 	run.Run.FinalResponse = "partial"
+	run.Run.FinalResponsePresent = true
 	runner := &fakeRunner{result: run, err: providerErr}
 	caller := newApplicationCaller(t, runner)
 	response, err := caller.Call(context.Background(), validRequest())
 	if !errors.Is(err, providerErr) {
 		t.Fatalf("error = %v, want provider cause", err)
 	}
-	if response.FinalResponse != "partial" || response.Execution.BackendName != "codex" {
+	if response.FinalResponse != llmadapter.Observed("partial") || response.Execution.BackendName != "codex" {
 		t.Fatalf("partial response = %#v", response)
 	}
 	requireUnknownProvider(t, response.Execution)
@@ -602,9 +643,10 @@ func validStartedRun(final, model string) codexsdk.StartedThreadRun {
 			},
 		},
 		Run: codexsdk.ThreadRunResult{
-			Turn:          protocolv2.Turn{ID: "turn-1", Items: items, Status: protocolv2.TurnStatusCompleted},
-			FinalResponse: final,
-			Notifications: []protocolv2.ServerNotification{modelRerouted(model, model)},
+			Turn:                 protocolv2.Turn{ID: "turn-1", Items: items, Status: protocolv2.TurnStatusCompleted},
+			FinalResponse:        final,
+			FinalResponsePresent: final != "",
+			Notifications:        []protocolv2.ServerNotification{modelRerouted(model, model)},
 		},
 	}
 }

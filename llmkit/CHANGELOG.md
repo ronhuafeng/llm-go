@@ -13,6 +13,9 @@ changes may occur in minor releases.
   actually supported by lower-layer evidence. `ExecutionEvidence.Model` is
   served-model evidence at that attempt scope, not a requested or rerouted
   identifier by itself.
+- **Breaking (pre-v1):** `llmadapter.Response.FinalResponse` is now
+  `Observation[string]`. Absence is `ErrMissingResponse`; observed empty text
+  remains `ErrEmptyResponse`. No scalar compatibility field is kept.
 - **Breaking (pre-v1):** separate execution-backend identity from actual
   model-provider identity. `Response.BackendDetails` replaces
   `ProviderDetails`; backend details expose `BackendName()`, and

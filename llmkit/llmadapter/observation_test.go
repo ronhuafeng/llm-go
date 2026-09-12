@@ -52,7 +52,7 @@ func TestObservationDistinguishesObservedEmptyModelFromUnknown(t *testing.T) {
 
 func TestValueDoesNotPromoteRequestIntoNeutralObservations(t *testing.T) {
 	result, err := Value[bool](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
-		return Response{FinalResponse: `true`}, nil
+		return Response{FinalResponse: Observed(`true`)}, nil
 	}), "Use model gpt-requested and expect 12 input tokens.")
 	if err != nil {
 		t.Fatal(err)
@@ -73,7 +73,7 @@ func TestValuePreservesUnknownAndObservedUsageSnapshots(t *testing.T) {
 		Input: Observed[int64](0),
 	}
 	result, err := Value[bool](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
-		return Response{FinalResponse: `true`, Execution: ExecutionEvidence{Usage: usage, Model: Observed("served")}}, nil
+		return Response{FinalResponse: Observed(`true`), Execution: ExecutionEvidence{Usage: usage, Model: Observed("served")}}, nil
 	}), "prompt")
 	if err != nil {
 		t.Fatal(err)

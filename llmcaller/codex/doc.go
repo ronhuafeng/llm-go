@@ -24,7 +24,9 @@
 // model name, requested settings, and Codex thread configuration are not
 // provider observations. Effective model and usage facts are projected
 // independently from attributable exact evidence, so an exact-details snapshot
-// failure does not erase them. Neutral served-model evidence stays unknown;
+// failure does not erase them. Neutral final-response text preserves exact
+// presence through Observation: absent stays unknown and observed empty text
+// stays present. Neutral served-model evidence stays unknown;
 // thread-start model and `model/rerouted` remain exact backend details. Neutral
 // usage is one new-thread/one-turn adapter attempt and therefore uses
 // `ThreadTokenUsage.Total`; `Last` and per-upstream response counts remain exact

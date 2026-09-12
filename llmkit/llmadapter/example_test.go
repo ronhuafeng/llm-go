@@ -24,7 +24,7 @@ type ownershipCaller struct {
 // model output is not authority.
 func (caller ownershipCaller) Call(context.Context, llmadapter.Request) (llmadapter.Response, error) {
 	return llmadapter.Response{
-		FinalResponse: `true`,
+		FinalResponse: llmadapter.Observed(`true`),
 		Execution:     llmadapter.ExecutionEvidence{BackendName: "example-backend"},
 		BackendDetails: isolatedDetails{
 			Headers: maps.Clone(caller.runtimeHeaders),

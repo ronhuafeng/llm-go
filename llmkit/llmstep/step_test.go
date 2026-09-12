@@ -68,7 +68,7 @@ func projectFindingsForTest(findings []Finding) ([]Repair, error) {
 }
 
 func TestRunRendersFirstAttemptWithNoRepairAndReturnsAcceptedOutput(t *testing.T) {
-	caller := &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"ok"}`}}}
+	caller := &fakeCaller{responses: []llmadapter.Response{{FinalResponse: llmadapter.Observed(`{"status":"ok"}`)}}}
 	var renderRepairLens []int
 
 	got, err := Run(context.Background(), Step[stepInput, stepOutput]{
@@ -97,7 +97,7 @@ func TestRunRendersFirstAttemptWithNoRepairAndReturnsAcceptedOutput(t *testing.T
 }
 
 func TestRunRejectsNilValidateBeforeRenderOrCall(t *testing.T) {
-	caller := &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"ok"}`}}}
+	caller := &fakeCaller{responses: []llmadapter.Response{{FinalResponse: llmadapter.Observed(`{"status":"ok"}`)}}}
 	rendered := false
 	result, err := Run(context.Background(), Step[stepInput, stepOutput]{
 		Caller: caller,
@@ -124,7 +124,7 @@ func TestRunRejectsNilValidateBeforeRenderOrCall(t *testing.T) {
 func TestRunDistinguishesJudgmentStates(t *testing.T) {
 	t.Run("rejected judgment", func(t *testing.T) {
 		result, err := Run(context.Background(), Step[stepInput, stepOutput]{
-			Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"draft"}`}}},
+			Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: llmadapter.Observed(`{"status":"draft"}`)}}},
 			Render: func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
 			Validate: func(context.Context, stepInput, stepOutput) (Judgment, error) {
 				return Judgment{Findings: []Finding{{Codes: []string{"rejected"}}}}, nil
@@ -140,7 +140,7 @@ func TestRunDistinguishesJudgmentStates(t *testing.T) {
 	})
 	t.Run("accepted judgment", func(t *testing.T) {
 		result, err := Run(context.Background(), Step[stepInput, stepOutput]{
-			Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"ok"}`}}},
+			Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: llmadapter.Observed(`{"status":"ok"}`)}}},
 			Render: func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
 			Validate: func(context.Context, stepInput, stepOutput) (Judgment, error) {
 				return Judgment{Accepted: true, Findings: []Finding{{Codes: []string{"ok"}}}}, nil
@@ -154,7 +154,7 @@ func TestRunDistinguishesJudgmentStates(t *testing.T) {
 	t.Run("judgment failure", func(t *testing.T) {
 		judgeErr := errors.New("judge")
 		result, err := Run(context.Background(), Step[stepInput, stepOutput]{
-			Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"ok"}`}}},
+			Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: llmadapter.Observed(`{"status":"ok"}`)}}},
 			Render: func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
 			Validate: func(context.Context, stepInput, stepOutput) (Judgment, error) {
 				return Judgment{Findings: []Finding{{Codes: []string{"partial"}}}}, judgeErr
@@ -171,7 +171,7 @@ func TestRunDistinguishesJudgmentStates(t *testing.T) {
 	})
 	t.Run("decode failure has no judgment", func(t *testing.T) {
 		result, err := Run(context.Background(), Step[stepInput, stepOutput]{
-			Caller:   &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `not-json`}}},
+			Caller:   &fakeCaller{responses: []llmadapter.Response{{FinalResponse: llmadapter.Observed(`not-json`)}}},
 			Render:   func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
 			Validate: acceptValidate,
 			MaxIter:  1,
@@ -188,8 +188,8 @@ func TestRunDistinguishesJudgmentStates(t *testing.T) {
 
 func TestRunFeedsProjectedFindingsAsRepairIntoNextRender(t *testing.T) {
 	caller := &fakeCaller{responses: []llmadapter.Response{
-		{FinalResponse: `{"status":"draft"}`},
-		{FinalResponse: `{"status":"ok"}`},
+		{FinalResponse: llmadapter.Observed(`{"status":"draft"}`)},
+		{FinalResponse: llmadapter.Observed(`{"status":"ok"}`)},
 	}}
 	var prompts []string
 	var secondRepair []Repair
@@ -232,8 +232,8 @@ func TestRunFeedsProjectedFindingsAsRepairIntoNextRender(t *testing.T) {
 
 func TestRunReusesCompiledContractSchemaAcrossAttempts(t *testing.T) {
 	caller := &fakeCaller{responses: []llmadapter.Response{
-		{FinalResponse: `{"status":"draft"}`},
-		{FinalResponse: `{"status":"ok"}`},
+		{FinalResponse: llmadapter.Observed(`{"status":"draft"}`)},
+		{FinalResponse: llmadapter.Observed(`{"status":"ok"}`)},
 	}}
 	got, err := Run(context.Background(), Step[stepInput, stepOutput]{
 		Caller: caller,
@@ -267,8 +267,8 @@ func TestRunReusesCompiledContractSchemaAcrossAttempts(t *testing.T) {
 
 func TestRunExhaustedAttemptsWrapsErrExhausted(t *testing.T) {
 	caller := &fakeCaller{responses: []llmadapter.Response{
-		{FinalResponse: `{"status":"draft"}`},
-		{FinalResponse: `{"status":"draft"}`},
+		{FinalResponse: llmadapter.Observed(`{"status":"draft"}`)},
+		{FinalResponse: llmadapter.Observed(`{"status":"draft"}`)},
 	}}
 
 	result, err := Run(context.Background(), Step[stepInput, stepOutput]{
@@ -303,7 +303,7 @@ func TestRunFinalExhaustedAttemptSkipsNextRepairProjection(t *testing.T) {
 	projectionErr := errors.New("projection should not run")
 
 	result, err := Run(context.Background(), Step[stepInput, stepOutput]{
-		Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"draft"}`}}},
+		Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: llmadapter.Observed(`{"status":"draft"}`)}}},
 		Render: func(context.Context, stepInput, []Repair) (string, error) {
 			return "prompt", nil
 		},
@@ -343,8 +343,8 @@ func TestRunFinalExhaustedAttemptSkipsNextRepairProjection(t *testing.T) {
 
 func TestRunExhaustionPublishesNextRepairOnlyForRealRetries(t *testing.T) {
 	caller := &fakeCaller{responses: []llmadapter.Response{
-		{FinalResponse: `{"status":"first"}`},
-		{FinalResponse: `{"status":"final"}`},
+		{FinalResponse: llmadapter.Observed(`{"status":"first"}`)},
+		{FinalResponse: llmadapter.Observed(`{"status":"final"}`)},
 	}}
 	var renderedRepair [][]Repair
 	projectionCalls := 0
@@ -465,7 +465,7 @@ func TestRunFailsFastOnTypedNilCaller(t *testing.T) {
 
 func TestRunRecordsCancellationAfterSuccessfulRender(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	caller := &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"ok"}`}}}
+	caller := &fakeCaller{responses: []llmadapter.Response{{FinalResponse: llmadapter.Observed(`{"status":"ok"}`)}}}
 
 	result, err := Run(ctx, Step[stepInput, stepOutput]{
 		Caller: caller,
@@ -491,7 +491,7 @@ func TestRunRecordsCancellationAfterSuccessfulRender(t *testing.T) {
 
 func TestRunRecordsCancellationAfterSuccessfulProviderCall(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	response := llmadapter.Response{FinalResponse: `{"status":"ok"}`}
+	response := llmadapter.Response{FinalResponse: llmadapter.Observed(`{"status":"ok"}`)}
 
 	result, err := Run(ctx, Step[stepInput, stepOutput]{
 		Caller: stepCallerFunc(func(context.Context, llmadapter.Request) (llmadapter.Response, error) {
@@ -511,7 +511,7 @@ func TestRunRecordsCancellationAfterSuccessfulProviderCall(t *testing.T) {
 		t.Fatalf("result = %#v, want one call-stage failed attempt without decoded output", result)
 	}
 	if got := result.Attempts[0].Call.Response.FinalResponse; got != response.FinalResponse {
-		t.Fatalf("partial response = %q, want %q", got, response.FinalResponse)
+		t.Fatalf("partial response = %#v, want %#v", got, response.FinalResponse)
 	}
 }
 
@@ -520,7 +520,7 @@ func TestRunRecordsCancellationAfterSuccessfulValidation(t *testing.T) {
 	validation := Judgment{Accepted: true, Findings: []Finding{{Codes: []string{"accepted"}}}}
 
 	result, err := Run(ctx, Step[stepInput, stepOutput]{
-		Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"ok"}`}}},
+		Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: llmadapter.Observed(`{"status":"ok"}`)}}},
 		Render: func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
 		Validate: func(context.Context, stepInput, stepOutput) (Judgment, error) {
 			cancel()
@@ -544,8 +544,8 @@ func TestRunRecordsCancellationAfterSuccessfulValidation(t *testing.T) {
 
 func TestRunStopsOnDecodeFailureWithoutRetryingAsValidation(t *testing.T) {
 	caller := &fakeCaller{responses: []llmadapter.Response{
-		{FinalResponse: `not-json`},
-		{FinalResponse: `{"status":"ok"}`},
+		{FinalResponse: llmadapter.Observed(`not-json`)},
+		{FinalResponse: llmadapter.Observed(`{"status":"ok"}`)},
 	}}
 	validateCalls := 0
 
@@ -563,7 +563,7 @@ func TestRunStopsOnDecodeFailureWithoutRetryingAsValidation(t *testing.T) {
 	if err == nil {
 		t.Fatal("Run accepted invalid JSON")
 	}
-	if result.Attempts[0].Call.Response.FinalResponse != "not-json" {
+	if result.Attempts[0].Call.Response.FinalResponse != llmadapter.Observed("not-json") {
 		t.Fatalf("decode failure discarded call evidence: %#v", result)
 	}
 	if validateCalls != 0 {
@@ -575,7 +575,7 @@ func TestRunStopsOnDecodeFailureWithoutRetryingAsValidation(t *testing.T) {
 }
 
 func TestRunRequiresExplicitRepairProjectionBeforeNextRender(t *testing.T) {
-	caller := &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"draft"}`}}}
+	caller := &fakeCaller{responses: []llmadapter.Response{{FinalResponse: llmadapter.Observed(`{"status":"draft"}`)}}}
 	renderCalls := 0
 
 	result, err := Run(context.Background(), Step[stepInput, stepOutput]{
@@ -609,8 +609,8 @@ func TestRunRequiresExplicitRepairProjectionBeforeNextRender(t *testing.T) {
 
 func TestRunUsesCustomSanitizer(t *testing.T) {
 	caller := &fakeCaller{responses: []llmadapter.Response{
-		{FinalResponse: `{"status":"draft"}`},
-		{FinalResponse: `{"status":"ok"}`},
+		{FinalResponse: llmadapter.Observed(`{"status":"draft"}`)},
+		{FinalResponse: llmadapter.Observed(`{"status":"ok"}`)},
 	}}
 	var gotRepair []Repair
 
@@ -641,8 +641,8 @@ func TestRunUsesCustomSanitizer(t *testing.T) {
 
 func TestRunSeparatesValidationFromNextRepair(t *testing.T) {
 	caller := &fakeCaller{responses: []llmadapter.Response{
-		{FinalResponse: `{"status":"draft"}`},
-		{FinalResponse: `{"status":"ok"}`},
+		{FinalResponse: llmadapter.Observed(`{"status":"draft"}`)},
+		{FinalResponse: llmadapter.Observed(`{"status":"ok"}`)},
 	}}
 	validatorDecision := Finding{
 		Summary:   "validator-only detail",
@@ -701,8 +701,8 @@ func TestRunStampsProjectedRepairWithFrameworkIteration(t *testing.T) {
 	for _, ignoredProjectionIteration := range []int{0, -1, 999} {
 		t.Run(fmt.Sprintf("source iteration %d", ignoredProjectionIteration), func(t *testing.T) {
 			caller := &fakeCaller{responses: []llmadapter.Response{
-				{FinalResponse: `{"status":"draft"}`},
-				{FinalResponse: `{"status":"ok"}`},
+				{FinalResponse: llmadapter.Observed(`{"status":"draft"}`)},
+				{FinalResponse: llmadapter.Observed(`{"status":"ok"}`)},
 			}}
 			var rendered []Repair
 
@@ -746,8 +746,8 @@ func TestRunStampsCustomSanitizerNextRepairWithFrameworkIteration(t *testing.T) 
 	for _, sanitizerIteration := range []int{0, -1, 999} {
 		t.Run(fmt.Sprintf("sanitizer iteration %d", sanitizerIteration), func(t *testing.T) {
 			caller := &fakeCaller{responses: []llmadapter.Response{
-				{FinalResponse: `{"status":"draft"}`},
-				{FinalResponse: `{"status":"ok"}`},
+				{FinalResponse: llmadapter.Observed(`{"status":"draft"}`)},
+				{FinalResponse: llmadapter.Observed(`{"status":"ok"}`)},
 			}}
 			var rendered []Repair
 
@@ -790,7 +790,7 @@ func TestRunStampsCustomSanitizerNextRepairWithFrameworkIteration(t *testing.T) 
 func TestRunPreservesValidatorEmptySliceShape(t *testing.T) {
 	t.Run("outer feedback", func(t *testing.T) {
 		result, err := Run(context.Background(), Step[stepInput, stepOutput]{
-			Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"ok"}`}}},
+			Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: llmadapter.Observed(`{"status":"ok"}`)}}},
 			Render: func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
 			Validate: func(context.Context, stepInput, stepOutput) (Judgment, error) {
 				return Judgment{Accepted: true, Findings: make([]Finding, 0)}, nil
@@ -807,7 +807,7 @@ func TestRunPreservesValidatorEmptySliceShape(t *testing.T) {
 
 	t.Run("nested feedback", func(t *testing.T) {
 		result, err := Run(context.Background(), Step[stepInput, stepOutput]{
-			Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"draft"}`}}},
+			Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: llmadapter.Observed(`{"status":"draft"}`)}}},
 			Render: func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
 			Validate: func(context.Context, stepInput, stepOutput) (Judgment, error) {
 				return Judgment{Findings: []Finding{{Codes: make([]string, 0), Locations: make([]string, 0)}}}, nil
@@ -827,8 +827,8 @@ func TestRunPreservesValidatorEmptySliceShape(t *testing.T) {
 
 func TestRunExposesAttemptHistory(t *testing.T) {
 	caller := &fakeCaller{responses: []llmadapter.Response{
-		{FinalResponse: `{"status":"draft"}`},
-		{FinalResponse: `{"status":"ok"}`},
+		{FinalResponse: llmadapter.Observed(`{"status":"draft"}`)},
+		{FinalResponse: llmadapter.Observed(`{"status":"ok"}`)},
 	}}
 	var prompts []string
 
@@ -879,7 +879,7 @@ func TestRunExposesAttemptHistory(t *testing.T) {
 }
 
 func TestRunPublishesIsolatedFeedbackSlices(t *testing.T) {
-	caller := &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"draft"}`}}}
+	caller := &fakeCaller{responses: []llmadapter.Response{{FinalResponse: llmadapter.Observed(`{"status":"draft"}`)}}}
 	source := []Finding{{Summary: "not ready", Codes: []string{"not_ready"}, Locations: []string{"status"}}}
 	result, err := Run(context.Background(), Step[stepInput, stepOutput]{
 		Caller: caller,
@@ -938,7 +938,7 @@ func TestRunRejectsUncompilableOutputContractBeforeRender(t *testing.T) {
 
 func TestRunRecordsPartialCallAndDecodeFailures(t *testing.T) {
 	providerErr := errors.New("provider")
-	callResponse := llmadapter.Response{FinalResponse: `{"status":"partial"}`}
+	callResponse := llmadapter.Response{FinalResponse: llmadapter.Observed(`{"status":"partial"}`)}
 	callResult, err := Run(context.Background(), Step[stepInput, stepOutput]{
 		Caller: stepCallerFunc(func(context.Context, llmadapter.Request) (llmadapter.Response, error) {
 			return callResponse, providerErr
@@ -952,7 +952,7 @@ func TestRunRecordsPartialCallAndDecodeFailures(t *testing.T) {
 		t.Fatalf("partial call response = %#v", callResult.Attempts[0].Call.Response)
 	}
 
-	decodeResponse := llmadapter.Response{FinalResponse: `{"status":3}`}
+	decodeResponse := llmadapter.Response{FinalResponse: llmadapter.Observed(`{"status":3}`)}
 	decodeResult, err := Run(context.Background(), Step[stepInput, stepOutput]{
 		Caller: stepCallerFunc(func(context.Context, llmadapter.Request) (llmadapter.Response, error) {
 			return decodeResponse, nil
@@ -970,7 +970,7 @@ func TestRunRecordsPartialCallAndDecodeFailures(t *testing.T) {
 func TestRunPreservesOutputOnValidationAndProjectionFailures(t *testing.T) {
 	validationErr := errors.New("validate")
 	validationResult, err := Run(context.Background(), Step[stepInput, stepOutput]{
-		Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"draft"}`}}},
+		Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: llmadapter.Observed(`{"status":"draft"}`)}}},
 		Render: func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
 		Validate: func(context.Context, stepInput, stepOutput) (Judgment, error) {
 			return Judgment{Findings: []Finding{{Codes: []string{"invalid"}}}}, validationErr
@@ -981,7 +981,7 @@ func TestRunPreservesOutputOnValidationAndProjectionFailures(t *testing.T) {
 
 	projectionErr := errors.New("application projection failed")
 	projectionResult, err := Run(context.Background(), Step[stepInput, stepOutput]{
-		Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: `{"status":"draft"}`}}},
+		Caller: &fakeCaller{responses: []llmadapter.Response{{FinalResponse: llmadapter.Observed(`{"status":"draft"}`)}}},
 		Render: func(context.Context, stepInput, []Repair) (string, error) { return "prompt", nil },
 		Validate: func(context.Context, stepInput, stepOutput) (Judgment, error) {
 			return Judgment{Findings: []Finding{{Summary: "application detail"}}}, nil
@@ -990,7 +990,7 @@ func TestRunPreservesOutputOnValidationAndProjectionFailures(t *testing.T) {
 		MaxIter:   2,
 	}, stepInput{})
 	assertStepFailure(t, projectionResult, err, StageSanitize, projectionErr, true)
-	if projectionResult.Attempts[0].Call.Response.FinalResponse != `{"status":"draft"}` {
+	if projectionResult.Attempts[0].Call.Response.FinalResponse != llmadapter.Observed(`{"status":"draft"}`) {
 		t.Fatalf("projection failure lost call evidence: %#v", projectionResult.Attempts[0].Call)
 	}
 	validation := projectionResult.Attempts[0].Judgment.Findings
