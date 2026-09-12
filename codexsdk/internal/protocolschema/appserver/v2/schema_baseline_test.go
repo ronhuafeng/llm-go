@@ -233,7 +233,7 @@ func TestManifestClassifiesEveryGeneratedProtocolExport(t *testing.T) {
 	}
 	root := filepath.Join("..", "..", "..", "..", "protocolv2")
 	var sources [][]byte
-	for _, name := range []string{"method_registry.gen.go", "protocol_types.gen.go"} {
+	for _, name := range []string{"method_registry.gen.go", "protocol_types.gen.go", "experimental_members.gen.go"} {
 		raw, err := os.ReadFile(filepath.Join(root, name))
 		if err != nil {
 			t.Fatal(err)
