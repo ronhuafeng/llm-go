@@ -5,6 +5,10 @@ updates:
     schedule:
       interval: weekly
   - package-ecosystem: gomod
+    directory: /internal/moduleproof
+    schedule:
+      interval: weekly
+  - package-ecosystem: gomod
     directory: /internal/tools
     schedule:
       interval: weekly
