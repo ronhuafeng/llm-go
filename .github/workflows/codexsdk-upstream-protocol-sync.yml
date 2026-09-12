@@ -154,6 +154,7 @@ jobs:
       - name: Prove checked-in generated artifacts
         id: generated-proof
         if: steps.mechanical.outcome == 'success' && steps.mechanical.outputs.escalate != 'true'
+        working-directory: codexsdk
         env:
           GOWORK: "off"
           GOTOOLCHAIN: local
@@ -172,6 +173,7 @@ jobs:
       - name: Owner-local codexsdk tests
         id: owner-local-tests
         if: steps.mechanical.outcome == 'success' && steps.mechanical.outputs.escalate != 'true'
+        working-directory: codexsdk
         env:
           GOWORK: "off"
           GOTOOLCHAIN: local
