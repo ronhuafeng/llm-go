@@ -12,18 +12,29 @@ import (
 func main() {
 	moduleRoot := flag.String("module-root", ".", "codexsdk module root")
 	expectedCommit := flag.String("expected-upstream-commit", "", "expected baseline source_commit")
-	upstreamRef := flag.String("upstream-ref", "", "upstream ref name observed by the caller")
-	repositoryCommit := flag.String("repository-commit", "", "repository commit this proof ran against")
+	expectedRef := flag.String("expected-upstream-ref", "", "expected baseline source_ref_name")
+	expectedRepo := flag.String("expected-repository-commit", "", "expected git HEAD of the module checkout")
 	jsonOut := flag.String("json-out", "", "write machine-readable proof JSON to this path")
-	writeArtifacts := flag.Bool("write-artifacts", false, "write regenerated artifacts into the module tree")
+	writeArtifacts := flag.Bool("write-artifacts", false, "regenerate and write artifacts; do not prove")
 	flag.Parse()
 
+	if *writeArtifacts {
+		if *jsonOut != "" || *expectedCommit != "" || *expectedRef != "" || *expectedRepo != "" {
+			fmt.Fprintf(os.Stderr, "generatedproof: -write-artifacts cannot be combined with proof flags\n")
+			os.Exit(2)
+		}
+		if err := generatedproof.WriteArtifacts(*moduleRoot); err != nil {
+			fmt.Fprintf(os.Stderr, "generatedproof: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	result, err := generatedproof.Prove(generatedproof.Request{
-		ModuleRoot:             *moduleRoot,
-		ExpectedUpstreamCommit: *expectedCommit,
-		UpstreamRef:            *upstreamRef,
-		RepositoryCommit:       *repositoryCommit,
-		WriteArtifacts:         *writeArtifacts,
+		ModuleRoot:               *moduleRoot,
+		ExpectedUpstreamCommit:   *expectedCommit,
+		ExpectedUpstreamRef:      *expectedRef,
+		ExpectedRepositoryCommit: *expectedRepo,
 	})
 	if *jsonOut != "" {
 		raw, encodeErr := json.MarshalIndent(result, "", "  ")

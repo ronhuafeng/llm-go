@@ -33,6 +33,104 @@ func TestProveMatchesCheckedInArtifacts(t *testing.T) {
 	}
 }
 
+func TestProveObservesGitHEADAndRejectsCallerMismatch(t *testing.T) {
+	moduleRoot := filepath.Join("..", "..")
+	result, err := Prove(Request{ModuleRoot: moduleRoot})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.RepositoryCommit == "" {
+		t.Fatal("proof omitted observed repository commit")
+	}
+	if result.UpstreamRef == "" {
+		t.Fatal("proof omitted observed upstream ref")
+	}
+	_, err = Prove(Request{
+		ModuleRoot:               moduleRoot,
+		ExpectedRepositoryCommit: "0000000000000000000000000000000000000000",
+	})
+	if err == nil || !strings.Contains(err.Error(), "repository commit=") {
+		t.Fatalf("wrong repository commit error = %v", err)
+	}
+	_, err = Prove(Request{
+		ModuleRoot:          moduleRoot,
+		ExpectedUpstreamRef: "rust-v0.0.0",
+	})
+	if err == nil || !strings.Contains(err.Error(), "source_ref_name=") {
+		t.Fatalf("wrong upstream ref error = %v", err)
+	}
+}
+
+func TestProveDoesNotWriteOnMismatch(t *testing.T) {
+	root := t.TempDir()
+	copyTree(t, filepath.Join("..", ".."), root, []string{
+		"internal/protocolschema/appserver/v2",
+		"protocolv2",
+		"sdk_surface.gen.go",
+	})
+	surfacePath := filepath.Join(root, "sdk_surface.gen.go")
+	if err := os.WriteFile(surfacePath, []byte("package codexsdk\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Prove(Request{ModuleRoot: root})
+	if err == nil {
+		t.Fatal("expected mismatch")
+	}
+	got, err := os.ReadFile(surfacePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "package codexsdk\n" {
+		t.Fatal("prove rewrote artifacts on mismatch")
+	}
+}
+
+func TestWriteArtifactsOverwritesDriftWithoutFailing(t *testing.T) {
+	root := t.TempDir()
+	copyTree(t, filepath.Join("..", ".."), root, []string{
+		"internal/protocolschema/appserver/v2",
+		"protocolv2",
+		"sdk_surface.gen.go",
+	})
+	surfacePath := filepath.Join(root, "sdk_surface.gen.go")
+	if err := os.WriteFile(surfacePath, []byte("package codexsdk\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteArtifacts(root); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(surfacePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) == "package codexsdk\n" || !strings.Contains(string(got), "package codexsdk") {
+		t.Fatalf("write artifacts did not replace drifted surface")
+	}
+	result, err := Prove(Request{ModuleRoot: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.GeneratedArtifactsReproducible {
+		t.Fatalf("written artifacts are not reproducible: %+v", result.Artifacts)
+	}
+}
+
+func TestProveMismatchErrorNamesArtifacts(t *testing.T) {
+	root := t.TempDir()
+	copyTree(t, filepath.Join("..", ".."), root, []string{
+		"internal/protocolschema/appserver/v2",
+		"protocolv2",
+		"sdk_surface.gen.go",
+	})
+	if err := os.WriteFile(filepath.Join(root, "sdk_surface.gen.go"), []byte("package codexsdk\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Prove(Request{ModuleRoot: root})
+	if err == nil || !strings.Contains(err.Error(), sdkSurface) || !strings.Contains(err.Error(), "mismatch") {
+		t.Fatalf("mismatch error = %v", err)
+	}
+}
+
 func TestProveFailsClosedOnWrongUpstreamCommit(t *testing.T) {
 	_, err := Prove(Request{
 		ModuleRoot:             filepath.Join("..", ".."),
