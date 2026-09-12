@@ -51,6 +51,12 @@ jobs:
           go-version: ${{ inputs.go-version }}
           cache: false
 
+      - uses: actions/setup-go@v6
+        if: inputs.current-source-replaces != ''
+        with:
+          go-version: "1.25.x"
+          cache: false
+
       - name: Write current-source modfile
         if: inputs.current-source-replaces != ''
         env:
@@ -58,9 +64,10 @@ jobs:
           MODULE_DIR: ${{ inputs.working-directory }}
         run: |
           set -euo pipefail
+          module_dir="$(pwd)/${MODULE_DIR}"
           args=(
-            -go-mod "${MODULE_DIR}/go.mod"
-            -go-sum "${MODULE_DIR}/go.sum"
+            -go-mod "${module_dir}/go.mod"
+            -go-sum "${module_dir}/go.sum"
             -out-mod "${RUNNER_TEMP}/verify.mod"
             -out-sum "${RUNNER_TEMP}/verify.sum"
           )
@@ -68,8 +75,14 @@ jobs:
             [[ -z "${line}" ]] && continue
             args+=(-replace "${line}")
           done <<< "${REPLACES}"
-          GOWORK=off go run ./internal/moduleproof/cmd/verifymodfile "${args[@]}"
+          GOWORK=off go run -C internal/moduleproof ./cmd/verifymodfile "${args[@]}"
           echo "GOFLAGS=-modfile=${RUNNER_TEMP}/verify.mod" >> "${GITHUB_ENV}"
+
+      - uses: actions/setup-go@v6
+        if: inputs.current-source-replaces != ''
+        with:
+          go-version: ${{ inputs.go-version }}
+          cache: false
 
       - name: Module proof
         working-directory: ${{ inputs.working-directory }}

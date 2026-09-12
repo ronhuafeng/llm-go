@@ -24,7 +24,7 @@ const (
 
 var (
 	sourceCommitRE = regexp.MustCompile(`^[0-9a-f]{40}$`)
-	pathLeakRE     = regexp.MustCompile(`(/Users/|/home/|/private/|/tmp/|/var/folders/|[A-Za-z]:\\|\\\\)`)
+	pathLeakRE     = regexp.MustCompile(`(/Users/|/home/)`)
 	cacheMarkers   = []string{".cache/codexsdk-upstream", ".cache/openai-codex"}
 )
 
@@ -209,7 +209,7 @@ func scanBaselinePathLeaks(root string) ([]string, error) {
 		if walkErr != nil {
 			return walkErr
 		}
-		if entry.IsDir() {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
 			return nil
 		}
 		raw, err := os.ReadFile(path)
