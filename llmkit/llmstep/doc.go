@@ -15,7 +15,7 @@
 // ErrNilValidate before Render or a provider call.
 //
 // Raw validator findings are never automatically model-facing. When a rejected
-// attempt can retry, the application must provide Step.Sanitizer as the
+// attempt can retry, the application must provide Step.ProjectRepair as the
 // explicit projection from findings to repair input. If it is nil, Run fails
 // closed with ErrMissingRepairProjection. The toolkit does not define secrets,
 // sensitive strings, safe URLs, credential patterns, redaction, pseudonymization,
