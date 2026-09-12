@@ -170,13 +170,17 @@ write_output() {
 }
 
 validate_sync() {
-  local args=(
+  GOWORK=off go run ./internal/cmd/generatedproof -expected-upstream-commit "${target_sha}" || return 1
+  GOWORK=off go test ./... || return 1
+  PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts -p '*_test.py' || return 1
+  local sync_state_args=(
+    --baseline internal/protocolschema/appserver/v2
     --target-sha "${target_sha}"
   )
   if [[ -n "${candidate}" ]]; then
-    args+=(--candidate "${candidate}")
+    sync_state_args+=(--candidate "${candidate}")
   fi
-  scripts/codexsdk_validate_sync.sh "${args[@]}" || return 1
+  python3 scripts/codexsdk_sync_state.py "${sync_state_args[@]}" || return 1
   if [[ -n "$(git status --porcelain --untracked-files=all)" ]]; then
     echo "validation changed the committed sync tree; commit validation changes before publishing" >&2
     git status --short >&2

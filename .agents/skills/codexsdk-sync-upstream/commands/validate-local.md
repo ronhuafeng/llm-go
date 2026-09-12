@@ -8,7 +8,7 @@ Inputs:
 - Target SHA and current checked-in baseline.
 
 Tools:
-- `scripts/codexsdk_validate_sync.sh`
+- `go run ./internal/cmd/generatedproof`
 - Focused tests, `gofmt`, generator reproduction, sync-state, and path-sanitization checks when they match changed files.
 
 Boundaries:

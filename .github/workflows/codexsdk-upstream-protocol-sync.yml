@@ -151,6 +151,40 @@ jobs:
         run: |
           python3 scripts/codexsdk_mechanical_sync.py --repo-root "${GITHUB_WORKSPACE}"
 
+      - name: Prove checked-in generated artifacts
+        id: generated-proof
+        if: steps.mechanical.outcome == 'success' && steps.mechanical.outputs.escalate != 'true'
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
+          TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
+          REPOSITORY_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/proof"
+          go run ./internal/cmd/generatedproof \
+            -expected-upstream-commit "${TARGET_SHA}" \
+            -upstream-ref "${TARGET_REF}" \
+            -repository-commit "${REPOSITORY_COMMIT}" \
+            -json-out "${RUNNER_TEMP}/proof/generated.json"
+
+      - name: Owner-local codexsdk tests
+        id: owner-local-tests
+        if: steps.mechanical.outcome == 'success' && steps.mechanical.outputs.escalate != 'true'
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+        run: go test ./...
+
+      - name: Upload generated proof
+        if: steps.generated-proof.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-proof
+          path: ${{ runner.temp }}/proof/generated.json
+          if-no-files-found: error
+
       - name: Escalate unsupported semantic drift
         id: codex
         if: steps.mechanical.outputs.escalate == 'true'
@@ -189,11 +223,21 @@ jobs:
       - name: Validate escalated protocol implementation
         id: escalation-validation
         if: steps.mechanical.outputs.escalate == 'true'
-        working-directory: codexsdk
         env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
           TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
+          TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
+          REPOSITORY_COMMIT: ${{ github.sha }}
         run: |
-          scripts/codexsdk_validate_sync.sh --target-sha "${TARGET_SHA}"
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/proof"
+          go run ./internal/cmd/generatedproof \
+            -expected-upstream-commit "${TARGET_SHA}" \
+            -upstream-ref "${TARGET_REF}" \
+            -repository-commit "${REPOSITORY_COMMIT}" \
+            -json-out "${RUNNER_TEMP}/proof/generated.json"
+          go test ./...
 
       - name: Confirm generated baseline provenance
         if: steps.mechanical.outputs.publish == 'true' || steps.mechanical.outputs.escalate == 'true'
@@ -288,6 +332,7 @@ jobs:
           always() &&
           steps.mechanical.outcome == 'success' &&
           (steps.mechanical.outputs.escalate != 'true' || steps.escalation-validation.outcome == 'success') &&
+          (steps.mechanical.outputs.escalate == 'true' || steps.generated-proof.outcome == 'success') &&
           (inputs.validation_only == true ||
            (steps.mechanical.outputs.publish != 'true' && steps.mechanical.outputs.escalate != 'true') ||
            (steps.commit.outcome == 'success' && steps.publish.outcome == 'success'))
@@ -299,6 +344,9 @@ jobs:
           TARGET_REF: ${{ steps.target.outputs.ref }}
           TARGET_SHA: ${{ steps.target.outputs.sha }}
           VALIDATION_ONLY: ${{ inputs.validation_only || false }}
+          GENERATED_PROOF: ${{ runner.temp }}/proof/generated.json
+          OWNER_LOCAL_COMPARE: ${{ steps.owner-local-tests.outcome }}
+          OWNER_LOCAL_ESCALATE: ${{ steps.escalation-validation.outcome }}
         run: |
           {
             echo
@@ -307,6 +355,26 @@ jobs:
             echo "- Mechanical outcome: \`${OUTCOME}\`"
             echo "- Upstream target: \`${TARGET_REF}\`"
             echo "- Upstream commit: \`${TARGET_SHA}\`"
+            echo "- Repository commit: \`${GITHUB_SHA}\`"
+            if [[ "${OUTCOME}" == "comparison" || "${OUTCOME}" == "current" ]]; then
+              echo "- upstream_schema: clean"
+            elif [[ "${OUTCOME}" == "comparison_dirty" ]]; then
+              echo "- upstream_schema: drift"
+            else
+              echo "- upstream_schema: ${OUTCOME}"
+            fi
+            if [[ -f "${GENERATED_PROOF}" ]]; then
+              python3 -c 'import json,os; p=json.load(open(os.environ["GENERATED_PROOF"], encoding="utf-8")); print("- checked_in_generated_go: " + ("reproducible" if p.get("generated_artifacts_reproducible") else "mismatch")); print("- generated proof repository_commit: " + str(p.get("repository_commit") or "")); print("- generated proof upstream_commit: " + str(p.get("upstream_commit") or ""))'
+            else
+              echo "- checked_in_generated_go: not-run"
+            fi
+            if [[ "${OWNER_LOCAL_COMPARE}" == "success" || "${OWNER_LOCAL_ESCALATE}" == "success" ]]; then
+              echo "- owner_local_tests: pass"
+            elif [[ "${OWNER_LOCAL_COMPARE}" == "failure" || "${OWNER_LOCAL_ESCALATE}" == "failure" ]]; then
+              echo "- owner_local_tests: fail"
+            else
+              echo "- owner_local_tests: not-run"
+            fi
             if [[ "${ESCALATE}" == "true" ]]; then
               echo "- Escalation: implementation agent received explicit drift evidence after mechanical generation and owner-local Go proofs failed."
             elif [[ "${OUTCOME}" == "implemented" ]]; then

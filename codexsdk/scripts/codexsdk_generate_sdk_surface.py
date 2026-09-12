@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Generate the public SDK facade surface from the checked-in protocol manifest."""
+"""Compatibility-surface helper for sync reports.
+
+Generated `sdk_surface.gen.go` is owned by
+`codexsdk/internal/cmd/generatedproof`. This module remains only for
+release-report compatibility-surface facts derived from the classified
+manifest.
+"""
 
 from __future__ import annotations
 

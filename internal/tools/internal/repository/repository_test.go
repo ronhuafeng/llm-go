@@ -100,6 +100,80 @@ func TestPostReleaseModuleSmokeObservesPublicProxyOnce(t *testing.T) {
 	}
 }
 
+func TestPRVerificationIsANativeProofGraph(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pr, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "pr-verification.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(pr)
+	for _, want := range []string{
+		"uses: ./.github/workflows/verify-go-module.yml",
+		"uses: ./.github/workflows/verify-generated.yml",
+		"generated-reproducibility",
+		"current-source-replaces",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("PR verification missing %q", want)
+		}
+	}
+	if strings.Contains(text, "go mod edit") || strings.Contains(text, "cp go.mod") {
+		t.Fatal("PR verification must not own current-source composition in shell")
+	}
+	helper, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "verify-go-module.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(helper), "internal/moduleproof/cmd/verifymodfile") {
+		t.Fatal("verify-go-module must invoke native current-source replacement")
+	}
+}
+
+func TestProtocolSyncRunsGeneratedProofOnComparison(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "codexsdk-upstream-protocol-sync.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(data)
+	if !strings.Contains(text, "./internal/cmd/generatedproof") {
+		t.Fatal("protocol sync must run the native generated-artifact proof")
+	}
+	if !strings.Contains(text, "steps.mechanical.outputs.escalate != 'true'") {
+		t.Fatal("protocol sync must run generated proof on ordinary comparison, not only escalation")
+	}
+	if strings.Contains(text, "codexsdk_validate_sync.sh") {
+		t.Fatal("protocol sync must not keep the shell validator as the generated-artifact owner")
+	}
+}
+
+func TestReleaseReusesNativeProofEntryPoints(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "release.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(data)
+	if strings.Contains(text, "go mod edit") || strings.Contains(text, "cp go.mod") {
+		t.Fatal("release verification must not own current-source composition in shell")
+	}
+	if !strings.Contains(text, "internal/moduleproof/cmd/verifymodfile") {
+		t.Fatal("release verification must use native current-source replacement")
+	}
+	if !strings.Contains(text, "./internal/cmd/generatedproof") {
+		t.Fatal("release verification must reuse native generated-artifact proof")
+	}
+}
+
 func TestSecretBearingCodexProxyIsPinned(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
 	if err != nil {

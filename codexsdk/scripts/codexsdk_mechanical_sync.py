@@ -234,15 +234,37 @@ def capture_mechanical(repo_root: Path, output: Path) -> list[str]:
 
 
 def validate_sync(module_root: Path, target_sha: str, candidate: Path) -> None:
+    env = {**os.environ, "GOWORK": "off", "PYTHONDONTWRITEBYTECODE": "1"}
     run_command(
         [
-            "scripts/codexsdk_validate_sync.sh",
-            "--target-sha",
+            "go",
+            "run",
+            "./internal/cmd/generatedproof",
+            "-expected-upstream-commit",
             target_sha,
-            "--candidate",
-            str(candidate),
         ],
         cwd=module_root,
+        env=env,
+    )
+    run_command(["go", "test", "./..."], cwd=module_root, env=env)
+    run_command(
+        [sys.executable, "-m", "unittest", "discover", "-s", "scripts", "-p", "*_test.py"],
+        cwd=module_root,
+        env=env,
+    )
+    run_command(
+        [
+            sys.executable,
+            "scripts/codexsdk_sync_state.py",
+            "--baseline",
+            str(BASELINE),
+            "--candidate",
+            str(candidate),
+            "--target-sha",
+            target_sha,
+        ],
+        cwd=module_root,
+        env=env,
     )
 
 

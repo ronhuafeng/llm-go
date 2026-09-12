@@ -20,7 +20,7 @@ Boundaries:
 
 Checks:
 - Run focused generator, manifest, coverage, gofmt, or package tests when practical and relevant to touched files.
-- The caller/workflow may still run full `scripts/codexsdk_validate_sync.sh`.
+- The caller/workflow may still run `go run ./internal/cmd/generatedproof`.
 
 Output:
 - `completed_actions`
