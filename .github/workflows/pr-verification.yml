@@ -84,7 +84,7 @@ jobs:
     uses: ./.github/workflows/verify-go-module.yml
     with:
       working-directory: internal/moduleproof
-      go-version: "1.23.x"
+      go-version: "1.25.x"
       packages: ./...
 
   verify-llmkit:

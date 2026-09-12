@@ -120,9 +120,9 @@ jobs:
           GOTOOLCHAIN: local
         run: |
           set -euo pipefail
-          go run ./internal/moduleproof/cmd/verifymodfile \
-            -go-mod llmcaller/codex/go.mod \
-            -go-sum llmcaller/codex/go.sum \
+          GOWORK=off go run -C internal/moduleproof ./cmd/verifymodfile \
+            -go-mod "$(pwd)/llmcaller/codex/go.mod" \
+            -go-sum "$(pwd)/llmcaller/codex/go.sum" \
             -replace github.com/ronhuafeng/llm-go/llmkit=../../llmkit \
             -replace github.com/ronhuafeng/llm-go/codexsdk=../../codexsdk \
             -out-mod "${RUNNER_TEMP}/codex.verify.mod" \
@@ -183,9 +183,9 @@ jobs:
           GOTOOLCHAIN: local
         run: |
           set -euo pipefail
-          go run ./internal/moduleproof/cmd/verifymodfile \
-            -go-mod internal/tools/go.mod \
-            -go-sum internal/tools/go.sum \
+          GOWORK=off go run -C internal/moduleproof ./cmd/verifymodfile \
+            -go-mod "$(pwd)/internal/tools/go.mod" \
+            -go-sum "$(pwd)/internal/tools/go.sum" \
             -replace github.com/ronhuafeng/llm-go/llmkit=../../llmkit \
             -replace github.com/ronhuafeng/llm-go/codexsdk=../../codexsdk \
             -replace github.com/ronhuafeng/llm-go/llmcaller/codex=../../llmcaller/codex \

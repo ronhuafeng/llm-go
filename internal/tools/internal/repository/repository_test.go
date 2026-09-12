@@ -127,7 +127,7 @@ func TestPRVerificationIsANativeProofGraph(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(helper), "internal/moduleproof/cmd/verifymodfile") {
+	if !strings.Contains(string(helper), "go run -C internal/moduleproof ./cmd/verifymodfile") {
 		t.Fatal("verify-go-module must invoke native current-source replacement")
 	}
 }
@@ -166,7 +166,7 @@ func TestReleaseReusesNativeProofEntryPoints(t *testing.T) {
 	if strings.Contains(text, "go mod edit") || strings.Contains(text, "cp go.mod") {
 		t.Fatal("release verification must not own current-source composition in shell")
 	}
-	if !strings.Contains(text, "internal/moduleproof/cmd/verifymodfile") {
+	if !strings.Contains(text, "go run -C internal/moduleproof ./cmd/verifymodfile") {
 		t.Fatal("release verification must use native current-source replacement")
 	}
 	if !strings.Contains(text, "./internal/cmd/generatedproof") {
