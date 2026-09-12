@@ -85,8 +85,10 @@ the actual serving provider independently. Adapter identity, model names,
 requested settings, credentials, and Codex thread configuration do not fill
 provider identity. Model and usage fields are separate neutral projections and
 do not establish provider identity; exact Codex model/routing/usage observations
-remain available through `BackendDetails`. Observed zero counts remain distinct
-from unreported counts.
+remain available through `BackendDetails`. Neutral usage is the attempt
+aggregate for the current new-thread/one-turn `Call` (`ThreadTokenUsage.Total`),
+not last-request or per-upstream-response accounting. Observed zero counts remain
+distinct from unreported counts.
 
 ## Schema admission
 

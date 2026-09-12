@@ -331,6 +331,30 @@ func TestCallerBuildsExactRequestAndProjectsEvidence(t *testing.T) {
 	}
 }
 
+func TestNeutralUsageProjectsAttemptTotalNotLastProviderCall(t *testing.T) {
+	run := validStartedRun("ok", "gpt-start")
+	run.Run.Usage = &protocolv2.ThreadTokenUsage{
+		Last: protocolv2.TokenUsageBreakdown{
+			InputTokens: 1, CachedInputTokens: 7, OutputTokens: 3, ReasoningOutputTokens: 4,
+		},
+		Total: protocolv2.TokenUsageBreakdown{
+			InputTokens: 100, CachedInputTokens: 0, OutputTokens: 50, ReasoningOutputTokens: 20,
+		},
+	}
+	caller := newApplicationCaller(t, &fakeRunner{result: run})
+	response, err := caller.Call(context.Background(), validRequest())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Execution.Usage == nil {
+		t.Fatal("missing attempt-scoped usage")
+	}
+	requireObservedCount(t, response.Execution.Usage.Input, 100)
+	requireObservedCount(t, response.Execution.Usage.CachedInput, 0)
+	requireObservedCount(t, response.Execution.Usage.Output, 50)
+	requireObservedCount(t, response.Execution.Usage.ReasoningOutput, 20)
+}
+
 func TestCallerPreservesPartialRunAndCause(t *testing.T) {
 	providerErr := errors.New("turn failed")
 	run := validStartedRun("", "gpt-start")

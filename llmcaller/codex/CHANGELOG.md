@@ -6,6 +6,9 @@ This project follows Semantic Versioning.
 
 ### Changed
 
+- Neutral token usage is one new-thread/one-turn adapter attempt. The Codex
+  projection publishes `ThreadTokenUsage.Total` under that lifecycle and does
+  not relabel `Last` or per-upstream-response counts as attempt-scoped evidence.
 - **Breaking (pre-v1):** application-owned `AdmitTurn` now receives both the
   exact thread-start observation and the exact pending `turn/start` request.
   The adapter still does not merge those values or choose an execution policy.

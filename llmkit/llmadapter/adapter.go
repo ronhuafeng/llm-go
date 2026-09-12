@@ -24,8 +24,9 @@ type BackendDetails interface {
 	BackendName() string
 }
 
-// TokenUsage is observed token accounting for one adapter attempt. It is
-// not a billing estimate, remaining-budget figure, or reconstructed
+// TokenUsage is observed token accounting for one provider-neutral
+// inference/adapter attempt. It is not accounting for one lower-level
+// provider RPC, a billing estimate, remaining-budget figure, or reconstructed
 // heuristic.
 //
 // Each dimension is presence-aware. Unknown means the provider did not
@@ -37,11 +38,12 @@ type TokenUsage struct {
 	ReasoningOutput Observation[int64]
 }
 
-// ExecutionEvidence is provider-neutral facts attributable to one model call.
-// BackendName identifies the execution runtime/adapter when known. ProviderName
-// is the actual model-provider identity only when directly observed. Backend,
-// provider, and model identities are independent facts and are never inferred
-// from one another.
+// ExecutionEvidence is provider-neutral facts attributable to one
+// inference/adapter attempt. It is not a claim about one lower-level model or
+// provider call. BackendName identifies the execution runtime/adapter when
+// known. ProviderName is the actual model-provider identity only when directly
+// observed. Backend, provider, and model identities are independent facts and
+// are never inferred from one another.
 type ExecutionEvidence struct {
 	BackendName string
 	// ProviderName is the observed model-provider identity. Unknown means the
@@ -52,9 +54,12 @@ type ExecutionEvidence struct {
 	// Unknown means the provider did not report one. It is not inferred from the
 	// prompt and is not a capability or pricing lookup key.
 	Model Observation[string]
-	// Usage is observed token accounting for this attempt. Nil means the
-	// provider did not report a usage object. Unknown dimensions inside a
-	// present Usage object are unreported measurements, not observed zeros.
+	// Usage is observed token accounting for this inference/adapter attempt.
+	// Nil means the lower layer did not report a usage object at that scope.
+	// Unknown dimensions inside a present Usage object are unreported
+	// measurements, not observed zeros. Thread-total, last-request, and
+	// per-upstream-response counts are different scopes and must not be
+	// silently interchanged.
 	Usage *TokenUsage
 }
 

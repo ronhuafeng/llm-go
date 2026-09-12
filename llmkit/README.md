@@ -57,11 +57,12 @@ return the same evidence-bearing `ValueResult[T]`.
 
 Neutral execution facts use presence-aware observations: unknown stays unknown,
 and an observed zero or empty string remains distinct from absence.
-`ExecutionEvidence.BackendName` identifies the runtime/adapter when known;
-`ProviderName` is a separate presence-aware model-provider observation and must
-not be inferred from the backend or model identifier. Backend adapters own
-isolated typed `BackendDetails`; generic decoded values use ordinary Go value
-semantics.
+`ExecutionEvidence` and `TokenUsage` describe one inference/adapter attempt, not
+one lower-level provider call. `ExecutionEvidence.BackendName` identifies the
+runtime/adapter when known; `ProviderName` is a separate presence-aware
+model-provider observation and must not be inferred from the backend or model
+identifier. Backend adapters own isolated typed `BackendDetails`; generic decoded
+values use ordinary Go value semantics.
 
 `llmstep.Run` owns bounded inference adjudication. `Validate` is required before
 execution starts. Validator `Judgment` and model-facing `Repair` are distinct

@@ -298,6 +298,10 @@ func isolatedNeutralUsage(usage *protocolv2.ThreadTokenUsage) (*llmadapter.Token
 	if err := cloneGenerated(*usage, &cloned); err != nil {
 		return nil, err
 	}
+	// Call creates one new thread and one turn. ThreadTokenUsage.Total is the
+	// attempt aggregate under that lifecycle; Last is one later sampling
+	// request. A reused-thread or multi-attempt path must derive attempt-scoped
+	// usage from exact observations or leave usage unknown.
 	projected := &llmadapter.TokenUsage{}
 	projected.ObserveCounts(cloned.Total.InputTokens, cloned.Total.CachedInputTokens, cloned.Total.OutputTokens, cloned.Total.ReasoningOutputTokens)
 	return projected, nil
