@@ -7,6 +7,10 @@ changes may occur in minor releases.
 
 ### Changed
 
+- Clarify that `ExecutionEvidence` and `TokenUsage` describe one
+  provider-neutral inference/adapter attempt. They are not accounting for one
+  lower-level model or provider call; measurement scope stays the scope
+  actually supported by lower-layer evidence.
 - **Breaking (pre-v1):** separate execution-backend identity from actual
   model-provider identity. `Response.BackendDetails` replaces
   `ProviderDetails`; backend details expose `BackendName()`, and

@@ -16,10 +16,12 @@
 //
 // Neutral token counts, effective model, and actual model-provider identity use
 // Observation so an unreported fact stays unknown and an observed zero or empty
-// value stays present. Execution backend identity is separate: the fact that a
-// call ran through a named runtime/adapter does not establish which model
-// provider served it. Requested settings, defaults, estimates, heuristics,
-// adapter names, and inferred names cannot populate an observation.
+// value stays present. TokenUsage is accounting for one inference/adapter
+// attempt, not one lower-level provider RPC. Execution backend identity is
+// separate: the fact that a call ran through a named runtime/adapter does not
+// establish which model provider served it. Requested settings, defaults,
+// estimates, heuristics, adapter names, and inferred names cannot populate an
+// observation.
 //
 // The typed-inference API publishes owned, isolated snapshots of toolkit-owned
 // state. Value is the default path: it compiles one Contract for the request

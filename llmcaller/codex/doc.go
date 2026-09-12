@@ -24,7 +24,9 @@
 // model name, requested settings, and Codex thread configuration are not
 // provider observations. Effective model and usage facts are projected
 // independently from attributable exact evidence, so an exact-details snapshot
-// failure does not erase them.
+// failure does not erase them. Neutral usage is one new-thread/one-turn adapter
+// attempt and therefore uses `ThreadTokenUsage.Total`; `Last` and per-upstream
+// response counts remain exact backend-specific scopes.
 //
 // The package does not own Go type projection, decoding, validation, retries,
 // transport, application authorization, disclosure policy, or business
