@@ -247,11 +247,6 @@ func (c *Caller) request(request llmadapter.Request) (codexsdk.StartThreadRunReq
 	return startRequest, nil
 }
 
-func responseFromRun(run codexsdk.StartedThreadRun) llmadapter.Response {
-	cloned, cloneErr := cloneStartedRun(run)
-	return projectNeutralResponse(run, cloned, cloneErr)
-}
-
 func projectNeutralResponse(run, cloned codexsdk.StartedThreadRun, cloneErr error) llmadapter.Response {
 	response := llmadapter.Response{
 		Execution: llmadapter.ExecutionEvidence{

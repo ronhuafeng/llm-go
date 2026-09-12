@@ -451,13 +451,17 @@ func TestCallIsProjectionOfDetailedResult(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := responseFromRun(detailed)
 	got, err := caller.Call(context.Background(), validRequest())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(got, want) || got.Execution.Usage != nil {
-		t.Fatalf("Call projection = %#v, want %#v", got, want)
+	if got.FinalResponse != llmadapter.Observed("ok") || got.Execution.BackendName != "codex" || got.Execution.Usage != nil {
+		t.Fatalf("Call projection = %#v", got)
+	}
+	requireUnknownModel(t, got.Execution)
+	details, ok := got.BackendDetails.(Details)
+	if !ok || !reflect.DeepEqual(details.Run, detailed) {
+		t.Fatalf("Call details = %#v, want detailed run %#v", got.BackendDetails, detailed)
 	}
 }
 
