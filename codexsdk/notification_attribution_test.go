@@ -3,8 +3,6 @@ package codexsdk
 import (
 	"context"
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -13,20 +11,16 @@ import (
 )
 
 func TestEveryGeneratedServerNotificationKindHasAttribution(t *testing.T) {
-	seen := map[protocolv2.ServerNotificationKind]bool{}
 	for _, method := range protocolv2.AllMethods() {
 		if method.Direction != protocolv2.MethodDirectionServerToClient || method.Kind != protocolv2.MethodKindNotification {
 			continue
 		}
 		kind := protocolv2.ServerNotificationKind(method.Method)
-		seen[kind] = true
-		if class := notificationAttribution[kind]; class == notificationAttributionUnsupported {
-			t.Errorf("generated notification %q has no attribution class", kind)
+		if !knownServerNotificationKind(kind) {
+			t.Errorf("generated notification %q is not a known server notification", kind)
 		}
-	}
-	for kind := range notificationAttribution {
-		if !seen[kind] {
-			t.Errorf("attribution manifest contains non-generated notification %q", kind)
+		if class := attributionClassForKind(kind); class == notificationAttributionUnsupported {
+			t.Errorf("generated notification %q has no attribution class", kind)
 		}
 	}
 }
@@ -172,79 +166,42 @@ func TestConcurrentAttributionDoesNotDuplicateOrCrossRuns(t *testing.T) {
 	}
 }
 
-func TestAttributionClassesFollowGeneratedSchemaIdentityFacts(t *testing.T) {
-	root := filepath.Join("internal", "protocolschema", "appserver", "v2")
-	raw, err := os.ReadFile(filepath.Join(root, "manifest.json"))
+func TestAttributionUsesPresentCorrelationNotSchemaOptionality(t *testing.T) {
+	warningPresent, err := exactNotification(rpcNotification{method: "warning", params: map[string]any{"message": "notice", "threadId": "thread-a"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	var manifest struct {
-		Entries []struct {
-			Direction string `json:"direction"`
-			Kind      string `json:"kind"`
-			Method    string `json:"method"`
-			Schema    string `json:"params_or_payload_schema"`
-		} `json:"entries"`
+	class, identity := attributionFor(warningPresent)
+	if class != notificationAttributionThread || identity.threadID != "thread-a" || identity.turnID != "" {
+		t.Fatalf("present warning attribution = (%v, %#v)", class, identity)
 	}
-	if err := json.Unmarshal(raw, &manifest); err != nil {
+
+	warningAbsent, err := exactNotification(rpcNotification{method: "warning", params: map[string]any{"message": "notice"}})
+	if err != nil {
 		t.Fatal(err)
 	}
-	for _, entry := range manifest.Entries {
-		if entry.Direction != "server_to_client" || entry.Kind != "notification" {
-			continue
-		}
-		var matches []string
-		err := filepath.WalkDir(root, func(path string, item os.DirEntry, walkErr error) error {
-			if walkErr == nil && !item.IsDir() && item.Name() == entry.Schema+".json" {
-				matches = append(matches, path)
-			}
-			return walkErr
-		})
-		if err != nil || len(matches) != 1 {
-			t.Fatalf("schema %s matches %v, err=%v", entry.Schema, matches, err)
-		}
-		schemaRaw, err := os.ReadFile(matches[0])
-		if err != nil {
-			t.Fatal(err)
-		}
-		var schema struct {
-			Required    []string                   `json:"required"`
-			Properties  map[string]json.RawMessage `json:"properties"`
-			Definitions map[string]struct {
-				Required []string `json:"required"`
-			} `json:"definitions"`
-		}
-		if err := json.Unmarshal(schemaRaw, &schema); err != nil {
-			t.Fatal(err)
-		}
-		required := func(name string) bool {
-			for _, candidate := range schema.Required {
-				if candidate == name {
-					return true
-				}
-			}
-			return false
-		}
-		want := notificationAttributionGlobal
-		if required("turnId") {
-			want = notificationAttributionTurn
-		} else if required("turn") {
-			var turnProperty struct {
-				Ref string `json:"$ref"`
-			}
-			_ = json.Unmarshal(schema.Properties["turn"], &turnProperty)
-			definition := filepath.Base(turnProperty.Ref)
-			for _, field := range schema.Definitions[definition].Required {
-				if field == "id" {
-					want = notificationAttributionTurn
-				}
-			}
-		} else if required("threadId") {
-			want = notificationAttributionThread
-		}
-		if got := notificationAttribution[protocolv2.ServerNotificationKind(entry.Method)]; got != want {
-			t.Errorf("%s attribution = %v, want %v from required schema identity", entry.Method, got, want)
-		}
+	class, identity = attributionFor(warningAbsent)
+	if class != notificationAttributionGlobal || identity.threadID != "" {
+		t.Fatalf("absent warning attribution = (%v, %#v)", class, identity)
+	}
+
+	started := protocolv2.NewServerNotificationThreadStarted(protocolv2.ServerNotificationThreadStarted{
+		Params: protocolv2.ThreadStartedNotification{Thread: facadeThread("thread-nested", nil)},
+	})
+	class, identity = attributionFor(started)
+	if class != notificationAttributionThread || identity.threadID != "thread-nested" {
+		t.Fatalf("nested thread/started attribution = (%v, %#v)", class, identity)
+	}
+
+	mcp, err := exactNotification(rpcNotification{method: "mcpServer/startupStatus/updated", params: map[string]any{
+		"name": "docs", "status": "ready", "threadId": "thread-mcp",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	class, identity = attributionFor(mcp)
+	if class != notificationAttributionThread || identity.threadID != "thread-mcp" {
+		t.Fatalf("mcp startup attribution = (%v, %#v)", class, identity)
 	}
 }
 
@@ -394,6 +351,9 @@ func TestAttributionExtractsGeneratedIdentity(t *testing.T) {
 		{"nested turn", `{"method":"turn/started","params":{"threadId":"thread-b","turn":{"id":"turn-b","items":[],"status":"inProgress"}}}`, notificationAttributionTurn, "thread-b", "turn-b"},
 		{"thread only", `{"method":"guardianWarning","params":{"threadId":"thread-c","message":"notice"}}`, notificationAttributionThread, "thread-c", ""},
 		{"global", `{"method":"skills/changed","params":{}}`, notificationAttributionGlobal, "", ""},
+		{"optional warning thread", `{"method":"warning","params":{"message":"notice","threadId":"thread-w"}}`, notificationAttributionThread, "thread-w", ""},
+		{"optional warning absent", `{"method":"warning","params":{"message":"notice"}}`, notificationAttributionGlobal, "", ""},
+		{"mcp startup thread", `{"method":"mcpServer/startupStatus/updated","params":{"name":"docs","status":"ready","threadId":"thread-m"}}`, notificationAttributionThread, "thread-m", ""},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -406,5 +366,114 @@ func TestAttributionExtractsGeneratedIdentity(t *testing.T) {
 				t.Fatalf("attribution = (%v, %#v), want (%v, %q, %q)", class, identity, test.wantClass, test.wantThread, test.wantTurn)
 			}
 		})
+	}
+}
+
+func TestWarningAndMCPStartupAttachOnlyWhenThreadIDIsPresent(t *testing.T) {
+	c := &Client{
+		ctx:            context.Background(),
+		notifications:  make(chan acceptedNotification, 8),
+		exactStreams:   map[string]map[*exactRunState]struct{}{},
+		exactAttaching: map[string]map[*exactRunState]struct{}{},
+	}
+	matching := newExactRunState(c, "thread-a", StartedThreadRun{})
+	matching.turnID = "turn-a"
+	other := newExactRunState(c, "thread-b", StartedThreadRun{})
+	other.turnID = "turn-b"
+	c.exactStreams[matching.turnID] = map[*exactRunState]struct{}{matching: {}}
+	c.exactStreams[other.turnID] = map[*exactRunState]struct{}{other: {}}
+
+	c.routeNotification(rpcNotification{method: "warning", params: map[string]any{"message": "notice", "threadId": "thread-a"}})
+	if got := exactNotificationKinds(matching); len(got) != 1 || got[0] != protocolv2.ServerNotificationKindWarning {
+		t.Fatalf("present warning evidence = %#v", got)
+	}
+	if got := exactNotificationKinds(other); len(got) != 0 {
+		t.Fatalf("unrelated run received warning: %#v", got)
+	}
+
+	c.routeNotification(rpcNotification{method: "warning", params: map[string]any{"message": "global"}})
+	if got := exactNotificationKinds(matching); len(got) != 1 {
+		t.Fatalf("absent warning contaminated run: %#v", got)
+	}
+
+	c.routeNotification(rpcNotification{method: "mcpServer/startupStatus/updated", params: map[string]any{"name": "docs", "status": "ready", "threadId": "thread-a"}})
+	if got := exactNotificationKinds(matching); len(got) != 2 || got[1] != protocolv2.ServerNotificationKindMCPServerStartupStatusUpdated {
+		t.Fatalf("mcp startup evidence = %#v", got)
+	}
+	if got := exactNotificationKinds(other); len(got) != 0 {
+		t.Fatalf("unrelated run received mcp startup: %#v", got)
+	}
+}
+
+func TestThreadStartedIsPreservedAcrossAttachRegistrationRace(t *testing.T) {
+	c := newTransportHarness()
+	c.notifications = make(chan acceptedNotification, 8)
+	started := protocolv2.NewServerNotificationThreadStarted(protocolv2.ServerNotificationThreadStarted{
+		Params: protocolv2.ThreadStartedNotification{Thread: facadeThread("thread-nested", nil)},
+	})
+	c.testAfterThreadStartResponse = func() {
+		raw, err := json.Marshal(started)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		var envelope struct {
+			Method string         `json:"method"`
+			Params map[string]any `json:"params"`
+		}
+		if err := json.Unmarshal(raw, &envelope); err != nil {
+			t.Error(err)
+			return
+		}
+		c.routeNotification(rpcNotification{method: envelope.Method, params: envelope.Params})
+	}
+	done := make(chan *Stream[StartedThreadRun], 1)
+	go func() {
+		stream, err := c.ThreadRunner().StartStream(context.Background(), StartThreadRunRequest{
+			Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}},
+		})
+		if err != nil {
+			t.Error(err)
+		}
+		done <- stream
+	}()
+	startID := waitForWrittenRequest(t, c.stdin.(*recordingWriteCloser), protocolv2.MethodThreadStart, 1)
+	c.routeResponse(map[string]any{
+		"id":     startID,
+		"result": protocolResultMap(t, facadeThreadStartResponse("thread-nested", "model")),
+	})
+	turnID := waitForWrittenRequest(t, c.stdin.(*recordingWriteCloser), protocolv2.MethodTurnStart, 1)
+	c.routeResponse(map[string]any{
+		"id": turnID,
+		"result": protocolResultMap(t, protocolv2.TurnStartResponse{Turn: protocolv2.Turn{
+			ID: "turn-nested", Items: []protocolv2.ThreadItem{}, Status: protocolv2.TurnStatusInProgress,
+		}}),
+	})
+	stream := <-done
+	if stream == nil {
+		t.Fatal("StartStream returned nil")
+	}
+	defer stream.Close()
+	result, ok := stream.Result()
+	if !ok {
+		t.Fatal("missing Exact Run result after attach")
+	}
+	found := false
+	for _, notification := range result.Run.Notifications {
+		if notification.Kind() == protocolv2.ServerNotificationKindThreadStarted {
+			found = true
+			payload, ok := notification.AsThreadStarted()
+			if !ok || payload.Params.Thread.ID != "thread-nested" {
+				t.Fatalf("thread/started payload = %#v ok=%v", payload, ok)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("thread/started was lost across attach registration: %#v", result.Run.Notifications)
+	}
+	later := newExactRunState(c, "thread-nested", StartedThreadRun{})
+	later.turnID = "turn-later"
+	if kinds := exactNotificationKinds(later); len(kinds) != 0 {
+		t.Fatalf("buffered thread/started leaked into a later run: %#v", kinds)
 	}
 }

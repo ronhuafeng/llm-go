@@ -30,6 +30,9 @@
 - Experimental member/variant admission now follows classified generated
   protocol surface facts instead of a handwritten field inventory. Stable
   members such as `excludeTurns` are no longer rejected.
+- Exact Run notification attribution now uses present correlation, including
+  optional `threadId` and nested `thread.id`. `thread/started` is preserved
+  across the thread/start-to-attach window.
 - **Breaking (pre-v1):** `AdmitTurn` now receives the exact decoded
   `ThreadStartResponse` and the exact pending `TurnStartParams`, including the
   composition-owned thread ID that will be sent. The SDK still does not merge
