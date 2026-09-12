@@ -259,9 +259,6 @@ func projectNeutralResponse(run, cloned codexsdk.StartedThreadRun, cloneErr erro
 			BackendName: "codex",
 		},
 	}
-	if model, ok := isolatedServedModel(run); ok {
-		response.Execution.ObserveModel(model)
-	}
 	if usage, err := isolatedNeutralUsage(run.Run.Usage); err == nil {
 		response.Execution.Usage = usage
 	}
@@ -269,25 +266,6 @@ func projectNeutralResponse(run, cloned codexsdk.StartedThreadRun, cloneErr erro
 		response.BackendDetails = Details{Run: cloned}
 	}
 	return response
-}
-
-func isolatedServedModel(run codexsdk.StartedThreadRun) (string, bool) {
-	var model string
-	ok := !reflect.DeepEqual(run.Start, protocolv2.ThreadStartResponse{})
-	if ok {
-		model = run.Start.Model
-	}
-	for _, notification := range run.Run.Notifications {
-		var cloned protocolv2.ServerNotification
-		if err := cloneGenerated(notification, &cloned); err != nil {
-			continue
-		}
-		if rerouted, routed := cloned.AsModelRerouted(); routed {
-			model = rerouted.Params.ToModel
-			ok = true
-		}
-	}
-	return model, ok
 }
 
 func isolatedNeutralUsage(usage *protocolv2.ThreadTokenUsage) (*llmadapter.TokenUsage, error) {

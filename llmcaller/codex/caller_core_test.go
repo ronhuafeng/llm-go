@@ -136,14 +136,6 @@ func newApplicationCaller(t *testing.T, runner ThreadRunner) *Caller {
 	return caller
 }
 
-func requireObservedModel(t *testing.T, evidence llmadapter.ExecutionEvidence, want string) {
-	t.Helper()
-	got, ok := evidence.Model.Value()
-	if !ok || got != want {
-		t.Fatalf("Model = (%q, %t), want observed %q", got, ok, want)
-	}
-}
-
 func requireUnknownModel(t *testing.T, evidence llmadapter.ExecutionEvidence) {
 	t.Helper()
 	if got, ok := evidence.Model.Value(); ok {
@@ -275,6 +267,19 @@ func TestApplicationAdmissionRejectsBeforeTurnAcrossCallPaths(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			if path.name == "Call" {
+				response, err := caller.Call(context.Background(), validRequest())
+				if !errors.Is(err, admissionErr) {
+					t.Fatalf("error = %v, want application admission cause", err)
+				}
+				requireUnknownModel(t, response.Execution)
+				requireUnknownProvider(t, response.Execution)
+				details, ok := response.BackendDetails.(Details)
+				if !ok || details.Run.Start.Model != "gpt" {
+					t.Fatalf("admission rejection dropped exact start model: %#v", response.BackendDetails)
+				}
+				return
+			}
 			if err := path.call(caller); !errors.Is(err, admissionErr) {
 				t.Fatalf("error = %v, want application admission cause", err)
 			}
@@ -308,7 +313,7 @@ func TestCallerBuildsExactRequestAndProjectsEvidence(t *testing.T) {
 		t.Fatalf("response = %#v", response)
 	}
 	requireUnknownProvider(t, response.Execution)
-	requireObservedModel(t, response.Execution, "gpt-rerouted")
+	requireUnknownModel(t, response.Execution)
 	if response.Execution.Usage == nil {
 		t.Fatal("missing usage")
 	}
@@ -412,6 +417,105 @@ func TestCallIsProjectionOfDetailedResult(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) || got.Execution.Usage != nil {
 		t.Fatalf("Call projection = %#v, want %#v", got, want)
+	}
+}
+
+func TestServedModelStaysUnknownWithoutAttemptScopedEvidence(t *testing.T) {
+	cases := []struct {
+		name  string
+		run   func() codexsdk.StartedThreadRun
+		check func(*testing.T, llmadapter.Response)
+	}{
+		{
+			name: "thread-start model only",
+			run: func() codexsdk.StartedThreadRun {
+				run := validStartedRun("ok", "gpt-start")
+				run.Run.Notifications = nil
+				return run
+			},
+			check: func(t *testing.T, response llmadapter.Response) {
+				t.Helper()
+				requireUnknownModel(t, response.Execution)
+				details := response.BackendDetails.(Details)
+				if details.Run.Start.Model != "gpt-start" {
+					t.Fatalf("exact start model = %q", details.Run.Start.Model)
+				}
+			},
+		},
+		{
+			name: "matching no-op reroute is not served-model evidence",
+			run: func() codexsdk.StartedThreadRun {
+				return validStartedRun("ok", "gpt-start")
+			},
+			check: func(t *testing.T, response llmadapter.Response) {
+				t.Helper()
+				requireUnknownModel(t, response.Execution)
+				requireRerouteToModel(t, response, "gpt-start")
+			},
+		},
+		{
+			name: "response-scoped reroute stays in backend details",
+			run: func() codexsdk.StartedThreadRun {
+				run := validStartedRun("ok", "gpt-start")
+				run.Run.Notifications = []protocolv2.ServerNotification{modelRerouted("gpt-start", "gpt-rerouted")}
+				return run
+			},
+			check: func(t *testing.T, response llmadapter.Response) {
+				t.Helper()
+				requireUnknownModel(t, response.Execution)
+				requireRerouteToModel(t, response, "gpt-rerouted")
+				details := response.BackendDetails.(Details)
+				if details.Run.Start.Model != "gpt-start" {
+					t.Fatalf("exact start model = %q", details.Run.Start.Model)
+				}
+			},
+		},
+		{
+			name: "multiple reroutes leave attempt model unknown",
+			run: func() codexsdk.StartedThreadRun {
+				run := validStartedRun("ok", "gpt-start")
+				run.Run.Notifications = []protocolv2.ServerNotification{
+					modelRerouted("gpt-start", "gpt-a"),
+					modelRerouted("gpt-a", "gpt-b"),
+				}
+				return run
+			},
+			check: func(t *testing.T, response llmadapter.Response) {
+				t.Helper()
+				requireUnknownModel(t, response.Execution)
+				requireRerouteToModel(t, response, "gpt-b")
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			caller := newApplicationCaller(t, &fakeRunner{result: tc.run()})
+			response, err := caller.Call(context.Background(), validRequest())
+			if err != nil {
+				t.Fatal(err)
+			}
+			requireUnknownProvider(t, response.Execution)
+			tc.check(t, response)
+		})
+	}
+}
+
+func requireRerouteToModel(t *testing.T, response llmadapter.Response, want string) {
+	t.Helper()
+	details, ok := response.BackendDetails.(Details)
+	if !ok {
+		t.Fatalf("BackendDetails = %#v", response.BackendDetails)
+	}
+	var to string
+	found := false
+	for _, notification := range details.Run.Run.Notifications {
+		if rerouted, ok := notification.AsModelRerouted(); ok {
+			to = rerouted.Params.ToModel
+			found = true
+		}
+	}
+	if !found || to != want {
+		t.Fatalf("reroute ToModel = (%q, %t), want %q", to, found, want)
 	}
 }
 
