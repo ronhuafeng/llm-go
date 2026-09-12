@@ -103,9 +103,11 @@ reusable protocol-proof workflow for generated artifacts, owner-local Go tests,
 candidate schema-state, and retained script tests. A successful
 `force_compare=true` run must still execute that proof. A required stage
 failure fails that run; the same run does not recover itself. Repair is a
-separate `workflow_dispatch` continuation that loads exact failed-run
-evidence, lets Codex propose worktree changes, and reuses the same proof
-workflow. Normal publication is structurally `metadata-sync`; repair
+separate `workflow_dispatch` continuation. It admits only mechanical
+`escalate` or `applied` plus an observed failed protocol-proof owner from the
+exact failed run, then lets Codex propose worktree changes and reuses the
+same proof workflow. `run.conclusion == failure` is not enough to authorize
+repair. Normal publication is structurally `metadata-sync`; repair
 publication is structurally `repair-sync`. The implementation agent does not
 certify its own repair.
 

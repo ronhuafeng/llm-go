@@ -171,6 +171,9 @@ jobs:
           OUTCOME: ${{ steps.mechanical.outputs.outcome }}
           APPLIED: ${{ steps.mechanical.outputs.applied }}
           CANDIDATE: ${{ steps.mechanical.outputs.candidate }}
+          HEAD_BRANCH: ${{ github.ref_name }}
+          EVENT_NAME: ${{ github.event_name }}
+          VALIDATION_ONLY: ${{ inputs.validation_only || false }}
         run: |
           set -euo pipefail
           mkdir -p "${RUNNER_TEMP}/protocol-sync-evidence"
@@ -181,14 +184,27 @@ jobs:
             --repository "${GH_REPO}"
             --run-id "${RUN_ID}"
             --repository-sha "${REPOSITORY_SHA}"
-            --target-ref "${TARGET_REF:-unknown}"
-            --target-kind "${TARGET_KIND:-unknown}"
-            --target-sha "${TARGET_SHA:-unknown}"
-            --outcome "${OUTCOME:-unknown}"
+            --head-branch "${HEAD_BRANCH}"
+            --event "${EVENT_NAME}"
             --candidate "${CANDIDATE}"
           )
+          if [[ -n "${TARGET_REF}" ]]; then
+            args+=(--target-ref "${TARGET_REF}")
+          fi
+          if [[ -n "${TARGET_KIND}" ]]; then
+            args+=(--target-kind "${TARGET_KIND}")
+          fi
+          if [[ -n "${TARGET_SHA}" ]]; then
+            args+=(--target-sha "${TARGET_SHA}")
+          fi
+          if [[ -n "${OUTCOME}" ]]; then
+            args+=(--outcome "${OUTCOME}")
+          fi
           if [[ "${APPLIED}" == "true" ]]; then
             args+=(--applied)
+          fi
+          if [[ "${VALIDATION_ONLY}" == "true" ]]; then
+            args+=(--validation-only)
           fi
           python3 scripts/codexsdk_repair_evidence.py "${args[@]}"
 
@@ -197,7 +213,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: protocol-sync-evidence
-          path: ${{ runner.temp }}/protocol-sync-evidence/evidence.json
+          path: ${{ runner.temp }}/protocol-sync-evidence
           if-no-files-found: ignore
 
       - name: Upload protocol candidate

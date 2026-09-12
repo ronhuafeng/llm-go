@@ -215,14 +215,33 @@ func TestProtocolSyncAndRepairAreNaturallyFailClosed(t *testing.T) {
 	if !strings.Contains(repairText, "failed_run_id:") {
 		t.Fatal("repair workflow must require an exact failed-run identity")
 	}
-	if strings.Index(repairOn, "codexsdk_repair_evidence.py validate") < 0 {
-		t.Fatal("repair workflow must validate failed-run evidence")
+	if strings.Index(repairOn, "codexsdk_repair_evidence.py admit") < 0 {
+		t.Fatal("repair workflow must admit failed-run evidence")
 	}
-	if strings.Index(repairOn, "codexsdk_repair_evidence.py validate") > strings.Index(repairOn, "uses: ./.github/actions/codex-exec") {
-		t.Fatal("repair workflow must validate/load failed-run evidence before Codex")
+	if strings.Index(repairOn, "codexsdk_repair_evidence.py admit") > strings.Index(repairOn, "uses: ./.github/actions/codex-exec") {
+		t.Fatal("repair workflow must admit failed-run evidence before Codex")
 	}
 	if strings.Index(repairOn, "uses: ./.github/actions/codex-exec") < 0 {
 		t.Fatal("repair workflow must invoke Codex")
+	}
+	admit, ok := workflowStepByID(repairText, "admission")
+	if !ok {
+		t.Fatal("repair workflow missing admission step")
+	}
+	if strings.Contains(admit, "continue-on-error") {
+		t.Fatal("admission must fail closed; Codex cannot run when admission rejects")
+	}
+	if !strings.Contains(repairOn, "failed-run/jobs.json") {
+		t.Fatal("repair admission must observe failed-run jobs")
+	}
+	if !strings.Contains(repairOn, "repair-input/admission.json") {
+		t.Fatal("repair must write normalized admission.json before Codex")
+	}
+	if !strings.Contains(repairOn, "repair-input/failed-logs") {
+		t.Fatal("repair must collect failed proof logs from the validated run")
+	}
+	if !strings.Contains(repairOn, "-n generated-proof") {
+		t.Fatal("repair must consume generated-proof JSON when the source run produced it")
 	}
 
 	repairProof, ok := workflowJobByID(repairText, "proof")
@@ -277,6 +296,9 @@ func TestProtocolSyncAndRepairAreNaturallyFailClosed(t *testing.T) {
 	}
 	if strings.Contains(evidence, "--sync-mode") {
 		t.Fatal("evidence-upload must not decide publication")
+	}
+	if strings.Contains(evidence, "unknown") {
+		t.Fatal("evidence pack must not write unknown as a target identity")
 	}
 
 	if strings.Contains(syncText, "codexsdk_validate_sync.sh") {
