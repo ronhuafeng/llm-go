@@ -148,11 +148,42 @@ func TestProtocolSyncRunsGeneratedProofOnComparison(t *testing.T) {
 	if !strings.Contains(text, "steps.mechanical.outputs.escalate != 'true'") {
 		t.Fatal("protocol sync must run generated proof on ordinary comparison, not only escalation")
 	}
-	if !strings.Contains(text, "id: escalation-validation") || !strings.Contains(text, "working-directory: codexsdk") {
-		t.Fatal("escalation validation must run inside the codexsdk module")
+	for _, id := range []string{
+		"generated-proof",
+		"owner-local-tests",
+		"schema-state",
+		"script-tests",
+		"escalation-validation",
+	} {
+		step, ok := workflowStepByID(text, id)
+		if !ok {
+			t.Fatalf("missing protocol sync step id %s", id)
+		}
+		if !strings.Contains(step, "working-directory: codexsdk") {
+			t.Fatalf("%s must set working-directory: codexsdk on that step", id)
+		}
+	}
+	escalation, ok := workflowStepByID(text, "escalation-validation")
+	if !ok {
+		t.Fatal("missing escalation-validation step")
+	}
+	if !strings.Contains(escalation, "./internal/cmd/generatedproof") {
+		t.Fatal("escalation validation must run generatedproof inside the codexsdk module")
+	}
+	if strings.Index(text, "id: escalation-validation") > strings.Index(text, "name: Upload generated proof") {
+		t.Fatal("generated proof upload must follow escalation validation")
 	}
 	if !strings.Contains(text, "always() && (steps.generated-proof.outcome == 'success' || steps.generated-proof.outcome == 'failure'") {
 		t.Fatal("generated proof artifacts must upload on proof failure, including escalation")
+	}
+	if strings.Contains(text, `"${OUTCOME}" == "implemented"`) || strings.Contains(text, `"${PUBLISH}" == "true"`) {
+		t.Fatal("protocol sync report must not treat retired mechanical implemented/publish outputs as success")
+	}
+	if !strings.Contains(text, `"${OUTCOME}" == "applied"`) {
+		t.Fatal("protocol sync report must describe mechanical applied outcome")
+	}
+	if !strings.Contains(text, `"${OUTCOME}" == "current"`) {
+		t.Fatal("protocol sync report must reserve already-current language for outcome=current")
 	}
 	if strings.Contains(text, "codexsdk_validate_sync.sh") {
 		t.Fatal("protocol sync must not keep the shell validator as the generated-artifact owner")
@@ -171,6 +202,46 @@ func TestProtocolSyncRunsGeneratedProofOnComparison(t *testing.T) {
 	}
 	if strings.Contains(string(publish), "generatedproof") || strings.Contains(string(publish), "go test") {
 		t.Fatal("publish script must not own generatedproof or go test correctness decisions")
+	}
+}
+
+func TestWorkflowStepByIDKeepsWorkingDirectoryOnOwningStep(t *testing.T) {
+	yaml := "" +
+		"    steps:\n" +
+		"      - name: Prove checked-in generated artifacts\n" +
+		"        id: generated-proof\n" +
+		"        working-directory: leaked\n" +
+		"        run: go run ./internal/cmd/generatedproof\n" +
+		"      - name: Validate escalated protocol implementation\n" +
+		"        id: escalation-validation\n" +
+		"        working-directory: codexsdk\n" +
+		"        run: go run ./internal/cmd/generatedproof\n" +
+		"      - name: Upload generated proof\n" +
+		"        if: always()\n"
+	step, ok := workflowStepByID(yaml, "escalation-validation")
+	if !ok {
+		t.Fatal("expected escalation-validation step")
+	}
+	if !strings.Contains(step, "working-directory: codexsdk") {
+		t.Fatalf("missing owning working-directory: %s", step)
+	}
+	if strings.Contains(step, "working-directory: leaked") {
+		t.Fatalf("leaked sibling working-directory into escalation step: %s", step)
+	}
+	if strings.Contains(step, "id: generated-proof") || strings.Contains(step, "Upload generated proof") {
+		t.Fatalf("step extractor included siblings: %s", step)
+	}
+
+	missingCWD := strings.Replace(yaml, "        working-directory: codexsdk\n", "", 1)
+	leaky, ok := workflowStepByID(missingCWD, "escalation-validation")
+	if !ok {
+		t.Fatal("expected escalation-validation step after removing its working-directory")
+	}
+	if strings.Contains(leaky, "working-directory: codexsdk") {
+		t.Fatal("removed escalation working-directory still visible on that step")
+	}
+	if !strings.Contains(missingCWD, "id: escalation-validation") || !strings.Contains(missingCWD, "working-directory: leaked") {
+		t.Fatal("fixture must still contain a sibling working-directory so a file-wide search would pass")
 	}
 }
 
@@ -431,4 +502,53 @@ func writeFile(t *testing.T, root, name, contents string) {
 	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func workflowStepByID(yaml, id string) (string, bool) {
+	lines := strings.Split(yaml, "\n")
+	idLine := -1
+	for i, line := range lines {
+		if strings.TrimSpace(line) == "id: "+id {
+			idLine = i
+			break
+		}
+	}
+	if idLine < 0 {
+		return "", false
+	}
+	idIndent := countLeadingSpaces(lines[idLine])
+	start := idLine
+	for start > 0 {
+		line := lines[start]
+		trimmed := strings.TrimLeft(line, " ")
+		if strings.HasPrefix(trimmed, "- ") && countLeadingSpaces(line) < idIndent {
+			break
+		}
+		start--
+	}
+	if !strings.HasPrefix(strings.TrimLeft(lines[start], " "), "- ") {
+		return "", false
+	}
+	startIndent := countLeadingSpaces(lines[start])
+	end := idLine + 1
+	for end < len(lines) {
+		line := lines[end]
+		trimmed := strings.TrimLeft(line, " ")
+		if strings.HasPrefix(trimmed, "- ") && countLeadingSpaces(line) == startIndent {
+			break
+		}
+		end++
+	}
+	return strings.Join(lines[start:end], "\n"), true
+}
+
+func countLeadingSpaces(s string) int {
+	n := 0
+	for _, r := range s {
+		if r != ' ' {
+			break
+		}
+		n++
+	}
+	return n
 }
