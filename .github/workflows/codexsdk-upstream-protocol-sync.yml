@@ -154,6 +154,7 @@ jobs:
       - name: Prove checked-in generated artifacts
         id: generated-proof
         if: steps.mechanical.outcome == 'success' && steps.mechanical.outputs.escalate != 'true'
+        continue-on-error: ${{ steps.mechanical.outputs.applied == 'true' }}
         working-directory: codexsdk
         env:
           GOWORK: "off"
@@ -173,6 +174,7 @@ jobs:
       - name: Owner-local codexsdk tests
         id: owner-local-tests
         if: steps.mechanical.outcome == 'success' && steps.mechanical.outputs.escalate != 'true'
+        continue-on-error: ${{ steps.mechanical.outputs.applied == 'true' }}
         working-directory: codexsdk
         env:
           GOWORK: "off"
@@ -182,6 +184,7 @@ jobs:
       - name: Candidate schema state
         id: schema-state
         if: steps.mechanical.outputs.applied == 'true'
+        continue-on-error: ${{ steps.mechanical.outputs.applied == 'true' }}
         working-directory: codexsdk
         env:
           CANDIDATE: ${{ steps.mechanical.outputs.candidate }}
@@ -196,13 +199,17 @@ jobs:
       - name: Remaining script tests
         id: script-tests
         if: steps.mechanical.outputs.applied == 'true'
+        continue-on-error: ${{ steps.mechanical.outputs.applied == 'true' }}
         working-directory: codexsdk
         env:
           PYTHONDONTWRITEBYTECODE: "1"
         run: python3 -m unittest discover -s scripts -p '*_test.py'
 
       - name: Record workflow proof failure
+        id: record-proof-failure
         if: >-
+          always() &&
+          !cancelled() &&
           steps.mechanical.outputs.applied == 'true' &&
           (steps.generated-proof.outcome == 'failure' ||
            steps.owner-local-tests.outcome == 'failure' ||
@@ -242,12 +249,14 @@ jobs:
       - name: Escalate unsupported semantic drift
         id: codex
         if: >-
-          steps.mechanical.outputs.escalate == 'true' ||
-          (steps.mechanical.outputs.applied == 'true' &&
-           (steps.generated-proof.outcome == 'failure' ||
-            steps.owner-local-tests.outcome == 'failure' ||
-            steps.schema-state.outcome == 'failure' ||
-            steps.script-tests.outcome == 'failure'))
+          always() &&
+          !cancelled() &&
+          (steps.mechanical.outputs.escalate == 'true' ||
+           (steps.mechanical.outputs.applied == 'true' &&
+            (steps.generated-proof.outcome == 'failure' ||
+             steps.owner-local-tests.outcome == 'failure' ||
+             steps.schema-state.outcome == 'failure' ||
+             steps.script-tests.outcome == 'failure')))
         uses: ./.github/actions/codex-exec
         with:
           api-key: ${{ secrets.AZURE_OPENAI_API_KEY }}
@@ -262,7 +271,8 @@ jobs:
             changes unstaged.
 
       - name: Reject mismatched Codex escalation claim
-        if: always() && (steps.codex.outcome == 'success' || steps.codex.outcome == 'failure')
+        id: escalation-claim
+        if: always() && !cancelled() && (steps.codex.outcome == 'success' || steps.codex.outcome == 'failure')
         env:
           CODEX_FINAL_MESSAGE_PATH: ${{ steps.codex.outputs.final-message-path }}
         run: |
@@ -282,7 +292,7 @@ jobs:
 
       - name: Validate escalated protocol implementation
         id: escalation-validation
-        if: steps.codex.outcome == 'success'
+        if: always() && !cancelled() && steps.codex.outcome == 'success' && steps.escalation-claim.outcome == 'success'
         working-directory: codexsdk
         env:
           GOWORK: "off"
@@ -309,13 +319,16 @@ jobs:
           if-no-files-found: error
 
       - name: Confirm generated baseline provenance
+        id: provenance
         if: >-
-          (steps.mechanical.outputs.applied == 'true' &&
-           steps.generated-proof.outcome == 'success' &&
-           steps.owner-local-tests.outcome == 'success' &&
-           steps.schema-state.outcome == 'success' &&
-           steps.script-tests.outcome == 'success') ||
-          steps.escalation-validation.outcome == 'success'
+          always() &&
+          !cancelled() &&
+          ((steps.mechanical.outputs.applied == 'true' &&
+            steps.generated-proof.outcome == 'success' &&
+            steps.owner-local-tests.outcome == 'success' &&
+            steps.schema-state.outcome == 'success' &&
+            steps.script-tests.outcome == 'success') ||
+           steps.escalation-validation.outcome == 'success')
         working-directory: codexsdk
         env:
           RESOLVED_TARGET_KIND: ${{ steps.mechanical.outputs.target_kind }}
@@ -342,12 +355,14 @@ jobs:
       - name: Capture final protocol changes
         id: capture
         if: >-
-          (steps.mechanical.outputs.applied == 'true' &&
-           steps.generated-proof.outcome == 'success' &&
-           steps.owner-local-tests.outcome == 'success' &&
-           steps.schema-state.outcome == 'success' &&
-           steps.script-tests.outcome == 'success') ||
-          steps.escalation-validation.outcome == 'success'
+          always() &&
+          !cancelled() &&
+          ((steps.mechanical.outputs.applied == 'true' &&
+            steps.generated-proof.outcome == 'success' &&
+            steps.owner-local-tests.outcome == 'success' &&
+            steps.schema-state.outcome == 'success' &&
+            steps.script-tests.outcome == 'success') ||
+           steps.escalation-validation.outcome == 'success')
         working-directory: codexsdk
         run: |
           python3 scripts/codexsdk_sync_changes.py capture \
@@ -358,6 +373,8 @@ jobs:
       - name: Commit validated protocol implementation
         id: commit
         if: >-
+          always() &&
+          !cancelled() &&
           inputs.validation_only != true &&
           ((steps.mechanical.outputs.applied == 'true' &&
             steps.generated-proof.outcome == 'success' &&
@@ -388,6 +405,8 @@ jobs:
       - name: Publish protected sync PR
         id: publish
         if: >-
+          always() &&
+          !cancelled() &&
           inputs.validation_only != true &&
           ((steps.mechanical.outputs.applied == 'true' &&
             steps.generated-proof.outcome == 'success' &&
@@ -421,9 +440,14 @@ jobs:
       - name: Report protocol sync outcome
         if: >-
           always() &&
+          !cancelled() &&
           steps.mechanical.outcome == 'success' &&
-          (steps.mechanical.outputs.escalate != 'true' || steps.escalation-validation.outcome == 'success') &&
-          (steps.mechanical.outputs.escalate == 'true' || steps.generated-proof.outcome == 'success') &&
+          (steps.escalation-validation.outcome == 'success' ||
+           (steps.generated-proof.outcome == 'success' &&
+            steps.owner-local-tests.outcome == 'success' &&
+            (steps.mechanical.outputs.applied != 'true' ||
+             (steps.schema-state.outcome == 'success' &&
+              steps.script-tests.outcome == 'success')))) &&
           (inputs.validation_only == true ||
            (steps.mechanical.outputs.applied != 'true' && steps.mechanical.outputs.escalate != 'true') ||
            (steps.commit.outcome == 'success' && steps.publish.outcome == 'success'))
@@ -465,8 +489,8 @@ jobs:
             else
               echo "- owner_local_tests: not-run"
             fi
-            if [[ "${ESCALATE}" == "true" ]]; then
-              echo "- Escalation: implementation agent received explicit drift evidence after mechanical generation and owner-local Go proofs failed."
+            if [[ "${OWNER_LOCAL_ESCALATE}" == "success" ]]; then
+              echo "- Escalation: implementation agent received explicit drift evidence; native re-proof succeeded."
             elif [[ "${OUTCOME}" == "applied" ]]; then
               echo "- Mechanical generation and owner-local Go proofs were sufficient; no implementation agent was invoked."
             elif [[ "${OUTCOME}" == "comparison" ]]; then
@@ -476,7 +500,7 @@ jobs:
             else
               echo "- Unrecognized mechanical outcome \`${OUTCOME}\`; not treated as current."
             fi
-            if [[ "${OUTCOME}" == "applied" || "${ESCALATE}" == "true" ]]; then
+            if [[ "${OUTCOME}" == "applied" || "${ESCALATE}" == "true" || "${OWNER_LOCAL_ESCALATE}" == "success" ]]; then
               if [[ "${VALIDATION_ONLY}" == "true" ]]; then
                 echo "- PR validation: protocol implementation validated; commit and publication intentionally skipped."
               elif [[ -n "${PR_URL}" ]]; then
@@ -484,3 +508,53 @@ jobs:
               fi
             fi
           } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Fail closed unless native proofs succeeded
+        id: fail-closed
+        if: always() && !cancelled() && steps.mechanical.outcome == 'success'
+        env:
+          OUTCOME: ${{ steps.mechanical.outputs.outcome }}
+          APPLIED: ${{ steps.mechanical.outputs.applied }}
+          ESCALATE: ${{ steps.mechanical.outputs.escalate }}
+          GENERATED: ${{ steps.generated-proof.outcome }}
+          OWNER: ${{ steps.owner-local-tests.outcome }}
+          SCHEMA: ${{ steps.schema-state.outcome }}
+          SCRIPTS: ${{ steps.script-tests.outcome }}
+          REPROOF: ${{ steps.escalation-validation.outcome }}
+        run: |
+          set -euo pipefail
+          original_ok=false
+          if [[ "${APPLIED}" == "true" ]]; then
+            if [[ "${GENERATED}" == "success" && "${OWNER}" == "success" && "${SCHEMA}" == "success" && "${SCRIPTS}" == "success" ]]; then
+              original_ok=true
+            fi
+          elif [[ "${GENERATED}" == "success" && "${OWNER}" == "success" ]]; then
+            original_ok=true
+          fi
+          reproof_ok=false
+          if [[ "${REPROOF}" == "success" ]]; then
+            reproof_ok=true
+          fi
+          if [[ "${OUTCOME}" == "comparison" || "${OUTCOME}" == "current" ]]; then
+            if [[ "${original_ok}" != "true" ]]; then
+              echo "comparison/current requires successful generated proof and owner-local tests" >&2
+              exit 1
+            fi
+            exit 0
+          fi
+          if [[ "${OUTCOME}" == "applied" ]]; then
+            if [[ "${original_ok}" == "true" || "${reproof_ok}" == "true" ]]; then
+              exit 0
+            fi
+            echo "applied requires original proofs or successful escalation-validation" >&2
+            exit 1
+          fi
+          if [[ "${OUTCOME}" == "escalate" || "${ESCALATE}" == "true" ]]; then
+            if [[ "${reproof_ok}" == "true" ]]; then
+              exit 0
+            fi
+            echo "escalation requires successful escalation-validation" >&2
+            exit 1
+          fi
+          echo "unrecognized mechanical outcome ${OUTCOME}; fail closed" >&2
+          exit 1

@@ -100,9 +100,13 @@ composition. Those proofs are Go-native: `codexsdk/internal/cmd/generatedproof`
 and `internal/moduleproof`. The upstream-sync workflow is mechanical-first:
 resolve the target, generate and compare upstream schemas, prove checked-in
 generated artifacts, and run owner-local Go tests. A successful
-`force_compare=true` run must still execute the generated-artifact proof. The
-implementation agent is invoked only when that path writes explicit escalation
-evidence.
+`force_compare=true` run must still execute the generated-artifact proof. After
+mechanical apply, a failed owner proof is continue-on-error evidence rather than
+an immediate job death: YAML records it, may invoke the implementation agent,
+then native-reproofs. The job fail-closes unless comparison/current original
+proofs succeeded, applied original proofs succeeded, or escalation-validation
+succeeded. The implementation agent is invoked only when that path writes
+explicit escalation evidence.
 
 Retained Python/shell helpers that still have a mechanical role include
 upstream schema acquisition, candidate apply/report construction, and the
