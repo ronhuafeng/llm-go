@@ -64,10 +64,12 @@ type Client struct {
 	nextID  atomic.Uint64
 	pending map[string]pendingCall
 
-	turnMu         sync.Mutex
-	exactStreams   map[string]map[*exactRunState]struct{}
-	exactAttaching map[string]map[*exactRunState]struct{}
-	pendingEvents  map[string][]rpcNotification
+	turnMu                     sync.Mutex
+	exactStreams               map[string]map[*exactRunState]struct{}
+	exactAttaching             map[string]map[*exactRunState]struct{}
+	pendingEvents              map[string][]rpcNotification
+	armedThreadAttach          map[string]struct{}
+	pendingThreadNotifications map[string][]protocolv2.ServerNotification
 	// replayingEvents keeps accepted evidence visible to terminalization after
 	// attachment removes it from pendingEvents and until replay commits it.
 	replayingEvents    map[*exactRunState][]rpcNotification
@@ -85,6 +87,7 @@ type Client struct {
 	testAfterCloseCausePublished          func()
 	testAfterServerRequestFailureResponse func()
 	testBeforePendingAdmission            func()
+	testAfterThreadStartResponse          func()
 
 	readerDone chan struct{}
 
@@ -132,20 +135,22 @@ func New(options ClientOptions) (*Client, error) {
 	clientCtx, cancel := context.WithCancel(context.Background())
 	handlerCtx, handlerCancel := context.WithCancel(clientCtx)
 	c := &Client{
-		options:             normalized,
-		ctx:                 clientCtx,
-		cancel:              cancel,
-		handlerCtx:          handlerCtx,
-		handlerCancel:       handlerCancel,
-		exactStreams:        map[string]map[*exactRunState]struct{}{},
-		exactAttaching:      map[string]map[*exactRunState]struct{}{},
-		pendingEvents:       map[string][]rpcNotification{},
-		pendingDiagnostics:  map[string][]DiagnosticRef{},
-		pending:             map[string]pendingCall{},
-		readerDone:          make(chan struct{}),
-		dispatchStop:        make(chan struct{}),
-		dispatcherDone:      make(chan struct{}),
-		closeCausePublished: make(chan struct{}),
+		options:                    normalized,
+		ctx:                        clientCtx,
+		cancel:                     cancel,
+		handlerCtx:                 handlerCtx,
+		handlerCancel:              handlerCancel,
+		exactStreams:               map[string]map[*exactRunState]struct{}{},
+		exactAttaching:             map[string]map[*exactRunState]struct{}{},
+		pendingEvents:              map[string][]rpcNotification{},
+		armedThreadAttach:          map[string]struct{}{},
+		pendingThreadNotifications: map[string][]protocolv2.ServerNotification{},
+		pendingDiagnostics:         map[string][]DiagnosticRef{},
+		pending:                    map[string]pendingCall{},
+		readerDone:                 make(chan struct{}),
+		dispatchStop:               make(chan struct{}),
+		dispatcherDone:             make(chan struct{}),
+		closeCausePublished:        make(chan struct{}),
 	}
 	queueCapacity := normalized.NotificationQueueCapacity
 	if queueCapacity == 0 {
@@ -482,7 +487,27 @@ func (c *Client) routeResponse(message map[string]any) {
 			return
 		}
 	}
+	if pending.method == protocolv2.MethodThreadStart || pending.method == protocolv2.MethodThreadResume {
+		if threadID := threadIDFromProtocolResult(result); threadID != "" {
+			c.armThreadAttach(threadID)
+		}
+	}
 	pending.response <- rpcResponse{result: result}
+}
+
+func threadIDFromProtocolResult(result map[string]any) string {
+	thread, _ := result["thread"].(map[string]any)
+	id, _ := thread["id"].(string)
+	return id
+}
+
+func (c *Client) armThreadAttach(threadID string) {
+	c.turnMu.Lock()
+	defer c.turnMu.Unlock()
+	if c.armedThreadAttach == nil {
+		c.armedThreadAttach = map[string]struct{}{}
+	}
+	c.armedThreadAttach[threadID] = struct{}{}
 }
 
 func protocolError(id any, method string, rawError any) error {
@@ -599,6 +624,14 @@ func (c *Client) routeExactNotificationBeforeTerminalCompletion(notification rpc
 				if candidateThreadID == identity.threadID {
 					targets = append(targets, stream)
 				}
+			}
+		}
+		if len(targets) == 0 {
+			if _, armed := c.armedThreadAttach[identity.threadID]; armed {
+				if c.pendingThreadNotifications == nil {
+					c.pendingThreadNotifications = map[string][]protocolv2.ServerNotification{}
+				}
+				c.pendingThreadNotifications[identity.threadID] = append(c.pendingThreadNotifications[identity.threadID], typed)
 			}
 		}
 	}
@@ -807,14 +840,23 @@ func (n rpcNotification) completeEvidenceTerminal() {
 
 func (c *Client) registerAttachingExactStream(stream *exactRunState) error {
 	c.turnMu.Lock()
-	defer c.turnMu.Unlock()
 	if len(c.exactAttaching[stream.threadID]) != 0 {
+		c.turnMu.Unlock()
 		return fmt.Errorf("%w: thread_id=%s", errConcurrentTurnStart, stream.threadID)
 	}
 	if c.exactAttaching[stream.threadID] == nil {
 		c.exactAttaching[stream.threadID] = map[*exactRunState]struct{}{}
 	}
 	c.exactAttaching[stream.threadID][stream] = struct{}{}
+	pending := append([]protocolv2.ServerNotification(nil), c.pendingThreadNotifications[stream.threadID]...)
+	delete(c.pendingThreadNotifications, stream.threadID)
+	delete(c.armedThreadAttach, stream.threadID)
+	c.turnMu.Unlock()
+	for _, typed := range pending {
+		if err := stream.accept(typed); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
