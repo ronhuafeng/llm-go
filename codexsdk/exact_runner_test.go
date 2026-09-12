@@ -343,6 +343,123 @@ func TestExactRunnerResumePreservesResponseAndComposesTurn(t *testing.T) {
 	}
 }
 
+func TestExactRunnerResumeDoesNotSubstituteRequestedThreadIdentity(t *testing.T) {
+	experimental := true
+	for _, test := range []struct {
+		name         string
+		thread       protocolv2.ThreadResumeParams
+		experimental bool
+	}{
+		{
+			name:   "requested id",
+			thread: protocolv2.ThreadResumeParams{ThreadID: "thread-requested"},
+		},
+		{
+			name: "history selector",
+			thread: protocolv2.ThreadResumeParams{
+				ThreadID: "thread-requested",
+				History:  protocolv2.Value([]protocolv2.ResponseItem{}),
+			},
+			experimental: true,
+		},
+		{
+			name: "path selector",
+			thread: protocolv2.ThreadResumeParams{
+				ThreadID: "thread-requested",
+				Path:     protocolv2.Value("/tmp/codex-rollout.jsonl"),
+			},
+			experimental: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			record := tempRecord(t)
+			t.Setenv("CODEXSDK_FAKE_RECORD", record)
+			options := ClientOptions{CWD: t.TempDir(), Command: fakeCommand("thread-resume-missing-id-once")}
+			if test.experimental {
+				options.Initialize = protocolv2.InitializeParams{
+					ClientInfo: protocolv2.ClientInfo{Name: defaultClientName, Version: "codex-go-sdk-v1"},
+					Capabilities: protocolv2.Value(protocolv2.InitializeCapabilities{
+						ExperimentalAPI: &experimental,
+					}),
+				}
+			}
+			root, err := New(options)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer root.Close()
+
+			result, err := root.ThreadRunner().Resume(context.Background(), ResumeThreadRunRequest{
+				Thread: test.thread,
+				Turn:   protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}},
+			})
+			if !errors.Is(err, ErrMissingThreadID) {
+				t.Fatalf("Resume error = %v, want missing observed thread id", err)
+			}
+			if result.Resume.Thread.ID != "" || result.Resume.Model != "decoded-resume-model" {
+				t.Fatalf("Resume partial evidence = %#v", result.Resume)
+			}
+			if result.Resume.Thread.ID == test.thread.ThreadID {
+				t.Fatal("requested thread id was copied into the resume observation")
+			}
+			if firstRecord(readRecords(t, record), "recv", protocolv2.MethodTurnStart) != nil {
+				t.Fatal("turn/start was sent after missing observed thread id")
+			}
+		})
+	}
+}
+
+func TestExactRunnerResumeUsesObservedThreadIdentityWhenItDiffersFromRequest(t *testing.T) {
+	root := newTransportHarness()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan struct{})
+	var result ResumedThreadRun
+	go func() {
+		defer close(done)
+		result, _ = root.ThreadRunner().Resume(ctx, ResumeThreadRunRequest{
+			Thread: protocolv2.ThreadResumeParams{ThreadID: "thread-requested"},
+			Turn:   protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}},
+		})
+	}()
+
+	resumeID := waitForWrittenRequest(t, root.stdin.(*recordingWriteCloser), protocolv2.MethodThreadResume, 1)
+	root.routeResponse(map[string]any{
+		"id":     resumeID,
+		"result": protocolResultMap(t, facadeThreadResumeResponse("thread-observed", "model-observed")),
+	})
+	waitForWrittenRequest(t, root.stdin.(*recordingWriteCloser), protocolv2.MethodTurnStart, 1)
+	params := writtenRequestParams(t, root.stdin.(*recordingWriteCloser), protocolv2.MethodTurnStart)
+	if params["threadId"] != "thread-observed" {
+		t.Fatalf("turn/start thread id = %#v, want observed resume identity", params["threadId"])
+	}
+	cancel()
+	waitClosed(t, done, "Resume did not return after observed identity continuation")
+	if result.Resume.Thread.ID != "thread-observed" {
+		t.Fatalf("resume observation = %#v, want observed thread identity", result.Resume.Thread)
+	}
+}
+
+func writtenRequestParams(t *testing.T, writer *recordingWriteCloser, method string) map[string]any {
+	t.Helper()
+	for _, line := range strings.Split(strings.TrimSpace(writer.String()), "\n") {
+		var message map[string]any
+		if err := json.Unmarshal([]byte(line), &message); err != nil {
+			t.Fatal(err)
+		}
+		if message["method"] != method {
+			continue
+		}
+		params, _ := message["params"].(map[string]any)
+		if params == nil {
+			t.Fatalf("request %q params = %#v", method, message["params"])
+		}
+		return params
+	}
+	t.Fatalf("request %q was not observed", method)
+	return nil
+}
+
 func TestNotificationHandlerReceivesExactNotificationsInOrder(t *testing.T) {
 	t.Setenv("CODEXSDK_FAKE_RECORD", tempRecord(t))
 	var mu sync.Mutex
@@ -1698,7 +1815,7 @@ func TestExactRunnerSynchronousDrainPrefersPublishedTerminalOverCallerCancellati
 				defer close(done)
 				status, runErr = test.run(ctx, root)
 			}()
-			waitExactRunTerminal(t, root)
+			waitExactRunTerminalOrReturned(t, root, done)
 			ctx.fail(context.Canceled)
 			waitClosed(t, done, "synchronous Exact Run did not return")
 			if !errors.Is(runErr, ErrTurnFailed) {
@@ -1753,10 +1870,15 @@ func waitClosed(t *testing.T, ch <-chan struct{}, message string) {
 	}
 }
 
-func waitExactRunTerminal(t *testing.T, client *Client) {
+func waitExactRunTerminalOrReturned(t *testing.T, client *Client, done <-chan struct{}) {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
+		select {
+		case <-done:
+			return
+		default:
+		}
 		if exactRunTerminalPublished(client) {
 			return
 		}
@@ -1767,17 +1889,24 @@ func waitExactRunTerminal(t *testing.T, client *Client) {
 
 func exactRunTerminalPublished(client *Client) bool {
 	client.turnMu.Lock()
-	defer client.turnMu.Unlock()
-	for _, streams := range []map[string]map[*exactRunState]struct{}{client.exactStreams, client.exactAttaching} {
-		for _, states := range streams {
-			for state := range states {
-				state.mu.Lock()
-				terminal := state.terminal
-				state.mu.Unlock()
-				if terminal {
-					return true
-				}
-			}
+	var states []*exactRunState
+	for _, streams := range client.exactStreams {
+		for state := range streams {
+			states = append(states, state)
+		}
+	}
+	for _, streams := range client.exactAttaching {
+		for state := range streams {
+			states = append(states, state)
+		}
+	}
+	client.turnMu.Unlock()
+	for _, state := range states {
+		state.mu.Lock()
+		terminal := state.terminal
+		state.mu.Unlock()
+		if terminal {
+			return true
 		}
 	}
 	return false

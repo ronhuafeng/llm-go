@@ -162,9 +162,6 @@ func (r *exactRunner) ResumeStream(ctx context.Context, request ResumeThreadRunR
 	initial := ResumedThreadRun{Resume: resumed, Run: ThreadRunResult{InputStats: exactInputStats(turnParams.Input)}}
 	threadID := resumed.Thread.ID
 	if threadID == "" {
-		threadID = threadParams.ThreadID
-	}
-	if threadID == "" {
 		state := newExactRunState(r.client, "", initial)
 		state.finish(fmt.Errorf("codexsdk: thread/resume response missing thread id: %w", ErrMissingThreadID))
 		return &Stream[ResumedThreadRun]{state: state}, nil
