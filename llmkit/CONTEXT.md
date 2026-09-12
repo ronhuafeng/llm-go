@@ -11,11 +11,14 @@ module owns and can publish as an isolated snapshot.
 _Avoid_: Immutable result
 
 **Execution evidence**:
-Provider-neutral facts attributable to one model call. Unknown facts remain
-unknown; backend-specific facts stay in Backend details. Backend identity,
-model identity, and model-provider identity are separate facts and are not
-inferred from one another.
-_Avoid_: Requested settings, estimated usage, metadata bag, inferred provider
+Provider-neutral facts attributable to one inference/adapter attempt. Unknown
+facts remain unknown; backend-specific facts stay in Backend details. Backend
+identity, model identity, and model-provider identity are separate facts and
+are not inferred from one another. Measurement scope remains the scope actually
+supported by lower-layer evidence; an aggregate is not silently narrowed to a
+single call.
+_Avoid_: Requested settings, estimated usage, metadata bag, inferred provider,
+mis-scoped usage
 
 **Observation**:
 A toolkit-owned fact that may be unknown. The zero value is unknown and
@@ -27,9 +30,10 @@ _Avoid_: Zero sentinel, empty-as-absence, estimated usage, inferred name
 **Execution backend**:
 The runtime or adapter through which an inference executes, when that identity
 is itself an attributable fact. `ExecutionEvidence.BackendName` and
-`BackendDetails.BackendName()` refer to this identity. It does not establish the
-model provider.
-_Avoid_: Provider name, model provider
+`BackendDetails.BackendName()` refer to this identity. A published backend
+identity is non-empty and attributable. It does not establish the model
+provider.
+_Avoid_: Provider name, model provider, empty backend identity
 
 **Model provider**:
 The provider identity directly established by attributable lower-layer evidence.
@@ -37,10 +41,23 @@ The provider identity directly established by attributable lower-layer evidence.
 unknown when only the backend or model identifier is known.
 _Avoid_: Adapter name, model-name heuristic, requested provider
 
+**Served model**:
+A provider-neutral model identifier directly established as having served the
+relevant inference attempt. A requested, selected, effective, thread-start, or
+rerouted model identifier is not sufficient unless the lower-layer observation
+itself establishes serving semantics.
+_Avoid_: Requested model, selected model, route target, model-name inference
+
+**Final response observation**:
+The provider-neutral observation of final response text when the lower layer can
+distinguish presence. Observed empty text and absent final response are distinct
+states and remain distinct through projection.
+_Avoid_: Empty-as-absence, scalar-only projection
+
 **Backend details**:
 Typed backend-specific evidence published by an adapter. It must not alias
-mutable runtime state. Its backend identity must agree with neutral execution
-backend identity, but it does not establish model-provider identity.
+mutable runtime state. Its non-empty backend identity must agree with neutral
+execution backend identity, but it does not establish model-provider identity.
 _Avoid_: Provider identity, metadata bag, raw metadata
 
 **Inference capability**:
@@ -62,18 +79,28 @@ validator-owned findings, published exactly as returned. Absence of judgment
 is a first-class state. It is not model-facing retry feedback.
 _Avoid_: Sanitized feedback, model judgment, shared feedback value
 
-**Repair / retry feedback**:
+**Accepted result**:
+A proposition promoted into the step's successful result only after a positive
+deterministic Judgment. Rejected, exhausted, or unjudged propositions remain in
+Attempt evidence and do not occupy the accepted-output slot.
+_Avoid_: Latest proposition, decoded output, retained rejection
+
+**Repair projection / retry feedback**:
 Application-projected, iteration-stamped information explicitly eligible for a
 later prompt render. `llmstep` owns the separation from Judgment, bounded retry
 orchestration, and framework iteration. The application owns what finding
 content is disclosed, redacted, pseudonymized, classified, or omitted. Raw
-validator findings are not model-facing by default.
-_Avoid_: Validator output, toolkit content policy, default secret scanner,
-shared feedback value
+validator findings are not model-facing by default. Public hook naming should
+describe projection rather than imply toolkit-owned sanitization or content
+policy.
+_Avoid_: Validator output, sanitizer policy, toolkit content policy, default
+secret scanner, shared feedback value
 
 **Attempt evidence**:
 The stage-owned record of one bounded inference attempt, including any call,
-decode, judgment, retry-feedback, or failure evidence actually obtained.
+decode, proposition, judgment, retry-feedback, or failure evidence actually
+obtained. Attempt evidence may retain a rejected proposition without promoting
+it to Accepted result.
 _Avoid_: Successful result only, trace metadata bag
 
 **Contract**:
