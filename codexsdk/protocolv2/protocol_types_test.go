@@ -6210,6 +6210,20 @@ func TestMcpServerElicitationRequestParamsPreserveSchemaDefinedVariants(t *testi
 		want  string
 	}{
 		{
+			name: "openai/userVerification",
+			value: func() McpServerElicitationRequestParams {
+				params := NewMcpServerElicitationRequestParamsOpenaiUserVerification(McpServerElicitationRequestParamsOpenaiUserVerification{
+					Challenge:   "chal-1",
+					Description: "approve this login",
+					Title:       "Verify user",
+				})
+				params.ServerName = "server-1"
+				params.ThreadID = "thread-1"
+				return params
+			}(),
+			want: `{"challenge":"chal-1","description":"approve this login","mode":"openai/userVerification","serverName":"server-1","threadId":"thread-1","title":"Verify user"}`,
+		},
+		{
 			name: "form",
 			value: func() McpServerElicitationRequestParams {
 				params := NewMcpServerElicitationRequestParamsForm(McpServerElicitationRequestParamsForm{

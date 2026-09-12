@@ -95,7 +95,7 @@ func TestBuildProtocolTypePlanKeepsElicitationUnionPayload(t *testing.T) {
 	if !ok || got.Kind != TypePlanTaggedUnionCandidate {
 		t.Fatalf("McpServerElicitationRequestParams kind = %v ok=%v, want tagged union", got.Kind, ok)
 	}
-	if got.Schema == nil || len(got.Schema.Properties) == 0 || len(got.Schema.OneOf) < 4 {
+	if got.Schema == nil || len(got.Schema.Properties) == 0 || len(got.Schema.OneOf) < 5 {
 		t.Fatalf("elicitation schema lost shared properties or oneOf: properties=%d oneOf=%d", len(got.Schema.Properties), len(got.Schema.OneOf))
 	}
 }
@@ -182,6 +182,95 @@ func TestBuildProtocolTypePlanClassifiesReviewedNullableTokenUsageParams(t *test
 				t.Fatal(err)
 			}
 			typePlan, ok := plan.TypeBySchema("v2/NullableGetAccountTokenUsageParams.json")
+			if !ok || typePlan.Kind != TypePlanAnyOfDeferred {
+				t.Fatalf("nullable params wrapper kind = %v, ok=%v; want %s", typePlan.Kind, ok, TypePlanAnyOfDeferred)
+			}
+		})
+	}
+}
+
+func TestBuildProtocolTypePlanClassifiesReviewedNullableRateLimitsParams(t *testing.T) {
+	const coverage = `{
+		"status": "classified-manifest",
+		"types": [{
+			"schema": "v2/NullableGetAccountRateLimitsParams.json",
+			"stability": "stable",
+			"status": "deferred",
+			"type": "NullableGetAccountRateLimitsParams"
+		}],
+		"fields": []
+	}`
+	cases := map[string]struct {
+		schema  string
+		wantErr bool
+	}{
+		"reviewed local ref or null": {
+			schema: `{
+				"title": "Nullable_GetAccountRateLimitsParams",
+				"anyOf": [
+					{"$ref": "#/definitions/GetAccountRateLimitsParams"},
+					{"type": "null"}
+				],
+				"definitions": {
+					"GetAccountRateLimitsParams": {"type": "object"}
+				}
+			}`,
+		},
+		"missing null branch": {
+			schema: `{
+				"title": "Nullable_GetAccountRateLimitsParams",
+				"anyOf": [
+					{"$ref": "#/definitions/GetAccountRateLimitsParams"}
+				],
+				"definitions": {
+					"GetAccountRateLimitsParams": {"type": "object"}
+				}
+			}`,
+			wantErr: true,
+		},
+		"additional branch": {
+			schema: `{
+				"title": "Nullable_GetAccountRateLimitsParams",
+				"anyOf": [
+					{"$ref": "#/definitions/GetAccountRateLimitsParams"},
+					{"type": "null"},
+					{"type": "string"}
+				],
+				"definitions": {
+					"GetAccountRateLimitsParams": {"type": "object"}
+				}
+			}`,
+			wantErr: true,
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			if err := os.MkdirAll(filepath.Join(root, "v2"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(root, "coverage_matrix.json"), []byte(coverage), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(root, "v2", "NullableGetAccountRateLimitsParams.json"), []byte(tc.schema), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			plan, err := BuildProtocolTypePlan(root)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("BuildProtocolTypePlan accepted drifted nullable params wrapper")
+				}
+				if !strings.Contains(err.Error(), "NullableGetAccountRateLimitsParams.json") {
+					t.Fatalf("error %q does not name the drifted schema", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			typePlan, ok := plan.TypeBySchema("v2/NullableGetAccountRateLimitsParams.json")
 			if !ok || typePlan.Kind != TypePlanAnyOfDeferred {
 				t.Fatalf("nullable params wrapper kind = %v, ok=%v; want %s", typePlan.Kind, ok, TypePlanAnyOfDeferred)
 			}

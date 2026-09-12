@@ -285,6 +285,10 @@ const (
 	MethodTurnStart                               = "turn/start"
 	MethodTurnStarted                             = "turn/started"
 	MethodTurnSteer                               = "turn/steer"
+	MethodUserVerificationDelete                  = "userVerification/delete"
+	MethodUserVerificationEnroll                  = "userVerification/enroll"
+	MethodUserVerificationStatus                  = "userVerification/status"
+	MethodUserVerificationVerify                  = "userVerification/verify"
 	MethodWarning                                 = "warning"
 	MethodWindowsWorldWritableWarning             = "windows/worldWritableWarning"
 	MethodWindowsSandboxReadiness                 = "windowsSandbox/readiness"
@@ -2965,6 +2969,50 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "Turns().Steer",
 		Stability:             MethodStabilityStable,
+	},
+	MethodUserVerificationDelete: {
+		Method:                MethodUserVerificationDelete,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "userVerification",
+		ParamsOrPayloadSchema: "UserVerificationDeleteParams",
+		ResponseSchema:        "v2/UserVerificationDeleteResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "UserVerification().Delete",
+		Stability:             MethodStabilityExperimental,
+	},
+	MethodUserVerificationEnroll: {
+		Method:                MethodUserVerificationEnroll,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "userVerification",
+		ParamsOrPayloadSchema: "UserVerificationEnrollParams",
+		ResponseSchema:        "v2/UserVerificationEnrollResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "UserVerification().Enroll",
+		Stability:             MethodStabilityExperimental,
+	},
+	MethodUserVerificationStatus: {
+		Method:                MethodUserVerificationStatus,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "userVerification",
+		ParamsOrPayloadSchema: "UserVerificationStatusParams",
+		ResponseSchema:        "v2/UserVerificationStatusResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "UserVerification().Status",
+		Stability:             MethodStabilityExperimental,
+	},
+	MethodUserVerificationVerify: {
+		Method:                MethodUserVerificationVerify,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "userVerification",
+		ParamsOrPayloadSchema: "UserVerificationVerifyParams",
+		ResponseSchema:        "v2/UserVerificationVerifyResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "UserVerification().Verify",
+		Stability:             MethodStabilityExperimental,
 	},
 	MethodWarning: {
 		Method:                MethodWarning,

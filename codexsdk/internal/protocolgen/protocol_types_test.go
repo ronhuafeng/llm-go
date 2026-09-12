@@ -569,6 +569,103 @@ func TestSelectGeneratedTaggedUnionsSupportsReviewedNullableRefPayload(t *testin
 	}
 }
 
+func TestSelectGeneratedTaggedUnionsSupportsReviewedNullableRateLimitsParams(t *testing.T) {
+	schema := mustParseSchema(t, `{
+		"oneOf": [{
+			"type": "object",
+			"required": ["method"],
+			"properties": {
+				"method": {"type": "string", "enum": ["account/rateLimits/read"]},
+				"params": {
+					"anyOf": [
+						{"$ref": "#/definitions/GetAccountRateLimitsParams"},
+						{"type": "null"}
+					]
+				}
+			}
+		}],
+		"definitions": {
+			"GetAccountRateLimitsParams": {
+				"type": "object",
+				"properties": {
+					"excludeResetCreditDetails": {"type": "boolean"},
+					"supportsLunaReserve": {"type": "boolean"}
+				}
+			}
+		}
+	}`)
+	plan := ProtocolTypePlan{Types: []TypePlan{{
+		Kind:       TypePlanTaggedUnionCandidate,
+		Schema:     schema,
+		SchemaPath: "ClientRequest.json",
+		Stability:  "stable",
+		TypeName:   "ClientRequest",
+	}}}
+
+	unions, err := SelectGeneratedTaggedUnions(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(unions) != 1 || len(unions[0].Variants) != 1 || len(unions[0].Variants[0].Fields) != 1 {
+		t.Fatalf("nullable-ref tagged union plan = %#v", unions)
+	}
+	field := unions[0].Variants[0].Fields[0]
+	if field.Kind != FieldPlanNullableRef || field.GoType != "*protocolv2.Nullable[GetAccountRateLimitsParams]" {
+		t.Fatalf("nullable-ref params field = kind %s GoType %q", field.Kind, field.GoType)
+	}
+	if !field.WireAllowsNull || !field.WireOmitAllowed {
+		t.Fatal("optional nullable-ref params must preserve omit/null/value semantics")
+	}
+}
+
+func TestSelectGeneratedTaggedUnionsSupportsConfigurationUpdateReasoningRef(t *testing.T) {
+	schema := mustParseSchema(t, `{
+		"type": "object",
+		"definitions": {
+			"ConfigurationReasoning": {
+				"type": "object",
+				"required": ["effort"],
+				"properties": {"effort": {"type": "string"}}
+			},
+			"ResponseItem": {
+				"oneOf": [{
+					"type": "object",
+					"required": ["reasoning", "type"],
+					"properties": {
+						"type": {"type": "string", "enum": ["configuration_update"]},
+						"reasoning": {"$ref": "#/definitions/ConfigurationReasoning"}
+					}
+				}]
+			}
+		}
+	}`)
+	plan := ProtocolTypePlan{Types: []TypePlan{{
+		Kind:       TypePlanObjectStructCandidate,
+		Schema:     schema,
+		SchemaPath: "v2/ThreadResumeParams.json",
+		Stability:  "stable",
+		TypeName:   "ThreadResumeParams",
+	}}}
+
+	unions, err := SelectGeneratedTaggedUnions(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(unions) != 1 || len(unions[0].Variants) != 1 {
+		t.Fatalf("configuration_update tagged union plan = %#v", unions)
+	}
+	if unions[0].Variants[0].DiscriminatorValue != "configuration_update" {
+		t.Fatalf("discriminator value = %q, want configuration_update", unions[0].Variants[0].DiscriminatorValue)
+	}
+	if len(unions[0].Variants[0].Fields) != 1 {
+		t.Fatalf("configuration_update fields = %#v", unions[0].Variants[0].Fields)
+	}
+	field := unions[0].Variants[0].Fields[0]
+	if field.Kind != FieldPlanRef || field.GoType != "ConfigurationReasoning" {
+		t.Fatalf("reasoning field = kind %s GoType %q", field.Kind, field.GoType)
+	}
+}
+
 func TestSelectGeneratedTaggedUnionsSupportsReviewedArrayRefPayload(t *testing.T) {
 	schema := mustParseSchema(t, `{
 		"definitions": {
@@ -1032,6 +1129,88 @@ func TestSelectFirstPassGeneratedTypesIncludesReviewedAutoReviewRequirements(t *
 	}
 }
 
+func TestSelectFirstPassGeneratedTypesIncludesReviewedApplicationRequirements(t *testing.T) {
+	schema := mustParseSchema(t, `{
+		"definitions": {
+			"ApplicationNetworkRequirements": {
+				"type": "object",
+				"required": ["domains", "enabled"],
+				"properties": {
+					"domains": {
+						"type": "object",
+						"additionalProperties": {"$ref": "#/definitions/NetworkDomainPermission"}
+					},
+					"enabled": {"type": "boolean"}
+				}
+			},
+			"ApplicationRequirements": {
+				"type": "object",
+				"properties": {
+					"network": {
+						"anyOf": [
+							{"$ref": "#/definitions/ApplicationNetworkRequirements"},
+							{"type": "null"}
+						]
+					}
+				}
+			},
+			"ConfigRequirements": {
+				"type": "object",
+				"properties": {
+					"application": {
+						"anyOf": [
+							{"$ref": "#/definitions/ApplicationRequirements"},
+							{"type": "null"}
+						]
+					}
+				}
+			},
+			"NetworkDomainPermission": {
+				"type": "string",
+				"enum": ["allow", "deny"]
+			}
+		}
+	}`)
+	plan := ProtocolTypePlan{Types: []TypePlan{{
+		Fields: []FieldPlan{{
+			FieldName:       "requirements",
+			GoType:          "*protocolv2.Nullable[ConfigRequirements]",
+			Kind:            FieldPlanNullableRef,
+			Path:            "v2/ConfigRequirementsReadResponse.json#/properties/requirements",
+			RefPath:         "v2/ConfigRequirementsReadResponse.json#/definitions/ConfigRequirements",
+			SchemaPath:      "v2/ConfigRequirementsReadResponse.json",
+			Stability:       "stable",
+			TypeName:        "ConfigRequirementsReadResponse",
+			WireAllowsNull:  true,
+			WireOmitAllowed: true,
+		}},
+		Kind:       TypePlanObjectStructCandidate,
+		Schema:     schema,
+		SchemaPath: "v2/ConfigRequirementsReadResponse.json",
+		Stability:  "stable",
+		TypeName:   "ConfigRequirementsReadResponse",
+	}}}
+
+	selected, err := SelectFirstPassGeneratedTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selectedNames := map[string]bool{}
+	for _, typ := range selected {
+		selectedNames[typ.TypeName] = true
+	}
+	for _, name := range []string{
+		"ApplicationNetworkRequirements",
+		"ApplicationRequirements",
+		"ConfigRequirements",
+		"ConfigRequirementsReadResponse",
+	} {
+		if !selectedNames[name] {
+			t.Fatalf("selected config requirements types %v do not include %s", selectedNames, name)
+		}
+	}
+}
+
 func TestSelectFirstPassGeneratedTypesIncludesReviewedProjectModels(t *testing.T) {
 	responseSchema := mustParseSchema(t, `{
 		"definitions": {
@@ -1241,6 +1420,120 @@ func TestSelectFirstPassGeneratedTypesIncludesReviewedThreadSectionAppearance(t 
 	for _, name := range []string{"ThreadSectionAppearance", "ThreadSection", "Thread", "ThreadStartResponse"} {
 		if !selectedNames[name] {
 			t.Fatalf("selected thread section types %v do not include %s", selectedNames, name)
+		}
+	}
+}
+
+func TestSelectFirstPassGeneratedTypesIncludesReviewedThreadEnvironment(t *testing.T) {
+	schema := mustParseSchema(t, `{
+		"definitions": {
+			"LegacyAppPathString": {"type": "string"},
+			"ThreadEnvironment": {
+				"type": "object",
+				"required": ["cwd", "environmentId", "runtimeWorkspaceRoots"],
+				"properties": {
+					"cwd": {"$ref": "#/definitions/LegacyAppPathString"},
+					"environmentId": {"type": "string"},
+					"runtimeWorkspaceRoots": {
+						"type": "array",
+						"items": {"$ref": "#/definitions/LegacyAppPathString"}
+					}
+				}
+			},
+			"Thread": {
+				"type": "object",
+				"properties": {
+					"environments": {
+						"items": {"$ref": "#/definitions/ThreadEnvironment"},
+						"type": ["array", "null"]
+					}
+				}
+			}
+		}
+	}`)
+	plan := ProtocolTypePlan{Types: []TypePlan{{
+		Fields: []FieldPlan{{
+			FieldName:  "thread",
+			GoType:     "Thread",
+			Kind:       FieldPlanRef,
+			Path:       "v2/ThreadStartResponse.json#/properties/thread",
+			RefPath:    "v2/ThreadStartResponse.json#/definitions/Thread",
+			Required:   true,
+			SchemaPath: "v2/ThreadStartResponse.json",
+			Stability:  "stable",
+			TypeName:   "ThreadStartResponse",
+		}},
+		Kind:       TypePlanObjectStructCandidate,
+		Schema:     schema,
+		SchemaPath: "v2/ThreadStartResponse.json",
+		Stability:  "stable",
+		TypeName:   "ThreadStartResponse",
+	}}}
+
+	selected, err := SelectFirstPassGeneratedTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selectedNames := map[string]bool{}
+	for _, typ := range selected {
+		selectedNames[typ.TypeName] = true
+	}
+	for _, name := range []string{"ThreadEnvironment", "Thread", "ThreadStartResponse"} {
+		if !selectedNames[name] {
+			t.Fatalf("selected thread environment types %v do not include %s", selectedNames, name)
+		}
+	}
+}
+
+func TestSelectFirstPassGeneratedTypesIncludesReviewedUserVerificationProof(t *testing.T) {
+	schema := mustParseSchema(t, `{
+		"type": "object",
+		"required": ["proof"],
+		"properties": {
+			"proof": {"$ref": "#/definitions/UserVerificationProof"}
+		},
+		"definitions": {
+			"UserVerificationProof": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": ["credentialId", "signature"],
+				"properties": {
+					"credentialId": {"type": "string"},
+					"signature": {"type": "string"}
+				}
+			}
+		}
+	}`)
+	plan := ProtocolTypePlan{Types: []TypePlan{{
+		Fields: []FieldPlan{{
+			FieldName:  "proof",
+			GoType:     "UserVerificationProof",
+			Kind:       FieldPlanRef,
+			Path:       "v2/UserVerificationVerifyResponse.json#/properties/proof",
+			RefPath:    "v2/UserVerificationVerifyResponse.json#/definitions/UserVerificationProof",
+			Required:   true,
+			SchemaPath: "v2/UserVerificationVerifyResponse.json",
+			Stability:  "experimental",
+			TypeName:   "UserVerificationVerifyResponse",
+		}},
+		Kind:       TypePlanObjectStructCandidate,
+		Schema:     schema,
+		SchemaPath: "v2/UserVerificationVerifyResponse.json",
+		Stability:  "experimental",
+		TypeName:   "UserVerificationVerifyResponse",
+	}}}
+
+	selected, err := SelectFirstPassGeneratedTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selectedNames := map[string]bool{}
+	for _, typ := range selected {
+		selectedNames[typ.TypeName] = true
+	}
+	for _, name := range []string{"UserVerificationProof", "UserVerificationVerifyResponse"} {
+		if !selectedNames[name] {
+			t.Fatalf("selected user verification types %v do not include %s", selectedNames, name)
 		}
 	}
 }

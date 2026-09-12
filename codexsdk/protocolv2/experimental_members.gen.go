@@ -243,6 +243,22 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"id":     {},
 		"params": {},
 	},
+	"ClientRequestUserVerificationDelete": {
+		"id":     {},
+		"params": {},
+	},
+	"ClientRequestUserVerificationEnroll": {
+		"id":     {},
+		"params": {},
+	},
+	"ClientRequestUserVerificationStatus": {
+		"id":     {},
+		"params": {},
+	},
+	"ClientRequestUserVerificationVerify": {
+		"id":     {},
+		"params": {},
+	},
 	"CollaborationModeListResponse": {
 		"data": {},
 	},
@@ -264,6 +280,7 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 	},
 	"ConfigRequirements": {
 		"allowedApprovalsReviewers": {},
+		"application":               {},
 		"hooks":                     {},
 		"network":                   {},
 	},
@@ -298,6 +315,11 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 	"FuzzyFileSearchSessionUpdateParams": {
 		"query":     {},
 		"sessionId": {},
+	},
+	"McpServerElicitationRequestParamsOpenaiUserVerification": {
+		"challenge":   {},
+		"description": {},
+		"title":       {},
 	},
 	"McpServerEventStreamStartParams": {
 		"_meta":          {},
@@ -498,6 +520,8 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 	},
 	"Thread": {
 		"canAcceptDirectInput": {},
+		"daybreakEnabled":      {},
+		"environments":         {},
 		"extra":                {},
 	},
 	"ThreadBackgroundTerminalsCleanParams": {
@@ -551,7 +575,8 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"threadId": {},
 	},
 	"ThreadMetadataUpdateParams": {
-		"projectId": {},
+		"daybreakEnabled": {},
+		"projectId":       {},
 	},
 	"ThreadQueueAddParams": {
 		"clientUserMessageId": {},
@@ -756,6 +781,26 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"additionalContext":          {},
 		"responsesapiClientMetadata": {},
 	},
+	"UserVerificationEnrollResponse": {
+		"credentialId": {},
+	},
+	"UserVerificationProof": {
+		"credentialId": {},
+		"signature":    {},
+	},
+	"UserVerificationStatusResponse": {
+		"credentialId":       {},
+		"unavailableMessage": {},
+		"unavailableReason":  {},
+	},
+	"UserVerificationVerifyParams": {
+		"challenge":   {},
+		"description": {},
+		"title":       {},
+	},
+	"UserVerificationVerifyResponse": {
+		"proof": {},
+	},
 }
 
 var ExperimentalUnionValues = map[string]map[string]struct{}{
@@ -824,12 +869,19 @@ var ExperimentalUnionValues = map[string]map[string]struct{}{
 		"thread/settings/update":               {},
 		"thread/timeline/list":                 {},
 		"turn/settings/update":                 {},
+		"userVerification/delete":              {},
+		"userVerification/enroll":              {},
+		"userVerification/status":              {},
+		"userVerification/verify":              {},
 	},
 	"EnvironmentStatus": {
 		"disconnected": {},
 		"pending":      {},
 		"ready":        {},
 		"unknown":      {},
+	},
+	"McpServerElicitationRequestParams": {
+		"openai/userVerification": {},
 	},
 	"RemoteControlClientsListOrder": {
 		"asc":  {},
@@ -846,6 +898,24 @@ var ExperimentalUnionValues = map[string]map[string]struct{}{
 	"TurnSettingsUpdateStatus": {
 		"applied":           {},
 		"targetUnavailable": {},
+	},
+	"UserVerificationCancellationReason": {
+		"interrupted":   {},
+		"userCancelled": {},
+	},
+	"UserVerificationFailureReason": {
+		"authenticationFailed": {},
+		"providerError":        {},
+		"serviceError":         {},
+		"timeout":              {},
+	},
+	"UserVerificationInvalidRequestReason": {
+		"invalidParams": {},
+	},
+	"UserVerificationUnavailableReason": {
+		"biometricsUnavailable": {},
+		"credentialMissing":     {},
+		"providerUnavailable":   {},
 	},
 }
 
@@ -895,6 +965,12 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	},
 	"AppToolConfig": {
 		"approval_mode": "AppToolApproval",
+	},
+	"ApplicationNetworkRequirements": {
+		"domains": "NetworkDomainPermission",
+	},
+	"ApplicationRequirements": {
+		"network": "ApplicationNetworkRequirements",
 	},
 	"ApplyPatchApprovalParams": {
 		"fileChanges": "FileChange",
@@ -977,7 +1053,8 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"params": "ConsumeAccountRateLimitResetCreditParams",
 	},
 	"ClientRequestAccountRateLimitsRead": {
-		"id": "RequestId",
+		"id":     "RequestId",
+		"params": "GetAccountRateLimitsParams",
 	},
 	"ClientRequestAccountRead": {
 		"id":     "RequestId",
@@ -1557,6 +1634,22 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"id":     "RequestId",
 		"params": "TurnSteerParams",
 	},
+	"ClientRequestUserVerificationDelete": {
+		"id":     "RequestId",
+		"params": "UserVerificationDeleteParams",
+	},
+	"ClientRequestUserVerificationEnroll": {
+		"id":     "RequestId",
+		"params": "UserVerificationEnrollParams",
+	},
+	"ClientRequestUserVerificationStatus": {
+		"id":     "RequestId",
+		"params": "UserVerificationStatusParams",
+	},
+	"ClientRequestUserVerificationVerify": {
+		"id":     "RequestId",
+		"params": "UserVerificationVerifyParams",
+	},
 	"ClientRequestWindowsSandboxReadiness": {
 		"id": "RequestId",
 	},
@@ -1676,6 +1769,7 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"allowedSandboxModes":                  "SandboxMode",
 		"allowedWebSearchModes":                "WebSearchMode",
 		"allowedWindowsSandboxImplementations": "WindowsSandboxSetupMode",
+		"application":                          "ApplicationRequirements",
 		"autoReview":                           "AutoReviewRequirements",
 		"browserUse":                           "BrowserUseRequirements",
 		"cliAuthCredentialsStore":              "CliAuthCredentialsStoreMode",
@@ -1699,6 +1793,9 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"ConfigWriteResponse": {
 		"overriddenMetadata": "OverriddenMetadata",
 		"status":             "WriteStatus",
+	},
+	"ConfigurationReasoning": {
+		"effort": "ReasoningEffort",
 	},
 	"ConfiguredHookMatcherGroup": {
 		"hooks": "ConfiguredHookHandler",
@@ -2200,6 +2297,9 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"ResponseItemCompaction": {
 		"internal_chat_message_metadata_passthrough": "InternalChatMessageMetadataPassthrough",
 	},
+	"ResponseItemConfigurationUpdate": {
+		"reasoning": "ConfigurationReasoning",
+	},
 	"ResponseItemContextCompaction": {
 		"internal_chat_message_metadata_passthrough": "InternalChatMessageMetadataPassthrough",
 	},
@@ -2602,6 +2702,7 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"start": "TextPosition",
 	},
 	"Thread": {
+		"environments":    "ThreadEnvironment",
 		"extra":           "ThreadExtra",
 		"gitInfo":         "GitInfo",
 		"historyMode":     "ThreadHistoryMode",
@@ -2976,6 +3077,12 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	},
 	"UserInputText": {
 		"text_elements": "TextElement",
+	},
+	"UserVerificationStatusResponse": {
+		"unavailableReason": "UserVerificationUnavailableReason",
+	},
+	"UserVerificationVerifyResponse": {
+		"proof": "UserVerificationProof",
 	},
 	"WebSearchToolConfig": {
 		"context_size": "WebSearchContextSize",
