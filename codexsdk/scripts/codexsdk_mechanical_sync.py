@@ -66,6 +66,10 @@ def write_json(path: Path, payload: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
+PROOF_OWNERS = ("generated-proof", "owner-local-tests", "schema-state", "script-tests")
+OBSERVED_PROOF_STATES = {"success", "failure"}
+
+
 def write_escalation(
     path: Path,
     *,
@@ -87,6 +91,47 @@ def write_escalation(
             "artifacts": artifacts,
         },
     )
+
+
+def candidate_output(sync_out: Path) -> dict[str, str]:
+    return {"candidate": str(sync_out / "schema")}
+
+
+def proof_failure_evidence(
+    *,
+    target_ref: str,
+    target_kind: str,
+    target_sha: str,
+    outcomes: dict[str, str],
+    candidate: str = "",
+    generated_proof_path: str = "",
+    generated_proof: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    observed: dict[str, str] = {}
+    failed: list[str] = []
+    for name in PROOF_OWNERS:
+        state = str(outcomes.get(name, "") or "")
+        if state not in OBSERVED_PROOF_STATES:
+            continue
+        observed[name] = state
+        if state == "failure":
+            failed.append(name)
+    artifacts: dict[str, Any] = {}
+    if candidate:
+        artifacts["candidate"] = candidate
+    if generated_proof_path:
+        artifacts["generated_proof"] = generated_proof_path
+    if generated_proof is not None:
+        artifacts["generated_proof_result"] = generated_proof
+    return {
+        "reason": "workflow owner-local proofs failed after mechanical apply",
+        "failed_proofs": failed,
+        "proof_outcomes": observed,
+        "target_ref": target_ref,
+        "target_kind": target_kind,
+        "target_sha": target_sha,
+        "artifacts": artifacts,
+    }
 
 
 def write_github_output(values: dict[str, str]) -> None:
@@ -302,12 +347,18 @@ def main() -> int:
         if dirty:
             raise SystemExit("force_compare must leave the protocol worktree unchanged:\n- " + "\n- ".join(dirty))
     if after_drift == "comparison":
-        emit_outcome(module_root, "comparison", inputs, reason="read-only comparison found no protocol drift")
+        emit_outcome(
+            module_root,
+            "comparison",
+            inputs,
+            reason="read-only comparison found no protocol drift",
+            **candidate_output(sync_out),
+        )
         return 0
     if after_drift == "comparison_dirty":
         reason = "read-only comparison found protocol drift; comparison never applies or repairs"
         print(reason, file=sys.stderr)
-        emit_outcome(module_root, "comparison_dirty", inputs, reason=reason)
+        emit_outcome(module_root, "comparison_dirty", inputs, reason=reason, **candidate_output(sync_out))
         return 1
 
     apply_ok = True
@@ -334,7 +385,7 @@ def main() -> int:
             "applied",
             inputs,
             reason="mechanical generation applied; owner-local proofs run by the workflow",
-            candidate=str(sync_out / "schema"),
+            **candidate_output(sync_out),
         )
         return 0
 
@@ -353,7 +404,7 @@ def main() -> int:
         detail=detail,
         artifacts=artifacts,
     )
-    emit_outcome(module_root, "escalate", inputs, reason=reason)
+    emit_outcome(module_root, "escalate", inputs, reason=reason, **candidate_output(sync_out))
     return 0
 
 
