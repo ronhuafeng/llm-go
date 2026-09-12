@@ -27,7 +27,11 @@
   classified protocol surface. MCP elicitation keeps the `openai/userVerification`
   variant with its schema-defined payload. Optional `account/rateLimits/read`
   params, thread `environments`, and experimental `userVerification/*` methods
-  are generated from the same classified baseline.
+  are generated from the same classified baseline. Experimental
+  `UserVerificationRpcError` and the closed `UserVerificationErrorDetails`
+  tagged union (`invalidRequest`, `unavailable`, `cancelled`, `failed`) are
+  generated from `v2/UserVerificationRpcError.json` instead of remaining omitted
+  while coverage claimed they were generated.
 - **Breaking generated-surface change (pre-v1):** protocol generation preserves
   shared object properties together with `oneOf` payloads. MCP elicitation
   request params now retain every schema-defined variant, and

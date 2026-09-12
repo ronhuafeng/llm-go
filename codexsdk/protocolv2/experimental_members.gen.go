@@ -784,9 +784,26 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 	"UserVerificationEnrollResponse": {
 		"credentialId": {},
 	},
+	"UserVerificationErrorDetailsCancelled": {
+		"reason": {},
+	},
+	"UserVerificationErrorDetailsFailed": {
+		"reason": {},
+	},
+	"UserVerificationErrorDetailsInvalidRequest": {
+		"reason": {},
+	},
+	"UserVerificationErrorDetailsUnavailable": {
+		"reason": {},
+	},
 	"UserVerificationProof": {
 		"credentialId": {},
 		"signature":    {},
+	},
+	"UserVerificationRpcError": {
+		"code":    {},
+		"data":    {},
+		"message": {},
 	},
 	"UserVerificationStatusResponse": {
 		"credentialId":       {},
@@ -902,6 +919,12 @@ var ExperimentalUnionValues = map[string]map[string]struct{}{
 	"UserVerificationCancellationReason": {
 		"interrupted":   {},
 		"userCancelled": {},
+	},
+	"UserVerificationErrorDetails": {
+		"cancelled":      {},
+		"failed":         {},
+		"invalidRequest": {},
+		"unavailable":    {},
 	},
 	"UserVerificationFailureReason": {
 		"authenticationFailed": {},
@@ -3077,6 +3100,21 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	},
 	"UserInputText": {
 		"text_elements": "TextElement",
+	},
+	"UserVerificationErrorDetailsCancelled": {
+		"reason": "UserVerificationCancellationReason",
+	},
+	"UserVerificationErrorDetailsFailed": {
+		"reason": "UserVerificationFailureReason",
+	},
+	"UserVerificationErrorDetailsInvalidRequest": {
+		"reason": "UserVerificationInvalidRequestReason",
+	},
+	"UserVerificationErrorDetailsUnavailable": {
+		"reason": "UserVerificationUnavailableReason",
+	},
+	"UserVerificationRpcError": {
+		"data": "UserVerificationErrorDetails",
 	},
 	"UserVerificationStatusResponse": {
 		"unavailableReason": "UserVerificationUnavailableReason",

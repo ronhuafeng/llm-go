@@ -1538,6 +1538,93 @@ func TestSelectFirstPassGeneratedTypesIncludesReviewedUserVerificationProof(t *t
 	}
 }
 
+func TestSelectGeneratedTaggedUnionsIncludesReviewedUserVerificationErrorDetails(t *testing.T) {
+	plan, err := BuildProtocolTypePlan(filepath.Join("..", "protocolschema", "appserver", "v2"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	unions, err := SelectGeneratedTaggedUnions(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found *TaggedUnionPlan
+	for i := range unions {
+		if unions[i].TypeName == "UserVerificationErrorDetails" {
+			found = &unions[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatal("generated tagged unions omit UserVerificationErrorDetails from v2/UserVerificationRpcError.json")
+	}
+	if found.Discriminator != "type" {
+		t.Fatalf("UserVerificationErrorDetails discriminator = %q, want type", found.Discriminator)
+	}
+	if !strings.Contains(found.SchemaPath, "UserVerificationRpcError.json") {
+		t.Fatalf("UserVerificationErrorDetails schema path = %q, want v2/UserVerificationRpcError.json", found.SchemaPath)
+	}
+	variants := taggedVariantByValue(found.Variants)
+	for _, value := range []string{"invalidRequest", "unavailable", "cancelled", "failed"} {
+		variant, ok := variants[value]
+		if !ok {
+			t.Fatalf("UserVerificationErrorDetails missing schema variant %q", value)
+		}
+		if variant.PayloadTypeName == "" || variant.ConstructorName == "" {
+			t.Fatalf("UserVerificationErrorDetails variant %q is incomplete: %#v", value, variant)
+		}
+		hasReason := false
+		for _, field := range variant.Fields {
+			if field.FieldName == "reason" && field.Required {
+				hasReason = true
+				break
+			}
+		}
+		if !hasReason {
+			t.Fatalf("UserVerificationErrorDetails variant %q is missing required reason", value)
+		}
+	}
+	if len(variants) != 4 {
+		t.Fatalf("UserVerificationErrorDetails variants = %#v, want the four schema oneOf values", variants)
+	}
+}
+
+func TestSelectFirstPassGeneratedTypesIncludesReviewedUserVerificationRpcError(t *testing.T) {
+	plan, err := BuildProtocolTypePlan(filepath.Join("..", "protocolschema", "appserver", "v2"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected, err := SelectFirstPassGeneratedTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found *TypePlan
+	for i := range selected {
+		if selected[i].TypeName == "UserVerificationRpcError" {
+			found = &selected[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatal("first-pass generated types omit UserVerificationRpcError")
+	}
+	fields := map[string]FieldPlan{}
+	for _, field := range found.Fields {
+		fields[field.FieldName] = field
+	}
+	for _, name := range []string{"code", "data", "message"} {
+		if _, ok := fields[name]; !ok {
+			t.Fatalf("UserVerificationRpcError missing field %s", name)
+		}
+	}
+	data := fields["data"]
+	if data.Kind != FieldPlanRef || leafGoType(data.GoType) != "UserVerificationErrorDetails" {
+		t.Fatalf("UserVerificationRpcError.data = kind %s GoType %q, want ref UserVerificationErrorDetails", data.Kind, data.GoType)
+	}
+	if !data.Required {
+		t.Fatal("UserVerificationRpcError.data must be required")
+	}
+}
+
 func TestSelectFirstPassGeneratedTypesIncludesReviewedQueuedSubmission(t *testing.T) {
 	schema := mustParseSchema(t, `{
 		"definitions": {

@@ -30764,6 +30764,50 @@ func (value *UserVerificationProof) unmarshalJSON(data []byte, mode wireDecodeMo
 	return nil
 }
 
+type UserVerificationRpcError struct {
+	Code    int64                        `json:"code"`
+	Data    UserVerificationErrorDetails `json:"data"`
+	Message string                       `json:"message"`
+}
+
+func (value *UserVerificationRpcError) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *UserVerificationRpcError) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "UserVerificationRpcError")
+	if err != nil {
+		return err
+	}
+	var decoded UserVerificationRpcError
+	seenCode, err := decodeJSONField(fields, "code", "UserVerificationRpcError.code", false, mode, decodeWireValue[int64], &decoded.Code)
+	if err != nil {
+		return err
+	}
+	if !seenCode {
+		return missingRequiredField("UserVerificationRpcError.code")
+	}
+	seenData, err := decodeJSONField(fields, "data", "UserVerificationRpcError.data", false, mode, decodeWireValue[UserVerificationErrorDetails], &decoded.Data)
+	if err != nil {
+		return err
+	}
+	if !seenData {
+		return missingRequiredField("UserVerificationRpcError.data")
+	}
+	seenMessage, err := decodeJSONField(fields, "message", "UserVerificationRpcError.message", false, mode, decodeWireValue[string], &decoded.Message)
+	if err != nil {
+		return err
+	}
+	if !seenMessage {
+		return missingRequiredField("UserVerificationRpcError.message")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "UserVerificationRpcError", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
 type UserVerificationStatusParams struct{}
 
 func (value *UserVerificationStatusParams) UnmarshalJSON(data []byte) error {
@@ -57636,6 +57680,228 @@ func (value *UserInput) unmarshalJSON(data []byte, mode wireDecodeMode) error {
 		return nil
 	default:
 		return unknownUnionVariant("UserInput", "type", variant)
+	}
+}
+
+type UserVerificationErrorDetailsKind string
+
+const (
+	UserVerificationErrorDetailsKindInvalidRequest UserVerificationErrorDetailsKind = "invalidRequest"
+	UserVerificationErrorDetailsKindUnavailable    UserVerificationErrorDetailsKind = "unavailable"
+	UserVerificationErrorDetailsKindCancelled      UserVerificationErrorDetailsKind = "cancelled"
+	UserVerificationErrorDetailsKindFailed         UserVerificationErrorDetailsKind = "failed"
+)
+
+type UserVerificationErrorDetails struct {
+	kind                  UserVerificationErrorDetailsKind
+	variantInvalidRequest *UserVerificationErrorDetailsInvalidRequest
+	variantUnavailable    *UserVerificationErrorDetailsUnavailable
+	variantCancelled      *UserVerificationErrorDetailsCancelled
+	variantFailed         *UserVerificationErrorDetailsFailed
+}
+
+type UserVerificationErrorDetailsInvalidRequest struct {
+	Reason UserVerificationInvalidRequestReason `json:"reason"`
+}
+
+type UserVerificationErrorDetailsUnavailable struct {
+	Reason UserVerificationUnavailableReason `json:"reason"`
+}
+
+type UserVerificationErrorDetailsCancelled struct {
+	Reason UserVerificationCancellationReason `json:"reason"`
+}
+
+type UserVerificationErrorDetailsFailed struct {
+	Reason UserVerificationFailureReason `json:"reason"`
+}
+
+func NewUserVerificationErrorDetailsInvalidRequest(payload UserVerificationErrorDetailsInvalidRequest) UserVerificationErrorDetails {
+	return UserVerificationErrorDetails{kind: UserVerificationErrorDetailsKindInvalidRequest, variantInvalidRequest: &payload}
+}
+
+func NewUserVerificationErrorDetailsUnavailable(payload UserVerificationErrorDetailsUnavailable) UserVerificationErrorDetails {
+	return UserVerificationErrorDetails{kind: UserVerificationErrorDetailsKindUnavailable, variantUnavailable: &payload}
+}
+
+func NewUserVerificationErrorDetailsCancelled(payload UserVerificationErrorDetailsCancelled) UserVerificationErrorDetails {
+	return UserVerificationErrorDetails{kind: UserVerificationErrorDetailsKindCancelled, variantCancelled: &payload}
+}
+
+func NewUserVerificationErrorDetailsFailed(payload UserVerificationErrorDetailsFailed) UserVerificationErrorDetails {
+	return UserVerificationErrorDetails{kind: UserVerificationErrorDetailsKindFailed, variantFailed: &payload}
+}
+
+func (value UserVerificationErrorDetails) Kind() UserVerificationErrorDetailsKind {
+	return value.kind
+}
+
+func (value UserVerificationErrorDetails) IsValid() bool {
+	switch value.kind {
+	case UserVerificationErrorDetailsKindInvalidRequest:
+		return value.variantInvalidRequest != nil
+	case UserVerificationErrorDetailsKindUnavailable:
+		return value.variantUnavailable != nil
+	case UserVerificationErrorDetailsKindCancelled:
+		return value.variantCancelled != nil
+	case UserVerificationErrorDetailsKindFailed:
+		return value.variantFailed != nil
+	default:
+		return false
+	}
+}
+
+func (value UserVerificationErrorDetails) AsInvalidRequest() (UserVerificationErrorDetailsInvalidRequest, bool) {
+	if value.kind != UserVerificationErrorDetailsKindInvalidRequest || value.variantInvalidRequest == nil {
+		return UserVerificationErrorDetailsInvalidRequest{}, false
+	}
+	return *value.variantInvalidRequest, true
+}
+
+func (value UserVerificationErrorDetails) AsUnavailable() (UserVerificationErrorDetailsUnavailable, bool) {
+	if value.kind != UserVerificationErrorDetailsKindUnavailable || value.variantUnavailable == nil {
+		return UserVerificationErrorDetailsUnavailable{}, false
+	}
+	return *value.variantUnavailable, true
+}
+
+func (value UserVerificationErrorDetails) AsCancelled() (UserVerificationErrorDetailsCancelled, bool) {
+	if value.kind != UserVerificationErrorDetailsKindCancelled || value.variantCancelled == nil {
+		return UserVerificationErrorDetailsCancelled{}, false
+	}
+	return *value.variantCancelled, true
+}
+
+func (value UserVerificationErrorDetails) AsFailed() (UserVerificationErrorDetailsFailed, bool) {
+	if value.kind != UserVerificationErrorDetailsKindFailed || value.variantFailed == nil {
+		return UserVerificationErrorDetailsFailed{}, false
+	}
+	return *value.variantFailed, true
+}
+
+func (value UserVerificationErrorDetails) MarshalJSON() ([]byte, error) {
+	switch value.kind {
+	case UserVerificationErrorDetailsKindInvalidRequest:
+		if value.variantInvalidRequest == nil {
+			return nil, invalidUnionVariant("UserVerificationErrorDetails", "invalidRequest")
+		}
+		return json.Marshal(struct {
+			Reason UserVerificationInvalidRequestReason `json:"reason"`
+			Type   string                               `json:"type"`
+		}{
+			Reason: value.variantInvalidRequest.Reason,
+			Type:   "invalidRequest",
+		})
+	case UserVerificationErrorDetailsKindUnavailable:
+		if value.variantUnavailable == nil {
+			return nil, invalidUnionVariant("UserVerificationErrorDetails", "unavailable")
+		}
+		return json.Marshal(struct {
+			Reason UserVerificationUnavailableReason `json:"reason"`
+			Type   string                            `json:"type"`
+		}{
+			Reason: value.variantUnavailable.Reason,
+			Type:   "unavailable",
+		})
+	case UserVerificationErrorDetailsKindCancelled:
+		if value.variantCancelled == nil {
+			return nil, invalidUnionVariant("UserVerificationErrorDetails", "cancelled")
+		}
+		return json.Marshal(struct {
+			Reason UserVerificationCancellationReason `json:"reason"`
+			Type   string                             `json:"type"`
+		}{
+			Reason: value.variantCancelled.Reason,
+			Type:   "cancelled",
+		})
+	case UserVerificationErrorDetailsKindFailed:
+		if value.variantFailed == nil {
+			return nil, invalidUnionVariant("UserVerificationErrorDetails", "failed")
+		}
+		return json.Marshal(struct {
+			Reason UserVerificationFailureReason `json:"reason"`
+			Type   string                        `json:"type"`
+		}{
+			Reason: value.variantFailed.Reason,
+			Type:   "failed",
+		})
+	default:
+		return nil, invalidUnionValue("UserVerificationErrorDetails")
+	}
+}
+
+func (value *UserVerificationErrorDetails) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *UserVerificationErrorDetails) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "UserVerificationErrorDetails")
+	if err != nil {
+		return err
+	}
+	variant, err := decodeTaggedUnionDiscriminator(fields, "type", "UserVerificationErrorDetails")
+	if err != nil {
+		return err
+	}
+	switch variant {
+	case "invalidRequest":
+		var decoded UserVerificationErrorDetailsInvalidRequest
+		seenReason, err := decodeJSONField(fields, "reason", "UserVerificationErrorDetails.reason", false, mode, decodeWireValue[UserVerificationInvalidRequestReason], &decoded.Reason)
+		if err != nil {
+			return err
+		}
+		if !seenReason {
+			return missingRequiredField("UserVerificationErrorDetails.reason")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "UserVerificationErrorDetails.invalidRequest", mode); err != nil {
+			return err
+		}
+		*value = UserVerificationErrorDetails{kind: UserVerificationErrorDetailsKindInvalidRequest, variantInvalidRequest: &decoded}
+		return nil
+	case "unavailable":
+		var decoded UserVerificationErrorDetailsUnavailable
+		seenReason, err := decodeJSONField(fields, "reason", "UserVerificationErrorDetails.reason", false, mode, decodeWireValue[UserVerificationUnavailableReason], &decoded.Reason)
+		if err != nil {
+			return err
+		}
+		if !seenReason {
+			return missingRequiredField("UserVerificationErrorDetails.reason")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "UserVerificationErrorDetails.unavailable", mode); err != nil {
+			return err
+		}
+		*value = UserVerificationErrorDetails{kind: UserVerificationErrorDetailsKindUnavailable, variantUnavailable: &decoded}
+		return nil
+	case "cancelled":
+		var decoded UserVerificationErrorDetailsCancelled
+		seenReason, err := decodeJSONField(fields, "reason", "UserVerificationErrorDetails.reason", false, mode, decodeWireValue[UserVerificationCancellationReason], &decoded.Reason)
+		if err != nil {
+			return err
+		}
+		if !seenReason {
+			return missingRequiredField("UserVerificationErrorDetails.reason")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "UserVerificationErrorDetails.cancelled", mode); err != nil {
+			return err
+		}
+		*value = UserVerificationErrorDetails{kind: UserVerificationErrorDetailsKindCancelled, variantCancelled: &decoded}
+		return nil
+	case "failed":
+		var decoded UserVerificationErrorDetailsFailed
+		seenReason, err := decodeJSONField(fields, "reason", "UserVerificationErrorDetails.reason", false, mode, decodeWireValue[UserVerificationFailureReason], &decoded.Reason)
+		if err != nil {
+			return err
+		}
+		if !seenReason {
+			return missingRequiredField("UserVerificationErrorDetails.reason")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "UserVerificationErrorDetails.failed", mode); err != nil {
+			return err
+		}
+		*value = UserVerificationErrorDetails{kind: UserVerificationErrorDetailsKindFailed, variantFailed: &decoded}
+		return nil
+	default:
+		return unknownUnionVariant("UserVerificationErrorDetails", "type", variant)
 	}
 }
 

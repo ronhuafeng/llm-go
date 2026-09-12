@@ -9335,3 +9335,139 @@ func TestGeneratedServerNotificationRejectsMalformedProtocol(t *testing.T) {
 		})
 	}
 }
+
+func TestGeneratedUserVerificationRpcErrorRoundTripsClosedErrorCategories(t *testing.T) {
+	cases := []struct {
+		name    string
+		value   UserVerificationRpcError
+		want    string
+		inspect func(*testing.T, UserVerificationRpcError)
+	}{
+		{
+			name: "invalidRequest",
+			value: UserVerificationRpcError{
+				Code:    -32000,
+				Message: "invalid request",
+				Data: NewUserVerificationErrorDetailsInvalidRequest(UserVerificationErrorDetailsInvalidRequest{
+					Reason: UserVerificationInvalidRequestReasonInvalidParams,
+				}),
+			},
+			want: `{"code":-32000,"data":{"reason":"invalidParams","type":"invalidRequest"},"message":"invalid request"}`,
+			inspect: func(t *testing.T, decoded UserVerificationRpcError) {
+				t.Helper()
+				payload, ok := decoded.Data.AsInvalidRequest()
+				if !ok || payload.Reason != UserVerificationInvalidRequestReasonInvalidParams {
+					t.Fatalf("decoded invalidRequest = %#v, ok=%t", payload, ok)
+				}
+			},
+		},
+		{
+			name: "unavailable",
+			value: UserVerificationRpcError{
+				Code:    -32001,
+				Message: "unavailable",
+				Data: NewUserVerificationErrorDetailsUnavailable(UserVerificationErrorDetailsUnavailable{
+					Reason: UserVerificationUnavailableReasonCredentialMissing,
+				}),
+			},
+			want: `{"code":-32001,"data":{"reason":"credentialMissing","type":"unavailable"},"message":"unavailable"}`,
+			inspect: func(t *testing.T, decoded UserVerificationRpcError) {
+				t.Helper()
+				payload, ok := decoded.Data.AsUnavailable()
+				if !ok || payload.Reason != UserVerificationUnavailableReasonCredentialMissing {
+					t.Fatalf("decoded unavailable = %#v, ok=%t", payload, ok)
+				}
+			},
+		},
+		{
+			name: "cancelled",
+			value: UserVerificationRpcError{
+				Code:    -32002,
+				Message: "cancelled",
+				Data: NewUserVerificationErrorDetailsCancelled(UserVerificationErrorDetailsCancelled{
+					Reason: UserVerificationCancellationReasonUserCancelled,
+				}),
+			},
+			want: `{"code":-32002,"data":{"reason":"userCancelled","type":"cancelled"},"message":"cancelled"}`,
+			inspect: func(t *testing.T, decoded UserVerificationRpcError) {
+				t.Helper()
+				payload, ok := decoded.Data.AsCancelled()
+				if !ok || payload.Reason != UserVerificationCancellationReasonUserCancelled {
+					t.Fatalf("decoded cancelled = %#v, ok=%t", payload, ok)
+				}
+			},
+		},
+		{
+			name: "failed",
+			value: UserVerificationRpcError{
+				Code:    -32003,
+				Message: "failed",
+				Data: NewUserVerificationErrorDetailsFailed(UserVerificationErrorDetailsFailed{
+					Reason: UserVerificationFailureReasonAuthenticationFailed,
+				}),
+			},
+			want: `{"code":-32003,"data":{"reason":"authenticationFailed","type":"failed"},"message":"failed"}`,
+			inspect: func(t *testing.T, decoded UserVerificationRpcError) {
+				t.Helper()
+				payload, ok := decoded.Data.AsFailed()
+				if !ok || payload.Reason != UserVerificationFailureReasonAuthenticationFailed {
+					t.Fatalf("decoded failed = %#v, ok=%t", payload, ok)
+				}
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			raw, err := json.Marshal(tc.value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := string(raw); got != tc.want {
+				t.Fatalf("UserVerificationRpcError JSON = %s, want %s", got, tc.want)
+			}
+			var decoded UserVerificationRpcError
+			if err := json.Unmarshal(raw, &decoded); err != nil {
+				t.Fatal(err)
+			}
+			if decoded.Code != tc.value.Code || decoded.Message != tc.value.Message {
+				t.Fatalf("decoded envelope = %#v", decoded)
+			}
+			tc.inspect(t, decoded)
+		})
+	}
+}
+
+func TestGeneratedUserVerificationRpcErrorRejectsMalformedProtocol(t *testing.T) {
+	var envelope UserVerificationRpcError
+	err := json.Unmarshal([]byte(`{"code":1,"message":"missing data"}`), &envelope)
+	if err == nil {
+		t.Fatal("expected missing data to fail")
+	}
+	if !strings.Contains(err.Error(), "decode UserVerificationRpcError.data: missing required field") {
+		t.Fatalf("unexpected missing data error: %v", err)
+	}
+
+	err = json.Unmarshal([]byte(`{"code":1,"data":{"reason":"invalidParams","type":"invalidRequest"},"message":"x","extra":true}`), &envelope)
+	if err == nil {
+		t.Fatal("expected unknown envelope field to fail")
+	}
+	if !strings.Contains(err.Error(), `decode UserVerificationRpcError: unknown field "extra"`) {
+		t.Fatalf("unexpected unknown envelope field error: %v", err)
+	}
+
+	err = json.Unmarshal([]byte(`{"code":1,"data":{"reason":"invalidParams","type":"timeout"},"message":"x"}`), &envelope)
+	if err == nil {
+		t.Fatal("expected unknown error-details variant to fail")
+	}
+	if !strings.Contains(err.Error(), `decode UserVerificationErrorDetails.type: unknown variant "timeout"`) {
+		t.Fatalf("unexpected unknown error-details variant error: %v", err)
+	}
+
+	err = json.Unmarshal([]byte(`{"code":1,"data":{"reason":"invalidParams","type":"invalidRequest","extra":true},"message":"x"}`), &envelope)
+	if err == nil {
+		t.Fatal("expected unknown error-details field to fail")
+	}
+	if !strings.Contains(err.Error(), `decode UserVerificationErrorDetails.invalidRequest: unknown field "extra"`) {
+		t.Fatalf("unexpected unknown error-details field error: %v", err)
+	}
+}
