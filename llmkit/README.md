@@ -71,7 +71,8 @@ execution starts. Validator `Judgment` and model-facing `Repair` are distinct
 values. Raw findings never automatically reach a later model attempt: an
 application-owned `Step.Sanitizer` projection is required when a rejected
 attempt will retry. Exhaustion returns `ErrExhausted` while retaining the latest
-proposition and attempt evidence.
+proposition in attempt evidence; top-level `Result.Output` is only the
+accepted proposition.
 
 Detailed semantics belong in package documentation and [CONTEXT.md](CONTEXT.md),
 not in duplicate helper layers.

@@ -19,6 +19,9 @@ changes may occur in minor releases.
 - Present `BackendDetails` now require a non-empty backend identity that agrees
   with `Execution.BackendName`. Whitespace-only names do not establish
   attribution.
+- **Breaking (pre-v1):** `llmstep.Result.Output` is only the accepted
+  proposition. Rejected or unjudged decoded values stay in attempt evidence
+  and no longer set `HasOutput`.
 - **Breaking (pre-v1):** separate execution-backend identity from actual
   model-provider identity. `Response.BackendDetails` replaces
   `ProviderDetails`; backend details expose `BackendName()`, and

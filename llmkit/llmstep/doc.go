@@ -30,9 +30,10 @@
 // provider Call, and Validate callbacks. A callback error remains the phase
 // error even when the context is also canceled. When a callback succeeds but
 // cancellation is observed at its boundary, Run returns a StepError wrapping
-// ctx.Err at that phase and retains completed output and evidence in the
-// result. Cancellation after the final observation may race with a successful
-// return.
+// ctx.Err at that phase and retains attempt evidence. Top-level Result.Output
+// is published only after a positive accepted judgment without a later
+// context error. Cancellation after the final observation may race with a
+// successful return.
 //
 // It is intentionally smaller than a workflow engine: applications still own
 // business prompts, provider callers, semantic judges, repair disclosure,
