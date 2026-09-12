@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -132,309 +133,178 @@ func TestPRVerificationIsANativeProofGraph(t *testing.T) {
 	}
 }
 
-func TestProtocolSyncRunsGeneratedProofOnComparison(t *testing.T) {
+func TestProtocolSyncAndRepairAreNaturallyFailClosed(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "codexsdk-upstream-protocol-sync.yml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := string(data)
-	if !strings.Contains(text, "./internal/cmd/generatedproof") {
-		t.Fatal("protocol sync must run the native generated-artifact proof")
-	}
-	if !strings.Contains(text, "steps.mechanical.outputs.escalate != 'true'") {
-		t.Fatal("protocol sync must run generated proof on ordinary comparison, not only escalation")
-	}
-	for _, id := range []string{
-		"generated-proof",
-		"owner-local-tests",
-		"schema-state",
-		"script-tests",
-		"reproof-generated",
-		"reproof-owner",
-		"reproof-schema",
-		"reproof-scripts",
-	} {
-		step, ok := workflowStepByID(text, id)
-		if !ok {
-			t.Fatalf("missing protocol sync step id %s", id)
-		}
-		if !strings.Contains(step, "working-directory: codexsdk") {
-			t.Fatalf("%s must set working-directory: codexsdk on that step", id)
-		}
-	}
-	reproofGenerated, ok := workflowStepByID(text, "reproof-generated")
+	syncText := readWorkflow(t, root, "codexsdk-upstream-protocol-sync.yml")
+	proofText := readWorkflow(t, root, "codexsdk-protocol-proof.yml")
+	repairText := readWorkflow(t, root, "codexsdk-upstream-protocol-repair.yml")
+
+	syncProof, ok := workflowJobByID(syncText, "proof")
 	if !ok {
-		t.Fatal("missing reproof-generated step")
+		t.Fatal("normal sync must invoke a proof job")
 	}
-	if !strings.Contains(reproofGenerated, "./internal/cmd/generatedproof") {
-		t.Fatal("post-repair generated proof must run generatedproof inside the codexsdk module")
+	if !strings.Contains(syncProof, "needs: sync") {
+		t.Fatal("normal proof must depend on sync")
 	}
-	if strings.Index(text, "id: reproof-generated") > strings.Index(text, "name: Upload generated proof") {
-		t.Fatal("generated proof upload must follow post-repair generated proof")
+	if !strings.Contains(syncProof, "uses: ./.github/workflows/codexsdk-protocol-proof.yml") {
+		t.Fatal("normal sync must call the reusable protocol proof before publication")
 	}
-	if !strings.Contains(text, "always() && (steps.generated-proof.outcome == 'success' || steps.generated-proof.outcome == 'failure'") {
-		t.Fatal("generated proof artifacts must upload on proof failure, including post-repair proof")
+
+	syncPublish, ok := workflowJobByID(syncText, "publish")
+	if !ok {
+		t.Fatal("normal sync must have a publish job")
 	}
-	if strings.Contains(text, `"${OUTCOME}" == "implemented"`) || strings.Contains(text, `"${PUBLISH}" == "true"`) {
-		t.Fatal("protocol sync report must not treat retired mechanical implemented/publish outputs as success")
+	if !strings.Contains(syncPublish, "needs: [sync, proof]") && !strings.Contains(syncPublish, "needs: [proof, sync]") {
+		t.Fatal("normal publication must naturally depend on proof")
 	}
-	if !strings.Contains(text, `"${OUTCOME}" == "applied"`) {
-		t.Fatal("protocol sync report must describe mechanical applied outcome")
+	if !strings.Contains(syncPublish, "--sync-mode metadata-sync") {
+		t.Fatal("normal publication must use fixed metadata-sync")
 	}
-	if !strings.Contains(text, `"${OUTCOME}" == "current"`) {
-		t.Fatal("protocol sync report must reserve already-current language for outcome=current")
+	if strings.Contains(syncPublish, "repair-sync") {
+		t.Fatal("normal workflow cannot publish repair-sync")
 	}
-	if strings.Contains(text, "codexsdk_validate_sync.sh") {
-		t.Fatal("protocol sync must not keep the shell validator as the generated-artifact owner")
+	if strings.Contains(jobIf(syncPublish), "always()") {
+		t.Fatal("normal publication must not use always() to run after proof failure")
 	}
+	if !strings.Contains(syncPublish, "inputs.validation_only != true") {
+		t.Fatal("validation-only comparison must skip publication")
+	}
+
+	if strings.Contains(syncText, "uses: ./.github/actions/codex-exec") {
+		t.Fatal("normal sync workflow contains no Codex repair action")
+	}
+	for _, banned := range []string{"reproof-gate", "original_ok", "reproof_ok", "failed=()", "continue-on-error"} {
+		if strings.Contains(syncText, banned) {
+			t.Fatalf("normal sync still contains recovery construct %q", banned)
+		}
+	}
+
+	for _, id := range []string{"generated", "owner-local", "schema-state", "script-tests"} {
+		job, ok := workflowJobByID(proofText, id)
+		if !ok {
+			t.Fatalf("reusable protocol proof missing owner job %s", id)
+		}
+		if strings.Contains(job, "continue-on-error") {
+			t.Fatalf("required proof job %s must not use continue-on-error", id)
+		}
+	}
+	generated, _ := workflowJobByID(proofText, "generated")
+	if !strings.Contains(generated, "./internal/cmd/generatedproof") {
+		t.Fatal("reusable generated proof must run generatedproof")
+	}
+	owner, _ := workflowJobByID(proofText, "owner-local")
+	if !strings.Contains(owner, "go test ./...") {
+		t.Fatal("reusable owner-local job must run go test")
+	}
+	schema, _ := workflowJobByID(proofText, "schema-state")
+	if !strings.Contains(schema, "codexsdk_sync_state.py") {
+		t.Fatal("reusable schema-state job must run candidate schema-state")
+	}
+	scripts, _ := workflowJobByID(proofText, "script-tests")
+	if !strings.Contains(scripts, "python3 -m unittest discover -s scripts -p '*_test.py'") {
+		t.Fatal("reusable script-tests job must run retained script tests")
+	}
+
+	repairOn, ok := workflowJobByID(repairText, "repair")
+	if !ok {
+		t.Fatal("repair workflow missing repair job")
+	}
+	if !strings.Contains(repairText, "failed_run_id:") {
+		t.Fatal("repair workflow must require an exact failed-run identity")
+	}
+	if strings.Index(repairOn, "codexsdk_repair_evidence.py validate") < 0 {
+		t.Fatal("repair workflow must validate failed-run evidence")
+	}
+	if strings.Index(repairOn, "codexsdk_repair_evidence.py validate") > strings.Index(repairOn, "uses: ./.github/actions/codex-exec") {
+		t.Fatal("repair workflow must validate/load failed-run evidence before Codex")
+	}
+	if strings.Index(repairOn, "uses: ./.github/actions/codex-exec") < 0 {
+		t.Fatal("repair workflow must invoke Codex")
+	}
+
+	repairProof, ok := workflowJobByID(repairText, "proof")
+	if !ok {
+		t.Fatal("repair workflow must invoke protocol proof")
+	}
+	if !strings.Contains(repairProof, "needs: repair") {
+		t.Fatal("repair proof must run after Codex repair")
+	}
+	if !strings.Contains(repairProof, "uses: ./.github/workflows/codexsdk-protocol-proof.yml") {
+		t.Fatal("repair workflow must reuse the same protocol proof")
+	}
+	if strings.Index(repairText, "id: codex") > strings.Index(repairText, "uses: ./.github/workflows/codexsdk-protocol-proof.yml") {
+		t.Fatal("repair workflow must invoke Codex before the reusable protocol proof")
+	}
+
+	repairPublish, ok := workflowJobByID(repairText, "publish")
+	if !ok {
+		t.Fatal("repair workflow missing publish job")
+	}
+	if !strings.Contains(repairPublish, "needs: [repair, proof]") && !strings.Contains(repairPublish, "needs: [proof, repair]") {
+		t.Fatal("repair publication must naturally depend on proof")
+	}
+	if !strings.Contains(repairPublish, "--sync-mode repair-sync") {
+		t.Fatal("repair publication must use fixed repair-sync")
+	}
+	if strings.Contains(repairPublish, "metadata-sync") {
+		t.Fatal("repair workflow cannot publish metadata-sync")
+	}
+	if strings.Contains(jobIf(repairPublish), "always()") {
+		t.Fatal("repair publication must not run when proof fails")
+	}
+
 	mechanical, err := os.ReadFile(filepath.Join(root, "codexsdk", "scripts", "codexsdk_mechanical_sync.py"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	mechanicalText := string(mechanical)
+	if strings.Contains(mechanicalText, "metadata-sync") || strings.Contains(mechanicalText, "repair-sync") || strings.Contains(mechanicalText, "sync_mode") {
+		t.Fatal("mechanical sync must not own final publication mode")
+	}
 	if strings.Contains(mechanicalText, "./internal/cmd/generatedproof") || strings.Contains(mechanicalText, `"go", "test"`) {
 		t.Fatal("mechanical sync must not own generatedproof or go test correctness decisions")
 	}
-	publish, err := os.ReadFile(filepath.Join(root, "codexsdk", "scripts", "codexsdk_publish_sync_pr.sh"))
-	if err != nil {
-		t.Fatal(err)
+
+	evidence, ok := workflowStepByID(syncText, "evidence")
+	if !ok {
+		t.Fatal("normal sync must pack exact failure evidence")
 	}
-	if strings.Contains(string(publish), "generatedproof") || strings.Contains(string(publish), "go test") {
-		t.Fatal("publish script must not own generatedproof or go test correctness decisions")
+	if !strings.Contains(evidence, "always()") {
+		t.Fatal("evidence-upload may run on failure")
+	}
+	if strings.Contains(evidence, "--sync-mode") {
+		t.Fatal("evidence-upload must not decide publication")
+	}
+
+	if strings.Contains(syncText, "codexsdk_validate_sync.sh") {
+		t.Fatal("protocol sync must not keep the shell validator as the generated-artifact owner")
 	}
 }
 
-func TestProtocolSyncEscalatesAppliedProofFailures(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	data, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "codexsdk-upstream-protocol-sync.yml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := string(data)
-	continueOnError := "continue-on-error: ${{ steps.mechanical.outputs.applied == 'true' }}"
-	for _, id := range []string{"generated-proof", "owner-local-tests", "schema-state", "script-tests"} {
-		step, ok := workflowStepByID(text, id)
-		if !ok {
-			t.Fatalf("missing protocol sync step id %s", id)
-		}
-		if !strings.Contains(step, continueOnError) {
-			t.Fatalf("%s must continue-on-error only after mechanical apply so outcome stays failure", id)
-		}
-	}
-	for _, id := range []string{"reproof-gate", "fail-closed"} {
-		step, ok := workflowStepByID(text, id)
-		if !ok {
-			t.Fatalf("missing protocol sync step id %s", id)
-		}
-		if strings.Contains(step, "continue-on-error:") {
-			t.Fatalf("%s must not continue-on-error; re-proof and the gate fail closed", id)
-		}
-	}
-
-	recoveryIDs := []string{
-		"record-proof-failure",
-		"codex",
-		"escalation-claim",
-		"reproof-generated",
-		"reproof-owner",
-		"reproof-schema",
-		"reproof-scripts",
-		"reproof-gate",
-		"provenance",
-		"capture",
-		"commit",
-		"publish",
-		"fail-closed",
-	}
-	for _, id := range recoveryIDs {
-		step, ok := workflowStepByID(text, id)
-		if !ok {
-			t.Fatalf("missing recovery step id %s", id)
-		}
-		if !strings.Contains(step, "always()") || !strings.Contains(step, "!cancelled()") {
-			t.Fatalf("%s must use always() && !cancelled() so implicit success() cannot skip repair", id)
-		}
-		if strings.Contains(step, "failure()") {
-			t.Fatalf("%s must not use failure(); continue-on-error keeps the job successful so failure() is false", id)
-		}
-	}
-
-	record, ok := workflowStepByID(text, "record-proof-failure")
+func TestWorkflowJobByIDIsolatesJobs(t *testing.T) {
+	yaml := "" +
+		"jobs:\n" +
+		"  sync:\n" +
+		"    steps:\n" +
+		"      - run: echo sync\n" +
+		"  proof:\n" +
+		"    needs: sync\n" +
+		"    uses: ./.github/workflows/codexsdk-protocol-proof.yml\n" +
+		"  publish:\n" +
+		"    needs: [sync, proof]\n" +
+		"    if: always()\n"
+	proof, ok := workflowJobByID(yaml, "proof")
 	if !ok {
-		t.Fatal("missing record-proof-failure step")
+		t.Fatal("expected proof job")
 	}
-	for _, want := range []string{
-		"steps.generated-proof.outcome == 'failure'",
-		"steps.owner-local-tests.outcome == 'failure'",
-		"steps.schema-state.outcome == 'failure'",
-		"steps.script-tests.outcome == 'failure'",
-	} {
-		if !strings.Contains(record, want) {
-			t.Fatalf("record-proof-failure must treat %s as escalation evidence", want)
-		}
+	if !strings.Contains(proof, "uses: ./.github/workflows/codexsdk-protocol-proof.yml") {
+		t.Fatalf("missing uses: %s", proof)
 	}
-
-	gate, ok := workflowStepByID(text, "fail-closed")
-	if !ok {
-		t.Fatal("missing fail-closed step")
-	}
-	for _, want := range []string{
-		`"comparison"`,
-		`"current"`,
-		`"applied"`,
-		"reproof-gate",
-		"original proofs or successful reproof-gate",
-		"comparison/current requires successful generated proof",
-	} {
-		if !strings.Contains(gate, want) {
-			t.Fatalf("fail-closed missing %q", want)
-		}
-	}
-	if strings.Index(text, "id: fail-closed") < strings.Index(text, "id: reproof-gate") {
-		t.Fatal("fail-closed must run after reproof-gate")
-	}
-}
-
-func TestProtocolSyncReprovesFullCohortAfterRepair(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	data, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "codexsdk-upstream-protocol-sync.yml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := string(data)
-
-	reproofIDs := []string{"reproof-generated", "reproof-owner", "reproof-schema", "reproof-scripts"}
-	for _, id := range reproofIDs {
-		step, ok := workflowStepByID(text, id)
-		if !ok {
-			t.Fatalf("missing post-repair proof step %s", id)
-		}
-		if !strings.Contains(step, "continue-on-error: true") {
-			t.Fatalf("%s must continue-on-error so one re-proof failure still observes the rest", id)
-		}
-		if strings.Contains(step, "steps.reproof-generated.outcome") && id != "reproof-generated" {
-			t.Fatalf("%s must not wait on another re-proof outcome", id)
-		}
-		if strings.Contains(step, "steps.reproof-owner.outcome") && id != "reproof-owner" {
-			t.Fatalf("%s must not wait on another re-proof outcome", id)
-		}
-	}
-
-	generated, ok := workflowStepByID(text, "reproof-generated")
-	if !ok {
-		t.Fatal("missing reproof-generated")
-	}
-	for _, want := range []string{
-		"working-directory: codexsdk",
-		"-expected-repository-commit",
-		"-expected-upstream-commit",
-		"-expected-upstream-ref",
-		"./internal/cmd/generatedproof",
-	} {
-		if !strings.Contains(generated, want) {
-			t.Fatalf("reproof-generated missing %q", want)
-		}
-	}
-
-	schema, ok := workflowStepByID(text, "reproof-schema")
-	if !ok {
-		t.Fatal("missing reproof-schema")
-	}
-	if !strings.Contains(schema, `CANDIDATE: ${{ steps.mechanical.outputs.candidate }}`) {
-		t.Fatal("reproof-schema must consume the exact mechanical candidate output")
-	}
-	if !strings.Contains(schema, "codexsdk_sync_state.py") {
-		t.Fatal("reproof-schema must rerun candidate schema-state")
-	}
-
-	scripts, ok := workflowStepByID(text, "reproof-scripts")
-	if !ok {
-		t.Fatal("missing reproof-scripts")
-	}
-	if !strings.Contains(scripts, "python3 -m unittest discover -s scripts -p '*_test.py'") {
-		t.Fatal("reproof-scripts must rerun retained sync-script tests")
-	}
-
-	gate, ok := workflowStepByID(text, "reproof-gate")
-	if !ok {
-		t.Fatal("missing reproof-gate")
-	}
-	if strings.Contains(gate, "continue-on-error:") {
-		t.Fatal("reproof-gate must not continue-on-error")
-	}
-	for _, want := range []string{
-		`steps.reproof-generated.outcome`,
-		`steps.reproof-owner.outcome`,
-		`steps.reproof-schema.outcome`,
-		`steps.reproof-scripts.outcome`,
-		`[[ "${GENERATED}" == "success" ]]`,
-		`[[ "${OWNER}" == "success" ]]`,
-		`[[ "${SCHEMA}" == "success" ]]`,
-		`[[ "${SCRIPTS}" == "success" ]]`,
-		"generated-artifacts",
-		"owner-local-tests",
-		"schema-state",
-		"script-tests",
-	} {
-		if !strings.Contains(gate, want) {
-			t.Fatalf("reproof-gate missing %q", want)
-		}
-	}
-
-	for _, id := range []string{"provenance", "capture", "commit", "publish", "fail-closed"} {
-		step, ok := workflowStepByID(text, id)
-		if !ok {
-			t.Fatalf("missing %s", id)
-		}
-		if !strings.Contains(step, "steps.reproof-gate.outcome == 'success'") && !strings.Contains(step, "steps.reproof-gate.outcome") {
-			t.Fatalf("%s must use reproof-gate as the recovery success signal", id)
-		}
-		if strings.Contains(step, "escalation-validation") {
-			t.Fatalf("%s must not accept retired escalation-validation as recovery", id)
-		}
-		if strings.Contains(step, "steps.reproof-generated.outcome == 'success'") {
-			t.Fatalf("%s must not treat generated re-proof alone as full recovery", id)
-		}
-		if strings.Contains(step, "steps.reproof-owner.outcome == 'success'") {
-			t.Fatalf("%s must not treat owner-local re-proof alone as full recovery", id)
-		}
-	}
-
-	record, ok := workflowStepByID(text, "record-proof-failure")
-	if !ok {
-		t.Fatal("missing record-proof-failure")
-	}
-	for _, want := range []string{
-		"proof_failure_evidence",
-		`"generated-proof": os.environ.get("GENERATED", "")`,
-		`"schema-state": os.environ.get("SCHEMA", "")`,
-		`"script-tests": os.environ.get("SCRIPTS", "")`,
-	} {
-		if !strings.Contains(record, want) {
-			t.Fatalf("record-proof-failure missing %q", want)
-		}
-	}
-
-	mechanical, err := os.ReadFile(filepath.Join(root, "codexsdk", "scripts", "codexsdk_mechanical_sync.py"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	mechanicalText := string(mechanical)
-	if !strings.Contains(mechanicalText, "emit_outcome(module_root, \"escalate\", inputs, reason=reason, **candidate_output(sync_out))") {
-		t.Fatal("mechanical escalate must publish the exact candidate path")
-	}
-	if !strings.Contains(mechanicalText, "if state not in OBSERVED_PROOF_STATES") {
-		t.Fatal("escalation evidence must omit unobserved proof states")
+	if strings.Contains(proof, "if: always()") || strings.Contains(proof, "run: echo sync") {
+		t.Fatalf("job extractor leaked siblings: %s", proof)
 	}
 }
 
@@ -735,6 +605,55 @@ func writeFile(t *testing.T, root, name, contents string) {
 	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func readWorkflow(t *testing.T, root, name string) string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(root, ".github", "workflows", name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
+}
+
+var workflowJobHeader = regexp.MustCompile(`^  ([A-Za-z0-9_-]+):$`)
+
+func workflowJobByID(yaml, id string) (string, bool) {
+	lines := strings.Split(yaml, "\n")
+	inJobs := false
+	start := -1
+	for i, line := range lines {
+		if line == "jobs:" {
+			inJobs = true
+			continue
+		}
+		if !inJobs {
+			continue
+		}
+		match := workflowJobHeader.FindStringSubmatch(line)
+		if match == nil {
+			continue
+		}
+		if start >= 0 {
+			return strings.Join(lines[start:i], "\n"), true
+		}
+		if match[1] == id {
+			start = i
+		}
+	}
+	if start >= 0 {
+		return strings.Join(lines[start:], "\n"), true
+	}
+	return "", false
+}
+
+func jobIf(job string) string {
+	for _, line := range strings.Split(job, "\n") {
+		if strings.HasPrefix(line, "    if:") && !strings.HasPrefix(line, "     ") {
+			return strings.TrimSpace(line)
+		}
+	}
+	return ""
 }
 
 func workflowStepByID(yaml, id string) (string, bool) {

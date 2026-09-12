@@ -98,18 +98,16 @@ Rust-derived schemas, construct sync candidates, and publish a sync PR. They
 are not the owner of generated-Go reproducibility or current-source
 composition. Those proofs are Go-native: `codexsdk/internal/cmd/generatedproof`
 and `internal/moduleproof`. The upstream-sync workflow is mechanical-first:
-resolve the target, generate and compare upstream schemas, prove checked-in
-generated artifacts, and run owner-local Go tests. A successful
-`force_compare=true` run must still execute the generated-artifact proof. After
-mechanical apply, a failed owner proof is continue-on-error evidence rather than
-an immediate job death: YAML records it, may invoke the implementation agent,
-then native-reproofs. The job fail-closes unless comparison/current original
-proofs succeeded, applied original proofs succeeded, or the post-repair
-`reproof-gate` succeeded. A repair is accepted only after the same four-owner
-cohort is re-observed: generated artifacts, owner-local Go tests, candidate
-schema-state, and retained script tests. The implementation agent is invoked
-only when that path writes explicit escalation evidence; it does not certify
-its own repair.
+resolve the target, generate and compare upstream schemas, then call one
+reusable protocol-proof workflow for generated artifacts, owner-local Go tests,
+candidate schema-state, and retained script tests. A successful
+`force_compare=true` run must still execute that proof. A required stage
+failure fails that run; the same run does not recover itself. Repair is a
+separate `workflow_dispatch` continuation that loads exact failed-run
+evidence, lets Codex propose worktree changes, and reuses the same proof
+workflow. Normal publication is structurally `metadata-sync`; repair
+publication is structurally `repair-sync`. The implementation agent does not
+certify its own repair.
 
 Retained Python/shell helpers that still have a mechanical role include
 upstream schema acquisition, candidate apply/report construction, and the

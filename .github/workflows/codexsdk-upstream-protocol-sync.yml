@@ -36,10 +36,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 360
     permissions:
-      actions: read
-      contents: write
-      pull-requests: write
-
+      contents: read
+      pull-requests: read
+    outputs:
+      outcome: ${{ steps.mechanical.outputs.outcome }}
+      applied: ${{ steps.mechanical.outputs.applied }}
+      target_ref: ${{ steps.mechanical.outputs.target_ref }}
+      target_kind: ${{ steps.mechanical.outputs.target_kind }}
+      target_sha: ${{ steps.mechanical.outputs.target_sha }}
+      restore_candidate: ${{ steps.evidence.outputs.restore_candidate }}
+      restore_worktree: ${{ steps.evidence.outputs.restore_worktree }}
     steps:
       - name: Guard control-plane ref
         env:
@@ -151,263 +157,110 @@ jobs:
         run: |
           python3 scripts/codexsdk_mechanical_sync.py --repo-root "${GITHUB_WORKSPACE}"
 
-      - name: Prove checked-in generated artifacts
-        id: generated-proof
-        if: steps.mechanical.outcome == 'success' && steps.mechanical.outputs.escalate != 'true'
-        continue-on-error: ${{ steps.mechanical.outputs.applied == 'true' }}
+      - name: Pack sync evidence
+        id: evidence
+        if: always() && !cancelled()
         working-directory: codexsdk
         env:
-          GOWORK: "off"
-          GOTOOLCHAIN: local
-          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
-          TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
-          REPOSITORY_COMMIT: ${{ github.sha }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          REPOSITORY_SHA: ${{ github.sha }}
+          TARGET_REF: ${{ steps.mechanical.outputs.target_ref || steps.target.outputs.ref }}
+          TARGET_KIND: ${{ steps.mechanical.outputs.target_kind || steps.target.outputs.kind }}
+          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha || steps.target.outputs.sha }}
+          OUTCOME: ${{ steps.mechanical.outputs.outcome }}
+          APPLIED: ${{ steps.mechanical.outputs.applied }}
+          CANDIDATE: ${{ steps.mechanical.outputs.candidate }}
         run: |
           set -euo pipefail
-          mkdir -p "${RUNNER_TEMP}/proof"
-          go run ./internal/cmd/generatedproof \
-            -expected-upstream-commit "${TARGET_SHA}" \
-            -expected-upstream-ref "${TARGET_REF}" \
-            -expected-repository-commit "${REPOSITORY_COMMIT}" \
-            -json-out "${RUNNER_TEMP}/proof/generated.json"
-
-      - name: Owner-local codexsdk tests
-        id: owner-local-tests
-        if: steps.mechanical.outcome == 'success' && steps.mechanical.outputs.escalate != 'true'
-        continue-on-error: ${{ steps.mechanical.outputs.applied == 'true' }}
-        working-directory: codexsdk
-        env:
-          GOWORK: "off"
-          GOTOOLCHAIN: local
-        run: go test ./...
-
-      - name: Candidate schema state
-        id: schema-state
-        if: steps.mechanical.outputs.applied == 'true'
-        continue-on-error: ${{ steps.mechanical.outputs.applied == 'true' }}
-        working-directory: codexsdk
-        env:
-          CANDIDATE: ${{ steps.mechanical.outputs.candidate }}
-          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
-        run: |
-          set -euo pipefail
-          python3 scripts/codexsdk_sync_state.py \
-            --baseline internal/protocolschema/appserver/v2 \
-            --candidate "${CANDIDATE}" \
-            --target-sha "${TARGET_SHA}"
-
-      - name: Remaining script tests
-        id: script-tests
-        if: steps.mechanical.outputs.applied == 'true'
-        continue-on-error: ${{ steps.mechanical.outputs.applied == 'true' }}
-        working-directory: codexsdk
-        env:
-          PYTHONDONTWRITEBYTECODE: "1"
-        run: python3 -m unittest discover -s scripts -p '*_test.py'
-
-      - name: Record workflow proof failure
-        id: record-proof-failure
-        if: >-
-          always() &&
-          !cancelled() &&
-          steps.mechanical.outputs.applied == 'true' &&
-          (steps.generated-proof.outcome == 'failure' ||
-           steps.owner-local-tests.outcome == 'failure' ||
-           steps.schema-state.outcome == 'failure' ||
-           steps.script-tests.outcome == 'failure')
-        working-directory: codexsdk
-        env:
-          TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
-          TARGET_KIND: ${{ steps.mechanical.outputs.target_kind }}
-          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
-          CANDIDATE: ${{ steps.mechanical.outputs.candidate }}
-          GENERATED: ${{ steps.generated-proof.outcome }}
-          OWNER: ${{ steps.owner-local-tests.outcome }}
-          SCHEMA: ${{ steps.schema-state.outcome }}
-          SCRIPTS: ${{ steps.script-tests.outcome }}
-          GENERATED_PROOF: ${{ runner.temp }}/proof/generated.json
-        run: |
-          python3 - <<'PY'
-          import json
-          import os
-          import sys
-          from pathlib import Path
-
-          sys.path.insert(0, "scripts")
-          import codexsdk_mechanical_sync as mechanical
-
-          proof_path = os.environ.get("GENERATED_PROOF", "")
-          generated_result = None
-          generated_proof_path = ""
-          if proof_path and Path(proof_path).is_file():
-              generated_proof_path = proof_path
-              generated_result = json.loads(Path(proof_path).read_text(encoding="utf-8"))
-          payload = mechanical.proof_failure_evidence(
-              target_ref=os.environ["TARGET_REF"],
-              target_kind=os.environ["TARGET_KIND"],
-              target_sha=os.environ["TARGET_SHA"],
-              outcomes={
-                  "generated-proof": os.environ.get("GENERATED", ""),
-                  "owner-local-tests": os.environ.get("OWNER", ""),
-                  "schema-state": os.environ.get("SCHEMA", ""),
-                  "script-tests": os.environ.get("SCRIPTS", ""),
-              },
-              candidate=os.environ.get("CANDIDATE", ""),
-              generated_proof_path=generated_proof_path,
-              generated_proof=generated_result,
+          mkdir -p "${RUNNER_TEMP}/protocol-sync-evidence"
+          args=(
+            pack
+            --out "${RUNNER_TEMP}/protocol-sync-evidence"
+            --repo-root "${GITHUB_WORKSPACE}"
+            --repository "${GH_REPO}"
+            --run-id "${RUN_ID}"
+            --repository-sha "${REPOSITORY_SHA}"
+            --target-ref "${TARGET_REF:-unknown}"
+            --target-kind "${TARGET_KIND:-unknown}"
+            --target-sha "${TARGET_SHA:-unknown}"
+            --outcome "${OUTCOME:-unknown}"
+            --candidate "${CANDIDATE}"
           )
-          mechanical.write_json(Path(".cache/codexsdk-sync/escalation.json"), payload)
-          PY
-
-      - name: Escalate unsupported semantic drift
-        id: codex
-        if: >-
-          always() &&
-          !cancelled() &&
-          (steps.mechanical.outputs.escalate == 'true' ||
-           (steps.mechanical.outputs.applied == 'true' &&
-            (steps.generated-proof.outcome == 'failure' ||
-             steps.owner-local-tests.outcome == 'failure' ||
-             steps.schema-state.outcome == 'failure' ||
-             steps.script-tests.outcome == 'failure')))
-        uses: ./.github/actions/codex-exec
-        with:
-          api-key: ${{ secrets.AZURE_OPENAI_API_KEY }}
-          responses-api-endpoint: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
-          working-directory: codexsdk
-          prompt: >-
-            The mechanical protocol sync escalated. Read
-            ${{ github.workspace }}/codexsdk/.cache/codexsdk-sync/escalation.json,
-            including failed_proofs, proof_outcomes, and artifacts.candidate.
-            Use $codexsdk-sync-upstream only to repair the recorded unsupported
-            semantic drift for that upstream ref and commit. Do not resolve a
-            different target or rediscover the repository. Do not decide whether
-            the repair succeeded. Leave changes unstaged.
-
-      - name: Reject mismatched Codex escalation claim
-        id: escalation-claim
-        if: always() && !cancelled() && (steps.codex.outcome == 'success' || steps.codex.outcome == 'failure')
-        env:
-          CODEX_FINAL_MESSAGE_PATH: ${{ steps.codex.outputs.final-message-path }}
-        run: |
-          python3 - <<'PY'
-          import os
-          from pathlib import Path
-
-          path = os.environ.get("CODEX_FINAL_MESSAGE_PATH", "")
-          if not path or not Path(path).is_file() or Path(path).stat().st_size == 0:
-              raise SystemExit("escalation Codex did not write a final message")
-          first_line = Path(path).read_text(encoding="utf-8").splitlines()[0]
-          if first_line in {"protocol implementation current", "protocol comparison clean"}:
-              raise SystemExit(
-                  f"escalation Codex claim {first_line!r} does not match repair worktree mode"
-              )
-          PY
-
-      - name: Re-prove generated artifacts after repair
-        id: reproof-generated
-        if: always() && !cancelled() && steps.codex.outcome == 'success' && steps.escalation-claim.outcome == 'success'
-        continue-on-error: true
-        working-directory: codexsdk
-        env:
-          GOWORK: "off"
-          GOTOOLCHAIN: local
-          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
-          TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
-          REPOSITORY_COMMIT: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          mkdir -p "${RUNNER_TEMP}/proof"
-          go run ./internal/cmd/generatedproof \
-            -expected-upstream-commit "${TARGET_SHA}" \
-            -expected-upstream-ref "${TARGET_REF}" \
-            -expected-repository-commit "${REPOSITORY_COMMIT}" \
-            -json-out "${RUNNER_TEMP}/proof/generated.json"
-
-      - name: Re-prove owner-local tests after repair
-        id: reproof-owner
-        if: always() && !cancelled() && steps.codex.outcome == 'success' && steps.escalation-claim.outcome == 'success'
-        continue-on-error: true
-        working-directory: codexsdk
-        env:
-          GOWORK: "off"
-          GOTOOLCHAIN: local
-        run: go test ./...
-
-      - name: Re-prove candidate schema state after repair
-        id: reproof-schema
-        if: always() && !cancelled() && steps.codex.outcome == 'success' && steps.escalation-claim.outcome == 'success'
-        continue-on-error: true
-        working-directory: codexsdk
-        env:
-          CANDIDATE: ${{ steps.mechanical.outputs.candidate }}
-          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
-        run: |
-          set -euo pipefail
-          if [[ -z "${CANDIDATE}" ]]; then
-            echo "schema-state re-proof requires the exact mechanical candidate path" >&2
-            exit 1
+          if [[ "${APPLIED}" == "true" ]]; then
+            args+=(--applied)
           fi
-          python3 scripts/codexsdk_sync_state.py \
-            --baseline internal/protocolschema/appserver/v2 \
-            --candidate "${CANDIDATE}" \
-            --target-sha "${TARGET_SHA}"
+          python3 scripts/codexsdk_repair_evidence.py "${args[@]}"
 
-      - name: Re-prove remaining script tests after repair
-        id: reproof-scripts
-        if: always() && !cancelled() && steps.codex.outcome == 'success' && steps.escalation-claim.outcome == 'success'
-        continue-on-error: true
-        working-directory: codexsdk
-        env:
-          PYTHONDONTWRITEBYTECODE: "1"
-        run: python3 -m unittest discover -s scripts -p '*_test.py'
-
-      - name: Accept repaired protocol only after full re-proof
-        id: reproof-gate
-        if: always() && !cancelled() && steps.codex.outcome == 'success' && steps.escalation-claim.outcome == 'success'
-        env:
-          GENERATED: ${{ steps.reproof-generated.outcome }}
-          OWNER: ${{ steps.reproof-owner.outcome }}
-          SCHEMA: ${{ steps.reproof-schema.outcome }}
-          SCRIPTS: ${{ steps.reproof-scripts.outcome }}
-        run: |
-          set -euo pipefail
-          failed=()
-          [[ "${GENERATED}" == "success" ]] || failed+=(generated-artifacts)
-          [[ "${OWNER}" == "success" ]] || failed+=(owner-local-tests)
-          [[ "${SCHEMA}" == "success" ]] || failed+=(schema-state)
-          [[ "${SCRIPTS}" == "success" ]] || failed+=(script-tests)
-          if (( ${#failed[@]} > 0 )); then
-            printf 'post-repair proof failed:' >&2
-            printf ' %s' "${failed[@]}" >&2
-            printf '\n' >&2
-            exit 1
-          fi
-
-      - name: Upload generated proof
-        if: always() && (steps.generated-proof.outcome == 'success' || steps.generated-proof.outcome == 'failure' || steps.reproof-generated.outcome == 'success' || steps.reproof-generated.outcome == 'failure')
+      - name: Upload protocol sync evidence
+        if: always() && !cancelled()
         uses: actions/upload-artifact@v4
         with:
-          name: generated-proof
-          path: ${{ runner.temp }}/proof/generated.json
+          name: protocol-sync-evidence
+          path: ${{ runner.temp }}/protocol-sync-evidence/evidence.json
+          if-no-files-found: ignore
+
+      - name: Upload protocol candidate
+        if: always() && !cancelled() && steps.evidence.outputs.restore_candidate == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: protocol-candidate
+          path: ${{ runner.temp }}/protocol-sync-evidence/schema
           if-no-files-found: error
 
+      - name: Upload protocol worktree
+        if: always() && !cancelled() && steps.evidence.outputs.restore_worktree == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: protocol-worktree
+          path: ${{ runner.temp }}/protocol-sync-evidence/protocol-worktree.patch
+          if-no-files-found: error
+
+  proof:
+    name: Protocol proof
+    needs: sync
+    uses: ./.github/workflows/codexsdk-protocol-proof.yml
+    with:
+      repository-sha: ${{ github.sha }}
+      target-ref: ${{ needs.sync.outputs.target_ref }}
+      target-sha: ${{ needs.sync.outputs.target_sha }}
+      restore-worktree: ${{ needs.sync.outputs.restore_worktree == 'true' }}
+      restore-candidate: ${{ needs.sync.outputs.restore_candidate == 'true' }}
+
+  publish:
+    name: Publish metadata-sync PR
+    needs: [sync, proof]
+    if: ${{ needs.sync.outputs.applied == 'true' && inputs.validation_only != true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check out trusted control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Restore applied worktree
+        if: needs.sync.outputs.restore_worktree == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: protocol-worktree
+          path: ${{ runner.temp }}/protocol-worktree
+
+      - name: Apply worktree patch
+        if: needs.sync.outputs.restore_worktree == 'true'
+        run: git apply --binary "${RUNNER_TEMP}/protocol-worktree/protocol-worktree.patch"
+
       - name: Confirm generated baseline provenance
-        id: provenance
-        if: >-
-          always() &&
-          !cancelled() &&
-          ((steps.mechanical.outputs.applied == 'true' &&
-            steps.generated-proof.outcome == 'success' &&
-            steps.owner-local-tests.outcome == 'success' &&
-            steps.schema-state.outcome == 'success' &&
-            steps.script-tests.outcome == 'success') ||
-           steps.reproof-gate.outcome == 'success')
         working-directory: codexsdk
         env:
-          RESOLVED_TARGET_KIND: ${{ steps.mechanical.outputs.target_kind }}
-          RESOLVED_TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
-          RESOLVED_TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
+          RESOLVED_TARGET_KIND: ${{ needs.sync.outputs.target_kind }}
+          RESOLVED_TARGET_REF: ${{ needs.sync.outputs.target_ref }}
+          RESOLVED_TARGET_SHA: ${{ needs.sync.outputs.target_sha }}
         run: |
           python3 - <<'PY'
           import json
@@ -427,16 +280,6 @@ jobs:
           PY
 
       - name: Capture final protocol changes
-        id: capture
-        if: >-
-          always() &&
-          !cancelled() &&
-          ((steps.mechanical.outputs.applied == 'true' &&
-            steps.generated-proof.outcome == 'success' &&
-            steps.owner-local-tests.outcome == 'success' &&
-            steps.schema-state.outcome == 'success' &&
-            steps.script-tests.outcome == 'success') ||
-           steps.reproof-gate.outcome == 'success')
         working-directory: codexsdk
         run: |
           python3 scripts/codexsdk_sync_changes.py capture \
@@ -446,21 +289,11 @@ jobs:
 
       - name: Commit validated protocol implementation
         id: commit
-        if: >-
-          always() &&
-          !cancelled() &&
-          inputs.validation_only != true &&
-          ((steps.mechanical.outputs.applied == 'true' &&
-            steps.generated-proof.outcome == 'success' &&
-            steps.owner-local-tests.outcome == 'success' &&
-            steps.schema-state.outcome == 'success' &&
-            steps.script-tests.outcome == 'success') ||
-           steps.reproof-gate.outcome == 'success')
         working-directory: codexsdk
         env:
-          TARGET_KIND: ${{ steps.mechanical.outputs.target_kind }}
-          TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
-          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
+          TARGET_KIND: ${{ needs.sync.outputs.target_kind }}
+          TARGET_REF: ${{ needs.sync.outputs.target_ref }}
+          TARGET_SHA: ${{ needs.sync.outputs.target_sha }}
         run: |
           set -euo pipefail
           python3 scripts/codexsdk_sync_changes.py stage \
@@ -477,25 +310,13 @@ jobs:
           echo "validated_commit=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
 
       - name: Publish protected sync PR
-        id: publish
-        if: >-
-          always() &&
-          !cancelled() &&
-          inputs.validation_only != true &&
-          ((steps.mechanical.outputs.applied == 'true' &&
-            steps.generated-proof.outcome == 'success' &&
-            steps.owner-local-tests.outcome == 'success' &&
-            steps.schema-state.outcome == 'success' &&
-            steps.script-tests.outcome == 'success') ||
-           steps.reproof-gate.outcome == 'success')
         working-directory: codexsdk
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SYNC_MODE: ${{ steps.mechanical.outputs.sync_mode }}
-          TARGET_KIND: ${{ steps.mechanical.outputs.target_kind }}
-          TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
-          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
+          TARGET_KIND: ${{ needs.sync.outputs.target_kind }}
+          TARGET_REF: ${{ needs.sync.outputs.target_ref }}
+          TARGET_SHA: ${{ needs.sync.outputs.target_sha }}
           VALIDATED_COMMIT: ${{ steps.commit.outputs.validated_commit }}
         run: |
           set -euo pipefail
@@ -508,127 +329,5 @@ jobs:
             --target-ref "${TARGET_REF}" \
             --target-kind "${TARGET_KIND}" \
             --target-sha "${TARGET_SHA}" \
-            --sync-mode "${SYNC_MODE}" \
+            --sync-mode metadata-sync \
             --validated-commit "${VALIDATED_COMMIT}"
-
-      - name: Report protocol sync outcome
-        if: >-
-          always() &&
-          !cancelled() &&
-          steps.mechanical.outcome == 'success' &&
-          (steps.reproof-gate.outcome == 'success' ||
-           (steps.generated-proof.outcome == 'success' &&
-            steps.owner-local-tests.outcome == 'success' &&
-            (steps.mechanical.outputs.applied != 'true' ||
-             (steps.schema-state.outcome == 'success' &&
-              steps.script-tests.outcome == 'success')))) &&
-          (inputs.validation_only == true ||
-           (steps.mechanical.outputs.applied != 'true' && steps.mechanical.outputs.escalate != 'true') ||
-           (steps.commit.outcome == 'success' && steps.publish.outcome == 'success'))
-        env:
-          OUTCOME: ${{ steps.mechanical.outputs.outcome }}
-          PR_URL: ${{ steps.publish.outputs.pr_url }}
-          ESCALATE: ${{ steps.mechanical.outputs.escalate }}
-          TARGET_REF: ${{ steps.target.outputs.ref }}
-          TARGET_SHA: ${{ steps.target.outputs.sha }}
-          VALIDATION_ONLY: ${{ inputs.validation_only || false }}
-          GENERATED_PROOF: ${{ runner.temp }}/proof/generated.json
-          OWNER_LOCAL_COMPARE: ${{ steps.owner-local-tests.outcome }}
-          REPROOF_GATE: ${{ steps.reproof-gate.outcome }}
-        run: |
-          {
-            echo
-            echo "## Protocol sync outcome"
-            echo
-            echo "- Mechanical outcome: \`${OUTCOME}\`"
-            echo "- Upstream target: \`${TARGET_REF}\`"
-            echo "- Upstream commit: \`${TARGET_SHA}\`"
-            echo "- Repository commit: \`${GITHUB_SHA}\`"
-            if [[ "${OUTCOME}" == "comparison" || "${OUTCOME}" == "current" ]]; then
-              echo "- upstream_schema: clean"
-            elif [[ "${OUTCOME}" == "comparison_dirty" ]]; then
-              echo "- upstream_schema: drift"
-            else
-              echo "- upstream_schema: ${OUTCOME}"
-            fi
-            if [[ -f "${GENERATED_PROOF}" ]]; then
-              python3 -c 'import json,os; p=json.load(open(os.environ["GENERATED_PROOF"], encoding="utf-8")); print("- checked_in_generated_go: " + ("reproducible" if p.get("generated_artifacts_reproducible") else "mismatch")); print("- generated proof repository_commit: " + str(p.get("repository_commit") or "")); print("- generated proof upstream_commit: " + str(p.get("upstream_commit") or ""))'
-            else
-              echo "- checked_in_generated_go: not-run"
-            fi
-            if [[ "${OWNER_LOCAL_COMPARE}" == "success" || "${REPROOF_GATE}" == "success" ]]; then
-              echo "- owner_local_tests: pass"
-            elif [[ "${OWNER_LOCAL_COMPARE}" == "failure" || "${REPROOF_GATE}" == "failure" ]]; then
-              echo "- owner_local_tests: fail"
-            else
-              echo "- owner_local_tests: not-run"
-            fi
-            if [[ "${REPROOF_GATE}" == "success" ]]; then
-              echo "- Escalation: implementation agent received explicit drift evidence; full native re-proof succeeded."
-            elif [[ "${OUTCOME}" == "applied" ]]; then
-              echo "- Mechanical generation and owner-local Go proofs were sufficient; no implementation agent was invoked."
-            elif [[ "${OUTCOME}" == "comparison" ]]; then
-              echo "- Read-only comparison found no protocol drift."
-            elif [[ "${OUTCOME}" == "current" ]]; then
-              echo "- Checked-in protocol implementation is already current."
-            else
-              echo "- Unrecognized mechanical outcome \`${OUTCOME}\`; not treated as current."
-            fi
-            if [[ "${OUTCOME}" == "applied" || "${ESCALATE}" == "true" || "${REPROOF_GATE}" == "success" ]]; then
-              if [[ "${VALIDATION_ONLY}" == "true" ]]; then
-                echo "- PR validation: protocol implementation validated; commit and publication intentionally skipped."
-              elif [[ -n "${PR_URL}" ]]; then
-                echo "- Workflow publication: ${PR_URL}"
-              fi
-            fi
-          } >> "${GITHUB_STEP_SUMMARY}"
-
-      - name: Fail closed unless native proofs succeeded
-        id: fail-closed
-        if: always() && !cancelled() && steps.mechanical.outcome == 'success'
-        env:
-          OUTCOME: ${{ steps.mechanical.outputs.outcome }}
-          APPLIED: ${{ steps.mechanical.outputs.applied }}
-          ESCALATE: ${{ steps.mechanical.outputs.escalate }}
-          GENERATED: ${{ steps.generated-proof.outcome }}
-          OWNER: ${{ steps.owner-local-tests.outcome }}
-          SCHEMA: ${{ steps.schema-state.outcome }}
-          SCRIPTS: ${{ steps.script-tests.outcome }}
-          REPROOF: ${{ steps.reproof-gate.outcome }}
-        run: |
-          set -euo pipefail
-          original_ok=false
-          if [[ "${APPLIED}" == "true" ]]; then
-            if [[ "${GENERATED}" == "success" && "${OWNER}" == "success" && "${SCHEMA}" == "success" && "${SCRIPTS}" == "success" ]]; then
-              original_ok=true
-            fi
-          elif [[ "${GENERATED}" == "success" && "${OWNER}" == "success" ]]; then
-            original_ok=true
-          fi
-          reproof_ok=false
-          if [[ "${REPROOF}" == "success" ]]; then
-            reproof_ok=true
-          fi
-          if [[ "${OUTCOME}" == "comparison" || "${OUTCOME}" == "current" ]]; then
-            if [[ "${original_ok}" != "true" ]]; then
-              echo "comparison/current requires successful generated proof and owner-local tests" >&2
-              exit 1
-            fi
-            exit 0
-          fi
-          if [[ "${OUTCOME}" == "applied" ]]; then
-            if [[ "${original_ok}" == "true" || "${reproof_ok}" == "true" ]]; then
-              exit 0
-            fi
-            echo "applied requires original proofs or successful reproof-gate" >&2
-            exit 1
-          fi
-          if [[ "${OUTCOME}" == "escalate" || "${ESCALATE}" == "true" ]]; then
-            if [[ "${reproof_ok}" == "true" ]]; then
-              exit 0
-            fi
-            echo "escalation requires successful reproof-gate" >&2
-            exit 1
-          fi
-          echo "unrecognized mechanical outcome ${OUTCOME}; fail closed" >&2
-          exit 1
