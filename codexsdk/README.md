@@ -31,10 +31,13 @@ GOWORK=off go test ./...
 ```
 
 Use Exact Run when provider facts matter. `ThreadRunner` preserves decoded
-thread-start facts, turn state, notifications, usage, diagnostics, final text,
-and partial observation on failure. Admission between decoded `thread/start`
-and `turn/start` is consumer-supplied and policy-neutral; rejecting admission
-preserves the exact partial run and does not send `turn/start`.
+thread-start facts, turn state, usage, diagnostics, and partial observation on
+failure. It exposes the immutable notification history already attributed to the
+run and a `FinalResponse` convenience projection over the terminal turn; those
+convenience views do not redefine lower-layer status, correlation, or presence.
+Admission between decoded `thread/start` and `turn/start` is consumer-supplied
+and policy-neutral; rejecting admission preserves the exact partial run and does
+not send `turn/start`.
 
 The generated protocol and app-server are the factual authority. The SDK does
 not translate Codex facts into provider-neutral LLM semantics and does not own
