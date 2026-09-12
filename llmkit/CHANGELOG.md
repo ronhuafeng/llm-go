@@ -16,6 +16,9 @@ changes may occur in minor releases.
 - **Breaking (pre-v1):** `llmadapter.Response.FinalResponse` is now
   `Observation[string]`. Absence is `ErrMissingResponse`; observed empty text
   remains `ErrEmptyResponse`. No scalar compatibility field is kept.
+- Present `BackendDetails` now require a non-empty backend identity that agrees
+  with `Execution.BackendName`. Whitespace-only names do not establish
+  attribution.
 - **Breaking (pre-v1):** separate execution-backend identity from actual
   model-provider identity. `Response.BackendDetails` replaces
   `ProviderDetails`; backend details expose `BackendName()`, and

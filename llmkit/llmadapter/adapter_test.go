@@ -93,6 +93,90 @@ func TestValueChecksBackendIdentityWithoutReplacingCallError(t *testing.T) {
 	}
 }
 
+func TestValueRejectsEmptyBackendIdentityWhenDetailsPresent(t *testing.T) {
+	cases := []struct {
+		name     string
+		response Response
+	}{
+		{
+			name: "both names empty",
+			response: Response{
+				FinalResponse:  Observed("true"),
+				BackendDetails: details{},
+			},
+		},
+		{
+			name: "both names whitespace",
+			response: Response{
+				FinalResponse:  Observed("true"),
+				Execution:      ExecutionEvidence{BackendName: " "},
+				BackendDetails: details{name: "\n"},
+			},
+		},
+		{
+			name: "empty execution name",
+			response: Response{
+				FinalResponse:  Observed("true"),
+				BackendDetails: details{name: "codex"},
+			},
+		},
+		{
+			name: "empty details name",
+			response: Response{
+				FinalResponse:  Observed("true"),
+				Execution:      ExecutionEvidence{BackendName: "codex"},
+				BackendDetails: details{},
+			},
+		},
+		{
+			name: "whitespace execution name",
+			response: Response{
+				FinalResponse:  Observed("true"),
+				Execution:      ExecutionEvidence{BackendName: "  "},
+				BackendDetails: details{name: "codex"},
+			},
+		},
+		{
+			name: "whitespace details name",
+			response: Response{
+				FinalResponse:  Observed("true"),
+				Execution:      ExecutionEvidence{BackendName: "codex"},
+				BackendDetails: details{name: "\t"},
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Value[bool](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
+				return tc.response, nil
+			}), "prompt")
+			if !errors.Is(err, ErrBackendIdentityMismatch) {
+				t.Fatalf("error = %v, want ErrBackendIdentityMismatch", err)
+			}
+		})
+	}
+
+	result, err := Value[bool](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
+		return Response{FinalResponse: Observed("true")}, nil
+	}), "prompt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Response.BackendDetails != nil || result.Response.Execution.BackendName != "" {
+		t.Fatalf("nil details should not require backend identity: %#v", result.Response)
+	}
+
+	if _, err := Value[bool](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
+		return Response{
+			FinalResponse:  Observed("true"),
+			Execution:      ExecutionEvidence{BackendName: "codex"},
+			BackendDetails: details{name: "codex"},
+		}, nil
+	}), "prompt"); err != nil {
+		t.Fatalf("matching non-empty identities failed: %v", err)
+	}
+}
+
 func TestValueRejectsTypedNilBackendDetails(t *testing.T) {
 	var typedNil *testPointerDetails
 	_, err := Value[bool](context.Background(), callerFunc(func(context.Context, Request) (Response, error) {
