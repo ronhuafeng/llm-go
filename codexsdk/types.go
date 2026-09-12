@@ -97,9 +97,10 @@ type ThreadRunResult struct {
 	Turn          protocolv2.Turn
 	Usage         *protocolv2.ThreadTokenUsage
 	Notifications []protocolv2.ServerNotification
-	// FinalResponse is the text of the last observed agent message whose phase
-	// is final_answer. FinalResponsePresent distinguishes an observed empty
-	// string from the absence of any final-answer observation.
+	// FinalResponse is the convenience completion-summary text: an explicit
+	// final_answer agent message, or else the latest phase-absent completed
+	// agent message. FinalResponsePresent distinguishes an observed empty
+	// final_answer from the absence of any qualifying completion message.
 	FinalResponse        string
 	FinalResponsePresent bool
 	InputStats           InputStats

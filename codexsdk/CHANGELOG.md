@@ -15,6 +15,9 @@
   `Resume`. A canceled or deadline-exceeded drain returns the caller cause with
   the latest partial evidence while the shared run is still non-terminal;
   `Stream.Next` remains cursor-local.
+- Match app-server completion-summary semantics for Exact Run `FinalResponse`:
+  an explicit `final_answer` still wins, and a phase-absent completed agent
+  message remains a present legacy completion rather than being dropped.
 - Fail closed on resume when `ThreadResumeResponse.Thread.ID` is empty instead
   of substituting the requested `ThreadResumeParams.ThreadID`.
 
