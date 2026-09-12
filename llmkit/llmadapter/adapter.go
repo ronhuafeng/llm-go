@@ -20,7 +20,8 @@ var (
 
 // BackendDetails is typed backend-specific evidence published by an adapter.
 // BackendName identifies the execution runtime/adapter that owns those details;
-// it is not model-provider identity.
+// it is not model-provider identity. When details are present, that name must
+// be non-empty and equal to ExecutionEvidence.BackendName.
 type BackendDetails interface {
 	BackendName() string
 }
@@ -240,7 +241,12 @@ func validateBackendIdentity(response Response) error {
 	if isNilValue(value) {
 		return fmt.Errorf("%w: backend details is typed nil", ErrBackendIdentityMismatch)
 	}
-	if response.Execution.BackendName != response.BackendDetails.BackendName() {
+	executionName := strings.TrimSpace(response.Execution.BackendName)
+	detailsName := strings.TrimSpace(response.BackendDetails.BackendName())
+	if executionName == "" || detailsName == "" {
+		return fmt.Errorf("%w: empty backend identity execution=%q details=%q", ErrBackendIdentityMismatch, response.Execution.BackendName, response.BackendDetails.BackendName())
+	}
+	if executionName != detailsName {
 		return fmt.Errorf("%w: execution=%q details=%q", ErrBackendIdentityMismatch, response.Execution.BackendName, response.BackendDetails.BackendName())
 	}
 	return nil
