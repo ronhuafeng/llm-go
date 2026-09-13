@@ -153,7 +153,7 @@ func (c *Client) writeExactServerRequestResponse(id any, request protocolv2.Serv
 		return nil
 	}
 	var result map[string]any
-	if err := json.Unmarshal(raw, &result); err != nil {
+	if err := unmarshalJSONPreserveNumbers(raw, &result); err != nil {
 		c.failExactServerRequest(id, request, -32602, fmt.Errorf("codexsdk: decode %s response object: %w", request.Kind(), err))
 		return nil
 	}
