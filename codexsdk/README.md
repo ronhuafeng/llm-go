@@ -11,7 +11,7 @@ Public packages:
   protocol types and method registry.
 
 ```sh
-go get github.com/ronhuafeng/llm-go/codexsdk@latest
+go get github.com/ronhuafeng/llm-go@latest
 ```
 
 ## Main API
@@ -35,10 +35,10 @@ Inbound JSON-RPC frames are limited to 16 MiB including the newline delimiter.
 [`example_test.go`](example_test.go) is the compile-checked setup example.
 
 ```sh
-GOWORK=off go test ./...
+go test ./codexsdk/...
 ```
 
 Protocol upgrades: [`../docs/protocol-sync.md`](../docs/protocol-sync.md).
 Supported Go/platform versions: [`../SUPPORT.md`](../SUPPORT.md).
 Repository verification: [`../docs/verify.md`](../docs/verify.md).
-Changelog: [`CHANGELOG.md`](CHANGELOG.md).
+Changelog: [`../CHANGELOG.md`](../CHANGELOG.md).

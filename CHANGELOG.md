@@ -1,15 +1,30 @@
 # Changelog
 
+The repository is one Go module, `github.com/ronhuafeng/llm-go`. This file is
+the only current release changelog. Package sections record user-visible
+changes in `llmkit`, `codexsdk`, and `llmcaller/codex`.
+
+This project follows Semantic Versioning. Before v1.0.0, breaking public API
+changes may occur in minor releases.
+
 ## [Unreleased]
 
-### Added
+### Repository
+
+- Collapse the repository to one root module and one version. Consumers resolve
+  `github.com/ronhuafeng/llm-go@vX.Y.Z` and keep the existing import paths for
+  `llmkit`, `codexsdk`, and `llmcaller/codex`. The Go floor is `1.25.0`.
+
+### codexsdk
+
+#### Added
 
 - Expose generated-baseline provenance and initialize runtime identity as
   separate facts. Runtime compatibility stays unknown: `initialize` reports
   identity, not whole-surface compatibility, and a successful turn does not
   change that.
 
-### Fixed
+#### Fixed
 
 - Keep one application/server-request failure at Exact Run scope. A missing
   handler, handler error/panic, or invalid typed response still sends a JSON-RPC
@@ -30,7 +45,7 @@
 - Fail closed on resume when `ThreadResumeResponse.Thread.ID` is empty instead
   of substituting the requested `ThreadResumeParams.ThreadID`.
 
-### Changed
+#### Changed
 
 - **Breaking generated-surface change (pre-v1):** publish the `rust-v0.154.0`
   classified protocol surface. MCP elicitation keeps the `openai/userVerification`
@@ -62,7 +77,6 @@
 - **Breaking (pre-v1):** resumed Exact Runs expose the same two-input admission
   seam after `thread/resume` and before `turn/start`. Missing observed resume
   thread identity still fails closed before admission.
-
 - **Breaking (pre-v1):** stop synthesizing application decisions and environment
   facts for exact server requests. A missing `ServerRequestHandler` now fails
   with a typed exact server-request cause and JSON-RPC error; callback shutdown
@@ -78,35 +92,36 @@
   `modelProvider/authRecovery*` methods are generated. `GetAccountRateLimitsResponse`
   preserves backend-owned `rateLimitUpsell` as a JSON value.
 
-## [0.8.0] - 2026-09-07
+### llmcaller/codex
 
-### Added
+#### Changed
 
-- **Breaking (pre-v1):** add `StartThreadRunRequest.AdmitTurn` so Exact Run
-  startup can inspect the decoded `ThreadStartResponse` and reject
-  continuation fail-closed before `turn/start`. Rejection preserves the exact
-  partial `StartedThreadRun` and reports `ErrTurnAdmissionRejected`.
-
-### Changed
-
-- **Breaking generated-surface change (pre-v1):** publish the `rust-v0.151.0`
-  classified protocol surface. Stable `RawResponseCompletedNotification` is
-  removed. `CodexErrorInfo`, `ThreadItem`, and `TurnError` gain stable
-  members. `ClientRequest` and `TurnStartParams` remain mixed Generated
-  Facades with added members. `Turns` becomes a mixed Generated Facade.
-
-## [0.7.0] - 2026-08-30
-
-### Changed
-
-- **Breaking generated-surface change (pre-v1):** publish the `rust-v0.150.1`
-  classified protocol surface. Stable Amazon Bedrock credential-source facts
-  and several stable metadata fields are removed. `Accounts`, `MCPServers`,
-  and `Plugins` become mixed Generated Facades.
-  `protocolv2.ThreadMetadataUpdateParams` becomes a mixed classified params
-  type.
-
-### Fixed
-
-- Keep Exact Run History Cursor cancellation caller-local so `Next` cannot
-  terminate a shared Exact Run.
+- Neutral token usage is one new-thread/one-turn adapter attempt. The Codex
+  projection publishes `ThreadTokenUsage.Total` under that lifecycle and does
+  not relabel `Last` or per-upstream-response counts as attempt-scoped evidence.
+- Stop publishing thread-start or `model/rerouted` identifiers as attempt-wide
+  served-model evidence. Those exact facts remain in `BackendDetails`;
+  `ExecutionEvidence.Model` stays unknown unless serving is proven at attempt
+  scope.
+- **Breaking (pre-v1):** project exact `FinalResponsePresent` into neutral
+  `Observation[string]`. Present-empty stays observed; absence stays unknown.
+- Delete unused `responseFromRun`; `Call` still projects through
+  `projectNeutralResponse`.
+- **Breaking (pre-v1):** application-owned `AdmitTurn` now receives both the
+  exact thread-start observation and the exact pending `turn/start` request.
+  The adapter still does not merge those values or choose an execution policy.
+- **Breaking (pre-v1):** stop rewriting caller-owned JSON Schemas by promoting
+  optional properties to required. Codex schema admission now preserves the
+  accepted JSON instance language or fails closed with
+  `optional_property_unsupported`; nullable/Go-decoding equivalence is no
+  longer used to justify semantic narrowing.
+- **Breaking (pre-v1):** remove adapter-owned named execution safety profiles,
+  including `ReadOnlyEphemeralOptions`. Neutral `Caller` construction now
+  requires application-owned `Options.Defaults.AdmitTurn`; approval, sandbox,
+  ephemeral, permission, CWD, workspace, and related exact settings remain
+  caller-owned rather than being rewritten by the adapter.
+- **Breaking (pre-v1):** publish `"codex"` as execution-backend identity, not
+  model-provider identity. Exact Codex details now use `BackendDetails` /
+  `BackendName`; actual provider identity stays unknown unless exact lower-layer
+  serving evidence establishes it independently. Effective model and usage
+  observations remain independent.

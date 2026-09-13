@@ -1,10 +1,11 @@
 # Support
 
 Bugs and feature requests belong in this repository's
-[issue tracker](https://github.com/ronhuafeng/llm-go/issues). Include the module,
-version, minimal reproduction, expected behavior, and actual behavior.
+[issue tracker](https://github.com/ronhuafeng/llm-go/issues). Include the
+`github.com/ronhuafeng/llm-go` version, owning package family, minimal
+reproduction, expected behavior, and actual behavior.
 
-Choose the owning module first:
+Choose the owning package family first:
 
 - provider-neutral schemas, typed calls, validation, or retries: `llmkit`;
 - Codex transport, generated protocol, or thread/turn lifecycle: `codexsdk`;
@@ -15,9 +16,8 @@ must use [`SECURITY.md`](SECURITY.md), not a public issue.
 
 ## Go versions
 
-The published modules support Go 1.23 or newer. Their individual `go.mod` files
-are authoritative for consumers. The repository workspace and `internal/tools`
-require Go 1.25 or newer; that does not raise the published-module minimum.
+The root [`go.mod`](go.mod) is the authoritative Go floor. The module supports
+Go 1.25.0 or newer.
 
 ## Operating systems
 

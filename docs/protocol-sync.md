@@ -48,8 +48,8 @@ For a clean comparison, or after the one Agent pass for real drift, require:
 - candidate schema matches the checked-in baseline for the selected target;
 - generated protocol Go and SDK surface reproduce exactly;
 - `gofmt` / whitespace checks pass;
-- `GOWORK=off go vet ./...` passes in `codexsdk`;
-- `GOWORK=off go test ./...` passes in `codexsdk`;
+- `go vet ./codexsdk/...` passes;
+- `go test ./codexsdk/...` passes;
 - focused tests for actual protocol changes pass.
 
 Publication happens only after those checks succeed. It creates or updates a

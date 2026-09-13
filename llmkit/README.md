@@ -9,7 +9,7 @@ Provider-neutral typed model calls, validation, and bounded retries.
 | `llmstep` | Run bounded calls with deterministic caller validation and optional retry feedback. |
 
 ```sh
-go get github.com/ronhuafeng/llm-go/llmkit@latest
+go get github.com/ronhuafeng/llm-go@latest
 ```
 
 ## Main API
@@ -35,9 +35,9 @@ Compile-checked examples live with the packages:
 - [`llmstep/example_test.go`](llmstep/example_test.go)
 
 ```sh
-GOWORK=off go test ./...
+go test ./llmkit/...
 ```
 
 Supported Go/platform versions: [`../SUPPORT.md`](../SUPPORT.md).
 Repository verification: [`../docs/verify.md`](../docs/verify.md).
-Changelog: [`CHANGELOG.md`](CHANGELOG.md).
+Changelog: [`../CHANGELOG.md`](../CHANGELOG.md).

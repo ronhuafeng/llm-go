@@ -7,8 +7,8 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE).
 The dependency list below is derived from `go.mod`, `go.sum`, and:
 
 ```sh
-GOWORK=off go list -m all
-GOWORK=off go mod graph
+go list -m all
+go mod graph
 ```
 
 ## Direct dependencies

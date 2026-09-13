@@ -2,8 +2,8 @@
 
 Read only what the task needs.
 
-- Choose a module from [`README.md`](README.md), then read that module's README,
-  affected package docs, source, and tests.
+- Choose a package family from [`README.md`](README.md), then read that
+  family's README, affected package docs, source, and tests.
 - For `llmkit` changes, work in the affected `llmschema`, `llmadapter`, or
   `llmstep` package.
 - For `codexsdk` runtime changes, read the affected code and tests. For upstream
@@ -14,8 +14,9 @@ Read only what the task needs.
 - For verification, release, support, or issue operations, use the corresponding
   document under `docs/`, [`SUPPORT.md`](SUPPORT.md), or
   [`docs/issues.md`](docs/issues.md).
-- Read [`NORTHSTAR.md`](NORTHSTAR.md) only when changing module ownership,
-  application authority, protocol/caller meaning, or repository architecture.
+- Read [`NORTHSTAR.md`](NORTHSTAR.md) only when changing package-family
+  ownership, application authority, protocol/caller meaning, or repository
+  architecture.
 
 Do not search historical issues, old branches, or retired design documents when
 current source and tests are sufficient.

@@ -50,7 +50,7 @@ Codex cannot represent. It must not silently change the caller's schema meaning.
 
 ### Keep ownership small
 
-The runtime has three modules:
+The runtime has three package families inside one Go module:
 
 ```text
 llmkit         ---\
@@ -61,7 +61,11 @@ codexsdk       ---/
 `llmkit` owns provider-neutral typed inference. `codexsdk` owns the local Codex
 App Server protocol and lifecycle. `llmcaller/codex` owns the translation.
 `llmkit` and `codexsdk` do not depend on each other directly. The repository
-root is not another runtime layer.
+root is not another runtime package.
+
+The repository is one source unit, one Go module (`github.com/ronhuafeng/llm-go`),
+one Go floor, and one SemVer. Do not reconstruct sibling modules with workspace
+files, `replace` directives, or published-closure checks.
 
 Do not add `common`, `core`, `shared`, registries, facades, or compatibility
 layers without a current behavioral need.
@@ -72,8 +76,8 @@ Use Go tests for Go behavior, Go generators/checkers for generated Go source,
 the selected Codex source for upstream schema facts, and GitHub Actions for
 orchestration and repository effects.
 
-Current-source composition and published module availability are separate
-checks. Workspace replacement can prove the former, not the latter.
+Verify the root module directly. Generated protocol reproducibility is a
+separate deterministic check, not a substitute for `go test`.
 
 ### Keep verification proportional
 
@@ -97,14 +101,14 @@ document, or test needs a current consumer or invariant. If removing it would
 not weaken a current requirement, remove it. Git history records retired
 designs.
 
-## Module goals
+## Package family goals
 
 - **`llmkit`:** typed provider-neutral model calls with deterministic caller
   validation and bounded retries.
 - **`codexsdk`:** a faithful Go client for one local Codex App Server.
 - **`llmcaller/codex`:** the smallest meaning-preserving bridge between them.
-- **Repository:** let the modules evolve together without creating another
-  runtime or CI framework.
+- **Repository:** one module and one version, without creating another runtime
+  or CI framework.
 
 When two designs preserve the same behavior, choose the one that requires less
 context to understand, change, and verify.
