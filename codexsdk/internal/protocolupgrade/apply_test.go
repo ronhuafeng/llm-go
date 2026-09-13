@@ -181,6 +181,91 @@ func TestApplyCopiesCandidateAndIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestApplyRegeneratesGeneratedGoThroughCanonicalGenerator(t *testing.T) {
+	root := copyModuleForCheck(t)
+	baseline := filepath.Join(root, filepath.FromSlash(defaultBaselineRel))
+	candidate := t.TempDir()
+	if err := copyTree(baseline, candidate); err != nil {
+		t.Fatal(err)
+	}
+	commonRS := filepath.Join(root, "common.rs")
+	if err := os.WriteFile(commonRS, []byte(tinyCommonRS), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sha := strings.Repeat("b", 40)
+	_, err := Apply(ApplyRequest{
+		Baseline:          baseline,
+		Candidate:         candidate,
+		StableCandidate:   candidate,
+		CommonRS:          commonRS,
+		CommonRSSourceSHA: sha,
+		Reports:           filepath.Join(root, "reports"),
+		TargetRef:         "rust-v0.154.0",
+		TargetKind:        "stable_rust_tag",
+		TargetSHA:         sha,
+		ModuleRoot:        root,
+		SkipCodegen:       false,
+		Now:               func() time.Time { return time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC) },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Check(CheckRequest{ModuleRoot: root}); err != nil {
+		t.Fatalf("generated Go was not reproducible after apply: %v", err)
+	}
+}
+
+func TestApplyCodegenRequiresModuleBaseline(t *testing.T) {
+	fix := writeApplyFixture(t)
+	_, err := Apply(ApplyRequest{
+		Baseline:          fix.baseline,
+		Candidate:         fix.candidate,
+		StableCandidate:   fix.stable,
+		CommonRS:          fix.commonRS,
+		CommonRSSourceSHA: fix.sha,
+		Reports:           fix.reports,
+		TargetRef:         "rust-v1.2.3",
+		TargetKind:        "stable_rust_tag",
+		TargetSHA:         fix.sha,
+		ModuleRoot:        t.TempDir(),
+		SkipCodegen:       false,
+		skipSurface:       true,
+	})
+	if err == nil || !strings.Contains(err.Error(), defaultBaselineRel) {
+		t.Fatalf("got %v, want baseline path diagnostic", err)
+	}
+}
+
+func TestWriteReportsNamesGeneratedSchemaPath(t *testing.T) {
+	root := t.TempDir()
+	baseline := filepath.Join(root, "baseline")
+	candidate := filepath.Join(root, "candidate")
+	reports := filepath.Join(root, "reports")
+	writeSchemaSet(t, baseline, []string{"thread/start"}, nil)
+	writeSchemaSet(t, candidate, []string{"thread/start"}, nil)
+	report, err := Compare(CompareRequest{
+		Baseline:      baseline,
+		Candidate:     candidate,
+		SourceCommit:  strings.Repeat("1", 40),
+		SourceRef:     "rust-v0.141.0",
+		SourceRefKind: "stable_rust_tag",
+		CodexVersion:  "codex-cli test",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := WriteReports(reports, report, candidate); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(reports, "SUMMARY.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), candidate) {
+		t.Fatalf("SUMMARY.md missing generated schema path %s:\n%s", candidate, raw)
+	}
+}
+
 func TestUpdateManifestGenerationRequiresObjectInputs(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "manifest_generation.json")
 	writeJSONFile(t, path, map[string]any{"inputs": "old"})

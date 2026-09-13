@@ -68,7 +68,7 @@ func runCompare(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if *reports != "" {
-		if _, err := protocolupgrade.WriteReports(*reports, report); err != nil {
+		if _, err := protocolupgrade.WriteReports(*reports, report, *candidate); err != nil {
 			fmt.Fprintf(stderr, "protocolupgrade compare: %v\n", err)
 			return 1
 		}

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -165,11 +164,4 @@ func namedGroups(re *regexp.Regexp, match []string) map[string]string {
 		out[name] = match[i]
 	}
 	return out
-}
-
-func absPath(path string) (string, error) {
-	if path == "" {
-		return "", nil
-	}
-	return filepath.Abs(path)
 }

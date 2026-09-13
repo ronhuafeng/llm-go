@@ -177,6 +177,9 @@ func Apply(req ApplyRequest) (ApplyResult, error) {
 		if moduleRoot == "" {
 			moduleRoot = "."
 		}
+		if err := requireModuleBaseline(moduleRoot, req.Baseline); err != nil {
+			return ApplyResult{}, err
+		}
 		if err := generatedproof.WriteArtifacts(moduleRoot); err != nil {
 			return ApplyResult{}, err
 		}
@@ -222,7 +225,7 @@ func writeAppliedReports(req ApplyRequest, generatedCompatibility map[string]any
 	if err != nil {
 		return err
 	}
-	matrix, err := WriteReports(reports, report)
+	matrix, err := WriteReports(reports, report, req.Candidate)
 	if err != nil {
 		return err
 	}
@@ -243,4 +246,20 @@ func writeAppliedReports(req ApplyRequest, generatedCompatibility map[string]any
 		"changed":      generatedCompatibility["changed"],
 	}
 	return writeJSON(filepath.Join(req.Baseline, MatrixSkeletonName), matrix)
+}
+
+func requireModuleBaseline(moduleRoot, baseline string) error {
+	moduleRoot, err := filepath.Abs(moduleRoot)
+	if err != nil {
+		return err
+	}
+	baseline, err = filepath.Abs(baseline)
+	if err != nil {
+		return err
+	}
+	want := filepath.Join(moduleRoot, filepath.FromSlash(defaultBaselineRel))
+	if baseline != want {
+		return fmt.Errorf("apply codegen requires baseline %s, got %s", want, baseline)
+	}
+	return nil
 }
