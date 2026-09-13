@@ -29,13 +29,12 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-          go-version-file: codexsdk/go.mod
+          go-version-file: go.mod
           cache: false
 
       - name: Prove generated artifacts
         working-directory: codexsdk
         env:
-          GOWORK: "off"
           GOTOOLCHAIN: local
           EXPECTED_COMMIT: ${{ inputs.expected-upstream-commit }}
           UPSTREAM_REF: ${{ inputs.upstream-ref }}

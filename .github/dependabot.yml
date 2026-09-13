@@ -1,23 +1,7 @@
 version: 2
 updates:
   - package-ecosystem: gomod
-    directory: /codexsdk
-    schedule:
-      interval: weekly
-  - package-ecosystem: gomod
-    directory: /internal/moduleproof
-    schedule:
-      interval: weekly
-  - package-ecosystem: gomod
-    directory: /internal/tools
-    schedule:
-      interval: weekly
-  - package-ecosystem: gomod
-    directory: /llmcaller/codex
-    schedule:
-      interval: weekly
-  - package-ecosystem: gomod
-    directory: /llmkit
+    directory: /
     schedule:
       interval: weekly
   - package-ecosystem: github-actions

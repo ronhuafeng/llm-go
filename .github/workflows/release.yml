@@ -1,15 +1,10 @@
-name: Release public module
+name: Release
 
 on:
   workflow_dispatch:
     inputs:
-      module:
-        description: Public module
-        required: true
-        type: choice
-        options: [llmkit, codexsdk, codex-adapter]
       version:
-        description: Stable SemVer, for example v0.13.0
+        description: Stable SemVer, for example v0.1.0
         required: true
         type: string
 
@@ -17,7 +12,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: release-${{ inputs.module }}-${{ inputs.version }}
+  group: release-${{ inputs.version }}
   cancel-in-progress: false
 
 jobs:
@@ -58,30 +53,19 @@ jobs:
 
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
-          go-version: stable
-          cache-dependency-path: |
-            llmkit/go.sum
-            codexsdk/go.sum
-            llmcaller/codex/go.sum
-            internal/tools/go.sum
+          go-version-file: go.mod
+          cache: false
 
       - name: Resolve release tag
         id: release
         env:
-          MODULE: ${{ inputs.module }}
           VERSION: ${{ inputs.version }}
         run: |
           if [[ ! "$VERSION" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-            echo "version must be stable SemVer like v0.13.0" >&2
+            echo "version must be stable SemVer like v0.1.0" >&2
             exit 1
           fi
-          case "$MODULE" in
-            llmkit) TAG="llmkit/$VERSION" ;;
-            codexsdk) TAG="codexsdk/$VERSION" ;;
-            codex-adapter) TAG="llmcaller/codex/$VERSION" ;;
-            *) echo "unknown module $MODULE" >&2; exit 1 ;;
-          esac
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "tag=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Go formatting and whitespace
         run: |
@@ -94,71 +78,8 @@ jobs:
           fi
           git diff --check
 
-      - name: Verify llmkit
-        working-directory: llmkit
+      - name: Verify root module
         env:
-          GOWORK: "off"
-          GOTOOLCHAIN: local
-        run: |
-          go mod tidy -diff
-          go vet ./...
-          go test -race ./...
-
-      - name: Verify codexsdk
-        working-directory: codexsdk
-        env:
-          GOWORK: "off"
-          GOTOOLCHAIN: local
-        run: |
-          go mod tidy -diff
-          go vet ./...
-          go test -race ./...
-
-      - name: Verify Codex adapter current source
-        env:
-          GOWORK: "off"
-          GOTOOLCHAIN: local
-        run: |
-          set -euo pipefail
-          GOWORK=off go run -C internal/moduleproof ./cmd/verifymodfile \
-            -go-mod "$(pwd)/llmcaller/codex/go.mod" \
-            -go-sum "$(pwd)/llmcaller/codex/go.sum" \
-            -replace github.com/ronhuafeng/llm-go/llmkit=../../llmkit \
-            -replace github.com/ronhuafeng/llm-go/codexsdk=../../codexsdk \
-            -out-mod "${RUNNER_TEMP}/codex.verify.mod" \
-            -out-sum "${RUNNER_TEMP}/codex.verify.sum"
-          export GOFLAGS="-modfile=${RUNNER_TEMP}/codex.verify.mod"
-          (
-            cd llmcaller/codex
-            go vet ./...
-            go test -race ./...
-          )
-
-      - name: Verify Codex adapter published dependency closure
-        if: inputs.module == 'codex-adapter'
-        working-directory: llmcaller/codex
-        env:
-          GOWORK: "off"
-          GOTOOLCHAIN: local
-        run: |
-          go mod tidy -diff
-          go vet ./...
-          go test -race ./...
-
-      - name: Verify repository-local tools
-        working-directory: internal/tools
-        env:
-          GOWORK: "off"
-          GOTOOLCHAIN: local
-        run: |
-          go mod tidy -diff
-          go vet ./internal/...
-          go test -race ./internal/...
-
-      - name: Verify moduleproof
-        working-directory: internal/moduleproof
-        env:
-          GOWORK: "off"
           GOTOOLCHAIN: local
         run: |
           go mod tidy -diff
@@ -166,10 +87,8 @@ jobs:
           go test -race ./...
 
       - name: Prove generated protocol artifacts
-        if: inputs.module == 'codexsdk'
         working-directory: codexsdk
         env:
-          GOWORK: "off"
           GOTOOLCHAIN: local
         run: |
           set -euo pipefail
@@ -177,27 +96,6 @@ jobs:
           go run ./internal/cmd/generatedproof \
             -expected-repository-commit "${GITHUB_SHA}" \
             -json-out "${RUNNER_TEMP}/proof/generated.json"
-
-      - name: Current-source composition
-        env:
-          GOWORK: "off"
-          GOTOOLCHAIN: local
-        run: |
-          set -euo pipefail
-          GOWORK=off go run -C internal/moduleproof ./cmd/verifymodfile \
-            -go-mod "$(pwd)/internal/tools/go.mod" \
-            -go-sum "$(pwd)/internal/tools/go.sum" \
-            -replace github.com/ronhuafeng/llm-go/llmkit=../../llmkit \
-            -replace github.com/ronhuafeng/llm-go/codexsdk=../../codexsdk \
-            -replace github.com/ronhuafeng/llm-go/llmcaller/codex=../../llmcaller/codex \
-            -out-mod "${RUNNER_TEMP}/tools.verify.mod" \
-            -out-sum "${RUNNER_TEMP}/tools.verify.sum"
-          export GOFLAGS="-modfile=${RUNNER_TEMP}/tools.verify.mod"
-          (
-            cd internal/tools
-            go mod tidy
-            go test -race ./integration
-          )
 
       - name: Create immutable tag at the tested commit
         env:
@@ -227,7 +125,7 @@ jobs:
           TAG: ${{ steps.release.outputs.tag }}
           COMMIT: ${{ github.sha }}
         run: |
-          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --title "$TAG" --notes "Source commit: $COMMIT. See the module CHANGELOG.md in this tag."
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --title "$TAG" --notes "Source commit: $COMMIT. See CHANGELOG.md in this tag."
 
       - name: Dispatch post-release observation
         continue-on-error: true

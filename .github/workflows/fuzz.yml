@@ -20,26 +20,20 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.23.x"
+          go-version-file: go.mod
           cache: false
 
       - name: Fuzz llmkit contract decode
-        working-directory: llmkit
         env:
-          GOWORK: "off"
           GOTOOLCHAIN: local
-        run: go test ./llmschema -fuzz=FuzzContractDecode -fuzztime=30s
+        run: go test ./llmkit/llmschema -fuzz=FuzzContractDecode -fuzztime=30s
 
       - name: Fuzz Codex inbound frames
-        working-directory: codexsdk
         env:
-          GOWORK: "off"
           GOTOOLCHAIN: local
-        run: go test . -fuzz=FuzzReadInboundJSONRPCFrame -fuzztime=30s
+        run: go test ./codexsdk -fuzz=FuzzReadInboundJSONRPCFrame -fuzztime=30s
 
       - name: Fuzz adapter schema policy
-        working-directory: llmcaller/codex
         env:
-          GOWORK: "off"
           GOTOOLCHAIN: local
-        run: go test . -fuzz=FuzzStrictOutputSchemaFromJSON -fuzztime=30s
+        run: go test ./llmcaller/codex -fuzz=FuzzStrictOutputSchemaFromJSON -fuzztime=30s

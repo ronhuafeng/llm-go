@@ -1,15 +1,12 @@
 package repository
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
 )
-
-const fixtureToolsPath = "example.com/repository/tools"
 
 func TestCurrentRepositoryContract(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
@@ -21,12 +18,8 @@ func TestCurrentRepositoryContract(t *testing.T) {
 	}
 }
 
-func TestDependabotCoversWorkspaceModulesAndActions(t *testing.T) {
+func TestDependabotCoversRootModuleAndActions(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	uses, err := parseGoWork(filepath.Join(root, "go.work"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,10 +31,12 @@ func TestDependabotCoversWorkspaceModulesAndActions(t *testing.T) {
 	if !strings.Contains(text, "package-ecosystem: github-actions") {
 		t.Fatal("dependabot.yml must cover the github-actions ecosystem")
 	}
-	for _, use := range uses {
-		directory := "/" + strings.TrimPrefix(filepath.ToSlash(use), "./")
-		if !strings.Contains(text, "package-ecosystem: gomod") || !strings.Contains(text, "directory: "+directory) {
-			t.Fatalf("dependabot.yml must cover gomod directory %s", directory)
+	if !strings.Contains(text, "package-ecosystem: gomod") || !strings.Contains(text, "directory: /") {
+		t.Fatal("dependabot.yml must cover the root gomod directory /")
+	}
+	for _, former := range []string{"/llmkit", "/codexsdk", "/llmcaller/codex", "/internal/tools", "/internal/moduleproof"} {
+		if strings.Contains(text, "directory: "+former+"\n") || strings.Contains(text, "directory: "+former+"\r") {
+			t.Fatalf("dependabot.yml still covers former module directory %s", former)
 		}
 	}
 }
@@ -56,14 +51,20 @@ func TestPostReleaseModuleSmokeObservesPublicProxyOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(data)
-	for _, module := range []string{
+	if !strings.Contains(text, "github.com/ronhuafeng/llm-go@") && !strings.Contains(text, `github.com/ronhuafeng/llm-go@$`) {
+		t.Fatal("post-release smoke must resolve the root module github.com/ronhuafeng/llm-go")
+	}
+	for _, pkg := range []string{
 		"github.com/ronhuafeng/llm-go/llmkit",
 		"github.com/ronhuafeng/llm-go/codexsdk",
 		"github.com/ronhuafeng/llm-go/llmcaller/codex",
 	} {
-		if !strings.Contains(text, module) {
-			t.Fatalf("post-release smoke must map %s", module)
+		if !strings.Contains(text, pkg) {
+			t.Fatalf("post-release smoke must load %s", pkg)
 		}
+	}
+	if !strings.Contains(text, "go mod tidy") {
+		t.Fatal("post-release smoke must complete consumer go.sum setup")
 	}
 	if strings.Contains(text, "types: [published]") {
 		t.Fatal("post-release smoke must not rely on GITHUB_TOKEN release.published")
@@ -94,14 +95,14 @@ func TestPostReleaseModuleSmokeObservesPublicProxyOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(release), "gh workflow run post-release-module-smoke.yml") {
-		t.Fatal("Release public module must dispatch the observation workflow by filename")
+		t.Fatal("root-module release must dispatch the observation workflow by filename")
 	}
 	if !strings.Contains(string(release), "continue-on-error: true") {
 		t.Fatal("observation dispatch must not fail the release job after publication")
 	}
 }
 
-func TestPRVerificationIsANativeProofGraph(t *testing.T) {
+func TestPRVerificationIsRootModuleAndGeneratedReproducibility(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
 	if err != nil {
 		t.Fatal(err)
@@ -112,24 +113,32 @@ func TestPRVerificationIsANativeProofGraph(t *testing.T) {
 	}
 	text := string(pr)
 	for _, want := range []string{
-		"uses: ./.github/workflows/verify-go-module.yml",
+		"name: Root source verification",
+		"name: Codex generated reproducibility",
 		"uses: ./.github/workflows/verify-generated.yml",
 		"generated-reproducibility",
-		"current-source-replaces",
+		"go mod tidy -diff",
+		"go vet ./...",
+		"go test -race ./...",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("PR verification missing %q", want)
 		}
 	}
-	if strings.Contains(text, "go mod edit") || strings.Contains(text, "cp go.mod") {
-		t.Fatal("PR verification must not own current-source composition in shell")
-	}
-	helper, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "verify-go-module.yml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(helper), "go run -C internal/moduleproof ./cmd/verifymodfile") {
-		t.Fatal("verify-go-module must invoke native current-source replacement")
+	for _, banned := range []string{
+		"verify-go-module.yml",
+		"verify-workflows.yml",
+		"current-source-replaces",
+		"internal/moduleproof",
+		"go mod edit",
+		"working-directory: llmkit",
+		"working-directory: internal/moduleproof",
+		"Minimum Go",
+		"Current-source composition",
+	} {
+		if strings.Contains(text, banned) {
+			t.Fatalf("PR verification still contains nested-module machinery %q", banned)
+		}
 	}
 }
 
@@ -138,7 +147,7 @@ func TestNativeProofObservesCleanWorktreeOnFailure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"verify-generated.yml", "verify-go-module.yml"} {
+	for _, name := range []string{"verify-generated.yml", "pr-verification.yml"} {
 		text := readWorkflow(t, root, name)
 		idx := strings.Index(text, "- name: Worktree remains clean")
 		if idx < 0 {
@@ -158,10 +167,6 @@ func TestNativeProofObservesCleanWorktreeOnFailure(t *testing.T) {
 	generated := readWorkflow(t, root, "verify-generated.yml")
 	if strings.Contains(generated, "continue-on-error") {
 		t.Fatal("generated proof must not use continue-on-error to gather cleanliness")
-	}
-	module := readWorkflow(t, root, "verify-go-module.yml")
-	if strings.Contains(module, "continue-on-error") {
-		t.Fatal("module proof must not use continue-on-error to gather cleanliness")
 	}
 }
 
@@ -409,17 +414,17 @@ func TestReleaseReusesNativeProofEntryPoints(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(data)
-	if strings.Contains(text, "go mod edit") || strings.Contains(text, "cp go.mod") {
-		t.Fatal("release verification must not own current-source composition in shell")
+	if strings.Contains(text, "go mod edit") || strings.Contains(text, "cp go.mod") || strings.Contains(text, "internal/moduleproof") || strings.Contains(text, "current-source") {
+		t.Fatal("release verification must not reconstruct sibling modules")
 	}
-	if !strings.Contains(text, "go run -C internal/moduleproof ./cmd/verifymodfile") {
-		t.Fatal("release verification must use native current-source replacement")
+	if strings.Contains(text, "inputs.module") || strings.Contains(text, "llmkit/v") || strings.Contains(text, "codexsdk/v") {
+		t.Fatal("release dispatch must not select or publish per-module tags")
 	}
-	if !strings.Contains(text, "./internal/cmd/generatedproof") {
+	if !strings.Contains(text, "inputs.version") {
+		t.Fatal("release dispatch must accept a root version")
+	}
+	if !strings.Contains(text, "./codexsdk/internal/cmd/generatedproof") && !strings.Contains(text, "./internal/cmd/generatedproof") {
 		t.Fatal("release verification must reuse native generated-artifact proof")
-	}
-	if !strings.Contains(text, "if: inputs.module == 'codexsdk'") {
-		t.Fatal("release generated-artifact proof must be owned by the codexsdk module only")
 	}
 }
 
@@ -438,6 +443,64 @@ func TestWorkflowLintUsesPinnedGoActionlint(t *testing.T) {
 	}
 	if !strings.Contains(text, "go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12") {
 		t.Fatal("workflow lint must run version-pinned actionlint through Go")
+	}
+}
+
+func TestModuleProofMachineryIsDeleted(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range []string{
+		filepath.Join(".github", "workflows", "verify-go-module.yml"),
+		filepath.Join("internal", "moduleproof"),
+		filepath.Join("internal", "moduleproof", "cmd", "verifymodfile", "main.go"),
+		"go.work",
+		"go.work.sum",
+		filepath.Join("llmkit", "go.mod"),
+		filepath.Join("codexsdk", "go.mod"),
+		filepath.Join("llmcaller", "codex", "go.mod"),
+		filepath.Join("internal", "tools", "go.mod"),
+	} {
+		if _, err := os.Stat(filepath.Join(root, rel)); err == nil {
+			t.Fatalf("retired nested-module file still present: %s", rel)
+		} else if !os.IsNotExist(err) {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestAdvisoryWorkflowsUseRootModule(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{
+		"fuzz.yml",
+		"govulncheck.yml",
+		"portability.yml",
+		"codexsdk-upstream-protocol-sync.yml",
+		"live-codex-smoke.yml",
+	} {
+		text := readWorkflow(t, root, name)
+		for _, banned := range []string{
+			"go-version-file: codexsdk/go.mod",
+			"go-version-file: llmkit/go.mod",
+			"verify-go-module.yml",
+			"current-source-replaces",
+			"internal/moduleproof",
+			"working-directory: llmkit",
+			"working-directory: llmcaller/codex",
+			"working-directory: internal/tools",
+			"working-directory: internal/moduleproof",
+		} {
+			if strings.Contains(text, banned) {
+				t.Fatalf("%s still contains nested-module assumption %q", name, banned)
+			}
+		}
+		if !strings.Contains(text, "go-version-file: go.mod") {
+			t.Fatalf("%s must use the root go.mod Go floor", name)
+		}
 	}
 }
 
@@ -468,39 +531,6 @@ func TestSecretBearingCodexProxyIsPinned(t *testing.T) {
 	}
 }
 
-func TestArchitectureAllowsAdditionalToolingWorkspaceModule(t *testing.T) {
-	root := newArchitectureFixture(t)
-	writeFile(t, root, "go.work", "go 1.23.0\n\nuse (\n\t./llmkit\n\t./codexsdk\n\t./llmcaller/codex\n\t./internal/tools\n\t./tools/extra\n)\n")
-	writeFile(t, root, "tools/extra/go.mod", "module example.com/repository/extra\n\ngo 1.23.0\n")
-	writeFile(t, root, "tools/extra/package.go", "package extra\n")
-	if violations := verifyArchitecture(root); len(violations) != 0 {
-		t.Fatalf("additional tooling module created topology violations:\n- %s", strings.Join(violations, "\n- "))
-	}
-}
-
-func TestPublicModulesRejectLocalReplace(t *testing.T) {
-	modules := []struct {
-		dir   string
-		path  string
-		label string
-	}{
-		{dir: "llmkit", path: llmkitPath, label: "llmkit"},
-		{dir: "codexsdk", path: codexSDKPath, label: "codexsdk"},
-		{dir: "llmcaller/codex", path: adapterPath, label: "codex-adapter"},
-	}
-	for _, module := range modules {
-		t.Run(module.label, func(t *testing.T) {
-			root := newArchitectureFixture(t)
-			writeFile(t, root, filepath.Join(module.dir, "go.mod"), "module "+module.path+"\n\ngo 1.23.0\n\nrequire example.com/alias v0.0.0\nreplace example.com/alias => ../../llmkit\n")
-			want := "module " + module.label + " contains prohibited replace example.com/alias => ../../llmkit"
-			violations := strings.Join(verifyArchitecture(root), "\n")
-			if !strings.Contains(violations, want) {
-				t.Fatalf("violations %q do not contain %q", violations, want)
-			}
-		})
-	}
-}
-
 func TestArchitectureRejectsBoundaryViolations(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -512,91 +542,70 @@ func TestArchitectureRejectsBoundaryViolations(t *testing.T) {
 			mutate: func(t *testing.T, root string) {
 				writeFile(t, root, "llmkit/forbidden.go", "package llmkit\nimport _ \"github.com/ronhuafeng/llm-go/codexsdk\"\n")
 			},
-			want: "module llmkit file llmkit/forbidden.go imports forbidden repository module codexsdk",
+			want: "llmkit file llmkit/forbidden.go imports forbidden package family codexsdk",
 		},
 		{
 			name: "sdk imports toolkit",
 			mutate: func(t *testing.T, root string) {
 				writeFile(t, root, "codexsdk/forbidden.go", "package codexsdk\nimport _ \"github.com/ronhuafeng/llm-go/llmkit\"\n")
 			},
-			want: "module codexsdk file codexsdk/forbidden.go imports forbidden repository module llmkit",
-		},
-		{
-			name: "public module imports repository tools",
-			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "llmcaller/codex/forbidden.go", "package codex\nimport _ \""+fixtureToolsPath+"/helper\"\n")
-			},
-			want: "module codex-adapter file llmcaller/codex/forbidden.go imports forbidden repository module " + fixtureToolsPath,
-		},
-		{
-			name: "toolkit requires sdk",
-			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "llmkit/go.mod", "module "+llmkitPath+"\n\ngo 1.23.0\n\nrequire "+codexSDKPath+" v0.8.0\n")
-			},
-			want: "module llmkit requires forbidden repository module codexsdk",
-		},
-		{
-			name: "module omits minimum Go version",
-			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "llmkit/go.mod", "module "+llmkitPath+"\n")
-			},
-			want: "module llmkit: go.mod has no go directive",
+			want: "codexsdk file codexsdk/forbidden.go imports forbidden package family llmkit",
 		},
 		{
 			name: "local replacement",
 			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "llmkit/go.mod", "module "+llmkitPath+"\n\ngo 1.23.0\n\nrequire example.com/alias v0.0.0\nreplace example.com/alias => ../codexsdk\n")
+				writeFile(t, root, "go.mod", "module "+rootModulePath+"\n\ngo 1.25.0\n\nrequire example.com/alias v0.0.0\nreplace example.com/alias => ./codexsdk\n")
 			},
-			want: "module llmkit contains prohibited replace example.com/alias => ../codexsdk",
-		},
-		{
-			name: "version replacement",
-			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "codexsdk/go.mod", "module "+codexSDKPath+"\n\ngo 1.23.0\n\nrequire example.com/alias v1.0.0\nreplace example.com/alias v1.0.0 => example.com/other v1.0.1\n")
-			},
-			want: "module codexsdk contains prohibited replace example.com/alias@v1.0.0 => example.com/other@v1.0.1",
+			want: "root module contains prohibited replace example.com/alias => ./codexsdk",
 		},
 		{
 			name: "excluded module",
 			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "llmcaller/codex/go.mod", "module "+adapterPath+"\n\ngo 1.23.0\n\nexclude example.com/alias v1.0.0\n")
+				writeFile(t, root, "go.mod", "module "+rootModulePath+"\n\ngo 1.25.0\n\nexclude example.com/alias v1.0.0\n")
 			},
-			want: "module codex-adapter contains prohibited exclude example.com/alias@v1.0.0",
+			want: "root module contains prohibited exclude example.com/alias@v1.0.0",
 		},
 		{
-			name: "adapter omits toolkit",
+			name: "sibling versioned require",
 			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "llmcaller/codex/go.mod", "module "+adapterPath+"\n\ngo 1.23.0\n\nrequire "+codexSDKPath+" v0.8.0\n")
+				writeFile(t, root, "go.mod", "module "+rootModulePath+"\n\ngo 1.25.0\n\nrequire "+llmkitPath+" v0.13.0\n")
 			},
-			want: "module codex-adapter must directly require repository module llmkit",
+			want: "root module requires sibling versioned module " + llmkitPath,
 		},
 		{
-			name: "adapter uses pseudo-version",
+			name: "nested module",
 			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "llmcaller/codex/go.mod", "module "+adapterPath+"\n\ngo 1.23.0\n\nrequire (\n\t"+llmkitPath+" v0.12.1-0.20260715000000-0123456789ab\n\t"+codexSDKPath+" v0.8.0\n)\n")
+				writeFile(t, root, "shared/go.mod", "module example.com/shared\n\ngo 1.25.0\n")
 			},
-			want: "module codex-adapter requires repository module llmkit at non-stable version",
+			want: "nested Go module shared is not allowed",
 		},
 		{
-			name: "untracked workspace module",
+			name: "workspace file",
 			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "shared/go.mod", "module example.com/shared\n\ngo 1.23.0\n")
+				writeFile(t, root, "go.work", "go 1.25.0\n\nuse .\n")
 			},
-			want: "Go module shared is not listed in go.work",
+			want: "repository must not contain go.work",
 		},
 		{
-			name: "semantic owner omission",
+			name: "wrong go version",
 			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "go.work", "go 1.23.0\n\nuse (\n\t./llmkit\n\t./llmcaller/codex\n\t./internal/tools\n)\n")
+				writeFile(t, root, "go.mod", "module "+rootModulePath+"\n\ngo 1.23.0\n")
 			},
-			want: "go.work is missing semantic owner codexsdk",
+			want: "root module go version is 1.23.0, want 1.25.0",
 		},
 		{
-			name: "root module",
+			name: "wrong module path",
 			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "go.mod", "module example.com/facade\n\ngo 1.23.0\n")
+				writeFile(t, root, "go.mod", "module example.com/facade\n\ngo 1.25.0\n")
 			},
-			want: "repository root must not contain go.mod",
+			want: "root module path is example.com/facade, want " + rootModulePath,
+		},
+		{
+			name: "public package imports repository internal",
+			mutate: func(t *testing.T, root string) {
+				writeFile(t, root, "llmkit/forbidden.go", "package llmkit\nimport _ \"github.com/ronhuafeng/llm-go/internal/tools/internal/repository\"\n")
+			},
+			want: "llmkit file llmkit/forbidden.go imports forbidden repository internal package github.com/ronhuafeng/llm-go/internal/tools/internal/repository",
 		},
 		{
 			name: "root facade",
@@ -606,11 +615,11 @@ func TestArchitectureRejectsBoundaryViolations(t *testing.T) {
 			want: "repository root Go file facade.go would create a root facade",
 		},
 		{
-			name: "workspace tooling omission",
+			name: "missing go directive",
 			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "go.work", "go 1.23.0\n\nuse (\n\t./llmkit\n\t./codexsdk\n\t./llmcaller/codex\n)\n")
+				writeFile(t, root, "go.mod", "module "+rootModulePath+"\n")
 			},
-			want: "Go module internal/tools is not listed in go.work",
+			want: "root module: go.mod has no go directive",
 		},
 	}
 
@@ -629,19 +638,8 @@ func TestArchitectureRejectsBoundaryViolations(t *testing.T) {
 func newArchitectureFixture(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	writeFile(t, root, "go.work", "go 1.23.0\n\nuse (\n\t./llmkit\n\t./codexsdk\n\t./llmcaller/codex\n\t./internal/tools\n)\n")
-	modules := map[string]string{
-		"llmkit":          llmkitPath,
-		"codexsdk":        codexSDKPath,
-		"llmcaller/codex": adapterPath,
-		"internal/tools":  fixtureToolsPath,
-	}
-	for directory, modulePath := range modules {
-		contents := fmt.Sprintf("module %s\n\ngo 1.23.0\n", modulePath)
-		if directory == "llmcaller/codex" {
-			contents += "\nrequire (\n\t" + llmkitPath + " v0.12.0\n\t" + codexSDKPath + " v0.8.0\n)\n"
-		}
-		writeFile(t, root, filepath.Join(directory, "go.mod"), contents)
+	writeFile(t, root, "go.mod", "module "+rootModulePath+"\n\ngo 1.25.0\n")
+	for _, directory := range []string{"llmkit", "codexsdk", "llmcaller/codex"} {
 		writeFile(t, root, filepath.Join(directory, "package.go"), "package fixture\n")
 	}
 	return root
