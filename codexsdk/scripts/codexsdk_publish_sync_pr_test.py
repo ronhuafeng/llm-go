@@ -29,16 +29,11 @@ def run(*args: str, cwd: Path | None = None, env: dict[str, str] | None = None) 
     )
 
 
-def tree_of(root: Path, commit: str) -> str:
-    return run("git", "rev-parse", f"{commit}^{{tree}}", cwd=root).stdout.strip()
-
-
-def pr_body(*, sync_mode: str, target_ref: str, target_kind: str, target_sha: str, sync_commit: str, base_branch: str = "main") -> str:
+def pr_body(*, target_ref: str, target_kind: str, target_sha: str, sync_commit: str, base_branch: str = "main") -> str:
     return textwrap.dedent(
         f"""\
         <!-- codexsdk-upstream-sync
         phase: fix
-        sync_mode: {sync_mode}
         upstream_ref: {target_ref}
         upstream_ref_kind: {target_kind}
         upstream_commit: {target_sha}
@@ -112,7 +107,6 @@ class PublishSyncPrTest(unittest.TestCase):
         run("git", "add", "codexsdk/sync.txt", cwd=self.root)
         run("git", "commit", "-q", "-m", "sync", cwd=self.root)
         self.validated_commit = run("git", "rev-parse", "HEAD", cwd=self.root).stdout.strip()
-        self.proved_tree = tree_of(self.root, self.validated_commit)
         self.output = Path(self.tmp.name) / "github-output.txt"
         self.env = {
             **os.environ,
@@ -123,7 +117,7 @@ class PublishSyncPrTest(unittest.TestCase):
     def tearDown(self) -> None:
         self.tmp.cleanup()
 
-    def publish(self, *extra: str, commit: str | None = None, tree: str | None = None, sync_mode: str = "metadata-sync") -> subprocess.CompletedProcess[str]:
+    def publish(self, *extra: str, commit: str | None = None) -> subprocess.CompletedProcess[str]:
         args = [
             str(self.scripts / SCRIPT.name),
             "--land-ref",
@@ -138,10 +132,6 @@ class PublishSyncPrTest(unittest.TestCase):
             TARGET_SHA,
             "--validated-commit",
             commit or self.validated_commit,
-            "--proved-tree",
-            tree or self.proved_tree,
-            "--sync-mode",
-            sync_mode,
             *extra,
         ]
         return subprocess.run(
@@ -165,7 +155,6 @@ class PublishSyncPrTest(unittest.TestCase):
         )
         published = run("git", "--git-dir", str(self.bare), "rev-parse", f"refs/heads/{sync_branch}").stdout.strip()
         self.assertEqual(published, self.validated_commit)
-        self.assertEqual(tree_of(self.root, published), self.proved_tree)
 
     def test_publish_reuses_validation_and_refuses_divergent_branch_retry(self) -> None:
         first = self.publish()
@@ -188,7 +177,7 @@ class PublishSyncPrTest(unittest.TestCase):
         run("git", "add", "codexsdk/sync.txt", cwd=self.root)
         run("git", "commit", "-q", "-m", "different retry", cwd=self.root)
         retry_commit = run("git", "rev-parse", "HEAD", cwd=self.root).stdout.strip()
-        retry = self.publish(commit=retry_commit, tree=tree_of(self.root, retry_commit))
+        retry = self.publish(commit=retry_commit)
         self.assertNotEqual(retry.returncode, 0)
         self.assertIn("Refusing to overwrite existing sync branch", retry.stderr)
         self.assertEqual(
@@ -225,42 +214,11 @@ class PublishSyncPrTest(unittest.TestCase):
         branches = run("git", "--git-dir", str(self.bare), "for-each-ref", "--format=%(refname)", "refs/heads").stdout
         self.assertEqual(branches.strip(), "refs/heads/main")
 
-    def test_wrong_proved_tree_is_rejected(self) -> None:
-        result = self.publish(tree="c" * 40)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("does not match proved tree", result.stderr)
-
-    def test_sync_mode_is_required(self) -> None:
-        result = subprocess.run(
-            [
-                str(self.scripts / SCRIPT.name),
-                "--land-ref",
-                "main",
-                "--default-branch",
-                "main",
-                "--target-ref",
-                TARGET_SHA,
-                "--target-kind",
-                "manual_commit",
-                "--target-sha",
-                TARGET_SHA,
-                "--validated-commit",
-                self.validated_commit,
-                "--proved-tree",
-                self.proved_tree,
-            ],
-            cwd=self.root / "codexsdk",
-            env=self.env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("--sync-mode", result.stderr)
-
     def test_candidate_flag_is_removed(self) -> None:
         text = (self.scripts / SCRIPT.name).read_text(encoding="utf-8")
         self.assertNotIn("--candidate", text)
+        self.assertNotIn("--proved-tree", text)
+        self.assertNotIn("--sync-mode", text)
         self.assertNotIn("validates the rebased tree", text)
         self.assertNotIn("git rebase", text)
 
@@ -274,7 +232,6 @@ class PublishSyncPrTest(unittest.TestCase):
                         "baseRefName": "main",
                         "headRefOid": self.validated_commit,
                         "body": pr_body(
-                            sync_mode="metadata-sync",
                             target_ref=TARGET_SHA,
                             target_kind="manual_commit",
                             target_sha=TARGET_SHA,
@@ -302,7 +259,6 @@ class PublishSyncPrTest(unittest.TestCase):
                         "baseRefName": "main",
                         "headRefOid": OTHER_SHA,
                         "body": pr_body(
-                            sync_mode="metadata-sync",
                             target_ref=TARGET_SHA,
                             target_kind="manual_commit",
                             target_sha=TARGET_SHA,
@@ -316,33 +272,7 @@ class PublishSyncPrTest(unittest.TestCase):
         )
         result = self.publish()
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("not an exact publication of the proved tree", result.stderr)
-
-    def test_existing_pr_different_sync_mode_is_rejected(self) -> None:
-        self.pr_state.write_text(
-            json.dumps(
-                [
-                    {
-                        "number": 5,
-                        "url": "https://github.example/pull/5",
-                        "baseRefName": "main",
-                        "headRefOid": self.validated_commit,
-                        "body": pr_body(
-                            sync_mode="repair-sync",
-                            target_ref=TARGET_SHA,
-                            target_kind="manual_commit",
-                            target_sha=TARGET_SHA,
-                            sync_commit=self.validated_commit,
-                        ),
-                    }
-                ]
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-        result = self.publish()
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("sync_mode=repair-sync", result.stderr)
+        self.assertIn("not an exact publication of the validated commit", result.stderr)
 
     def test_existing_pr_wrong_base_is_rejected(self) -> None:
         self.pr_state.write_text(
@@ -354,7 +284,6 @@ class PublishSyncPrTest(unittest.TestCase):
                         "baseRefName": "release",
                         "headRefOid": self.validated_commit,
                         "body": pr_body(
-                            sync_mode="metadata-sync",
                             target_ref=TARGET_SHA,
                             target_kind="manual_commit",
                             target_sha=TARGET_SHA,
@@ -381,7 +310,6 @@ class PublishSyncPrTest(unittest.TestCase):
                         "baseRefName": "main",
                         "headRefOid": self.validated_commit,
                         "body": pr_body(
-                            sync_mode="metadata-sync",
                             target_ref=TARGET_SHA,
                             target_kind="stable_rust_tag",
                             target_sha=TARGET_SHA,
@@ -396,18 +324,6 @@ class PublishSyncPrTest(unittest.TestCase):
         result = self.publish()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("upstream_ref_kind=stable_rust_tag", result.stderr)
-
-    def test_repair_mode_same_exact_tree_invariant(self) -> None:
-        result = self.publish(sync_mode="repair-sync")
-        self.assertEqual(result.returncode, 0, result.stderr)
-        github_output = self.output.read_text(encoding="utf-8")
-        sync_commit = next(
-            line.removeprefix("sync_commit=")
-            for line in github_output.splitlines()
-            if line.startswith("sync_commit=")
-        )
-        self.assertEqual(sync_commit, self.validated_commit)
-
 
 if __name__ == "__main__":
     unittest.main()

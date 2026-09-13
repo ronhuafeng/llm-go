@@ -4,24 +4,22 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/codexsdk_publish_sync_pr.sh --land-ref <branch> --target-ref <ref> --target-kind <kind> --target-sha <sha> --sync-mode <mode> --validated-commit <sha> --proved-tree <sha> [options]
+  scripts/codexsdk_publish_sync_pr.sh --land-ref <branch> --target-ref <ref> --target-kind <kind> --target-sha <sha> --validated-commit <sha> [options]
 
 Options:
   --branch-prefix <prefix>  Sync branch prefix. Defaults to codex/sync-upstream.
   --default-branch <branch> Repository default branch. Inferred from <remote>/HEAD when omitted.
   --drift-analysis <path>   Drift analysis markdown to include in the PR body.
   --drift-sha <sha>         Drift fingerprint that produced this sync candidate.
-  --proved-tree <sha>       Exact git tree the deterministic protocol proof observed.
   --remote <name>           Git remote to fetch and push. Defaults to origin.
-  --sync-mode <mode>        Required publication mode: metadata-sync or repair-sync.
   --target-kind <kind>      Upstream target kind, such as stable_rust_tag.
-  --validated-commit <sha>  Exact commit whose tree the workflow proof observed.
+  --validated-commit <sha>  Exact commit native checks accepted before publication.
 
 The script assumes HEAD is the committed sync change. It publishes that exact
-commit/tree without rebasing or substituting a later landing-ref state. It
-reuses an existing open PR only when that PR is an idempotent publication of
-the same proved head, base, mode, and upstream identity; otherwise it pushes a
-target-SHA-bound sync branch without overwriting a different remote commit.
+commit without rebasing or substituting a later landing-ref state. It reuses an
+existing open PR only when that PR is an idempotent publication of the same
+head, base, and upstream identity; otherwise it pushes a target-SHA-bound sync
+branch without overwriting a different remote commit.
 EOF
 }
 
@@ -30,9 +28,7 @@ default_branch=""
 drift_analysis=""
 drift_sha=""
 land_ref=""
-proved_tree=""
 remote="origin"
-sync_mode=""
 target_ref=""
 target_kind=""
 target_sha=""
@@ -60,16 +56,8 @@ while [[ $# -gt 0 ]]; do
       land_ref="$2"
       shift 2
       ;;
-    --proved-tree)
-      proved_tree="$2"
-      shift 2
-      ;;
     --remote)
       remote="$2"
-      shift 2
-      ;;
-    --sync-mode)
-      sync_mode="$2"
       shift 2
       ;;
     --target-ref)
@@ -100,16 +88,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "${land_ref}" || -z "${target_ref}" || -z "${target_kind}" || -z "${target_sha}" || -z "${sync_mode}" || -z "${validated_commit}" || -z "${proved_tree}" ]]; then
+if [[ -z "${land_ref}" || -z "${target_ref}" || -z "${target_kind}" || -z "${target_sha}" || -z "${validated_commit}" ]]; then
   usage >&2
-  exit 2
-fi
-if [[ "${sync_mode}" != "metadata-sync" && "${sync_mode}" != "repair-sync" ]]; then
-  echo "--sync-mode must be metadata-sync or repair-sync" >&2
-  exit 2
-fi
-if [[ ! "${proved_tree}" =~ ^[0-9a-f]{40}$ ]]; then
-  echo "--proved-tree must be a full git tree sha" >&2
   exit 2
 fi
 
@@ -218,12 +198,12 @@ find_existing_target_pr() {
       --limit 100 \
       --json number,url,body,baseRefName,headRefOid
   )"
-  CODEXSDK_PR_LIST_JSON="${CODEXSDK_PR_LIST_JSON}" python3 - "${land_ref}" "${sync_mode}" "${target_ref}" "${target_kind}" "${target_sha}" "${validated_commit}" <<'PY'
+  CODEXSDK_PR_LIST_JSON="${CODEXSDK_PR_LIST_JSON}" python3 - "${land_ref}" "${target_ref}" "${target_kind}" "${target_sha}" "${validated_commit}" <<'PY'
 import json
 import os
 import sys
 
-land_ref, sync_mode, target_ref, target_kind, target_sha, validated_commit = sys.argv[1:7]
+land_ref, target_ref, target_kind, target_sha, validated_commit = sys.argv[1:6]
 prs = json.loads(os.environ["CODEXSDK_PR_LIST_JSON"])
 if not isinstance(prs, list):
     raise SystemExit("gh pr list did not return a JSON array")
@@ -242,7 +222,6 @@ def metadata(body: str) -> dict[str, str]:
         key, _, value = line.partition(":")
         key = key.strip()
         if key in {
-            "sync_mode",
             "upstream_ref",
             "upstream_ref_kind",
             "upstream_commit",
@@ -264,8 +243,6 @@ for pr in prs:
         reasons.append(f"base={pr.get('baseRefName')!s}/{meta.get('base_branch', '')}")
     if str(pr.get("headRefOid") or "") != validated_commit or meta.get("sync_commit", validated_commit) != validated_commit:
         reasons.append(f"head={pr.get('headRefOid')!s}/{meta.get('sync_commit', '')}")
-    if meta.get("sync_mode") != sync_mode:
-        reasons.append(f"sync_mode={meta.get('sync_mode', '')}")
     if meta.get("upstream_ref") != target_ref:
         reasons.append(f"upstream_ref={meta.get('upstream_ref', '')}")
     if meta.get("upstream_ref_kind") != target_kind:
@@ -278,7 +255,7 @@ for pr in prs:
 if conflicts:
     detail = "; ".join(f"#{number} ({', '.join(reasons)})" for number, reasons in conflicts)
     raise SystemExit(
-        f"existing sync PR for {target_sha} is not an exact publication of the proved tree: {detail}"
+        f"existing sync PR for {target_sha} is not an exact publication of the validated commit: {detail}"
     )
 if len(matches) > 1:
     numbers = ", ".join(f"#{pr.get('number')}" for pr in matches)
@@ -346,16 +323,11 @@ create_or_update_pr() {
   fi
 
   title="Sync Codex protocol baseline to ${target_ref}"
-  if [[ "${sync_mode}" == "metadata-sync" ]]; then
-    fix_description="This PR advances the checked-in protocol baseline for the selected upstream target, regenerates deterministic SDK artifacts, includes any one-run handwritten updates required by real drift, and publishes only after native checks passed."
-  else
-    fix_description="This PR contains the Codex-completed protocol implementation for the selected upstream target, including generated output and any evidence-backed handwritten compatibility work. The workflow independently validated the synchronized baseline before publication."
-  fi
+  fix_description="This PR advances the checked-in protocol baseline for the selected upstream target, regenerates deterministic SDK artifacts, includes any one-run handwritten updates required by real drift, and publishes only after native checks passed."
   body_file="$(mktemp)"
   cat > "${body_file}" <<EOF
 <!-- codexsdk-upstream-sync
 phase: fix
-sync_mode: ${sync_mode}
 upstream_ref: ${target_ref}
 upstream_ref_kind: ${target_kind}
 upstream_commit: ${target_sha}
@@ -374,7 +346,7 @@ $(render_drift_analysis)
 
 ${fix_description}
 
-It does not merge itself, tag, or bypass branch protection. The finalize workflow owns landed verification, sync tag handling, and drift verification after merge.
+It does not merge itself, tag, or bypass branch protection.
 
 ## Sync Metadata
 
@@ -384,11 +356,8 @@ It does not merge itself, tag, or bypass branch protection. The finalize workflo
 - Drift fingerprint: \`${drift_sha:-not provided}\`
 - Sync commit: \`${sync_commit}\`
 - Base branch: \`${land_ref}\`
-- Sync mode: \`${sync_mode}\`
 
 This PR was generated by the upstream protocol sync workflow. It stops at the protected PR boundary and does not tag or bypass branch protection. Merge should happen only after branch protection and the required \`PR verification\` check accept this head commit.
-
-After this PR lands, the post-merge finalize trigger should pick up this PR automatically. Scheduled finalize remains the fallback, and manual finalize remains the explicit recovery path.
 EOF
 
   pr_number="$(
@@ -425,16 +394,11 @@ if [[ "$(git rev-parse HEAD)" != "${validated_commit}" ]]; then
   echo "validated commit ${validated_commit} does not match HEAD $(git rev-parse HEAD)" >&2
   exit 1
 fi
-observed_tree="$(git rev-parse "${validated_commit}^{tree}")"
-if [[ "${observed_tree}" != "${proved_tree}" ]]; then
-  echo "validated commit ${validated_commit} tree ${observed_tree} does not match proved tree ${proved_tree}" >&2
-  exit 1
-fi
 fetch_landing_ref
 landing_sha="$(git rev-parse "${remote}/${land_ref}")"
-proved_parent="$(git rev-parse "${validated_commit}^")"
-if [[ "${landing_sha}" != "${proved_parent}" ]]; then
-  echo "landing ref ${land_ref} moved to ${landing_sha} after proof; proved parent is ${proved_parent}. Rerun protocol sync to re-prove against current ${land_ref}." >&2
+validated_parent="$(git rev-parse "${validated_commit}^")"
+if [[ "${landing_sha}" != "${validated_parent}" ]]; then
+  echo "landing ref ${land_ref} moved to ${landing_sha}; validated parent is ${validated_parent}. Rerun protocol sync against current ${land_ref}." >&2
   exit 1
 fi
 confirm_target_still_points_at_sha
