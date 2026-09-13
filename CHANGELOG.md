@@ -9,6 +9,8 @@ changes may occur in minor releases.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-13
+
 ### Repository
 
 - Collapse the repository to one root module and one version. Consumers resolve
