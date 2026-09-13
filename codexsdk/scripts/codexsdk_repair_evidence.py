@@ -475,8 +475,20 @@ def validate_artifacts(
 ) -> None:
     if artifacts is None:
         return
+    seen: set[str] = set()
     for artifact in artifacts:
         name = str(artifact.get("name") or "")
+        parsed = parse_artifact_attempt(name)
+        if parsed is None:
+            raise EvidenceError(
+                f"artifact {name!r} is not attempt-addressable for attempt {run_attempt}"
+            )
+        kind, attempt = parsed
+        if attempt != str(run_attempt):
+            # GitHub lists every attempt's artifacts on the same run. Other
+            # attempts are not evidence for this admission and must not be
+            # consumed, but their presence is not a reason to reject.
+            continue
         owner = artifact.get("workflow_run")
         owner_id = ""
         if isinstance(owner, dict):
@@ -485,16 +497,12 @@ def validate_artifacts(
             raise EvidenceError(
                 f"artifact {name!r} belongs to run {owner_id}, want {run_id}"
             )
-        parsed = parse_artifact_attempt(name)
-        if parsed is None:
-            raise EvidenceError(
-                f"artifact {name!r} is not attempt-addressable for attempt {run_attempt}"
-            )
-        _, attempt = parsed
-        if attempt != str(run_attempt):
-            raise EvidenceError(
-                f"artifact {name!r} belongs to attempt {attempt}, want {run_attempt}"
-            )
+        seen.add(kind)
+    required = artifact_name("protocol-sync-evidence", run_attempt)
+    if "protocol-sync-evidence" not in seen:
+        raise EvidenceError(
+            f"missing required artifact {required!r} for attempt {run_attempt}"
+        )
 
 
 def admit(
