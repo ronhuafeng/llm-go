@@ -347,7 +347,7 @@ create_or_update_pr() {
 
   title="Sync Codex protocol baseline to ${target_ref}"
   if [[ "${sync_mode}" == "metadata-sync" ]]; then
-    fix_description="This PR advances the checked-in upstream provenance to a schema-compatible target, regenerates deterministic SDK artifacts, validates the synchronized baseline, and publishes it through the protected PR path. No Codex repair pass was needed."
+    fix_description="This PR advances the checked-in protocol baseline for the selected upstream target, regenerates deterministic SDK artifacts, includes any one-run handwritten updates required by real drift, and publishes only after native checks passed."
   else
     fix_description="This PR contains the Codex-completed protocol implementation for the selected upstream target, including generated output and any evidence-backed handwritten compatibility work. The workflow independently validated the synchronized baseline before publication."
   fi

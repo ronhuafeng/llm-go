@@ -201,8 +201,11 @@ func TestProtocolSyncIsOneLinearSameRunWorkflow(t *testing.T) {
 	if !ok {
 		t.Fatal("drift branch must invoke the Codex Agent on the same worktree")
 	}
-	if !strings.Contains(agent, "steps.mechanical.outputs.outcome == 'applied'") {
-		t.Fatal("clean comparison must not invoke the Agent")
+	if !strings.Contains(agent, "success()") || !strings.Contains(agent, "steps.mechanical.outputs.outcome == 'applied'") {
+		t.Fatal("clean comparison and earlier failures must not invoke the Agent")
+	}
+	if !strings.Contains(agent, "GITHUB_TOKEN: \"\"") || !strings.Contains(agent, "GH_TOKEN: \"\"") {
+		t.Fatal("Agent must not inherit repository-write tokens")
 	}
 	if strings.Index(syncJob, "id: mechanical") > strings.Index(syncJob, "id: codex") {
 		t.Fatal("Agent must run after mechanical compare/apply")
@@ -217,6 +220,12 @@ func TestProtocolSyncIsOneLinearSameRunWorkflow(t *testing.T) {
 	if !strings.Contains(checks, "go vet ./...") || !strings.Contains(checks, "go test ./...") {
 		t.Fatal("deterministic checks must run owner-local vet and test")
 	}
+	if !strings.Contains(checks, "gofmt") || !strings.Contains(checks, "git") || !strings.Contains(checks, "diff --check") {
+		t.Fatal("deterministic checks must run gofmt and git diff --check")
+	}
+	if strings.Contains(checks, "if:") {
+		t.Fatal("clean comparison must still run deterministic checks")
+	}
 	if strings.Index(syncJob, "id: codex") > strings.Index(syncJob, "id: checks") {
 		t.Fatal("deterministic checks must run after the Agent")
 	}
@@ -224,8 +233,8 @@ func TestProtocolSyncIsOneLinearSameRunWorkflow(t *testing.T) {
 	if !ok {
 		t.Fatal("protocol sync must publish from the same run after checks")
 	}
-	if !strings.Contains(publish, "steps.mechanical.outputs.outcome == 'applied'") {
-		t.Fatal("clean comparison must not publish")
+	if !strings.Contains(publish, "success()") || !strings.Contains(publish, "steps.mechanical.outputs.outcome == 'applied'") {
+		t.Fatal("clean comparison and failed checks must not publish")
 	}
 	if !strings.Contains(publish, "inputs.validation_only != true") {
 		t.Fatal("validation-only comparison must skip publication")
