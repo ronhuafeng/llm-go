@@ -33,11 +33,9 @@ def pr_body(*, target_ref: str, target_kind: str, target_sha: str, sync_commit: 
     return textwrap.dedent(
         f"""\
         <!-- codexsdk-upstream-sync
-        phase: fix
         upstream_ref: {target_ref}
         upstream_ref_kind: {target_kind}
         upstream_commit: {target_sha}
-        drift_sha256:
         sync_commit: {sync_commit}
         base_branch: {base_branch}
         -->
@@ -219,6 +217,8 @@ class PublishSyncPrTest(unittest.TestCase):
         self.assertNotIn("--candidate", text)
         self.assertNotIn("--proved-tree", text)
         self.assertNotIn("--sync-mode", text)
+        self.assertNotIn("--drift-analysis", text)
+        self.assertNotIn("--drift-sha", text)
         self.assertNotIn("validates the rebased tree", text)
         self.assertNotIn("git rebase", text)
 

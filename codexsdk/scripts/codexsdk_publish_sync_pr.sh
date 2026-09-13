@@ -9,8 +9,6 @@ Usage:
 Options:
   --branch-prefix <prefix>  Sync branch prefix. Defaults to codex/sync-upstream.
   --default-branch <branch> Repository default branch. Inferred from <remote>/HEAD when omitted.
-  --drift-analysis <path>   Drift analysis markdown to include in the PR body.
-  --drift-sha <sha>         Drift fingerprint that produced this sync candidate.
   --remote <name>           Git remote to fetch and push. Defaults to origin.
   --target-kind <kind>      Upstream target kind, such as stable_rust_tag.
   --validated-commit <sha>  Exact commit native checks accepted before publication.
@@ -25,8 +23,6 @@ EOF
 
 branch_prefix="codex/sync-upstream"
 default_branch=""
-drift_analysis=""
-drift_sha=""
 land_ref=""
 remote="origin"
 target_ref=""
@@ -42,14 +38,6 @@ while [[ $# -gt 0 ]]; do
       ;;
     --default-branch)
       default_branch="$2"
-      shift 2
-      ;;
-    --drift-analysis)
-      drift_analysis="$2"
-      shift 2
-      ;;
-    --drift-sha)
-      drift_sha="$2"
       shift 2
       ;;
     --land-ref)
@@ -299,15 +287,6 @@ push_sync_branch() {
   git push "${remote}" "HEAD:refs/heads/${sync_branch}"
 }
 
-render_drift_analysis() {
-  if [[ -z "${drift_analysis}" || ! -f "${drift_analysis}" ]]; then
-    printf '%s\n' "_No drift analysis artifact was provided._"
-    return 0
-  fi
-
-  cat "${drift_analysis}"
-}
-
 create_or_update_pr() {
   local sync_branch=$1
   local sync_commit=$2
@@ -327,22 +306,16 @@ create_or_update_pr() {
   body_file="$(mktemp)"
   cat > "${body_file}" <<EOF
 <!-- codexsdk-upstream-sync
-phase: fix
 upstream_ref: ${target_ref}
 upstream_ref_kind: ${target_kind}
 upstream_commit: ${target_sha}
-drift_sha256: ${drift_sha}
 sync_commit: ${sync_commit}
 base_branch: ${land_ref}
 -->
 
 Automated upstream protocol sync.
 
-## Drift Analysis
-
-$(render_drift_analysis)
-
-## Fix Description
+## Description
 
 ${fix_description}
 
@@ -353,7 +326,6 @@ It does not merge itself, tag, or bypass branch protection.
 - Upstream ref: \`${target_ref}\`
 - Upstream ref kind: \`${target_kind}\`
 - Upstream commit: \`${target_sha}\`
-- Drift fingerprint: \`${drift_sha:-not provided}\`
 - Sync commit: \`${sync_commit}\`
 - Base branch: \`${land_ref}\`
 
