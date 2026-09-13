@@ -208,6 +208,50 @@ Public names should describe the semantic owner they actually represent. A
 caller-owned projection hook should not be named as though a shared library
 owns sanitization, safety, or content policy.
 
+### P8. Proof scope must match the claim
+
+A deterministic proof should be only as strong and as durable as the next
+claim or effect requires. More provenance machinery is not automatically more
+correctness.
+
+For ordinary source evolution inside one workflow run, it is enough to observe
+the canonical source facts, let code or a model propose changes, and run the
+owner-native deterministic checks on the resulting worktree before the next
+effect. Do not build a historical attestation system, cross-run repair ledger,
+or duplicate identity layer merely to prove a state that can be regenerated
+and checked again.
+
+Prefer the shortest sound path:
+
+```text
+observe canonical facts
+        |
+        v
+propose change
+        |
+        v
+deterministic owner-native validation
+        |
+        v
+authorized effect
+```
+
+If that path fails, the operation fails. A later attempt normally starts again
+from the canonical facts and re-runs the deterministic checks. Preserve and
+transport historical execution state across runs only when a real product,
+external authority, irreproducible observation, or user requirement makes that
+continuation itself part of the contract.
+
+Immutable identities still matter where identity is the fact being claimed:
+for example the selected upstream source commit, a release tag, or a published
+artifact. They do not replace correctness tests, and they do not justify
+modeling every intermediate CI state as a separately attested object.
+
+Operational complexity is a correctness cost. Persistent proof artifacts,
+admission layers, registries, workflow states, and recovery paths must each
+protect a current invariant that a simpler owner-native check cannot protect.
+Otherwise delete them.
+
 ## Shared semantics
 
 **Fact** — a statement established by the layer that can directly prove it.
@@ -392,6 +436,13 @@ The modules share review, CI, release coordination, and compatibility evidence
 because their boundaries must evolve in sight of each other. Shared repository
 location does not transfer semantic authority.
 
+The repository control plane stays thin. CI should orchestrate owner-native
+checks and effects, not become a separate historical attestation system for
+ordinary source changes. A protocol upgrade should prefer one linear run from
+upstream observation through deterministic validation to a protected PR.
+Failure ends that attempt; retry normally re-observes the canonical upstream
+facts rather than reconstructing a prior CI execution.
+
 Source evolution and publication are different observations. Pre-v1 modules may
 change together in one source cohort, including a downstream manifest naming the
 next upstream version before that tag exists. Publication remains
@@ -423,6 +474,9 @@ Before accepting a design, ask:
    materially harder to preserve without it?
 10. Can the common change path reach the canonical authority without reading a
     second copy of the same fact?
+11. Is the proof machinery proportionate to the claim, or is it preserving and
+    re-attesting reproducible CI state that a simpler owner-native check could
+    recompute in one run?
 
 When convenience conflicts with these answers, reject the convenience.
 
