@@ -850,7 +850,18 @@ class RepairAdmissionTest(unittest.TestCase):
                 artifacts=attempt_artifacts("1"),
             )
             self.assertNotEqual(code, 0)
-            self.assertIn("attempt 1", str(err))
+            self.assertIn("protocol-sync-evidence-attempt-2", str(err))
+        with tempfile.TemporaryDirectory() as tmp:
+            code, err = admit_cli(
+                Path(tmp),
+                run=base_run(run_attempt=2),
+                evidence=base_evidence(run_attempt="2"),
+                jobs=proof_jobs("generated"),
+                artifacts=attempt_artifacts("1")
+                + [{"name": "generated-proof-attempt-2", "workflow_run": {"id": 123}}],
+            )
+            self.assertNotEqual(code, 0)
+            self.assertIn("protocol-sync-evidence-attempt-2", str(err))
         with tempfile.TemporaryDirectory() as tmp:
             code, err = admit_cli(
                 Path(tmp),
@@ -871,6 +882,30 @@ class RepairAdmissionTest(unittest.TestCase):
             )
             self.assertNotEqual(code, 0)
             self.assertIn("requested run_attempt", str(err))
+
+    def test_combined_attempt_artifact_list_admits_selected_attempt(self) -> None:
+        mixed = attempt_artifacts("1") + attempt_artifacts("2")
+        with tempfile.TemporaryDirectory() as tmp:
+            code, payload = admit_cli(
+                Path(tmp),
+                run=base_run(run_attempt=2),
+                evidence=base_evidence(run_attempt="2"),
+                jobs=proof_jobs("generated"),
+                artifacts=mixed,
+            )
+            self.assertEqual(code, 0)
+            assert isinstance(payload, dict)
+            self.assertEqual(payload["run_attempt"], "2")
+            self.assertEqual(payload["evidence_artifact"], "protocol-sync-evidence-attempt-2")
+            self.assertEqual(payload["candidate_artifact"], "protocol-candidate-attempt-2")
+            self.assertEqual(payload["worktree_artifact"], "protocol-worktree-attempt-2")
+            self.assertEqual(payload["generated_proof_artifact"], "generated-proof-attempt-2")
+            self.assertTrue(all("attempt-1" not in str(payload[key]) for key in (
+                "evidence_artifact",
+                "candidate_artifact",
+                "worktree_artifact",
+                "generated_proof_artifact",
+            )))
 
 
 if __name__ == "__main__":
