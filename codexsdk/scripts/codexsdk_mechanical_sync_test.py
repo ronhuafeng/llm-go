@@ -50,16 +50,16 @@ class MechanicalSyncDecisionTest(unittest.TestCase):
             "applied",
         )
 
-    def test_apply_failure_escalates_before_agent(self) -> None:
+    def test_apply_failure_fails_before_agent(self) -> None:
         self.assertEqual(
             mechanical.decide_after_apply(apply_ok=False, mechanical_only=True),
-            "escalate",
+            "failed",
         )
 
-    def test_non_mechanical_changes_escalate(self) -> None:
+    def test_non_mechanical_changes_fail(self) -> None:
         self.assertEqual(
             mechanical.decide_after_apply(apply_ok=True, mechanical_only=False),
-            "escalate",
+            "failed",
         )
 
 

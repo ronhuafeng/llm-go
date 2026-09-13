@@ -57,7 +57,7 @@ def decide_after_drift(*, force_compare: bool, drift_status: str) -> str:
 def decide_after_apply(*, apply_ok: bool, mechanical_only: bool) -> str:
     if apply_ok and mechanical_only:
         return "applied"
-    return "escalate"
+    return "failed"
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> dict[str, Any]:
@@ -336,7 +336,7 @@ def main() -> int:
             module_root,
             "applied",
             inputs,
-            reason="mechanical generation applied; owner-local proofs run by the workflow",
+            reason="mechanical generation applied; workflow runs Agent then deterministic checks",
             **candidate_output(sync_out),
         )
         return 0
@@ -347,16 +347,10 @@ def main() -> int:
     else:
         reason = "mechanical apply escaped the generated sync surface"
         detail = capture_detail
-    write_escalation(
-        module_root / ESCALATION_OUTPUT,
-        target_ref=str(inputs["target_ref"]),
-        target_kind=str(inputs["target_kind"]),
-        target_sha=str(inputs["target_sha"]),
-        reason=reason,
-        detail=detail,
-        artifacts=artifacts,
-    )
-    emit_outcome(module_root, "escalate", inputs, reason=reason, **candidate_output(sync_out))
+    print(reason, file=sys.stderr)
+    if detail:
+        print(detail, file=sys.stderr)
+    emit_outcome(module_root, "failed", inputs, reason=reason, **candidate_output(sync_out))
     return 1
 
 

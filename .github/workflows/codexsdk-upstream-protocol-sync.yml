@@ -36,16 +36,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 360
     permissions:
-      contents: read
-      pull-requests: read
-    outputs:
-      outcome: ${{ steps.mechanical.outputs.outcome }}
-      applied: ${{ steps.mechanical.outputs.applied }}
-      target_ref: ${{ steps.mechanical.outputs.target_ref }}
-      target_kind: ${{ steps.mechanical.outputs.target_kind }}
-      target_sha: ${{ steps.mechanical.outputs.target_sha }}
-      restore_candidate: ${{ steps.evidence.outputs.restore_candidate }}
-      restore_worktree: ${{ steps.evidence.outputs.restore_worktree }}
+      contents: write
+      pull-requests: write
     steps:
       - name: Guard control-plane ref
         env:
@@ -157,142 +149,88 @@ jobs:
         run: |
           python3 scripts/codexsdk_mechanical_sync.py --repo-root "${GITHUB_WORKSPACE}"
 
-      - name: Pack sync evidence
-        id: evidence
-        if: always() && !cancelled()
+      - name: Write Agent drift input
+        if: ${{ steps.mechanical.outputs.outcome == 'applied' }}
         working-directory: codexsdk
         env:
-          GH_REPO: ${{ github.repository }}
-          RUN_ID: ${{ github.run_id }}
-          REPOSITORY_SHA: ${{ github.sha }}
-          TARGET_REF: ${{ steps.mechanical.outputs.target_ref || steps.target.outputs.ref }}
-          TARGET_KIND: ${{ steps.mechanical.outputs.target_kind || steps.target.outputs.kind }}
-          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha || steps.target.outputs.sha }}
-          OUTCOME: ${{ steps.mechanical.outputs.outcome }}
-          APPLIED: ${{ steps.mechanical.outputs.applied }}
+          TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
+          TARGET_KIND: ${{ steps.mechanical.outputs.target_kind }}
+          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
           CANDIDATE: ${{ steps.mechanical.outputs.candidate }}
-          HEAD_BRANCH: ${{ github.ref_name }}
-          EVENT_NAME: ${{ github.event_name }}
-          VALIDATION_ONLY: ${{ inputs.validation_only == true }}
-          RUN_ATTEMPT: ${{ github.run_attempt }}
         run: |
           set -euo pipefail
-          mkdir -p "${RUNNER_TEMP}/protocol-sync-evidence"
-          args=(
-            pack
-            --out "${RUNNER_TEMP}/protocol-sync-evidence"
-            --repo-root "${GITHUB_WORKSPACE}"
-            --repository "${GH_REPO}"
-            --run-id "${RUN_ID}"
-            --run-attempt "${RUN_ATTEMPT}"
-            --repository-sha "${REPOSITORY_SHA}"
-            --head-branch "${HEAD_BRANCH}"
-            --event "${EVENT_NAME}"
-            --validation-only "${VALIDATION_ONLY}"
-            --candidate "${CANDIDATE}"
-          )
-          if [[ -n "${TARGET_REF}" ]]; then
-            args+=(--target-ref "${TARGET_REF}")
-          fi
-          if [[ -n "${TARGET_KIND}" ]]; then
-            args+=(--target-kind "${TARGET_KIND}")
-          fi
-          if [[ -n "${TARGET_SHA}" ]]; then
-            args+=(--target-sha "${TARGET_SHA}")
-          fi
-          if [[ -n "${OUTCOME}" ]]; then
-            args+=(--outcome "${OUTCOME}")
-          fi
-          python3 scripts/codexsdk_repair_evidence.py "${args[@]}"
+          mkdir -p .cache/codexsdk-sync
+          {
+            echo "Selected upstream target:"
+            echo "- ref: ${TARGET_REF}"
+            echo "- kind: ${TARGET_KIND}"
+            echo "- commit: ${TARGET_SHA}"
+            echo
+            echo "Candidate schema: ${CANDIDATE}"
+            echo "Drift summary: ${CANDIDATE%/schema}/reports/drift_summary.json"
+            echo
+            echo "Mechanical apply already updated the checked-in protocol/generated surface."
+            echo "Make only the handwritten source and test changes required by that drift."
+          } > .cache/codexsdk-sync/agent-input.md
 
-      - name: Upload protocol sync evidence
-        if: always() && !cancelled()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - name: Apply one Agent pass for real drift
+        id: codex
+        if: ${{ steps.mechanical.outputs.outcome == 'applied' }}
+        uses: ./.github/actions/codex-exec
         with:
-          name: protocol-sync-evidence-attempt-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/protocol-sync-evidence
-          if-no-files-found: ignore
+          api-key: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          responses-api-endpoint: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
+          working-directory: .
+          prompt: >-
+            Read .agents/skills/codexsdk-sync-upstream/SKILL.md.
+            Read codexsdk/.cache/codexsdk-sync/agent-input.md.
+            The selected upstream target has already been compared and applied.
+            Make only the targeted handwritten and test changes required by that
+            observed protocol drift. Do not resolve a different target. Do not
+            stage, commit, push, create or update a pull request, or treat a
+            final model message as proof that the implementation is correct.
+            Leave changes unstaged.
 
-      - name: Upload protocol candidate
-        if: always() && !cancelled() && steps.evidence.outputs.restore_candidate == 'true'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: protocol-candidate-attempt-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/protocol-sync-evidence/schema
-          if-no-files-found: error
-
-      - name: Upload protocol worktree
-        if: always() && !cancelled() && steps.evidence.outputs.restore_worktree == 'true'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: protocol-worktree-attempt-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/protocol-sync-evidence/protocol-worktree.patch
-          if-no-files-found: error
-
-  proof:
-    name: Protocol proof
-    needs: sync
-    uses: ./.github/workflows/codexsdk-protocol-proof.yml
-    with:
-      repository-sha: ${{ github.sha }}
-      target-ref: ${{ needs.sync.outputs.target_ref }}
-      target-sha: ${{ needs.sync.outputs.target_sha }}
-      target-kind: ${{ needs.sync.outputs.target_kind }}
-      restore-worktree: ${{ needs.sync.outputs.restore_worktree == 'true' }}
-      restore-candidate: ${{ needs.sync.outputs.restore_candidate == 'true' }}
-      run-attempt: ${{ github.run_attempt }}
-
-  publish:
-    name: Publish metadata-sync PR
-    needs: [sync, proof]
-    if: ${{ needs.sync.outputs.applied == 'true' && inputs.validation_only != true }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      contents: write
-      pull-requests: write
-    steps:
-      - name: Check out trusted control plane
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.sha }}
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Restore applied worktree
-        if: needs.sync.outputs.restore_worktree == 'true'
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: protocol-worktree-attempt-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/protocol-worktree
-
-      - name: Apply worktree patch
-        if: needs.sync.outputs.restore_worktree == 'true'
-        run: git apply --binary "${RUNNER_TEMP}/protocol-worktree/protocol-worktree.patch"
-
-      - name: Restore generated proof
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: generated-proof-attempt-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/generated-proof
-
-      - name: Capture final protocol changes
+      - name: Run deterministic protocol checks
+        id: checks
         working-directory: codexsdk
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+          CANDIDATE: ${{ steps.mechanical.outputs.candidate }}
         run: |
+          set -euo pipefail
+          args=(check -module-root .)
+          if [[ -n "${CANDIDATE}" ]]; then
+            args+=(-candidate "${CANDIDATE}")
+          fi
+          go run ./internal/cmd/protocolupgrade "${args[@]}"
+          git diff --check
+          unformatted="$(git -C "${GITHUB_WORKSPACE}" ls-files -z -- 'codexsdk/*.go' 'codexsdk/**/*.go' | xargs -0 gofmt -l)"
+          if [[ -n "${unformatted}" ]]; then
+            echo "gofmt required:" >&2
+            printf '%s\n' "${unformatted}" >&2
+            exit 1
+          fi
+          go vet ./...
+          go test ./...
+
+      - name: Publish protected sync PR
+        id: publish
+        if: ${{ steps.mechanical.outputs.outcome == 'applied' && inputs.validation_only != true }}
+        working-directory: codexsdk
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_KIND: ${{ steps.mechanical.outputs.target_kind }}
+          TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
+          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
+        run: |
+          set -euo pipefail
           python3 scripts/codexsdk_sync_changes.py capture \
             --repo-root "${GITHUB_WORKSPACE}" \
             --phase final \
             --output /tmp/codexsdk-final-changes.json
-
-      - name: Commit validated protocol implementation
-        id: commit
-        working-directory: codexsdk
-        env:
-          TARGET_KIND: ${{ needs.sync.outputs.target_kind }}
-          TARGET_REF: ${{ needs.sync.outputs.target_ref }}
-          TARGET_SHA: ${{ needs.sync.outputs.target_sha }}
-        run: |
-          set -euo pipefail
           python3 scripts/codexsdk_sync_changes.py stage \
             --repo-root "${GITHUB_WORKSPACE}" \
             --manifest /tmp/codexsdk-final-changes.json
@@ -304,24 +242,8 @@ jobs:
             -m "Upstream-ref: ${TARGET_REF}" \
             -m "Upstream-ref-kind: ${TARGET_KIND}" \
             -m "Upstream-commit: ${TARGET_SHA}"
-          echo "validated_commit=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
-
-      - name: Publish protected sync PR
-        working-directory: codexsdk
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TARGET_KIND: ${{ needs.sync.outputs.target_kind }}
-          TARGET_REF: ${{ needs.sync.outputs.target_ref }}
-          TARGET_SHA: ${{ needs.sync.outputs.target_sha }}
-          VALIDATED_COMMIT: ${{ steps.commit.outputs.validated_commit }}
-        run: |
-          set -euo pipefail
-          proved_tree="$(jq -er '.repository_tree' "${RUNNER_TEMP}/generated-proof/generated.json")"
-          if [[ ! "${proved_tree}" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "generated proof omitted exact repository_tree" >&2
-            exit 1
-          fi
+          validated_commit="$(git rev-parse HEAD)"
+          proved_tree="$(git rev-parse 'HEAD^{tree}')"
           gh auth status
           gh auth setup-git
           scripts/codexsdk_publish_sync_pr.sh \
@@ -332,55 +254,5 @@ jobs:
             --target-kind "${TARGET_KIND}" \
             --target-sha "${TARGET_SHA}" \
             --sync-mode metadata-sync \
-            --validated-commit "${VALIDATED_COMMIT}" \
+            --validated-commit "${validated_commit}" \
             --proved-tree "${proved_tree}"
-
-  summary:
-    name: Observe protocol proof
-    needs: [sync, proof, publish]
-    if: ${{ always() && !cancelled() }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      actions: read
-      contents: read
-    steps:
-      - name: Check out trusted control plane
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Render observation-only summary
-        env:
-          GH_REPO: ${{ github.repository }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RUN_ID: ${{ github.run_id }}
-          RUN_ATTEMPT: ${{ github.run_attempt }}
-          REPOSITORY_SHA: ${{ github.sha }}
-          TARGET_REF: ${{ needs.sync.outputs.target_ref }}
-          TARGET_KIND: ${{ needs.sync.outputs.target_kind }}
-          TARGET_SHA: ${{ needs.sync.outputs.target_sha }}
-          OUTCOME: ${{ needs.sync.outputs.outcome }}
-          VALIDATION_ONLY: ${{ inputs.validation_only == true }}
-          PUBLISH_RESULT: ${{ needs.publish.result }}
-        run: |
-          set -euo pipefail
-          mkdir -p "${RUNNER_TEMP}/protocol-summary"
-          gh api --paginate "repos/${GH_REPO}/actions/runs/${RUN_ID}/attempts/${RUN_ATTEMPT}/jobs" --jq '.jobs[]' \
-            | jq -s '{jobs: .}' > "${RUNNER_TEMP}/protocol-summary/jobs.json"
-          gh run download "${RUN_ID}" \
-            --repo "${GH_REPO}" \
-            -n "generated-proof-attempt-${RUN_ATTEMPT}" \
-            -D "${RUNNER_TEMP}/protocol-summary/generated-proof" \
-            || true
-          python3 codexsdk/scripts/codexsdk_protocol_summary.py \
-            --jobs-json "${RUNNER_TEMP}/protocol-summary/jobs.json" \
-            --generated-proof "${RUNNER_TEMP}/protocol-summary/generated-proof/generated.json" \
-            --repository-sha "${REPOSITORY_SHA}" \
-            --target-ref "${TARGET_REF}" \
-            --target-kind "${TARGET_KIND}" \
-            --target-sha "${TARGET_SHA}" \
-            --outcome "${OUTCOME}" \
-            --validation-only "${VALIDATION_ONLY}" \
-            --publish-result "${PUBLISH_RESULT}" \
-            >> "${GITHUB_STEP_SUMMARY}"
