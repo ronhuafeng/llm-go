@@ -5,6 +5,8 @@ changes may occur in minor releases.
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-09-13
+
 ### Changed
 
 - Clarify that `ExecutionEvidence` and `TokenUsage` describe one
@@ -37,7 +39,7 @@ changes may occur in minor releases.
   provider-identity mismatch error for backend-details consistency.
 - **Breaking (pre-v1):** make model-facing retry repair an explicit
   application-owned projection. A rejected attempt that can retry now requires
-  `Step.Sanitizer`; with no projection configured it fails closed with
+  `Step.ProjectRepair`; with no projection configured it fails closed with
   `ErrMissingRepairProjection`. The toolkit still owns retry bounds, iteration
   stamping, and separation of validator judgment from later model input.
 - Point readers at the repository authority-to-effect proof that continues
