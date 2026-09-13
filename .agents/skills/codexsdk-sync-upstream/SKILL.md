@@ -1,84 +1,44 @@
 ---
 name: codexsdk-sync-upstream
-description: Implement the codexsdk module's checked-in Codex app-server protocol at a selected upstream openai/codex tag, ref, or commit. Use for protocol drift detection, baseline metadata/report refresh, protocolv2 regeneration, handwritten compatibility work, and local validation.
+description: Make the minimal codexsdk source and test changes required by an already-observed Codex App Server protocol drift. The workflow owns target resolution, mechanical generation, verification, and publication.
 ---
 
 # Codex SDK Upstream Sync
 
+Use this skill only for implementation work after a Codex App Server protocol
+change has been selected and compared.
+
 ## Contract
 
-Implement the checked-in app-server protocol completely at the selected upstream version. The checked-in schema baseline remains the source of truth for generated Go; normal builds must not follow a local `codex` binary implicitly.
+The caller/workflow owns:
 
-End with a validated local worktree. Leave GitHub publication and landed-finalization operations to the caller.
+- the selected upstream target;
+- candidate/schema generation and mechanical updates;
+- deterministic verification;
+- commits, pull requests, merge, tags, and release effects.
 
-All command and source paths are relative to the `codexsdk` module root. In the monorepo checkout, enter `codexsdk/` before running them.
+You own one targeted implementation pass on the current `codexsdk` worktree.
 
-## Completion
+1. Read the drift/candidate/test information supplied by the caller.
+2. Inspect the current worktree and affected `codexsdk` code/tests.
+3. Make only changes justified by the observed protocol drift.
+4. Add or update focused tests when handwritten behavior changes.
+5. Use the repository's canonical generators/checkers; do not hand-edit generated
+   files when a generator owns them.
+6. Run focused local Go checks when useful, but do not certify success. The
+   workflow runs the final deterministic acceptance set.
+7. Leave changes unstaged and uncommitted.
 
-Report `protocol implementation complete` only when:
+If the supplied target or drift information is insufficient, stop rather than
+resolving a different target or inventing missing facts.
 
-- baseline metadata and schemas identify the selected upstream ref, kind, and commit;
-- generated Go and any necessary handwritten compatibility implementation match that baseline;
-- focused checks and `go run ./internal/cmd/generatedproof` pass for the same target SHA;
-- the final tracked and untracked change manifest is captured and contains only reviewed `codexsdk/` implementation files;
-- the worktree changes remain unstaged and uncommitted.
+## Boundaries
 
-Start successful local reports with exactly one of these machine-readable first lines:
+- Work only in `codexsdk` and directly related tests/docs justified by the drift.
+- Do not configure Git/GitHub identity or authentication.
+- Do not stage, commit, push, create/edit/merge PRs, dispatch workflows, or tag.
+- Do not change unrelated runtime behavior.
+- Do not treat a final model message as proof that the implementation is correct.
 
-- `protocol implementation complete` after an applied implementation passes full validation and final-manifest capture;
-- `protocol implementation current` when policy skips because the selected target is already the checked-in baseline;
-- `protocol comparison clean` when `force_compare` completes read-only and finds no drift.
-
-Do not include any of these exact lowercase lines in an incomplete, blocked, or drift-found final response.
-GitHub Actions does not use these lines as a publication gate.
-
-For a read-only comparison, report its target provenance and drift result without claiming implementation completion.
-
-## Sync Protocol
-
-When `GITHUB_ACTIONS=true`, use only this protocol. Do not load `references/github-operations.md`.
-
-The workflow owns mechanical generation. An implementation agent is invoked only from the separate repair workflow after deterministic admission succeeds.
-
-Set the module root to `$GITHUB_WORKSPACE/codexsdk` and use it as the working directory for every Action shell command. Read `$RUNNER_TEMP/repair-input/admission.json` first, then the exact source-run evidence under `$RUNNER_TEMP/repair-input/` (`sync-evidence/control/`, `candidate/`, `generated-proof/`, `failed-logs/`). Do not search for, infer, or replace missing Action inputs or the selected upstream ref/commit. Do not require workspace `.cache/codexsdk-sync/escalation.json`; that cache is not restored in the repair continuation.
-
-1. Confirm `admission.json` names the same `target_ref`, `target_kind`, and `target_sha` as `sync-evidence/control/action-inputs.json` when that control file is present.
-2. Use the recorded failure class, failed proof owners, reason, detail, and artifact paths. Do not rerun target resolution, detect-drift, or mechanical apply from scratch.
-3. Use `repair-applied-candidate` or `recover-failure` only to resolve the recorded unsupported semantic drift.
-4. Use `validate-local` against the same target SHA.
-5. Leave changes unstaged. The workflow captures, validates again, and publishes.
-
-If `admission.json` is absent, stop. The repair workflow did not authorize an implementation agent.
-
-## Safety Boundaries
-
-- Modify only the local protocol implementation and its focused tests or documentation when justified by reviewed drift.
-- Preserve unrelated user changes.
-- Keep checked-in metadata and reports free of local absolute paths, cache paths, private repo paths, account data, and raw transcripts.
-- Leave all changes unstaged and uncommitted.
-- Do not configure GitHub authentication or Git identity.
-- Do not stage, commit, push, create or edit PRs, merge, tag, dispatch workflows, or otherwise mutate remote state.
-
-## Command Index
-
-Commands live under [commands/](commands/). Load only the command selected by current local state.
-
-- [resolve-target](commands/resolve-target.md): resolve an upstream target.
-- [detect-drift](commands/detect-drift.md): run target policy and create local drift artifacts.
-- [apply-candidate](commands/apply-candidate.md): mechanically apply reviewed drift artifacts.
-- [repair-applied-candidate](commands/repair-applied-candidate.md): complete or confirm an already-applied implementation.
-- [validate-local](commands/validate-local.md): validate the local protocol implementation.
-- [recover-failure](commands/recover-failure.md): recover one candidate apply or local validation failure.
-
-References are loaded only for their named branch:
-
-- [references/local-sync.md](references/local-sync.md): local synchronization context and implementation decision rules.
-- [references/github-operations.md](references/github-operations.md): user-requested GitHub operations outside GitHub Actions; never load it for the Action protocol.
-
-## Input Policy
-
-Collect only inputs required by the selected local command. If a target cannot be inferred from the request, latest stable tag, or Action context, ask before changing files.
-
-## After Run
-
-For an Action escalation, report the selected upstream ref/commit, the recorded reason, files changed, and validation results. Do not perform caller-owned publication work. The workflow owns publication and no longer gates on a completion first line.
+Protocol workflow and acceptance rules are documented in
+[`../../../docs/protocol-sync.md`](../../../docs/protocol-sync.md).
