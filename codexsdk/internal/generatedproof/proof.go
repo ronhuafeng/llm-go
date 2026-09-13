@@ -202,6 +202,21 @@ type generatedSet struct {
 	sdkSurface          []byte
 }
 
+// RegeneratedFiles returns the canonical generated protocol artifacts for moduleRoot
+// without writing them or observing git identity.
+func RegeneratedFiles(moduleRoot string) (map[string][]byte, error) {
+	generated, err := generateArtifacts(moduleRoot)
+	if err != nil {
+		return nil, err
+	}
+	return map[string][]byte{
+		methodRegistry:  generated.methodRegistry,
+		protocolTypes:   generated.protocolTypes,
+		experimentalMem: generated.experimentalMembers,
+		sdkSurface:      generated.sdkSurface,
+	}, nil
+}
+
 func generateArtifacts(moduleRoot string) (generatedSet, error) {
 	schemaRoot := filepath.Join(moduleRoot, filepath.FromSlash(baselineRel))
 	manifestPath := filepath.Join(schemaRoot, "manifest.json")

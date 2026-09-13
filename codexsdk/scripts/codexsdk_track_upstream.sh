@@ -282,22 +282,23 @@ else
   printf '%s\n' "${resolved_commit}" > "${out}/common.rs.source_sha"
 fi
 
-schema_diff_args=(
-  --baseline "${baseline}" \
-  --candidate "${generated}" \
-  --reports "${reports}" \
-  --source-commit "${resolved_commit}" \
-  --source-ref "${source_ref}" \
-  --source-ref-kind "${source_ref_kind}" \
-  --codex-version "${codex_version}" \
-  --generator "${generator}" \
-  --generator-detail "${generator_detail}"
+compare_args=(
+  compare
+  -baseline "${baseline}"
+  -candidate "${generated}"
+  -reports "${reports}"
+  -source-commit "${resolved_commit}"
+  -source-ref "${source_ref}"
+  -source-ref-kind "${source_ref_kind}"
+  -codex-version "${codex_version}"
+  -generator "${generator}"
+  -generator-detail "${generator_detail}"
 )
 if [[ "${verbose}" -eq 1 ]]; then
-  schema_diff_args+=(--verbose)
+  compare_args+=(-verbose)
 fi
 
-python3 "${script_dir}/codexsdk_schema_diff.py" "${schema_diff_args[@]}"
+GOWORK=off go run -C "${repo_root}" ./internal/cmd/protocolupgrade "${compare_args[@]}"
 
 if [[ "${verbose}" -eq 1 ]]; then
   echo "generated schema: ${generated}" >&2
