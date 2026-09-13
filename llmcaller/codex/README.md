@@ -3,7 +3,7 @@
 Use `codexsdk` behind the provider-neutral `llmkit` caller API.
 
 ```sh
-go get github.com/ronhuafeng/llm-go/llmcaller/codex@latest
+go get github.com/ronhuafeng/llm-go@latest
 ```
 
 ## Main API
@@ -36,4 +36,4 @@ identity, is the contract.
 
 Supported Go/platform versions: [`../../SUPPORT.md`](../../SUPPORT.md).
 Repository verification: [`../../docs/verify.md`](../../docs/verify.md).
-Release ordering/closure: [`../../docs/release.md`](../../docs/release.md).
+Changelog: [`../../CHANGELOG.md`](../../CHANGELOG.md).

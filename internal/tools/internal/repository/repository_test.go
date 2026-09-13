@@ -451,6 +451,68 @@ func TestWorkflowLintUsesPinnedGoActionlint(t *testing.T) {
 	}
 }
 
+func TestCurrentDocsDescribeOneRootModule(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "CHANGELOG.md")); err != nil {
+		t.Fatal("root CHANGELOG.md must be the current changelog authority")
+	}
+	for _, rel := range []string{
+		filepath.Join("llmkit", "CHANGELOG.md"),
+		filepath.Join("codexsdk", "CHANGELOG.md"),
+		filepath.Join("llmcaller", "codex", "CHANGELOG.md"),
+	} {
+		if _, err := os.Stat(filepath.Join(root, rel)); err == nil {
+			t.Fatalf("retired per-module changelog still present: %s", rel)
+		} else if !os.IsNotExist(err) {
+			t.Fatal(err)
+		}
+	}
+	files := []string{
+		"NORTHSTAR.md",
+		"README.md",
+		"AGENTS.md",
+		"SUPPORT.md",
+		"CONTRIBUTING.md",
+		filepath.Join("docs", "verify.md"),
+		filepath.Join("docs", "release.md"),
+		filepath.Join("docs", "protocol-sync.md"),
+		filepath.Join("llmkit", "README.md"),
+		filepath.Join("codexsdk", "README.md"),
+		filepath.Join("llmcaller", "codex", "README.md"),
+	}
+	banned := []string{
+		"Release public module",
+		"llmkit/vX.Y.Z",
+		"codexsdk/vX.Y.Z",
+		"llmcaller/codex/vX.Y.Z",
+		"Independent Go modules",
+		"independently versioned",
+		"Choose a module",
+		"Choose the owning module",
+		"published modules support Go 1.23",
+		"GOWORK=off",
+	}
+	for _, rel := range files {
+		data, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := string(data)
+		for _, phrase := range banned {
+			if strings.Contains(text, phrase) {
+				t.Fatalf("%s still contains retired multi-module instruction %q", rel, phrase)
+			}
+		}
+	}
+	release := readWorkflow(t, root, "release.yml")
+	if strings.Contains(release, "llmkit/v") || strings.Contains(release, "codexsdk/v") || strings.Contains(release, "Release public module") {
+		t.Fatal("release workflow still publishes module-prefixed tags")
+	}
+}
+
 func TestModuleProofMachineryIsDeleted(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
 	if err != nil {

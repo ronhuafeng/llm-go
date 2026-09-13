@@ -1,44 +1,26 @@
 # Verification
 
-Use standard Go commands. Supported Go/platform versions are documented in
-[`../SUPPORT.md`](../SUPPORT.md) and enforced by each module's `go.mod` and CI.
-
-## Local module checks
-
-For a module whose committed dependencies are already published:
+Use standard Go commands from the repository root. The supported Go floor is
+the root [`go.mod`](../go.mod); see [`../SUPPORT.md`](../SUPPORT.md).
 
 ```sh
-GOWORK=off go mod tidy -diff
-GOWORK=off go vet ./...
-GOWORK=off go test -race ./...
+go mod tidy -diff
+go vet ./...
+go test -race ./...
 ```
 
-Run those commands from the affected public module.
-
-For repository integration:
+Generated protocol reproducibility is a separate deterministic check:
 
 ```sh
-go test ./internal/tools/integration
+go run ./codexsdk/internal/cmd/generatedproof -module-root ./codexsdk
 ```
-
-A pre-v1 source cohort may temporarily name a not-yet-published repository
-module version. Required PR verification handles that case with an uncommitted
-temporary modfile pointing at current repository source. Public `go.mod` files
-remain unchanged.
-
-Current-source composition and published dependency closure are different
-checks. The latter is enforced during release; see [`release.md`](release.md).
 
 ## Required PR verification
 
-`PR verification` is the merge gate. It covers:
+`PR verification` is the merge gate. It has two outcomes:
 
-- workflow syntax and Go formatting/whitespace;
-- public modules at their supported minimum Go versions;
-- owner-local module tests;
-- current-source adapter/repository composition without changing committed
-  manifests;
-- current-toolchain tidy/vet/race/integration checks;
+- root source verification: workflow syntax, Go formatting/whitespace,
+  `go mod tidy -diff`, `go vet ./...`, and `go test -race ./...`;
 - checked-in `codexsdk` generated-source reproducibility.
 
 GitHub Actions orchestrates these checks; Go owns the module/repository logic.
