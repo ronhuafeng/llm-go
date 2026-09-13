@@ -20,8 +20,8 @@ Nothing in this procedure needs a general historical CI attestation system.
 
 - **Upstream Codex source / generated App Server schema** owns the protocol facts.
 - **`codexsdk` generator and source** own the Go representation of those facts.
-- **An implementation agent** may propose compatibility changes when mechanical
-  generation is not enough. The agent does not decide whether its proposal is
+- **One implementation Agent** drives the targeted compatibility change when
+  real upstream drift exists. The Agent does not decide whether its proposal is
   accepted.
 - **Go tests and deterministic generated/schema checks** decide whether the
   resulting SDK is acceptable.
@@ -37,7 +37,7 @@ Codex protocol facts
 mechanical generation / diff
         |
         v
-optional Agent proposal
+one Agent proposal for real drift
         |
         v
 deterministic Go-owned verification
@@ -59,23 +59,17 @@ generate candidate App Server schemas
         v
 compare candidate with checked-in baseline
         |
-   no drift? ---------------- yes --> verify current generated Go --> success
+   no drift? ---------------- yes --> native check + codexsdk tests --> success
         |
         no
         v
 apply deterministic mechanical update
         |
         v
+one Agent edits the same worktree using the concrete drift
+        |
+        v
 run deterministic protocol verification
-        |
-   passes? ------------------ yes --> publish protocol-sync PR
-        |
-        no, and failure is protocol compatibility work
-        v
-Agent edits the same worktree using the concrete drift/test failures
-        |
-        v
-run the same deterministic protocol verification again
         |
    passes? ------------------ yes --> publish protocol-sync PR
         |
@@ -86,12 +80,13 @@ workflow fails
 
 Setup, network, checkout, upstream availability, or other infrastructure
 failures fail the run directly. They are not prompts for an implementation
-agent.
+Agent.
 
-The Agent works in the same current worktree that will be verified afterward.
-It may update generated-owner code, handwritten SDK compatibility code, focused
-tests, and documentation justified by the observed protocol drift. It must not
-publish, merge, tag, or certify its own work.
+For every real protocol drift, there is at most one Agent pass in the run. The
+Agent may conclude that the mechanical update already contains all required SDK
+changes, but it still owns the targeted review/proposal pass and may add focused
+tests or compatibility edits justified by the drift. It must not publish,
+merge, tag, stage, or certify its own work.
 
 ## Failure and retry
 
@@ -124,13 +119,13 @@ Keep the control plane intentionally small:
 ```text
 GitHub Actions YAML = ordering, permissions, environment, Agent invocation, PR effect
 Rust / Codex        = generate upstream App Server schema facts
-Go                  = generate/check Go protocol artifacts and run SDK verification
+Go                  = compare/apply/check protocol artifacts and run SDK verification
 Shell / Python      = temporary mechanical glue only
 ```
 
-Prefer direct `go test`, `go vet`, `gofmt`, and owner-local Go generator/check
-commands over repository-specific verification frameworks. A generated-artifact
-checker may report precise mismatches; it does not need to attest the workflow
+Prefer direct `go test`, `go vet`, `gofmt`, and the owner-local Go
+compare/apply/check command over repository-specific verification frameworks.
+A checker may report precise mismatches; it does not need to attest the workflow
 run, Git tree, or publication lineage.
 
 Delete helper scripts, JSON evidence formats, workflow states, and artifacts once
@@ -139,7 +134,8 @@ for a retired CI architecture.
 
 ## Deterministic acceptance
 
-After any mechanical or Agent change, the same acceptance set runs. At minimum:
+After the Agent pass for real drift, or directly after a clean comparison, the
+same acceptance set runs. At minimum:
 
 1. checked-in protocol baseline matches the generated candidate for the selected
    upstream target;
@@ -187,19 +183,19 @@ That final validation-only run must visibly demonstrate:
 selected upstream ref/commit resolved
 a fresh candidate schema was generated
 candidate-versus-baseline comparison completed
-generated Go / SDK surface check ran
+native protocol/generated check ran
 codexsdk deterministic tests ran
 no Agent was invoked for the already-current clean baseline
 no commit, PR, merge, or tag effect occurred
 ```
 
-Structural/unit tests must separately prove the drift branch has this shape:
+Structural/unit tests must separately prove the drift branch has exactly this
+shape:
 
 ```text
-drift -> mechanical change -> deterministic verification
-     -> Agent only if protocol compatibility still fails
-     -> the same deterministic verification after Agent
-     -> publication only after success
+drift -> mechanical apply -> one Agent pass on the same worktree
+      -> one deterministic acceptance set
+      -> publication only after success
 ```
 
 Do not deliberately invent a production protocol failure or spend provider

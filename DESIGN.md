@@ -75,7 +75,7 @@ of the outbound request, or merge requested and observed values into a synthetic
 modules must stand alone when published: a clean consumer must resolve and
 build the tagged module without workspace repair. Before publication, pre-v1
 modules may evolve atomically in one source cohort, including a downstream
-`go.mod` naming the next upstream version before that upstream tag exists.
+`go.mod` naming the next upstream module version before that upstream tag exists.
 Required PR verification may prove such a cohort against repository current
 source through temporary, uncommitted module replacements. That current-source
 proof is not proof of published dependency availability.
@@ -124,12 +124,13 @@ or release records, not on the current engineering path.
 proves the state it is about to use; it does not create a second historical
 truth system for reproducible CI state. The ordinary Codex protocol-upgrade path
 is one workflow run: resolve the selected upstream source, generate and compare
-the protocol, apply mechanical changes, let an agent propose only the remaining
-compatibility edits when needed, run deterministic owner-native verification,
-and then publish a protected PR. A failed run ends. A later run regenerates the
-candidate from the canonical upstream source instead of reconstructing the
-failed run. Cross-run repair/admission/provenance machinery requires a separate
-real product or external-authority reason to exist.
+the protocol, apply deterministic mechanical changes, let exactly one Agent
+inspect real drift and propose any remaining compatibility/test edits on that
+same worktree, run deterministic owner-native verification once, and then
+publish a protected PR. A failed run ends. A later run regenerates the candidate
+from the canonical upstream source instead of reconstructing the failed run.
+Cross-run repair/admission/provenance machinery requires a separate real product
+or external-authority reason to exist.
 
 Each module owns its minimum Go version. The adapter's committed `go.mod` is the
 compatibility-tuple source.
