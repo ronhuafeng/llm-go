@@ -249,7 +249,6 @@ jobs:
             -m "Upstream-ref-kind: ${TARGET_KIND}" \
             -m "Upstream-commit: ${TARGET_SHA}"
           validated_commit="$(git rev-parse HEAD)"
-          proved_tree="$(git rev-parse 'HEAD^{tree}')"
           gh auth status
           gh auth setup-git
           scripts/codexsdk_publish_sync_pr.sh \
@@ -259,6 +258,4 @@ jobs:
             --target-ref "${TARGET_REF}" \
             --target-kind "${TARGET_KIND}" \
             --target-sha "${TARGET_SHA}" \
-            --sync-mode metadata-sync \
-            --validated-commit "${validated_commit}" \
-            --proved-tree "${proved_tree}"
+            --validated-commit "${validated_commit}"

@@ -163,10 +163,6 @@ func TestNativeProofObservesCleanWorktreeOnFailure(t *testing.T) {
 	if strings.Contains(module, "continue-on-error") {
 		t.Fatal("module proof must not use continue-on-error to gather cleanliness")
 	}
-	proof := readWorkflow(t, root, "codexsdk-protocol-proof.yml")
-	if strings.Contains(proof, "Worktree remains clean") {
-		t.Fatal("protocol proof must not assert a clean checkout on intentional overlay worktrees")
-	}
 }
 
 func TestProtocolSyncIsOneLinearSameRunWorkflow(t *testing.T) {
@@ -245,11 +241,11 @@ func TestProtocolSyncIsOneLinearSameRunWorkflow(t *testing.T) {
 	if strings.Index(syncJob, "id: checks") > strings.Index(syncJob, "id: publish") {
 		t.Fatal("publication must run after deterministic checks")
 	}
-	if !strings.Contains(publish, "--sync-mode metadata-sync") {
-		t.Fatal("publication must use the ordinary protocol-sync mode")
+	if strings.Contains(publish, "--sync-mode") || strings.Contains(publish, "metadata-sync") || strings.Contains(publish, "repair-sync") {
+		t.Fatal("publication must use one protocol-sync path, not metadata/repair modes")
 	}
-	if strings.Contains(publish, "repair-sync") {
-		t.Fatal("ordinary protocol sync cannot publish repair-sync")
+	if strings.Contains(publish, "--proved-tree") || strings.Contains(syncText, "proved-tree") {
+		t.Fatal("publication must not keep proved-tree attestation machinery")
 	}
 	if strings.Contains(syncText, "git rebase") {
 		t.Fatal("protocol sync must not rebase after checks")
@@ -272,174 +268,60 @@ func TestProtocolSyncIsOneLinearSameRunWorkflow(t *testing.T) {
 	}
 }
 
-func TestProtocolSyncAndRepairAreNaturallyFailClosed(t *testing.T) {
+func TestRetiredProtocolControlPlaneIsDeleted(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
 	if err != nil {
 		t.Fatal(err)
 	}
+	for _, rel := range []string{
+		filepath.Join(".github", "workflows", "codexsdk-protocol-proof.yml"),
+		filepath.Join(".github", "workflows", "codexsdk-upstream-protocol-repair.yml"),
+		filepath.Join(".github", "workflows", "codexsdk-upstream-protocol-finalize.yml"),
+		filepath.Join("codexsdk", "scripts", "codexsdk_repair_evidence.py"),
+		filepath.Join("codexsdk", "scripts", "codexsdk_protocol_summary.py"),
+		filepath.Join("codexsdk", "scripts", "codexsdk_schema_diff.py"),
+		filepath.Join("codexsdk", "scripts", "codexsdk_apply_sync_candidate.py"),
+		filepath.Join("codexsdk", "scripts", "codexsdk_sync_state.py"),
+		filepath.Join("codexsdk", "scripts", "codexsdk_finalize_sweep.py"),
+		filepath.Join("codexsdk", "scripts", "codexsdk_sync_tag.py"),
+	} {
+		if _, err := os.Stat(filepath.Join(root, rel)); err == nil {
+			t.Fatalf("retired control-plane file still present: %s", rel)
+		} else if !os.IsNotExist(err) {
+			t.Fatal(err)
+		}
+	}
 	syncText := readWorkflow(t, root, "codexsdk-upstream-protocol-sync.yml")
-	proofText := readWorkflow(t, root, "codexsdk-protocol-proof.yml")
-	repairText := readWorkflow(t, root, "codexsdk-upstream-protocol-repair.yml")
-
-	if strings.Contains(syncText, "uses: ./.github/workflows/codexsdk-protocol-proof.yml") {
-		t.Fatal("linear protocol sync must not call the reusable protocol proof")
-	}
-	if _, exists := workflowJobByID(syncText, "publish"); exists {
-		t.Fatal("linear protocol sync must not keep a restored-artifact publish job")
-	}
-	for _, banned := range []string{"reproof-gate", "original_ok", "reproof_ok", "failed=()", "continue-on-error"} {
+	for _, banned := range []string{
+		"failed_run",
+		"repair-input",
+		"proved-tree",
+		"metadata-sync",
+		"repair-sync",
+		"codexsdk_repair_evidence.py",
+		"codexsdk-protocol-proof.yml",
+	} {
 		if strings.Contains(syncText, banned) {
-			t.Fatalf("normal sync still contains recovery construct %q", banned)
+			t.Fatalf("ordinary protocol sync still contains retired machinery %q", banned)
 		}
 	}
-
-	for _, id := range []string{"generated", "owner-local", "schema-state", "script-tests"} {
-		job, ok := workflowJobByID(proofText, id)
-		if !ok {
-			t.Fatalf("reusable protocol proof missing owner job %s", id)
-		}
-		if strings.Contains(job, "continue-on-error") {
-			t.Fatalf("required proof job %s must not use continue-on-error", id)
-		}
-	}
-	generated, _ := workflowJobByID(proofText, "generated")
-	if !strings.Contains(generated, "./internal/cmd/generatedproof") {
-		t.Fatal("reusable generated proof must run generatedproof")
-	}
-	if !strings.Contains(proofText, "target-kind:") {
-		t.Fatal("reusable protocol proof must require target-kind")
-	}
-	if !strings.Contains(generated, "-expected-upstream-kind") {
-		t.Fatal("generated proof must bind expected source_ref_kind")
-	}
-	owner, _ := workflowJobByID(proofText, "owner-local")
-	if !strings.Contains(owner, "go test ./...") {
-		t.Fatal("reusable owner-local job must run go test")
-	}
-	schema, _ := workflowJobByID(proofText, "schema-state")
-	if !strings.Contains(schema, "codexsdk_sync_state.py") {
-		t.Fatal("reusable schema-state job must run candidate schema-state")
-	}
-	scripts, _ := workflowJobByID(proofText, "script-tests")
-	if !strings.Contains(scripts, "python3 -m unittest discover -s scripts -p '*_test.py'") {
-		t.Fatal("reusable script-tests job must run retained script tests")
-	}
-
-	repairOn, ok := workflowJobByID(repairText, "repair")
-	if !ok {
-		t.Fatal("repair workflow missing repair job")
-	}
-	if !strings.Contains(repairText, "failed_run_id:") {
-		t.Fatal("repair workflow must require an exact failed-run identity")
-	}
-	if strings.Index(repairOn, "codexsdk_repair_evidence.py admit") < 0 {
-		t.Fatal("repair workflow must admit failed-run evidence")
-	}
-	if strings.Index(repairOn, "codexsdk_repair_evidence.py admit") > strings.Index(repairOn, "uses: ./.github/actions/codex-exec") {
-		t.Fatal("repair workflow must admit failed-run evidence before Codex")
-	}
-	if strings.Index(repairOn, "uses: ./.github/actions/codex-exec") < 0 {
-		t.Fatal("repair workflow must invoke Codex")
-	}
-	admit, ok := workflowStepByID(repairText, "admission")
-	if !ok {
-		t.Fatal("repair workflow missing admission step")
-	}
-	if strings.Contains(admit, "continue-on-error") {
-		t.Fatal("admission must fail closed; Codex cannot run when admission rejects")
-	}
-	if !strings.Contains(repairOn, "failed-run/jobs.json") {
-		t.Fatal("repair admission must observe failed-run jobs")
-	}
-	if !strings.Contains(repairOn, "/attempts/") {
-		t.Fatal("repair must fetch attempt-specific source-run jobs")
-	}
-	if !strings.Contains(proofText, "generated-proof-attempt-") {
-		t.Fatal("reusable proof artifacts must be attempt-addressable")
-	}
-	if !strings.Contains(repairText, "failed_run_attempt:") {
-		t.Fatal("repair workflow must accept an exact source run attempt")
-	}
-	if !strings.Contains(repairOn, "repair-input/admission.json") {
-		t.Fatal("repair must write normalized admission.json before Codex")
-	}
-	if !strings.Contains(repairOn, "repair-input/failed-logs") {
-		t.Fatal("repair must collect failed proof logs from the validated run")
-	}
-	if strings.Contains(repairOn, "--log-failed") && strings.Contains(repairOn, "|| true") {
-		t.Fatal("repair log retrieval must not fail open")
-	}
-	if !strings.Contains(repairOn, "require-logs") {
-		t.Fatal("repair must fail closed unless required failed-owner logs exist")
-	}
-	if !strings.Contains(repairOn, "git checkout HEAD -- .github/actions/codex-exec") {
-		t.Fatal("repair must restore historical control-plane helper before packing the proposal")
-	}
-	if !strings.Contains(repairOn, "--product-only") {
-		t.Fatal("repair pack must reject non-product control-plane paths")
-	}
-	if !strings.Contains(repairOn, "generated_proof_artifact") {
-		t.Fatal("repair must consume generated-proof JSON when the source run produced it")
-	}
-
-	repairProof, ok := workflowJobByID(repairText, "proof")
-	if !ok {
-		t.Fatal("repair workflow must invoke protocol proof")
-	}
-	if !strings.Contains(repairProof, "needs: repair") {
-		t.Fatal("repair proof must run after Codex repair")
-	}
-	if !strings.Contains(repairProof, "uses: ./.github/workflows/codexsdk-protocol-proof.yml") {
-		t.Fatal("repair workflow must reuse the same protocol proof")
-	}
-	if !strings.Contains(repairProof, "target-kind:") {
-		t.Fatal("repair must pass the exact admitted target kind")
-	}
-	if strings.Index(repairText, "id: codex") > strings.Index(repairText, "uses: ./.github/workflows/codexsdk-protocol-proof.yml") {
-		t.Fatal("repair workflow must invoke Codex before the reusable protocol proof")
-	}
-
-	repairPublish, ok := workflowJobByID(repairText, "publish")
-	if !ok {
-		t.Fatal("repair workflow missing publish job")
-	}
-	if !strings.Contains(repairPublish, "needs: [repair, proof]") && !strings.Contains(repairPublish, "needs: [proof, repair]") {
-		t.Fatal("repair publication must naturally depend on proof")
-	}
-	if !strings.Contains(repairPublish, "--sync-mode repair-sync") {
-		t.Fatal("repair publication must use fixed repair-sync")
-	}
-	if strings.Contains(repairPublish, "metadata-sync") {
-		t.Fatal("repair workflow cannot publish metadata-sync")
-	}
-	if strings.Contains(jobIf(repairPublish), "always()") {
-		t.Fatal("repair publication must not run when proof fails")
-	}
-	if strings.Contains(repairPublish, "Confirm generated baseline provenance") || strings.Contains(repairPublish, "baseline_metadata.json") {
-		t.Fatal("repair publication must not re-own generated baseline provenance in Python")
-	}
-	if !strings.Contains(repairPublish, "--proved-tree") {
-		t.Fatal("repair publication must bind the exact proved tree")
-	}
-	if strings.Contains(repairPublish, "git rebase") {
-		t.Fatal("repair publication must not rebase after proof")
-	}
-
 	publishHelper, err := os.ReadFile(filepath.Join(root, "codexsdk", "scripts", "codexsdk_publish_sync_pr.sh"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	publishHelperText := string(publishHelper)
 	if strings.Contains(publishHelperText, "git rebase") {
-		t.Fatal("publish helper must not rebase a proved commit onto a later landing ref")
+		t.Fatal("publish helper must not rebase onto a later landing ref")
 	}
-	if strings.Contains(publishHelperText, `sync_mode="repair-sync"`) || strings.Contains(publishHelperText, "Defaults to repair-sync") {
-		t.Fatal("publish helper must not default --sync-mode")
+	if strings.Contains(publishHelperText, "--sync-mode") || strings.Contains(publishHelperText, "repair-sync") || strings.Contains(publishHelperText, "metadata-sync") {
+		t.Fatal("publish helper must not keep metadata/repair publication modes")
+	}
+	if strings.Contains(publishHelperText, "--proved-tree") {
+		t.Fatal("publish helper must not keep proved-tree attestation")
 	}
 	if strings.Contains(publishHelperText, "--candidate") {
 		t.Fatal("publish helper must not keep unused --candidate")
 	}
-
 	mechanical, err := os.ReadFile(filepath.Join(root, "codexsdk", "scripts", "codexsdk_mechanical_sync.py"))
 	if err != nil {
 		t.Fatal(err)
@@ -450,41 +332,6 @@ func TestProtocolSyncAndRepairAreNaturallyFailClosed(t *testing.T) {
 	}
 	if strings.Contains(mechanicalText, "./internal/cmd/generatedproof") || strings.Contains(mechanicalText, `"go", "test"`) {
 		t.Fatal("mechanical sync must not own generatedproof or go test correctness decisions")
-	}
-
-	if strings.Contains(syncText, "codexsdk_validate_sync.sh") {
-		t.Fatal("protocol sync must not keep the shell validator as the generated-artifact owner")
-	}
-
-	repairSummary, ok := workflowJobByID(repairText, "summary")
-	if !ok {
-		t.Fatal("repair must emit an observation-only proof summary")
-	}
-	if strings.Contains(repairPublish, "summary") {
-		t.Fatal("repair publication must not depend on the summary job")
-	}
-	if !strings.Contains(repairSummary, "--source-run-id") {
-		t.Fatal("repair summary must identify the source failed run")
-	}
-
-	for _, item := range []struct {
-		name string
-		text string
-	}{
-		{"codexsdk-upstream-protocol-sync.yml", syncText},
-		{"codexsdk-upstream-protocol-repair.yml", repairText},
-		{"codexsdk-protocol-proof.yml", proofText},
-	} {
-		for _, moving := range []string{
-			"uses: actions/upload-artifact@v",
-			"uses: actions/download-artifact@v",
-			"uses: actions/checkout@v",
-			"uses: actions/setup-go@v",
-		} {
-			if strings.Contains(item.text, moving) {
-				t.Fatalf("%s uses moving third-party Action tag %q", item.name, moving)
-			}
-		}
 	}
 }
 
@@ -849,15 +696,6 @@ func workflowJobByID(yaml, id string) (string, bool) {
 		return strings.Join(lines[start:], "\n"), true
 	}
 	return "", false
-}
-
-func jobIf(job string) string {
-	for _, line := range strings.Split(job, "\n") {
-		if strings.HasPrefix(line, "    if:") && !strings.HasPrefix(line, "     ") {
-			return strings.TrimSpace(line)
-		}
-	}
-	return ""
 }
 
 func workflowStepByID(yaml, id string) (string, bool) {
