@@ -169,6 +169,100 @@ func TestNativeProofObservesCleanWorktreeOnFailure(t *testing.T) {
 	}
 }
 
+func TestProtocolSyncIsOneLinearSameRunWorkflow(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	syncText := readWorkflow(t, root, "codexsdk-upstream-protocol-sync.yml")
+	syncJob, ok := workflowJobByID(syncText, "sync")
+	if !ok {
+		t.Fatal("protocol sync must have one sync job")
+	}
+	if _, exists := workflowJobByID(syncText, "proof"); exists {
+		t.Fatal("linear protocol sync must not call a separate proof job")
+	}
+	if _, exists := workflowJobByID(syncText, "publish"); exists {
+		t.Fatal("linear protocol sync must publish in the same job, not a restored-artifact publish job")
+	}
+	if strings.Contains(syncText, "codexsdk-protocol-proof.yml") {
+		t.Fatal("linear protocol sync must not call the reusable protocol proof workflow")
+	}
+	if strings.Contains(syncText, "actions/download-artifact") || strings.Contains(syncText, "restore-worktree") {
+		t.Fatal("linear protocol sync must not restore cross-run worktree or candidate artifacts")
+	}
+	if strings.Contains(syncText, "codexsdk_repair_evidence.py") || strings.Contains(syncText, "failed_run") {
+		t.Fatal("linear protocol sync must not admit failed-run repair evidence")
+	}
+	if strings.Count(syncText, "uses: ./.github/actions/codex-exec") != 1 {
+		t.Fatal("real drift must invoke at most one Agent pass")
+	}
+	agent, ok := workflowStepByID(syncText, "codex")
+	if !ok {
+		t.Fatal("drift branch must invoke the Codex Agent on the same worktree")
+	}
+	if !strings.Contains(agent, "steps.mechanical.outputs.outcome == 'applied'") {
+		t.Fatal("clean comparison must not invoke the Agent")
+	}
+	if strings.Index(syncJob, "id: mechanical") > strings.Index(syncJob, "id: codex") {
+		t.Fatal("Agent must run after mechanical compare/apply")
+	}
+	checks, ok := workflowStepByID(syncText, "checks")
+	if !ok {
+		t.Fatal("protocol sync must run deterministic checks in the same run")
+	}
+	if !strings.Contains(checks, "./internal/cmd/protocolupgrade") || !strings.Contains(checks, "check") {
+		t.Fatal("deterministic checks must use native protocolupgrade check")
+	}
+	if !strings.Contains(checks, "go vet ./...") || !strings.Contains(checks, "go test ./...") {
+		t.Fatal("deterministic checks must run owner-local vet and test")
+	}
+	if strings.Index(syncJob, "id: codex") > strings.Index(syncJob, "id: checks") {
+		t.Fatal("deterministic checks must run after the Agent")
+	}
+	publish, ok := workflowStepByID(syncText, "publish")
+	if !ok {
+		t.Fatal("protocol sync must publish from the same run after checks")
+	}
+	if !strings.Contains(publish, "steps.mechanical.outputs.outcome == 'applied'") {
+		t.Fatal("clean comparison must not publish")
+	}
+	if !strings.Contains(publish, "inputs.validation_only != true") {
+		t.Fatal("validation-only comparison must skip publication")
+	}
+	if strings.Contains(publish, "always()") {
+		t.Fatal("failed checks must not publish")
+	}
+	if strings.Index(syncJob, "id: checks") > strings.Index(syncJob, "id: publish") {
+		t.Fatal("publication must run after deterministic checks")
+	}
+	if !strings.Contains(publish, "--sync-mode metadata-sync") {
+		t.Fatal("publication must use the ordinary protocol-sync mode")
+	}
+	if strings.Contains(publish, "repair-sync") {
+		t.Fatal("ordinary protocol sync cannot publish repair-sync")
+	}
+	if strings.Contains(syncText, "git rebase") {
+		t.Fatal("protocol sync must not rebase after checks")
+	}
+
+	for _, banned := range []string{"reproof-gate", "original_ok", "reproof_ok", "failed=()", "continue-on-error"} {
+		if strings.Contains(syncText, banned) {
+			t.Fatalf("protocol sync still contains recovery construct %q", banned)
+		}
+	}
+	for _, moving := range []string{
+		"uses: actions/upload-artifact@v",
+		"uses: actions/download-artifact@v",
+		"uses: actions/checkout@v",
+		"uses: actions/setup-go@v",
+	} {
+		if strings.Contains(syncText, moving) {
+			t.Fatalf("protocol sync uses moving third-party Action tag %q", moving)
+		}
+	}
+}
+
 func TestProtocolSyncAndRepairAreNaturallyFailClosed(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
 	if err != nil {
@@ -178,48 +272,11 @@ func TestProtocolSyncAndRepairAreNaturallyFailClosed(t *testing.T) {
 	proofText := readWorkflow(t, root, "codexsdk-protocol-proof.yml")
 	repairText := readWorkflow(t, root, "codexsdk-upstream-protocol-repair.yml")
 
-	syncProof, ok := workflowJobByID(syncText, "proof")
-	if !ok {
-		t.Fatal("normal sync must invoke a proof job")
+	if strings.Contains(syncText, "uses: ./.github/workflows/codexsdk-protocol-proof.yml") {
+		t.Fatal("linear protocol sync must not call the reusable protocol proof")
 	}
-	if !strings.Contains(syncProof, "needs: sync") {
-		t.Fatal("normal proof must depend on sync")
-	}
-	if !strings.Contains(syncProof, "uses: ./.github/workflows/codexsdk-protocol-proof.yml") {
-		t.Fatal("normal sync must call the reusable protocol proof before publication")
-	}
-
-	syncPublish, ok := workflowJobByID(syncText, "publish")
-	if !ok {
-		t.Fatal("normal sync must have a publish job")
-	}
-	if !strings.Contains(syncPublish, "needs: [sync, proof]") && !strings.Contains(syncPublish, "needs: [proof, sync]") {
-		t.Fatal("normal publication must naturally depend on proof")
-	}
-	if !strings.Contains(syncPublish, "--sync-mode metadata-sync") {
-		t.Fatal("normal publication must use fixed metadata-sync")
-	}
-	if strings.Contains(syncPublish, "repair-sync") {
-		t.Fatal("normal workflow cannot publish repair-sync")
-	}
-	if strings.Contains(jobIf(syncPublish), "always()") {
-		t.Fatal("normal publication must not use always() to run after proof failure")
-	}
-	if strings.Contains(syncPublish, "Confirm generated baseline provenance") || strings.Contains(syncPublish, "baseline_metadata.json") {
-		t.Fatal("normal publication must not re-own generated baseline provenance in Python")
-	}
-	if !strings.Contains(syncPublish, "--proved-tree") {
-		t.Fatal("normal publication must bind the exact proved tree")
-	}
-	if strings.Contains(syncPublish, "git rebase") {
-		t.Fatal("normal publication must not rebase after proof")
-	}
-	if !strings.Contains(syncPublish, "inputs.validation_only != true") {
-		t.Fatal("validation-only comparison must skip publication")
-	}
-
-	if strings.Contains(syncText, "uses: ./.github/actions/codex-exec") {
-		t.Fatal("normal sync workflow contains no Codex repair action")
+	if _, exists := workflowJobByID(syncText, "publish"); exists {
+		t.Fatal("linear protocol sync must not keep a restored-artifact publish job")
 	}
 	for _, banned := range []string{"reproof-gate", "original_ok", "reproof_ok", "failed=()", "continue-on-error"} {
 		if strings.Contains(syncText, banned) {
@@ -245,9 +302,6 @@ func TestProtocolSyncAndRepairAreNaturallyFailClosed(t *testing.T) {
 	}
 	if !strings.Contains(generated, "-expected-upstream-kind") {
 		t.Fatal("generated proof must bind expected source_ref_kind")
-	}
-	if !strings.Contains(syncProof, "target-kind:") {
-		t.Fatal("normal sync must pass the exact resolver target kind")
 	}
 	owner, _ := workflowJobByID(proofText, "owner-local")
 	if !strings.Contains(owner, "go test ./...") {
@@ -290,9 +344,6 @@ func TestProtocolSyncAndRepairAreNaturallyFailClosed(t *testing.T) {
 	}
 	if !strings.Contains(repairOn, "/attempts/") {
 		t.Fatal("repair must fetch attempt-specific source-run jobs")
-	}
-	if !strings.Contains(syncText, "protocol-sync-evidence-attempt-") {
-		t.Fatal("normal sync evidence artifacts must be attempt-addressable")
 	}
 	if !strings.Contains(proofText, "generated-proof-attempt-") {
 		t.Fatal("reusable proof artifacts must be attempt-addressable")
@@ -392,39 +443,8 @@ func TestProtocolSyncAndRepairAreNaturallyFailClosed(t *testing.T) {
 		t.Fatal("mechanical sync must not own generatedproof or go test correctness decisions")
 	}
 
-	evidence, ok := workflowStepByID(syncText, "evidence")
-	if !ok {
-		t.Fatal("normal sync must pack exact failure evidence")
-	}
-	if !strings.Contains(evidence, "always()") {
-		t.Fatal("evidence-upload may run on failure")
-	}
-	if strings.Contains(evidence, "--sync-mode") {
-		t.Fatal("evidence-upload must not decide publication")
-	}
-	if strings.Contains(evidence, "unknown") {
-		t.Fatal("evidence pack must not write unknown as a target identity")
-	}
-
 	if strings.Contains(syncText, "codexsdk_validate_sync.sh") {
 		t.Fatal("protocol sync must not keep the shell validator as the generated-artifact owner")
-	}
-
-	syncSummary, ok := workflowJobByID(syncText, "summary")
-	if !ok {
-		t.Fatal("normal sync must emit an observation-only proof summary")
-	}
-	if !strings.Contains(jobIf(syncSummary), "always()") || !strings.Contains(jobIf(syncSummary), "!cancelled()") {
-		t.Fatal("normal summary must observe failed runs without changing cancellation")
-	}
-	if strings.Contains(syncPublish, "summary") {
-		t.Fatal("publication must not depend on the summary job")
-	}
-	if strings.Contains(syncSummary, "contents: write") || strings.Contains(syncSummary, "original_ok") || strings.Contains(syncSummary, "reproof-gate") {
-		t.Fatal("summary must remain an observation projection")
-	}
-	if !strings.Contains(syncSummary, "codexsdk_protocol_summary.py") {
-		t.Fatal("normal summary must render through the observation-only helper")
 	}
 
 	repairSummary, ok := workflowJobByID(repairText, "summary")
