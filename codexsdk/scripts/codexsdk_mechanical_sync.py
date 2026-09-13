@@ -199,33 +199,37 @@ def generate_candidate(module_root: Path, inputs: dict[str, Any]) -> Path:
 
 def apply_candidate(module_root: Path, inputs: dict[str, Any], sync_out: Path) -> None:
     common_sha = (sync_out / "common.rs.source_sha").read_text(encoding="utf-8").strip()
+    env = {**os.environ, "GOWORK": "off"}
     run_command(
         [
-            sys.executable,
-            "scripts/codexsdk_apply_sync_candidate.py",
-            "--baseline",
+            "go",
+            "run",
+            "./internal/cmd/protocolupgrade",
+            "apply",
+            "-baseline",
             str(BASELINE),
-            "--candidate",
+            "-candidate",
             str(sync_out / "schema"),
-            "--stable-candidate",
+            "-stable-candidate",
             str(sync_out / "stable-schema"),
-            "--codex-repo",
+            "-codex-repo",
             str(module_root / ".cache" / "openai-codex"),
-            "--reports",
+            "-reports",
             str(sync_out / "reports"),
-            "--common-rs",
+            "-common-rs",
             str(sync_out / "common.rs"),
-            "--common-rs-source-sha",
+            "-common-rs-source-sha",
             common_sha,
-            "--target-ref",
+            "-target-ref",
             str(inputs["target_ref"]),
-            "--target-kind",
+            "-target-kind",
             str(inputs["target_kind"]),
-            "--target-sha",
+            "-target-sha",
             str(inputs["target_sha"]),
-            "--json",
+            "-json",
         ],
         cwd=module_root,
+        env=env,
     )
 
 
