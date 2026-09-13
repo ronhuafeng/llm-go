@@ -150,7 +150,7 @@ jobs:
           python3 scripts/codexsdk_mechanical_sync.py --repo-root "${GITHUB_WORKSPACE}"
 
       - name: Write Agent drift input
-        if: ${{ steps.mechanical.outputs.outcome == 'applied' }}
+        if: ${{ success() && steps.mechanical.outputs.outcome == 'applied' }}
         working-directory: codexsdk
         env:
           TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
@@ -175,8 +175,11 @@ jobs:
 
       - name: Apply one Agent pass for real drift
         id: codex
-        if: ${{ steps.mechanical.outputs.outcome == 'applied' }}
+        if: ${{ success() && steps.mechanical.outputs.outcome == 'applied' }}
         uses: ./.github/actions/codex-exec
+        env:
+          GITHUB_TOKEN: ""
+          GH_TOKEN: ""
         with:
           api-key: ${{ secrets.AZURE_OPENAI_API_KEY }}
           responses-api-endpoint: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
@@ -205,8 +208,11 @@ jobs:
             args+=(-candidate "${CANDIDATE}")
           fi
           go run ./internal/cmd/protocolupgrade "${args[@]}"
-          git diff --check
-          unformatted="$(git -C "${GITHUB_WORKSPACE}" ls-files -z -- 'codexsdk/*.go' 'codexsdk/**/*.go' | xargs -0 gofmt -l)"
+          git -C "${GITHUB_WORKSPACE}" diff --check
+          unformatted="$(
+            git -C "${GITHUB_WORKSPACE}" ls-files -z -- 'codexsdk/*.go' 'codexsdk/**/*.go' |
+              xargs -0 -r -I{} gofmt -l "${GITHUB_WORKSPACE}/{}"
+          )"
           if [[ -n "${unformatted}" ]]; then
             echo "gofmt required:" >&2
             printf '%s\n' "${unformatted}" >&2
@@ -217,7 +223,7 @@ jobs:
 
       - name: Publish protected sync PR
         id: publish
-        if: ${{ steps.mechanical.outputs.outcome == 'applied' && inputs.validation_only != true }}
+        if: ${{ success() && steps.mechanical.outputs.outcome == 'applied' && inputs.validation_only != true }}
         working-directory: codexsdk
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}

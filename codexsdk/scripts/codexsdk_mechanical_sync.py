@@ -2,10 +2,10 @@
 """Run the mechanical-first Codex protocol sync path.
 
 The workflow owns this path. It acquires the upstream target, generates
-schemas, and applies the mechanical surface. Owner-local Go proofs and
-generated-artifact verification run in GitHub Actions YAML after this
-script returns. Mechanical apply that cannot complete fails this process
-so a separate repair workflow can continue from uploaded evidence.
+schemas, and applies the mechanical surface on real drift. Deterministic
+checks and the optional Agent pass run in GitHub Actions YAML after this
+script returns. A failed mechanical step fails the run; retry starts from
+the selected upstream source.
 """
 
 from __future__ import annotations
@@ -26,7 +26,6 @@ CACHE = Path(".cache/codexsdk-sync")
 ACTION_INPUTS = CACHE / "action-inputs.json"
 POLICY_OUTPUT = CACHE / "policy.json"
 OUTCOME_OUTPUT = CACHE / "mechanical-outcome.json"
-ESCALATION_OUTPUT = CACHE / "escalation.json"
 
 
 class CommandError(RuntimeError):
@@ -51,6 +50,8 @@ def decide_after_policy(policy: dict[str, Any], *, force_compare: bool) -> str:
 def decide_after_drift(*, force_compare: bool, drift_status: str) -> str:
     if force_compare:
         return "comparison" if drift_status == "clean" else "comparison_dirty"
+    if drift_status == "clean":
+        return "comparison"
     return "apply"
 
 
@@ -64,29 +65,6 @@ def write_json(path: Path, payload: dict[str, Any]) -> dict[str, Any]:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return payload
-
-
-def write_escalation(
-    path: Path,
-    *,
-    target_ref: str,
-    target_kind: str,
-    target_sha: str,
-    reason: str,
-    detail: str,
-    artifacts: dict[str, str],
-) -> dict[str, Any]:
-    return write_json(
-        path,
-        {
-            "target_ref": target_ref,
-            "target_kind": target_kind,
-            "target_sha": target_sha,
-            "reason": reason,
-            "detail": detail,
-            "artifacts": artifacts,
-        },
-    )
 
 
 def candidate_output(sync_out: Path) -> dict[str, str]:
@@ -270,7 +248,6 @@ def main() -> int:
     repo_root = args.repo_root.resolve()
     module_root = repo_root / "codexsdk"
     inputs = load_action_inputs(module_root)
-    artifacts = {"sync_out": "", "candidate": "", "reports": "", "escalation": str(module_root / ESCALATION_OUTPUT)}
 
     policy = run_policy(module_root, inputs)
     after_policy = decide_after_policy(policy, force_compare=bool(inputs["force_compare"]))
@@ -283,13 +260,6 @@ def main() -> int:
         return 0
 
     sync_out = generate_candidate(module_root, inputs)
-    artifacts.update(
-        {
-            "sync_out": str(sync_out),
-            "candidate": str(sync_out / "schema"),
-            "reports": str(sync_out / "reports"),
-        }
-    )
     drift = json.loads((sync_out / "reports" / "drift_summary.json").read_text(encoding="utf-8"))
     if drift.get("target", {}).get("source_commit") != inputs["target_sha"]:
         raise SystemExit("candidate source_commit does not match the resolved target")
@@ -297,7 +267,7 @@ def main() -> int:
     if after_drift in {"comparison", "comparison_dirty"}:
         dirty = sync_changes.changed_paths(repo_root)
         if dirty:
-            raise SystemExit("force_compare must leave the protocol worktree unchanged:\n- " + "\n- ".join(dirty))
+            raise SystemExit("comparison must leave the protocol worktree unchanged:\n- " + "\n- ".join(dirty))
     if after_drift == "comparison":
         emit_outcome(
             module_root,
@@ -308,7 +278,7 @@ def main() -> int:
         )
         return 0
     if after_drift == "comparison_dirty":
-        reason = "read-only comparison found protocol drift; comparison never applies or repairs"
+        reason = "read-only comparison found protocol drift; comparison never applies"
         print(reason, file=sys.stderr)
         emit_outcome(module_root, "comparison_dirty", inputs, reason=reason, **candidate_output(sync_out))
         return 1
