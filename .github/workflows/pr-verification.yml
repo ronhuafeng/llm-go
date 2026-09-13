@@ -15,14 +15,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  workflow-lint:
-    name: Workflow lint
-    uses: ./.github/workflows/verify-workflows.yml
-
-  format:
-    name: Go formatting and whitespace
+  source:
+    name: Root source verification
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
         with:
@@ -31,7 +27,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@v6
         with:
-          go-version: stable
+          go-version-file: go.mod
           cache: false
       - name: gofmt and whitespace
         run: |
@@ -43,121 +39,29 @@ jobs:
             exit 1
           fi
           git diff --check
-
-  min-llmkit:
-    name: Minimum Go - llmkit
-    uses: ./.github/workflows/verify-go-module.yml
-    with:
-      working-directory: llmkit
-      go-version: "1.23.x"
-      packages: ./...
-
-  min-codexsdk:
-    name: Minimum Go - codexsdk
-    uses: ./.github/workflows/verify-go-module.yml
-    with:
-      working-directory: codexsdk
-      go-version: "1.23.x"
-      packages: ./...
-
-  min-adapter:
-    name: Minimum Go - Codex adapter current source
-    uses: ./.github/workflows/verify-go-module.yml
-    with:
-      working-directory: llmcaller/codex
-      go-version: "1.23.x"
-      packages: ./...
-      current-source-replaces: |
-        github.com/ronhuafeng/llm-go/llmkit=../../llmkit
-        github.com/ronhuafeng/llm-go/codexsdk=../../codexsdk
-
-  min-tools:
-    name: Minimum Go - repository-local tools
-    uses: ./.github/workflows/verify-go-module.yml
-    with:
-      working-directory: internal/tools
-      go-version: "1.25.x"
-      packages: ./internal/...
-
-  min-moduleproof:
-    name: Minimum Go - moduleproof
-    uses: ./.github/workflows/verify-go-module.yml
-    with:
-      working-directory: internal/moduleproof
-      go-version: "1.25.x"
-      packages: ./...
-
-  verify-llmkit:
-    name: Verify llmkit
-    uses: ./.github/workflows/verify-go-module.yml
-    with:
-      working-directory: llmkit
-      go-version: stable
-      packages: ./...
-      tidy: true
-      vet: true
-      race: true
-
-  verify-codexsdk:
-    name: Verify codexsdk
-    uses: ./.github/workflows/verify-go-module.yml
-    with:
-      working-directory: codexsdk
-      go-version: stable
-      packages: ./...
-      tidy: true
-      vet: true
-      race: true
-
-  verify-adapter:
-    name: Verify Codex adapter current source
-    uses: ./.github/workflows/verify-go-module.yml
-    with:
-      working-directory: llmcaller/codex
-      go-version: stable
-      packages: ./...
-      vet: true
-      race: true
-      current-source-replaces: |
-        github.com/ronhuafeng/llm-go/llmkit=../../llmkit
-        github.com/ronhuafeng/llm-go/codexsdk=../../codexsdk
-
-  verify-tools:
-    name: Verify repository-local tools
-    uses: ./.github/workflows/verify-go-module.yml
-    with:
-      working-directory: internal/tools
-      go-version: stable
-      packages: ./internal/...
-      tidy: true
-      vet: true
-      race: true
-
-  verify-moduleproof:
-    name: Verify moduleproof
-    uses: ./.github/workflows/verify-go-module.yml
-    with:
-      working-directory: internal/moduleproof
-      go-version: stable
-      packages: ./...
-      tidy: true
-      vet: true
-      race: true
-
-  current-source-composition:
-    name: Current-source composition
-    uses: ./.github/workflows/verify-go-module.yml
-    with:
-      working-directory: internal/tools
-      go-version: stable
-      packages: ./integration
-      tidy: true
-      race: true
-      current-source-replaces: |
-        github.com/ronhuafeng/llm-go/llmkit=../../llmkit
-        github.com/ronhuafeng/llm-go/codexsdk=../../codexsdk
-        github.com/ronhuafeng/llm-go/llmcaller/codex=../../llmcaller/codex
+      - name: Workflow syntax
+        env:
+          GOTOOLCHAIN: local
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+      - name: Root module proof
+        env:
+          GOTOOLCHAIN: local
+        run: |
+          set -euo pipefail
+          go mod tidy -diff
+          go vet ./...
+          go test -race ./...
+      - name: Worktree remains clean
+        if: ${{ always() && !cancelled() }}
+        run: |
+          set -euo pipefail
+          git diff --check
+          if [[ -n "$(git status --porcelain --untracked-files=all)" ]]; then
+            git status --short >&2
+            echo "verification left a dirty worktree" >&2
+            exit 1
+          fi
 
   generated-reproducibility:
-    name: Codexsdk generated reproducibility
+    name: Codex generated reproducibility
     uses: ./.github/workflows/verify-generated.yml
