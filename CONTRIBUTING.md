@@ -1,31 +1,24 @@
 # Contributing
 
-Semantics: [`NORTHSTAR.md`](NORTHSTAR.md).
-Live invariants: [`DESIGN.md`](DESIGN.md).
+Choose the owning module from [`README.md`](README.md). Read its README, the
+affected package documentation, source, and tests.
 
-The published modules support Go 1.23 or newer. The repository workspace and
-`internal/tools` require Go 1.25 or newer; that tooling requirement does not
-raise the public modules' consumer baseline.
+For a change:
 
-Before opening a pull request, follow the explicit Go commands and compatibility
-checks in [`docs/verify.md`](docs/verify.md). Ordinary verification has no
-repository-specific task runner.
+1. update the owning code and behavior tests;
+2. update package docs or the module README only when consumer-visible usage
+   changes;
+3. add an `Unreleased` changelog entry for user-visible changes;
+4. run the relevant commands in [`docs/verify.md`](docs/verify.md).
 
-Public changes must update the owning module's code and behavior tests. Update
-package docs or the module README when consumer-visible usage changes, and add
-an `Unreleased` changelog entry when the change is user-visible. Do not create
-API inventories, release-state mirrors, compatibility facades, or change
-fragments solely for release bookkeeping; exported code, executable examples,
-behavior tests, `go.mod`, and immutable tags are the relevant authorities.
-Do not add `replace` or `exclude` directives to a public module `go.mod`;
-see [`DESIGN.md`](DESIGN.md) I6.
+Protocol upgrades use [`docs/protocol-sync.md`](docs/protocol-sync.md) and the
+[`codexsdk-sync-upstream`](.agents/skills/codexsdk-sync-upstream/SKILL.md)
+skill.
 
-Prefer executable Go examples over duplicate README programs. README prose
-should explain semantics and point to the example that CI actually compiles.
+Public module `go.mod` files must not use committed `replace` or `exclude`
+directives to repair repository-local dependency state. Release ordering and
+published dependency checks are in [`docs/release.md`](docs/release.md).
 
-Protocol baseline work uses
-[`codexsdk-sync-upstream`](.agents/skills/codexsdk-sync-upstream/SKILL.md).
-SDK test design follows [`codexsdk/Agents.test.md`](codexsdk/Agents.test.md).
-
-Do not check in credentials, private prompts, customer data, or local absolute
-paths. Report vulnerabilities through [`SECURITY.md`](SECURITY.md).
+Prefer executable Go examples over duplicate README programs. Do not add
+credentials, private prompts, customer data, or local absolute paths. Report
+security issues through [`SECURITY.md`](SECURITY.md).

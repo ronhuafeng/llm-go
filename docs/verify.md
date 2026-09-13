@@ -1,183 +1,64 @@
 # Verification
 
-Ordinary repository verification intentionally has no repository-specific task
-runner. Semantic proofs live in Go tests and executable examples; GitHub Actions
-runs standard Go tools and a version-pinned Actions workflow validator.
+Use standard Go commands. The repository intentionally has no general task
+runner.
 
-Published modules and repository tooling intentionally have different minimum
-Go versions. `llmkit`, `codexsdk`, and `llmcaller/codex` support Go 1.23. The
-root workspace and `internal/tools` require Go 1.25. That repository-tooling
-baseline is not a stronger requirement for consumers of the published modules.
+## Local module checks
 
-For a public module whose committed dependencies are already published, the
-standalone local pattern is:
+Published modules support Go 1.23. For a module whose committed dependencies are
+already published:
 
 ```sh
-cd llmkit # or codexsdk or llmcaller/codex
 GOWORK=off go mod tidy -diff
 GOWORK=off go vet ./...
 GOWORK=off go test -race ./...
 ```
 
-A pre-v1 source cohort may intentionally commit a downstream `go.mod` that names
-the next upstream module version before that tag exists. During that source
-cohort, ordinary PR verification proves the downstream against repository
-current source with a temporary, uncommitted `-modfile` replacement. The
-committed module manifest remains unchanged and contains no `replace` or
-`exclude`. This is a current-source proof only; it does not claim the committed
-dependency version is already published or independently resolvable.
+Run those commands from `llmkit`, `codexsdk`, or `llmcaller/codex` as
+appropriate.
 
-For the current Codex adapter cohort, the canonical verification shape is the
-same one used by `PR verification`: a native `internal/moduleproof` helper
-writes temporary module files with `golang.org/x/mod/modfile`, applies only the
-required repository-source replacements, and Go commands run with `GOWORK=off`
-plus that `-modfile`. The helper must leave committed manifests unchanged. Do
-not add a committed replacement merely to make an unpublished dependency
-resolve.
+The adapter may temporarily name an unpublished next `llmkit`/`codexsdk` version
+during a pre-v1 source cohort. Required PR verification handles that case with a
+temporary modfile pointing at repository current source. Committed public module
+manifests stay unchanged and contain no `replace` or `exclude` directives.
 
-Repository tools require Go 1.25 and use the same standalone pattern from
-`internal/tools`. To prove repository-minimum current-source composition through
-the workspace, run from the repository root with Go 1.25 or newer:
+Repository tools require Go 1.25. From the repository root:
 
 ```sh
 go test ./internal/tools/integration
 ```
 
-Current-stable verification additionally runs the integration package with
-`-race`.
+## Required PR verification
 
-Required pull-request verification runs on Linux only. The scheduled or
-manual `Advisory OS portability` workflow additionally runs `go vet ./...`
-and `go test ./...` for each public module with `GOWORK=off`, plus
-current-source `go test ./internal/tools/integration`, on Linux, macOS, and
-Windows. That matrix is advisory: it does not run `-race` or `go mod tidy
--diff`, and it is not a required merge gate. See
-[`SUPPORT.md`](../SUPPORT.md).
+`PR verification` is the merge gate. It checks:
 
-The `Post-release module resolution smoke` workflow is also not a merge
-gate and must never be treated as a pre-tag publication check. See
-[`docs/release.md`](release.md).
+- workflow syntax and Go formatting/whitespace;
+- each public module at its minimum Go version;
+- current-source adapter/repository composition without modifying committed
+  manifests;
+- current-toolchain `tidy`, `vet`, race tests, and repository integration;
+- checked-in `codexsdk` generated protocol/source reproducibility.
 
-`PR verification` is a proof graph. GitHub Actions YAML orchestrates jobs;
-Go owns the proof commands.
+GitHub Actions orchestrates these checks; Go owns the repository/module logic.
 
-1. validate GitHub Actions workflow syntax and context usage with a
-   version-pinned `actionlint` binary;
-2. test `llmkit` and `codexsdk` at Go 1.23 with `GOWORK=off` against their
-   committed standalone manifests;
-3. test `llmcaller/codex` at Go 1.23 against repository current `llmkit` and
-   `codexsdk` source through a temporary modfile written by
-   `internal/moduleproof`;
-4. test `internal/tools` and `internal/moduleproof` standalone, then
-   current-source workspace composition with Go 1.25;
-5. require tracked Go files to be `gofmt`-clean and reject whitespace errors;
-6. on the current Go toolchain, run `go mod tidy -diff`, `go vet ./...`, and
-   `go test -race ./...` for independently resolvable modules; run the Codex
-   adapter's `go vet` and `go test -race` through its temporary current-source
-   modfile; then run repository integration against current source;
-7. regenerate and compare checked-in `codexsdk` protocol artifacts and SDK
-   surface with the owner-local Go generated-artifact checker. The current
-   command is `go run ./internal/cmd/generatedproof`; its repository role is a
-   deterministic source check, not a CI attestation or publication-identity
-   ledger. `-write-artifacts` only generates files and is not a check.
+Current-source composition does **not** prove that a dependency version is
+published. Published dependency closure is checked during release; see
+[`release.md`](release.md).
 
-The adapter's temporary source replacement and repository integration proof
-answer only whether the checked-out source cohort composes. They do not answer
-whether a clean external consumer can resolve a future adapter tag. Published
-closure is a release-time proof owned by [`docs/release.md`](release.md), and a
-dependent module must not be tagged until every committed dependency version
-exists and resolves with `GOWORK=off`.
+## Protocol upgrades
 
-Go `Example...` functions and the three-layer fake canary are ordinary tests;
-they are not invoked again through a second verification framework. Codex SDK
-checked-in protocol artifacts, generated facade semantics, baseline provenance,
-and baseline hygiene are likewise protected by owner-local Go tests.
+Codex App Server protocol upgrades follow [`protocol-sync.md`](protocol-sync.md).
+The final architecture is one run from upstream comparison through deterministic
+Go checks to a protected PR. A failed run is retried from upstream source, not
+reconstructed from historical CI state.
 
-Codex App Server upgrades follow [`docs/protocol-sync.md`](protocol-sync.md).
-The workflow is intentionally one linear attempt: resolve/generate/compare,
-apply mechanical updates, invoke an implementation Agent only if real protocol
-compatibility work remains, rerun the same deterministic verification, and
-publish a protected PR only after success. A failed run ends; retry regenerates
-from the selected upstream source. Ordinary protocol synchronization does not
-own cross-run repair admission, historical run reconstruction, or a separate
-attestation ledger.
+## Non-gating checks
 
-Retained Python/shell helpers under `codexsdk/scripts` may perform real
-mechanical work such as upstream schema acquisition or large candidate/report
-construction. They must not become a second owner of generated-Go correctness,
-SDK acceptance, or publication policy. Delete a helper when the linear native
-path no longer consumes it.
+The repository also runs advisory portability, fuzzing, vulnerability scans,
+post-release resolution smoke, and a real Codex smoke. These provide additional
+signals but are not required PR merge gates unless a repository rule explicitly
+changes that policy.
 
-Scheduled Dependabot updates and the manual/scheduled `Go vulnerability scan`
-workflow surface dependency and Action maintenance. They are not required
-pull-request checks and do not own deterministic source correctness.
-Workflows that receive write credentials or provider/release secrets pin
-third-party Actions to immutable commit SHAs. Read-only workflows without
-those secrets keep moving major-version tags so Dependabot can update them
-without secret-bearing pin churn.
-
-Owner-local Go fuzz targets exercise schema and protocol parser boundaries.
-Ordinary `go test` runs only their seed corpus. The scheduled/manual `Fuzz`
-workflow may run bounded `go test -fuzz=... -fuzztime=...` steps; it is not a
-required pull-request check.
-
-Ordinary verification deliberately does **not** model release state, mirror
-public API inventories, compile README Markdown, or treat an unpublished module
-version as published merely because repository source can replace it. It does
-not maintain custom evidence/authorization artifacts for reproducible CI state
-or wrap standard Go commands in another repository task runner. Git source,
-owner-local Go tests, module `go.mod` files, selected upstream source identity,
-and immutable release tags remain the authorities for their respective facts.
-
-## Real Codex smoke
-
-Real provider availability is a third, non-gating layer. It is not a required
-pull-request check because credentials, service availability, quotas, CLI
-versions, and model behavior are external observations rather than
-deterministic semantic proofs.
-
-Locally, install and authenticate the Codex CLI, then run:
-
-```sh
-LLMGO_LIVE_CODEX=1 \
-go test ./internal/tools/integration -run '^TestLiveCodexSmoke$' -count=1 -v
-```
-
-Local runs may set `LLMGO_LIVE_CODEX_MODEL` when a specific model is desired.
-That local choice is independent of the hosted smoke policy.
-
-GitHub Actions keeps `Live Codex smoke` continuously active in three ways:
-
-- after every push to `main`;
-- after every successful `PR verification` for a same-repository PR head whose
-  triggering actor is the repository owner; and
-- through manual `workflow_dispatch` from `main`.
-
-The development path is chained from the deterministic PR check rather than
-running a secret-bearing workflow directly from an arbitrary branch. The live
-workflow is defined on the default branch, checks out the exact verified PR
-head SHA, uses read-only repository permissions, disables dependency caching,
-and does not run for fork/untrusted PR heads. Repeated pushes on the same source
-branch cancel the superseded smoke so cost remains bounded.
-
-The hosted smoke is intentionally fixed to `gpt-5.6-luna` with `medium`
-reasoning. Those settings exist only in `live-codex-smoke.yml`; they do not
-change upstream protocol-sync Codex settings or any library/runtime default.
-
-The workflow reuses the repository's existing `AZURE_OPENAI_API_KEY` and
-`CODEX_RESPONSES_API_ENDPOINT` through a local `codex-responses-api-proxy`,
-matching the authentication path used by upstream protocol sync. Those secrets
-are scoped only to proxy startup. The real `codex app-server` runs later with
-an isolated `CODEX_HOME` whose custom Responses provider points at localhost,
-so checked-out development code and the app-server process do not inherit
-either credential.
-
-The live smoke installs `@openai/codex@latest` as the system under test so
-compatibility stays current. The credential-handling
-`@openai/codex-responses-api-proxy` is a separate trust decision: both this
-workflow and the Codex runner action pin an explicit npm version in source.
-Bump that version in those two install sites after reviewing the proxy
-release; do not float `@latest` on the process that receives provider
-credentials.
-
-No additional live-smoke Environment or secret is required.
+The live Codex smoke exercises current provider/CLI availability and therefore
+cannot replace deterministic source tests. It runs only on trusted repository
+paths with provider credentials isolated from checked-out development code.
