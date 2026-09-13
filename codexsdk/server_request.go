@@ -13,7 +13,7 @@ func (c *Client) handleServerRequest(message map[string]any) {
 	typed, err := decodeProtocolServerRequest(message)
 	if err != nil {
 		failure := fmt.Errorf("codexsdk: decode ServerRequest request_id=%s: %w", requestIDString(id), err)
-		c.failExactServerRequest(id, -32602, failure)
+		c.failExactServerRequest(id, protocolv2.ServerRequest{}, -32602, failure)
 		return
 	}
 	if c.isClosed() {
@@ -42,6 +42,6 @@ func requestIDString(id any) string {
 	return fmt.Sprint(id)
 }
 
-func (c *Client) writeServerRequestError(id any, code int, err error) {
-	_ = c.write(map[string]any{"id": id, "error": map[string]any{"code": code, "message": err.Error()}})
+func (c *Client) writeServerRequestError(id any, code int, err error) error {
+	return c.write(map[string]any{"id": id, "error": map[string]any{"code": code, "message": err.Error()}})
 }

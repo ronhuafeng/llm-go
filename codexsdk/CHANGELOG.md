@@ -11,6 +11,12 @@
 
 ### Fixed
 
+- Keep one application/server-request failure at Exact Run scope. A missing
+  handler, handler error/panic, or invalid typed response still sends a JSON-RPC
+  error and no semantic result. When the decoded request carries thread/turn
+  identity, that cause finishes the matching Exact Run. It does not fail the
+  whole `Client` or unrelated Exact Runs. Uncorrelated requests are not guessed
+  onto a run. Transport and response-write failures remain client-global.
 - Preserve caller-context cancellation on synchronous Exact Run `Start` and
   `Resume`. A canceled or deadline-exceeded drain returns the caller cause with
   the latest partial evidence while the shared run is still non-terminal;

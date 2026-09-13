@@ -1213,6 +1213,12 @@ func runFakeAppServer(mode string, extra []string) {
 				send(map[string]any{"method": "item/completed", "params": map[string]any{"completedAtMs": 1, "threadId": threadID, "turnId": turnID, "item": map[string]any{"id": "item-before-auth", "type": "agentMessage", "text": "partial", "phase": "commentary"}}})
 				waitForFakePath(notificationAccepted)
 				send(map[string]any{"id": "server-auth-1", "method": "account/chatgptAuthTokens/refresh", "params": map[string]any{"reason": "unauthorized"}})
+			case "uncorrelated-auth-then-complete":
+				notificationAccepted := extra[0]
+				send(map[string]any{"method": "item/completed", "params": map[string]any{"completedAtMs": 1, "threadId": threadID, "turnId": turnID, "item": map[string]any{"id": "item-before-auth", "type": "agentMessage", "text": "partial", "phase": "commentary"}}})
+				waitForFakePath(notificationAccepted)
+				send(map[string]any{"id": "server-auth-1", "method": "account/chatgptAuthTokens/refresh", "params": map[string]any{"reason": "unauthorized"}})
+				completeTurn(threadID, turnID)
 			case "approval-before-attach":
 				send(map[string]any{"id": "server-approval-1", "method": "item/commandExecution/requestApproval", "params": fakeCommandApprovalParams(threadID, turnID)})
 			case "tool-call-before-attach":
@@ -1292,6 +1298,15 @@ func runFakeAppServer(mode string, extra []string) {
 			case "concurrent":
 				pendingConcurrent = append(pendingConcurrent, threadID+"|"+turnID)
 				if len(pendingConcurrent) == 2 {
+					parts2 := strings.Split(pendingConcurrent[1], "|")
+					parts1 := strings.Split(pendingConcurrent[0], "|")
+					completeTurn(parts2[0], parts2[1])
+					completeTurn(parts1[0], parts1[1])
+				}
+			case "uncorrelated-auth-concurrent":
+				pendingConcurrent = append(pendingConcurrent, threadID+"|"+turnID)
+				if len(pendingConcurrent) == 2 {
+					send(map[string]any{"id": "server-auth-1", "method": "account/chatgptAuthTokens/refresh", "params": map[string]any{"reason": "unauthorized"}})
 					parts2 := strings.Split(pendingConcurrent[1], "|")
 					parts1 := strings.Split(pendingConcurrent[0], "|")
 					completeTurn(parts2[0], parts2[1])
