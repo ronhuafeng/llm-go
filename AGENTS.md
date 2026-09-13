@@ -10,7 +10,8 @@ Resolve paths from the repository root that contains this file.
   proposition evidence and accepted result, and name application-owned retry
   feedback hooks as projection rather than toolkit-owned sanitization policy.
 - **Change Exact Run or protocol:** [`codexsdk/CONTEXT.md`](codexsdk/CONTEXT.md)
-  → affected code and tests. Upstream sync uses
+  → affected code and tests. For upstream protocol upgrades, read
+  [`docs/protocol-sync.md`](docs/protocol-sync.md) before using
   [`codexsdk-sync-upstream`](.agents/skills/codexsdk-sync-upstream/SKILL.md).
   Apply [`Agents.test.md`](codexsdk/Agents.test.md) when changing SDK tests.
   Lifecycle admission must cover every model-directed continuation path that

@@ -3,7 +3,9 @@
 Status: current
 
 Destination: [`NORTHSTAR.md`](NORTHSTAR.md).
-Operations: [`docs/verify.md`](docs/verify.md), [`docs/release.md`](docs/release.md).
+Operations: [`docs/verify.md`](docs/verify.md),
+[`docs/protocol-sync.md`](docs/protocol-sync.md), and
+[`docs/release.md`](docs/release.md).
 
 This file defines the repository's live invariants. `NORTHSTAR.md` explains why
 they exist. Public code and behavior remain the current contract.
@@ -118,6 +120,17 @@ current invariant, or irreproducible observation requires it. Route readers to
 the authority instead of copying it. Historical design belongs in Git history
 or release records, not on the current engineering path.
 
+**I10 — Operational proof stays proportional and local.** Repository automation
+proves the state it is about to use; it does not create a second historical
+truth system for reproducible CI state. The ordinary Codex protocol-upgrade path
+is one workflow run: resolve the selected upstream source, generate and compare
+the protocol, apply mechanical changes, let an agent propose only the remaining
+compatibility edits when needed, run deterministic owner-native verification,
+and then publish a protected PR. A failed run ends. A later run regenerates the
+candidate from the canonical upstream source instead of reconstructing the
+failed run. Cross-run repair/admission/provenance machinery requires a separate
+real product or external-authority reason to exist.
+
 Each module owns its minimum Go version. The adapter's committed `go.mod` is the
 compatibility-tuple source.
 
@@ -146,6 +159,7 @@ Reading path: [`AGENTS.md`](AGENTS.md).
 | Generated Baseline Provenance | `codexsdk` `baseline_metadata.json` |
 | Runtime App-Server Observation | `codexsdk` initialize Server Observation |
 | Runtime Compatibility | current initialize cannot prove it; `codexsdk` keeps it unknown |
+| Codex protocol synchronization procedure | `docs/protocol-sync.md` |
 | Current-source cohort verification | `docs/verify.md` and required PR workflow |
 | Published dependency closure and release order | `docs/release.md` |
 | Verification procedure | `docs/verify.md` |

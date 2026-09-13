@@ -76,11 +76,10 @@ Go owns the proof commands.
    adapter's `go vet` and `go test -race` through its temporary current-source
    modfile; then run repository integration against current source;
 7. regenerate and compare checked-in `codexsdk` protocol artifacts and SDK
-   surface with `go run ./internal/cmd/generatedproof`, which observes git HEAD,
-   the exact worktree tree, and baseline provenance (including `source_ref_kind`)
-   itself and emits a machine-readable proof of those observed facts. Unobserved
-   stages are omitted rather than serialized as false. `-write-artifacts` only
-   generates files and is not a proof.
+   surface with the owner-local Go generated-artifact checker. The current
+   command is `go run ./internal/cmd/generatedproof`; its repository role is a
+   deterministic source check, not a CI attestation or publication-identity
+   ledger. `-write-artifacts` only generates files and is not a check.
 
 The adapter's temporary source replacement and repository integration proof
 answer only whether the checked-out source cohort composes. They do not answer
@@ -94,29 +93,20 @@ they are not invoked again through a second verification framework. Codex SDK
 checked-in protocol artifacts, generated facade semantics, baseline provenance,
 and baseline hygiene are likewise protected by owner-local Go tests.
 
-The Python and shell programs under `codexsdk/scripts` belong to the exceptional
-upstream synchronization control plane. They may acquire or classify upstream
-Rust-derived schemas, construct sync candidates, and publish a sync PR. They
-are not the owner of generated-Go reproducibility or current-source
-composition. Those proofs are Go-native: `codexsdk/internal/cmd/generatedproof`
-and `internal/moduleproof`. The upstream-sync workflow is mechanical-first:
-resolve the target, generate and compare upstream schemas, then call one
-reusable protocol-proof workflow for generated artifacts, owner-local Go tests,
-candidate schema-state, and retained script tests. A successful
-`force_compare=true` run must still execute that proof. A required stage
-failure fails that run; the same run does not recover itself. Repair is a
-separate `workflow_dispatch` continuation. It admits only mechanical
-`escalate` or `applied` plus an observed failed protocol-proof owner from the
-exact failed run, then lets Codex propose worktree changes and reuses the
-same proof workflow. `run.conclusion == failure` is not enough to authorize
-repair. Normal publication is structurally `metadata-sync`; repair
-publication is structurally `repair-sync`. The implementation agent does not
-certify its own repair.
+Codex App Server upgrades follow [`docs/protocol-sync.md`](protocol-sync.md).
+The workflow is intentionally one linear attempt: resolve/generate/compare,
+apply mechanical updates, invoke an implementation Agent only if real protocol
+compatibility work remains, rerun the same deterministic verification, and
+publish a protected PR only after success. A failed run ends; retry regenerates
+from the selected upstream source. Ordinary protocol synchronization does not
+own cross-run repair admission, historical run reconstruction, or a separate
+attestation ledger.
 
-Retained Python/shell helpers that still have a mechanical role include
-upstream schema acquisition, candidate apply/report construction, and the
-compatibility-surface helper used by release reports. They must not decide
-protocol, runtime, or publication truth once the native proof exists.
+Retained Python/shell helpers under `codexsdk/scripts` may perform real
+mechanical work such as upstream schema acquisition or large candidate/report
+construction. They must not become a second owner of generated-Go correctness,
+SDK acceptance, or publication policy. Delete a helper when the linear native
+path no longer consumes it.
 
 Scheduled Dependabot updates and the manual/scheduled `Go vulnerability scan`
 workflow surface dependency and Action maintenance. They are not required
@@ -134,11 +124,10 @@ required pull-request check.
 Ordinary verification deliberately does **not** model release state, mirror
 public API inventories, compile README Markdown, or treat an unpublished module
 version as published merely because repository source can replace it. It does
-not wrap standard Go commands in another repository task runner. A generated
-reproducibility run may write a small JSON proof of the commits and artifacts
-it actually observed; that file is evidence, not a publication authorization
-artifact. Git source, owner-local Go tests, module `go.mod` files, and
-immutable tags remain the authorities for those facts.
+not maintain custom evidence/authorization artifacts for reproducible CI state
+or wrap standard Go commands in another repository task runner. Git source,
+owner-local Go tests, module `go.mod` files, selected upstream source identity,
+and immutable release tags remain the authorities for their respective facts.
 
 ## Real Codex smoke
 
