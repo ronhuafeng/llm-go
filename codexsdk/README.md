@@ -10,8 +10,6 @@ Public packages:
 - `github.com/ronhuafeng/llm-go/codexsdk/protocolv2` for generated App Server v2
   protocol types and method registry.
 
-Requires Go 1.23 or newer.
-
 ```sh
 go get github.com/ronhuafeng/llm-go/codexsdk@latest
 ```
@@ -24,20 +22,15 @@ interface.
 
 `ThreadRunner` / Exact Run APIs compose thread and turn lifecycle when callers
 need notifications, partial results, or precise Codex details. Admission
-callbacks are supplied by the application before model-directed continuation;
-the SDK does not choose approval, permission, sandbox, or other application
-policy.
+callbacks and server-request answers come from the application; the SDK does not
+choose approval, permission, sandbox, user input, or environment policy.
 
-Server requests are delivered as generated typed requests. The application
-supplies the response value; the SDK does not invent approvals, user input, or
-environment facts.
-
-The generated API matches the checked-in protocol baseline. A successful live
-request does not prove compatibility with every possible App Server version.
+The generated API follows the checked-in protocol baseline. A successful live
+request does not prove compatibility with every App Server version.
 
 Inbound JSON-RPC frames are limited to 16 MiB including the newline delimiter.
 
-## Examples, verification, and protocol upgrades
+## Example
 
 [`example_test.go`](example_test.go) is the compile-checked setup example.
 
@@ -45,6 +38,7 @@ Inbound JSON-RPC frames are limited to 16 MiB including the newline delimiter.
 GOWORK=off go test ./...
 ```
 
-Protocol upgrades use [`../docs/protocol-sync.md`](../docs/protocol-sync.md).
-Repository verification is in [`../docs/verify.md`](../docs/verify.md).
+Protocol upgrades: [`../docs/protocol-sync.md`](../docs/protocol-sync.md).
+Supported Go/platform versions: [`../SUPPORT.md`](../SUPPORT.md).
+Repository verification: [`../docs/verify.md`](../docs/verify.md).
 Changelog: [`CHANGELOG.md`](CHANGELOG.md).

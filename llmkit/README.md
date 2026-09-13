@@ -8,8 +8,6 @@ Provider-neutral typed model calls, validation, and bounded retries.
 | `llmadapter` | Provider-neutral typed call contracts and response decoding. |
 | `llmstep` | Run bounded calls with deterministic caller validation and optional retry feedback. |
 
-Requires Go 1.23 or newer.
-
 ```sh
 go get github.com/ronhuafeng/llm-go/llmkit@latest
 ```
@@ -28,7 +26,7 @@ to a later model attempt.
 The toolkit does not own provider transport, application authorization, or
 external side effects.
 
-## Examples and verification
+## Examples
 
 Compile-checked examples live with the packages:
 
@@ -40,5 +38,6 @@ Compile-checked examples live with the packages:
 GOWORK=off go test ./...
 ```
 
-See [`../docs/verify.md`](../docs/verify.md) for repository verification and
-[`CHANGELOG.md`](CHANGELOG.md) for releases.
+Supported Go/platform versions: [`../SUPPORT.md`](../SUPPORT.md).
+Repository verification: [`../docs/verify.md`](../docs/verify.md).
+Changelog: [`CHANGELOG.md`](CHANGELOG.md).

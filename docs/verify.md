@@ -1,12 +1,11 @@
 # Verification
 
-Use standard Go commands. The repository intentionally has no general task
-runner.
+Use standard Go commands. Supported Go/platform versions are documented in
+[`../SUPPORT.md`](../SUPPORT.md) and enforced by each module's `go.mod` and CI.
 
 ## Local module checks
 
-Published modules support Go 1.23. For a module whose committed dependencies are
-already published:
+For a module whose committed dependencies are already published:
 
 ```sh
 GOWORK=off go mod tidy -diff
@@ -14,51 +13,45 @@ GOWORK=off go vet ./...
 GOWORK=off go test -race ./...
 ```
 
-Run those commands from `llmkit`, `codexsdk`, or `llmcaller/codex` as
-appropriate.
+Run those commands from the affected public module.
 
-The adapter may temporarily name an unpublished next `llmkit`/`codexsdk` version
-during a pre-v1 source cohort. Required PR verification handles that case with a
-temporary modfile pointing at repository current source. Committed public module
-manifests stay unchanged and contain no `replace` or `exclude` directives.
-
-Repository tools require Go 1.25. From the repository root:
+For repository integration:
 
 ```sh
 go test ./internal/tools/integration
 ```
 
+A pre-v1 source cohort may temporarily name a not-yet-published repository
+module version. Required PR verification handles that case with an uncommitted
+temporary modfile pointing at current repository source. Public `go.mod` files
+remain unchanged.
+
+Current-source composition and published dependency closure are different
+checks. The latter is enforced during release; see [`release.md`](release.md).
+
 ## Required PR verification
 
-`PR verification` is the merge gate. It checks:
+`PR verification` is the merge gate. It covers:
 
 - workflow syntax and Go formatting/whitespace;
-- each public module at its minimum Go version;
-- current-source adapter/repository composition without modifying committed
+- public modules at their supported minimum Go versions;
+- owner-local module tests;
+- current-source adapter/repository composition without changing committed
   manifests;
-- current-toolchain `tidy`, `vet`, race tests, and repository integration;
-- checked-in `codexsdk` generated protocol/source reproducibility.
+- current-toolchain tidy/vet/race/integration checks;
+- checked-in `codexsdk` generated-source reproducibility.
 
-GitHub Actions orchestrates these checks; Go owns the repository/module logic.
-
-Current-source composition does **not** prove that a dependency version is
-published. Published dependency closure is checked during release; see
-[`release.md`](release.md).
+GitHub Actions orchestrates these checks; Go owns the module/repository logic.
 
 ## Protocol upgrades
 
-Codex App Server protocol upgrades follow [`protocol-sync.md`](protocol-sync.md).
-The final architecture is one run from upstream comparison through deterministic
-Go checks to a protected PR. A failed run is retried from upstream source, not
-reconstructed from historical CI state.
+Use [`protocol-sync.md`](protocol-sync.md).
 
 ## Non-gating checks
 
-The repository also runs advisory portability, fuzzing, vulnerability scans,
-post-release resolution smoke, and a real Codex smoke. These provide additional
-signals but are not required PR merge gates unless a repository rule explicitly
-changes that policy.
+Advisory portability, fuzzing, vulnerability scans, post-release resolution
+smoke, and real Codex smoke provide additional signals but are not required PR
+merge gates unless repository policy explicitly changes.
 
-The live Codex smoke exercises current provider/CLI availability and therefore
-cannot replace deterministic source tests. It runs only on trusted repository
-paths with provider credentials isolated from checked-out development code.
+The live Codex smoke checks current CLI/provider availability and cannot replace
+deterministic source verification.
