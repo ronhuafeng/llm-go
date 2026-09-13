@@ -433,7 +433,12 @@ func TestWorkflowLintUsesPinnedGoActionlint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "verify-workflows.yml"))
+	if _, err := os.Stat(filepath.Join(root, ".github", "workflows", "verify-workflows.yml")); err == nil {
+		t.Fatal("verify-workflows.yml has no caller and must be deleted")
+	} else if !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "pr-verification.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
