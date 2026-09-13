@@ -64,6 +64,7 @@ jobs:
           if-no-files-found: error
 
       - name: Worktree remains clean
+        if: ${{ always() && !cancelled() }}
         run: |
           set -euo pipefail
           git diff --check

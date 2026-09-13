@@ -38,17 +38,17 @@ For a read-only comparison, report its target provenance and drift result withou
 
 When `GITHUB_ACTIONS=true`, use only this protocol. Do not load `references/github-operations.md`.
 
-The workflow owns mechanical generation. An implementation agent is invoked only when `.cache/codexsdk-sync/escalation.json` exists after that path failed with a deterministic reason.
+The workflow owns mechanical generation. An implementation agent is invoked only from the separate repair workflow after deterministic admission succeeds.
 
-Set the module root to `$GITHUB_WORKSPACE/codexsdk` and use it as the working directory for every Action shell command. Read `$GITHUB_WORKSPACE/codexsdk/.cache/codexsdk-sync/escalation.json` and `$GITHUB_WORKSPACE/codexsdk/.cache/codexsdk-sync/action-inputs.json`. Do not search for, infer, or replace missing Action inputs or the selected upstream ref/commit.
+Set the module root to `$GITHUB_WORKSPACE/codexsdk` and use it as the working directory for every Action shell command. Read `$RUNNER_TEMP/repair-input/admission.json` first, then the exact source-run evidence under `$RUNNER_TEMP/repair-input/` (`sync-evidence/control/`, `candidate/`, `generated-proof/`, `failed-logs/`). Do not search for, infer, or replace missing Action inputs or the selected upstream ref/commit. Do not require workspace `.cache/codexsdk-sync/escalation.json`; that cache is not restored in the repair continuation.
 
-1. Confirm `escalation.json` names the same `target_ref`, `target_kind`, and `target_sha` as `action-inputs.json`.
-2. Use the recorded reason, detail, and artifact paths. Do not rerun target resolution, detect-drift, or mechanical apply from scratch.
+1. Confirm `admission.json` names the same `target_ref`, `target_kind`, and `target_sha` as `sync-evidence/control/action-inputs.json` when that control file is present.
+2. Use the recorded failure class, failed proof owners, reason, detail, and artifact paths. Do not rerun target resolution, detect-drift, or mechanical apply from scratch.
 3. Use `repair-applied-candidate` or `recover-failure` only to resolve the recorded unsupported semantic drift.
 4. Use `validate-local` against the same target SHA.
 5. Leave changes unstaged. The workflow captures, validates again, and publishes.
 
-If `escalation.json` is absent, stop. The mechanical path already finished without an implementation agent.
+If `admission.json` is absent, stop. The repair workflow did not authorize an implementation agent.
 
 ## Safety Boundaries
 

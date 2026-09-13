@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Pack observed protocol-sync evidence and admit a repair continuation.
 
-The normal sync workflow writes only facts it actually observed. The repair
-workflow classifies that source run before Codex may run. This module does not
-decide publication mode or generated-Go correctness.
+GitHub run metadata owns source-run identity, including the exact run attempt.
+Uploaded evidence may corroborate those facts, never override them. Protocol-proof
+repair requires failure of the semantic owning step, not merely its job.
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -21,6 +22,8 @@ from typing import Any
 SYNC_WORKFLOW_PATH = ".github/workflows/codexsdk-upstream-protocol-sync.yml"
 EVIDENCE_NAME = "evidence.json"
 PLACEHOLDERS = frozenset({"", "unknown", "not-run", "missing-but-assumed"})
+FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
+ALLOWED_EVENTS = frozenset({"schedule", "workflow_dispatch"})
 PROOF_OWNER_JOB_NAMES = {
     "Protocol proof / Generated reproducibility": "generated",
     "Protocol proof / Owner-local tests": "owner-local",
@@ -31,7 +34,19 @@ PROOF_OWNER_JOB_NAMES = {
     "Candidate schema state": "schema-state",
     "Remaining script tests": "script-tests",
 }
+SEMANTIC_STEP_NAMES = {
+    "generated": "Prove generated artifacts",
+    "owner-local": "Owner-local codexsdk tests",
+    "schema-state": "Candidate schema state",
+    "script-tests": "Remaining script tests",
+}
 PROOF_OWNER_ORDER = ("generated", "owner-local", "schema-state", "script-tests")
+ARTIFACT_KINDS = (
+    "protocol-sync-evidence",
+    "protocol-candidate",
+    "protocol-worktree",
+    "generated-proof",
+)
 CONTROL_FILES = (
     "action-inputs.json",
     "policy.json",
@@ -39,6 +54,10 @@ CONTROL_FILES = (
     "escalation.json",
     "mechanical-changes.json",
 )
+CANDIDATE_DIRS = ("schema", "stable-schema")
+CANDIDATE_FILES = ("common.rs", "common.rs.source_sha")
+PRODUCT_PREFIXES = ("codexsdk/",)
+PRODUCT_EXCLUDED_PREFIXES = ("codexsdk/.cache/", "codexsdk/.agents/")
 NON_REPAIRABLE_OUTCOMES = frozenset(
     {"blocked", "current", "comparison", "comparison_dirty"}
 )
@@ -70,6 +89,13 @@ def observed_text(value: object) -> str | None:
     return text
 
 
+def require_full_sha(value: object, *, field: str) -> str:
+    text = observed_text(value)
+    if text is None or not FULL_SHA.fullmatch(text):
+        raise EvidenceError(f"{field} {value!r} is not a full 40-hex git sha")
+    return text
+
+
 def load_list(path: Path, key: str) -> list[dict[str, Any]]:
     raw = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(raw, list):
@@ -79,8 +105,36 @@ def load_list(path: Path, key: str) -> list[dict[str, Any]]:
     raise EvidenceError(f"{path} must be a list or {{{key}: [...]}}")
 
 
+def artifact_name(kind: str, attempt: str) -> str:
+    return f"{kind}-attempt-{attempt}"
+
+
+def parse_artifact_attempt(name: str) -> tuple[str, str] | None:
+    for kind in ARTIFACT_KINDS:
+        prefix = f"{kind}-attempt-"
+        if name.startswith(prefix):
+            attempt = name[len(prefix) :]
+            if attempt.isdigit():
+                return kind, attempt
+    return None
+
+
 def proof_owner_for_job(name: str) -> str | None:
     return PROOF_OWNER_JOB_NAMES.get(name.strip())
+
+
+def semantic_step_conclusion(job: dict[str, Any], owner: str) -> str | None:
+    want = SEMANTIC_STEP_NAMES[owner]
+    for step in job.get("steps") or []:
+        if not isinstance(step, dict):
+            continue
+        if str(step.get("name") or "") != want:
+            continue
+        conclusion = str(step.get("conclusion") or "")
+        if conclusion in {"success", "failure"}:
+            return conclusion
+        return None
+    return None
 
 
 def proof_outcomes_from_jobs(jobs: list[dict[str, Any]]) -> dict[str, str]:
@@ -89,8 +143,8 @@ def proof_outcomes_from_jobs(jobs: list[dict[str, Any]]) -> dict[str, str]:
         owner = proof_owner_for_job(str(job.get("name") or ""))
         if owner is None:
             continue
-        conclusion = str(job.get("conclusion") or "")
-        if conclusion not in {"success", "failure"}:
+        conclusion = semantic_step_conclusion(job, owner)
+        if conclusion is None:
             continue
         observed[owner] = conclusion
     return {owner: observed[owner] for owner in PROOF_OWNER_ORDER if owner in observed}
@@ -102,16 +156,105 @@ def failed_jobs_from_jobs(jobs: list[dict[str, Any]]) -> list[dict[str, str]]:
         owner = proof_owner_for_job(str(job.get("name") or ""))
         if owner is None:
             continue
-        if str(job.get("conclusion") or "") != "failure":
+        if semantic_step_conclusion(job, owner) != "failure":
             continue
         failed.append(
             {
                 "owner": owner,
                 "name": str(job.get("name") or ""),
                 "job_id": str(job.get("id") or ""),
+                "step": SEMANTIC_STEP_NAMES[owner],
             }
         )
     return failed
+
+
+def run_identity(run: dict[str, Any], *, repository: str, workflow_path: str) -> dict[str, str]:
+    if str(run.get("conclusion") or "") != "failure":
+        raise EvidenceError(
+            f"failed_run_id conclusion={run.get('conclusion')!r}, want failure"
+        )
+    head_repo = ""
+    head = run.get("head_repository")
+    if isinstance(head, dict):
+        head_repo = str(head.get("full_name") or "")
+    if head_repo and head_repo != repository:
+        raise EvidenceError(f"failed run head repository {head_repo!r} != {repository!r}")
+    path = str(run.get("path") or "")
+    if path != workflow_path:
+        raise EvidenceError(f"failed run workflow path {path!r} != {workflow_path!r}")
+    event = observed_text(run.get("event"))
+    if event not in ALLOWED_EVENTS:
+        raise EvidenceError(f"failed run event {run.get('event')!r} is not a normal-sync event")
+    attempt = observed_text(run.get("run_attempt"))
+    if attempt is None or not str(attempt).isdigit():
+        raise EvidenceError(f"failed run missing exact run_attempt, got {run.get('run_attempt')!r}")
+    return {
+        "run_id": str(run.get("id") or ""),
+        "run_attempt": str(attempt),
+        "head_sha": require_full_sha(run.get("head_sha"), field="run.head_sha"),
+        "head_branch": observed_text(run.get("head_branch")) or "",
+        "event": event,
+        "path": path,
+        "repository": repository,
+    }
+
+
+def corroborate_identity(evidence: dict[str, Any], identity: dict[str, str]) -> None:
+    pairs = (
+        ("run_id", "run_id"),
+        ("run_attempt", "run_attempt"),
+        ("repository_sha", "head_sha"),
+        ("head_branch", "head_branch"),
+        ("event", "event"),
+        ("repository", "repository"),
+        ("workflow_path", "path"),
+    )
+    for evidence_key, identity_key in pairs:
+        copy = evidence.get(evidence_key)
+        if copy is None:
+            continue
+        observed = observed_text(copy)
+        expected = identity[identity_key]
+        if observed is None or observed != expected:
+            raise EvidenceError(
+                f"evidence {evidence_key}={copy!r} conflicts with run {identity_key}={expected!r}"
+            )
+
+
+def load_control_object(evidence_dir: Path | None, name: str) -> dict[str, Any] | None:
+    if evidence_dir is None:
+        return None
+    path = evidence_dir / "control" / name
+    if not path.is_file():
+        return None
+    return load_json(path)
+
+
+def canonical_mechanical_facts(
+    evidence: dict[str, Any],
+    *,
+    evidence_dir: Path | None,
+) -> dict[str, str]:
+    action_inputs = load_control_object(evidence_dir, "action-inputs.json") or {}
+    mechanical = load_control_object(evidence_dir, "mechanical-outcome.json") or {}
+    facts: dict[str, str] = {}
+    for key, sources in (
+        ("target_ref", (mechanical.get("target_ref"), action_inputs.get("target_ref"), evidence.get("target_ref"))),
+        ("target_kind", (mechanical.get("target_kind"), action_inputs.get("target_kind"), evidence.get("target_kind"))),
+        ("target_sha", (mechanical.get("target_sha"), action_inputs.get("target_sha"), evidence.get("target_sha"))),
+        ("outcome", (mechanical.get("outcome"), evidence.get("outcome"))),
+    ):
+        observed = [observed_text(value) for value in sources]
+        present = [value for value in observed if value is not None]
+        if not present:
+            continue
+        if any(value != present[0] for value in present):
+            raise EvidenceError(f"conflicting {key} copies {present!r}")
+        facts[key] = present[0]
+    if "target_sha" in facts:
+        facts["target_sha"] = require_full_sha(facts["target_sha"], field="target_sha")
+    return facts
 
 
 def build_evidence(
@@ -124,21 +267,21 @@ def build_evidence(
     target_kind: str = "",
     target_sha: str = "",
     outcome: str = "",
-    applied: bool = False,
     candidate_present: bool = False,
     worktree_present: bool = False,
     head_branch: str = "",
     event: str = "",
     validation_only: bool | None = None,
+    run_attempt: str = "",
     control_files: list[str] | None = None,
     report_files: list[str] | None = None,
+    candidate_files: list[str] | None = None,
     mechanical_evidence_present: bool = False,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "repository": repository,
         "workflow_path": workflow_path,
         "run_id": str(run_id),
-        "applied": bool(applied),
         "candidate_present": bool(candidate_present),
         "worktree_present": bool(worktree_present),
         "mechanical_evidence_present": bool(mechanical_evidence_present),
@@ -151,6 +294,7 @@ def build_evidence(
         ("outcome", outcome),
         ("head_branch", head_branch),
         ("event", event),
+        ("run_attempt", run_attempt),
     ):
         observed = observed_text(value)
         if observed is not None:
@@ -161,7 +305,70 @@ def build_evidence(
         payload["control_files"] = list(control_files)
     if report_files:
         payload["report_files"] = list(report_files)
+    if candidate_files:
+        payload["candidate_files"] = list(candidate_files)
     return payload
+
+
+def pack_candidate_cohort(schema_path: Path, out_dir: Path) -> list[str]:
+    copied: list[str] = []
+    schema_path = schema_path.resolve()
+    if not schema_path.is_dir():
+        return copied
+    if schema_path.name == "schema":
+        cohort = schema_path.parent
+        for name in CANDIDATE_DIRS:
+            src = cohort / name
+            if src.is_dir():
+                dest = out_dir / name
+                if dest.exists():
+                    shutil.rmtree(dest)
+                shutil.copytree(src, dest)
+                copied.append(name)
+        for name in CANDIDATE_FILES:
+            if copy_existing_file(cohort / name, out_dir / name):
+                copied.append(name)
+        return copied
+    dest = out_dir / "schema"
+    if dest.exists():
+        shutil.rmtree(dest)
+    shutil.copytree(schema_path, dest)
+    copied.append("schema")
+    return copied
+
+
+def reject_non_product_paths(repo_root: Path) -> None:
+    status = subprocess.run(
+        ["git", "-C", str(repo_root), "status", "--porcelain", "--untracked-files=all"],
+        check=True,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    invalid: list[str] = []
+    for line in status.stdout.splitlines():
+        path = line[3:].strip() if len(line) > 3 else line.strip()
+        if not path:
+            continue
+        if any(path.startswith(prefix) for prefix in PRODUCT_EXCLUDED_PREFIXES):
+            invalid.append(path)
+            continue
+        if not any(path == prefix.rstrip("/") or path.startswith(prefix) for prefix in PRODUCT_PREFIXES):
+            invalid.append(path)
+    if invalid:
+        rendered = "\n".join(f"- {path}" for path in invalid)
+        raise EvidenceError(f"repaired proposal contains paths outside allowed product prefix:\n{rendered}")
+
+
+def assert_required_logs(log_dir: Path, admission: dict[str, Any]) -> None:
+    if admission.get("failure_class") != "protocol-proof":
+        return
+    missing = [
+        owner
+        for owner in admission.get("failed_proof_owners") or []
+        if not ((log_dir / f"{owner}.log").is_file() and (log_dir / f"{owner}.log").stat().st_size > 0)
+    ]
+    if missing:
+        raise EvidenceError(f"required failed logs missing for {missing}")
 
 
 def copy_existing_file(source: Path, dest: Path) -> bool:
@@ -182,17 +389,20 @@ def pack_directory(
     target_kind: str,
     target_sha: str,
     outcome: str,
-    applied: bool,
     candidate: str,
     repo_root: Path,
     head_branch: str = "",
     event: str = "",
     validation_only: bool | None = None,
+    run_attempt: str = "",
     module_root: Path | None = None,
+    product_only: bool = False,
 ) -> dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
     worktree_present = False
     candidate_present = False
+    if product_only:
+        reject_non_product_paths(repo_root)
     status = subprocess.run(
         ["git", "-C", str(repo_root), "status", "--porcelain", "--untracked-files=all"],
         check=True,
@@ -200,7 +410,10 @@ def pack_directory(
         text=True,
     )
     if status.stdout.strip():
-        subprocess.run(["git", "-C", str(repo_root), "add", "-A"], check=True)
+        add_args = ["git", "-C", str(repo_root), "add", "-A"]
+        if product_only:
+            add_args.extend(["--", "codexsdk"])
+        subprocess.run(add_args, check=True)
         patch = subprocess.run(
             ["git", "-C", str(repo_root), "diff", "--cached", "--binary"],
             check=True,
@@ -209,14 +422,10 @@ def pack_directory(
         (out_dir / "protocol-worktree.patch").write_bytes(patch.stdout)
         subprocess.run(["git", "-C", str(repo_root), "reset", "-q"], check=True)
         worktree_present = True
+    candidate_files: list[str] = []
     if candidate:
-        source = Path(candidate)
-        if source.is_dir():
-            dest = out_dir / "schema"
-            if dest.exists():
-                shutil.rmtree(dest)
-            shutil.copytree(source, dest)
-            candidate_present = True
+        candidate_files = pack_candidate_cohort(Path(candidate), out_dir)
+        candidate_present = bool(candidate_files) or (out_dir / "schema").is_dir()
     control_files: list[str] = []
     cache = (module_root or (repo_root / "codexsdk")) / ".cache" / "codexsdk-sync"
     control_dir = out_dir / "control"
@@ -243,74 +452,49 @@ def pack_directory(
         target_kind=target_kind,
         target_sha=target_sha,
         outcome=outcome,
-        applied=applied,
         candidate_present=candidate_present,
         worktree_present=worktree_present,
         head_branch=head_branch,
         event=event,
         validation_only=validation_only,
+        run_attempt=run_attempt,
         control_files=control_files,
         report_files=report_files,
         mechanical_evidence_present="escalation.json" in control_files,
+        candidate_files=candidate_files,
     )
     write_json(out_dir / EVIDENCE_NAME, evidence)
     return evidence
 
 
-def validate_failed_run(
+def validate_artifacts(
+    artifacts: list[dict[str, Any]] | None,
     *,
-    run: dict[str, Any],
-    evidence: dict[str, Any],
-    repository: str,
-    workflow_path: str = SYNC_WORKFLOW_PATH,
-    artifacts: list[dict[str, Any]] | None = None,
-) -> dict[str, Any]:
-    if str(run.get("conclusion") or "") != "failure":
-        raise EvidenceError(
-            f"failed_run_id conclusion={run.get('conclusion')!r}, want failure"
-        )
-    head_repo = ""
-    head = run.get("head_repository")
-    if isinstance(head, dict):
-        head_repo = str(head.get("full_name") or "")
-    if head_repo and head_repo != repository:
-        raise EvidenceError(f"failed run head repository {head_repo!r} != {repository!r}")
-    path = str(run.get("path") or "")
-    if path != workflow_path:
-        raise EvidenceError(f"failed run workflow path {path!r} != {workflow_path!r}")
-    run_sha = str(run.get("head_sha") or "")
-    evidence_sha = observed_text(evidence.get("repository_sha"))
-    if evidence_sha is None or run_sha != evidence_sha:
-        raise EvidenceError(
-            f"failed run head_sha={run_sha!r} does not match evidence repository_sha={evidence_sha!r}"
-        )
-    if str(evidence.get("repository") or "") != repository:
-        raise EvidenceError(
-            f"evidence repository {evidence.get('repository')!r} != {repository!r}"
-        )
-    if str(evidence.get("workflow_path") or "") != workflow_path:
-        raise EvidenceError(
-            f"evidence workflow_path {evidence.get('workflow_path')!r} != {workflow_path!r}"
-        )
-    run_id = str(run.get("id") or "")
-    if str(evidence.get("run_id") or "") != run_id:
-        raise EvidenceError(
-            f"evidence run_id {evidence.get('run_id')!r} != failed run {run_id!r}"
-        )
-    for key in ("target_ref", "target_sha", "target_kind", "repository_sha"):
-        if observed_text(evidence.get(key)) is None:
-            raise EvidenceError(f"evidence missing observed {key}")
-    if artifacts is not None:
-        for artifact in artifacts:
-            owner = artifact.get("workflow_run")
-            owner_id = ""
-            if isinstance(owner, dict):
-                owner_id = str(owner.get("id") or "")
-            if owner_id and owner_id != run_id:
-                raise EvidenceError(
-                    f"artifact {artifact.get('name')!r} belongs to run {owner_id}, want {run_id}"
-                )
-    return evidence
+    run_id: str,
+    run_attempt: str,
+) -> None:
+    if artifacts is None:
+        return
+    for artifact in artifacts:
+        name = str(artifact.get("name") or "")
+        owner = artifact.get("workflow_run")
+        owner_id = ""
+        if isinstance(owner, dict):
+            owner_id = str(owner.get("id") or "")
+        if owner_id and owner_id != run_id:
+            raise EvidenceError(
+                f"artifact {name!r} belongs to run {owner_id}, want {run_id}"
+            )
+        parsed = parse_artifact_attempt(name)
+        if parsed is None:
+            raise EvidenceError(
+                f"artifact {name!r} is not attempt-addressable for attempt {run_attempt}"
+            )
+        _, attempt = parsed
+        if attempt != str(run_attempt):
+            raise EvidenceError(
+                f"artifact {name!r} belongs to attempt {attempt}, want {run_attempt}"
+            )
 
 
 def admit(
@@ -322,26 +506,34 @@ def admit(
     jobs: list[dict[str, Any]] | None = None,
     artifacts: list[dict[str, Any]] | None = None,
     workflow_path: str = SYNC_WORKFLOW_PATH,
+    evidence_dir: Path | None = None,
+    run_attempt: str = "",
 ) -> dict[str, Any]:
-    validate_failed_run(
-        run=run,
-        evidence=evidence,
-        repository=repository,
-        workflow_path=workflow_path,
-        artifacts=artifacts,
-    )
-    head_branch = observed_text(evidence.get("head_branch")) or observed_text(run.get("head_branch"))
-    if head_branch != observed_text(default_branch):
+    identity = run_identity(run, repository=repository, workflow_path=workflow_path)
+    selected_attempt = observed_text(run_attempt) or identity["run_attempt"]
+    if selected_attempt != identity["run_attempt"]:
         raise EvidenceError(
-            f"failed run branch {head_branch!r} is not default branch {default_branch!r}"
+            f"requested run_attempt {selected_attempt!r} != run.run_attempt {identity['run_attempt']!r}"
         )
-    if evidence.get("validation_only") is True:
+    corroborate_identity(evidence, identity)
+    validate_artifacts(artifacts, run_id=identity["run_id"], run_attempt=identity["run_attempt"])
+    if identity["head_branch"] != observed_text(default_branch):
+        raise EvidenceError(
+            f"failed run branch {identity['head_branch']!r} is not default branch {default_branch!r}"
+        )
+    if "validation_only" not in evidence:
+        raise EvidenceError("evidence missing observed validation_only")
+    if evidence.get("validation_only") is not False:
         raise EvidenceError("validation-only runs are not repairable")
-    outcome = observed_text(evidence.get("outcome"))
+    facts = canonical_mechanical_facts(evidence, evidence_dir=evidence_dir)
+    outcome = facts.get("outcome")
     if outcome is None:
-        raise EvidenceError("evidence missing observed outcome")
+        raise EvidenceError("canonical mechanical outcome is unobserved")
     if outcome in NON_REPAIRABLE_OUTCOMES:
         raise EvidenceError(f"outcome {outcome} is not repairable")
+    for key in ("target_ref", "target_kind", "target_sha"):
+        if key not in facts:
+            raise EvidenceError(f"canonical {key} is unobserved")
     proof_outcomes = proof_outcomes_from_jobs(jobs or [])
     failed_owners = [owner for owner in PROOF_OWNER_ORDER if proof_outcomes.get(owner) == "failure"]
     failed_jobs = failed_jobs_from_jobs(jobs or [])
@@ -358,29 +550,34 @@ def admit(
             raise EvidenceError("protocol-proof repair requires an observed applied worktree")
         if not failed_owners:
             raise EvidenceError(
-                "applied run with no failed protocol-proof owner is not repairable"
+                "applied run with no failed semantic protocol-proof step is not repairable"
             )
         failure_class = "protocol-proof"
     else:
         raise EvidenceError(f"outcome {outcome!r} is not repairable")
-    admission = {
+    return {
         "failure_class": failure_class,
         "failed_proof_owners": failed_owners,
         "failed_jobs": failed_jobs,
         "proof_outcomes": proof_outcomes,
         "repository": repository,
         "workflow_path": workflow_path,
-        "run_id": str(evidence.get("run_id") or ""),
-        "repository_sha": evidence.get("repository_sha"),
-        "target_ref": evidence.get("target_ref"),
-        "target_kind": evidence.get("target_kind"),
-        "target_sha": evidence.get("target_sha"),
+        "run_id": identity["run_id"],
+        "run_attempt": identity["run_attempt"],
+        "repository_sha": identity["head_sha"],
+        "target_ref": facts["target_ref"],
+        "target_kind": facts["target_kind"],
+        "target_sha": facts["target_sha"],
         "outcome": outcome,
-        "head_branch": head_branch,
+        "head_branch": identity["head_branch"],
+        "event": identity["event"],
         "candidate_present": bool(evidence.get("candidate_present")),
         "worktree_present": bool(evidence.get("worktree_present")),
+        "evidence_artifact": artifact_name("protocol-sync-evidence", identity["run_attempt"]),
+        "candidate_artifact": artifact_name("protocol-candidate", identity["run_attempt"]),
+        "worktree_artifact": artifact_name("protocol-worktree", identity["run_attempt"]),
+        "generated_proof_artifact": artifact_name("generated-proof", identity["run_attempt"]),
     }
-    return admission
 
 
 def write_github_outputs(values: dict[str, str]) -> None:
@@ -390,6 +587,16 @@ def write_github_outputs(values: dict[str, str]) -> None:
     with Path(output).open("a", encoding="utf-8") as handle:
         for key, value in values.items():
             handle.write(f"{key}={value}\n")
+
+
+def parse_optional_bool(value: str | None) -> bool | None:
+    if value is None or value == "":
+        return None
+    if value == "true":
+        return True
+    if value == "false":
+        return False
+    raise EvidenceError(f"validation_only {value!r} is not an observed boolean")
 
 
 def _cmd_pack(args: argparse.Namespace) -> int:
@@ -402,21 +609,29 @@ def _cmd_pack(args: argparse.Namespace) -> int:
         target_kind=args.target_kind,
         target_sha=args.target_sha,
         outcome=args.outcome,
-        applied=args.applied,
         candidate=args.candidate,
         repo_root=args.repo_root,
         head_branch=args.head_branch,
         event=args.event,
-        validation_only=True if args.validation_only else None,
+        validation_only=parse_optional_bool(args.validation_only),
+        run_attempt=args.run_attempt,
         module_root=args.module_root,
+        product_only=args.product_only,
     )
     write_github_outputs(
         {
             "restore_candidate": "true" if evidence["candidate_present"] else "false",
             "restore_worktree": "true" if evidence["worktree_present"] else "false",
+            "run_attempt": str(evidence.get("run_attempt") or ""),
         }
     )
     print(json.dumps(evidence, indent=2, sort_keys=True))
+    return 0
+
+
+def _cmd_require_logs(args: argparse.Namespace) -> int:
+    admission = load_json(args.admission)
+    assert_required_logs(args.log_dir, admission)
     return 0
 
 
@@ -425,6 +640,7 @@ def _cmd_admit(args: argparse.Namespace) -> int:
     evidence = load_json(args.evidence)
     jobs = load_list(args.jobs_json, "jobs") if args.jobs_json else []
     artifacts = load_list(args.artifacts_json, "artifacts") if args.artifacts_json else None
+    evidence_dir = args.evidence.parent
     admission = admit(
         run=run,
         evidence=evidence,
@@ -433,6 +649,8 @@ def _cmd_admit(args: argparse.Namespace) -> int:
         jobs=jobs,
         artifacts=artifacts,
         workflow_path=args.workflow_path,
+        evidence_dir=evidence_dir,
+        run_attempt=args.run_attempt,
     )
     write_json(args.out, admission)
     write_github_outputs(
@@ -442,8 +660,13 @@ def _cmd_admit(args: argparse.Namespace) -> int:
             "target_kind": str(admission.get("target_kind") or ""),
             "target_sha": str(admission.get("target_sha") or ""),
             "failure_class": str(admission.get("failure_class") or ""),
+            "run_attempt": str(admission.get("run_attempt") or ""),
             "candidate_present": "true" if admission.get("candidate_present") else "false",
             "worktree_present": "true" if admission.get("worktree_present") else "false",
+            "evidence_artifact": str(admission.get("evidence_artifact") or ""),
+            "candidate_artifact": str(admission.get("candidate_artifact") or ""),
+            "worktree_artifact": str(admission.get("worktree_artifact") or ""),
+            "generated_proof_artifact": str(admission.get("generated_proof_artifact") or ""),
         }
     )
     print(json.dumps(admission, indent=2, sort_keys=True))
@@ -460,6 +683,7 @@ def main() -> int:
     pack.add_argument("--module-root", type=Path)
     pack.add_argument("--repository", required=True)
     pack.add_argument("--run-id", required=True)
+    pack.add_argument("--run-attempt", default="")
     pack.add_argument("--repository-sha", default="")
     pack.add_argument("--target-ref", default="")
     pack.add_argument("--target-kind", default="")
@@ -467,10 +691,15 @@ def main() -> int:
     pack.add_argument("--outcome", default="")
     pack.add_argument("--head-branch", default="")
     pack.add_argument("--event", default="")
-    pack.add_argument("--applied", action="store_true")
-    pack.add_argument("--validation-only", action="store_true")
+    pack.add_argument("--validation-only", default="")
     pack.add_argument("--candidate", default="")
+    pack.add_argument("--product-only", action="store_true")
     pack.set_defaults(func=_cmd_pack)
+
+    logs = sub.add_parser("require-logs", help="fail closed unless required failed-owner logs exist")
+    logs.add_argument("--admission", required=True, type=Path)
+    logs.add_argument("--log-dir", required=True, type=Path)
+    logs.set_defaults(func=_cmd_require_logs)
 
     admit_cmd = sub.add_parser("admit", help="admit only explicitly repairable failed sync runs")
     admit_cmd.add_argument("--run-json", required=True, type=Path)
@@ -479,6 +708,7 @@ def main() -> int:
     admit_cmd.add_argument("--evidence", required=True, type=Path)
     admit_cmd.add_argument("--repository", required=True)
     admit_cmd.add_argument("--default-branch", required=True)
+    admit_cmd.add_argument("--run-attempt", default="")
     admit_cmd.add_argument("--workflow-path", default=SYNC_WORKFLOW_PATH)
     admit_cmd.add_argument("--out", required=True, type=Path)
     admit_cmd.set_defaults(func=_cmd_admit)

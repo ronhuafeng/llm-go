@@ -52,7 +52,7 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VALIDATION_ONLY: ${{ inputs.validation_only || false }}
+          VALIDATION_ONLY: ${{ inputs.validation_only == true }}
         run: |
           set -euo pipefail
 
@@ -173,7 +173,8 @@ jobs:
           CANDIDATE: ${{ steps.mechanical.outputs.candidate }}
           HEAD_BRANCH: ${{ github.ref_name }}
           EVENT_NAME: ${{ github.event_name }}
-          VALIDATION_ONLY: ${{ inputs.validation_only || false }}
+          VALIDATION_ONLY: ${{ inputs.validation_only == true }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
         run: |
           set -euo pipefail
           mkdir -p "${RUNNER_TEMP}/protocol-sync-evidence"
@@ -183,9 +184,11 @@ jobs:
             --repo-root "${GITHUB_WORKSPACE}"
             --repository "${GH_REPO}"
             --run-id "${RUN_ID}"
+            --run-attempt "${RUN_ATTEMPT}"
             --repository-sha "${REPOSITORY_SHA}"
             --head-branch "${HEAD_BRANCH}"
             --event "${EVENT_NAME}"
+            --validation-only "${VALIDATION_ONLY}"
             --candidate "${CANDIDATE}"
           )
           if [[ -n "${TARGET_REF}" ]]; then
@@ -200,35 +203,29 @@ jobs:
           if [[ -n "${OUTCOME}" ]]; then
             args+=(--outcome "${OUTCOME}")
           fi
-          if [[ "${APPLIED}" == "true" ]]; then
-            args+=(--applied)
-          fi
-          if [[ "${VALIDATION_ONLY}" == "true" ]]; then
-            args+=(--validation-only)
-          fi
           python3 scripts/codexsdk_repair_evidence.py "${args[@]}"
 
       - name: Upload protocol sync evidence
         if: always() && !cancelled()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: protocol-sync-evidence
+          name: protocol-sync-evidence-attempt-${{ github.run_attempt }}
           path: ${{ runner.temp }}/protocol-sync-evidence
           if-no-files-found: ignore
 
       - name: Upload protocol candidate
         if: always() && !cancelled() && steps.evidence.outputs.restore_candidate == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: protocol-candidate
+          name: protocol-candidate-attempt-${{ github.run_attempt }}
           path: ${{ runner.temp }}/protocol-sync-evidence/schema
           if-no-files-found: error
 
       - name: Upload protocol worktree
         if: always() && !cancelled() && steps.evidence.outputs.restore_worktree == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: protocol-worktree
+          name: protocol-worktree-attempt-${{ github.run_attempt }}
           path: ${{ runner.temp }}/protocol-sync-evidence/protocol-worktree.patch
           if-no-files-found: error
 
@@ -240,8 +237,10 @@ jobs:
       repository-sha: ${{ github.sha }}
       target-ref: ${{ needs.sync.outputs.target_ref }}
       target-sha: ${{ needs.sync.outputs.target_sha }}
+      target-kind: ${{ needs.sync.outputs.target_kind }}
       restore-worktree: ${{ needs.sync.outputs.restore_worktree == 'true' }}
       restore-candidate: ${{ needs.sync.outputs.restore_candidate == 'true' }}
+      run-attempt: ${{ github.run_attempt }}
 
   publish:
     name: Publish metadata-sync PR
@@ -262,38 +261,20 @@ jobs:
 
       - name: Restore applied worktree
         if: needs.sync.outputs.restore_worktree == 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: protocol-worktree
+          name: protocol-worktree-attempt-${{ github.run_attempt }}
           path: ${{ runner.temp }}/protocol-worktree
 
       - name: Apply worktree patch
         if: needs.sync.outputs.restore_worktree == 'true'
         run: git apply --binary "${RUNNER_TEMP}/protocol-worktree/protocol-worktree.patch"
 
-      - name: Confirm generated baseline provenance
-        working-directory: codexsdk
-        env:
-          RESOLVED_TARGET_KIND: ${{ needs.sync.outputs.target_kind }}
-          RESOLVED_TARGET_REF: ${{ needs.sync.outputs.target_ref }}
-          RESOLVED_TARGET_SHA: ${{ needs.sync.outputs.target_sha }}
-        run: |
-          python3 - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          metadata = json.loads(Path("internal/protocolschema/appserver/v2/baseline_metadata.json").read_text(encoding="utf-8"))
-          expected = {
-              "source_ref_name": os.environ["RESOLVED_TARGET_REF"],
-              "source_ref_kind": os.environ["RESOLVED_TARGET_KIND"],
-              "source_commit": os.environ["RESOLVED_TARGET_SHA"],
-          }
-          for key, value in expected.items():
-              actual = str(metadata.get(key) or "")
-              if actual != value:
-                  raise SystemExit(f"protocol implementation {key}={actual!r}, expected {value!r}")
-          PY
+      - name: Restore generated proof
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: generated-proof-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/generated-proof
 
       - name: Capture final protocol changes
         working-directory: codexsdk
@@ -336,6 +317,11 @@ jobs:
           VALIDATED_COMMIT: ${{ steps.commit.outputs.validated_commit }}
         run: |
           set -euo pipefail
+          proved_tree="$(jq -er '.repository_tree' "${RUNNER_TEMP}/generated-proof/generated.json")"
+          if [[ ! "${proved_tree}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "generated proof omitted exact repository_tree" >&2
+            exit 1
+          fi
           gh auth status
           gh auth setup-git
           scripts/codexsdk_publish_sync_pr.sh \
@@ -346,4 +332,55 @@ jobs:
             --target-kind "${TARGET_KIND}" \
             --target-sha "${TARGET_SHA}" \
             --sync-mode metadata-sync \
-            --validated-commit "${VALIDATED_COMMIT}"
+            --validated-commit "${VALIDATED_COMMIT}" \
+            --proved-tree "${proved_tree}"
+
+  summary:
+    name: Observe protocol proof
+    needs: [sync, proof, publish]
+    if: ${{ always() && !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Check out trusted control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Render observation-only summary
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          REPOSITORY_SHA: ${{ github.sha }}
+          TARGET_REF: ${{ needs.sync.outputs.target_ref }}
+          TARGET_KIND: ${{ needs.sync.outputs.target_kind }}
+          TARGET_SHA: ${{ needs.sync.outputs.target_sha }}
+          OUTCOME: ${{ needs.sync.outputs.outcome }}
+          VALIDATION_ONLY: ${{ inputs.validation_only == true }}
+          PUBLISH_RESULT: ${{ needs.publish.result }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/protocol-summary"
+          gh api --paginate "repos/${GH_REPO}/actions/runs/${RUN_ID}/attempts/${RUN_ATTEMPT}/jobs" --jq '.jobs[]' \
+            | jq -s '{jobs: .}' > "${RUNNER_TEMP}/protocol-summary/jobs.json"
+          gh run download "${RUN_ID}" \
+            --repo "${GH_REPO}" \
+            -n "generated-proof-attempt-${RUN_ATTEMPT}" \
+            -D "${RUNNER_TEMP}/protocol-summary/generated-proof" \
+            || true
+          python3 codexsdk/scripts/codexsdk_protocol_summary.py \
+            --jobs-json "${RUNNER_TEMP}/protocol-summary/jobs.json" \
+            --generated-proof "${RUNNER_TEMP}/protocol-summary/generated-proof/generated.json" \
+            --repository-sha "${REPOSITORY_SHA}" \
+            --target-ref "${TARGET_REF}" \
+            --target-kind "${TARGET_KIND}" \
+            --target-sha "${TARGET_SHA}" \
+            --outcome "${OUTCOME}" \
+            --validation-only "${VALIDATION_ONLY}" \
+            --publish-result "${PUBLISH_RESULT}" \
+            >> "${GITHUB_STEP_SUMMARY}"
