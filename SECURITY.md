@@ -1,30 +1,26 @@
 # Security policy
 
-Security maintenance applies only to the latest supported releases of:
+Security reports are accepted for the latest supported releases of:
 
 - `github.com/ronhuafeng/llm-go/llmkit`
 - `github.com/ronhuafeng/llm-go/codexsdk`
 - `github.com/ronhuafeng/llm-go/llmcaller/codex`
 
+## Report privately
+
 Do not open a public issue with exploit details, credentials, transcripts,
 private paths, or other sensitive data. Use
 [GitHub private vulnerability reporting](https://github.com/ronhuafeng/llm-go/security/advisories/new).
 
-Include the affected module and version, impact, a minimal reproduction, and
-any mitigation that can be shared safely.
+Include the affected module and version, impact, a minimal reproduction, and any
+mitigation that can be shared safely.
 
-`codexsdk` is pre-1.0. In scope: transport, JSON-RPC, streams, typed protocol
-encode/decode, generated schema mismatches, and checked-in secrets. Out of
-scope: OpenAI services, the official Codex CLI, and model quality unrelated to
-SDK handling.
+## Scope
 
-The adapter does not read credentials or start processes. Applications own
-authentication, the app-server command, the working directory, and approval
-handling. See the adapter README for the named read-only profile: it is
-effect-safe, not disclosure-safe, and does not establish confidentiality or
-provider retention.
+In scope are vulnerabilities caused by this repository's code, including
+transport/JSON-RPC handling, protocol encode/decode, generated protocol handling,
+and accidental credential or sensitive-data exposure by repository automation.
 
-Dependabot watches the workspace Go modules and GitHub Actions. The scheduled
-or manual `Go vulnerability scan` workflow runs `govulncheck` on those
-modules. Those results are maintenance signals, not a required pull-request
-correctness gate.
+OpenAI services, the official Codex CLI, and model quality unrelated to this
+repository's handling are out of scope. If ownership is unclear, report the issue
+privately rather than publishing exploit details.

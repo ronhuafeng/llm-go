@@ -1,13 +1,8 @@
 # Codex protocol synchronization
 
-Keep `codexsdk` compatible with a selected Codex App Server protocol version.
-The workflow answers three questions:
+Keep `codexsdk` aligned with one selected Codex App Server protocol version.
 
-1. Did the selected upstream protocol change?
-2. If so, what generated/handwritten SDK changes are needed?
-3. Do deterministic checks accept the result?
-
-## Workflow
+## Flow
 
 ```text
 resolve selected upstream source
@@ -37,27 +32,18 @@ native check + codexsdk tests
 workflow fails
 ```
 
-Infrastructure failures fail the run directly. They are not implementation
-prompts.
-
-## Agent contract
-
-For real protocol drift, the workflow may invoke one implementation Agent. The
-Agent may edit `codexsdk` source, generated-owner code, focused tests, and directly
-related documentation when justified by the observed drift.
-
-The Agent must not resolve a different upstream target, stage, commit, push,
-create/merge a PR, tag a release, or decide that its own work succeeded. The
-workflow runs deterministic checks afterward.
-
-The repository skill
+The selected Codex source owns the upstream schema facts. `codexsdk` Go tooling
+owns compare/apply/check. GitHub Actions owns orchestration and publication. For
+real drift, the workflow invokes
 [`codexsdk-sync-upstream`](../.agents/skills/codexsdk-sync-upstream/SKILL.md)
-contains only this implementation contract; workflow orchestration stays in
-Actions and protocol mechanics stay in `codexsdk` tooling.
+once for targeted handwritten/test changes.
+
+Infrastructure failures fail the run directly. A failed run is retried from the
+selected upstream source with a fresh candidate.
 
 ## Deterministic acceptance
 
-After a clean comparison, or after the Agent pass for real drift, require:
+For a clean comparison, or after the one Agent pass for real drift, require:
 
 - candidate schema matches the checked-in baseline for the selected target;
 - generated protocol Go and SDK surface reproduce exactly;
@@ -66,19 +52,9 @@ After a clean comparison, or after the Agent pass for real drift, require:
 - `GOWORK=off go test ./...` passes in `codexsdk`;
 - focused tests for actual protocol changes pass.
 
-Repository PR verification still proves cross-module/current-source composition.
-
-## Failure and retry
-
-A failed run ends. Retry resolves the selected upstream source and generates a
-fresh candidate again. Ordinary protocol sync has no separate repair workflow,
-failed-run admission contract, historical artifact restoration, or CI
-attestation ledger.
-
-Publication is deliberately small: after deterministic acceptance, commit the
-accepted worktree to a protocol-sync branch and create/update a protected PR. If
-base movement makes that unsafe, fail and rerun rather than building a recovery
-state machine.
+Publication happens only after those checks succeed. It creates or updates a
+protected protocol-sync PR; it does not self-merge or tag a release. If base
+movement makes publication unsafe, fail and rerun.
 
 ## Final architecture acceptance
 
@@ -100,7 +76,7 @@ a fresh candidate, compare it with the baseline, run native protocol/generated
 checks and `codexsdk` tests, skip the Agent on the clean baseline, and perform no
 commit, PR, merge, or tag effect.
 
-Structural/unit tests prove the drift branch:
+Structural/unit tests cover the drift branch:
 
 ```text
 drift -> mechanical apply -> one Agent pass -> deterministic checks -> PR only on success
