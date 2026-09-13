@@ -230,3 +230,9 @@ func validateOptionalJSONValue(fields map[string]json.RawMessage, name string, p
 	}
 	return nil
 }
+
+func unmarshalJSONPreserveNumbers(data []byte, dest any) error {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	return decoder.Decode(dest)
+}

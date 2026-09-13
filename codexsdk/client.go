@@ -398,18 +398,11 @@ func (c *Client) readLoopWithLimit(stdout io.Reader, maxBytes int) {
 			c.failClient(err)
 			return
 		}
-		if err := validateJSONRPCEnvelope(line); err != nil {
+		if err := c.ingestJSONRPCLine(line); err != nil {
 			sum := sha256.Sum256(line)
 			c.failClient(fmt.Errorf("codexsdk: invalid app-server JSON-RPC line bytes=%d sha256=%s: %w", len(line), hex.EncodeToString(sum[:]), err))
 			return
 		}
-		var message map[string]any
-		if err := json.Unmarshal(line, &message); err != nil {
-			sum := sha256.Sum256(line)
-			c.failClient(fmt.Errorf("codexsdk: invalid app-server JSON-RPC line bytes=%d sha256=%s: %w", len(line), hex.EncodeToString(sum[:]), err))
-			return
-		}
-		c.handleMessage(message)
 	}
 	if c.isClosed() {
 		c.failAll(ErrClientClosed)
@@ -449,6 +442,18 @@ func readFrame(reader *bufio.Reader, maxBytes int) ([]byte, error) {
 			return nil, fmt.Errorf("codexsdk: read app-server JSON-RPC frame bytes=%d sha256=%s: %w", consumed, hex.EncodeToString(digest.Sum(nil)), err)
 		}
 	}
+}
+
+func (c *Client) ingestJSONRPCLine(line []byte) error {
+	if err := validateJSONRPCEnvelope(line); err != nil {
+		return err
+	}
+	var message map[string]any
+	if err := unmarshalJSONPreserveNumbers(line, &message); err != nil {
+		return err
+	}
+	c.handleMessage(message)
+	return nil
 }
 
 func (c *Client) handleMessage(message map[string]any) {

@@ -17,6 +17,9 @@
   identity, that cause finishes the matching Exact Run. It does not fail the
   whole `Client` or unrelated Exact Runs. Uncorrelated requests are not guessed
   onto a run. Transport and response-write failures remain client-global.
+- Preserve JSON number tokens across JSON-RPC routing. Integer request IDs above
+  `2^53`, generated integers, dynamic `JSONValue` numbers, and `ProtocolError.Data`
+  no longer round through default `map[string]any` `float64` decoding.
 - Preserve caller-context cancellation on synchronous Exact Run `Start` and
   `Resume`. A canceled or deadline-exceeded drain returns the caller cause with
   the latest partial evidence while the shared run is still non-terminal;

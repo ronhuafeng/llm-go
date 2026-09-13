@@ -136,7 +136,7 @@ func encodeProtocolParams(method string, params any) (map[string]any, error) {
 		return nil, fmt.Errorf("codexsdk: encode %s params: %w", method, err)
 	}
 	var paramsMap map[string]any
-	if err := json.Unmarshal(raw, &paramsMap); err != nil {
+	if err := unmarshalJSONPreserveNumbers(raw, &paramsMap); err != nil {
 		return nil, fmt.Errorf("codexsdk: encode %s params object: %w", method, err)
 	}
 	if paramsMap == nil {
