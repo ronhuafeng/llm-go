@@ -28,7 +28,7 @@ var validCoverageStatuses = []string{
 }
 
 // WriteReports writes drift_summary.json, matrix_update_skeleton.json, and SUMMARY.md.
-func WriteReports(dir string, report Report) (MatrixUpdate, error) {
+func WriteReports(dir string, report Report, generatedSchema string) (MatrixUpdate, error) {
 	if dir == "" {
 		return MatrixUpdate{}, fmt.Errorf("reports directory is required")
 	}
@@ -42,7 +42,7 @@ func WriteReports(dir string, report Report) (MatrixUpdate, error) {
 	if err := writeJSON(filepath.Join(dir, MatrixSkeletonName), matrix); err != nil {
 		return MatrixUpdate{}, err
 	}
-	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summaryMarkdown(dir, report)), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summaryMarkdown(generatedSchema, dir, report)), 0o644); err != nil {
 		return MatrixUpdate{}, err
 	}
 	return matrix, nil
@@ -54,7 +54,8 @@ func matrixFromReport(report Report) MatrixUpdate {
 		status = StatusReviewRequired
 	}
 	methodUpdates := []map[string]any{}
-	for schema, delta := range report.MethodDiff {
+	for _, schema := range aggregateSchemas {
+		delta := report.MethodDiff[schema]
 		for _, method := range delta.Added {
 			methodUpdates = append(methodUpdates, map[string]any{
 				"method":        method,
@@ -92,7 +93,7 @@ func matrixFromReport(report Report) MatrixUpdate {
 	}
 }
 
-func summaryMarkdown(reportsDir string, report Report) string {
+func summaryMarkdown(generatedSchema, reportsDir string, report Report) string {
 	return strings.Join([]string{
 		"# Codex SDK Upstream Tracking",
 		"",
@@ -102,7 +103,7 @@ func summaryMarkdown(reportsDir string, report Report) string {
 		fmt.Sprintf("- source ref kind: `%s`", report.Target.SourceRefKind),
 		fmt.Sprintf("- source commit: `%s`", report.Target.SourceCommit),
 		fmt.Sprintf("- codex version: `%s`", report.Target.CodexVersion),
-		fmt.Sprintf("- generated schema: `%s`", reportsDir),
+		fmt.Sprintf("- generated schema: `%s`", generatedSchema),
 		fmt.Sprintf("- drift summary: `%s`", filepath.Join(reportsDir, "drift_summary.json")),
 		fmt.Sprintf("- matrix update skeleton: `%s`", filepath.Join(reportsDir, MatrixSkeletonName)),
 		"",

@@ -129,7 +129,7 @@ func TestCompareReportsAddedAndRemovedMethods(t *testing.T) {
 	}
 
 	reports := filepath.Join(root, "reports")
-	matrix, err := WriteReports(reports, report)
+	matrix, err := WriteReports(reports, report, candidate)
 	if err != nil {
 		t.Fatal(err)
 	}
