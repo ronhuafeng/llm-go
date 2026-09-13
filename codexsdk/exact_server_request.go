@@ -22,7 +22,7 @@ func (c *Client) handleExactServerRequest(id any, request protocolv2.ServerReque
 
 func (c *Client) respondToExactServerRequest(ctx context.Context, id any, request protocolv2.ServerRequest) {
 	if c.options.ServerRequestHandler == nil {
-		c.failExactServerRequest(id, -32000, unhandledExactServerRequest(request.Kind()))
+		c.failExactServerRequest(id, request, -32000, unhandledExactServerRequest(request.Kind()))
 		return
 	}
 	response, err := invokeExactServerRequestHandler(ctx, c.options.ServerRequestHandler, request)
@@ -30,12 +30,12 @@ func (c *Client) respondToExactServerRequest(ctx context.Context, id any, reques
 		if c.closingNormally() {
 			return
 		}
-		c.failExactServerRequest(id, -32000, err)
+		c.failExactServerRequest(id, request, -32000, err)
 		return
 	}
 	if response.kind != request.Kind() || response.value == nil {
 		failure := &ExactServerRequestError{Kind: request.Kind(), Reason: fmt.Sprintf("received mismatched or empty response %s", response.kind)}
-		c.failExactServerRequest(id, -32602, failure)
+		c.failExactServerRequest(id, request, -32602, failure)
 		return
 	}
 	if err := c.writeExactServerRequestResponse(id, request, response); err != nil {
@@ -50,23 +50,93 @@ func unhandledExactServerRequest(kind protocolv2.ServerRequestKind) *ExactServer
 	}
 }
 
-func (c *Client) failExactServerRequest(id any, code int, failure error) {
-	cancel, claimed := c.claimClientFailure(failure)
-	if claimed {
-		// Publish the typed first cause before the peer can react to the
-		// fail-closed response with a successful terminal notification.
-		c.publishClaimedClientFailure(failure)
+func (c *Client) failExactServerRequest(id any, request protocolv2.ServerRequest, code int, failure error) {
+	// Finish correlated runs before the JSON-RPC error is visible to the peer
+	// so a later successful terminal cannot race the first cause.
+	for _, stream := range c.exactRunsForServerRequest(request) {
+		stream.finish(failure)
 	}
-	c.writeServerRequestError(id, code, failure)
+	if err := c.writeServerRequestError(id, code, failure); err != nil {
+		c.failClient(err)
+		return
+	}
 	if c.testAfterServerRequestFailureResponse != nil {
 		c.testAfterServerRequestFailureResponse()
 	}
-	if claimed {
-		if cancel != nil {
-			cancel()
-		}
-		c.startClientFailureTeardown()
+}
+
+type serverRequestIdentity struct {
+	threadID string
+	turnID   string
+}
+
+func extractServerRequestIdentity(request protocolv2.ServerRequest) serverRequestIdentity {
+	raw, err := json.Marshal(request)
+	if err != nil {
+		return serverRequestIdentity{}
 	}
+	var envelope map[string]any
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return serverRequestIdentity{}
+	}
+	params, _ := envelope["params"].(map[string]any)
+	if params == nil {
+		return serverRequestIdentity{}
+	}
+	identity := serverRequestIdentity{
+		threadID: jsonString(params["threadId"]),
+		turnID:   jsonString(params["turnId"]),
+	}
+	if identity.threadID == "" {
+		// applyPatchApproval / execCommandApproval store ThreadId as conversationId.
+		identity.threadID = jsonString(params["conversationId"])
+	}
+	return identity
+}
+
+func (c *Client) exactRunsForServerRequest(request protocolv2.ServerRequest) []*exactRunState {
+	identity := extractServerRequestIdentity(request)
+	if identity.threadID == "" && identity.turnID == "" {
+		return nil
+	}
+	c.turnMu.Lock()
+	defer c.turnMu.Unlock()
+	var targets []*exactRunState
+	if identity.turnID != "" {
+		for stream := range c.exactStreams[identity.turnID] {
+			if identity.threadID == "" || stream.threadID == identity.threadID {
+				targets = append(targets, stream)
+			}
+		}
+		if identity.threadID != "" {
+			liveForTurn := len(c.exactStreams[identity.turnID]) > 0
+			for stream := range c.exactAttaching[identity.threadID] {
+				snapshot := stream.turnIDSnapshot()
+				if snapshot == identity.turnID {
+					targets = append(targets, stream)
+					continue
+				}
+				// A request can arrive after thread identity is known and before
+				// turn/start publishes the run's turn ID. Attribute it only when
+				// this turn has no live owner yet.
+				if snapshot == "" && !liveForTurn {
+					targets = append(targets, stream)
+				}
+			}
+		}
+		return targets
+	}
+	for _, streams := range c.exactStreams {
+		for stream := range streams {
+			if stream.threadID == identity.threadID {
+				targets = append(targets, stream)
+			}
+		}
+	}
+	for stream := range c.exactAttaching[identity.threadID] {
+		targets = append(targets, stream)
+	}
+	return targets
 }
 
 func (c *Client) rejectExactServerRequestAfterAdmissionClosed(id any, request protocolv2.ServerRequest) {
@@ -79,15 +149,13 @@ func (c *Client) rejectExactServerRequestAfterAdmissionClosed(id any, request pr
 func (c *Client) writeExactServerRequestResponse(id any, request protocolv2.ServerRequest, response ServerRequestResponse) error {
 	raw, err := json.Marshal(response.value)
 	if err != nil {
-		failure := fmt.Errorf("codexsdk: encode %s response: %w", request.Kind(), err)
-		c.writeServerRequestError(id, -32602, failure)
-		return failure
+		c.failExactServerRequest(id, request, -32602, fmt.Errorf("codexsdk: encode %s response: %w", request.Kind(), err))
+		return nil
 	}
 	var result map[string]any
 	if err := json.Unmarshal(raw, &result); err != nil {
-		failure := fmt.Errorf("codexsdk: decode %s response object: %w", request.Kind(), err)
-		c.writeServerRequestError(id, -32602, failure)
-		return failure
+		c.failExactServerRequest(id, request, -32602, fmt.Errorf("codexsdk: decode %s response object: %w", request.Kind(), err))
+		return nil
 	}
 	return c.write(map[string]any{"id": id, "result": result})
 }

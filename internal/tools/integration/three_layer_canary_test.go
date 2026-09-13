@@ -206,8 +206,8 @@ func TestThreeLayerCanaryFull(t *testing.T) {
 		if !errors.Is(err, codexsdk.ErrExactServerRequest) {
 			t.Fatalf("run=%#v err=%v, want ErrExactServerRequest", run, err)
 		}
-		if closeErr := client.Close(); !errors.Is(closeErr, codexsdk.ErrExactServerRequest) {
-			t.Fatalf("Close error=%v, want same exact server-request first cause", closeErr)
+		if closeErr := client.Close(); closeErr != nil {
+			t.Fatalf("Close error=%v, want nil client cause for a run-scoped server-request failure", closeErr)
 		}
 	})
 
@@ -308,7 +308,7 @@ func TestThreeLayerCanaryFull(t *testing.T) {
 		}
 	})
 
-	t.Run("handler failure remains the client first cause", func(t *testing.T) {
+	t.Run("handler failure remains the exact-run first cause", func(t *testing.T) {
 		handlerCause := errors.New("canary handler failure")
 		options := codexsdk.ClientOptions{ServerRequestHandler: func(context.Context, protocolv2.ServerRequest) (codexsdk.ServerRequestResponse, error) {
 			return codexsdk.ServerRequestResponse{}, handlerCause
@@ -318,8 +318,8 @@ func TestThreeLayerCanaryFull(t *testing.T) {
 		if !errors.Is(err, codexsdk.ErrHandlerFailed) || !errors.Is(err, handlerCause) {
 			t.Fatalf("response=%#v err=%v", response, err)
 		}
-		if closeErr := client.Close(); !errors.Is(closeErr, codexsdk.ErrHandlerFailed) || !errors.Is(closeErr, handlerCause) {
-			t.Fatalf("Close error=%v, want handler first cause", closeErr)
+		if closeErr := client.Close(); closeErr != nil {
+			t.Fatalf("Close error=%v, want nil client cause for a run-scoped handler failure", closeErr)
 		}
 	})
 }

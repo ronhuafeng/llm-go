@@ -987,8 +987,8 @@ func TestExactServerRequestHandlerRejectsMismatchedAndEmptyResponses(t *testing.
 			if !errors.Is(runErr, ErrExactServerRequest) {
 				t.Fatalf("run error = %v, want typed exact server request failure", runErr)
 			}
-			if closeErr := root.Close(); !errors.Is(closeErr, ErrExactServerRequest) {
-				t.Fatalf("Close error = %v, want first typed exact server request failure", closeErr)
+			if closeErr := root.Close(); closeErr != nil {
+				t.Fatalf("Close error = %v, want nil client cause for an application-level request failure", closeErr)
 			}
 		})
 	}
@@ -1013,8 +1013,8 @@ func TestExactRunWithoutHandlerFailsClosedImmediately(t *testing.T) {
 	if !errors.As(runErr, &requestErr) || requestErr.Kind != protocolv2.ServerRequestKindItemCommandExecutionRequestApproval {
 		t.Fatalf("exact server request error = %#v, want command approval kind", requestErr)
 	}
-	if closeErr := root.Close(); !errors.Is(closeErr, ErrExactServerRequest) {
-		t.Fatalf("Close error = %v, want first exact server request cause", closeErr)
+	if closeErr := root.Close(); closeErr != nil {
+		t.Fatalf("Close error = %v, want nil client cause for an application-level request failure", closeErr)
 	}
 }
 
@@ -1035,19 +1035,19 @@ func TestExactRunNilHandlerFailuresAreDeterministic(t *testing.T) {
 			if errors.Is(runErr, context.DeadlineExceeded) {
 				t.Fatalf("exact nil-handler %s retained application-owned request: %v", mode, runErr)
 			}
-			if closeErr := root.Close(); !errors.Is(closeErr, ErrExactServerRequest) {
-				t.Fatalf("Close error = %v, want first exact server request cause", closeErr)
+			if closeErr := root.Close(); closeErr != nil {
+				t.Fatalf("Close error = %v, want nil client cause for an application-level request failure", closeErr)
 			}
 		})
 	}
 }
 
-func TestExactRunNilHandlerUnsafeRequestPreservesPartialEvidenceAndTypedFirstCause(t *testing.T) {
+func TestUncorrelatedServerRequestFailureDoesNotFinishExactRun(t *testing.T) {
 	t.Setenv("CODEXSDK_FAKE_RECORD", tempRecord(t))
 	notificationAccepted := filepath.Join(t.TempDir(), "notification-accepted")
 	root, err := New(ClientOptions{
 		CWD:     t.TempDir(),
-		Command: fakeAuthRefreshAfterNotificationCommand(notificationAccepted),
+		Command: fakeCommand("uncorrelated-auth-then-complete", notificationAccepted),
 		ServerNotificationHandler: func(context.Context, protocolv2.ServerNotification) error {
 			return os.WriteFile(notificationAccepted, []byte("accepted"), 0o600)
 		},
@@ -1058,17 +1058,81 @@ func TestExactRunNilHandlerUnsafeRequestPreservesPartialEvidenceAndTypedFirstCau
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	result, runErr := root.ThreadRunner().Start(ctx, StartThreadRunRequest{Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}}})
-	if !errors.Is(runErr, ErrExactServerRequest) {
-		t.Fatalf("run error = %v, want typed exact server request cause", runErr)
-	}
-	if errors.Is(runErr, context.DeadlineExceeded) {
-		t.Fatalf("unsafe exact request was retained instead of rejected: %v", runErr)
+	if runErr != nil {
+		t.Fatalf("uncorrelated request failure finished the Exact Run: %v", runErr)
 	}
 	if len(result.Run.Notifications) == 0 {
-		t.Fatal("exact fail-closed termination erased accepted notification evidence")
+		t.Fatal("successful run lost accepted notification evidence")
 	}
-	if closeErr := root.Close(); !errors.Is(closeErr, ErrExactServerRequest) {
-		t.Fatalf("Close error = %v, want first exact server request cause", closeErr)
+	if closeErr := root.Close(); closeErr != nil {
+		t.Fatalf("Close error = %v, want nil client cause", closeErr)
+	}
+}
+
+func TestUncorrelatedServerRequestFailureLeavesConcurrentExactRunsRunning(t *testing.T) {
+	t.Setenv("CODEXSDK_FAKE_RECORD", tempRecord(t))
+	root, err := New(ClientOptions{CWD: t.TempDir(), Command: fakeCommand("uncorrelated-auth-concurrent")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := root.ThreadRunner().StartStream(context.Background(), StartThreadRunRequest{Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := root.ThreadRunner().StartStream(context.Background(), StartThreadRunRequest{Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	for _, stream := range []*Stream[StartedThreadRun]{first, second} {
+		for stream.Next(ctx) {
+		}
+		if stream.Err() != nil {
+			t.Fatalf("uncorrelated request failure finished a concurrent Exact Run: %v", stream.Err())
+		}
+		result, ok := stream.Result()
+		if !ok || result.Run.Turn.Status != protocolv2.TurnStatusCompleted {
+			t.Fatalf("concurrent run result = %#v ok=%v", result.Run, ok)
+		}
+	}
+	if closeErr := root.Close(); closeErr != nil {
+		t.Fatalf("Close error = %v, want nil client cause", closeErr)
+	}
+}
+
+func TestCorrelatedServerRequestFailureLeavesUnrelatedExactRunRunning(t *testing.T) {
+	t.Setenv("CODEXSDK_FAKE_RECORD", tempRecord(t))
+	root, err := New(ClientOptions{CWD: t.TempDir(), Command: fakeCommand("blocking-approval-concurrent")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	failed, err := root.ThreadRunner().StartStream(context.Background(), StartThreadRunRequest{Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	okStream, err := root.ThreadRunner().StartStream(context.Background(), StartThreadRunRequest{Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	for failed.Next(ctx) {
+	}
+	for okStream.Next(ctx) {
+	}
+	if !errors.Is(failed.Err(), ErrExactServerRequest) {
+		t.Fatalf("correlated run error = %v, want typed exact server request failure", failed.Err())
+	}
+	if okStream.Err() != nil {
+		t.Fatalf("unrelated run error = %v, want successful completion", okStream.Err())
+	}
+	result, ok := okStream.Result()
+	if !ok || result.Run.Turn.Status != protocolv2.TurnStatusCompleted {
+		t.Fatalf("unrelated run result = %#v ok=%v", result.Run, ok)
+	}
+	if closeErr := root.Close(); closeErr != nil {
+		t.Fatalf("Close error = %v, want nil client cause", closeErr)
 	}
 }
 
@@ -1202,7 +1266,7 @@ func TestRequestArrivingDuringCloseFailsClosedWithoutStartingNewHandler(t *testi
 	}
 }
 
-func TestFailureShutdownRejectsLateRequestWithoutStartingHandler(t *testing.T) {
+func TestLateServerRequestAfterRunFailureStillReachesOpenClient(t *testing.T) {
 	record := tempRecord(t)
 	notificationAccepted := filepath.Join(t.TempDir(), "notification-accepted")
 	release := filepath.Join(t.TempDir(), "failure-observed")
@@ -1210,20 +1274,14 @@ func TestFailureShutdownRejectsLateRequestWithoutStartingHandler(t *testing.T) {
 	t.Setenv("CODEXSDK_FAKE_RECORD", record)
 	firstStarted := make(chan struct{})
 	notificationStarted := make(chan struct{})
-	allowNotificationFinish := make(chan struct{})
 	lateCalled := make(chan struct{}, 1)
 	var calls atomic.Int32
 	root, err := New(ClientOptions{
 		CWD:     t.TempDir(),
 		Command: fakeLateApprovalDuringFailureCommand(notificationAccepted, release, lateSent),
-		ServerNotificationHandler: func(ctx context.Context, _ protocolv2.ServerNotification) error {
+		ServerNotificationHandler: func(context.Context, protocolv2.ServerNotification) error {
 			close(notificationStarted)
-			if err := os.WriteFile(notificationAccepted, []byte("accepted"), 0o600); err != nil {
-				return err
-			}
-			<-ctx.Done()
-			<-allowNotificationFinish
-			return ctx.Err()
+			return os.WriteFile(notificationAccepted, []byte("accepted"), 0o600)
 		},
 		ServerRequestHandler: func(context.Context, protocolv2.ServerRequest) (ServerRequestResponse, error) {
 			if calls.Add(1) != 1 {
@@ -1247,8 +1305,8 @@ func TestFailureShutdownRejectsLateRequestWithoutStartingHandler(t *testing.T) {
 	defer cancel()
 	for stream.Next(ctx) {
 	}
-	if stream.Err() == nil {
-		t.Fatal("request handler failure did not terminate the active stream")
+	if !errors.Is(stream.Err(), ErrHandlerFailed) {
+		t.Fatalf("stream error = %v, want handler failure on the matching run", stream.Err())
 	}
 	if err := os.WriteFile(release, []byte("failed"), 0o600); err != nil {
 		t.Fatal(err)
@@ -1259,18 +1317,17 @@ func TestFailureShutdownRejectsLateRequestWithoutStartingHandler(t *testing.T) {
 			break
 		}
 		if time.Now().After(deadline) {
-			t.Fatal("fake app-server did not send the request after failure shutdown")
+			t.Fatal("fake app-server did not send the request after the run failure")
 		}
 		time.Sleep(time.Millisecond)
 	}
 	select {
 	case <-lateCalled:
-		t.Fatal("exact handler started after failure shutdown closed admission")
-	default:
+	case <-time.After(time.Second):
+		t.Fatal("late request did not reach the still-open client handler")
 	}
-	close(allowNotificationFinish)
-	if closeErr := root.Close(); closeErr != stream.Err() {
-		t.Fatalf("Close error = %v, want first request failure %v", closeErr, stream.Err())
+	if closeErr := root.Close(); closeErr != nil {
+		t.Fatalf("Close error = %v, want nil client cause after a run-scoped request failure", closeErr)
 	}
 }
 
