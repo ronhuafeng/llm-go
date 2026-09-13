@@ -12,6 +12,9 @@ on:
       target-sha:
         required: true
         type: string
+      target-kind:
+        required: true
+        type: string
       restore-worktree:
         required: false
         type: boolean
@@ -20,6 +23,9 @@ on:
         required: false
         type: boolean
         default: false
+      run-attempt:
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -30,22 +36,22 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           ref: ${{ inputs.repository-sha }}
           persist-credentials: false
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: codexsdk/go.mod
           cache: false
 
       - name: Restore applied worktree
         if: inputs.restore-worktree
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: protocol-worktree
+          name: protocol-worktree-attempt-${{ inputs.run-attempt }}
           path: ${{ runner.temp }}/protocol-worktree
 
       - name: Apply worktree patch
@@ -59,21 +65,27 @@ jobs:
           GOTOOLCHAIN: local
           TARGET_SHA: ${{ inputs.target-sha }}
           TARGET_REF: ${{ inputs.target-ref }}
+          TARGET_KIND: ${{ inputs.target-kind }}
           REPOSITORY_COMMIT: ${{ inputs.repository-sha }}
         run: |
           set -euo pipefail
           mkdir -p "${RUNNER_TEMP}/proof"
+          if [[ -z "${TARGET_SHA}" || -z "${TARGET_REF}" || -z "${TARGET_KIND}" || -z "${REPOSITORY_COMMIT}" ]]; then
+            echo "generated proof requires exact repository commit and upstream ref/kind/sha" >&2
+            exit 1
+          fi
           go run ./internal/cmd/generatedproof \
             -expected-upstream-commit "${TARGET_SHA}" \
             -expected-upstream-ref "${TARGET_REF}" \
+            -expected-upstream-kind "${TARGET_KIND}" \
             -expected-repository-commit "${REPOSITORY_COMMIT}" \
             -json-out "${RUNNER_TEMP}/proof/generated.json"
 
       - name: Upload generated proof
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: generated-proof
+          name: generated-proof-attempt-${{ inputs.run-attempt }}
           path: ${{ runner.temp }}/proof/generated.json
           if-no-files-found: error
 
@@ -82,22 +94,22 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           ref: ${{ inputs.repository-sha }}
           persist-credentials: false
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: codexsdk/go.mod
           cache: false
 
       - name: Restore applied worktree
         if: inputs.restore-worktree
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: protocol-worktree
+          name: protocol-worktree-attempt-${{ inputs.run-attempt }}
           path: ${{ runner.temp }}/protocol-worktree
 
       - name: Apply worktree patch
@@ -117,7 +129,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           ref: ${{ inputs.repository-sha }}
@@ -125,9 +137,9 @@ jobs:
 
       - name: Restore applied worktree
         if: inputs.restore-worktree
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: protocol-worktree
+          name: protocol-worktree-attempt-${{ inputs.run-attempt }}
           path: ${{ runner.temp }}/protocol-worktree
 
       - name: Apply worktree patch
@@ -135,9 +147,9 @@ jobs:
         run: git apply --binary "${RUNNER_TEMP}/protocol-worktree/protocol-worktree.patch"
 
       - name: Restore candidate schema
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: protocol-candidate
+          name: protocol-candidate-attempt-${{ inputs.run-attempt }}
           path: ${{ runner.temp }}/protocol-candidate
 
       - name: Candidate schema state
@@ -161,7 +173,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           ref: ${{ inputs.repository-sha }}
@@ -169,9 +181,9 @@ jobs:
 
       - name: Restore applied worktree
         if: inputs.restore-worktree
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: protocol-worktree
+          name: protocol-worktree-attempt-${{ inputs.run-attempt }}
           path: ${{ runner.temp }}/protocol-worktree
 
       - name: Apply worktree patch

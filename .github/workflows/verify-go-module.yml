@@ -115,6 +115,7 @@ jobs:
           fi
 
       - name: Worktree remains clean
+        if: ${{ always() && !cancelled() }}
         run: |
           set -euo pipefail
           git diff --check
