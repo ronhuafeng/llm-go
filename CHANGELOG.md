@@ -11,8 +11,8 @@ changes may occur in minor releases.
 
 ### Repository
 
-- Align GitHub repository description and tag-creation authority with the one
-  root-module `vX.Y.Z` release.
+- Align GitHub repository description, tag-creation authority, and security
+  reporting with the one root-module `vX.Y.Z` release.
 
 ## [0.1.0] - 2026-09-13
 
