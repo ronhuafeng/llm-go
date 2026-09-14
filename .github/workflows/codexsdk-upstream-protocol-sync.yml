@@ -198,7 +198,6 @@ jobs:
         id: checks
         working-directory: codexsdk
         env:
-          GOWORK: "off"
           GOTOOLCHAIN: local
           CANDIDATE: ${{ steps.mechanical.outputs.candidate }}
         run: |

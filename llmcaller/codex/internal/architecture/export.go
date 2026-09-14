@@ -68,7 +68,6 @@ func (i *callerSourceImporter) Import(path string) (*types.Package, error) {
 
 func (i *callerSourceImporter) openExport(path string) (io.ReadCloser, error) {
 	command := exec.Command("go", "list", "-export", "-json", path)
-	command.Env = append(os.Environ(), "GOWORK=off")
 	output, err := command.Output()
 	if err != nil {
 		return nil, fmt.Errorf("go list %s: %w", path, err)

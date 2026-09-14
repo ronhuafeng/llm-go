@@ -159,7 +159,6 @@ func (i *sdkSourceImporter) Import(path string) (*types.Package, error) {
 
 func (i *sdkSourceImporter) openExport(path string) (io.ReadCloser, error) {
 	command := exec.Command("go", "list", "-export", "-json", path)
-	command.Env = append(os.Environ(), "GOWORK=off")
 	output, err := command.Output()
 	if err != nil {
 		return nil, fmt.Errorf("go list %s: %w", path, err)
