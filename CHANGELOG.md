@@ -11,6 +11,7 @@ changes may occur in minor releases.
 
 ### Repository
 
+- Raise the root Go floor to 1.26.0 and require `golang.org/x/mod v0.41.0`.
 - Align GitHub repository description, tag-creation authority, and security
   reporting with the one root-module `vX.Y.Z` release.
 

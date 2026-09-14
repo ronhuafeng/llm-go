@@ -25,7 +25,7 @@ transitive implementation details:
 | --- | --- | --- | --- |
 | `github.com/dlclark/regexp2` | `v1.11.0` | Listed by `go list -m all`. | MIT |
 | `github.com/google/go-cmp` | `v0.7.0` | Listed by `go list -m all`. | BSD-3-Clause |
-| `golang.org/x/mod` | `v0.40.0` | Listed by `go list -m all`. | BSD-3-Clause |
+| `golang.org/x/mod` | `v0.41.0` | Listed by `go list -m all`. | BSD-3-Clause |
 | `golang.org/x/sys` | `v0.5.0` | Listed by `go list -m all`. | BSD-3-Clause |
 | `golang.org/x/tools` | `v0.6.0` | Listed by `go list -m all`. | BSD-3-Clause |
 

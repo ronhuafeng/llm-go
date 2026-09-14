@@ -17,7 +17,7 @@ must use [`SECURITY.md`](SECURITY.md), not a public issue.
 ## Go versions
 
 The root [`go.mod`](go.mod) is the authoritative Go floor. The module supports
-Go 1.25.0 or newer.
+Go 1.26.0 or newer.
 
 ## Operating systems
 
