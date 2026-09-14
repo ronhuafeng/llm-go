@@ -1,6 +1,6 @@
 module github.com/ronhuafeng/llm-go
 
-go 1.26.0
+go 1.26.8
 
 require (
 	github.com/google/jsonschema-go v0.4.3
