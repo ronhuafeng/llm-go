@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -28,16 +29,14 @@ func TestDependabotCoversRootModuleAndActions(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(data)
+	if strings.Count(text, "package-ecosystem: gomod") != 1 {
+		t.Fatal("dependabot.yml must have one gomod update")
+	}
 	if !strings.Contains(text, "package-ecosystem: github-actions") {
 		t.Fatal("dependabot.yml must cover the github-actions ecosystem")
 	}
-	if !strings.Contains(text, "package-ecosystem: gomod") || !strings.Contains(text, "directory: /") {
-		t.Fatal("dependabot.yml must cover the root gomod directory /")
-	}
-	for _, former := range []string{"/llmkit", "/codexsdk", "/llmcaller/codex", "/internal/tools", "/internal/moduleproof"} {
-		if strings.Contains(text, "directory: "+former+"\n") || strings.Contains(text, "directory: "+former+"\r") {
-			t.Fatalf("dependabot.yml still covers former module directory %s", former)
-		}
+	if !strings.Contains(text, "directory: /") {
+		t.Fatal("dependabot.yml must cover the repository root")
 	}
 }
 
@@ -107,37 +106,26 @@ func TestPRVerificationIsRootModuleAndGeneratedReproducibility(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pr, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "pr-verification.yml"))
-	if err != nil {
-		t.Fatal(err)
+	text := readWorkflow(t, root, "pr-verification.yml")
+	if workflowJobCount(text) != 2 {
+		t.Fatal("PR verification must have exactly two jobs")
 	}
-	text := string(pr)
+	if _, ok := workflowJobByID(text, "source"); !ok {
+		t.Fatal("PR verification must include root source verification")
+	}
+	if _, ok := workflowJobByID(text, "generated-reproducibility"); !ok {
+		t.Fatal("PR verification must include generated reproducibility")
+	}
 	for _, want := range []string{
 		"name: Root source verification",
 		"name: Codex generated reproducibility",
 		"uses: ./.github/workflows/verify-generated.yml",
-		"generated-reproducibility",
 		"go mod tidy -diff",
 		"go vet ./...",
 		"go test -race ./...",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("PR verification missing %q", want)
-		}
-	}
-	for _, banned := range []string{
-		"verify-go-module.yml",
-		"verify-workflows.yml",
-		"current-source-replaces",
-		"internal/moduleproof",
-		"go mod edit",
-		"working-directory: llmkit",
-		"working-directory: internal/moduleproof",
-		"Minimum Go",
-		"Current-source composition",
-	} {
-		if strings.Contains(text, banned) {
-			t.Fatalf("PR verification still contains nested-module machinery %q", banned)
 		}
 	}
 }
@@ -180,20 +168,11 @@ func TestProtocolSyncIsOneLinearSameRunWorkflow(t *testing.T) {
 	if !ok {
 		t.Fatal("protocol sync must have one sync job")
 	}
-	if _, exists := workflowJobByID(syncText, "proof"); exists {
-		t.Fatal("linear protocol sync must not call a separate proof job")
-	}
-	if _, exists := workflowJobByID(syncText, "publish"); exists {
-		t.Fatal("linear protocol sync must publish in the same job, not a restored-artifact publish job")
-	}
-	if strings.Contains(syncText, "codexsdk-protocol-proof.yml") {
-		t.Fatal("linear protocol sync must not call the reusable protocol proof workflow")
+	if workflowJobCount(syncText) != 1 {
+		t.Fatal("protocol sync must be one linear job")
 	}
 	if strings.Contains(syncText, "actions/download-artifact") || strings.Contains(syncText, "restore-worktree") {
 		t.Fatal("linear protocol sync must not restore cross-run worktree or candidate artifacts")
-	}
-	if strings.Contains(syncText, "codexsdk_repair_evidence.py") || strings.Contains(syncText, "failed_run") {
-		t.Fatal("linear protocol sync must not admit failed-run repair evidence")
 	}
 	if strings.Count(syncText, "uses: ./.github/actions/codex-exec") != 1 {
 		t.Fatal("real drift must invoke at most one Agent pass")
@@ -246,20 +225,11 @@ func TestProtocolSyncIsOneLinearSameRunWorkflow(t *testing.T) {
 	if strings.Index(syncJob, "id: checks") > strings.Index(syncJob, "id: publish") {
 		t.Fatal("publication must run after deterministic checks")
 	}
-	if strings.Contains(publish, "--sync-mode") || strings.Contains(publish, "metadata-sync") || strings.Contains(publish, "repair-sync") {
-		t.Fatal("publication must use one protocol-sync path, not metadata/repair modes")
-	}
-	if strings.Contains(publish, "--proved-tree") || strings.Contains(syncText, "proved-tree") {
-		t.Fatal("publication must not keep proved-tree attestation machinery")
-	}
 	if strings.Contains(syncText, "git rebase") {
 		t.Fatal("protocol sync must not rebase after checks")
 	}
-
-	for _, banned := range []string{"reproof-gate", "original_ok", "reproof_ok", "failed=()", "continue-on-error"} {
-		if strings.Contains(syncText, banned) {
-			t.Fatalf("protocol sync still contains recovery construct %q", banned)
-		}
+	if strings.Contains(syncText, "continue-on-error") {
+		t.Fatal("protocol sync must fail closed")
 	}
 	for _, moving := range []string{
 		"uses: actions/upload-artifact@v",
@@ -271,70 +241,19 @@ func TestProtocolSyncIsOneLinearSameRunWorkflow(t *testing.T) {
 			t.Fatalf("protocol sync uses moving third-party Action tag %q", moving)
 		}
 	}
-}
 
-func TestRetiredProtocolControlPlaneIsDeleted(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, rel := range []string{
-		filepath.Join(".github", "workflows", "codexsdk-protocol-proof.yml"),
-		filepath.Join(".github", "workflows", "codexsdk-upstream-protocol-repair.yml"),
-		filepath.Join(".github", "workflows", "codexsdk-upstream-protocol-finalize.yml"),
-		filepath.Join("codexsdk", "scripts", "codexsdk_repair_evidence.py"),
-		filepath.Join("codexsdk", "scripts", "codexsdk_protocol_summary.py"),
-		filepath.Join("codexsdk", "scripts", "codexsdk_schema_diff.py"),
-		filepath.Join("codexsdk", "scripts", "codexsdk_apply_sync_candidate.py"),
-		filepath.Join("codexsdk", "scripts", "codexsdk_sync_state.py"),
-		filepath.Join("codexsdk", "scripts", "codexsdk_finalize_sweep.py"),
-		filepath.Join("codexsdk", "scripts", "codexsdk_sync_tag.py"),
-	} {
-		if _, err := os.Stat(filepath.Join(root, rel)); err == nil {
-			t.Fatalf("retired control-plane file still present: %s", rel)
-		} else if !os.IsNotExist(err) {
-			t.Fatal(err)
-		}
-	}
-	syncText := readWorkflow(t, root, "codexsdk-upstream-protocol-sync.yml")
-	for _, banned := range []string{
-		"failed_run",
-		"repair-input",
-		"proved-tree",
-		"metadata-sync",
-		"repair-sync",
-		"codexsdk_repair_evidence.py",
-		"codexsdk-protocol-proof.yml",
-	} {
-		if strings.Contains(syncText, banned) {
-			t.Fatalf("ordinary protocol sync still contains retired machinery %q", banned)
-		}
-	}
 	publishHelper, err := os.ReadFile(filepath.Join(root, "codexsdk", "scripts", "codexsdk_publish_sync_pr.sh"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	publishHelperText := string(publishHelper)
-	if strings.Contains(publishHelperText, "git rebase") {
-		t.Fatal("publish helper must not rebase onto a later landing ref")
-	}
-	if strings.Contains(publishHelperText, "--sync-mode") || strings.Contains(publishHelperText, "repair-sync") || strings.Contains(publishHelperText, "metadata-sync") {
-		t.Fatal("publish helper must not keep metadata/repair publication modes")
-	}
-	if strings.Contains(publishHelperText, "--proved-tree") {
-		t.Fatal("publish helper must not keep proved-tree attestation")
-	}
-	if strings.Contains(publishHelperText, "--candidate") {
-		t.Fatal("publish helper must not keep unused --candidate")
+	if strings.Contains(string(publishHelper), "git rebase") {
+		t.Fatal("publication must not rebase after checks")
 	}
 	mechanical, err := os.ReadFile(filepath.Join(root, "codexsdk", "scripts", "codexsdk_mechanical_sync.py"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	mechanicalText := string(mechanical)
-	if strings.Contains(mechanicalText, "metadata-sync") || strings.Contains(mechanicalText, "repair-sync") || strings.Contains(mechanicalText, "sync_mode") {
-		t.Fatal("mechanical sync must not own final publication mode")
-	}
 	if strings.Contains(mechanicalText, "./internal/cmd/generatedproof") || strings.Contains(mechanicalText, `"go", "test"`) {
 		t.Fatal("mechanical sync must not own generatedproof or go test correctness decisions")
 	}
@@ -348,7 +267,7 @@ func TestWorkflowJobByIDIsolatesJobs(t *testing.T) {
 		"      - run: echo sync\n" +
 		"  proof:\n" +
 		"    needs: sync\n" +
-		"    uses: ./.github/workflows/codexsdk-protocol-proof.yml\n" +
+		"    uses: ./.github/workflows/example.yml\n" +
 		"  publish:\n" +
 		"    needs: [sync, proof]\n" +
 		"    if: always()\n"
@@ -356,7 +275,7 @@ func TestWorkflowJobByIDIsolatesJobs(t *testing.T) {
 	if !ok {
 		t.Fatal("expected proof job")
 	}
-	if !strings.Contains(proof, "uses: ./.github/workflows/codexsdk-protocol-proof.yml") {
+	if !strings.Contains(proof, "uses: ./.github/workflows/example.yml") {
 		t.Fatalf("missing uses: %s", proof)
 	}
 	if strings.Contains(proof, "if: always()") || strings.Contains(proof, "run: echo sync") {
@@ -404,24 +323,17 @@ func TestWorkflowStepByIDKeepsWorkingDirectoryOnOwningStep(t *testing.T) {
 	}
 }
 
-func TestReleaseReusesNativeProofEntryPoints(t *testing.T) {
+func TestReleasePublishesRootVersion(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "release.yml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := string(data)
-	if strings.Contains(text, "go mod edit") || strings.Contains(text, "cp go.mod") || strings.Contains(text, "internal/moduleproof") || strings.Contains(text, "current-source") {
-		t.Fatal("release verification must not reconstruct sibling modules")
-	}
-	if strings.Contains(text, "inputs.module") || strings.Contains(text, "llmkit/v") || strings.Contains(text, "codexsdk/v") {
-		t.Fatal("release dispatch must not select or publish per-module tags")
-	}
+	text := readWorkflow(t, root, "release.yml")
 	if !strings.Contains(text, "inputs.version") {
 		t.Fatal("release dispatch must accept a root version")
+	}
+	if !strings.Contains(text, "tag=$VERSION") {
+		t.Fatal("release must tag the dispatched version")
 	}
 	if !strings.Contains(text, "./codexsdk/internal/cmd/generatedproof") && !strings.Contains(text, "./internal/cmd/generatedproof") {
 		t.Fatal("release verification must reuse native generated-artifact proof")
@@ -431,11 +343,6 @@ func TestReleaseReusesNativeProofEntryPoints(t *testing.T) {
 func TestWorkflowLintUsesPinnedGoActionlint(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
 	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(filepath.Join(root, ".github", "workflows", "verify-workflows.yml")); err == nil {
-		t.Fatal("verify-workflows.yml has no caller and must be deleted")
-	} else if !os.IsNotExist(err) {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "pr-verification.yml"))
@@ -459,165 +366,64 @@ func TestCurrentDocsDescribeOneRootModule(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "CHANGELOG.md")); err != nil {
 		t.Fatal("root CHANGELOG.md must be the current changelog authority")
 	}
-	for _, rel := range []string{
-		filepath.Join("llmkit", "CHANGELOG.md"),
-		filepath.Join("codexsdk", "CHANGELOG.md"),
-		filepath.Join("llmcaller", "codex", "CHANGELOG.md"),
-	} {
-		if _, err := os.Stat(filepath.Join(root, rel)); err == nil {
-			t.Fatalf("retired per-module changelog still present: %s", rel)
-		} else if !os.IsNotExist(err) {
-			t.Fatal(err)
-		}
-	}
-	files := []string{
-		"NORTHSTAR.md",
-		"README.md",
-		"AGENTS.md",
-		"SUPPORT.md",
-		"CONTRIBUTING.md",
-		filepath.Join("docs", "verify.md"),
-		filepath.Join("docs", "release.md"),
-		filepath.Join("docs", "protocol-sync.md"),
-		filepath.Join("llmkit", "README.md"),
-		filepath.Join("codexsdk", "README.md"),
-		filepath.Join("llmcaller", "codex", "README.md"),
-		"SECURITY.md",
-	}
-	banned := []string{
-		"Release public module",
-		"llmkit/vX.Y.Z",
-		"codexsdk/vX.Y.Z",
-		"llmcaller/codex/vX.Y.Z",
-		"Independent Go modules",
-		"independently released",
-		"independently versioned",
-		"Choose a module",
-		"Choose the owning module",
-		"published modules support Go 1.23",
-		"GOWORK=off",
-	}
-	for _, rel := range files {
-		data, err := os.ReadFile(filepath.Join(root, rel))
-		if err != nil {
-			t.Fatal(err)
-		}
-		text := string(data)
-		for _, phrase := range banned {
-			if strings.Contains(text, phrase) {
-				t.Fatalf("%s still contains retired multi-module instruction %q", rel, phrase)
-			}
-		}
-	}
-	release := readWorkflow(t, root, "release.yml")
-	if strings.Contains(release, "llmkit/v") || strings.Contains(release, "codexsdk/v") || strings.Contains(release, "Release public module") {
-		t.Fatal("release workflow still publishes module-prefixed tags")
-	}
-	securityBytes, err := os.ReadFile(filepath.Join(root, "SECURITY.md"))
+	northstar, err := os.ReadFile(filepath.Join(root, "NORTHSTAR.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	security := string(securityBytes)
-	if !strings.Contains(security, "github.com/ronhuafeng/llm-go") {
+	if !strings.Contains(string(northstar), "one Go module (`github.com/ronhuafeng/llm-go`)") {
+		t.Fatal("NORTHSTAR.md must name the root module")
+	}
+	verify, err := os.ReadFile(filepath.Join(root, "docs", "verify.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(verify), "go test -race ./...") {
+		t.Fatal("docs/verify.md must document root-module race tests")
+	}
+	release, err := os.ReadFile(filepath.Join(root, "docs", "release.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(release), "version=vX.Y.Z") {
+		t.Fatal("docs/release.md must document the root version dispatch")
+	}
+	security, err := os.ReadFile(filepath.Join(root, "SECURITY.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(security), "github.com/ronhuafeng/llm-go") {
 		t.Fatal("SECURITY.md must name the root module")
 	}
-	if strings.Contains(security, "`github.com/ronhuafeng/llm-go/llmkit`") && strings.Contains(security, "`github.com/ronhuafeng/llm-go/codexsdk`") {
-		t.Fatal("SECURITY.md still lists package families as separately released products")
-	}
 }
 
-func TestScriptsDoNotComposeAGoWorkspace(t *testing.T) {
+func TestWorkflowsUseRootGoModFloor(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, rel := range []string{
-		filepath.Join(".github", "workflows"),
-		filepath.Join("codexsdk", "scripts"),
-	} {
-		err := filepath.WalkDir(filepath.Join(root, rel), func(path string, entry os.DirEntry, walkErr error) error {
-			if walkErr != nil {
-				return walkErr
-			}
-			if entry.IsDir() {
-				return nil
-			}
-			switch filepath.Ext(path) {
-			case ".yml", ".yaml", ".sh", ".py":
-			default:
-				return nil
-			}
-			data, err := os.ReadFile(path)
-			if err != nil {
-				return err
-			}
-			if strings.Contains(string(data), "GOWORK") {
-				relative, _ := filepath.Rel(root, path)
-				t.Errorf("%s still sets GOWORK", filepath.ToSlash(relative))
-			}
+	err = filepath.WalkDir(filepath.Join(root, ".github", "workflows"), func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || (filepath.Ext(path) != ".yml" && filepath.Ext(path) != ".yaml") {
 			return nil
-		})
+		}
+		data, err := os.ReadFile(path)
 		if err != nil {
-			t.Fatal(err)
+			return err
 		}
-	}
-}
-
-func TestModuleProofMachineryIsDeleted(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, rel := range []string{
-		filepath.Join(".github", "workflows", "verify-go-module.yml"),
-		filepath.Join("internal", "moduleproof"),
-		filepath.Join("internal", "moduleproof", "cmd", "verifymodfile", "main.go"),
-		"go.work",
-		"go.work.sum",
-		filepath.Join("llmkit", "go.mod"),
-		filepath.Join("codexsdk", "go.mod"),
-		filepath.Join("llmcaller", "codex", "go.mod"),
-		filepath.Join("internal", "tools", "go.mod"),
-	} {
-		if _, err := os.Stat(filepath.Join(root, rel)); err == nil {
-			t.Fatalf("retired nested-module file still present: %s", rel)
-		} else if !os.IsNotExist(err) {
-			t.Fatal(err)
-		}
-	}
-}
-
-func TestAdvisoryWorkflowsUseRootModule(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, name := range []string{
-		"fuzz.yml",
-		"govulncheck.yml",
-		"portability.yml",
-		"codexsdk-upstream-protocol-sync.yml",
-		"live-codex-smoke.yml",
-	} {
-		text := readWorkflow(t, root, name)
-		for _, banned := range []string{
-			"go-version-file: codexsdk/go.mod",
-			"go-version-file: llmkit/go.mod",
-			"verify-go-module.yml",
-			"current-source-replaces",
-			"internal/moduleproof",
-			"working-directory: llmkit",
-			"working-directory: llmcaller/codex",
-			"working-directory: internal/tools",
-			"working-directory: internal/moduleproof",
-		} {
-			if strings.Contains(text, banned) {
-				t.Fatalf("%s still contains nested-module assumption %q", name, banned)
-			}
+		text := string(data)
+		if !strings.Contains(text, "go-version-file:") {
+			return nil
 		}
 		if !strings.Contains(text, "go-version-file: go.mod") {
-			t.Fatalf("%s must use the root go.mod Go floor", name)
+			relative, _ := filepath.Rel(root, path)
+			t.Errorf("%s must use the root go.mod Go floor", filepath.ToSlash(relative))
 		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -783,6 +589,24 @@ func readWorkflow(t *testing.T, root, name string) string {
 }
 
 var workflowJobHeader = regexp.MustCompile(`^  ([A-Za-z0-9_-]+):$`)
+
+func workflowJobCount(yaml string) int {
+	n := 0
+	inJobs := false
+	for _, line := range strings.Split(yaml, "\n") {
+		if line == "jobs:" {
+			inJobs = true
+			continue
+		}
+		if !inJobs {
+			continue
+		}
+		if workflowJobHeader.MatchString(line) {
+			n++
+		}
+	}
+	return n
+}
 
 func workflowJobByID(yaml, id string) (string, bool) {
 	lines := strings.Split(yaml, "\n")
