@@ -9,6 +9,11 @@ changes may occur in minor releases.
 
 ## [Unreleased]
 
+### Repository
+
+- Align GitHub repository description and tag-creation authority with the one
+  root-module `vX.Y.Z` release.
+
 ## [0.1.0] - 2026-09-13
 
 ### Repository

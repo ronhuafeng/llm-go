@@ -482,6 +482,7 @@ func TestCurrentDocsDescribeOneRootModule(t *testing.T) {
 		filepath.Join("llmkit", "README.md"),
 		filepath.Join("codexsdk", "README.md"),
 		filepath.Join("llmcaller", "codex", "README.md"),
+		"SECURITY.md",
 	}
 	banned := []string{
 		"Release public module",
@@ -489,6 +490,7 @@ func TestCurrentDocsDescribeOneRootModule(t *testing.T) {
 		"codexsdk/vX.Y.Z",
 		"llmcaller/codex/vX.Y.Z",
 		"Independent Go modules",
+		"independently released",
 		"independently versioned",
 		"Choose a module",
 		"Choose the owning module",
@@ -510,6 +512,54 @@ func TestCurrentDocsDescribeOneRootModule(t *testing.T) {
 	release := readWorkflow(t, root, "release.yml")
 	if strings.Contains(release, "llmkit/v") || strings.Contains(release, "codexsdk/v") || strings.Contains(release, "Release public module") {
 		t.Fatal("release workflow still publishes module-prefixed tags")
+	}
+	securityBytes, err := os.ReadFile(filepath.Join(root, "SECURITY.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	security := string(securityBytes)
+	if !strings.Contains(security, "github.com/ronhuafeng/llm-go") {
+		t.Fatal("SECURITY.md must name the root module")
+	}
+	if strings.Contains(security, "`github.com/ronhuafeng/llm-go/llmkit`") && strings.Contains(security, "`github.com/ronhuafeng/llm-go/codexsdk`") {
+		t.Fatal("SECURITY.md still lists package families as separately released products")
+	}
+}
+
+func TestScriptsDoNotComposeAGoWorkspace(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range []string{
+		filepath.Join(".github", "workflows"),
+		filepath.Join("codexsdk", "scripts"),
+	} {
+		err := filepath.WalkDir(filepath.Join(root, rel), func(path string, entry os.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if entry.IsDir() {
+				return nil
+			}
+			switch filepath.Ext(path) {
+			case ".yml", ".yaml", ".sh", ".py":
+			default:
+				return nil
+			}
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			if strings.Contains(string(data), "GOWORK") {
+				relative, _ := filepath.Rel(root, path)
+				t.Errorf("%s still sets GOWORK", filepath.ToSlash(relative))
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 

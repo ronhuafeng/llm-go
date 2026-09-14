@@ -177,7 +177,6 @@ def generate_candidate(module_root: Path, inputs: dict[str, Any]) -> Path:
 
 def apply_candidate(module_root: Path, inputs: dict[str, Any], sync_out: Path) -> None:
     common_sha = (sync_out / "common.rs.source_sha").read_text(encoding="utf-8").strip()
-    env = {**os.environ, "GOWORK": "off"}
     run_command(
         [
             "go",
@@ -207,7 +206,6 @@ def apply_candidate(module_root: Path, inputs: dict[str, Any], sync_out: Path) -
             "-json",
         ],
         cwd=module_root,
-        env=env,
     )
 
 

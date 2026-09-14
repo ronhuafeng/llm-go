@@ -1,10 +1,7 @@
 # Security policy
 
-Security reports are accepted for the latest supported releases of:
-
-- `github.com/ronhuafeng/llm-go/llmkit`
-- `github.com/ronhuafeng/llm-go/codexsdk`
-- `github.com/ronhuafeng/llm-go/llmcaller/codex`
+Security reports are accepted for the latest supported releases of
+`github.com/ronhuafeng/llm-go`.
 
 ## Report privately
 
@@ -12,8 +9,8 @@ Do not open a public issue with exploit details, credentials, transcripts,
 private paths, or other sensitive data. Use
 [GitHub private vulnerability reporting](https://github.com/ronhuafeng/llm-go/security/advisories/new).
 
-Include the affected module and version, impact, a minimal reproduction, and any
-mitigation that can be shared safely.
+Include the affected package family, module version, impact, a minimal
+reproduction, and any mitigation that can be shared safely.
 
 ## Scope
 

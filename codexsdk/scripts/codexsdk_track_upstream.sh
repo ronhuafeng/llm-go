@@ -298,7 +298,7 @@ if [[ "${verbose}" -eq 1 ]]; then
   compare_args+=(-verbose)
 fi
 
-GOWORK=off go run -C "${repo_root}" ./internal/cmd/protocolupgrade "${compare_args[@]}"
+go run -C "${repo_root}" ./internal/cmd/protocolupgrade "${compare_args[@]}"
 
 if [[ "${verbose}" -eq 1 ]]; then
   echo "generated schema: ${generated}" >&2
