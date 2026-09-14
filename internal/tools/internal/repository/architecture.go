@@ -16,7 +16,7 @@ import (
 
 const (
 	rootModulePath = "github.com/ronhuafeng/llm-go"
-	requiredGo     = "1.26.0"
+	requiredGo     = "1.26.8"
 	llmkitPath     = "github.com/ronhuafeng/llm-go/llmkit"
 	codexSDKPath   = "github.com/ronhuafeng/llm-go/codexsdk"
 	adapterPath    = "github.com/ronhuafeng/llm-go/llmcaller/codex"
