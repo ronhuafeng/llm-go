@@ -36,7 +36,8 @@ The selected Codex source owns the upstream schema facts. One Go-native
 `protocolupgrade` owner resolves the target, applies stable-target policy,
 generates and compares the candidate, applies deterministic generated/baseline
 changes, and checks the result. GitHub Actions owns triggers, permissions, the
-single Agent pass, and publication. For real drift, the workflow invokes
+single Agent pass, and whether publication runs. The Go owner performs the
+publication effect when Actions invokes it. For real drift, the workflow invokes
 [`codexsdk-sync-upstream`](../.agents/skills/codexsdk-sync-upstream/SKILL.md)
 once for targeted handwritten/test changes.
 
