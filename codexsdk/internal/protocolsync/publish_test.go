@@ -1,6 +1,11 @@
 package protocolsync
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
 
 func TestSyncBranchName(t *testing.T) {
 	got := syncBranchName("codex/sync-upstream/run-1-1", "refs/tags/rust-v0.154.0", oldSHA)
@@ -31,4 +36,68 @@ func TestNormalizeBranchRef(t *testing.T) {
 	if got := normalizeBranchRef("origin/main", "origin"); got != "main" {
 		t.Fatalf("got %s", got)
 	}
+}
+
+func TestPublishFailsClosedOnLandingRef(t *testing.T) {
+	_, err := Publish(PublishRequest{
+		RepoRoot:        t.TempDir(),
+		LandRef:         "feature",
+		DefaultBranch:   "main",
+		TargetRef:       "rust-v0.154.0",
+		TargetKind:      KindStableTag,
+		TargetSHA:       oldSHA,
+		ValidatedCommit: newSHA,
+	})
+	if err == nil || !strings.Contains(err.Error(), "default branch") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestPublishFailsClosedOnHEADMismatch(t *testing.T) {
+	repo := initSyncRepo(t, oldSHA, "rust-v0.140.0", KindStableTag)
+	head := strings.TrimSpace(gitMust(t, repo, "rev-parse", "HEAD"))
+	_, err := Publish(PublishRequest{
+		RepoRoot:        repo,
+		LandRef:         "main",
+		DefaultBranch:   "main",
+		TargetRef:       "rust-v0.140.0",
+		TargetKind:      KindStableTag,
+		TargetSHA:       oldSHA,
+		ValidatedCommit: newSHA,
+	})
+	if err == nil || !strings.Contains(err.Error(), "does not match HEAD") {
+		t.Fatalf("err = %v", err)
+	}
+	if !strings.Contains(err.Error(), head) {
+		t.Fatalf("error should name HEAD %s: %v", head, err)
+	}
+}
+
+func TestPublishFailsClosedOnDirtyWorktree(t *testing.T) {
+	repo := initSyncRepo(t, oldSHA, "rust-v0.140.0", KindStableTag)
+	head := strings.TrimSpace(gitMust(t, repo, "rev-parse", "HEAD"))
+	if err := os.WriteFile(filepath.Join(repo, "codexsdk", "dirty.go"), []byte("package codexsdk\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Publish(PublishRequest{
+		RepoRoot:        repo,
+		LandRef:         "main",
+		DefaultBranch:   "main",
+		TargetRef:       "rust-v0.140.0",
+		TargetKind:      KindStableTag,
+		TargetSHA:       oldSHA,
+		ValidatedCommit: head,
+	})
+	if err == nil || !strings.Contains(err.Error(), "clean") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func gitMust(t *testing.T, repo string, args ...string) string {
+	t.Helper()
+	out, err := gitOutput(repo, args...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
 }

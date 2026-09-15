@@ -1,6 +1,6 @@
 ---
 name: codexsdk-sync-upstream
-description: Make the minimal codexsdk source and test changes required by an already-observed Codex App Server protocol drift. The workflow owns target resolution, mechanical generation, verification, and publication.
+description: Make the minimal codexsdk source and test changes required by an already-observed Codex App Server protocol drift. The Go protocol-sync owner already selected and applied the target. The workflow owns the Agent invocation and whether publication runs.
 ---
 
 # Codex SDK Upstream Sync
@@ -14,7 +14,7 @@ The caller/workflow owns:
 
 - invoking the Go-native protocol-sync owner for the selected upstream target,
   candidate generation, mechanical updates, and deterministic verification;
-- commits, pull requests, merge, tags, and release effects.
+- whether publication runs after those checks succeed.
 
 You own one targeted implementation pass on the current `codexsdk` worktree.
 
