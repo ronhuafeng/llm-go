@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ronhuafeng/llm-go/codexsdk/internal/generatedproof"
+	"github.com/ronhuafeng/llm-go/codexsdk/internal/generatedcheck"
 )
 
 const defaultBaselineRel = "internal/protocolschema/appserver/v2"
@@ -69,7 +69,7 @@ func Check(req CheckRequest) (CheckResult, error) {
 		}
 	}
 
-	generated, err := generatedproof.RegeneratedFiles(root)
+	generated, err := generatedcheck.RegeneratedFiles(root)
 	if err != nil {
 		return result, err
 	}

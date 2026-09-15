@@ -86,16 +86,11 @@ jobs:
           go vet ./...
           go test -race ./...
 
-      - name: Prove generated protocol artifacts
+      - name: Check generated protocol artifacts
         working-directory: codexsdk
         env:
           GOTOOLCHAIN: local
-        run: |
-          set -euo pipefail
-          mkdir -p "${RUNNER_TEMP}/proof"
-          go run ./internal/cmd/generatedproof \
-            -expected-repository-commit "${GITHUB_SHA}" \
-            -json-out "${RUNNER_TEMP}/proof/generated.json"
+        run: go run ./internal/cmd/generatedcheck
 
       - name: Create immutable tag at the tested commit
         env:

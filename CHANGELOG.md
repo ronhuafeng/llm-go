@@ -11,6 +11,8 @@ changes may occur in minor releases.
 
 ### Repository
 
+- Replace generated protocol proof artifacts with a native regenerate-and-compare
+  check.
 - Required PR verification checks GitHub's synthetic merge candidate instead of
   the isolated PR head.
 - Raise the root Go floor to 1.26.8 and require `golang.org/x/mod v0.41.0`.

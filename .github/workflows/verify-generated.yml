@@ -2,15 +2,6 @@ name: Verify generated protocol artifacts
 
 on:
   workflow_call:
-    inputs:
-      expected-upstream-commit:
-        required: false
-        type: string
-        default: ""
-      upstream-ref:
-        required: false
-        type: string
-        default: ""
 
 permissions:
   contents: read
@@ -23,7 +14,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0
           ref: ${{ github.sha }}
           persist-credentials: false
 
@@ -32,35 +22,11 @@ jobs:
           go-version-file: go.mod
           cache: false
 
-      - name: Prove generated artifacts
+      - name: Check generated artifacts
         working-directory: codexsdk
         env:
           GOTOOLCHAIN: local
-          EXPECTED_COMMIT: ${{ inputs.expected-upstream-commit }}
-          UPSTREAM_REF: ${{ inputs.upstream-ref }}
-          REPOSITORY_COMMIT: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          mkdir -p "${RUNNER_TEMP}/proof"
-          args=(
-            -expected-repository-commit "${REPOSITORY_COMMIT}"
-            -json-out "${RUNNER_TEMP}/proof/generated.json"
-          )
-          if [[ -n "${EXPECTED_COMMIT}" ]]; then
-            args+=(-expected-upstream-commit "${EXPECTED_COMMIT}")
-          fi
-          if [[ -n "${UPSTREAM_REF}" ]]; then
-            args+=(-expected-upstream-ref "${UPSTREAM_REF}")
-          fi
-          go run ./internal/cmd/generatedproof "${args[@]}"
-
-      - name: Upload generated proof
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: generated-proof
-          path: ${{ runner.temp }}/proof/generated.json
-          if-no-files-found: error
+        run: go run ./internal/cmd/generatedcheck
 
       - name: Worktree remains clean
         if: ${{ always() && !cancelled() }}
@@ -69,6 +35,6 @@ jobs:
           git diff --check
           if [[ -n "$(git status --porcelain --untracked-files=all)" ]]; then
             git status --short >&2
-            echo "generated proof left a dirty worktree" >&2
+            echo "generated check left a dirty worktree" >&2
             exit 1
           fi

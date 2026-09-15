@@ -128,7 +128,7 @@ func TestRequiredVerificationChecksOutTheMergeCandidate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"pr-verification.yml", "verify-generated.yml"} {
+	for _, name := range requiredVerificationWorkflows(t, root) {
 		text := readWorkflow(t, root, name)
 		refs := checkoutRefs(text)
 		if len(refs) == 0 {
@@ -142,12 +142,38 @@ func TestRequiredVerificationChecksOutTheMergeCandidate(t *testing.T) {
 	}
 }
 
-func TestNativeProofObservesCleanWorktreeOnFailure(t *testing.T) {
+func TestGeneratedVerificationIsADeterministicCheck(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"verify-generated.yml", "pr-verification.yml"} {
+	pr := readWorkflow(t, root, "pr-verification.yml")
+	release := readWorkflow(t, root, "release.yml")
+	command := "./internal/cmd/generatedcheck"
+	found := false
+	for _, name := range requiredVerificationWorkflows(t, root) {
+		text := readWorkflow(t, root, name)
+		if strings.Contains(text, "go run "+command) {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("required generated verification must run the native generated check")
+	}
+	if !strings.Contains(release, "go run "+command) {
+		t.Fatal("release must run the same native generated check")
+	}
+	if !strings.Contains(pr, "name: Codex generated reproducibility") {
+		t.Fatal("protected generated-reproducibility check name must remain")
+	}
+}
+
+func TestGeneratedCheckObservesCleanWorktreeOnFailure(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range requiredVerificationWorkflows(t, root) {
 		text := readWorkflow(t, root, name)
 		idx := strings.Index(text, "- name: Worktree remains clean")
 		if idx < 0 {
@@ -163,10 +189,6 @@ func TestNativeProofObservesCleanWorktreeOnFailure(t *testing.T) {
 		if strings.Contains(chunk, "continue-on-error") {
 			t.Fatalf("%s clean-tree observation must not use continue-on-error", name)
 		}
-	}
-	generated := readWorkflow(t, root, "verify-generated.yml")
-	if strings.Contains(generated, "continue-on-error") {
-		t.Fatal("generated proof must not use continue-on-error to gather cleanliness")
 	}
 }
 
@@ -266,8 +288,8 @@ func TestProtocolSyncIsOneLinearSameRunWorkflow(t *testing.T) {
 		t.Fatal(err)
 	}
 	mechanicalText := string(mechanical)
-	if strings.Contains(mechanicalText, "./internal/cmd/generatedproof") || strings.Contains(mechanicalText, `"go", "test"`) {
-		t.Fatal("mechanical sync must not own generatedproof or go test correctness decisions")
+	if strings.Contains(mechanicalText, "./internal/cmd/generatedcheck") || strings.Contains(mechanicalText, `"go", "test"`) {
+		t.Fatal("mechanical sync must not own generated check or go test correctness decisions")
 	}
 }
 
@@ -277,36 +299,36 @@ func TestWorkflowJobByIDIsolatesJobs(t *testing.T) {
 		"  sync:\n" +
 		"    steps:\n" +
 		"      - run: echo sync\n" +
-		"  proof:\n" +
+		"  generated:\n" +
 		"    needs: sync\n" +
 		"    uses: ./.github/workflows/example.yml\n" +
 		"  publish:\n" +
-		"    needs: [sync, proof]\n" +
+		"    needs: [sync, generated]\n" +
 		"    if: always()\n"
-	proof, ok := workflowJobByID(yaml, "proof")
+	generated, ok := workflowJobByID(yaml, "generated")
 	if !ok {
-		t.Fatal("expected proof job")
+		t.Fatal("expected generated job")
 	}
-	if !strings.Contains(proof, "uses: ./.github/workflows/example.yml") {
-		t.Fatalf("missing uses: %s", proof)
+	if !strings.Contains(generated, "uses: ./.github/workflows/example.yml") {
+		t.Fatalf("missing uses: %s", generated)
 	}
-	if strings.Contains(proof, "if: always()") || strings.Contains(proof, "run: echo sync") {
-		t.Fatalf("job extractor leaked siblings: %s", proof)
+	if strings.Contains(generated, "if: always()") || strings.Contains(generated, "run: echo sync") {
+		t.Fatalf("job extractor leaked siblings: %s", generated)
 	}
 }
 
 func TestWorkflowStepByIDKeepsWorkingDirectoryOnOwningStep(t *testing.T) {
 	yaml := "" +
 		"    steps:\n" +
-		"      - name: Prove checked-in generated artifacts\n" +
-		"        id: generated-proof\n" +
+		"      - name: Check generated artifacts\n" +
+		"        id: generated-check\n" +
 		"        working-directory: leaked\n" +
-		"        run: go run ./internal/cmd/generatedproof\n" +
+		"        run: go run ./internal/cmd/generatedcheck\n" +
 		"      - name: Validate escalated protocol implementation\n" +
 		"        id: escalation-validation\n" +
 		"        working-directory: codexsdk\n" +
-		"        run: go run ./internal/cmd/generatedproof\n" +
-		"      - name: Upload generated proof\n" +
+		"        run: go run ./internal/cmd/generatedcheck\n" +
+		"      - name: Observe worktree\n" +
 		"        if: always()\n"
 	step, ok := workflowStepByID(yaml, "escalation-validation")
 	if !ok {
@@ -318,7 +340,7 @@ func TestWorkflowStepByIDKeepsWorkingDirectoryOnOwningStep(t *testing.T) {
 	if strings.Contains(step, "working-directory: leaked") {
 		t.Fatalf("leaked sibling working-directory into escalation step: %s", step)
 	}
-	if strings.Contains(step, "id: generated-proof") || strings.Contains(step, "Upload generated proof") {
+	if strings.Contains(step, "id: generated-check") || strings.Contains(step, "Observe worktree") {
 		t.Fatalf("step extractor included siblings: %s", step)
 	}
 
@@ -347,8 +369,8 @@ func TestReleasePublishesRootVersion(t *testing.T) {
 	if !strings.Contains(text, "tag=$VERSION") {
 		t.Fatal("release must tag the dispatched version")
 	}
-	if !strings.Contains(text, "./codexsdk/internal/cmd/generatedproof") && !strings.Contains(text, "./internal/cmd/generatedproof") {
-		t.Fatal("release verification must reuse native generated-artifact proof")
+	if !strings.Contains(text, "./internal/cmd/generatedcheck") {
+		t.Fatal("release verification must reuse the native generated check")
 	}
 }
 
@@ -601,6 +623,29 @@ func readWorkflow(t *testing.T, root, name string) string {
 		t.Fatal(err)
 	}
 	return string(data)
+}
+
+func requiredVerificationWorkflows(t *testing.T, root string) []string {
+	t.Helper()
+	seen := map[string]bool{"pr-verification.yml": true}
+	names := []string{"pr-verification.yml"}
+	for i := 0; i < len(names); i++ {
+		text := readWorkflow(t, root, names[i])
+		for _, line := range strings.Split(text, "\n") {
+			trimmed := strings.TrimSpace(line)
+			const prefix = "uses: ./.github/workflows/"
+			if !strings.HasPrefix(trimmed, prefix) {
+				continue
+			}
+			called := strings.TrimSpace(strings.TrimPrefix(trimmed, prefix))
+			if called == "" || seen[called] {
+				continue
+			}
+			seen[called] = true
+			names = append(names, called)
+		}
+	}
+	return names
 }
 
 func checkoutRefs(yaml string) []string {
