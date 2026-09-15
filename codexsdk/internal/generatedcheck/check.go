@@ -1,4 +1,4 @@
-package generatedproof
+package generatedcheck
 
 import (
 	"bytes"
@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -29,35 +28,12 @@ var (
 	cacheMarkers   = []string{".cache/codexsdk-upstream", ".cache/openai-codex"}
 )
 
-// Request is the expected identities a caller already believes. Prove observes
-// git HEAD and baseline metadata itself and fails closed on mismatch.
+// Request is optional expected baseline identity a caller already believes.
 type Request struct {
-	ModuleRoot               string
-	ExpectedRepositoryCommit string
-	ExpectedUpstreamCommit   string
-	ExpectedUpstreamRef      string
-	ExpectedUpstreamKind     string
-}
-
-// Artifact names one compared generated file.
-type Artifact struct {
-	Path         string `json:"path"`
-	Reproducible bool   `json:"reproducible"`
-	Diagnostic   string `json:"diagnostic,omitempty"`
-}
-
-// Result is the machine-readable proof. Unobserved fields are omitted.
-type Result struct {
-	RepositoryCommit               string     `json:"repository_commit,omitempty"`
-	RepositoryTree                 string     `json:"repository_tree,omitempty"`
-	WorktreeOverlay                *bool      `json:"worktree_overlay,omitempty"`
-	UpstreamRef                    string     `json:"upstream_ref,omitempty"`
-	UpstreamRefKind                string     `json:"upstream_ref_kind,omitempty"`
-	UpstreamCommit                 string     `json:"upstream_commit,omitempty"`
-	GeneratedArtifactsReproducible *bool      `json:"generated_artifacts_reproducible,omitempty"`
-	BaselineCommitMatches          *bool      `json:"baseline_commit_matches,omitempty"`
-	BaselinePathLeak               *bool      `json:"baseline_path_leak,omitempty"`
-	Artifacts                      []Artifact `json:"artifacts,omitempty"`
+	ModuleRoot             string
+	ExpectedUpstreamCommit string
+	ExpectedUpstreamRef    string
+	ExpectedUpstreamKind   string
 }
 
 type baselineMetadata struct {
@@ -66,70 +42,44 @@ type baselineMetadata struct {
 	SourceRefKind string `json:"source_ref_kind"`
 }
 
-// Prove regenerates checked-in protocol artifacts and compares them to disk.
-func Prove(req Request) (Result, error) {
+// Check regenerates owned protocol/SDK files and compares them with the
+// checked-in outputs. It also validates immutable upstream identity and
+// rejects local/cache path leakage.
+func Check(req Request) error {
 	root := req.ModuleRoot
 	if root == "" {
 		root = "."
 	}
 	root, err := filepath.Abs(root)
 	if err != nil {
-		return Result{}, err
-	}
-
-	result := Result{}
-	if head, err := observeGitHEAD(root); err != nil {
-		if req.ExpectedRepositoryCommit != "" {
-			return result, fmt.Errorf("observe repository commit: %w", err)
-		}
-	} else {
-		result.RepositoryCommit = head
-		if tree, overlay, treeErr := observeWorktreeTree(root, head); treeErr != nil {
-			return result, treeErr
-		} else {
-			result.RepositoryTree = tree
-			result.WorktreeOverlay = &overlay
-		}
-		if req.ExpectedRepositoryCommit != "" && head != req.ExpectedRepositoryCommit {
-			return result, fmt.Errorf("repository commit=%s, want %s", head, req.ExpectedRepositoryCommit)
-		}
+		return err
 	}
 
 	metadata, err := loadBaselineMetadata(filepath.Join(root, baselineRel, "baseline_metadata.json"))
 	if err != nil {
-		return result, err
+		return err
 	}
-	result.UpstreamCommit = metadata.SourceCommit
-	result.UpstreamRef = metadata.SourceRefName
-	result.UpstreamRefKind = metadata.SourceRefKind
-
-	if req.ExpectedUpstreamCommit != "" {
-		matches := metadata.SourceCommit == req.ExpectedUpstreamCommit
-		result.BaselineCommitMatches = &matches
-		if !matches {
-			return result, fmt.Errorf("baseline source_commit=%s, want %s", metadata.SourceCommit, req.ExpectedUpstreamCommit)
-		}
+	if req.ExpectedUpstreamCommit != "" && metadata.SourceCommit != req.ExpectedUpstreamCommit {
+		return fmt.Errorf("baseline source_commit=%s, want %s", metadata.SourceCommit, req.ExpectedUpstreamCommit)
 	}
 	if req.ExpectedUpstreamRef != "" && metadata.SourceRefName != req.ExpectedUpstreamRef {
-		return result, fmt.Errorf("baseline source_ref_name=%s, want %s", metadata.SourceRefName, req.ExpectedUpstreamRef)
+		return fmt.Errorf("baseline source_ref_name=%s, want %s", metadata.SourceRefName, req.ExpectedUpstreamRef)
 	}
 	if req.ExpectedUpstreamKind != "" && metadata.SourceRefKind != req.ExpectedUpstreamKind {
-		return result, fmt.Errorf("baseline source_ref_kind=%s, want %s", metadata.SourceRefKind, req.ExpectedUpstreamKind)
+		return fmt.Errorf("baseline source_ref_kind=%s, want %s", metadata.SourceRefKind, req.ExpectedUpstreamKind)
 	}
 
 	leaks, err := scanBaselinePathLeaks(filepath.Join(root, baselineRel))
 	if err != nil {
-		return result, err
+		return err
 	}
-	leaked := len(leaks) > 0
-	result.BaselinePathLeak = &leaked
-	if leaked {
-		return result, fmt.Errorf("checked-in protocol baseline contains local or cache paths:\n%s", strings.Join(leaks, "\n"))
+	if len(leaks) > 0 {
+		return fmt.Errorf("checked-in protocol baseline contains local or cache paths:\n%s", strings.Join(leaks, "\n"))
 	}
 
 	generated, err := generateArtifacts(root)
 	if err != nil {
-		return result, err
+		return err
 	}
 
 	checked := []struct {
@@ -142,29 +92,24 @@ func Prove(req Request) (Result, error) {
 		{sdkSurface, generated.sdkSurface},
 	}
 
-	allMatch := true
+	var mismatches []string
 	for _, item := range checked {
 		want, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(item.rel)))
 		if err != nil {
-			return result, err
+			return err
 		}
-		match := bytes.Equal(want, item.data)
-		artifact := Artifact{Path: item.rel, Reproducible: match}
-		if !match {
-			allMatch = false
-			artifact.Diagnostic = mismatchDiagnostic(item.rel, want, item.data)
+		if !bytes.Equal(want, item.data) {
+			mismatches = append(mismatches, mismatchDiagnostic(item.rel, want, item.data))
 		}
-		result.Artifacts = append(result.Artifacts, artifact)
 	}
-	result.GeneratedArtifactsReproducible = &allMatch
-	if !allMatch {
-		return result, fmt.Errorf("generated artifacts do not match checked-in outputs: %s", mismatchSummary(result.Artifacts))
+	if len(mismatches) > 0 {
+		return fmt.Errorf("generated artifacts do not match checked-in outputs: %s", strings.Join(mismatches, "; "))
 	}
-	return result, nil
+	return nil
 }
 
 // WriteArtifacts regenerates protocol artifacts and writes them. It does not
-// compare against checked-in files and is not a proof.
+// compare against checked-in files.
 func WriteArtifacts(moduleRoot string) error {
 	root := moduleRoot
 	if root == "" {
@@ -203,7 +148,7 @@ type generatedSet struct {
 }
 
 // RegeneratedFiles returns the canonical generated protocol artifacts for moduleRoot
-// without writing them or observing git identity.
+// without writing them.
 func RegeneratedFiles(moduleRoot string) (map[string][]byte, error) {
 	generated, err := generateArtifacts(moduleRoot)
 	if err != nil {
@@ -306,65 +251,4 @@ func scanBaselinePathLeaks(root string) ([]string, error) {
 
 func mismatchDiagnostic(rel string, want, got []byte) string {
 	return fmt.Sprintf("%s mismatch: checked-in sha256=%x generated sha256=%x", rel, sha256.Sum256(want), sha256.Sum256(got))
-}
-
-func mismatchSummary(artifacts []Artifact) string {
-	var parts []string
-	for _, artifact := range artifacts {
-		if !artifact.Reproducible && artifact.Diagnostic != "" {
-			parts = append(parts, artifact.Diagnostic)
-		}
-	}
-	if len(parts) == 0 {
-		return "one or more artifacts differ"
-	}
-	return strings.Join(parts, "; ")
-}
-
-func observeWorktreeTree(dir, head string) (string, bool, error) {
-	index, err := os.CreateTemp("", "generatedproof-index-")
-	if err != nil {
-		return "", false, err
-	}
-	indexPath := index.Name()
-	index.Close()
-	defer os.Remove(indexPath)
-	env := append(os.Environ(), "GIT_INDEX_FILE="+indexPath)
-	readTree := exec.Command("git", "-C", dir, "read-tree", head)
-	readTree.Env = env
-	if out, err := readTree.CombinedOutput(); err != nil {
-		return "", false, fmt.Errorf("git read-tree: %w: %s", err, bytes.TrimSpace(out))
-	}
-	add := exec.Command("git", "-C", dir, "add", "-A")
-	add.Env = env
-	if out, err := add.CombinedOutput(); err != nil {
-		return "", false, fmt.Errorf("git add -A for tree identity: %w: %s", err, bytes.TrimSpace(out))
-	}
-	writeTree := exec.Command("git", "-C", dir, "write-tree")
-	writeTree.Env = env
-	out, err := writeTree.Output()
-	if err != nil {
-		return "", false, fmt.Errorf("git write-tree: %w", err)
-	}
-	tree := strings.TrimSpace(string(out))
-	headTreeCmd := exec.Command("git", "-C", dir, "rev-parse", head+"^{tree}")
-	headTreeOut, err := headTreeCmd.Output()
-	if err != nil {
-		return "", false, fmt.Errorf("git rev-parse HEAD^{tree}: %w", err)
-	}
-	overlay := tree != strings.TrimSpace(string(headTreeOut))
-	return tree, overlay, nil
-}
-
-func observeGitHEAD(dir string) (string, error) {
-	cmd := exec.Command("git", "-C", dir, "rev-parse", "HEAD")
-	out, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("git rev-parse HEAD: %w", err)
-	}
-	sha := strings.TrimSpace(string(out))
-	if !sourceCommitRE.MatchString(sha) {
-		return "", fmt.Errorf("git HEAD %q is not a full git sha", sha)
-	}
-	return sha, nil
 }

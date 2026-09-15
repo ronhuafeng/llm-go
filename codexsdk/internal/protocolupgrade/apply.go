@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ronhuafeng/llm-go/codexsdk/internal/generatedproof"
+	"github.com/ronhuafeng/llm-go/codexsdk/internal/generatedcheck"
 )
 
 // ApplyRequest is the apply command input.
@@ -180,7 +180,7 @@ func Apply(req ApplyRequest) (ApplyResult, error) {
 		if err := requireModuleBaseline(moduleRoot, req.Baseline); err != nil {
 			return ApplyResult{}, err
 		}
-		if err := generatedproof.WriteArtifacts(moduleRoot); err != nil {
+		if err := generatedcheck.WriteArtifacts(moduleRoot); err != nil {
 			return ApplyResult{}, err
 		}
 	}

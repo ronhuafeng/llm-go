@@ -10,9 +10,11 @@ go test -race ./...
 ```
 
 Generated protocol reproducibility is a separate deterministic check:
+regenerate the owned protocol/SDK files, compare them with the checked-in
+outputs, and exit non-zero on mismatch.
 
 ```sh
-go run ./codexsdk/internal/cmd/generatedproof -module-root ./codexsdk
+go run ./codexsdk/internal/cmd/generatedcheck -module-root ./codexsdk
 ```
 
 ## Required PR verification
