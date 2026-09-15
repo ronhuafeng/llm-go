@@ -107,25 +107,37 @@ func TestPRVerificationIsRootModuleAndGeneratedReproducibility(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := readWorkflow(t, root, "pr-verification.yml")
-	if workflowJobCount(text) != 2 {
-		t.Fatal("PR verification must have exactly two jobs")
-	}
-	if _, ok := workflowJobByID(text, "source"); !ok {
-		t.Fatal("PR verification must include root source verification")
-	}
-	if _, ok := workflowJobByID(text, "generated-reproducibility"); !ok {
-		t.Fatal("PR verification must include generated reproducibility")
-	}
 	for _, want := range []string{
 		"name: Root source verification",
 		"name: Codex generated reproducibility",
-		"uses: ./.github/workflows/verify-generated.yml",
+		"gofmt",
+		"git diff --check",
+		"actionlint",
 		"go mod tidy -diff",
 		"go vet ./...",
 		"go test -race ./...",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("PR verification missing %q", want)
+		}
+	}
+}
+
+func TestRequiredVerificationChecksOutTheMergeCandidate(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"pr-verification.yml", "verify-generated.yml"} {
+		text := readWorkflow(t, root, name)
+		refs := checkoutRefs(text)
+		if len(refs) == 0 {
+			t.Fatalf("%s must check out the triggering revision", name)
+		}
+		for _, ref := range refs {
+			if ref != "${{ github.sha }}" {
+				t.Fatalf("%s checkout ref %q is not GitHub's triggering merge candidate", name, ref)
+			}
 		}
 	}
 }
@@ -380,6 +392,9 @@ func TestCurrentDocsDescribeOneRootModule(t *testing.T) {
 	if !strings.Contains(string(verify), "go test -race ./...") {
 		t.Fatal("docs/verify.md must document root-module race tests")
 	}
+	if !strings.Contains(string(verify), "merge candidate") {
+		t.Fatal("docs/verify.md must say required PR checks validate the merge candidate")
+	}
 	release, err := os.ReadFile(filepath.Join(root, "docs", "release.md"))
 	if err != nil {
 		t.Fatal(err)
@@ -586,6 +601,40 @@ func readWorkflow(t *testing.T, root, name string) string {
 		t.Fatal(err)
 	}
 	return string(data)
+}
+
+func checkoutRefs(yaml string) []string {
+	var refs []string
+	lines := strings.Split(yaml, "\n")
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if !strings.Contains(trimmed, "actions/checkout") || (!strings.HasPrefix(trimmed, "- uses:") && !strings.HasPrefix(trimmed, "uses:")) {
+			continue
+		}
+		startIndent := countLeadingSpaces(line)
+		end := i + 1
+		for end < len(lines) {
+			next := lines[end]
+			if strings.TrimSpace(next) == "" {
+				end++
+				continue
+			}
+			indent := countLeadingSpaces(next)
+			if indent <= startIndent {
+				break
+			}
+			end++
+		}
+		ref := "${{ github.sha }}"
+		for _, stepLine := range lines[i:end] {
+			stepTrimmed := strings.TrimSpace(stepLine)
+			if strings.HasPrefix(stepTrimmed, "ref:") {
+				ref = strings.TrimSpace(strings.TrimPrefix(stepTrimmed, "ref:"))
+			}
+		}
+		refs = append(refs, ref)
+	}
+	return refs
 }
 
 var workflowJobHeader = regexp.MustCompile(`^  ([A-Za-z0-9_-]+):$`)

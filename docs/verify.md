@@ -23,6 +23,10 @@ go run ./codexsdk/internal/cmd/generatedproof -module-root ./codexsdk
   `go mod tidy -diff`, `go vet ./...`, and `go test -race ./...`;
 - checked-in `codexsdk` generated-source reproducibility.
 
+On `pull_request`, both outcomes validate GitHub's synthetic merge candidate
+(`github.sha`), not the isolated PR branch head. `merge_group` and `main` push
+runs verify the same triggering revision.
+
 GitHub Actions orchestrates these checks; Go owns the module/repository logic.
 
 ## Protocol upgrades
