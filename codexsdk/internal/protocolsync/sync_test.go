@@ -220,18 +220,32 @@ func initSyncRepo(t *testing.T, commit, ref, kind string) string {
 
 func runGitInit(t *testing.T, root string) {
 	t.Helper()
-	cmds := [][]string{
-		{"init", "-b", "main"},
-		{"add", "-A"},
-		{"commit", "-m", "fixture"},
+	if out, err := execGit(t, root, "init", "-b", "main"); err != nil {
+		t.Fatalf("git init: %v\n%s", err, out)
 	}
-	for _, args := range cmds {
-		cmd := exec.Command("git", append([]string{"-C", root, "-c", "user.name=protocolsync-test", "-c", "user.email=protocolsync-test@example.com", "-c", "commit.gpgsign=false"}, args...)...)
-		cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1")
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
+	runGitInitCommit(t, root, "fixture")
+}
+
+func runGitInitCommit(t *testing.T, root, message string) {
+	t.Helper()
+	if out, err := execGit(t, root, "add", "-A"); err != nil {
+		t.Fatalf("git add: %v\n%s", err, out)
 	}
+	if out, err := execGit(t, root, "commit", "-m", message); err != nil {
+		t.Fatalf("git commit: %v\n%s", err, out)
+	}
+}
+
+func execGit(t *testing.T, root string, args ...string) ([]byte, error) {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{
+		"-C", root,
+		"-c", "user.name=protocolsync-test",
+		"-c", "user.email=protocolsync-test@example.com",
+		"-c", "commit.gpgsign=false",
+	}, args...)...)
+	cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1")
+	return cmd.CombinedOutput()
 }
 
 func writeFile(t *testing.T, path, contents string) {

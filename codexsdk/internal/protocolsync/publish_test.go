@@ -2,6 +2,7 @@ package protocolsync
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -70,6 +71,34 @@ func TestPublishFailsClosedOnHEADMismatch(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), head) {
 		t.Fatalf("error should name HEAD %s: %v", head, err)
+	}
+}
+
+func TestPublishFailsClosedWhenLandingMoved(t *testing.T) {
+	repo := initSyncRepo(t, oldSHA, "rust-v0.140.0", KindStableTag)
+	writeFile(t, filepath.Join(repo, "codexsdk", "sdk_surface.gen.go"), "package codexsdk\n")
+	runGitInitCommit(t, repo, "sync change")
+	head := strings.TrimSpace(gitMust(t, repo, "rev-parse", "HEAD"))
+	remote := filepath.Join(t.TempDir(), "remote.git")
+	clone := exec.Command("git", "clone", "--bare", repo, remote)
+	if out, err := clone.CombinedOutput(); err != nil {
+		t.Fatalf("clone remote: %v\n%s", err, out)
+	}
+	if out, err := execGit(t, repo, "remote", "add", "origin", remote); err != nil {
+		t.Fatalf("add remote: %v\n%s", err, out)
+	}
+	_, err := Publish(PublishRequest{
+		RepoRoot:        repo,
+		LandRef:         "main",
+		DefaultBranch:   "main",
+		TargetRef:       "rust-v0.140.0",
+		TargetKind:      KindStableTag,
+		TargetSHA:       oldSHA,
+		ValidatedCommit: head,
+		Remote:          "origin",
+	})
+	if err == nil || !strings.Contains(err.Error(), "moved") {
+		t.Fatalf("err = %v", err)
 	}
 }
 
