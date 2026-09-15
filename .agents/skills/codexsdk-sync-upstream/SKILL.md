@@ -12,9 +12,8 @@ change has been selected and compared.
 
 The caller/workflow owns:
 
-- the selected upstream target;
-- candidate/schema generation and mechanical updates;
-- deterministic verification;
+- invoking the Go-native protocol-sync owner for the selected upstream target,
+  candidate generation, mechanical updates, and deterministic verification;
 - commits, pull requests, merge, tags, and release effects.
 
 You own one targeted implementation pass on the current `codexsdk` worktree.

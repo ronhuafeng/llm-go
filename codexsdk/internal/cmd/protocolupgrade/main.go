@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/ronhuafeng/llm-go/codexsdk/internal/protocolsync"
 	"github.com/ronhuafeng/llm-go/codexsdk/internal/protocolupgrade"
 )
 
@@ -16,16 +17,22 @@ func main() {
 
 func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "protocolupgrade: command is required: compare, apply, or check\n")
+		fmt.Fprintf(stderr, "protocolupgrade: command is required: sync, compare, apply, check, stage, or publish\n")
 		return 2
 	}
 	switch args[0] {
+	case "sync":
+		return runSync(args[1:], stdout, stderr)
 	case "compare":
 		return runCompare(args[1:], stdout, stderr)
 	case "apply":
 		return runApply(args[1:], stdout, stderr)
 	case "check":
 		return runCheck(args[1:], stdout, stderr)
+	case "stage":
+		return runStage(args[1:], stdout, stderr)
+	case "publish":
+		return runPublish(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "protocolupgrade: unknown command %q\n", args[0])
 		return 2
@@ -163,6 +170,102 @@ func runCheck(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "protocolupgrade check: %v\n", err)
 		return 1
 	}
+	return 0
+}
+
+func runSync(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("sync", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	repoRoot := fs.String("repo-root", "", "repository root")
+	moduleRoot := fs.String("module-root", "", "codexsdk module root")
+	upstreamRepo := fs.String("upstream-repo", "https://github.com/openai/codex.git", "openai/codex git remote")
+	upstreamRef := fs.String("upstream-ref", "", "optional tag, ref, or full SHA; empty selects the latest stable rust-vX.Y.Z tag")
+	allowDowngrade := fs.Bool("allow-downgrade", false, "allow an explicit older stable tag")
+	forceCompare := fs.Bool("force-compare", false, "generate and compare even when the baseline already matches")
+	eventName := fs.String("event-name", "", "GitHub event name for scheduled vs manual policy")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *repoRoot == "" {
+		fmt.Fprintf(stderr, "protocolupgrade sync: -repo-root is required\n")
+		return 2
+	}
+	result, err := protocolsync.Sync(protocolsync.SyncRequest{
+		RepoRoot:       *repoRoot,
+		ModuleRoot:     *moduleRoot,
+		UpstreamRepo:   *upstreamRepo,
+		UpstreamRef:    *upstreamRef,
+		AllowDowngrade: *allowDowngrade,
+		ForceCompare:   *forceCompare,
+		EventName:      *eventName,
+	})
+	if writeErr := protocolsync.WriteGitHubOutput(os.Getenv("GITHUB_OUTPUT"), result); writeErr != nil {
+		fmt.Fprintf(stderr, "protocolupgrade sync: write github output: %v\n", writeErr)
+		if err == nil {
+			err = writeErr
+		}
+	}
+	if err != nil {
+		fmt.Fprintf(stderr, "protocolupgrade sync: %v\n", err)
+		return 1
+	}
+	fmt.Fprintf(stderr, "protocolupgrade sync: %s\n", result.Reason)
+	return 0
+}
+
+func runStage(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("stage", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	repoRoot := fs.String("repo-root", "", "repository root")
+	phase := fs.String("phase", "final", "mechanical or final")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *repoRoot == "" {
+		fmt.Fprintf(stderr, "protocolupgrade stage: -repo-root is required\n")
+		return 2
+	}
+	paths, err := protocolsync.StagePaths(*repoRoot, *phase)
+	if err != nil {
+		fmt.Fprintf(stderr, "protocolupgrade stage: %v\n", err)
+		return 1
+	}
+	fmt.Fprintf(stderr, "protocolupgrade stage: %d paths\n", len(paths))
+	return 0
+}
+
+func runPublish(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("publish", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	repoRoot := fs.String("repo-root", "", "repository root")
+	landRef := fs.String("land-ref", "", "protected landing branch")
+	defaultBranch := fs.String("default-branch", "", "repository default branch")
+	branchPrefix := fs.String("branch-prefix", "codex/sync-upstream", "sync branch prefix")
+	targetRef := fs.String("target-ref", "", "selected upstream ref")
+	targetKind := fs.String("target-kind", "", "selected upstream kind")
+	targetSHA := fs.String("target-sha", "", "selected upstream commit")
+	validatedCommit := fs.String("validated-commit", "", "commit native checks accepted")
+	remote := fs.String("remote", "origin", "git remote")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	prURL, err := protocolsync.Publish(protocolsync.PublishRequest{
+		RepoRoot:         *repoRoot,
+		LandRef:          *landRef,
+		DefaultBranch:    *defaultBranch,
+		BranchPrefix:     *branchPrefix,
+		TargetRef:        *targetRef,
+		TargetKind:       *targetKind,
+		TargetSHA:        *targetSHA,
+		ValidatedCommit:  *validatedCommit,
+		Remote:           *remote,
+		GitHubOutputPath: os.Getenv("GITHUB_OUTPUT"),
+	})
+	if err != nil {
+		fmt.Fprintf(stderr, "protocolupgrade publish: %v\n", err)
+		return 1
+	}
+	fmt.Fprintln(stdout, prURL)
 	return 0
 }
 

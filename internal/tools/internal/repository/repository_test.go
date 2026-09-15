@@ -277,21 +277,15 @@ func TestProtocolSyncIsOneLinearSameRunWorkflow(t *testing.T) {
 			t.Fatalf("protocol sync uses moving third-party Action tag %q", moving)
 		}
 	}
-
-	publishHelper, err := os.ReadFile(filepath.Join(root, "codexsdk", "scripts", "codexsdk_publish_sync_pr.sh"))
-	if err != nil {
-		t.Fatal(err)
+	mechanical, ok := workflowStepByID(syncText, "mechanical")
+	if !ok {
+		t.Fatal("protocol sync must run one native mechanical owner")
 	}
-	if strings.Contains(string(publishHelper), "git rebase") {
+	if !strings.Contains(mechanical, "./internal/cmd/protocolupgrade") || !strings.Contains(mechanical, "sync") {
+		t.Fatal("mechanical protocol sync must use the native Go owner")
+	}
+	if strings.Contains(publish, "git rebase") {
 		t.Fatal("publication must not rebase after checks")
-	}
-	mechanical, err := os.ReadFile(filepath.Join(root, "codexsdk", "scripts", "codexsdk_mechanical_sync.py"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	mechanicalText := string(mechanical)
-	if strings.Contains(mechanicalText, "./internal/cmd/generatedcheck") || strings.Contains(mechanicalText, `"go", "test"`) {
-		t.Fatal("mechanical sync must not own generated check or go test correctness decisions")
 	}
 }
 

@@ -11,6 +11,8 @@ changes may occur in minor releases.
 
 ### Repository
 
+- Collapse Codex protocol sync onto one Go-native owner for target resolution,
+  policy, generate, compare, apply, and check.
 - Replace generated protocol proof artifacts with a native regenerate-and-compare
   check.
 - Required PR verification checks GitHub's synthetic merge candidate instead of
