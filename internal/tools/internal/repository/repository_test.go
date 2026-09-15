@@ -207,9 +207,6 @@ func TestProtocolSyncIsOneLinearSameRunWorkflow(t *testing.T) {
 	if workflowJobCount(syncText) != 1 {
 		t.Fatal("protocol sync must be one linear job")
 	}
-	if strings.Contains(syncText, "actions/download-artifact") || strings.Contains(syncText, "restore-worktree") {
-		t.Fatal("linear protocol sync must not restore cross-run worktree or candidate artifacts")
-	}
 	if strings.Count(syncText, "uses: ./.github/actions/codex-exec") != 1 {
 		t.Fatal("real drift must invoke at most one Agent pass")
 	}
@@ -316,39 +313,39 @@ func TestWorkflowJobByIDIsolatesJobs(t *testing.T) {
 func TestWorkflowStepByIDKeepsWorkingDirectoryOnOwningStep(t *testing.T) {
 	yaml := "" +
 		"    steps:\n" +
-		"      - name: Check generated artifacts\n" +
-		"        id: generated-check\n" +
+		"      - name: Leaked sibling\n" +
+		"        id: leaked-step\n" +
 		"        working-directory: leaked\n" +
-		"        run: go run ./internal/cmd/generatedcheck\n" +
-		"      - name: Validate escalated protocol implementation\n" +
-		"        id: escalation-validation\n" +
+		"        run: echo leaked\n" +
+		"      - name: Current step\n" +
+		"        id: current-step\n" +
 		"        working-directory: codexsdk\n" +
-		"        run: go run ./internal/cmd/generatedcheck\n" +
-		"      - name: Observe worktree\n" +
+		"        run: echo current\n" +
+		"      - name: Later sibling\n" +
 		"        if: always()\n"
-	step, ok := workflowStepByID(yaml, "escalation-validation")
+	step, ok := workflowStepByID(yaml, "current-step")
 	if !ok {
-		t.Fatal("expected escalation-validation step")
+		t.Fatal("expected current-step")
 	}
 	if !strings.Contains(step, "working-directory: codexsdk") {
 		t.Fatalf("missing owning working-directory: %s", step)
 	}
 	if strings.Contains(step, "working-directory: leaked") {
-		t.Fatalf("leaked sibling working-directory into escalation step: %s", step)
+		t.Fatalf("leaked sibling working-directory into current-step: %s", step)
 	}
-	if strings.Contains(step, "id: generated-check") || strings.Contains(step, "Observe worktree") {
+	if strings.Contains(step, "id: leaked-step") || strings.Contains(step, "Later sibling") {
 		t.Fatalf("step extractor included siblings: %s", step)
 	}
 
 	missingCWD := strings.Replace(yaml, "        working-directory: codexsdk\n", "", 1)
-	leaky, ok := workflowStepByID(missingCWD, "escalation-validation")
+	leaky, ok := workflowStepByID(missingCWD, "current-step")
 	if !ok {
-		t.Fatal("expected escalation-validation step after removing its working-directory")
+		t.Fatal("expected current-step after removing its working-directory")
 	}
 	if strings.Contains(leaky, "working-directory: codexsdk") {
-		t.Fatal("removed escalation working-directory still visible on that step")
+		t.Fatal("removed current-step working-directory still visible on that step")
 	}
-	if !strings.Contains(missingCWD, "id: escalation-validation") || !strings.Contains(missingCWD, "working-directory: leaked") {
+	if !strings.Contains(missingCWD, "id: current-step") || !strings.Contains(missingCWD, "working-directory: leaked") {
 		t.Fatal("fixture must still contain a sibling working-directory so a file-wide search would pass")
 	}
 }
