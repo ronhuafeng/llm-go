@@ -37,9 +37,9 @@ Use [`protocol-sync.md`](protocol-sync.md).
 
 ## Non-gating checks
 
-Advisory portability, fuzzing, vulnerability scans, post-release resolution
-smoke, and real Codex smoke provide additional signals but are not required PR
-merge gates unless repository policy explicitly changes.
+Advisory portability, fuzzing, vulnerability scans, and real Codex smoke
+provide additional signals but are not required PR merge gates unless
+repository policy explicitly changes.
 
 The live Codex smoke checks current CLI/provider availability and cannot replace
 deterministic source verification.

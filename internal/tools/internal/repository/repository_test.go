@@ -40,67 +40,6 @@ func TestDependabotCoversRootModuleAndActions(t *testing.T) {
 	}
 }
 
-func TestPostReleaseModuleSmokeObservesPublicProxyOnce(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	data, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "post-release-module-smoke.yml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := string(data)
-	if !strings.Contains(text, "github.com/ronhuafeng/llm-go@") && !strings.Contains(text, `github.com/ronhuafeng/llm-go@$`) {
-		t.Fatal("post-release smoke must resolve the root module github.com/ronhuafeng/llm-go")
-	}
-	for _, pkg := range []string{
-		"github.com/ronhuafeng/llm-go/llmkit",
-		"github.com/ronhuafeng/llm-go/codexsdk",
-		"github.com/ronhuafeng/llm-go/llmcaller/codex",
-	} {
-		if !strings.Contains(text, pkg) {
-			t.Fatalf("post-release smoke must load %s", pkg)
-		}
-	}
-	if !strings.Contains(text, "go mod tidy") {
-		t.Fatal("post-release smoke must complete consumer go.sum setup")
-	}
-	if strings.Contains(text, "types: [published]") {
-		t.Fatal("post-release smoke must not rely on GITHUB_TOKEN release.published")
-	}
-	if !strings.Contains(text, "GOPROXY=https://proxy.golang.org") && !strings.Contains(text, "GOPROXY: https://proxy.golang.org") {
-		t.Fatal("post-release smoke must pin GOPROXY to proxy.golang.org")
-	}
-	if strings.Contains(text, "actions/checkout") {
-		t.Fatal("post-release smoke must not check out repository source")
-	}
-	if strings.Contains(text, ",direct") {
-		t.Fatal("post-release smoke must observe proxy.golang.org without a direct fallback")
-	}
-	for _, banned := range []string{"sleep ", "until ", "git tag", "git push"} {
-		if strings.Contains(text, banned) {
-			t.Fatalf("post-release smoke must not contain %q", banned)
-		}
-	}
-	pr, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "pr-verification.yml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(pr), "post-release-module-smoke") {
-		t.Fatal("post-release smoke must not be part of PR verification")
-	}
-	release, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "release.yml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(release), "gh workflow run post-release-module-smoke.yml") {
-		t.Fatal("root-module release must dispatch the observation workflow by filename")
-	}
-	if !strings.Contains(string(release), "continue-on-error: true") {
-		t.Fatal("observation dispatch must not fail the release job after publication")
-	}
-}
-
 func TestPRVerificationIsRootModuleAndGeneratedReproducibility(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
 	if err != nil {
@@ -148,13 +87,9 @@ func TestGeneratedVerificationIsADeterministicCheck(t *testing.T) {
 		t.Fatal(err)
 	}
 	pr := readWorkflow(t, root, "pr-verification.yml")
-	release := readWorkflow(t, root, "release.yml")
 	command := "go run ./internal/cmd/generatedcheck"
 	if !strings.Contains(pr, "name: Codex generated reproducibility") {
 		t.Fatal("protected generated-reproducibility check name must remain")
-	}
-	if !strings.Contains(release, command) {
-		t.Fatal("release must run the native generated check")
 	}
 	if strings.Contains(pr, command) {
 		return
@@ -165,7 +100,7 @@ func TestGeneratedVerificationIsADeterministicCheck(t *testing.T) {
 	}
 	for _, name := range called {
 		if !strings.Contains(readWorkflow(t, root, name), command) {
-			t.Fatalf("%s must run the same native generated check as release", name)
+			t.Fatalf("%s must run the native generated check", name)
 		}
 	}
 }
@@ -350,23 +285,6 @@ func TestWorkflowStepByIDKeepsWorkingDirectoryOnOwningStep(t *testing.T) {
 	}
 }
 
-func TestReleasePublishesRootVersion(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := readWorkflow(t, root, "release.yml")
-	if !strings.Contains(text, "inputs.version") {
-		t.Fatal("release dispatch must accept a root version")
-	}
-	if !strings.Contains(text, "tag=$VERSION") {
-		t.Fatal("release must tag the dispatched version")
-	}
-	if !strings.Contains(text, "./internal/cmd/generatedcheck") {
-		t.Fatal("release verification must reuse the native generated check")
-	}
-}
-
 func TestWorkflowLintUsesPinnedGoActionlint(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
 	if err != nil {
@@ -414,8 +332,15 @@ func TestCurrentDocsDescribeOneRootModule(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(release), "version=vX.Y.Z") {
-		t.Fatal("docs/release.md must document the root version dispatch")
+	releaseDoc := string(release)
+	if !strings.Contains(releaseDoc, "required CI") {
+		t.Fatal("docs/release.md must say required CI owns source correctness")
+	}
+	if !strings.Contains(releaseDoc, "external") || !strings.Contains(releaseDoc, "already-accepted") {
+		t.Fatal("docs/release.md must place version choice on an already-accepted commit outside GitHub Actions")
+	}
+	if !strings.Contains(releaseDoc, "immutable") {
+		t.Fatal("docs/release.md must say version/tag identity is immutable")
 	}
 	security, err := os.ReadFile(filepath.Join(root, "SECURITY.md"))
 	if err != nil {

@@ -1,6 +1,7 @@
 # GitHub Actions rules
 
-Keep workflows direct and fail normally.
+Keep workflows direct and fail normally. GitHub Actions maintain repository
+source correctness; version publication is outside this control plane.
 
 - A `run` step before checkout must use `${{ github.workspace }}` explicitly if
   the workflow has a non-root default working directory.
@@ -12,5 +13,5 @@ Keep workflows direct and fail normally.
   Codex execution step.
 - A model final message never replaces deterministic validation. Protocol sync
   follows [`docs/protocol-sync.md`](../docs/protocol-sync.md).
-- Workflows with provider/release secrets or repository-write authority pin
+- Workflows with provider secrets or repository-write authority pin
   third-party Actions to reviewed immutable commits.
