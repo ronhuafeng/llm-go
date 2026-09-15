@@ -149,22 +149,24 @@ func TestGeneratedVerificationIsADeterministicCheck(t *testing.T) {
 	}
 	pr := readWorkflow(t, root, "pr-verification.yml")
 	release := readWorkflow(t, root, "release.yml")
-	command := "./internal/cmd/generatedcheck"
-	found := false
-	for _, name := range requiredVerificationWorkflows(t, root) {
-		text := readWorkflow(t, root, name)
-		if strings.Contains(text, "go run "+command) {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatal("required generated verification must run the native generated check")
-	}
-	if !strings.Contains(release, "go run "+command) {
-		t.Fatal("release must run the same native generated check")
-	}
+	command := "go run ./internal/cmd/generatedcheck"
 	if !strings.Contains(pr, "name: Codex generated reproducibility") {
 		t.Fatal("protected generated-reproducibility check name must remain")
+	}
+	if !strings.Contains(release, command) {
+		t.Fatal("release must run the native generated check")
+	}
+	if strings.Contains(pr, command) {
+		return
+	}
+	called := reusableWorkflows(pr)
+	if len(called) == 0 {
+		t.Fatal("generated reproducibility must run the native generated check")
+	}
+	for _, name := range called {
+		if !strings.Contains(readWorkflow(t, root, name), command) {
+			t.Fatalf("%s must run the same native generated check as release", name)
+		}
 	}
 }
 
@@ -630,18 +632,27 @@ func requiredVerificationWorkflows(t *testing.T, root string) []string {
 	seen := map[string]bool{"pr-verification.yml": true}
 	names := []string{"pr-verification.yml"}
 	for i := 0; i < len(names); i++ {
-		text := readWorkflow(t, root, names[i])
-		for _, line := range strings.Split(text, "\n") {
-			trimmed := strings.TrimSpace(line)
-			const prefix = "uses: ./.github/workflows/"
-			if !strings.HasPrefix(trimmed, prefix) {
-				continue
-			}
-			called := strings.TrimSpace(strings.TrimPrefix(trimmed, prefix))
-			if called == "" || seen[called] {
+		for _, called := range reusableWorkflows(readWorkflow(t, root, names[i])) {
+			if seen[called] {
 				continue
 			}
 			seen[called] = true
+			names = append(names, called)
+		}
+	}
+	return names
+}
+
+func reusableWorkflows(yaml string) []string {
+	var names []string
+	for _, line := range strings.Split(yaml, "\n") {
+		trimmed := strings.TrimSpace(line)
+		const prefix = "uses: ./.github/workflows/"
+		if !strings.HasPrefix(trimmed, prefix) {
+			continue
+		}
+		called := strings.TrimSpace(strings.TrimPrefix(trimmed, prefix))
+		if called != "" {
 			names = append(names, called)
 		}
 	}
