@@ -96,58 +96,34 @@ jobs:
             pkg-config \
             protobuf-compiler
 
-      - name: Guard clean protocol worktree
-        working-directory: codexsdk
-        run: |
-          python3 scripts/codexsdk_sync_changes.py assert-clean \
-            --repo-root "${GITHUB_WORKSPACE}"
-
-      - name: Resolve upstream target
-        id: target
-        working-directory: codexsdk
-        env:
-          ALLOW_DOWNGRADE: ${{ inputs.allow_downgrade || false }}
-          FORCE_COMPARE: ${{ inputs.force_compare || false }}
-          REQUESTED_REF: ${{ inputs.upstream_ref || '' }}
-          UPSTREAM_REPO: https://github.com/openai/codex.git
-        run: |
-          set -euo pipefail
-          args=(--remote "${UPSTREAM_REPO}" --json)
-          if [[ -n "${REQUESTED_REF}" ]]; then
-            args+=(--upstream-ref "${REQUESTED_REF}")
-          else
-            args+=(--latest-stable)
-          fi
-          python3 scripts/codexsdk_resolve_upstream.py "${args[@]}" > /tmp/codexsdk-target.json
-          {
-            echo "ref=$(jq -r '.ref_name' /tmp/codexsdk-target.json)"
-            echo "kind=$(jq -r '.ref_kind' /tmp/codexsdk-target.json)"
-            echo "sha=$(jq -r '.peeled_commit_sha' /tmp/codexsdk-target.json)"
-            echo "explicit=$(jq -r '.target_explicit' /tmp/codexsdk-target.json)"
-          } >> "${GITHUB_OUTPUT}"
-
-          mkdir -p .cache/codexsdk-sync
-          jq \
-            --arg allow_downgrade "${ALLOW_DOWNGRADE}" \
-            --arg force_compare "${FORCE_COMPARE}" \
-            --arg upstream_repo "${UPSTREAM_REPO}" \
-            '{
-              target_ref: .ref_name,
-              target_kind: .ref_kind,
-              target_sha: .peeled_commit_sha,
-              target_explicit: .target_explicit,
-              allow_downgrade: ($allow_downgrade == "true"),
-              force_compare: ($force_compare == "true"),
-              upstream_repo: $upstream_repo
-            }' /tmp/codexsdk-target.json > .cache/codexsdk-sync/action-inputs.json
-
-      - name: Run mechanical protocol sync
+      - name: Run native protocol sync
         id: mechanical
         working-directory: codexsdk
         env:
-          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GOTOOLCHAIN: local
+          ALLOW_DOWNGRADE: ${{ inputs.allow_downgrade || false }}
+          FORCE_COMPARE: ${{ inputs.force_compare || false }}
+          REQUESTED_REF: ${{ inputs.upstream_ref || '' }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          python3 scripts/codexsdk_mechanical_sync.py --repo-root "${GITHUB_WORKSPACE}"
+          set -euo pipefail
+          args=(
+            sync
+            -repo-root "${GITHUB_WORKSPACE}"
+            -module-root .
+            -upstream-repo https://github.com/openai/codex.git
+            -event-name "${EVENT_NAME}"
+          )
+          if [[ -n "${REQUESTED_REF}" ]]; then
+            args+=(-upstream-ref "${REQUESTED_REF}")
+          fi
+          if [[ "${ALLOW_DOWNGRADE}" == "true" ]]; then
+            args+=(-allow-downgrade)
+          fi
+          if [[ "${FORCE_COMPARE}" == "true" ]]; then
+            args+=(-force-compare)
+          fi
+          go run ./internal/cmd/protocolupgrade "${args[@]}"
 
       - name: Write Agent drift input
         if: ${{ success() && steps.mechanical.outputs.outcome == 'applied' }}
@@ -225,6 +201,7 @@ jobs:
         if: ${{ success() && steps.mechanical.outputs.outcome == 'applied' && inputs.validation_only != true }}
         working-directory: codexsdk
         env:
+          GOTOOLCHAIN: local
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TARGET_KIND: ${{ steps.mechanical.outputs.target_kind }}
@@ -232,13 +209,9 @@ jobs:
           TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
         run: |
           set -euo pipefail
-          python3 scripts/codexsdk_sync_changes.py capture \
-            --repo-root "${GITHUB_WORKSPACE}" \
-            --phase final \
-            --output /tmp/codexsdk-final-changes.json
-          python3 scripts/codexsdk_sync_changes.py stage \
-            --repo-root "${GITHUB_WORKSPACE}" \
-            --manifest /tmp/codexsdk-final-changes.json
+          go run ./internal/cmd/protocolupgrade stage \
+            -repo-root "${GITHUB_WORKSPACE}" \
+            -phase final
           git diff --cached --check
           git -c user.name="codexsdk-sync-bot" \
             -c user.email="codexsdk-sync-bot@users.noreply.github.com" \
@@ -250,11 +223,12 @@ jobs:
           validated_commit="$(git rev-parse HEAD)"
           gh auth status
           gh auth setup-git
-          scripts/codexsdk_publish_sync_pr.sh \
-            --land-ref "${DEFAULT_BRANCH}" \
-            --default-branch "${DEFAULT_BRANCH}" \
-            --branch-prefix "codex/sync-upstream/run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
-            --target-ref "${TARGET_REF}" \
-            --target-kind "${TARGET_KIND}" \
-            --target-sha "${TARGET_SHA}" \
-            --validated-commit "${validated_commit}"
+          go run ./internal/cmd/protocolupgrade publish \
+            -repo-root "${GITHUB_WORKSPACE}" \
+            -land-ref "${DEFAULT_BRANCH}" \
+            -default-branch "${DEFAULT_BRANCH}" \
+            -branch-prefix "codex/sync-upstream/run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            -target-ref "${TARGET_REF}" \
+            -target-kind "${TARGET_KIND}" \
+            -target-sha "${TARGET_SHA}" \
+            -validated-commit "${validated_commit}"
