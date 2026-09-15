@@ -11,6 +11,9 @@ changes may occur in minor releases.
 
 ### Repository
 
+- Keep GitHub Actions scoped to repository source correctness. Version
+  selection, tagging, and public distribution are outside the repository
+  Actions control plane.
 - Collapse Codex protocol sync onto one Go-native owner for target resolution,
   policy, generate, compare, apply, and check.
 - Replace generated protocol proof artifacts with a native regenerate-and-compare
