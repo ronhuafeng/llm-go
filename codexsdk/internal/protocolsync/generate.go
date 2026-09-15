@@ -34,7 +34,10 @@ type GenerateRequest struct {
 
 // GenerateCandidate fetches the selected Codex commit, generates schemas, and compares.
 func GenerateCandidate(req GenerateRequest) (Candidate, error) {
-	moduleRoot := req.ModuleRoot
+	moduleRoot, err := filepath.Abs(req.ModuleRoot)
+	if err != nil {
+		return Candidate{}, err
+	}
 	targetSHA := req.Target.PeeledCommitSHA
 	syncOut := filepath.Join(moduleRoot, ".cache", "codexsdk-upstream-"+targetSHA[:12])
 	codexRepo := filepath.Join(moduleRoot, ".cache", "openai-codex")
@@ -73,6 +76,9 @@ func GenerateCandidate(req GenerateRequest) (Candidate, error) {
 	}()
 
 	codexRS := filepath.Join(worktree, "codex-rs")
+	if _, err := os.Stat(codexRS); err != nil {
+		return Candidate{}, fmt.Errorf("codex worktree missing codex-rs at %s: %w", codexRS, err)
+	}
 	rustupHome := filepath.Join(moduleRoot, ".cache", "rustup")
 	cargoHome := filepath.Join(moduleRoot, ".cache", "cargo-home")
 	cargoTarget := filepath.Join(moduleRoot, ".cache", "cargo-target", "codex")
@@ -155,7 +161,7 @@ func fetchCommit(codexRepo, sha string) error {
 	if err := runGit(codexRepo, "rev-parse", "--verify", "-q", sha+"^{commit}"); err == nil {
 		return nil
 	}
-	return runGit(codexRepo, "fetch", "origin", sha)
+	return runGit(codexRepo, "fetch", "origin", "+"+sha+":refs/codexsdk/target")
 }
 
 func runCargo(dir string, env []string, args ...string) error {
