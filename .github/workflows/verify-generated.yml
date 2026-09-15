@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
 
       - uses: actions/setup-go@v7
@@ -38,7 +38,7 @@ jobs:
           GOTOOLCHAIN: local
           EXPECTED_COMMIT: ${{ inputs.expected-upstream-commit }}
           UPSTREAM_REF: ${{ inputs.upstream-ref }}
-          REPOSITORY_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+          REPOSITORY_COMMIT: ${{ github.sha }}
         run: |
           set -euo pipefail
           mkdir -p "${RUNNER_TEMP}/proof"
