@@ -20,9 +20,10 @@ changes may occur in minor releases.
 ### Repository
 
 - Make a failed Live Codex smoke report native, secret-safe turn-failure
-  facts already present on typed errors and Exact Run observations.
-- Pin the Live Codex smoke `thread/start` to the isolated Responses proxy
-  provider and reject a ChatGPT default provider before turn execution.
+  facts already present on typed errors and Exact Run observations,
+  without logging raw turn error messages.
+- Pin the Live Codex smoke `thread/start` to one workflow provider
+  identity and reject another observed provider before turn execution.
 
 - Keep GitHub Actions scoped to repository source correctness. Version
   selection, tagging, and public distribution are outside the repository

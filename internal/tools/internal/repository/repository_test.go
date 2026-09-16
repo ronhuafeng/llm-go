@@ -406,6 +406,33 @@ func TestSecretBearingCodexProxyIsPinned(t *testing.T) {
 	}
 }
 
+func TestLiveCodexSmokeProviderHasSingleAuthority(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "live-codex-smoke.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(data)
+	if !strings.Contains(text, "LLMGO_LIVE_CODEX_PROVIDER: llm-go-smoke") {
+		t.Fatal("live Codex smoke must declare LLMGO_LIVE_CODEX_PROVIDER once")
+	}
+	if !strings.Contains(text, `model_provider = "${LLMGO_LIVE_CODEX_PROVIDER}"`) {
+		t.Fatal("isolated config.toml must consume LLMGO_LIVE_CODEX_PROVIDER")
+	}
+	if !strings.Contains(text, "[model_providers.${LLMGO_LIVE_CODEX_PROVIDER}]") {
+		t.Fatal("isolated provider table must consume LLMGO_LIVE_CODEX_PROVIDER")
+	}
+	if strings.Count(text, "llm-go-smoke") != 1 {
+		t.Fatalf("live provider id copies = %d, want 1", strings.Count(text, "llm-go-smoke"))
+	}
+	if strings.Contains(text, "LLMGO_LIVE_CODEX_PROXY_VERSION") {
+		t.Fatal("proxy version must come from the installed package, not a diagnostic env copy")
+	}
+}
+
 func TestArchitectureRejectsBoundaryViolations(t *testing.T) {
 	tests := []struct {
 		name   string

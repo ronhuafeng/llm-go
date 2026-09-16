@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 
@@ -19,7 +18,7 @@ func reportLiveFailure(t testingTB, client *codexsdk.Client, start protocolv2.Th
 	if client != nil {
 		provenance = client.Provenance()
 	}
-	for _, fact := range liveFailureFacts(provenance, liveCLIVersion(), os.Getenv("LLMGO_LIVE_CODEX_PROXY_VERSION"), err, start) {
+	for _, fact := range liveFailureFacts(provenance, liveCLIVersion(), liveProxyVersion(), err, start) {
 		t.Log(fact)
 	}
 }
@@ -127,12 +126,11 @@ func nativeTurnErrorFacts(turn protocolv2.Turn) []string {
 		return []string{"live_failure.native_turn_error=absent"}
 	}
 	native := *turn.Error.Value
-	facts := []string{"live_failure.native_turn_error.message=" + native.Message}
 	if native.CodexErrorInfo == nil || native.CodexErrorInfo.Value == nil {
-		return append(facts, "live_failure.native_turn_error.codex_error_info=absent")
+		return []string{"live_failure.native_turn_error.codex_error_info=absent"}
 	}
 	info := *native.CodexErrorInfo.Value
-	facts = append(facts, "live_failure.native_turn_error.codex_error_info="+string(info.Kind()))
+	facts := []string{"live_failure.native_turn_error.codex_error_info=" + string(info.Kind())}
 	if status, ok := httpStatusFromCodexErrorInfo(info); ok {
 		facts = append(facts, fmt.Sprintf("live_failure.native_turn_error.http_status=%d", status))
 	}
@@ -168,4 +166,27 @@ func liveCLIVersion() string {
 		return ""
 	}
 	return strings.TrimSpace(string(out))
+}
+
+func liveProxyVersion() string {
+	if out, err := exec.Command("codex-responses-api-proxy", "--version").Output(); err == nil {
+		if version := strings.TrimSpace(string(out)); version != "" {
+			return version
+		}
+	}
+	out, err := exec.Command("npm", "list", "-g", "--depth=0", "@openai/codex-responses-api-proxy").CombinedOutput()
+	if len(out) == 0 && err != nil {
+		return ""
+	}
+	const prefix = "@openai/codex-responses-api-proxy@"
+	text := string(out)
+	idx := strings.LastIndex(text, prefix)
+	if idx < 0 {
+		return ""
+	}
+	rest := text[idx+len(prefix):]
+	if end := strings.IndexAny(rest, " \t\n\r"); end >= 0 {
+		rest = rest[:end]
+	}
+	return strings.TrimSpace(rest)
 }
