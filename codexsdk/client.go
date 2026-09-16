@@ -89,6 +89,7 @@ type Client struct {
 	testAfterServerRequestFailureResponse func()
 	testBeforePendingAdmission            func()
 	testAfterThreadStartResponse          func()
+	testBeforeEvidenceWait                func()
 
 	readerDone chan struct{}
 
