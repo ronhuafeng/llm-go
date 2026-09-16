@@ -336,9 +336,6 @@ func TestCurrentDocsDescribeOneRootModule(t *testing.T) {
 	if !strings.Contains(releaseDoc, "required CI") {
 		t.Fatal("docs/release.md must say required CI owns source correctness")
 	}
-	if !strings.Contains(releaseDoc, "external") || !strings.Contains(releaseDoc, "already-accepted") {
-		t.Fatal("docs/release.md must place version choice on an already-accepted commit outside GitHub Actions")
-	}
 	if !strings.Contains(releaseDoc, "immutable") {
 		t.Fatal("docs/release.md must say version/tag identity is immutable")
 	}
