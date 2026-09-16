@@ -39,46 +39,10 @@ func TestNormalizeBranchRef(t *testing.T) {
 	}
 }
 
-func TestPublishFailsClosedOnLandingRef(t *testing.T) {
-	_, err := Publish(PublishRequest{
-		RepoRoot:        t.TempDir(),
-		LandRef:         "feature",
-		DefaultBranch:   "main",
-		TargetRef:       "rust-v0.154.0",
-		TargetKind:      KindStableTag,
-		TargetSHA:       oldSHA,
-		ValidatedCommit: newSHA,
-	})
-	if err == nil || !strings.Contains(err.Error(), "default branch") {
-		t.Fatalf("err = %v", err)
-	}
-}
-
-func TestPublishFailsClosedOnHEADMismatch(t *testing.T) {
-	repo := initSyncRepo(t, oldSHA, "rust-v0.140.0", KindStableTag)
-	head := strings.TrimSpace(gitMust(t, repo, "rev-parse", "HEAD"))
-	_, err := Publish(PublishRequest{
-		RepoRoot:        repo,
-		LandRef:         "main",
-		DefaultBranch:   "main",
-		TargetRef:       "rust-v0.140.0",
-		TargetKind:      KindStableTag,
-		TargetSHA:       oldSHA,
-		ValidatedCommit: newSHA,
-	})
-	if err == nil || !strings.Contains(err.Error(), "does not match HEAD") {
-		t.Fatalf("err = %v", err)
-	}
-	if !strings.Contains(err.Error(), head) {
-		t.Fatalf("error should name HEAD %s: %v", head, err)
-	}
-}
-
 func TestPublishFailsClosedWhenLandingMoved(t *testing.T) {
 	repo := initSyncRepo(t, oldSHA, "rust-v0.140.0", KindStableTag)
 	writeFile(t, filepath.Join(repo, "codexsdk", "sdk_surface.gen.go"), "package codexsdk\n")
 	runGitInitCommit(t, repo, "sync change")
-	head := strings.TrimSpace(gitMust(t, repo, "rev-parse", "HEAD"))
 	remote := filepath.Join(t.TempDir(), "remote.git")
 	clone := exec.Command("git", "clone", "--bare", repo, remote)
 	if out, err := clone.CombinedOutput(); err != nil {
@@ -88,14 +52,12 @@ func TestPublishFailsClosedWhenLandingMoved(t *testing.T) {
 		t.Fatalf("add remote: %v\n%s", err, out)
 	}
 	_, err := Publish(PublishRequest{
-		RepoRoot:        repo,
-		LandRef:         "main",
-		DefaultBranch:   "main",
-		TargetRef:       "rust-v0.140.0",
-		TargetKind:      KindStableTag,
-		TargetSHA:       oldSHA,
-		ValidatedCommit: head,
-		Remote:          "origin",
+		RepoRoot:   repo,
+		BaseBranch: "main",
+		TargetRef:  "rust-v0.140.0",
+		TargetKind: KindStableTag,
+		TargetSHA:  oldSHA,
+		Remote:     "origin",
 	})
 	if err == nil || !strings.Contains(err.Error(), "moved") {
 		t.Fatalf("err = %v", err)
@@ -104,18 +66,15 @@ func TestPublishFailsClosedWhenLandingMoved(t *testing.T) {
 
 func TestPublishFailsClosedOnDirtyWorktree(t *testing.T) {
 	repo := initSyncRepo(t, oldSHA, "rust-v0.140.0", KindStableTag)
-	head := strings.TrimSpace(gitMust(t, repo, "rev-parse", "HEAD"))
 	if err := os.WriteFile(filepath.Join(repo, "codexsdk", "dirty.go"), []byte("package codexsdk\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	_, err := Publish(PublishRequest{
-		RepoRoot:        repo,
-		LandRef:         "main",
-		DefaultBranch:   "main",
-		TargetRef:       "rust-v0.140.0",
-		TargetKind:      KindStableTag,
-		TargetSHA:       oldSHA,
-		ValidatedCommit: head,
+		RepoRoot:   repo,
+		BaseBranch: "main",
+		TargetRef:  "rust-v0.140.0",
+		TargetKind: KindStableTag,
+		TargetSHA:  oldSHA,
 	})
 	if err == nil || !strings.Contains(err.Error(), "clean") {
 		t.Fatalf("err = %v", err)

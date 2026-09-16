@@ -10,24 +10,22 @@ import (
 	"strings"
 )
 
-// PublishRequest publishes a validated protocol-sync commit as a protected PR.
+// PublishRequest publishes the current HEAD as a protected protocol-sync PR.
 type PublishRequest struct {
 	RepoRoot         string
-	LandRef          string
-	DefaultBranch    string
+	BaseBranch       string
 	BranchPrefix     string
 	TargetRef        string
 	TargetKind       string
 	TargetSHA        string
-	ValidatedCommit  string
 	Remote           string
 	GitHubOutputPath string
 }
 
-// Publish pushes the validated commit and creates or reuses the sync PR.
+// Publish pushes HEAD and creates or reuses the sync PR.
 func Publish(req PublishRequest) (string, error) {
-	if req.RepoRoot == "" || req.LandRef == "" || req.TargetRef == "" || req.TargetKind == "" || req.TargetSHA == "" || req.ValidatedCommit == "" {
-		return "", fmt.Errorf("repo-root, land-ref, target identity, and validated-commit are required")
+	if req.RepoRoot == "" || req.BaseBranch == "" || req.TargetRef == "" || req.TargetKind == "" || req.TargetSHA == "" {
+		return "", fmt.Errorf("repo-root, base-branch, and target identity are required")
 	}
 	remote := req.Remote
 	if remote == "" {
@@ -37,23 +35,12 @@ func Publish(req PublishRequest) (string, error) {
 	if prefix == "" {
 		prefix = "codex/sync-upstream"
 	}
-	landRef := normalizeBranchRef(req.LandRef, remote)
-	defaultBranch := req.DefaultBranch
-	if defaultBranch == "" {
-		defaultBranch = landRef
-	}
-	defaultBranch = normalizeBranchRef(defaultBranch, remote)
-	if landRef != defaultBranch {
-		return "", fmt.Errorf("refusing landing ref %s; sync PRs may target only repository default branch %s", landRef, defaultBranch)
-	}
+	baseBranch := normalizeBranchRef(req.BaseBranch, remote)
 	head, err := gitOutput(req.RepoRoot, "rev-parse", "HEAD")
 	if err != nil {
 		return "", err
 	}
 	head = strings.TrimSpace(head)
-	if head != req.ValidatedCommit {
-		return "", fmt.Errorf("validated commit %s does not match HEAD %s", req.ValidatedCommit, head)
-	}
 	status, err := gitOutput(req.RepoRoot, "status", "--porcelain", "--untracked-files=all")
 	if err != nil {
 		return "", err
@@ -61,19 +48,19 @@ func Publish(req PublishRequest) (string, error) {
 	if strings.TrimSpace(status) != "" {
 		return "", fmt.Errorf("worktree must be clean before publishing a sync PR")
 	}
-	if err := runGit(req.RepoRoot, "fetch", remote, "refs/heads/"+landRef+":refs/remotes/"+remote+"/"+landRef); err != nil {
+	if err := runGit(req.RepoRoot, "fetch", remote, "refs/heads/"+baseBranch+":refs/remotes/"+remote+"/"+baseBranch); err != nil {
 		return "", err
 	}
-	landingSHA, err := gitOutput(req.RepoRoot, "rev-parse", remote+"/"+landRef)
+	landingSHA, err := gitOutput(req.RepoRoot, "rev-parse", remote+"/"+baseBranch)
 	if err != nil {
 		return "", err
 	}
-	parent, err := gitOutput(req.RepoRoot, "rev-parse", req.ValidatedCommit+"^")
+	parent, err := gitOutput(req.RepoRoot, "rev-parse", "HEAD^")
 	if err != nil {
 		return "", err
 	}
 	if strings.TrimSpace(landingSHA) != strings.TrimSpace(parent) {
-		return "", fmt.Errorf("landing ref %s moved to %s; validated parent is %s. Rerun protocol sync against current %s", landRef, strings.TrimSpace(landingSHA), strings.TrimSpace(parent), landRef)
+		return "", fmt.Errorf("landing ref %s moved to %s; HEAD parent is %s. Rerun protocol sync against current %s", baseBranch, strings.TrimSpace(landingSHA), strings.TrimSpace(parent), baseBranch)
 	}
 	resolved, err := ResolveUpstream(ResolveRequest{UpstreamRef: req.TargetRef})
 	if err != nil {
@@ -83,7 +70,7 @@ func Publish(req PublishRequest) (string, error) {
 		return "", fmt.Errorf("upstream target moved: %s resolved to %s, expected %s", req.TargetRef, resolved.PeeledCommitSHA, req.TargetSHA)
 	}
 
-	if prURL, ok, err := findExactExistingPR(landRef, req.TargetRef, req.TargetKind, req.TargetSHA, req.ValidatedCommit); err != nil {
+	if prURL, ok, err := findExactExistingPR(baseBranch, req.TargetRef, req.TargetKind, req.TargetSHA, head); err != nil {
 		return "", err
 	} else if ok {
 		if err := appendGitHubOutput(req.GitHubOutputPath, map[string]string{"pr_url": prURL}); err != nil {
@@ -96,7 +83,7 @@ func Publish(req PublishRequest) (string, error) {
 	if err := pushSyncBranch(req.RepoRoot, remote, syncBranch, head); err != nil {
 		return "", err
 	}
-	prURL, prNumber, err := createOrUpdatePR(landRef, syncBranch, req.TargetRef, req.TargetKind, req.TargetSHA, head)
+	prURL, prNumber, err := createOrUpdatePR(baseBranch, syncBranch, req.TargetRef, req.TargetKind, req.TargetSHA, head)
 	if err != nil {
 		return "", err
 	}

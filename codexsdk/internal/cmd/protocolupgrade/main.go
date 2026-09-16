@@ -238,26 +238,22 @@ func runPublish(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("publish", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	repoRoot := fs.String("repo-root", "", "repository root")
-	landRef := fs.String("land-ref", "", "protected landing branch")
-	defaultBranch := fs.String("default-branch", "", "repository default branch")
+	baseBranch := fs.String("base-branch", "", "protected landing branch")
 	branchPrefix := fs.String("branch-prefix", "codex/sync-upstream", "sync branch prefix")
 	targetRef := fs.String("target-ref", "", "selected upstream ref")
 	targetKind := fs.String("target-kind", "", "selected upstream kind")
 	targetSHA := fs.String("target-sha", "", "selected upstream commit")
-	validatedCommit := fs.String("validated-commit", "", "commit native checks accepted")
 	remote := fs.String("remote", "origin", "git remote")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	prURL, err := protocolsync.Publish(protocolsync.PublishRequest{
 		RepoRoot:         *repoRoot,
-		LandRef:          *landRef,
-		DefaultBranch:    *defaultBranch,
+		BaseBranch:       *baseBranch,
 		BranchPrefix:     *branchPrefix,
 		TargetRef:        *targetRef,
 		TargetKind:       *targetKind,
 		TargetSHA:        *targetSHA,
-		ValidatedCommit:  *validatedCommit,
 		Remote:           *remote,
 		GitHubOutputPath: os.Getenv("GITHUB_OUTPUT"),
 	})

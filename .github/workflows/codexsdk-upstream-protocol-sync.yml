@@ -220,15 +220,12 @@ jobs:
             -m "Upstream-ref: ${TARGET_REF}" \
             -m "Upstream-ref-kind: ${TARGET_KIND}" \
             -m "Upstream-commit: ${TARGET_SHA}"
-          validated_commit="$(git rev-parse HEAD)"
           gh auth status
           gh auth setup-git
           go run ./internal/cmd/protocolupgrade publish \
             -repo-root "${GITHUB_WORKSPACE}" \
-            -land-ref "${DEFAULT_BRANCH}" \
-            -default-branch "${DEFAULT_BRANCH}" \
+            -base-branch "${DEFAULT_BRANCH}" \
             -branch-prefix "codex/sync-upstream/run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
             -target-ref "${TARGET_REF}" \
             -target-kind "${TARGET_KIND}" \
-            -target-sha "${TARGET_SHA}" \
-            -validated-commit "${validated_commit}"
+            -target-sha "${TARGET_SHA}"

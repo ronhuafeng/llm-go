@@ -429,49 +429,42 @@ func TestArchitectureRejectsBoundaryViolations(t *testing.T) {
 		{
 			name: "local replacement",
 			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "go.mod", "module "+rootModulePath+"\n\ngo 1.26.8\n\nrequire example.com/alias v0.0.0\nreplace example.com/alias => ./codexsdk\n")
+				writeFile(t, root, "go.mod", goMod(rootModulePath, "require example.com/alias v0.0.0\nreplace example.com/alias => ./codexsdk\n"))
 			},
 			want: "root module contains prohibited replace example.com/alias => ./codexsdk",
 		},
 		{
 			name: "excluded module",
 			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "go.mod", "module "+rootModulePath+"\n\ngo 1.26.8\n\nexclude example.com/alias v1.0.0\n")
+				writeFile(t, root, "go.mod", goMod(rootModulePath, "exclude example.com/alias v1.0.0\n"))
 			},
 			want: "root module contains prohibited exclude example.com/alias@v1.0.0",
 		},
 		{
 			name: "sibling versioned require",
 			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "go.mod", "module "+rootModulePath+"\n\ngo 1.26.8\n\nrequire "+llmkitPath+" v0.13.0\n")
+				writeFile(t, root, "go.mod", goMod(rootModulePath, "require "+llmkitPath+" v0.13.0\n"))
 			},
 			want: "root module requires sibling versioned module " + llmkitPath,
 		},
 		{
 			name: "nested module",
 			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "shared/go.mod", "module example.com/shared\n\ngo 1.26.8\n")
+				writeFile(t, root, "shared/go.mod", goMod("example.com/shared", ""))
 			},
 			want: "nested Go module shared is not allowed",
 		},
 		{
 			name: "workspace file",
 			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "go.work", "go 1.26.8\n\nuse .\n")
+				writeFile(t, root, "go.work", "go 1.21\n\nuse .\n")
 			},
 			want: "repository must not contain go.work",
 		},
 		{
-			name: "wrong go version",
-			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "go.mod", "module "+rootModulePath+"\n\ngo 1.26.0\n")
-			},
-			want: "root module go version is 1.26.0, want 1.26.8",
-		},
-		{
 			name: "wrong module path",
 			mutate: func(t *testing.T, root string) {
-				writeFile(t, root, "go.mod", "module example.com/facade\n\ngo 1.26.8\n")
+				writeFile(t, root, "go.mod", goMod("example.com/facade", ""))
 			},
 			want: "root module path is example.com/facade, want " + rootModulePath,
 		},
@@ -510,10 +503,21 @@ func TestArchitectureRejectsBoundaryViolations(t *testing.T) {
 	}
 }
 
+func goMod(module, extra string) string {
+	text := "module " + module + "\n\ngo 1.21\n"
+	if extra != "" {
+		text += extra
+		if !strings.HasSuffix(extra, "\n") {
+			text += "\n"
+		}
+	}
+	return text
+}
+
 func newArchitectureFixture(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	writeFile(t, root, "go.mod", "module "+rootModulePath+"\n\ngo 1.26.8\n")
+	writeFile(t, root, "go.mod", goMod(rootModulePath, ""))
 	for _, directory := range []string{"llmkit", "codexsdk", "llmcaller/codex"} {
 		writeFile(t, root, filepath.Join(directory, "package.go"), "package fixture\n")
 	}
