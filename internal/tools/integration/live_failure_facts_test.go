@@ -48,7 +48,6 @@ func TestLiveFailureFactsReportNativeTurnError(t *testing.T) {
 		"live_failure.thread_id=thread-1",
 		"live_failure.turn_id=turn-1",
 		"live_failure.turn_status=failed",
-		"live_failure.native_turn_error.message=upstream rejected the responses request",
 		"live_failure.native_turn_error.codex_error_info=httpConnectionFailed",
 		"live_failure.native_turn_error.http_status=502",
 	}
@@ -60,6 +59,9 @@ func TestLiveFailureFactsReportNativeTurnError(t *testing.T) {
 	}
 	if strings.Contains(got, "additionalDetails") {
 		t.Fatal("unsafe additionalDetails leaked into live facts")
+	}
+	if strings.Contains(got, "native_turn_error.message=") || strings.Contains(got, "upstream rejected the responses request") {
+		t.Fatal("raw native turn error message leaked into live facts")
 	}
 }
 
@@ -106,6 +108,9 @@ func TestLiveFailureFactsReportObservedThreadProvider(t *testing.T) {
 		if !strings.Contains(got, fact) {
 			t.Fatalf("missing %q in:\n%s", fact, got)
 		}
+	}
+	if strings.Contains(got, "You've hit your usage limit") || strings.Contains(got, "native_turn_error.message=") {
+		t.Fatal("raw native turn error message leaked into live facts")
 	}
 }
 

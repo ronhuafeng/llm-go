@@ -24,6 +24,10 @@ func TestLiveCodexSmoke(t *testing.T) {
 	if _, err := exec.LookPath("codex"); err != nil {
 		t.Fatalf("codex CLI is required: %v", err)
 	}
+	provider, err := liveSmokeProvider()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	wd, err := os.Getwd()
 	if err != nil {
@@ -41,7 +45,7 @@ func TestLiveCodexSmoke(t *testing.T) {
 	}
 	defer client.Close()
 
-	options := liveSmokeApplicationOptions(client.ThreadRunner())
+	options := liveSmokeApplicationOptions(client.ThreadRunner(), provider)
 	options.Defaults.Thread.CWD = protocolv2.Value(root)
 	if model := os.Getenv("LLMGO_LIVE_CODEX_MODEL"); model != "" {
 		options.Defaults.Thread.Model = protocolv2.Value(model)
@@ -76,8 +80,8 @@ func TestLiveCodexSmoke(t *testing.T) {
 	if details.Run.Start.Thread.ID == "" || details.Run.Run.Turn.ID == "" {
 		t.Fatalf("exact run is missing thread/turn identity: %#v", details.Run)
 	}
-	if details.Run.Start.ModelProvider != liveSmokeModelProvider {
-		t.Fatalf("thread model provider = %q, want %s", details.Run.Start.ModelProvider, liveSmokeModelProvider)
+	if details.Run.Start.ModelProvider != provider {
+		t.Fatalf("thread model provider = %q, want %s", details.Run.Start.ModelProvider, provider)
 	}
 	if details.Run.Start.Model == "" {
 		t.Fatal("thread-start model was not observed")
