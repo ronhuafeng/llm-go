@@ -71,10 +71,16 @@ func (c *Client) notificationDispatcher() {
 				return
 			}
 			if accepted.evidence != nil {
+				if c.testBeforeEvidenceWait != nil {
+					c.testBeforeEvidenceWait()
+				}
 				select {
 				case <-accepted.evidence.ready:
 				case <-c.ctx.Done():
 					c.discardCurrentAndQueuedNotifications(accepted)
+					return
+				case <-c.dispatchStop:
+					c.finishDispatchStop(handler, &accepted)
 					return
 				}
 			}
@@ -86,18 +92,35 @@ func (c *Client) notificationDispatcher() {
 				return
 			}
 		case <-c.dispatchStop:
-			for {
-				select {
-				case accepted := <-c.notifications:
-					if handler != nil && !c.dispatchAcceptedNotification(handler, accepted) {
-						return
-					}
-				default:
-					return
-				}
-			}
+			c.finishDispatchStop(handler, nil)
+			return
 		case <-c.ctx.Done():
 			c.discardAcceptedNotifications()
+			return
+		}
+	}
+}
+
+func (c *Client) finishDispatchStop(handler ServerNotificationHandler, current *acceptedNotification) {
+	if current != nil {
+		if handler != nil {
+			if !c.dispatchAcceptedNotification(handler, *current) {
+				return
+			}
+		} else {
+			current.releaseDispatchWaiter()
+		}
+	}
+	for {
+		select {
+		case accepted := <-c.notifications:
+			if handler != nil && !c.dispatchAcceptedNotification(handler, accepted) {
+				return
+			}
+			if handler == nil {
+				accepted.releaseDispatchWaiter()
+			}
+		default:
 			return
 		}
 	}

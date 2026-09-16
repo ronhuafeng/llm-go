@@ -9,6 +9,14 @@ changes may occur in minor releases.
 
 ## [Unreleased]
 
+### codexsdk
+
+#### Fixed
+
+- Stop `Client.Close()` from waiting forever when notification dispatch is
+  blocked on Exact Run evidence after a pre-turn application-level request
+  failure.
+
 ### Repository
 
 - Keep GitHub Actions scoped to repository source correctness. Version

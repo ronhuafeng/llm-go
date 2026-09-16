@@ -1021,7 +1021,8 @@ func TestExactRunWithoutHandlerFailsClosedImmediately(t *testing.T) {
 func TestExactRunNilHandlerFailuresAreDeterministic(t *testing.T) {
 	for _, mode := range []string{"approval", "file-approval", "user-input", "approval-before-turn-start"} {
 		t.Run(mode, func(t *testing.T) {
-			t.Setenv("CODEXSDK_FAKE_RECORD", tempRecord(t))
+			record := tempRecord(t)
+			t.Setenv("CODEXSDK_FAKE_RECORD", record)
 			root, err := New(ClientOptions{CWD: t.TempDir(), Command: fakeCommand(mode)})
 			if err != nil {
 				t.Fatal(err)
@@ -1035,10 +1036,70 @@ func TestExactRunNilHandlerFailuresAreDeterministic(t *testing.T) {
 			if errors.Is(runErr, context.DeadlineExceeded) {
 				t.Fatalf("exact nil-handler %s retained application-owned request: %v", mode, runErr)
 			}
-			if closeErr := root.Close(); closeErr != nil {
+			if closeErr := closeClient(t, root); closeErr != nil {
 				t.Fatalf("Close error = %v, want nil client cause for an application-level request failure", closeErr)
 			}
+			if mode == "approval-before-turn-start" {
+				turns := 0
+				for _, rec := range readRecords(t, record) {
+					if rec["kind"] == "recv" && rec["method"] == protocolv2.MethodTurnStart {
+						turns++
+					}
+				}
+				if turns != 1 {
+					t.Fatalf("pre-turn failure turn/start count = %d, want the eliciting request only", turns)
+				}
+			}
 		})
+	}
+}
+
+func TestCloseCompletesWhileDispatcherWaitsForUnresolvedEvidence(t *testing.T) {
+	t.Setenv("CODEXSDK_FAKE_RECORD", tempRecord(t))
+	root, err := New(ClientOptions{CWD: t.TempDir(), Command: fakeCommand("hang")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	root.testBeforeEvidenceWait = func() {
+		close(entered)
+		<-release
+	}
+	queued := protocolv2.NewServerNotificationConfigWarning(protocolv2.ServerNotificationConfigWarning{
+		Params: protocolv2.ConfigWarningNotification{Summary: "unresolved evidence"},
+	})
+	if _, err := root.enqueueNotification(queued, &notificationEvidence{ready: make(chan struct{})}, false); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("dispatcher did not reach the evidence wait")
+	}
+	done := make(chan error, 1)
+	go func() { done <- root.Close() }()
+	close(release)
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Close error = %v, want nil client cause", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Close blocked while the dispatcher waited for unresolved evidence")
+	}
+}
+
+func closeClient(t *testing.T, root *Client) error {
+	t.Helper()
+	done := make(chan error, 1)
+	go func() { done <- root.Close() }()
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(3 * time.Second):
+		t.Fatal("Close did not complete")
+		return nil
 	}
 }
 
