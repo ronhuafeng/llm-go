@@ -103,6 +103,7 @@ func (c *Client) notificationDispatcher() {
 
 func (c *Client) finishDispatchStop(handler ServerNotificationHandler, current *acceptedNotification) {
 	if current != nil {
+		current.evidence.releaseReady()
 		if handler != nil {
 			if !c.dispatchAcceptedNotification(handler, *current) {
 				return

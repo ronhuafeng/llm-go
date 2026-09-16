@@ -1066,10 +1066,11 @@ func TestCloseCompletesWhileDispatcherWaitsForUnresolvedEvidence(t *testing.T) {
 		close(entered)
 		<-release
 	}
+	evidence := &notificationEvidence{ready: make(chan struct{})}
 	queued := protocolv2.NewServerNotificationConfigWarning(protocolv2.ServerNotificationConfigWarning{
 		Params: protocolv2.ConfigWarningNotification{Summary: "unresolved evidence"},
 	})
-	if _, err := root.enqueueNotification(queued, &notificationEvidence{ready: make(chan struct{})}, false); err != nil {
+	if _, err := root.enqueueNotification(queued, evidence, false); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -1079,6 +1080,11 @@ func TestCloseCompletesWhileDispatcherWaitsForUnresolvedEvidence(t *testing.T) {
 	}
 	done := make(chan error, 1)
 	go func() { done <- root.Close() }()
+	select {
+	case <-root.closeCausePublished:
+	case <-time.After(time.Second):
+		t.Fatal("Close did not publish the normal close cause before waiting for the dispatcher")
+	}
 	close(release)
 	select {
 	case err := <-done:
@@ -1087,6 +1093,11 @@ func TestCloseCompletesWhileDispatcherWaitsForUnresolvedEvidence(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("Close blocked while the dispatcher waited for unresolved evidence")
+	}
+	select {
+	case <-evidence.ready:
+	default:
+		t.Fatal("shutdown did not release the owned evidence fence")
 	}
 }
 

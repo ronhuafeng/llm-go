@@ -123,6 +123,15 @@ type notificationEvidence struct {
 	err        error
 }
 
+func (e *notificationEvidence) releaseReady() {
+	if e == nil || e.ready == nil {
+		return
+	}
+	e.once.Do(func() {
+		close(e.ready)
+	})
+}
+
 type acceptedNotification struct {
 	notification protocolv2.ServerNotification
 	evidence     *notificationEvidence
