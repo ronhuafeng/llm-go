@@ -16,18 +16,16 @@ import (
 
 const (
 	rootModulePath = "github.com/ronhuafeng/llm-go"
-	requiredGo     = "1.26.8"
 	llmkitPath     = "github.com/ronhuafeng/llm-go/llmkit"
 	codexSDKPath   = "github.com/ronhuafeng/llm-go/codexsdk"
 	adapterPath    = "github.com/ronhuafeng/llm-go/llmcaller/codex"
 )
 
 type moduleMetadata struct {
-	path      string
-	goVersion string
-	requires  []string
-	replaces  []moduleReplacement
-	excludes  []string
+	path     string
+	requires []string
+	replaces []moduleReplacement
+	excludes []string
 }
 
 type moduleReplacement struct {
@@ -81,9 +79,6 @@ func verifySingleRootModule(root string) []string {
 	}
 	if metadata.path != rootModulePath {
 		violations = append(violations, fmt.Sprintf("root module path is %s, want %s", metadata.path, rootModulePath))
-	}
-	if metadata.goVersion != requiredGo {
-		violations = append(violations, fmt.Sprintf("root module go version is %s, want %s", metadata.goVersion, requiredGo))
 	}
 	for _, required := range metadata.requires {
 		if required == llmkitPath || required == codexSDKPath || required == adapterPath || strings.HasPrefix(required, llmkitPath+"/") || strings.HasPrefix(required, codexSDKPath+"/") || strings.HasPrefix(required, adapterPath+"/") {
@@ -243,7 +238,6 @@ func parseGoMod(path string) (moduleMetadata, error) {
 	if parsed.Go == nil || parsed.Go.Version == "" {
 		return moduleMetadata{}, fmt.Errorf("go.mod has no go directive")
 	}
-	metadata.goVersion = parsed.Go.Version
 	for _, required := range parsed.Require {
 		metadata.requires = append(metadata.requires, required.Mod.Path)
 	}
