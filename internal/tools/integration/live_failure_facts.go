@@ -13,13 +13,13 @@ import (
 	"github.com/ronhuafeng/llm-go/llmkit/llmadapter"
 )
 
-func reportLiveFailure(t testingTB, client *codexsdk.Client, err error) {
+func reportLiveFailure(t testingTB, client *codexsdk.Client, start protocolv2.ThreadStartResponse, err error) {
 	t.Helper()
 	var provenance codexsdk.ConnectionProvenance
 	if client != nil {
 		provenance = client.Provenance()
 	}
-	for _, fact := range liveFailureFacts(provenance, liveCLIVersion(), os.Getenv("LLMGO_LIVE_CODEX_PROXY_VERSION"), err) {
+	for _, fact := range liveFailureFacts(provenance, liveCLIVersion(), os.Getenv("LLMGO_LIVE_CODEX_PROXY_VERSION"), err, start) {
 		t.Log(fact)
 	}
 }
@@ -29,7 +29,7 @@ type testingTB interface {
 	Log(args ...any)
 }
 
-func liveFailureFacts(provenance codexsdk.ConnectionProvenance, cliVersion, proxyVersion string, err error) []string {
+func liveFailureFacts(provenance codexsdk.ConnectionProvenance, cliVersion, proxyVersion string, err error, start protocolv2.ThreadStartResponse) []string {
 	facts := []string{
 		"live_failure.stage=" + liveFailureStage(err),
 	}
@@ -74,6 +74,7 @@ func liveFailureFacts(provenance codexsdk.ConnectionProvenance, cliVersion, prox
 		)
 		facts = append(facts, nativeTurnErrorFacts(turnErr.Turn)...)
 	}
+	facts = append(facts, observedThreadStartFacts(start)...)
 	return facts
 }
 
@@ -91,6 +92,9 @@ func liveFailureStage(err error) string {
 			}
 		}
 	}
+	if errors.Is(err, codexsdk.ErrTurnAdmissionRejected) {
+		return "admission"
+	}
 	var turnErr *codexsdk.TurnError
 	if errors.As(err, &turnErr) {
 		return "terminal-turn"
@@ -103,6 +107,19 @@ func liveFailureStage(err error) string {
 		return "startup"
 	}
 	return "unknown"
+}
+
+func observedThreadStartFacts(start protocolv2.ThreadStartResponse) []string {
+	var facts []string
+	if start.Model != "" {
+		facts = append(facts, "live_failure.thread.model="+start.Model)
+	}
+	if start.ModelProvider != "" {
+		facts = append(facts, "live_failure.thread.model_provider="+start.ModelProvider)
+	} else if start.Thread.ID != "" {
+		facts = append(facts, "live_failure.thread.model_provider=absent")
+	}
+	return facts
 }
 
 func nativeTurnErrorFacts(turn protocolv2.Turn) []string {

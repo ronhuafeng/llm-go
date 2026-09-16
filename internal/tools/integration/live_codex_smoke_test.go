@@ -41,7 +41,7 @@ func TestLiveCodexSmoke(t *testing.T) {
 	}
 	defer client.Close()
 
-	options := readOnlyApplicationOptions(client.ThreadRunner())
+	options := liveSmokeApplicationOptions(client.ThreadRunner())
 	options.Defaults.Thread.CWD = protocolv2.Value(root)
 	if model := os.Getenv("LLMGO_LIVE_CODEX_MODEL"); model != "" {
 		options.Defaults.Thread.Model = protocolv2.Value(model)
@@ -58,7 +58,7 @@ func TestLiveCodexSmoke(t *testing.T) {
 	}
 	got, err := llmadapter.Value[result](ctx, caller, `Return JSON with answer set to "ok".`)
 	if err != nil {
-		reportLiveFailure(t, client, err)
+		reportLiveFailure(t, client, liveThreadStart(got.Response), err)
 		t.Fatal(err)
 	}
 	if got.Value.Answer == "" {
@@ -67,12 +67,8 @@ func TestLiveCodexSmoke(t *testing.T) {
 	if got.Response.Execution.BackendName != "codex" {
 		t.Fatalf("backend = %q, want codex", got.Response.Execution.BackendName)
 	}
-	if provider, ok := got.Response.Execution.ProviderName.Value(); ok {
-		t.Fatalf("provider = %q, want unknown without serving-provider evidence", provider)
-	}
-	if _, ok := got.Response.Execution.Model.Value(); !ok {
-		t.Fatal("served model was not observed")
-	}
+	requireUnknownProvider(t, got.Response.Execution)
+	requireUnknownModel(t, got.Response.Execution)
 	details, ok := got.Response.BackendDetails.(codexcaller.Details)
 	if !ok {
 		t.Fatalf("backend details = %T, want codexcaller.Details", got.Response.BackendDetails)
@@ -80,7 +76,21 @@ func TestLiveCodexSmoke(t *testing.T) {
 	if details.Run.Start.Thread.ID == "" || details.Run.Run.Turn.ID == "" {
 		t.Fatalf("exact run is missing thread/turn identity: %#v", details.Run)
 	}
+	if details.Run.Start.ModelProvider != liveSmokeModelProvider {
+		t.Fatalf("thread model provider = %q, want %s", details.Run.Start.ModelProvider, liveSmokeModelProvider)
+	}
+	if details.Run.Start.Model == "" {
+		t.Fatal("thread-start model was not observed")
+	}
 	if details.Run.Run.Turn.Status != protocolv2.TurnStatusCompleted {
 		t.Fatalf("turn status = %v, want completed", details.Run.Run.Turn.Status)
 	}
+}
+
+func liveThreadStart(response llmadapter.Response) protocolv2.ThreadStartResponse {
+	details, ok := response.BackendDetails.(codexcaller.Details)
+	if !ok {
+		return protocolv2.ThreadStartResponse{}
+	}
+	return details.Run.Start
 }
