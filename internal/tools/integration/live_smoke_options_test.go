@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -13,41 +12,11 @@ import (
 )
 
 func liveSmokeProvider() (string, error) {
-	if provider := strings.TrimSpace(os.Getenv("LLMGO_LIVE_CODEX_PROVIDER")); provider != "" {
-		return provider, nil
-	}
-	home := strings.TrimSpace(os.Getenv("CODEX_HOME"))
-	if home == "" {
+	provider := strings.TrimSpace(os.Getenv("LLMGO_LIVE_CODEX_PROVIDER"))
+	if provider == "" {
 		return "", errors.New("LLMGO_LIVE_CODEX_PROVIDER is required")
 	}
-	provider, err := modelProviderFromCodexConfig(filepath.Join(home, "config.toml"))
-	if err != nil {
-		return "", fmt.Errorf("LLMGO_LIVE_CODEX_PROVIDER is required: %w", err)
-	}
 	return provider, nil
-}
-
-func modelProviderFromCodexConfig(path string) (string, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	for _, line := range strings.Split(string(data), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		key, value, ok := strings.Cut(line, "=")
-		if !ok || strings.TrimSpace(key) != "model_provider" {
-			continue
-		}
-		provider := strings.Trim(strings.TrimSpace(value), `"'`)
-		if provider == "" {
-			return "", errors.New("config.toml model_provider is empty")
-		}
-		return provider, nil
-	}
-	return "", errors.New("config.toml model_provider is missing")
 }
 
 func liveSmokeApplicationOptions(runner codexcaller.ThreadRunner, provider string) codexcaller.Options {
@@ -72,29 +41,14 @@ func admitLiveSmokeProvider(start protocolv2.ThreadStartResponse, provider strin
 
 func TestLiveSmokeProviderReadsEnv(t *testing.T) {
 	t.Setenv("LLMGO_LIVE_CODEX_PROVIDER", "from-env")
-	t.Setenv("CODEX_HOME", t.TempDir())
 	got, err := liveSmokeProvider()
 	if err != nil || got != "from-env" {
 		t.Fatalf("liveSmokeProvider() = %q, %v, want from-env", got, err)
 	}
 }
 
-func TestLiveSmokeProviderReadsCodexConfigWhenEnvAbsent(t *testing.T) {
-	home := t.TempDir()
-	if err := os.WriteFile(filepath.Join(home, "config.toml"), []byte("model_provider = \"from-config\"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("LLMGO_LIVE_CODEX_PROVIDER", "")
-	t.Setenv("CODEX_HOME", home)
-	got, err := liveSmokeProvider()
-	if err != nil || got != "from-config" {
-		t.Fatalf("liveSmokeProvider() = %q, %v, want from-config", got, err)
-	}
-}
-
 func TestLiveSmokeProviderRequired(t *testing.T) {
 	t.Setenv("LLMGO_LIVE_CODEX_PROVIDER", "")
-	t.Setenv("CODEX_HOME", t.TempDir())
 	if _, err := liveSmokeProvider(); err == nil {
 		t.Fatal("liveSmokeProvider() error = nil, want required")
 	}
