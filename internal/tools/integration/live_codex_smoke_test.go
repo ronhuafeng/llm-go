@@ -36,6 +36,7 @@ func TestLiveCodexSmoke(t *testing.T) {
 		Command: []string{"codex", "app-server", "--listen", "stdio://"},
 	})
 	if err != nil {
+		t.Log("live_failure.stage=startup")
 		t.Fatal(err)
 	}
 	defer client.Close()
@@ -57,6 +58,7 @@ func TestLiveCodexSmoke(t *testing.T) {
 	}
 	got, err := llmadapter.Value[result](ctx, caller, `Return JSON with answer set to "ok".`)
 	if err != nil {
+		reportLiveFailure(t, client, err)
 		t.Fatal(err)
 	}
 	if got.Value.Answer == "" {
