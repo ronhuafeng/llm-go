@@ -34,6 +34,7 @@ jobs:
     env:
       LLMGO_LIVE_CODEX_MODEL: gpt-5.6-luna
       LLMGO_LIVE_CODEX_REASONING_EFFORT: medium
+      LLMGO_LIVE_CODEX_PROXY_VERSION: 0.153.4
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -50,7 +51,7 @@ jobs:
         run: |
           npm install --global \
             @openai/codex@latest \
-            @openai/codex-responses-api-proxy@0.153.4
+            "@openai/codex-responses-api-proxy@${LLMGO_LIVE_CODEX_PROXY_VERSION}"
           codex --version
       - name: Start Codex Responses API proxy
         id: proxy
