@@ -3,6 +3,7 @@ package protocolgen
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -128,7 +129,7 @@ func BuildProtocolTypePlan(schemaRoot string) (ProtocolTypePlan, error) {
 		}
 		plan.Types = append(plan.Types, typePlan)
 	}
-	if err := markReachableGeneratedDefinitions(&plan); err != nil {
+	if err := markReachableGeneratedDefinitions(&plan, schemaRoot); err != nil {
 		return ProtocolTypePlan{}, err
 	}
 	resolver, err := newGeneratedDefinitionNameResolver(plan)
@@ -139,7 +140,7 @@ func BuildProtocolTypePlan(schemaRoot string) (ProtocolTypePlan, error) {
 	return plan, nil
 }
 
-func markReachableGeneratedDefinitions(plan *ProtocolTypePlan) error {
+func markReachableGeneratedDefinitions(plan *ProtocolTypePlan, schemaRoot string) error {
 	if plan == nil {
 		return fmt.Errorf("protocol type plan is nil")
 	}
@@ -225,9 +226,13 @@ func markReachableGeneratedDefinitions(plan *ProtocolTypePlan) error {
 		}
 	}
 
-	for index := range plan.Types {
+	rootIndexes, err := generatedDefinitionRootIndexes(*plan, schemaRoot)
+	if err != nil {
+		return err
+	}
+	for index := range rootIndexes {
 		typ := &plan.Types[index]
-		if typ.Schema == nil || isAggregateBundle(typ.SchemaPath) || isJSONRPCEnvelopeSchema(typ.SchemaPath) {
+		if typ.Schema == nil {
 			continue
 		}
 		walkSchema(typ.SchemaPath, typ.Schema)
@@ -251,6 +256,52 @@ func markReachableGeneratedDefinitions(plan *ProtocolTypePlan) error {
 		}
 	}
 	return nil
+}
+
+func generatedDefinitionRootIndexes(plan ProtocolTypePlan, schemaRoot string) (map[int]bool, error) {
+	fallback := func() map[int]bool {
+		roots := map[int]bool{}
+		for index, typ := range plan.Types {
+			if typ.Schema == nil || isAggregateBundle(typ.SchemaPath) || isJSONRPCEnvelopeSchema(typ.SchemaPath) {
+				continue
+			}
+			roots[index] = true
+		}
+		return roots
+	}
+	if schemaRoot == "" {
+		return fallback(), nil
+	}
+	manifestPath := filepath.Join(schemaRoot, "manifest.json")
+	if _, err := os.Stat(manifestPath); err != nil {
+		if os.IsNotExist(err) {
+			return fallback(), nil
+		}
+		return nil, err
+	}
+	manifest, err := LoadManifest(manifestPath)
+	if err != nil {
+		return nil, err
+	}
+	byTypeName := map[string][]int{}
+	bySchemaPath := map[string]int{}
+	for index, typ := range plan.Types {
+		byTypeName[typ.TypeName] = append(byTypeName[typ.TypeName], index)
+		bySchemaPath[typ.SchemaPath] = index
+	}
+	roots := map[int]bool{}
+	for _, entry := range manifest.Entries {
+		for _, index := range byTypeName[entry.ParamsOrPayloadSchema] {
+			roots[index] = true
+		}
+		if index, ok := bySchemaPath[entry.ResponseSchema]; ok {
+			roots[index] = true
+		}
+	}
+	if len(roots) == 0 {
+		return nil, fmt.Errorf("manifest has no protocol type roots")
+	}
+	return roots, nil
 }
 
 func (p ProtocolTypePlan) TypeBySchema(path string) (TypePlan, bool) {
