@@ -1105,7 +1105,7 @@ func TestReachableGeneratedDefinitionsFollowRefsTransitively(t *testing.T) {
 			},
 		},
 	}}}
-	if err := markReachableGeneratedDefinitions(&plan); err != nil {
+	if err := markReachableGeneratedDefinitions(&plan, ""); err != nil {
 		t.Fatal(err)
 	}
 	selected := plan.Types[0].GeneratedDefinitions
@@ -1116,6 +1116,44 @@ func TestReachableGeneratedDefinitionsFollowRefsTransitively(t *testing.T) {
 	}
 	if selected["Unused"] {
 		t.Fatalf("unreferenced definition was selected: %#v", selected)
+	}
+}
+
+func TestGeneratedDefinitionRootsUseManifestEntries(t *testing.T) {
+	root := t.TempDir()
+	manifest := `{
+		"schema_version": 2,
+		"status": "classified-manifest",
+		"surface": [],
+		"entries": [{
+			"direction": "client_to_server",
+			"facade_status": "generated",
+			"facade_target": "Threads().Add",
+			"family": "thread",
+			"kind": "request",
+			"method": "thread/add",
+			"params_or_payload_schema": "Used",
+			"response_schema": "UsedResponse.json",
+			"response_schema_status": "declared",
+			"response_type": "UsedResponse",
+			"source_schema": "ClientRequest.json",
+			"stability": "stable"
+		}]
+	}`
+	if err := os.WriteFile(filepath.Join(root, "manifest.json"), []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	plan := ProtocolTypePlan{Types: []TypePlan{
+		{SchemaPath: "Used.json", TypeName: "Used", Schema: &Schema{Type: SchemaTypeSet{Values: []string{"object"}}}},
+		{SchemaPath: "UsedResponse.json", TypeName: "UsedResponse", Schema: &Schema{Type: SchemaTypeSet{Values: []string{"object"}}}},
+		{SchemaPath: "Unrelated.json", TypeName: "Unrelated", Schema: &Schema{Type: SchemaTypeSet{Values: []string{"object"}}}},
+	}}
+	roots, err := generatedDefinitionRootIndexes(plan, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !roots[0] || !roots[1] || roots[2] {
+		t.Fatalf("manifest roots = %#v, want Used and UsedResponse only", roots)
 	}
 }
 
