@@ -169,6 +169,8 @@ jobs:
         with:
           api-key: ${{ secrets.AZURE_OPENAI_API_KEY }}
           responses-api-endpoint: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
+          model: gpt-6-sol
+          reasoning-effort: xhigh
           working-directory: .
           prompt: >-
             Read .agents/skills/codexsdk-sync-upstream/SKILL.md.
