@@ -92,7 +92,7 @@ additionalProperties: true        -> map[string]protocolv2.JSONValue
 string/integer/boolean scalars    -> matching Go scalar
 nullable/required/optional shape  -> matching wire-preserving Go representation
 $ref / definition reachability    -> generated dependency closure
-string enums / reviewed unions    -> generated named types
+string enums / supported unions   -> generated named types
 ```
 
 A new protocol instance is not, by itself, a reason for a handwritten
@@ -111,17 +111,40 @@ lossy passthrough merely to advance the baseline.
 
 ## Dependency generation
 
-Public protocol generation starts from current protocol roots: request,
-response, notification, and server-request payloads selected by the manifest.
-Referenced definitions are dependencies of those roots.
+Protocol type generation starts from the manifest's wire roots, independently
+of whether a convenience SDK facade method is currently exposed. Request,
+response, notification, server-request, and aggregate message roots own the
+reachable wire graph. A facade policy may hide a convenience method, but it
+cannot make an upstream wire type cease to exist.
 
-Prefer dependency reachability over a growing inventory of approved definition
-names. Two structurally identical definitions may share one generated type when
-the generator can prove that identity; conflicting definitions must remain
-distinct or fail deterministically.
+The planner follows only references accepted by the current schema mapping. A
+field overlay that intentionally represents an upstream subtree as
+`JSONValue`, for example, terminates typed dependency traversal at that
+boundary. This keeps dependency closure aligned with the representation the
+generator actually promises rather than blindly walking every raw `$ref` in a
+schema document.
 
-Handwritten types remain justified only when they protect semantics that the
-selected schema and generic generator cannot own.
+A definition is eligible for generated Go if and only if it is reachable from a
+generated wire root and its schema shape has a lossless supported
+representation. There is no path/name admission catalogue and no
+"previously reviewed definition" fallback.
+
+Two structurally identical reachable definitions may share one generated type
+when the generator can prove their schema identity. A local definition that is
+wire-identical to an already generated top-level type reuses that top-level
+identity. Same-name definitions with different shapes receive deterministic
+scoped identities or fail if the distinction cannot be represented safely.
+
+Representation overlays are separate from admission. For example, selected
+upstream string aliases that are intentionally exposed as plain Go strings may
+remain inline, while `additionalProperties: true` is handled generically as an
+open JSON-value object. Handwritten semantic overlays remain justified only
+when schema facts are insufficient to preserve the required API meaning.
+
+SDK facade status is a separate product-surface policy. Deferred facade methods
+stay deferred even if protocol generation later becomes capable of representing
+all of their wire types; protocol completeness does not silently mutate the
+convenience API.
 
 ## Outcomes
 

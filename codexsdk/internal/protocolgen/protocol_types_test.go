@@ -2443,6 +2443,39 @@ func TestGeneratedTypeSelectionResolvesEnumStructNameCollision(t *testing.T) {
 	}
 }
 
+func TestFormerCheckpointNameDoesNotBypassReachability(t *testing.T) {
+	parent := TypePlan{
+		GeneratedRoot: true,
+		Status:        "supported-generated",
+		SchemaPath:    "v2/ThreadStartParams.json",
+		TypeName:      "ThreadStartParams",
+		Schema: &Schema{
+			Type: SchemaTypeSet{Values: []string{"object"}},
+			Definitions: map[string]*Schema{
+				"ReasoningEffort": {
+					Type: SchemaTypeSet{Values: []string{"string"}},
+				},
+			},
+		},
+	}
+	aliases, err := SelectGeneratedScalarAliases(ProtocolTypePlan{Types: []TypePlan{parent}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(aliases) != 0 {
+		t.Fatalf("unreachable former checkpoint definition was generated: %#v", aliases)
+	}
+
+	parent.GeneratedDefinitions = map[string]bool{"ReasoningEffort": true}
+	aliases, err = SelectGeneratedScalarAliases(ProtocolTypePlan{Types: []TypePlan{parent}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(aliases) != 1 || aliases[0].TypeName != "ReasoningEffort" {
+		t.Fatalf("reachable definition did not generate from schema shape: %#v", aliases)
+	}
+}
+
 func TestFirstPassSelectionIncludesReachableDefinitionWithoutCheckpoint(t *testing.T) {
 	trueValue := true
 	childSchema := &Schema{
