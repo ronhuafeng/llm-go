@@ -489,12 +489,9 @@ func planField(coverage CoverageField, schema *Schema) (FieldPlan, error) {
 		return overlay, err
 	}
 	if schema.IsTrueSchema() {
-		if !isJSONValueFieldPath(plan.Path) {
-			return FieldPlan{}, fmt.Errorf("field %s has unreviewed true schema", coverage.Path)
-		}
 		plan.Kind = FieldPlanJSONValue
 		plan.GoType = optionalGoType(plan.Required, "protocolv2.JSONValue")
-		plan.Reason = "reviewed protocol-native unconstrained JSON value"
+		plan.Reason = "protocol-native unconstrained JSON value"
 		return plan, nil
 	}
 	if schema.IsFalseSchema() {
@@ -747,32 +744,6 @@ func overlayFieldPlan(plan FieldPlan, schema *Schema) (FieldPlan, bool, error) {
 		plan.WireAllowsNull = true
 		plan.Reason = "reviewed omit/null/value service tier semantics"
 		return plan, true, nil
-	case isJSONValueMapPath(plan.Path):
-		nullableType, nullable := schema.Type.NullableSingle()
-		isObject := schema.Type.Only("object") || nullable && nullableType == "object"
-		if !isObject ||
-			len(unmodeledKeywords(schema)) > 0 ||
-			len(schema.Properties) > 0 ||
-			schema.AdditionalProperties.Bool == nil ||
-			!*schema.AdditionalProperties.Bool {
-			return FieldPlan{}, true, fmt.Errorf("field %s JSONValue map overlay no longer matches object map schema shape", plan.Path)
-		}
-		plan.Kind = FieldPlanJSONValueMap
-		plan.WireAllowsNull = schemaAllowsNull(schema)
-		plan.GoType = nullableAwareGoType(plan.Required, plan.WireAllowsNull, "map[string]protocolv2.JSONValue")
-		plan.Reason = "reviewed dynamic protocol map with JSON values"
-		return plan, true, nil
-	case isJSONValueArrayPath(plan.Path):
-		nullableType, nullable := schema.Type.NullableSingle()
-		isArray := schema.Type.Only("array") || nullable && nullableType == "array"
-		if !isArray || len(unmodeledKeywords(schema)) > 0 || schema.Items == nil || !schema.Items.IsTrueSchema() {
-			return FieldPlan{}, true, fmt.Errorf("field %s JSONValue array overlay no longer matches array-of-JSON schema shape", plan.Path)
-		}
-		plan.Kind = FieldPlanArrayJSONValue
-		plan.WireAllowsNull = schemaAllowsNull(schema)
-		plan.GoType = nullableAwareGoType(plan.Required, plan.WireAllowsNull, "[]protocolv2.JSONValue")
-		plan.Reason = "reviewed array of protocol-native JSON values"
-		return plan, true, nil
 	default:
 		return FieldPlan{}, false, nil
 	}
@@ -905,12 +876,9 @@ func planArrayField(plan FieldPlan, schema *Schema, nullable bool) (FieldPlan, e
 		plan.Reason = "array of scalar values"
 		return plan, nil
 	case schema.Items.IsTrueSchema():
-		if !isJSONValueArrayPath(plan.Path) {
-			return FieldPlan{}, fmt.Errorf("field %s has unreviewed true-schema array items", plan.Path)
-		}
 		plan.Kind = FieldPlanArrayJSONValue
 		plan.GoType = optionalOrNullableGoType(fieldRequired, nullable, "[]protocolv2.JSONValue")
-		plan.Reason = "reviewed array of protocol-native JSON values"
+		plan.Reason = "array of protocol-native JSON values"
 		return plan, nil
 	default:
 		plan.Kind = FieldPlanUnionDeferred
@@ -977,18 +945,15 @@ func planObjectField(plan FieldPlan, schema *Schema) (FieldPlan, error) {
 		return plan, nil
 	}
 	if schema.AdditionalProperties.Bool != nil {
-		if *schema.AdditionalProperties.Bool && isJSONValueMapPath(plan.Path) {
+		if *schema.AdditionalProperties.Bool {
 			plan.Kind = FieldPlanJSONValueMap
 			plan.GoType = nullableAwareGoType(plan.Required, plan.WireAllowsNull, "map[string]protocolv2.JSONValue")
-			plan.Reason = "reviewed dynamic protocol map with JSON values"
+			plan.Reason = "dynamic protocol map with unconstrained JSON values"
 			return plan, nil
 		}
-		if !*schema.AdditionalProperties.Bool {
-			plan.Kind = FieldPlanUnionDeferred
-			plan.Reason = "closed inline object field needs named generated struct policy"
-			return plan, nil
-		}
-		return FieldPlan{}, fmt.Errorf("field %s has unreviewed additionalProperties=true", plan.Path)
+		plan.Kind = FieldPlanUnionDeferred
+		plan.Reason = "closed inline object field needs named generated struct policy"
+		return plan, nil
 	}
 	valueType, refPath, err := mapValueType(plan.Path, plan.SchemaPath, schema.AdditionalProperties.Schema)
 	if err != nil {
@@ -1295,83 +1260,6 @@ func isServiceTierPath(path string) bool {
 		"v2/ThreadStartParams.json#/properties/serviceTier",
 		"v2/ThreadStartResponse.json#/properties/serviceTier",
 		"v2/TurnStartParams.json#/properties/serviceTier":
-		return true
-	default:
-		return false
-	}
-}
-
-func isJSONValueFieldPath(path string) bool {
-	switch path {
-	case "DynamicToolCallParams.json#/properties/arguments",
-		"JSONRPCErrorError.json#/properties/data",
-		"JSONRPCNotification.json#/properties/params",
-		"JSONRPCRequest.json#/properties/params",
-		"JSONRPCResponse.json#/properties/result",
-		"v2/ConfigBatchWriteParams.json#/definitions/ConfigEdit/properties/value",
-		"v2/ConfigReadResponse.json#/definitions/ConfigLayer/properties/config",
-		"v2/ConfigValueWriteParams.json#/properties/value",
-		"v2/ConfigWriteResponse.json#/definitions/OverriddenMetadata/properties/effectiveValue",
-		"v2/ListMcpServerStatusResponse.json#/definitions/Resource/properties/_meta",
-		"v2/ListMcpServerStatusResponse.json#/definitions/Resource/properties/annotations",
-		"v2/ListMcpServerStatusResponse.json#/definitions/ResourceTemplate/properties/annotations",
-		"v2/ListMcpServerStatusResponse.json#/definitions/Tool/properties/_meta",
-		"v2/ListMcpServerStatusResponse.json#/definitions/Tool/properties/annotations",
-		"v2/ListMcpServerStatusResponse.json#/definitions/Tool/properties/inputSchema",
-		"v2/ListMcpServerStatusResponse.json#/definitions/Tool/properties/outputSchema",
-		"v2/McpResourceReadResponse.json#/definitions/ResourceContent#/anyOf/0/properties/_meta",
-		"v2/McpResourceReadResponse.json#/definitions/ResourceContent#/anyOf/1/properties/_meta",
-		"v2/McpServerEventStreamNotification.json#/definitions/McpServerEventNotification/properties/params",
-		"v2/McpServerEventStreamStartParams.json#/properties/_meta",
-		"v2/McpServerEventStreamStartParams.json#/properties/arguments",
-		"v2/McpServerToolCallParams.json#/properties/_meta",
-		"v2/McpServerToolCallParams.json#/properties/arguments",
-		"v2/McpServerToolCallResponse.json#/properties/_meta",
-		"v2/McpServerToolCallResponse.json#/properties/structuredContent",
-		"v2/ThreadResumeParams.json#/definitions/ResponseItem#/oneOf/4/properties/arguments",
-		"v2/ThreadResumeParams.json#/definitions/ResponseItem#/oneOf/5/properties/arguments",
-		"v2/ThreadStartParams.json#/definitions/DynamicToolSpec/properties/inputSchema",
-		"v2/ThreadStartParams.json#/definitions/DynamicToolSpec#/oneOf/0/properties/inputSchema",
-		"v2/ThreadStartParams.json#/definitions/DynamicToolNamespaceTool#/oneOf/0/properties/inputSchema",
-		"v2/ThreadRealtimeItemAddedNotification.json#/properties/item",
-		"v2/TurnModerationMetadataNotification.json#/properties/metadata",
-		"v2/TurnStartResponse.json#/definitions/McpToolCallResult/properties/_meta",
-		"v2/TurnStartResponse.json#/definitions/McpToolCallResult/properties/structuredContent",
-		"v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/7/properties/arguments",
-		"v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/8/properties/arguments",
-		"v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/9/properties/arguments":
-		return true
-	default:
-		return false
-	}
-}
-
-func isJSONValueMapPath(path string) bool {
-	switch path {
-	case "v1/InitializeParams.json#/definitions/InitializeCapabilities/properties/extensions",
-		"v2/ConfigReadResponse.json#/definitions/Config/properties/desktop",
-		"v2/ConfigRequirementsReadResponse.json#/definitions/ConfiguredHookHandler#/oneOf/1/properties/input",
-		"v2/ThreadForkParams.json#/properties/config",
-		"v2/ThreadResumeParams.json#/properties/config",
-		"v2/ThreadStartParams.json#/properties/config":
-		return true
-	default:
-		return false
-	}
-}
-
-func isJSONValueArrayPath(path string) bool {
-	switch path {
-	case "v2/ListMcpServerStatusResponse.json#/definitions/Resource/properties/icons",
-		"v2/ListMcpServerStatusResponse.json#/definitions/McpServerInfo/properties/icons",
-		"v2/ListMcpServerStatusResponse.json#/definitions/Tool/properties/icons",
-		"v2/McpServerToolCallResponse.json#/properties/content",
-		"v2/ThreadResumeParams.json#/definitions/ResponseItem#/oneOf/8/properties/tools",
-		"v2/ThreadResumeParams.json#/definitions/ResponseItem#/oneOf/9/properties/tools",
-		"v2/ThreadInjectItemsParams.json#/properties/items",
-		"v2/TurnStartResponse.json#/definitions/McpToolCallResult/properties/content",
-		"v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/11/properties/results",
-		"v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/12/properties/results":
 		return true
 	default:
 		return false

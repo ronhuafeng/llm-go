@@ -409,35 +409,36 @@ func TestBuildProtocolTypePlanClassifiesDynamicJSONFields(t *testing.T) {
 	}
 }
 
-func TestFieldPlannerSupportsOnlyReviewedDynamicToolArgumentsJSON(t *testing.T) {
+func TestFieldPlannerMapsTrueSchemaToJSONValueByShape(t *testing.T) {
 	trueSchema := true
 	schema := &Schema{Bool: &trueSchema}
-	reviewed := CoverageField{
-		Field:     "arguments",
-		Path:      "v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/9/properties/arguments",
-		Required:  true,
-		Schema:    "v2/TurnStartResponse.json",
-		Stability: "stable",
-		Status:    "supported-generated",
-		Type:      "DynamicToolCallThreadItem",
-	}
-
-	field, err := planField(reviewed, schema)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if field.Kind != FieldPlanJSONValue || field.GoType != "protocolv2.JSONValue" {
-		t.Fatalf("reviewed dynamic tool arguments = kind %s GoType %q, want JSON value", field.Kind, field.GoType)
-	}
-
-	unreviewed := reviewed
-	unreviewed.Path = "Example.json#/properties/arguments"
-	if _, err := planField(unreviewed, schema); err == nil || !strings.Contains(err.Error(), "unreviewed true schema") {
-		t.Fatalf("unreviewed true schema error = %v", err)
+	for _, tt := range []struct {
+		required bool
+		want     string
+	}{
+		{required: true, want: "protocolv2.JSONValue"},
+		{required: false, want: "*protocolv2.JSONValue"},
+	} {
+		coverage := CoverageField{
+			Field:     "payload",
+			Path:      "Example.json#/properties/payload",
+			Required:  tt.required,
+			Schema:    "Example.json",
+			Stability: "stable",
+			Status:    "supported-generated",
+			Type:      "Example",
+		}
+		field, err := planField(coverage, schema)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if field.Kind != FieldPlanJSONValue || field.GoType != tt.want {
+			t.Fatalf("required=%v field = kind %s GoType %q, want JSONValue %q", tt.required, field.Kind, field.GoType, tt.want)
+		}
 	}
 }
 
-func TestArrayPlannerSupportsOnlyReviewedNullableJSONValueArrays(t *testing.T) {
+func TestArrayPlannerMapsTrueSchemaItemsToJSONValueByShape(t *testing.T) {
 	trueSchema := true
 	schema := &Schema{
 		Items: &Schema{Bool: &trueSchema},
@@ -467,10 +468,14 @@ func TestArrayPlannerSupportsOnlyReviewedNullableJSONValueArrays(t *testing.T) {
 		t.Fatal("reviewed nullable JSON array must preserve omit/null/value semantics")
 	}
 
-	unreviewed := reviewed
-	unreviewed.Path = "Example.json#/properties/results"
-	if _, err := planField(unreviewed, schema); err == nil || !strings.Contains(err.Error(), "unreviewed true-schema array items") {
-		t.Fatalf("unreviewed true-schema array error = %v", err)
+	generic := reviewed
+	generic.Path = "Example.json#/properties/results"
+	field, err = planField(generic, schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if field.Kind != FieldPlanArrayJSONValue || field.GoType != "*protocolv2.Nullable[[]protocolv2.JSONValue]" {
+		t.Fatalf("generic nullable JSON array = kind %s GoType %q", field.Kind, field.GoType)
 	}
 }
 
@@ -553,6 +558,32 @@ func TestBuildProtocolTypePlanPreservesNullableTypedMapValues(t *testing.T) {
 		if !env.WireAllowsNull || !env.WireOmitAllowed {
 			t.Fatalf("%s must preserve omit/null/value semantics", path)
 		}
+	}
+}
+
+func TestPlanFieldMapsAdditionalPropertiesTrueToJSONValueMapByShape(t *testing.T) {
+	trueValue := true
+	coverage := CoverageField{
+		Field:     "metadata",
+		Path:      "Example.json#/properties/metadata",
+		Required:  false,
+		Schema:    "Example.json",
+		Stability: "stable",
+		Status:    "supported-generated",
+		Type:      "Example",
+	}
+	field, err := planField(coverage, &Schema{
+		AdditionalProperties: AdditionalProperties{Present: true, Bool: &trueValue},
+		Type:                 SchemaTypeSet{Values: []string{"object", "null"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if field.Kind != FieldPlanJSONValueMap || field.GoType != "*protocolv2.Nullable[map[string]protocolv2.JSONValue]" {
+		t.Fatalf("JSONValue map = kind %s GoType %q", field.Kind, field.GoType)
+	}
+	if !field.WireAllowsNull || !field.WireOmitAllowed {
+		t.Fatal("nullable JSONValue map must preserve omit/null/value semantics")
 	}
 }
 
