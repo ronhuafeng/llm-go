@@ -176,6 +176,7 @@ func Sync(req SyncRequest) (SyncResult, error) {
 		return result, fmt.Errorf("unknown plan status %q", planned.Status)
 	}
 
+	provenanceOnly := candidate.DriftStatus == "clean" && planned.Preview.GeneratedReleaseImpact == "metadata-only"
 	apply := req.Apply
 	if apply == nil {
 		apply = protocolupgrade.Apply
@@ -191,7 +192,7 @@ func Sync(req SyncRequest) (SyncResult, error) {
 		return result, fmt.Errorf("planned apply escaped the generated sync surface: %w", err)
 	}
 	result.Outcome = OutcomeApplied
-	if candidate.DriftStatus == "clean" {
+	if provenanceOnly {
 		result.Reason = "provenance-only candidate planned and applied"
 	} else {
 		result.Reason = "mechanical candidate planned and applied"
@@ -316,19 +317,6 @@ func decideAfterPolicy(decision string, forceCompare bool) string {
 	default:
 		return "blocked"
 	}
-}
-
-func decideAfterDrift(forceCompare bool, driftStatus string) string {
-	if forceCompare {
-		if driftStatus == "clean" {
-			return "comparison"
-		}
-		return "comparison_dirty"
-	}
-	if driftStatus == "clean" {
-		return "comparison"
-	}
-	return "apply"
 }
 
 func loadBaselineIdentity(path string) (BaselineIdentity, error) {
