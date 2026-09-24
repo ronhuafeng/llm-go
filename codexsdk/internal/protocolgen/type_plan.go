@@ -1,6 +1,7 @@
 package protocolgen
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
