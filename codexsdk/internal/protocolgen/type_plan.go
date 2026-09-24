@@ -15,6 +15,7 @@ type ProtocolTypePlan struct {
 
 type TypePlan struct {
 	Fields                []FieldPlan
+	GeneratedDefinitions  map[string]bool
 	Kind                  TypePlanKind
 	OpenDynamicProperties bool
 	Reason                string
@@ -127,12 +128,129 @@ func BuildProtocolTypePlan(schemaRoot string) (ProtocolTypePlan, error) {
 		}
 		plan.Types = append(plan.Types, typePlan)
 	}
+	if err := markReachableGeneratedDefinitions(&plan); err != nil {
+		return ProtocolTypePlan{}, err
+	}
 	resolver, err := newGeneratedDefinitionNameResolver(plan)
 	if err != nil {
 		return ProtocolTypePlan{}, err
 	}
 	resolveProtocolTypePlanRefs(&plan, resolver)
 	return plan, nil
+}
+
+func markReachableGeneratedDefinitions(plan *ProtocolTypePlan) error {
+	if plan == nil {
+		return fmt.Errorf("protocol type plan is nil")
+	}
+	byDocument := map[string]int{}
+	for index := range plan.Types {
+		typ := &plan.Types[index]
+		if typ.Schema == nil {
+			continue
+		}
+		document := typ.SchemaPath
+		if before, _, ok := strings.Cut(document, "#"); ok {
+			document = before
+		}
+		if document == "" {
+			continue
+		}
+		byDocument[document] = index
+		if typ.GeneratedDefinitions == nil {
+			typ.GeneratedDefinitions = map[string]bool{}
+		}
+	}
+
+	visitedSchemas := map[*Schema]bool{}
+	visitedDefinitions := map[string]bool{}
+	var walkSchema func(string, *Schema)
+	var walkRef func(string, string)
+
+	walkRef = func(currentDocument, ref string) {
+		absolute := absoluteRefPath(currentDocument, ref)
+		document, fragment, hasFragment := strings.Cut(absolute, "#")
+		index, ok := byDocument[document]
+		if !ok {
+			return
+		}
+		target := &plan.Types[index]
+		if !hasFragment || fragment == "" {
+			walkSchema(document, target.Schema)
+			return
+		}
+		const prefix = "/definitions/"
+		if !strings.HasPrefix(fragment, prefix) {
+			return
+		}
+		token := strings.TrimPrefix(fragment, prefix)
+		if before, _, ok := strings.Cut(token, "/"); ok {
+			token = before
+		}
+		name := strings.ReplaceAll(strings.ReplaceAll(token, "~1", "/"), "~0", "~")
+		definition := target.Schema.Definitions[name]
+		if definition == nil {
+			return
+		}
+		definitionPath := definitionSchemaPath(document, name)
+		target.GeneratedDefinitions[name] = true
+		if visitedDefinitions[definitionPath] {
+			return
+		}
+		visitedDefinitions[definitionPath] = true
+		walkSchema(document, definition)
+	}
+
+	walkSchema = func(document string, schema *Schema) {
+		if schema == nil || visitedSchemas[schema] {
+			return
+		}
+		visitedSchemas[schema] = true
+		if schema.Ref != "" {
+			walkRef(document, schema.Ref)
+		}
+		walkSchema(document, schema.Items)
+		walkSchema(document, schema.AdditionalProperties.Schema)
+		for _, child := range schema.Properties {
+			walkSchema(document, child)
+		}
+		for _, child := range schema.AllOf {
+			walkSchema(document, child)
+		}
+		for _, child := range schema.AnyOf {
+			walkSchema(document, child)
+		}
+		for _, child := range schema.OneOf {
+			walkSchema(document, child)
+		}
+	}
+
+	for index := range plan.Types {
+		typ := &plan.Types[index]
+		if typ.Schema == nil || isAggregateBundle(typ.SchemaPath) || isJSONRPCEnvelopeSchema(typ.SchemaPath) {
+			continue
+		}
+		walkSchema(typ.SchemaPath, typ.Schema)
+	}
+	for index := range plan.Types {
+		typ := &plan.Types[index]
+		if typ.Schema == nil {
+			continue
+		}
+		for name, schema := range typ.Schema.Definitions {
+			if !isReviewedGeneratedDefinition(typ.SchemaPath, name) {
+				continue
+			}
+			typ.GeneratedDefinitions[name] = true
+			definitionPath := definitionSchemaPath(typ.SchemaPath, name)
+			if visitedDefinitions[definitionPath] {
+				continue
+			}
+			visitedDefinitions[definitionPath] = true
+			walkSchema(typ.SchemaPath, schema)
+		}
+	}
+	return nil
 }
 
 func (p ProtocolTypePlan) TypeBySchema(path string) (TypePlan, bool) {
@@ -179,7 +297,7 @@ func newGeneratedDefinitionNameResolver(plan ProtocolTypePlan) (generatedDefinit
 			continue
 		}
 		for name, schema := range typ.Schema.Definitions {
-			if !isGeneratedDefinitionNameResolverSource(typ.SchemaPath, name, schema) {
+			if !isGeneratedDefinitionNameResolverSource(typ, name, schema) {
 				continue
 			}
 			kind := classifyGeneratedDefinition(schema)
@@ -245,11 +363,15 @@ func newGeneratedDefinitionNameResolver(plan ProtocolTypePlan) (generatedDefinit
 	return resolver, nil
 }
 
-func isGeneratedDefinitionNameResolverSource(schemaPath string, name string, schema *Schema) bool {
+func isGeneratedDefinitionNameResolverSource(parent TypePlan, name string, schema *Schema) bool {
 	if classifyGeneratedDefinition(schema) == generatedDefinitionStringEnum && isImplicitGeneratedStringEnumDefinitionSchema(schema) {
 		return true
 	}
-	return isReviewedGeneratedDefinition(schemaPath, name)
+	return isGeneratedDefinitionSelected(parent, name)
+}
+
+func isGeneratedDefinitionSelected(parent TypePlan, name string) bool {
+	return parent.GeneratedDefinitions[name] || isReviewedGeneratedDefinition(parent.SchemaPath, name)
 }
 
 func definitionSchemaPath(schemaPath string, name string) string {

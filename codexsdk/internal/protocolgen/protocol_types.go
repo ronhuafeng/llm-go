@@ -10,7 +10,7 @@ import (
 )
 
 func GenerateProtocolTypes(plan ProtocolTypePlan) ([]byte, error) {
-	if err := validateReviewedGeneratedDefinitionShapes(plan); err != nil {
+	if err := validateGeneratedDefinitionShapes(plan); err != nil {
 		return nil, err
 	}
 	enums, err := SelectGeneratedEnums(plan)
@@ -270,13 +270,13 @@ func classifyGeneratedDefinition(schema *Schema) generatedDefinitionKind {
 	}
 }
 
-func validateReviewedGeneratedDefinitionShapes(plan ProtocolTypePlan) error {
+func validateGeneratedDefinitionShapes(plan ProtocolTypePlan) error {
 	for _, typ := range plan.Types {
 		if typ.Schema == nil || len(typ.Schema.Definitions) == 0 {
 			continue
 		}
 		for name, schema := range typ.Schema.Definitions {
-			if !isReviewedGeneratedDefinition(typ.SchemaPath, name) {
+			if !isGeneratedDefinitionSelected(typ, name) {
 				continue
 			}
 			if classifyGeneratedDefinition(schema) == generatedDefinitionUnsupported {
@@ -379,7 +379,7 @@ func SelectGeneratedEnums(plan ProtocolTypePlan) ([]EnumPlan, error) {
 			if classifyGeneratedDefinition(schema) != generatedDefinitionStringEnum {
 				continue
 			}
-			if !isReviewedGeneratedDefinition(typ.SchemaPath, name) && !isImplicitGeneratedStringEnumDefinitionSchema(schema) {
+			if !isGeneratedDefinitionSelected(typ, name) && !isImplicitGeneratedStringEnumDefinitionSchema(schema) {
 				continue
 			}
 			typeName := generatedDefinitionTypeName(resolver, typ.SchemaPath, name)
@@ -439,7 +439,7 @@ func SelectGeneratedScalarAliases(plan ProtocolTypePlan) ([]ScalarAliasPlan, err
 			continue
 		}
 		for name, schema := range typ.Schema.Definitions {
-			if !isReviewedGeneratedDefinition(typ.SchemaPath, name) || classifyGeneratedDefinition(schema) != generatedDefinitionScalarAlias {
+			if !isGeneratedDefinitionSelected(typ, name) || classifyGeneratedDefinition(schema) != generatedDefinitionScalarAlias {
 				continue
 			}
 			typeName := generatedDefinitionTypeName(resolver, typ.SchemaPath, name)
@@ -591,7 +591,38 @@ func firstPassTypeCandidates(plan ProtocolTypePlan) ([]TypePlan, error) {
 		}
 		candidates = append(candidates, definitions...)
 	}
-	return candidates, nil
+	return dedupeDefinitionTypeCandidates(candidates)
+}
+
+func dedupeDefinitionTypeCandidates(candidates []TypePlan) ([]TypePlan, error) {
+	byName := map[string]TypePlan{}
+	out := make([]TypePlan, 0, len(candidates))
+	for _, candidate := range candidates {
+		previous, ok := byName[candidate.TypeName]
+		if !ok {
+			byName[candidate.TypeName] = candidate
+			out = append(out, candidate)
+			continue
+		}
+		if !strings.Contains(previous.SchemaPath, "#/definitions/") || !strings.Contains(candidate.SchemaPath, "#/definitions/") {
+			return nil, fmt.Errorf("generated type %s appears in both %s and %s", candidate.TypeName, previous.SchemaPath, candidate.SchemaPath)
+		}
+		if previous.Kind != candidate.Kind {
+			return nil, fmt.Errorf("generated definition %s has conflicting kinds between %s and %s", candidate.TypeName, previous.SchemaPath, candidate.SchemaPath)
+		}
+		left, err := json.Marshal(previous.Schema)
+		if err != nil {
+			return nil, fmt.Errorf("encode generated definition %s from %s: %w", candidate.TypeName, previous.SchemaPath, err)
+		}
+		right, err := json.Marshal(candidate.Schema)
+		if err != nil {
+			return nil, fmt.Errorf("encode generated definition %s from %s: %w", candidate.TypeName, candidate.SchemaPath, err)
+		}
+		if !bytes.Equal(left, right) {
+			return nil, fmt.Errorf("generated definition %s has conflicting schemas between %s and %s", candidate.TypeName, previous.SchemaPath, candidate.SchemaPath)
+		}
+	}
+	return out, nil
 }
 
 func generatedDefinitionTypeCandidates(parent TypePlan, resolver generatedDefinitionNameResolver) ([]TypePlan, error) {
@@ -600,7 +631,7 @@ func generatedDefinitionTypeCandidates(parent TypePlan, resolver generatedDefini
 	}
 	var names []string
 	for name, schema := range parent.Schema.Definitions {
-		if isReviewedGeneratedDefinition(parent.SchemaPath, name) && classifyGeneratedDefinition(schema) == generatedDefinitionStruct {
+		if isGeneratedDefinitionSelected(parent, name) && classifyGeneratedDefinition(schema) == generatedDefinitionStruct {
 			names = append(names, name)
 		}
 	}
@@ -691,7 +722,7 @@ func mixedUnionCandidates(plan ProtocolTypePlan) ([]TypePlan, error) {
 		}
 		var names []string
 		for name, schema := range typ.Schema.Definitions {
-			if isReviewedGeneratedDefinition(typ.SchemaPath, name) && classifyGeneratedDefinition(schema) == generatedDefinitionMixedUnion {
+			if isGeneratedDefinitionSelected(typ, name) && classifyGeneratedDefinition(schema) == generatedDefinitionMixedUnion {
 				names = append(names, name)
 			}
 		}
@@ -938,7 +969,7 @@ func untaggedObjectUnionCandidates(plan ProtocolTypePlan, resolver generatedDefi
 		}
 		var names []string
 		for name, schema := range typ.Schema.Definitions {
-			if isReviewedGeneratedDefinition(typ.SchemaPath, name) && classifyGeneratedDefinition(schema) == generatedDefinitionUntaggedObjectUnion {
+			if isGeneratedDefinitionSelected(typ, name) && classifyGeneratedDefinition(schema) == generatedDefinitionUntaggedObjectUnion {
 				names = append(names, name)
 			}
 		}
@@ -1169,7 +1200,7 @@ func generatedDefinitionScalarUnionCandidates(parent TypePlan, resolver generate
 	}
 	var names []string
 	for name, schema := range parent.Schema.Definitions {
-		if isReviewedGeneratedDefinition(parent.SchemaPath, name) && classifyGeneratedDefinition(schema) == generatedDefinitionScalarUnion {
+		if isGeneratedDefinitionSelected(parent, name) && classifyGeneratedDefinition(schema) == generatedDefinitionScalarUnion {
 			names = append(names, name)
 		}
 	}
@@ -1383,7 +1414,7 @@ func generatedScalarUnionTypeNames(plan ProtocolTypePlan) []string {
 			continue
 		}
 		for name, schema := range typ.Schema.Definitions {
-			if isReviewedGeneratedDefinition(typ.SchemaPath, name) && classifyGeneratedDefinition(schema) == generatedDefinitionScalarUnion {
+			if isGeneratedDefinitionSelected(typ, name) && classifyGeneratedDefinition(schema) == generatedDefinitionScalarUnion {
 				names[generatedDefinitionTypeName(resolver, typ.SchemaPath, name)] = true
 			}
 		}
@@ -1407,7 +1438,7 @@ func generatedScalarAliasTypeNames(plan ProtocolTypePlan) []string {
 			continue
 		}
 		for name, schema := range typ.Schema.Definitions {
-			if isReviewedGeneratedDefinition(typ.SchemaPath, name) && classifyGeneratedDefinition(schema) == generatedDefinitionScalarAlias {
+			if isGeneratedDefinitionSelected(typ, name) && classifyGeneratedDefinition(schema) == generatedDefinitionScalarAlias {
 				names[generatedDefinitionTypeName(resolver, typ.SchemaPath, name)] = true
 			}
 		}
@@ -1431,7 +1462,7 @@ func generatedStructTypeNames(plan ProtocolTypePlan) []string {
 			continue
 		}
 		for name, schema := range typ.Schema.Definitions {
-			if isReviewedGeneratedDefinition(typ.SchemaPath, name) && classifyGeneratedDefinition(schema) == generatedDefinitionStruct {
+			if isGeneratedDefinitionSelected(typ, name) && classifyGeneratedDefinition(schema) == generatedDefinitionStruct {
 				names[generatedDefinitionTypeName(resolver, typ.SchemaPath, name)] = true
 			}
 		}
@@ -1477,7 +1508,7 @@ func generatedMixedUnionTypeNames(plan ProtocolTypePlan) []string {
 			continue
 		}
 		for name, schema := range typ.Schema.Definitions {
-			if isReviewedGeneratedDefinition(typ.SchemaPath, name) && classifyGeneratedDefinition(schema) == generatedDefinitionMixedUnion {
+			if isGeneratedDefinitionSelected(typ, name) && classifyGeneratedDefinition(schema) == generatedDefinitionMixedUnion {
 				names[generatedDefinitionTypeName(resolver, typ.SchemaPath, name)] = true
 			}
 		}
@@ -1501,7 +1532,7 @@ func generatedUntaggedObjectUnionTypeNames(plan ProtocolTypePlan) []string {
 			continue
 		}
 		for name, schema := range typ.Schema.Definitions {
-			if isReviewedGeneratedDefinition(typ.SchemaPath, name) && classifyGeneratedDefinition(schema) == generatedDefinitionUntaggedObjectUnion {
+			if isGeneratedDefinitionSelected(typ, name) && classifyGeneratedDefinition(schema) == generatedDefinitionUntaggedObjectUnion {
 				names[generatedDefinitionTypeName(resolver, typ.SchemaPath, name)] = true
 			}
 		}
@@ -1538,7 +1569,7 @@ func generatedDefinitionTaggedUnionCandidates(parent TypePlan, resolver generate
 	}
 	var names []string
 	for name, schema := range parent.Schema.Definitions {
-		if isReviewedGeneratedDefinition(parent.SchemaPath, name) && classifyGeneratedDefinition(schema) == generatedDefinitionTaggedUnion {
+		if isGeneratedDefinitionSelected(parent, name) && classifyGeneratedDefinition(schema) == generatedDefinitionTaggedUnion {
 			names = append(names, name)
 		}
 	}

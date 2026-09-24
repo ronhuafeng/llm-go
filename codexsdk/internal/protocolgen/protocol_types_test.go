@@ -2374,6 +2374,111 @@ func TestGeneratedTypeSelectionResolvesEnumStructNameCollision(t *testing.T) {
 	}
 }
 
+func TestFirstPassSelectionIncludesReachableDefinitionWithoutCheckpoint(t *testing.T) {
+	trueValue := true
+	childSchema := &Schema{
+		Type:     SchemaTypeSet{Values: []string{"object"}},
+		Required: []string{"payload"},
+		Properties: map[string]*Schema{
+			"payload": {Bool: &trueValue},
+		},
+	}
+	parent := TypePlan{
+		GeneratedDefinitions: map[string]bool{"Child": true},
+		Kind:                 TypePlanObjectStructCandidate,
+		SchemaPath:           "Example.json",
+		TypeName:             "Example",
+		Schema: &Schema{
+			Type:        SchemaTypeSet{Values: []string{"object"}},
+			Definitions: map[string]*Schema{"Child": childSchema},
+		},
+		Fields: []FieldPlan{{
+			FieldName:  "child",
+			GoType:     "Child",
+			Kind:       FieldPlanRef,
+			Path:       "Example.json#/properties/child",
+			RefPath:    "Example.json#/definitions/Child",
+			Required:   true,
+			SchemaPath: "Example.json",
+			TypeName:   "Example",
+		}},
+	}
+	plan := ProtocolTypePlan{Types: []TypePlan{parent}}
+	resolver, err := newGeneratedDefinitionNameResolver(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolveProtocolTypePlanRefs(&plan, resolver)
+	selected, err := SelectFirstPassGeneratedTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := map[string]bool{}
+	for _, typ := range selected {
+		names[typ.TypeName] = true
+	}
+	if !names["Child"] || !names["Example"] {
+		t.Fatalf("reachable definition closure not generated: %#v", names)
+	}
+}
+
+func TestFirstPassSelectionDeduplicatesIdenticalReachableDefinitions(t *testing.T) {
+	trueValue := true
+	threadAttachment := func() *Schema {
+		return &Schema{
+			Type:     SchemaTypeSet{Values: []string{"object"}},
+			Required: []string{"payload"},
+			Properties: map[string]*Schema{
+				"payload": {Bool: &trueValue},
+			},
+		}
+	}
+	parent := func(schemaPath, typeName string) TypePlan {
+		return TypePlan{
+			GeneratedDefinitions: map[string]bool{"ThreadAttachment": true},
+			Kind:                 TypePlanObjectStructCandidate,
+			SchemaPath:           schemaPath,
+			TypeName:             typeName,
+			Schema: &Schema{
+				Type:        SchemaTypeSet{Values: []string{"object"}},
+				Definitions: map[string]*Schema{"ThreadAttachment": threadAttachment()},
+			},
+			Fields: []FieldPlan{{
+				FieldName:  "attachment",
+				GoType:     "ThreadAttachment",
+				Kind:       FieldPlanRef,
+				Path:       schemaPath + "#/properties/attachment",
+				RefPath:    schemaPath + "#/definitions/ThreadAttachment",
+				Required:   true,
+				SchemaPath: schemaPath,
+				TypeName:   typeName,
+			}},
+		}
+	}
+	plan := ProtocolTypePlan{Types: []TypePlan{
+		parent("AddResponse.json", "AddResponse"),
+		parent("ListResponse.json", "ListResponse"),
+	}}
+	resolver, err := newGeneratedDefinitionNameResolver(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolveProtocolTypePlanRefs(&plan, resolver)
+	selected, err := SelectFirstPassGeneratedTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for _, typ := range selected {
+		if typ.TypeName == "ThreadAttachment" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("ThreadAttachment generated %d times, want 1: %#v", count, selected)
+	}
+}
+
 func TestFieldGoNameUsesGoAcronyms(t *testing.T) {
 	cases := map[string]string{
 		"authorizationUrl": "AuthorizationURL",

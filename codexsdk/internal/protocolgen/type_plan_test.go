@@ -1081,6 +1081,44 @@ func TestProtocolTypePlanFailsClosedForUnreviewedShape(t *testing.T) {
 	}
 }
 
+func TestReachableGeneratedDefinitionsFollowRefsTransitively(t *testing.T) {
+	child := &Schema{
+		Type: SchemaTypeSet{Values: []string{"object"}},
+		Properties: map[string]*Schema{
+			"leaf": {Ref: "#/definitions/Leaf"},
+		},
+	}
+	leaf := &Schema{Type: SchemaTypeSet{Values: []string{"object"}}}
+	unused := &Schema{Type: SchemaTypeSet{Values: []string{"object"}}}
+	plan := ProtocolTypePlan{Types: []TypePlan{{
+		SchemaPath: "Example.json",
+		TypeName:   "Example",
+		Schema: &Schema{
+			Type: SchemaTypeSet{Values: []string{"object"}},
+			Properties: map[string]*Schema{
+				"child": {Ref: "#/definitions/Child"},
+			},
+			Definitions: map[string]*Schema{
+				"Child":  child,
+				"Leaf":   leaf,
+				"Unused": unused,
+			},
+		},
+	}}}
+	if err := markReachableGeneratedDefinitions(&plan); err != nil {
+		t.Fatal(err)
+	}
+	selected := plan.Types[0].GeneratedDefinitions
+	for _, name := range []string{"Child", "Leaf"} {
+		if !selected[name] {
+			t.Fatalf("definition %s was not selected transitively: %#v", name, selected)
+		}
+	}
+	if selected["Unused"] {
+		t.Fatalf("unreferenced definition was selected: %#v", selected)
+	}
+}
+
 func TestScalarAliasRefGoTypeRecognizesLegacyAppPathString(t *testing.T) {
 	goType, ok := scalarAliasRefGoType("#/definitions/LegacyAppPathString")
 	if !ok || goType != "string" {
