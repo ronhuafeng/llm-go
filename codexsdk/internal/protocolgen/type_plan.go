@@ -165,8 +165,23 @@ func markReachableGeneratedDefinitions(plan *ProtocolTypePlan, schemaRoot string
 
 	visitedSchemas := map[*Schema]bool{}
 	visitedDefinitions := map[string]bool{}
+	visitedTypes := map[int]bool{}
 	var walkSchema func(string, *Schema)
 	var walkRef func(string, string)
+	var walkType func(int)
+
+	walkType = func(index int) {
+		if visitedTypes[index] {
+			return
+		}
+		visitedTypes[index] = true
+		typ := &plan.Types[index]
+		for _, field := range typ.Fields {
+			if field.RefPath != "" {
+				walkRef(typ.SchemaPath, field.RefPath)
+			}
+		}
+	}
 
 	walkRef = func(currentDocument, ref string) {
 		absolute := absoluteRefPath(currentDocument, ref)
@@ -177,7 +192,7 @@ func markReachableGeneratedDefinitions(plan *ProtocolTypePlan, schemaRoot string
 		}
 		target := &plan.Types[index]
 		if !hasFragment || fragment == "" {
-			walkSchema(document, target.Schema)
+			walkType(index)
 			return
 		}
 		const prefix = "/definitions/"
@@ -231,28 +246,17 @@ func markReachableGeneratedDefinitions(plan *ProtocolTypePlan, schemaRoot string
 		return err
 	}
 	for index := range rootIndexes {
-		typ := &plan.Types[index]
-		if typ.Schema == nil {
-			continue
-		}
-		walkSchema(typ.SchemaPath, typ.Schema)
+		walkType(index)
 	}
 	for index := range plan.Types {
 		typ := &plan.Types[index]
 		if typ.Schema == nil {
 			continue
 		}
-		for name, schema := range typ.Schema.Definitions {
-			if !isReviewedGeneratedDefinition(typ.SchemaPath, name) {
-				continue
+		for name := range typ.Schema.Definitions {
+			if isReviewedGeneratedDefinition(typ.SchemaPath, name) {
+				typ.GeneratedDefinitions[name] = true
 			}
-			typ.GeneratedDefinitions[name] = true
-			definitionPath := definitionSchemaPath(typ.SchemaPath, name)
-			if visitedDefinitions[definitionPath] {
-				continue
-			}
-			visitedDefinitions[definitionPath] = true
-			walkSchema(typ.SchemaPath, schema)
 		}
 	}
 	return nil
