@@ -339,6 +339,7 @@ type generatedDefinitionSource struct {
 	baseName       string
 	encoded        []byte
 	kind           generatedDefinitionKind
+	legacySelected bool
 	parentTypeName string
 	path           string
 }
@@ -372,6 +373,7 @@ func newGeneratedDefinitionNameResolver(plan ProtocolTypePlan) (generatedDefinit
 				baseName:       name,
 				encoded:        encoded,
 				kind:           kind,
+				legacySelected: isReviewedGeneratedDefinition(typ.SchemaPath, name),
 				parentTypeName: typ.TypeName,
 				path:           definitionSchemaPath(typ.SchemaPath, name),
 			})
@@ -403,13 +405,33 @@ func newGeneratedDefinitionNameResolver(plan ProtocolTypePlan) (generatedDefinit
 		}
 
 		var signatures []string
-		for signature := range bySignature {
+		var legacySignatures []string
+		for signature, signatureSources := range bySignature {
 			signatures = append(signatures, signature)
+			for _, source := range signatureSources {
+				if source.legacySelected {
+					legacySignatures = append(legacySignatures, signature)
+					break
+				}
+			}
 		}
 		sort.Slice(signatures, func(i, j int) bool {
 			return bySignature[signatures[i]][0].path < bySignature[signatures[j]][0].path
 		})
+		sort.Strings(legacySignatures)
+
+		legacySignature := ""
+		if len(legacySignatures) == 1 {
+			legacySignature = legacySignatures[0]
+			typeName := claimGeneratedDefinitionTypeName(baseName, usedNames)
+			for _, source := range bySignature[legacySignature] {
+				resolver.namesByPath[source.path] = typeName
+			}
+		}
 		for _, signature := range signatures {
+			if signature == legacySignature {
+				continue
+			}
 			signatureSources := bySignature[signature]
 			sort.Slice(signatureSources, func(i, j int) bool {
 				return signatureSources[i].path < signatureSources[j].path
