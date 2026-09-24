@@ -295,6 +295,11 @@ func generatedDefinitionRootIndexes(plan ProtocolTypePlan, schemaRoot string) (m
 	}
 	roots := map[int]bool{}
 	for _, entry := range manifest.Entries {
+		if entry.Direction == manifestDirectionClientToServer &&
+			entry.Kind == manifestKindRequest &&
+			entry.FacadeStatus != "generated" {
+			continue
+		}
 		for _, index := range byTypeName[entry.ParamsOrPayloadSchema] {
 			roots[index] = true
 		}
