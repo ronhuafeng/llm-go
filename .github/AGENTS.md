@@ -7,6 +7,16 @@ source correctness; version publication is outside this control plane.
   the workflow has a non-root default working directory.
 - Trusted default-branch workflows check out the triggering `${{ github.sha }}`;
   do not re-resolve a moving branch name.
+- Read-only native verification workflows may be manually dispatched from a
+  development ref. They check out the triggering `${{ github.sha }}`, use the
+  root `go.mod` Go floor, and mirror owner-local Go commands. They are proof
+  projections, not new behavior or merge authorities.
+- Keep the protected check names `Root source verification` and
+  `Codex generated reproducibility / Generated reproducibility` stable unless
+  branch protection is migrated in the same change.
+- Workflow tests protect current authority, permissions, immutable identity, and
+  publication/failure boundaries. Do not freeze job count or incidental step
+  topology when it protects no independent invariant.
 - Inputs that sandboxed Codex commands must read are written to an ignored
   workspace file; do not assume launcher environment variables remain visible.
 - Provider credentials may reach proxy startup but must not be inherited by the

@@ -41,9 +41,25 @@ request and encodes the supplied response. It does not invent one.
 
 ### Preserve protocol and caller meaning
 
-`codexsdk` follows the selected Codex App Server protocol. If the generator
-cannot represent a supported schema shape, generation fails rather than silently
-dropping it.
+`codexsdk` follows one selected Codex App Server protocol source. That selected
+source owns wire facts such as methods, schema shapes, requiredness, nullability,
+and references.
+
+When an upstream schema fact has a lossless representation in the generated Go
+model, derive it from the schema. Do not require a field path, type name, or
+current protocol instance to be separately approved merely because it is new.
+For example, an unconstrained JSON schema belongs to the protocol-native
+`JSONValue` representation when that mapping preserves the complete wire value.
+
+Keep an explicit semantic overlay only when the selected schema cannot express
+a required local meaning, such as application authority, lifecycle/correlation
+semantics, or another invariant that cannot be derived from the wire shape.
+Each overlay needs a current consumer and focused owner-local proof.
+
+If the generator cannot represent a supported schema shape without changing its
+meaning, generation fails before publication rather than silently dropping or
+weakening it. A fresh candidate does not become the accepted baseline until
+deterministic proof succeeds.
 
 `llmcaller/codex` may translate Codex data into `llmkit` types or reject a schema
 Codex cannot represent. It must not silently change the caller's schema meaning.
@@ -88,8 +104,8 @@ canonical input -> change -> deterministic checks -> allowed effect
 ```
 
 If a run fails, retry from canonical input. Do not create cross-run repair
-state, attestation ledgers, or durable proof objects for state that can simply be
-regenerated and checked again.
+state, attestation ledgers, or durable proof objects for state that can simply
+be regenerated and checked again.
 
 Immutable identities still matter when identity itself is part of the contract,
 for example an upstream commit or release tag.
