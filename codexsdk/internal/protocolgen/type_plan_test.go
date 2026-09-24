@@ -1123,7 +1123,7 @@ func TestReachableGeneratedDefinitionsFollowRefsTransitively(t *testing.T) {
 	}
 }
 
-func TestGeneratedDefinitionRootsUseManifestEntries(t *testing.T) {
+func TestGeneratedDefinitionRootsUseAllManifestProtocolEntries(t *testing.T) {
 	root := t.TempDir()
 	manifest := `{
 		"schema_version": 2,
@@ -1167,17 +1167,17 @@ func TestGeneratedDefinitionRootsUseManifestEntries(t *testing.T) {
 		{SchemaPath: "Deferred.json", TypeName: "Deferred", Schema: &Schema{Type: SchemaTypeSet{Values: []string{"object"}}}},
 		{SchemaPath: "DeferredResponse.json", TypeName: "DeferredResponse", Schema: &Schema{Type: SchemaTypeSet{Values: []string{"object"}}}},
 	}}
-	roots, err := generatedDefinitionRootIndexes(plan, root)
+	roots, err := generatedDefinitionRootIndexes(&plan, root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !roots[0] || !roots[1] || roots[2] || roots[3] || roots[4] {
-		t.Fatalf("manifest roots = %#v, want only generated facade request roots", roots)
+	if !roots[0] || !roots[1] || roots[2] || !roots[3] || !roots[4] {
+		t.Fatalf("manifest roots = %#v, want all protocol payload roots independent of facade policy", roots)
 	}
 }
 
-func TestScalarAliasRefGoTypeRecognizesLegacyAppPathString(t *testing.T) {
-	goType, ok := scalarAliasRefGoType("#/definitions/LegacyAppPathString")
+func TestInlineScalarAliasGoTypeRecognizesLegacyAppPathString(t *testing.T) {
+	goType, ok := inlineScalarAliasGoType("#/definitions/LegacyAppPathString")
 	if !ok || goType != "string" {
 		t.Fatalf("LegacyAppPathString alias = (%q, %v), want (string, true)", goType, ok)
 	}
