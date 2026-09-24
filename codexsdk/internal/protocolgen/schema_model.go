@@ -72,6 +72,7 @@ type SchemaFile struct {
 	Path      string
 	TypeName  string
 	Stability string
+	Status    string
 	Schema    *Schema
 }
 
@@ -86,6 +87,7 @@ func LoadCoverageSchemas(root string, matrix CoverageMatrix) ([]SchemaFile, erro
 			Path:      typ.Schema,
 			TypeName:  typ.Type,
 			Stability: typ.Stability,
+			Status:    typ.Status,
 			Schema:    schema,
 		})
 	}
