@@ -349,11 +349,7 @@ func generatedDefinitionRootIndexes(plan *ProtocolTypePlan, schemaRoot string) (
 	for _, entry := range manifest.Entries {
 		if index, ok := bySchemaPath[entry.SourceSchema]; ok {
 			plan.Types[index].GeneratedRoot = true
-		}
-		if entry.Direction == manifestDirectionClientToServer &&
-			entry.Kind == manifestKindRequest &&
-			entry.FacadeStatus != "generated" {
-			continue
+			roots[index] = true
 		}
 		for _, index := range byTypeName[entry.ParamsOrPayloadSchema] {
 			plan.Types[index].GeneratedRoot = true
