@@ -1093,11 +1093,15 @@ func TestReachableGeneratedDefinitionsFollowRefsTransitively(t *testing.T) {
 	plan := ProtocolTypePlan{Types: []TypePlan{{
 		SchemaPath: "Example.json",
 		TypeName:   "Example",
+		Fields: []FieldPlan{{
+			FieldName:  "child",
+			GoType:     "Child",
+			Kind:       FieldPlanRef,
+			RefPath:    "Example.json#/definitions/Child",
+			SchemaPath: "Example.json",
+		}},
 		Schema: &Schema{
 			Type: SchemaTypeSet{Values: []string{"object"}},
-			Properties: map[string]*Schema{
-				"child": {Ref: "#/definitions/Child"},
-			},
 			Definitions: map[string]*Schema{
 				"Child":  child,
 				"Leaf":   leaf,
