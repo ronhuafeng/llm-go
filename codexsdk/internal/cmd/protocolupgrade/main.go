@@ -229,7 +229,6 @@ func runSync(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-
 func runResume(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("resume", flag.ContinueOnError)
 	fs.SetOutput(stderr)
