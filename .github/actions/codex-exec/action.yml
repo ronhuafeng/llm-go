@@ -93,8 +93,8 @@ runs:
         codex_args=(
           exec
           --output-last-message "${final_message}"
-          --model gpt-5.6-sol
-          --config 'model_reasoning_effort="high"'
+          --model gpt-6-sol
+          --config 'model_reasoning_effort="xhigh"'
           --config 'model_provider="codex-responses-proxy"'
           --config "model_providers.codex-responses-proxy={ name = 'Codex Responses Proxy', base_url = 'http://127.0.0.1:${PROXY_PORT}/v1', wire_api = 'responses' }"
           --config 'sandbox_workspace_write.network_access=true'

@@ -206,12 +206,21 @@ The validation-only run must regenerate from the exact selected upstream source
 and prove the checked-in baseline without relying on artifacts from an earlier
 run.
 
-## Current implementation gap
+## Native control path
 
-The current `protocolupgrade sync` path still couples comparison and mechanical
-application closely enough that an unsupported generated shape can fail before
-the one Agent escalation path is reached. Until the implementation is refactored
-to the read-only PLAN boundary above, that failure must remain fail-closed and
-publish nothing. Removing this gap is the next protocol-sync implementation
-task; do not work around it by broadening schema meaning or adding per-version
-repair state.
+The current Go owner implements the boundary above directly:
+
+- `protocolupgrade sync` resolves/generates the exact candidate and runs a
+  read-only plan in an isolated temporary module root;
+- a ready mechanical or provenance-only plan is applied immediately;
+- `semantic_unresolved` returns structured stage/path/reason evidence while the
+  accepted worktree remains unchanged;
+- the workflow invokes exactly one tokenless Agent pass only for that outcome;
+- `protocolupgrade resume` validates that the Agent touched only handwritten
+  `codexsdk` paths, re-plans the same candidate/target, and applies only when
+  that second plan is ready;
+- a second unresolved plan fails closed and publishes nothing.
+
+The protocol Agent in this workflow uses `gpt-6-sol` with
+`model_reasoning_effort="xhigh"`. Model choice is execution configuration, not
+correctness authority; deterministic Go proof remains mandatory.

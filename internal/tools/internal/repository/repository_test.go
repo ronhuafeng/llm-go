@@ -196,11 +196,19 @@ func TestProtocolSyncPreservesAuthorityAndPublicationBoundaries(t *testing.T) {
 	if !ok {
 		t.Fatal("protocol sync must expose the Agent effect boundary")
 	}
-	if !strings.Contains(agent, "success()") {
-		t.Fatal("earlier deterministic failures must prevent Agent invocation")
+	if !strings.Contains(agent, "success()") || !strings.Contains(agent, "semantic_unresolved") {
+		t.Fatal("Agent must run only after a successful read-only plan reports semantic_unresolved")
 	}
 	if !strings.Contains(agent, "GITHUB_TOKEN: \"\"") || !strings.Contains(agent, "GH_TOKEN: \"\"") {
 		t.Fatal("Agent must not inherit repository-write tokens")
+	}
+
+	resume, ok := workflowStepByID(syncText, "resume")
+	if !ok {
+		t.Fatal("protocol sync must re-plan the same candidate after the Agent")
+	}
+	if !strings.Contains(resume, "protocolupgrade resume") || !strings.Contains(resume, "candidate_dir") {
+		t.Fatal("Agent path must re-plan/apply the exact generated candidate")
 	}
 
 	checks, ok := workflowStepByID(syncText, "checks")
@@ -415,6 +423,24 @@ func TestWorkflowsUseRootGoModFloor(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestProtocolAgentUsesGPT6SolExtraHigh(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, ".github", "actions", "codex-exec", "action.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(data)
+	if !strings.Contains(text, "--model gpt-6-sol") {
+		t.Fatal("protocol Agent must use gpt-6-sol")
+	}
+	if !strings.Contains(text, `model_reasoning_effort="xhigh"`) {
+		t.Fatal("protocol Agent must use xhigh reasoning effort")
 	}
 }
 

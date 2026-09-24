@@ -96,7 +96,7 @@ jobs:
             pkg-config \
             protobuf-compiler
 
-      - name: Run native protocol sync
+      - name: Plan/apply native protocol sync
         id: mechanical
         working-directory: codexsdk
         env:
@@ -126,13 +126,17 @@ jobs:
           go run ./internal/cmd/protocolupgrade "${args[@]}"
 
       - name: Write Agent drift input
-        if: ${{ success() && steps.mechanical.outputs.outcome == 'applied' }}
+        if: ${{ success() && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
         working-directory: codexsdk
         env:
           TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
           TARGET_KIND: ${{ steps.mechanical.outputs.target_kind }}
           TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
           CANDIDATE: ${{ steps.mechanical.outputs.candidate }}
+          CANDIDATE_DIR: ${{ steps.mechanical.outputs.candidate_dir }}
+          ISSUE_STAGE: ${{ steps.mechanical.outputs.issue_stage }}
+          ISSUE_PATH: ${{ steps.mechanical.outputs.issue_path }}
+          ISSUE_REASON: ${{ steps.mechanical.outputs.issue_reason }}
         run: |
           set -euo pipefail
           mkdir -p .cache/codexsdk-sync
@@ -142,16 +146,22 @@ jobs:
             echo "- kind: ${TARGET_KIND}"
             echo "- commit: ${TARGET_SHA}"
             echo
+            echo "Candidate root: ${CANDIDATE_DIR}"
             echo "Candidate schema: ${CANDIDATE}"
-            echo "Drift summary: ${CANDIDATE%/schema}/reports/drift_summary.json"
+            echo "Drift summary: ${CANDIDATE_DIR}/reports/drift_summary.json"
             echo
-            echo "Mechanical apply already updated the checked-in protocol/generated surface."
-            echo "Make only the handwritten source and test changes required by that drift."
+            echo "Read-only planning found an unresolved deterministic incompatibility."
+            echo "- stage: ${ISSUE_STAGE}"
+            echo "- path: ${ISSUE_PATH}"
+            echo "- reason: ${ISSUE_REASON}"
+            echo
+            echo "No mechanical protocol/generated changes have been applied."
+            echo "Make only the handwritten source and focused test changes required to make this exact candidate plan successfully."
           } > .cache/codexsdk-sync/agent-input.md
 
-      - name: Apply one Agent pass for real drift
+      - name: Apply one Agent pass for unresolved semantic drift
         id: codex
-        if: ${{ success() && steps.mechanical.outputs.outcome == 'applied' }}
+        if: ${{ success() && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
         uses: ./.github/actions/codex-exec
         env:
           GITHUB_TOKEN: ""
@@ -163,12 +173,35 @@ jobs:
           prompt: >-
             Read .agents/skills/codexsdk-sync-upstream/SKILL.md.
             Read codexsdk/.cache/codexsdk-sync/agent-input.md.
-            The selected upstream target has already been compared and applied.
-            Make only the targeted handwritten and test changes required by that
-            observed protocol drift. Do not resolve a different target. Do not
+            The selected upstream target has been generated and compared, but
+            read-only planning found a concrete unresolved incompatibility. No
+            mechanical protocol/generated changes have been applied. Make only
+            the targeted handwritten generator/semantic source and focused test
+            changes required for that exact candidate to plan successfully. Do
+            not resolve a different target or hand-edit generated outputs. Do not
             stage, commit, push, create or update a pull request, or treat a
             final model message as proof that the implementation is correct.
             Leave changes unstaged.
+
+      - name: Re-plan and apply candidate
+        id: resume
+        if: ${{ success() && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
+        working-directory: codexsdk
+        env:
+          GOTOOLCHAIN: local
+          CANDIDATE_DIR: ${{ steps.mechanical.outputs.candidate_dir }}
+          TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
+          TARGET_KIND: ${{ steps.mechanical.outputs.target_kind }}
+          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
+        run: |
+          set -euo pipefail
+          go run ./internal/cmd/protocolupgrade resume \
+            -repo-root "${GITHUB_WORKSPACE}" \
+            -module-root . \
+            -candidate-dir "${CANDIDATE_DIR}" \
+            -target-ref "${TARGET_REF}" \
+            -target-kind "${TARGET_KIND}" \
+            -target-sha "${TARGET_SHA}"
 
       - name: Run deterministic protocol checks
         id: checks
@@ -198,7 +231,7 @@ jobs:
 
       - name: Publish protected sync PR
         id: publish
-        if: ${{ success() && steps.mechanical.outputs.outcome == 'applied' && inputs.validation_only != true }}
+        if: ${{ success() && (steps.mechanical.outputs.outcome == 'applied' || steps.resume.outputs.outcome == 'applied') && inputs.validation_only != true }}
         working-directory: codexsdk
         env:
           GOTOOLCHAIN: local
