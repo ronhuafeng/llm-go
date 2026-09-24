@@ -40,6 +40,7 @@ type ApplyResult struct {
 	CoverageFieldCount           int      `json:"coverage_field_count"`
 	ClassifiedSurfaceCount       int      `json:"classified_surface_count"`
 	GeneratedCompatibilityImpact string   `json:"generated_compatibility_impact"`
+	GeneratedReleaseImpact       string   `json:"generated_release_impact"`
 	TargetRef                    string   `json:"target_ref"`
 	TargetSHA                    string   `json:"target_sha"`
 }
@@ -192,6 +193,7 @@ func Apply(req ApplyRequest) (ApplyResult, error) {
 		added = []string{}
 	}
 	impact, _ := generatedCompatibility["compatibility_impact"].(string)
+	releaseImpact, _ := generatedCompatibility["release_impact"].(string)
 	return ApplyResult{
 		Status:                       "ok",
 		AddedSchemas:                 added,
@@ -202,6 +204,7 @@ func Apply(req ApplyRequest) (ApplyResult, error) {
 		CoverageFieldCount:           len(coverage.Fields),
 		ClassifiedSurfaceCount:       len(manifest.Surface),
 		GeneratedCompatibilityImpact: impact,
+		GeneratedReleaseImpact:       releaseImpact,
 		TargetRef:                    req.TargetRef,
 		TargetSHA:                    req.TargetSHA,
 	}, nil
