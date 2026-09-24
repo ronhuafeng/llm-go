@@ -1142,6 +1142,19 @@ func TestGeneratedDefinitionRootsUseManifestEntries(t *testing.T) {
 			"response_type": "UsedResponse",
 			"source_schema": "ClientRequest.json",
 			"stability": "stable"
+		},{
+			"direction": "client_to_server",
+			"facade_status": "deferred",
+			"facade_target": "Account().UsageRead",
+			"family": "account",
+			"kind": "request",
+			"method": "account/usage/read",
+			"params_or_payload_schema": "Deferred",
+			"response_schema": "DeferredResponse.json",
+			"response_schema_status": "declared",
+			"response_type": "DeferredResponse",
+			"source_schema": "ClientRequest.json",
+			"stability": "stable"
 		}]
 	}`
 	if err := os.WriteFile(filepath.Join(root, "manifest.json"), []byte(manifest), 0o600); err != nil {
@@ -1151,13 +1164,15 @@ func TestGeneratedDefinitionRootsUseManifestEntries(t *testing.T) {
 		{SchemaPath: "Used.json", TypeName: "Used", Schema: &Schema{Type: SchemaTypeSet{Values: []string{"object"}}}},
 		{SchemaPath: "UsedResponse.json", TypeName: "UsedResponse", Schema: &Schema{Type: SchemaTypeSet{Values: []string{"object"}}}},
 		{SchemaPath: "Unrelated.json", TypeName: "Unrelated", Schema: &Schema{Type: SchemaTypeSet{Values: []string{"object"}}}},
+		{SchemaPath: "Deferred.json", TypeName: "Deferred", Schema: &Schema{Type: SchemaTypeSet{Values: []string{"object"}}}},
+		{SchemaPath: "DeferredResponse.json", TypeName: "DeferredResponse", Schema: &Schema{Type: SchemaTypeSet{Values: []string{"object"}}}},
 	}}
 	roots, err := generatedDefinitionRootIndexes(plan, root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !roots[0] || !roots[1] || roots[2] {
-		t.Fatalf("manifest roots = %#v, want Used and UsedResponse only", roots)
+	if !roots[0] || !roots[1] || roots[2] || roots[3] || roots[4] {
+		t.Fatalf("manifest roots = %#v, want only generated facade request roots", roots)
 	}
 }
 
