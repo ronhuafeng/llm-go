@@ -250,5 +250,30 @@ func scanBaselinePathLeaks(root string) ([]string, error) {
 }
 
 func mismatchDiagnostic(rel string, want, got []byte) string {
-	return fmt.Sprintf("%s mismatch: checked-in sha256=%x generated sha256=%x", rel, sha256.Sum256(want), sha256.Sum256(got))
+	diagnostic := fmt.Sprintf("%s mismatch: checked-in sha256=%x generated sha256=%x", rel, sha256.Sum256(want), sha256.Sum256(got))
+	if line, wantLine, gotLine, ok := firstTextMismatch(want, got); ok {
+		diagnostic += fmt.Sprintf("; first difference line %d: checked-in=%q generated=%q", line, wantLine, gotLine)
+	}
+	return diagnostic
+}
+
+func firstTextMismatch(want, got []byte) (int, string, string, bool) {
+	wantLines := strings.Split(string(want), "\n")
+	gotLines := strings.Split(string(got), "\n")
+	limit := len(wantLines)
+	if len(gotLines) < limit {
+		limit = len(gotLines)
+	}
+	for index := 0; index < limit; index++ {
+		if wantLines[index] != gotLines[index] {
+			return index + 1, wantLines[index], gotLines[index], true
+		}
+	}
+	if len(wantLines) == len(gotLines) {
+		return 0, "", "", false
+	}
+	if len(wantLines) > limit {
+		return limit + 1, wantLines[limit], "<missing>", true
+	}
+	return limit + 1, "<missing>", gotLines[limit], true
 }
