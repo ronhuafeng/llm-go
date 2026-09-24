@@ -47,6 +47,50 @@ func TestPlanReadyDoesNotMutateAcceptedBaseline(t *testing.T) {
 	}
 }
 
+func TestPlanRunsCanonicalCodegenInIsolation(t *testing.T) {
+	root := copyModuleForCheck(t)
+	baseline := filepath.Join(root, filepath.FromSlash(defaultBaselineRel))
+	candidate := t.TempDir()
+	if err := copyTree(baseline, candidate); err != nil {
+		t.Fatal(err)
+	}
+	commonRS := filepath.Join(root, "common.rs")
+	if err := os.WriteFile(commonRS, []byte(tinyCommonRS), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sha := strings.Repeat("b", 40)
+	before, err := snapshotHashes(baseline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	planned, err := Plan(ApplyRequest{
+		Baseline:          baseline,
+		Candidate:         candidate,
+		StableCandidate:   candidate,
+		CommonRS:          commonRS,
+		CommonRSSourceSHA: sha,
+		Reports:           filepath.Join(root, "reports"),
+		TargetRef:         "rust-v0.154.0",
+		TargetKind:        "stable_rust_tag",
+		TargetSHA:         sha,
+		ModuleRoot:        root,
+		Now:               func() time.Time { return time.Date(2026, 9, 24, 0, 0, 0, 0, time.UTC) },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if planned.Status != PlanReady {
+		t.Fatalf("plan = %+v", planned)
+	}
+	after, err := snapshotHashes(baseline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sameSnapshot(before, after, "accepted baseline"); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPlanReturnsStructuredSemanticIncompatibility(t *testing.T) {
 	fix := writeApplyFixture(t)
 	if err := os.WriteFile(fix.commonRS, []byte("client_request_definitions! { broken"), 0o644); err != nil {
