@@ -2479,6 +2479,104 @@ func TestFirstPassSelectionDeduplicatesIdenticalReachableDefinitions(t *testing.
 	}
 }
 
+func TestThreadAttachmentShapeGeneratesFromReachabilityWithoutCheckpoint(t *testing.T) {
+	root := t.TempDir()
+	write := func(name, contents string) {
+		t.Helper()
+		path := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("coverage_matrix.json", `{
+		"status": "classified-manifest",
+		"types": [
+			{"schema":"v2/ThreadAttachmentAddParams.json","stability":"stable","status":"supported-generated","type":"ThreadAttachmentAddParams"},
+			{"schema":"v2/ThreadAttachmentAddResponse.json","stability":"stable","status":"supported-generated","type":"ThreadAttachmentAddResponse"},
+			{"schema":"v2/ThreadAttachmentListResponse.json","stability":"stable","status":"supported-generated","type":"ThreadAttachmentListResponse"}
+		],
+		"fields": [
+			{"field":"payload","path":"v2/ThreadAttachmentAddParams.json#/properties/payload","required":true,"schema":"v2/ThreadAttachmentAddParams.json","stability":"stable","status":"supported-generated","type":"ThreadAttachmentAddParams"},
+			{"field":"attachment","path":"v2/ThreadAttachmentAddResponse.json#/properties/attachment","required":true,"schema":"v2/ThreadAttachmentAddResponse.json","stability":"stable","status":"supported-generated","type":"ThreadAttachmentAddResponse"},
+			{"field":"outcome","path":"v2/ThreadAttachmentAddResponse.json#/properties/outcome","required":true,"schema":"v2/ThreadAttachmentAddResponse.json","stability":"stable","status":"supported-generated","type":"ThreadAttachmentAddResponse"},
+			{"field":"data","path":"v2/ThreadAttachmentListResponse.json#/properties/data","required":true,"schema":"v2/ThreadAttachmentListResponse.json","stability":"stable","status":"supported-generated","type":"ThreadAttachmentListResponse"}
+		]
+	}`)
+	write("manifest.json", `{
+		"schema_version": 2,
+		"status": "classified-manifest",
+		"surface": [],
+		"entries": [
+			{"direction":"client_to_server","facade_status":"generated","facade_target":"Threads().AttachmentAdd","family":"thread","kind":"request","method":"thread/attachment/add","params_or_payload_schema":"ThreadAttachmentAddParams","response_schema":"v2/ThreadAttachmentAddResponse.json","response_schema_status":"declared","response_type":"ThreadAttachmentAddResponse","source_schema":"ClientRequest.json","stability":"stable"},
+			{"direction":"client_to_server","facade_status":"generated","facade_target":"Threads().AttachmentList","family":"thread","kind":"request","method":"thread/attachment/list","params_or_payload_schema":"ThreadAttachmentAddParams","response_schema":"v2/ThreadAttachmentListResponse.json","response_schema_status":"declared","response_type":"ThreadAttachmentListResponse","source_schema":"ClientRequest.json","stability":"stable"}
+		]
+	}`)
+	write("v2/ThreadAttachmentAddParams.json", `{
+		"title":"ThreadAttachmentAddParams",
+		"type":"object",
+		"required":["payload"],
+		"properties":{"payload":true}
+	}`)
+	write("v2/ThreadAttachmentAddResponse.json", `{
+		"title":"ThreadAttachmentAddResponse",
+		"type":"object",
+		"definitions":{
+			"ThreadAttachment":{
+				"type":"object",
+				"required":["payload"],
+				"properties":{"payload":true}
+			},
+			"ThreadAttachmentAddOutcome":{"type":"string","enum":["created","existing"]}
+		},
+		"required":["attachment","outcome"],
+		"properties":{
+			"attachment":{"$ref":"#/definitions/ThreadAttachment"},
+			"outcome":{"$ref":"#/definitions/ThreadAttachmentAddOutcome"}
+		}
+	}`)
+	write("v2/ThreadAttachmentListResponse.json", `{
+		"title":"ThreadAttachmentListResponse",
+		"type":"object",
+		"definitions":{
+			"ThreadAttachment":{
+				"type":"object",
+				"required":["payload"],
+				"properties":{"payload":true}
+			}
+		},
+		"required":["data"],
+		"properties":{
+			"data":{"type":"array","items":{"$ref":"#/definitions/ThreadAttachment"}}
+		}
+	}`)
+
+	plan, err := BuildProtocolTypePlan(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated, err := GenerateProtocolTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(generated)
+	for _, want := range []string{
+		"type ThreadAttachment struct {",
+		"Payload JSONValue `json:\"payload\"`",
+		"type ThreadAttachmentAddOutcome string",
+		"Attachment ThreadAttachment `json:\"attachment\"`",
+		"Data []ThreadAttachment `json:\"data\"`",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("generated attachment surface missing %q:\n%s", want, text)
+		}
+	}
+	if strings.Count(text, "type ThreadAttachment struct {") != 1 {
+		t.Fatalf("ThreadAttachment struct count = %d, want 1", strings.Count(text, "type ThreadAttachment struct {"))
+	}
+}
 func TestFieldGoNameUsesGoAcronyms(t *testing.T) {
 	cases := map[string]string{
 		"authorizationUrl": "AuthorizationURL",
