@@ -280,7 +280,7 @@ func validateGeneratedDefinitionShapes(plan ProtocolTypePlan) error {
 				continue
 			}
 			if classifyGeneratedDefinition(schema) == generatedDefinitionUnsupported {
-				return fmt.Errorf("reviewed generated definition %s in %s has unsupported schema shape", name, typ.SchemaPath)
+				return fmt.Errorf("selected generated definition %s in %s has unsupported schema shape", name, typ.SchemaPath)
 			}
 		}
 	}
@@ -742,10 +742,14 @@ func mixedUnionCandidates(plan ProtocolTypePlan) ([]TypePlan, error) {
 			})
 		}
 	}
-	sort.Slice(candidates, func(i, j int) bool {
-		return candidates[i].TypeName < candidates[j].TypeName
+	deduped, err := dedupeDefinitionTypeCandidates(candidates)
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(deduped, func(i, j int) bool {
+		return deduped[i].TypeName < deduped[j].TypeName
 	})
-	return candidates, nil
+	return deduped, nil
 }
 
 func buildMixedUnionPlan(typ TypePlan, generatedNamedTypes map[string]bool, resolver generatedDefinitionNameResolver) (MixedUnionPlan, error) {
@@ -989,10 +993,14 @@ func untaggedObjectUnionCandidates(plan ProtocolTypePlan, resolver generatedDefi
 			})
 		}
 	}
-	sort.Slice(candidates, func(i, j int) bool {
-		return candidates[i].TypeName < candidates[j].TypeName
+	deduped, err := dedupeDefinitionTypeCandidates(candidates)
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(deduped, func(i, j int) bool {
+		return deduped[i].TypeName < deduped[j].TypeName
 	})
-	return candidates, nil
+	return deduped, nil
 }
 
 func buildUntaggedObjectUnionPlan(typ TypePlan, generatedNamedTypes map[string]bool, resolver generatedDefinitionNameResolver) (UntaggedObjectUnionPlan, error) {
@@ -1167,26 +1175,28 @@ func SelectGeneratedScalarUnions(plan ProtocolTypePlan) ([]ScalarUnionPlan, erro
 	if err != nil {
 		return nil, err
 	}
-	var selected []ScalarUnionPlan
+	var candidates []TypePlan
 	for _, typ := range plan.Types {
 		if typ.Kind == TypePlanScalarUnionCandidate && isGeneratedScalarUnionCheckpoint(typ.SchemaPath) {
-			union, err := buildScalarUnionPlan(typ)
-			if err != nil {
-				return nil, err
-			}
-			selected = append(selected, union)
+			candidates = append(candidates, typ)
 		}
 		definitions, err := generatedDefinitionScalarUnionCandidates(typ, resolver)
 		if err != nil {
 			return nil, err
 		}
-		for _, definition := range definitions {
-			union, err := buildScalarUnionPlan(definition)
-			if err != nil {
-				return nil, err
-			}
-			selected = append(selected, union)
+		candidates = append(candidates, definitions...)
+	}
+	candidates, err = dedupeDefinitionTypeCandidates(candidates)
+	if err != nil {
+		return nil, err
+	}
+	var selected []ScalarUnionPlan
+	for _, typ := range candidates {
+		union, err := buildScalarUnionPlan(typ)
+		if err != nil {
+			return nil, err
 		}
+		selected = append(selected, union)
 	}
 	sort.Slice(selected, func(i, j int) bool {
 		return selected[i].TypeName < selected[j].TypeName
@@ -1557,10 +1567,14 @@ func taggedUnionCandidates(plan ProtocolTypePlan, resolver generatedDefinitionNa
 		}
 		candidates = append(candidates, definitions...)
 	}
-	sort.Slice(candidates, func(i, j int) bool {
-		return candidates[i].TypeName < candidates[j].TypeName
+	deduped, err := dedupeDefinitionTypeCandidates(candidates)
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(deduped, func(i, j int) bool {
+		return deduped[i].TypeName < deduped[j].TypeName
 	})
-	return candidates, nil
+	return deduped, nil
 }
 
 func generatedDefinitionTaggedUnionCandidates(parent TypePlan, resolver generatedDefinitionNameResolver) ([]TypePlan, error) {

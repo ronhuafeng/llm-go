@@ -2422,6 +2422,31 @@ func TestFirstPassSelectionIncludesReachableDefinitionWithoutCheckpoint(t *testi
 	}
 }
 
+func TestDefinitionCandidateDedupeAcceptsIdenticalTaggedUnions(t *testing.T) {
+	tagged := func() *Schema {
+		return &Schema{
+			OneOf: []*Schema{{
+				Type:     SchemaTypeSet{Values: []string{"object"}},
+				Required: []string{"type"},
+				Properties: map[string]*Schema{
+					"type": {Type: SchemaTypeSet{Values: []string{"string"}}, Enum: []string{"command"}},
+				},
+			}},
+		}
+	}
+	candidates := []TypePlan{
+		{Kind: TypePlanTaggedUnionCandidate, SchemaPath: "A.json#/definitions/CommandAction", TypeName: "CommandAction", Schema: tagged()},
+		{Kind: TypePlanTaggedUnionCandidate, SchemaPath: "B.json#/definitions/CommandAction", TypeName: "CommandAction", Schema: tagged()},
+	}
+	deduped, err := dedupeDefinitionTypeCandidates(candidates)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(deduped) != 1 || deduped[0].TypeName != "CommandAction" {
+		t.Fatalf("deduped tagged definitions = %#v", deduped)
+	}
+}
+
 func TestFirstPassSelectionDeduplicatesIdenticalReachableDefinitions(t *testing.T) {
 	trueValue := true
 	threadAttachment := func() *Schema {
