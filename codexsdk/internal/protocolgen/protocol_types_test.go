@@ -2013,6 +2013,43 @@ func TestGeneratedDefinitionNameResolverReusesSameNameSameShape(t *testing.T) {
 	}
 }
 
+func TestGeneratedDefinitionNameResolverPreservesLegacyNameAgainstReachableCollision(t *testing.T) {
+	legacy := TypePlan{
+		SchemaPath: "v2/ThreadStartParams.json",
+		TypeName:   "ThreadStartParams",
+		Schema: &Schema{Definitions: map[string]*Schema{
+			"ReasoningEffort": mustParseSchema(t, `{
+				"type": "string",
+				"minLength": 1
+			}`),
+		}},
+	}
+	reachable := TypePlan{
+		GeneratedDefinitions: map[string]bool{"ReasoningEffort": true},
+		SchemaPath:           "v2/ExampleResponse.json",
+		TypeName:             "ExampleResponse",
+		Schema: &Schema{Definitions: map[string]*Schema{
+			"ReasoningEffort": mustParseSchema(t, `{
+				"type": "object",
+				"required": ["value"],
+				"properties": {
+					"value": {"type": "string"}
+				}
+			}`),
+		}},
+	}
+	resolver, err := newGeneratedDefinitionNameResolver(ProtocolTypePlan{Types: []TypePlan{legacy, reachable}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := resolver.NameForDefinition("v2/ThreadStartParams.json", "ReasoningEffort"); !ok || got != "ReasoningEffort" {
+		t.Fatalf("legacy ReasoningEffort resolved to %q, ok=%t", got, ok)
+	}
+	if got, ok := resolver.NameForDefinition("v2/ExampleResponse.json", "ReasoningEffort"); !ok || got != "ExampleResponseReasoningEffort" {
+		t.Fatalf("reachable collision resolved to %q, ok=%t", got, ok)
+	}
+}
+
 func TestGeneratedDefinitionNameResolverSplitsSameNameDifferentShapes(t *testing.T) {
 	plan := ProtocolTypePlan{Types: []TypePlan{{
 		SchemaPath: "v2/ConfigReadResponse.json",
