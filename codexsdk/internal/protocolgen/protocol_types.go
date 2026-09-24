@@ -376,6 +376,9 @@ func SelectGeneratedEnums(plan ProtocolTypePlan) ([]EnumPlan, error) {
 			continue
 		}
 		for name, schema := range typ.Schema.Definitions {
+			if resolver.ReusesTopLevel(typ.SchemaPath, name) {
+				continue
+			}
 			if classifyGeneratedDefinition(schema) != generatedDefinitionStringEnum {
 				continue
 			}
@@ -439,6 +442,9 @@ func SelectGeneratedScalarAliases(plan ProtocolTypePlan) ([]ScalarAliasPlan, err
 			continue
 		}
 		for name, schema := range typ.Schema.Definitions {
+			if resolver.ReusesTopLevel(typ.SchemaPath, name) {
+				continue
+			}
 			if !isGeneratedDefinitionSelected(typ, name) || classifyGeneratedDefinition(schema) != generatedDefinitionScalarAlias {
 				continue
 			}
@@ -631,6 +637,9 @@ func generatedDefinitionTypeCandidates(parent TypePlan, resolver generatedDefini
 	}
 	var names []string
 	for name, schema := range parent.Schema.Definitions {
+		if resolver.ReusesTopLevel(parent.SchemaPath, name) {
+			continue
+		}
 		if isGeneratedDefinitionSelected(parent, name) && classifyGeneratedDefinition(schema) == generatedDefinitionStruct {
 			names = append(names, name)
 		}
@@ -722,6 +731,9 @@ func mixedUnionCandidates(plan ProtocolTypePlan) ([]TypePlan, error) {
 		}
 		var names []string
 		for name, schema := range typ.Schema.Definitions {
+			if resolver.ReusesTopLevel(typ.SchemaPath, name) {
+				continue
+			}
 			if isGeneratedDefinitionSelected(typ, name) && classifyGeneratedDefinition(schema) == generatedDefinitionMixedUnion {
 				names = append(names, name)
 			}
@@ -973,6 +985,9 @@ func untaggedObjectUnionCandidates(plan ProtocolTypePlan, resolver generatedDefi
 		}
 		var names []string
 		for name, schema := range typ.Schema.Definitions {
+			if resolver.ReusesTopLevel(typ.SchemaPath, name) {
+				continue
+			}
 			if isGeneratedDefinitionSelected(typ, name) && classifyGeneratedDefinition(schema) == generatedDefinitionUntaggedObjectUnion {
 				names = append(names, name)
 			}
@@ -1210,6 +1225,9 @@ func generatedDefinitionScalarUnionCandidates(parent TypePlan, resolver generate
 	}
 	var names []string
 	for name, schema := range parent.Schema.Definitions {
+		if resolver.ReusesTopLevel(parent.SchemaPath, name) {
+			continue
+		}
 		if isGeneratedDefinitionSelected(parent, name) && classifyGeneratedDefinition(schema) == generatedDefinitionScalarUnion {
 			names = append(names, name)
 		}
@@ -1583,6 +1601,9 @@ func generatedDefinitionTaggedUnionCandidates(parent TypePlan, resolver generate
 	}
 	var names []string
 	for name, schema := range parent.Schema.Definitions {
+		if resolver.ReusesTopLevel(parent.SchemaPath, name) {
+			continue
+		}
 		if isGeneratedDefinitionSelected(parent, name) && classifyGeneratedDefinition(schema) == generatedDefinitionTaggedUnion {
 			names = append(names, name)
 		}
