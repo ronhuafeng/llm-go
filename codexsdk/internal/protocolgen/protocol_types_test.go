@@ -1984,6 +1984,55 @@ func TestGeneratedDefinitionSelectionFollowsSchemaShape(t *testing.T) {
 	}
 }
 
+func TestGeneratedDefinitionNameResolverReusesEquivalentTopLevelType(t *testing.T) {
+	topLevelSchema := mustParseSchema(t, `{
+		"title": "RequestId",
+		"anyOf": [
+			{"type": "string"},
+			{"type": "integer", "format": "int64"}
+		]
+	}`)
+	definitionSchema := mustParseSchema(t, `{
+		"anyOf": [
+			{"type": "string"},
+			{"type": "integer", "format": "int64"}
+		]
+	}`)
+	plan := ProtocolTypePlan{Types: []TypePlan{
+		{
+			Kind:       TypePlanScalarUnionCandidate,
+			SchemaPath: "RequestId.json",
+			TypeName:   "RequestId",
+			Schema:     topLevelSchema,
+		},
+		{
+			GeneratedDefinitions: map[string]bool{"RequestId": true},
+			SchemaPath:           "v2/ServerRequestResolvedNotification.json",
+			TypeName:             "ServerRequestResolvedNotification",
+			Schema: &Schema{Definitions: map[string]*Schema{
+				"RequestId": definitionSchema,
+			}},
+		},
+	}}
+	resolver, err := newGeneratedDefinitionNameResolver(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := resolver.NameForDefinition("v2/ServerRequestResolvedNotification.json", "RequestId"); !ok || got != "RequestId" {
+		t.Fatalf("local RequestId resolved to %q, ok=%t", got, ok)
+	}
+	if !resolver.ReusesTopLevel("v2/ServerRequestResolvedNotification.json", "RequestId") {
+		t.Fatal("equivalent local RequestId must reuse the top-level generated type")
+	}
+	unions, err := SelectGeneratedScalarUnions(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(unions) != 1 || unions[0].TypeName != "RequestId" {
+		t.Fatalf("scalar unions = %#v, want one top-level RequestId", unions)
+	}
+}
+
 func TestGeneratedDefinitionNameResolverReusesSameNameSameShape(t *testing.T) {
 	schema := mustParseSchema(t, `{
 		"type": "string",
