@@ -332,7 +332,8 @@ func (p ProtocolTypePlan) FieldByPath(path string) (FieldPlan, bool) {
 }
 
 type generatedDefinitionNameResolver struct {
-	namesByPath map[string]string
+	namesByPath    map[string]string
+	topLevelReuses map[string]bool
 }
 
 type generatedDefinitionSource struct {
@@ -342,14 +343,31 @@ type generatedDefinitionSource struct {
 	legacySelected bool
 	parentTypeName string
 	path           string
+	shape          []byte
+}
+
+type generatedTopLevelSource struct {
+	kind  generatedDefinitionKind
+	shape []byte
 }
 
 func newGeneratedDefinitionNameResolver(plan ProtocolTypePlan) (generatedDefinitionNameResolver, error) {
 	usedNames := map[string]bool{}
+	topLevels := map[string]generatedTopLevelSource{}
 	for _, typ := range plan.Types {
-		if typ.TypeName != "" {
-			usedNames[typ.TypeName] = true
+		if typ.TypeName == "" {
+			continue
 		}
+		usedNames[typ.TypeName] = true
+		kind := classifyGeneratedDefinition(typ.Schema)
+		if kind == generatedDefinitionUnsupported {
+			continue
+		}
+		shape, err := generatedSchemaShape(typ.Schema)
+		if err != nil {
+			return generatedDefinitionNameResolver{}, fmt.Errorf("generated top-level type %s in %s cannot be encoded: %w", typ.TypeName, typ.SchemaPath, err)
+		}
+		topLevels[typ.TypeName] = generatedTopLevelSource{kind: kind, shape: shape}
 	}
 
 	byBaseName := map[string][]generatedDefinitionSource{}
@@ -369,6 +387,10 @@ func newGeneratedDefinitionNameResolver(plan ProtocolTypePlan) (generatedDefinit
 			if err != nil {
 				return generatedDefinitionNameResolver{}, fmt.Errorf("generated definition %s in %s cannot be encoded: %w", name, typ.SchemaPath, err)
 			}
+			shape, err := generatedSchemaShape(schema)
+			if err != nil {
+				return generatedDefinitionNameResolver{}, fmt.Errorf("generated definition %s in %s shape cannot be encoded: %w", name, typ.SchemaPath, err)
+			}
 			byBaseName[name] = append(byBaseName[name], generatedDefinitionSource{
 				baseName:       name,
 				encoded:        encoded,
@@ -376,11 +398,15 @@ func newGeneratedDefinitionNameResolver(plan ProtocolTypePlan) (generatedDefinit
 				legacySelected: isReviewedGeneratedDefinition(typ.SchemaPath, name),
 				parentTypeName: typ.TypeName,
 				path:           definitionSchemaPath(typ.SchemaPath, name),
+				shape:          shape,
 			})
 		}
 	}
 
-	resolver := generatedDefinitionNameResolver{namesByPath: map[string]string{}}
+	resolver := generatedDefinitionNameResolver{
+		namesByPath:    map[string]string{},
+		topLevelReuses: map[string]bool{},
+	}
 	var baseNames []string
 	for name := range byBaseName {
 		baseNames = append(baseNames, name)
@@ -391,6 +417,21 @@ func newGeneratedDefinitionNameResolver(plan ProtocolTypePlan) (generatedDefinit
 		sort.Slice(sources, func(i, j int) bool {
 			return sources[i].path < sources[j].path
 		})
+		if topLevel, ok := topLevels[baseName]; ok {
+			remaining := sources[:0]
+			for _, source := range sources {
+				if source.kind == topLevel.kind && bytes.Equal(source.shape, topLevel.shape) {
+					resolver.namesByPath[source.path] = baseName
+					resolver.topLevelReuses[source.path] = true
+					continue
+				}
+				remaining = append(remaining, source)
+			}
+			sources = remaining
+			if len(sources) == 0 {
+				continue
+			}
+		}
 		bySignature := map[string][]generatedDefinitionSource{}
 		for _, source := range sources {
 			signature := string(source.kind) + "\x00" + string(source.encoded)
@@ -452,6 +493,50 @@ func isGeneratedDefinitionNameResolverSource(parent TypePlan, name string, schem
 	return isGeneratedDefinitionSelected(parent, name)
 }
 
+func generatedSchemaShape(schema *Schema) ([]byte, error) {
+	normalized := cloneSchemaWithoutDocumentation(schema)
+	return json.Marshal(normalized)
+}
+
+func cloneSchemaWithoutDocumentation(schema *Schema) *Schema {
+	if schema == nil {
+		return nil
+	}
+	cloned := *schema
+	cloned.Description = ""
+	cloned.Title = ""
+	cloned.Items = cloneSchemaWithoutDocumentation(schema.Items)
+	cloned.AdditionalProperties = schema.AdditionalProperties
+	cloned.AdditionalProperties.Schema = cloneSchemaWithoutDocumentation(schema.AdditionalProperties.Schema)
+	cloned.AllOf = cloneSchemaSliceWithoutDocumentation(schema.AllOf)
+	cloned.AnyOf = cloneSchemaSliceWithoutDocumentation(schema.AnyOf)
+	cloned.OneOf = cloneSchemaSliceWithoutDocumentation(schema.OneOf)
+	if schema.Properties != nil {
+		cloned.Properties = make(map[string]*Schema, len(schema.Properties))
+		for name, child := range schema.Properties {
+			cloned.Properties[name] = cloneSchemaWithoutDocumentation(child)
+		}
+	}
+	if schema.Definitions != nil {
+		cloned.Definitions = make(map[string]*Schema, len(schema.Definitions))
+		for name, child := range schema.Definitions {
+			cloned.Definitions[name] = cloneSchemaWithoutDocumentation(child)
+		}
+	}
+	return &cloned
+}
+
+func cloneSchemaSliceWithoutDocumentation(in []*Schema) []*Schema {
+	if in == nil {
+		return nil
+	}
+	out := make([]*Schema, len(in))
+	for index, schema := range in {
+		out[index] = cloneSchemaWithoutDocumentation(schema)
+	}
+	return out
+}
+
 func isGeneratedDefinitionSelected(parent TypePlan, name string) bool {
 	if isReviewedGeneratedDefinition(parent.SchemaPath, name) {
 		return true
@@ -500,6 +585,10 @@ func claimGeneratedDefinitionTypeName(preferred string, used map[string]bool) st
 		used[candidate] = true
 		return candidate
 	}
+}
+
+func (r generatedDefinitionNameResolver) ReusesTopLevel(schemaPath string, name string) bool {
+	return r.topLevelReuses[definitionSchemaPath(schemaPath, name)]
 }
 
 func (r generatedDefinitionNameResolver) NameForDefinition(schemaPath string, name string) (string, bool) {
