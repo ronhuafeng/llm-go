@@ -431,16 +431,25 @@ func TestProtocolAgentUsesGPT6SolExtraHigh(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	workflow := readWorkflow(t, root, "codexsdk-upstream-protocol-sync.yml")
+	agent, ok := workflowStepByID(workflow, "codex")
+	if !ok {
+		t.Fatal("protocol sync must expose the Agent step")
+	}
+	if !strings.Contains(agent, "model: gpt-6-sol") {
+		t.Fatal("protocol Agent workflow must select gpt-6-sol")
+	}
+	if !strings.Contains(agent, "reasoning-effort: xhigh") {
+		t.Fatal("protocol Agent workflow must select xhigh reasoning effort")
+	}
+
 	data, err := os.ReadFile(filepath.Join(root, ".github", "actions", "codex-exec", "action.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	text := string(data)
-	if !strings.Contains(text, "--model gpt-6-sol") {
-		t.Fatal("protocol Agent must use gpt-6-sol")
-	}
-	if !strings.Contains(text, `model_reasoning_effort="xhigh"`) {
-		t.Fatal("protocol Agent must use xhigh reasoning effort")
+	action := string(data)
+	if !strings.Contains(action, "--model \"${MODEL}\"") || !strings.Contains(action, "REASONING_EFFORT: ${{ inputs.reasoning-effort }}") {
+		t.Fatal("codex-exec must consume the workflow-owned model and reasoning effort")
 	}
 }
 
