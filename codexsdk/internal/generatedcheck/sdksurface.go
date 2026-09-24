@@ -72,9 +72,9 @@ func GenerateSDKSurface(manifest protocolgen.Manifest, methodRegistry, protocolT
 		}
 		switch entry.FacadeStatus {
 		case facadeStatusDeferred:
-			if len(missing) == 0 {
-				return nil, fmt.Errorf("deferred facade method %q has all generated prerequisites; mark it generated", entry.Method)
-			}
+			// Facade policy is independent from protocol type reachability.
+			// A deferred convenience method stays deferred even when the
+			// protocol generator can now represent all of its wire types.
 			continue
 		case facadeStatusGenerated:
 			if len(missing) > 0 {

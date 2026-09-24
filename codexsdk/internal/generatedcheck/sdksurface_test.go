@@ -38,6 +38,33 @@ func TestGenerateSDKSurfaceRendersExactFacade(t *testing.T) {
 	}
 }
 
+func TestGenerateSDKSurfaceKeepsDeferredFacadeSeparateFromProtocolTypes(t *testing.T) {
+	manifest := protocolgen.Manifest{
+		Entries: []protocolgen.ManifestEntry{{
+			Direction:             "client_to_server",
+			Kind:                  "request",
+			Method:                "account/usage/read",
+			FacadeTarget:          "Accounts().UsageRead",
+			FacadeStatus:          facadeStatusDeferred,
+			ParamsOrPayloadSchema: "GetAccountTokenUsageParams",
+			ResponseType:          "GetAccountTokenUsageResponse",
+			Family:                "account",
+			Stability:             "stable",
+		}},
+	}
+	got, err := GenerateSDKSurface(
+		manifest,
+		[]byte("\tMethodAccountUsageRead = \"account/usage/read\"\n"),
+		[]byte("type GetAccountTokenUsageParams struct{}\ntype GetAccountTokenUsageResponse struct{}\n"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(got), "UsageRead(") {
+		t.Fatalf("deferred facade unexpectedly generated:\n%s", got)
+	}
+}
+
 func TestGenerateSDKSurfaceRejectsMissingGeneratedType(t *testing.T) {
 	manifest := protocolgen.Manifest{
 		Entries: []protocolgen.ManifestEntry{{
