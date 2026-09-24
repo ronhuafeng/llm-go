@@ -277,13 +277,16 @@ func markReachableGeneratedDefinitions(plan *ProtocolTypePlan, schemaRoot string
 				return err
 			}
 		}
-		for keyword, variants := range map[string][]*Schema{
-			"allOf": schema.AllOf,
-			"anyOf": schema.AnyOf,
-			"oneOf": schema.OneOf,
+		for _, group := range []struct {
+			keyword  string
+			variants []*Schema
+		}{
+			{keyword: "allOf", variants: schema.AllOf},
+			{keyword: "anyOf", variants: schema.AnyOf},
+			{keyword: "oneOf", variants: schema.OneOf},
 		} {
-			for index, variant := range variants {
-				if err := walkSchema(document, nestedSchemaPath(schemaPath, keyword, index), stability, typeName, variant); err != nil {
+			for index, variant := range group.variants {
+				if err := walkSchema(document, nestedSchemaPath(schemaPath, group.keyword, index), stability, typeName, variant); err != nil {
 					return err
 				}
 			}
@@ -442,13 +445,10 @@ func newGeneratedDefinitionNameResolver(plan ProtocolTypePlan) (generatedDefinit
 	usedNames := map[string]bool{}
 	topLevels := map[string]generatedTopLevelSource{}
 	for _, typ := range plan.Types {
-		if typ.TypeName == "" {
+		if typ.TypeName == "" || !isGeneratedTopLevelType(typ) {
 			continue
 		}
 		usedNames[typ.TypeName] = true
-		if !isGeneratedTopLevelType(typ) {
-			continue
-		}
 		kind := classifyGeneratedDefinition(typ.Schema)
 		if kind == generatedDefinitionUnsupported {
 			continue

@@ -2060,7 +2060,13 @@ func enumConstName(typeName, value string) string {
 }
 
 func isObjectStructDefinitionSchema(schema *Schema) bool {
-	return schema != nil && schema.Type.Only("object") && len(schema.OneOf) == 0 && len(schema.AnyOf) == 0
+	if schema == nil || !schema.Type.Only("object") || len(schema.OneOf) != 0 || len(schema.AnyOf) != 0 {
+		return false
+	}
+	// Typed dynamic maps need a dedicated representation rather than pretending
+	// to be closed structs. Boolean additionalProperties is losslessly handled:
+	// false is closed, true uses DynamicProperties JSONValue preservation.
+	return schema.AdditionalProperties.Schema == nil
 }
 
 func taggedUnionKindConstName(union TaggedUnionPlan, variant TaggedUnionVariantPlan) string {
