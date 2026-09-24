@@ -125,6 +125,9 @@ func TestSyncAppliesRealDrift(t *testing.T) {
 		Generate: func(GenerateRequest) (Candidate, error) {
 			return Candidate{SchemaDir: "/tmp/schema", SourceCommit: newSHA, DriftStatus: "review-required"}, nil
 		},
+		Plan: func(protocolupgrade.ApplyRequest) (protocolupgrade.PlanResult, error) {
+			return protocolupgrade.PlanResult{Status: protocolupgrade.PlanReady}, nil
+		},
 		Apply: func(protocolupgrade.ApplyRequest) (protocolupgrade.ApplyResult, error) {
 			applied = true
 			path := filepath.Join(repo, "codexsdk", "sdk_surface.gen.go")
@@ -168,6 +171,99 @@ func TestSyncForceCompareDirtyFailsWithoutApply(t *testing.T) {
 	}
 	if applied {
 		t.Fatal("force-compare dirty must not apply")
+	}
+}
+
+func TestSyncSemanticUnresolvedDoesNotApply(t *testing.T) {
+	repo := initSyncRepo(t, oldSHA, "rust-v0.140.0", KindStableTag)
+	applied := false
+	result, err := Sync(SyncRequest{
+		RepoRoot:     repo,
+		ModuleRoot:   filepath.Join(repo, "codexsdk"),
+		UpstreamRepo: "fake",
+		UpstreamRef:  "rust-v0.141.0",
+		Lookuper: fakeLookuper{byPattern: map[string]string{
+			"refs/tags/rust-v0.141.0":    newSHA + "\trefs/tags/rust-v0.141.0",
+			"refs/tags/rust-v0.141.0^{}": newSHA + "\trefs/tags/rust-v0.141.0^{}",
+		}},
+		Generate: func(GenerateRequest) (Candidate, error) {
+			return Candidate{Dir: "/tmp/candidate", SchemaDir: "/tmp/candidate/schema", SourceCommit: newSHA, DriftStatus: "review-required"}, nil
+		},
+		Plan: func(protocolupgrade.ApplyRequest) (protocolupgrade.PlanResult, error) {
+			return protocolupgrade.PlanResult{
+				Status: protocolupgrade.PlanSemanticUnresolved,
+				Issue:  &protocolupgrade.PlanIssue{Stage: "surface", Path: "v2/Example.json#/properties/value", Reason: "unsupported schema"},
+			}, nil
+		},
+		Apply: func(protocolupgrade.ApplyRequest) (protocolupgrade.ApplyResult, error) {
+			applied = true
+			return protocolupgrade.ApplyResult{}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if applied {
+		t.Fatal("semantic-unresolved candidate must not apply")
+	}
+	if result.Outcome != OutcomeSemanticUnresolved || result.Issue == nil || result.Issue.Stage != "surface" {
+		t.Fatalf("result = %+v", result)
+	}
+	if err := AssertClean(repo); err != nil {
+		t.Fatalf("planning mutated accepted worktree: %v", err)
+	}
+}
+
+func TestSyncCleanNewTargetAppliesProvenanceOnly(t *testing.T) {
+	repo := initSyncRepo(t, oldSHA, "rust-v0.140.0", KindStableTag)
+	applied := false
+	result, err := Sync(SyncRequest{
+		RepoRoot:     repo,
+		ModuleRoot:   filepath.Join(repo, "codexsdk"),
+		UpstreamRepo: "fake",
+		UpstreamRef:  "rust-v0.141.0",
+		Lookuper: fakeLookuper{byPattern: map[string]string{
+			"refs/tags/rust-v0.141.0":    newSHA + "\trefs/tags/rust-v0.141.0",
+			"refs/tags/rust-v0.141.0^{}": newSHA + "\trefs/tags/rust-v0.141.0^{}",
+		}},
+		Generate: func(GenerateRequest) (Candidate, error) {
+			return Candidate{Dir: "/tmp/candidate", SchemaDir: "/tmp/candidate/schema", SourceCommit: newSHA, DriftStatus: "clean"}, nil
+		},
+		Plan: func(protocolupgrade.ApplyRequest) (protocolupgrade.PlanResult, error) {
+			return protocolupgrade.PlanResult{Status: protocolupgrade.PlanReady}, nil
+		},
+		Apply: func(protocolupgrade.ApplyRequest) (protocolupgrade.ApplyResult, error) {
+			applied = true
+			path := filepath.Join(repo, "codexsdk", "internal", "protocolschema", "appserver", "v2", "baseline_metadata.json")
+			if err := os.WriteFile(path, []byte("{}\n"), 0o644); err != nil {
+				return protocolupgrade.ApplyResult{}, err
+			}
+			return protocolupgrade.ApplyResult{Status: "ok"}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !applied || result.Outcome != OutcomeApplied || !strings.Contains(result.Reason, "provenance-only") {
+		t.Fatalf("applied=%v result=%+v", applied, result)
+	}
+}
+
+func TestResumeRejectsMechanicalAgentChanges(t *testing.T) {
+	repo := initSyncRepo(t, oldSHA, "rust-v0.140.0", KindStableTag)
+	if err := os.WriteFile(filepath.Join(repo, "codexsdk", "sdk_surface.gen.go"), []byte("package codexsdk\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Resume(ResumeRequest{
+		RepoRoot:     repo,
+		ModuleRoot:   filepath.Join(repo, "codexsdk"),
+		CandidateDir: "/tmp/candidate",
+		TargetRef:    "rust-v0.141.0",
+		TargetKind:   KindStableTag,
+		TargetSHA:    newSHA,
+	})
+	if err == nil || !strings.Contains(err.Error(), "handwritten") {
+		t.Fatalf("err = %v", err)
 	}
 }
 

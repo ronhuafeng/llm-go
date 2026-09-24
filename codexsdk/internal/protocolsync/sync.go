@@ -11,11 +11,12 @@ import (
 )
 
 const (
-	OutcomeCurrent = "current"
-	OutcomeApplied = "applied"
+	OutcomeCurrent            = "current"
+	OutcomeApplied            = "applied"
+	OutcomeSemanticUnresolved = "semantic_unresolved"
 )
 
-// SyncRequest is the mechanical protocol-sync path owned by Go.
+// SyncRequest is the protocol-sync path owned by Go.
 type SyncRequest struct {
 	RepoRoot       string
 	ModuleRoot     string
@@ -27,18 +28,35 @@ type SyncRequest struct {
 	EventName      string
 	Lookuper       RemoteLookuper
 	Generate       func(GenerateRequest) (Candidate, error)
+	Plan           func(protocolupgrade.ApplyRequest) (protocolupgrade.PlanResult, error)
 	Apply          func(protocolupgrade.ApplyRequest) (protocolupgrade.ApplyResult, error)
+}
+
+// ResumeRequest re-plans and applies the exact candidate after one targeted
+// handwritten Agent pass.
+type ResumeRequest struct {
+	RepoRoot     string
+	ModuleRoot   string
+	CandidateDir string
+	TargetRef    string
+	TargetKind   string
+	TargetSHA    string
+	Plan         func(protocolupgrade.ApplyRequest) (protocolupgrade.PlanResult, error)
+	Apply        func(protocolupgrade.ApplyRequest) (protocolupgrade.ApplyResult, error)
 }
 
 // SyncResult is the minimal outcome the workflow needs.
 type SyncResult struct {
-	Outcome   string
-	Reason    string
-	Target    Target
-	Candidate string
+	Outcome      string
+	Reason       string
+	Target       Target
+	Candidate    string
+	CandidateDir string
+	Issue        *protocolupgrade.PlanIssue
 }
 
-// Sync resolves, generates, compares, and applies deterministic protocol changes.
+// Sync resolves, generates, plans, and applies only a fully planned candidate.
+// Semantic/generator incompatibility returns a read-only escalation outcome.
 func Sync(req SyncRequest) (SyncResult, error) {
 	if err := AssertClean(req.RepoRoot); err != nil {
 		return SyncResult{}, err
@@ -110,8 +128,9 @@ func Sync(req SyncRequest) (SyncResult, error) {
 		return result, fmt.Errorf("candidate source_commit does not match the resolved target")
 	}
 	result.Candidate = candidate.SchemaDir
-	afterDrift := decideAfterDrift(req.ForceCompare, candidate.DriftStatus)
-	if afterDrift == "comparison" || afterDrift == "comparison_dirty" {
+	result.CandidateDir = candidate.Dir
+
+	if req.ForceCompare {
 		dirty, err := ChangedPaths(req.RepoRoot)
 		if err != nil {
 			return result, err
@@ -119,21 +138,156 @@ func Sync(req SyncRequest) (SyncResult, error) {
 		if len(dirty) > 0 {
 			return result, fmt.Errorf("comparison must leave the protocol worktree unchanged:\n- %s", strings.Join(dirty, "\n- "))
 		}
+		if candidate.DriftStatus == "clean" {
+			result.Outcome = OutcomeCurrent
+			result.Reason = "read-only comparison found no protocol drift"
+			return result, nil
+		}
+		return result, fmt.Errorf("read-only comparison found protocol drift; comparison never applies")
 	}
-	if afterDrift == "comparison" {
-		result.Outcome = OutcomeCurrent
-		result.Reason = "read-only comparison found no protocol drift"
+
+	applyReq := candidateApplyRequest(moduleRoot, candidate, target)
+	plan := req.Plan
+	if plan == nil {
+		plan = protocolupgrade.Plan
+	}
+	planned, err := plan(applyReq)
+	if err != nil {
+		return result, fmt.Errorf("plan candidate: %w", err)
+	}
+	if planned.Status == protocolupgrade.PlanSemanticUnresolved {
+		dirty, err := ChangedPaths(req.RepoRoot)
+		if err != nil {
+			return result, err
+		}
+		if len(dirty) > 0 {
+			return result, fmt.Errorf("semantic planning must leave the protocol worktree unchanged:\n- %s", strings.Join(dirty, "\n- "))
+		}
+		result.Outcome = OutcomeSemanticUnresolved
+		result.Issue = planned.Issue
+		if planned.Issue != nil {
+			result.Reason = planned.Issue.Reason
+		} else {
+			result.Reason = "candidate has unresolved protocol semantics"
+		}
 		return result, nil
 	}
-	if afterDrift == "comparison_dirty" {
-		return result, fmt.Errorf("read-only comparison found protocol drift; comparison never applies")
+	if planned.Status != protocolupgrade.PlanReady {
+		return result, fmt.Errorf("unknown plan status %q", planned.Status)
 	}
 
 	apply := req.Apply
 	if apply == nil {
 		apply = protocolupgrade.Apply
 	}
-	if _, err := apply(protocolupgrade.ApplyRequest{
+	if _, err := apply(applyReq); err != nil {
+		return result, fmt.Errorf("apply planned candidate: %w", err)
+	}
+	paths, err := ChangedPaths(req.RepoRoot)
+	if err != nil {
+		return result, err
+	}
+	if err := validatePaths(paths, "mechanical"); err != nil {
+		return result, fmt.Errorf("planned apply escaped the generated sync surface: %w", err)
+	}
+	result.Outcome = OutcomeApplied
+	if candidate.DriftStatus == "clean" {
+		result.Reason = "provenance-only candidate planned and applied"
+	} else {
+		result.Reason = "mechanical candidate planned and applied"
+	}
+	return result, nil
+}
+
+// Resume verifies the Agent touched only handwritten codexsdk paths, re-plans
+// the same target/candidate, then applies only if the second plan is complete.
+func Resume(req ResumeRequest) (SyncResult, error) {
+	if req.RepoRoot == "" || req.CandidateDir == "" {
+		return SyncResult{}, fmt.Errorf("repo-root and candidate-dir are required")
+	}
+	if req.TargetRef == "" || req.TargetKind == "" || req.TargetSHA == "" {
+		return SyncResult{}, fmt.Errorf("target ref, kind, and sha are required")
+	}
+	paths, err := ChangedPaths(req.RepoRoot)
+	if err != nil {
+		return SyncResult{}, err
+	}
+	if err := validatePaths(paths, "agent"); err != nil {
+		return SyncResult{}, fmt.Errorf("Agent pass escaped handwritten codexsdk scope: %w", err)
+	}
+
+	moduleRoot := req.ModuleRoot
+	if moduleRoot == "" {
+		moduleRoot = filepath.Join(req.RepoRoot, "codexsdk")
+	}
+	target := Target{
+		RefName:         req.TargetRef,
+		RefKind:         req.TargetKind,
+		PeeledCommitSHA: req.TargetSHA,
+		TargetExplicit:  true,
+	}
+	candidate := candidateFromDir(req.CandidateDir, moduleRoot, target)
+	result := SyncResult{
+		Target:       target,
+		Candidate:    candidate.SchemaDir,
+		CandidateDir: candidate.Dir,
+	}
+	applyReq := candidateApplyRequest(moduleRoot, candidate, target)
+	plan := req.Plan
+	if plan == nil {
+		plan = protocolupgrade.Plan
+	}
+	planned, err := plan(applyReq)
+	if err != nil {
+		return result, fmt.Errorf("re-plan candidate: %w", err)
+	}
+	if planned.Status == protocolupgrade.PlanSemanticUnresolved {
+		result.Outcome = OutcomeSemanticUnresolved
+		result.Issue = planned.Issue
+		if planned.Issue != nil {
+			result.Reason = planned.Issue.Reason
+			return result, fmt.Errorf("semantic drift remains unresolved after Agent: %s", planned.Issue.Reason)
+		}
+		return result, fmt.Errorf("semantic drift remains unresolved after Agent")
+	}
+	if planned.Status != protocolupgrade.PlanReady {
+		return result, fmt.Errorf("unknown re-plan status %q", planned.Status)
+	}
+
+	apply := req.Apply
+	if apply == nil {
+		apply = protocolupgrade.Apply
+	}
+	if _, err := apply(applyReq); err != nil {
+		return result, fmt.Errorf("apply re-planned candidate: %w", err)
+	}
+	paths, err = ChangedPaths(req.RepoRoot)
+	if err != nil {
+		return result, err
+	}
+	if err := validatePaths(paths, "final"); err != nil {
+		return result, fmt.Errorf("final sync surface invalid: %w", err)
+	}
+	result.Outcome = OutcomeApplied
+	result.Reason = "Agent proposal re-planned successfully; candidate applied"
+	return result, nil
+}
+
+func candidateFromDir(dir, moduleRoot string, target Target) Candidate {
+	return Candidate{
+		Dir:               dir,
+		SchemaDir:         filepath.Join(dir, "schema"),
+		StableSchemaDir:   filepath.Join(dir, "stable-schema"),
+		ReportsDir:        filepath.Join(dir, "reports"),
+		CommonRS:          filepath.Join(dir, "common.rs"),
+		CommonRSSourceSHA: target.PeeledCommitSHA,
+		CodexRepo:         filepath.Join(moduleRoot, ".cache", "openai-codex"),
+		SourceCommit:      target.PeeledCommitSHA,
+	}
+}
+
+func candidateApplyRequest(moduleRoot string, candidate Candidate, target Target) protocolupgrade.ApplyRequest {
+	return protocolupgrade.ApplyRequest{
 		Baseline:          filepath.Join(moduleRoot, filepath.FromSlash(defaultBaselineRel)),
 		Candidate:         candidate.SchemaDir,
 		StableCandidate:   candidate.StableSchemaDir,
@@ -145,19 +299,7 @@ func Sync(req SyncRequest) (SyncResult, error) {
 		TargetKind:        target.RefKind,
 		TargetSHA:         target.PeeledCommitSHA,
 		ModuleRoot:        moduleRoot,
-	}); err != nil {
-		return result, fmt.Errorf("mechanical apply failed with a deterministic incompatibility: %w", err)
 	}
-	paths, err := ChangedPaths(req.RepoRoot)
-	if err != nil {
-		return result, err
-	}
-	if err := validatePaths(paths, "mechanical"); err != nil {
-		return result, fmt.Errorf("mechanical apply escaped the generated sync surface: %w", err)
-	}
-	result.Outcome = OutcomeApplied
-	result.Reason = "mechanical generation applied; workflow runs Agent then deterministic checks"
-	return result, nil
 }
 
 func decideAfterPolicy(decision string, forceCompare bool) string {
@@ -218,14 +360,24 @@ func WriteGitHubOutput(path string, result SyncResult) error {
 	if result.Outcome == OutcomeApplied {
 		applied = "true"
 	}
+	issueStage, issuePath, issueReason := "", "", ""
+	if result.Issue != nil {
+		issueStage = result.Issue.Stage
+		issuePath = result.Issue.Path
+		issueReason = result.Issue.Reason
+	}
 	lines := []string{
-		"outcome=" + result.Outcome,
+		"outcome=" + githubOutputValue(result.Outcome),
 		"applied=" + applied,
-		"target_ref=" + result.Target.RefName,
-		"target_kind=" + result.Target.RefKind,
-		"target_sha=" + result.Target.PeeledCommitSHA,
-		"candidate=" + result.Candidate,
-		"reason=" + result.Reason,
+		"target_ref=" + githubOutputValue(result.Target.RefName),
+		"target_kind=" + githubOutputValue(result.Target.RefKind),
+		"target_sha=" + githubOutputValue(result.Target.PeeledCommitSHA),
+		"candidate=" + githubOutputValue(result.Candidate),
+		"candidate_dir=" + githubOutputValue(result.CandidateDir),
+		"reason=" + githubOutputValue(result.Reason),
+		"issue_stage=" + githubOutputValue(issueStage),
+		"issue_path=" + githubOutputValue(issuePath),
+		"issue_reason=" + githubOutputValue(issueReason),
 	}
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
@@ -234,4 +386,9 @@ func WriteGitHubOutput(path string, result SyncResult) error {
 	defer f.Close()
 	_, err = f.WriteString(strings.Join(lines, "\n") + "\n")
 	return err
+}
+
+func githubOutputValue(value string) string {
+	value = strings.ReplaceAll(value, "\r", " ")
+	return strings.ReplaceAll(value, "\n", " ")
 }

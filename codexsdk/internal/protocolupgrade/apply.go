@@ -142,18 +142,18 @@ func Apply(req ApplyRequest) (ApplyResult, error) {
 	}
 	mappings, err := parseRequestMappings(req.CommonRS)
 	if err != nil {
-		return ApplyResult{}, err
+		return ApplyResult{}, wrapIncompatibility("manifest", err)
 	}
 	manifest, err := buildManifest(req.Baseline, oldManifest, mappings, req.TargetSHA)
 	if err != nil {
-		return ApplyResult{}, err
+		return ApplyResult{}, wrapIncompatibility("manifest", err)
 	}
 	if err := writeJSON(filepath.Join(req.Baseline, "manifest.json"), manifest); err != nil {
 		return ApplyResult{}, err
 	}
 	coverage, err := buildCoverage(req.Baseline, oldCoverage, manifest, fieldSeeds)
 	if err != nil {
-		return ApplyResult{}, err
+		return ApplyResult{}, wrapIncompatibility("coverage", err)
 	}
 	if err := writeJSON(filepath.Join(req.Baseline, "coverage_matrix.json"), coverage); err != nil {
 		return ApplyResult{}, err
@@ -161,7 +161,7 @@ func Apply(req ApplyRequest) (ApplyResult, error) {
 	if !req.skipSurface {
 		surface, err := deriveSurface(req.StableCandidate, req.Baseline)
 		if err != nil {
-			return ApplyResult{}, err
+			return ApplyResult{}, wrapIncompatibility("surface", err)
 		}
 		updateManifestSurface(&manifest, surface)
 		if err := writeJSON(filepath.Join(req.Baseline, "manifest.json"), manifest); err != nil {
@@ -181,7 +181,7 @@ func Apply(req ApplyRequest) (ApplyResult, error) {
 			return ApplyResult{}, err
 		}
 		if err := generatedcheck.WriteArtifacts(moduleRoot); err != nil {
-			return ApplyResult{}, err
+			return ApplyResult{}, wrapIncompatibility("codegen", err)
 		}
 	}
 	files, err := schemaFiles(req.Baseline)

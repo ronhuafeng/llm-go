@@ -57,6 +57,10 @@ func validatePaths(paths []string, phase string) error {
 		}
 		if !strings.HasPrefix(p, "codexsdk/") || strings.HasPrefix(p, "codexsdk/.cache/") || strings.HasPrefix(p, "codexsdk/.agents/") {
 			invalid = append(invalid, p)
+			continue
+		}
+		if phase == "agent" && isMechanicalPath(p) {
+			invalid = append(invalid, p)
 		}
 	}
 	if len(invalid) == 0 {
