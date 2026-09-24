@@ -153,10 +153,7 @@ func markReachableGeneratedDefinitions(plan *ProtocolTypePlan, schemaRoot string
 		if typ.Schema == nil {
 			continue
 		}
-		document := typ.SchemaPath
-		if before, _, ok := strings.Cut(document, "#"); ok {
-			document = before
-		}
+		document := schemaDocumentPath(typ.SchemaPath)
 		if document == "" {
 			continue
 		}
@@ -166,41 +163,49 @@ func markReachableGeneratedDefinitions(plan *ProtocolTypePlan, schemaRoot string
 		}
 	}
 
-	visitedSchemas := map[*Schema]bool{}
+	visitedSchemas := map[string]bool{}
 	visitedDefinitions := map[string]bool{}
 	visitedTypes := map[int]bool{}
-	var walkSchema func(string, *Schema)
-	var walkRef func(string, string)
-	var walkType func(int)
+	var walkSchema func(string, string, string, string, *Schema) error
+	var walkRef func(string, string) error
+	var walkType func(int) error
 
-	walkType = func(index int) {
+	walkType = func(index int) error {
 		if visitedTypes[index] {
-			return
+			return nil
 		}
 		visitedTypes[index] = true
 		typ := &plan.Types[index]
+		typ.GeneratedRoot = true
 		for _, field := range typ.Fields {
 			if field.RefPath != "" {
-				walkRef(typ.SchemaPath, field.RefPath)
+				if err := walkRef(typ.SchemaPath, field.RefPath); err != nil {
+					return err
+				}
 			}
+		}
+		switch typ.Kind {
+		case TypePlanTaggedUnionCandidate, TypePlanScalarUnionCandidate, TypePlanAnyOfDeferred:
+			return walkSchema(schemaDocumentPath(typ.SchemaPath), typ.SchemaPath, typ.Stability, typ.TypeName, typ.Schema)
+		default:
+			return nil
 		}
 	}
 
-	walkRef = func(currentDocument, ref string) {
+	walkRef = func(currentDocument, ref string) error {
 		absolute := absoluteRefPath(currentDocument, ref)
 		document, fragment, hasFragment := strings.Cut(absolute, "#")
 		index, ok := byDocument[document]
 		if !ok {
-			return
+			return nil
 		}
 		target := &plan.Types[index]
 		if !hasFragment || fragment == "" {
-			walkType(index)
-			return
+			return walkType(index)
 		}
 		const prefix = "/definitions/"
 		if !strings.HasPrefix(fragment, prefix) {
-			return
+			return nil
 		}
 		token := strings.TrimPrefix(fragment, prefix)
 		if before, _, ok := strings.Cut(token, "/"); ok {
@@ -209,69 +214,112 @@ func markReachableGeneratedDefinitions(plan *ProtocolTypePlan, schemaRoot string
 		name := strings.ReplaceAll(strings.ReplaceAll(token, "~1", "/"), "~0", "~")
 		definition := target.Schema.Definitions[name]
 		if definition == nil {
-			return
+			return fmt.Errorf("schema ref %s resolves missing definition %s in %s", ref, name, document)
 		}
 		definitionPath := definitionSchemaPath(document, name)
 		target.GeneratedDefinitions[name] = true
 		if visitedDefinitions[definitionPath] {
-			return
+			return nil
 		}
 		visitedDefinitions[definitionPath] = true
-		walkSchema(document, definition)
+		return walkSchema(document, definitionPath, target.Stability, name, definition)
 	}
 
-	walkSchema = func(document string, schema *Schema) {
-		if schema == nil || visitedSchemas[schema] {
-			return
+	walkSchema = func(document, schemaPath, stability, typeName string, schema *Schema) error {
+		if schema == nil || visitedSchemas[schemaPath] {
+			return nil
 		}
-		visitedSchemas[schema] = true
+		visitedSchemas[schemaPath] = true
 		if schema.Ref != "" {
-			walkRef(document, schema.Ref)
+			if err := walkRef(document, schema.Ref); err != nil {
+				return err
+			}
 		}
-		walkSchema(document, schema.Items)
-		walkSchema(document, schema.AdditionalProperties.Schema)
-		for _, child := range schema.Properties {
-			walkSchema(document, child)
+		if len(schema.Properties) > 0 {
+			required := schema.RequiredSet()
+			names := make([]string, 0, len(schema.Properties))
+			for name := range schema.Properties {
+				names = append(names, name)
+			}
+			sort.Strings(names)
+			for _, name := range names {
+				fieldPath := schemaPropertyPath(schemaPath, name)
+				field, err := planField(CoverageField{
+					Field:     name,
+					Path:      fieldPath,
+					Required:  required[name],
+					Schema:    document,
+					Stability: stability,
+					Status:    "supported-generated",
+					Type:      typeName,
+				}, schema.Properties[name])
+				if err != nil {
+					return fmt.Errorf("dependency %s: %w", fieldPath, err)
+				}
+				if field.RefPath != "" {
+					if err := walkRef(document, field.RefPath); err != nil {
+						return err
+					}
+				}
+			}
 		}
-		for _, child := range schema.AllOf {
-			walkSchema(document, child)
+		if schema.Type.Only("array") && schema.Items != nil {
+			if schema.Items.Ref != "" {
+				if err := walkRef(document, schema.Items.Ref); err != nil {
+					return err
+				}
+			} else if err := walkSchema(document, nestedSchemaPath(schemaPath, "items", 0), stability, typeName, schema.Items); err != nil {
+				return err
+			}
 		}
-		for _, child := range schema.AnyOf {
-			walkSchema(document, child)
+		if len(schema.Properties) == 0 && schema.AdditionalProperties.Schema != nil && schema.AdditionalProperties.Schema.Ref != "" {
+			if err := walkRef(document, schema.AdditionalProperties.Schema.Ref); err != nil {
+				return err
+			}
 		}
-		for _, child := range schema.OneOf {
-			walkSchema(document, child)
+		for keyword, variants := range map[string][]*Schema{
+			"allOf": schema.AllOf,
+			"anyOf": schema.AnyOf,
+			"oneOf": schema.OneOf,
+		} {
+			for index, variant := range variants {
+				if err := walkSchema(document, nestedSchemaPath(schemaPath, keyword, index), stability, typeName, variant); err != nil {
+					return err
+				}
+			}
 		}
+		return nil
 	}
 
-	rootIndexes, err := generatedDefinitionRootIndexes(*plan, schemaRoot)
+	rootIndexes, err := generatedDefinitionRootIndexes(plan, schemaRoot)
 	if err != nil {
 		return err
 	}
 	for index := range rootIndexes {
-		walkType(index)
+		if err := walkType(index); err != nil {
+			return err
+		}
 	}
 	for index := range plan.Types {
 		typ := &plan.Types[index]
-		if typ.Schema == nil {
-			continue
-		}
-		for name := range typ.Schema.Definitions {
-			if isReviewedGeneratedDefinition(typ.SchemaPath, name) {
-				typ.GeneratedDefinitions[name] = true
+		if typ.Kind == TypePlanScalarUnionCandidate && typ.Status == "supported-generated" {
+			if err := walkType(index); err != nil {
+				return err
 			}
 		}
 	}
 	return nil
 }
 
-func generatedDefinitionRootIndexes(plan ProtocolTypePlan, schemaRoot string) (map[int]bool, error) {
+func generatedDefinitionRootIndexes(plan *ProtocolTypePlan, schemaRoot string) (map[int]bool, error) {
 	fallback := func() map[int]bool {
 		roots := map[int]bool{}
-		for index, typ := range plan.Types {
+		for index := range plan.Types {
+			typ := &plan.Types[index]
 			if typ.Schema == nil || isAggregateBundle(typ.SchemaPath) || isJSONRPCEnvelopeSchema(typ.SchemaPath) {
 				continue
 			}
+			typ.GeneratedRoot = true
 			roots[index] = true
 		}
 		return roots
@@ -292,28 +340,68 @@ func generatedDefinitionRootIndexes(plan ProtocolTypePlan, schemaRoot string) (m
 	}
 	byTypeName := map[string][]int{}
 	bySchemaPath := map[string]int{}
-	for index, typ := range plan.Types {
+	for index := range plan.Types {
+		typ := &plan.Types[index]
 		byTypeName[typ.TypeName] = append(byTypeName[typ.TypeName], index)
 		bySchemaPath[typ.SchemaPath] = index
 	}
 	roots := map[int]bool{}
 	for _, entry := range manifest.Entries {
+		if index, ok := bySchemaPath[entry.SourceSchema]; ok {
+			plan.Types[index].GeneratedRoot = true
+		}
 		if entry.Direction == manifestDirectionClientToServer &&
 			entry.Kind == manifestKindRequest &&
 			entry.FacadeStatus != "generated" {
 			continue
 		}
 		for _, index := range byTypeName[entry.ParamsOrPayloadSchema] {
+			plan.Types[index].GeneratedRoot = true
 			roots[index] = true
 		}
 		if index, ok := bySchemaPath[entry.ResponseSchema]; ok {
+			plan.Types[index].GeneratedRoot = true
+			roots[index] = true
+		}
+	}
+	for index := range plan.Types {
+		typ := &plan.Types[index]
+		if typ.Kind == TypePlanScalarUnionCandidate && typ.Status == "supported-generated" {
+			typ.GeneratedRoot = true
 			roots[index] = true
 		}
 	}
 	if len(roots) == 0 {
-		return nil, fmt.Errorf("manifest has no protocol type roots")
+		return nil, fmt.Errorf("manifest has no generated protocol type roots")
 	}
 	return roots, nil
+}
+
+func schemaDocumentPath(path string) string {
+	if before, _, ok := strings.Cut(path, "#"); ok {
+		return before
+	}
+	return path
+}
+
+func schemaPropertyPath(schemaPath, field string) string {
+	if strings.Contains(schemaPath, "#") {
+		return schemaPath + "/properties/" + field
+	}
+	return schemaPath + "#/properties/" + field
+}
+
+func nestedSchemaPath(schemaPath, keyword string, index int) string {
+	if keyword == "items" {
+		if strings.Contains(schemaPath, "#") {
+			return schemaPath + "/items"
+		}
+		return schemaPath + "#/items"
+	}
+	if strings.Contains(schemaPath, "#") {
+		return fmt.Sprintf("%s/%s/%d", schemaPath, keyword, index)
+	}
+	return fmt.Sprintf("%s#/%s/%d", schemaPath, keyword, index)
 }
 
 func (p ProtocolTypePlan) TypeBySchema(path string) (TypePlan, bool) {
