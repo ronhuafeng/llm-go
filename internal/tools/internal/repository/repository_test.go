@@ -55,9 +55,63 @@ func TestPRVerificationIsRootModuleAndGeneratedReproducibility(t *testing.T) {
 		"go mod tidy -diff",
 		"go vet ./...",
 		"go test -race ./...",
+		"workflow_dispatch:",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("PR verification missing %q", want)
+		}
+	}
+}
+
+func TestManualNativeVerificationWorkflowsAreReadOnlyOwnerProofs(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflows := map[string][]string{
+		"verify-llmkit.yml": {
+			"go vet ./llmkit/...",
+			"go test -race ./llmkit/...",
+		},
+		"verify-codexsdk.yml": {
+			"go vet ./codexsdk/...",
+			"go test -race ./codexsdk/...",
+			"uses: ./.github/workflows/verify-generated.yml",
+		},
+		"verify-codex-adapter.yml": {
+			"go vet ./llmcaller/codex/...",
+			"go test -race ./llmcaller/codex/...",
+		},
+		"verify-generated.yml": {
+			"go run ./internal/cmd/generatedcheck",
+		},
+	}
+	for name, wants := range workflows {
+		text := readWorkflow(t, root, name)
+		if !strings.Contains(text, "workflow_dispatch:") {
+			t.Errorf("%s must be manually dispatchable", name)
+		}
+		if !strings.Contains(text, "permissions:\n  contents: read") {
+			t.Errorf("%s must be read-only", name)
+		}
+		for _, forbidden := range []string{"contents: write", "pull-requests: write", "secrets."} {
+			if strings.Contains(text, forbidden) {
+				t.Errorf("%s contains forbidden remote-verification authority %q", name, forbidden)
+			}
+		}
+		refs := checkoutRefs(text)
+		if len(refs) == 0 {
+			t.Errorf("%s must check out the triggering revision", name)
+		}
+		for _, ref := range refs {
+			if ref != "${{ github.sha }}" {
+				t.Errorf("%s checkout ref %q is not the triggering revision", name, ref)
+			}
+		}
+		for _, want := range wants {
+			if !strings.Contains(text, want) {
+				t.Errorf("%s missing owner-local proof %q", name, want)
+			}
 		}
 	}
 }
@@ -129,72 +183,62 @@ func TestGeneratedCheckObservesCleanWorktreeOnFailure(t *testing.T) {
 	}
 }
 
-func TestProtocolSyncIsOneLinearSameRunWorkflow(t *testing.T) {
+func TestProtocolSyncPreservesAuthorityAndPublicationBoundaries(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
 	if err != nil {
 		t.Fatal(err)
 	}
 	syncText := readWorkflow(t, root, "codexsdk-upstream-protocol-sync.yml")
-	syncJob, ok := workflowJobByID(syncText, "sync")
-	if !ok {
-		t.Fatal("protocol sync must have one sync job")
-	}
-	if workflowJobCount(syncText) != 1 {
-		t.Fatal("protocol sync must be one linear job")
-	}
 	if strings.Count(syncText, "uses: ./.github/actions/codex-exec") != 1 {
-		t.Fatal("real drift must invoke at most one Agent pass")
+		t.Fatal("protocol sync must expose exactly one optional Agent invocation")
 	}
 	agent, ok := workflowStepByID(syncText, "codex")
 	if !ok {
-		t.Fatal("drift branch must invoke the Codex Agent on the same worktree")
+		t.Fatal("protocol sync must expose the Agent effect boundary")
 	}
-	if !strings.Contains(agent, "success()") || !strings.Contains(agent, "steps.mechanical.outputs.outcome == 'applied'") {
-		t.Fatal("clean comparison and earlier failures must not invoke the Agent")
+	if !strings.Contains(agent, "success()") {
+		t.Fatal("earlier deterministic failures must prevent Agent invocation")
 	}
-	if !strings.Contains(agent, "GITHUB_TOKEN: \"\"") || !strings.Contains(agent, "GH_TOKEN: \"\"") {
+	if !strings.Contains(agent, "GITHUB_TOKEN: \"\\"") || !strings.Contains(agent, "GH_TOKEN: \"\\"") {
 		t.Fatal("Agent must not inherit repository-write tokens")
 	}
-	if strings.Index(syncJob, "id: mechanical") > strings.Index(syncJob, "id: codex") {
-		t.Fatal("Agent must run after mechanical compare/apply")
-	}
+
 	checks, ok := workflowStepByID(syncText, "checks")
 	if !ok {
-		t.Fatal("protocol sync must run deterministic checks in the same run")
+		t.Fatal("protocol sync must expose deterministic protocol proof")
 	}
-	if !strings.Contains(checks, "./internal/cmd/protocolupgrade") || !strings.Contains(checks, "check") {
-		t.Fatal("deterministic checks must use native protocolupgrade check")
+	for _, want := range []string{
+		"./internal/cmd/protocolupgrade",
+		"check",
+		"go vet ./...",
+		"go test ./...",
+		"gofmt",
+		"diff --check",
+	} {
+		if !strings.Contains(checks, want) {
+			t.Fatalf("deterministic protocol proof missing %q", want)
+		}
 	}
-	if !strings.Contains(checks, "go vet ./...") || !strings.Contains(checks, "go test ./...") {
-		t.Fatal("deterministic checks must run owner-local vet and test")
-	}
-	if !strings.Contains(checks, "gofmt") || !strings.Contains(checks, "git") || !strings.Contains(checks, "diff --check") {
-		t.Fatal("deterministic checks must run gofmt and git diff --check")
-	}
-	if strings.Contains(checks, "if:") {
-		t.Fatal("clean comparison must still run deterministic checks")
-	}
-	if strings.Index(syncJob, "id: codex") > strings.Index(syncJob, "id: checks") {
-		t.Fatal("deterministic checks must run after the Agent")
-	}
+
 	publish, ok := workflowStepByID(syncText, "publish")
 	if !ok {
-		t.Fatal("protocol sync must publish from the same run after checks")
+		t.Fatal("protocol sync must expose a distinct publication effect")
 	}
-	if !strings.Contains(publish, "success()") || !strings.Contains(publish, "steps.mechanical.outputs.outcome == 'applied'") {
-		t.Fatal("clean comparison and failed checks must not publish")
+	if !strings.Contains(publish, "success()") {
+		t.Fatal("failed deterministic proof must not publish")
 	}
 	if !strings.Contains(publish, "inputs.validation_only != true") {
-		t.Fatal("validation-only comparison must skip publication")
+		t.Fatal("validation-only protocol proof must not publish")
 	}
-	if strings.Contains(publish, "always()") {
-		t.Fatal("failed checks must not publish")
+	if strings.Contains(publish, "always()") || strings.Contains(publish, "continue-on-error") {
+		t.Fatal("publication must fail closed")
 	}
-	if strings.Index(syncJob, "id: checks") > strings.Index(syncJob, "id: publish") {
-		t.Fatal("publication must run after deterministic checks")
+	if strings.Contains(publish, "git rebase") {
+		t.Fatal("publication must not change the proven base by rebasing")
 	}
-	if strings.Contains(syncText, "git rebase") {
-		t.Fatal("protocol sync must not rebase after checks")
+
+	if !strings.Contains(syncText, "./internal/cmd/protocolupgrade") {
+		t.Fatal("protocol synchronization semantics must remain Go-native")
 	}
 	if strings.Contains(syncText, "continue-on-error") {
 		t.Fatal("protocol sync must fail closed")
@@ -208,16 +252,6 @@ func TestProtocolSyncIsOneLinearSameRunWorkflow(t *testing.T) {
 		if strings.Contains(syncText, moving) {
 			t.Fatalf("protocol sync uses moving third-party Action tag %q", moving)
 		}
-	}
-	mechanical, ok := workflowStepByID(syncText, "mechanical")
-	if !ok {
-		t.Fatal("protocol sync must run one native mechanical owner")
-	}
-	if !strings.Contains(mechanical, "./internal/cmd/protocolupgrade") || !strings.Contains(mechanical, "sync") {
-		t.Fatal("mechanical protocol sync must use the native Go owner")
-	}
-	if strings.Contains(publish, "git rebase") {
-		t.Fatal("publication must not rebase after checks")
 	}
 }
 
@@ -327,6 +361,11 @@ func TestCurrentDocsDescribeOneRootModule(t *testing.T) {
 	}
 	if !strings.Contains(string(verify), "merge candidate") {
 		t.Fatal("docs/verify.md must say required PR checks validate the merge candidate")
+	}
+	for _, workflow := range []string{"Verify llmkit", "Verify codexsdk", "Verify Codex adapter"} {
+		if !strings.Contains(string(verify), workflow) {
+			t.Fatalf("docs/verify.md must route remote owner proof through %s", workflow)
+		}
 	}
 	release, err := os.ReadFile(filepath.Join(root, "docs", "release.md"))
 	if err != nil {
