@@ -306,7 +306,7 @@ func isScalarAliasDefinitionSchema(schema *Schema) bool {
 }
 
 func isScalarUnionDefinitionSchema(schema *Schema) bool {
-	return schema != nil && isReviewedScalarUnion(schema.AnyOf)
+	return schema != nil && isSupportedScalarUnion(schema.AnyOf)
 }
 
 func isTaggedUnionDefinitionSchema(schema *Schema) bool {
