@@ -199,7 +199,7 @@ func TestProtocolSyncPreservesAuthorityAndPublicationBoundaries(t *testing.T) {
 	if !strings.Contains(agent, "success()") {
 		t.Fatal("earlier deterministic failures must prevent Agent invocation")
 	}
-	if !strings.Contains(agent, "GITHUB_TOKEN: \"\\"") || !strings.Contains(agent, "GH_TOKEN: \"\\"") {
+	if !strings.Contains(agent, "GITHUB_TOKEN: \"\"") || !strings.Contains(agent, "GH_TOKEN: \"\"") {
 		t.Fatal("Agent must not inherit repository-write tokens")
 	}
 
