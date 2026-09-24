@@ -293,16 +293,6 @@ func isStringEnumDefinitionSchema(schema *Schema) bool {
 	return ok
 }
 
-func isImplicitGeneratedStringEnumDefinitionSchema(schema *Schema) bool {
-	if isDirectStringEnumSchema(schema) {
-		return true
-	}
-	if schema == nil || schema.Bool != nil || !isPureSingleOneOfWrapper(schema) {
-		return false
-	}
-	return isDirectStringEnumSchema(schema.OneOf[0])
-}
-
 func isScalarAliasDefinitionSchema(schema *Schema) bool {
 	if schema == nil || !schema.Type.Only("string") || len(schema.Enum) != 0 || hasNonTypeShape(schema) {
 		return false
@@ -453,11 +443,11 @@ func SelectGeneratedScalarAliases(plan ProtocolTypePlan) ([]ScalarAliasPlan, err
 			}
 			typeName := generatedDefinitionTypeName(resolver, typ.SchemaPath, name)
 			if schema == nil || !schema.Type.Only("string") || len(schema.Enum) != 0 || hasNonTypeShape(schema) {
-				return nil, fmt.Errorf("generated scalar alias %s in %s no longer matches reviewed string alias shape", typeName, typ.SchemaPath)
+				return nil, fmt.Errorf("generated scalar alias %s in %s no longer matches supported string alias shape", typeName, typ.SchemaPath)
 			}
 			for _, keyword := range unmodeledKeywords(schema) {
 				if keyword != "minLength" {
-					return nil, fmt.Errorf("generated scalar alias %s in %s has unreviewed keyword %s", typeName, typ.SchemaPath, keyword)
+					return nil, fmt.Errorf("generated scalar alias %s in %s has unsupported keyword %s", typeName, typ.SchemaPath, keyword)
 				}
 			}
 			encoded, err := json.Marshal(schema)
@@ -826,7 +816,7 @@ func mixedUnionVariantPlans(typ TypePlan, schema *Schema, variantIndex int, gene
 		}
 		return []MixedUnionVariantPlan{planned}, nil
 	default:
-		return nil, fmt.Errorf("variant is not a reviewed string enum or singleton object")
+		return nil, fmt.Errorf("variant is not a supported string enum or singleton object")
 	}
 }
 
@@ -1733,7 +1723,7 @@ func variantDiscriminator(schema *Schema) (fieldName string, value string, err e
 	}
 	sort.Strings(candidates)
 	if len(candidates) != 1 {
-		return "", "", fmt.Errorf("expected exactly one reviewed discriminator candidate, got %d", len(candidates))
+		return "", "", fmt.Errorf("expected exactly one supported discriminator candidate, got %d", len(candidates))
 	}
 	fieldName = candidates[0]
 	return fieldName, schema.Properties[fieldName].Enum[0], nil

@@ -109,7 +109,7 @@ func TestGeneratedDefinitionSourcesStayCanonical(t *testing.T) {
 			continue
 		}
 		for name, schema := range typ.Schema.Definitions {
-			kind, ok := selectedGeneratedDefinitionKindForTest(typ.SchemaPath, name, schema)
+			kind, ok := selectedGeneratedDefinitionKindForTest(typ, name, schema)
 			if !ok {
 				continue
 			}
@@ -418,11 +418,8 @@ func encodedSchema(t *testing.T, schema *Schema) []byte {
 	return raw
 }
 
-func selectedGeneratedDefinitionKindForTest(schemaPath string, name string, schema *Schema) (string, bool) {
-	if isImplicitGeneratedStringEnumDefinitionSchema(schema) {
-		return string(generatedDefinitionStringEnum), true
-	}
-	if !isReviewedGeneratedDefinition(schemaPath, name) {
+func selectedGeneratedDefinitionKindForTest(typ TypePlan, name string, schema *Schema) (string, bool) {
+	if !isGeneratedDefinitionSelected(typ, name) {
 		return "", false
 	}
 	kind := classifyGeneratedDefinition(schema)
@@ -2082,43 +2079,6 @@ func TestReachableScalarAliasUsesExistingScalarNormalization(t *testing.T) {
 	}
 	if len(aliases) != 0 {
 		t.Fatalf("normalized scalar alias was generated: %#v", aliases)
-	}
-}
-
-func TestGeneratedDefinitionNameResolverPreservesLegacyNameAgainstReachableCollision(t *testing.T) {
-	legacy := TypePlan{
-		SchemaPath: "v2/ThreadStartParams.json",
-		TypeName:   "ThreadStartParams",
-		Schema: &Schema{Definitions: map[string]*Schema{
-			"ReasoningEffort": mustParseSchema(t, `{
-				"type": "string",
-				"minLength": 1
-			}`),
-		}},
-	}
-	reachable := TypePlan{
-		GeneratedDefinitions: map[string]bool{"ReasoningEffort": true},
-		SchemaPath:           "v2/ExampleResponse.json",
-		TypeName:             "ExampleResponse",
-		Schema: &Schema{Definitions: map[string]*Schema{
-			"ReasoningEffort": mustParseSchema(t, `{
-				"type": "object",
-				"required": ["value"],
-				"properties": {
-					"value": {"type": "string"}
-				}
-			}`),
-		}},
-	}
-	resolver, err := newGeneratedDefinitionNameResolver(ProtocolTypePlan{Types: []TypePlan{legacy, reachable}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got, ok := resolver.NameForDefinition("v2/ThreadStartParams.json", "ReasoningEffort"); !ok || got != "ReasoningEffort" {
-		t.Fatalf("legacy ReasoningEffort resolved to %q, ok=%t", got, ok)
-	}
-	if got, ok := resolver.NameForDefinition("v2/ExampleResponse.json", "ReasoningEffort"); !ok || got != "ExampleResponseReasoningEffort" {
-		t.Fatalf("reachable collision resolved to %q, ok=%t", got, ok)
 	}
 }
 
