@@ -18,12 +18,14 @@ type ProtocolTypePlan struct {
 type TypePlan struct {
 	Fields                []FieldPlan
 	GeneratedDefinitions  map[string]bool
+	GeneratedRoot         bool
 	Kind                  TypePlanKind
 	OpenDynamicProperties bool
 	Reason                string
 	Schema                *Schema
 	SchemaPath            string
 	Stability             string
+	Status                string
 	TypeName              string
 	WireMessageRoles      WireMessageRoles
 }
@@ -548,7 +550,7 @@ func isGeneratedDefinitionSelected(parent TypePlan, name string) bool {
 	if parent.Schema != nil {
 		schema := parent.Schema.Definitions[name]
 		if classifyGeneratedDefinition(schema) == generatedDefinitionScalarAlias {
-			if _, ok := scalarAliasRefGoType(name); ok {
+			if _, ok := inlineScalarAliasGoType(name); ok {
 				return false
 			}
 		}
@@ -668,6 +670,7 @@ func planType(file SchemaFile) (TypePlan, error) {
 		Schema:     schema,
 		SchemaPath: file.Path,
 		Stability:  file.Stability,
+		Status:     file.Status,
 		TypeName:   file.TypeName,
 	}
 	switch {
@@ -675,14 +678,14 @@ func planType(file SchemaFile) (TypePlan, error) {
 		plan.Kind = TypePlanAggregateBundle
 		plan.Reason = "aggregate schema bundle is a generator input, not a public protocol type"
 	case len(schema.OneOf) > 0:
-		if !topLevelUnionHasKnownDiscriminator(file.Path) {
-			return TypePlan{}, fmt.Errorf("top-level oneOf schema %s has no reviewed discriminator policy", file.Path)
+		if !isTaggedUnionDefinitionSchema(schema) {
+			return TypePlan{}, fmt.Errorf("top-level oneOf schema %s has unsupported union shape", file.Path)
 		}
 		plan.Kind = TypePlanTaggedUnionCandidate
 		if len(schema.Properties) > 0 {
-			plan.Reason = "top-level object properties plus oneOf payload with reviewed discriminator policy"
+			plan.Reason = "top-level object properties plus discriminator-backed oneOf"
 		} else {
-			plan.Reason = "top-level oneOf with reviewed discriminator policy"
+			plan.Reason = "top-level discriminator-backed oneOf"
 		}
 	case schema.Type.Only("object") && len(schema.Properties) > 0:
 		plan.Kind = TypePlanObjectStructCandidate
@@ -691,36 +694,34 @@ func planType(file SchemaFile) (TypePlan, error) {
 		plan.Kind = TypePlanEmptyStructCandidate
 		plan.Reason = "object schema without top-level properties"
 	case len(schema.AnyOf) > 0:
-		if file.Path == "RequestId.json" && isReviewedScalarUnion(schema.AnyOf) {
+		if isSupportedScalarUnion(schema.AnyOf) {
 			plan.Kind = TypePlanScalarUnionCandidate
-			plan.Reason = "top-level anyOf with reviewed mutually exclusive scalar JSON kinds"
+			plan.Reason = "top-level anyOf with losslessly supported scalar JSON kinds"
 			return plan, nil
 		}
-		if isReviewedTopLevelNullableParamsWrapper(file.Path, schema.AnyOf) {
+		if isTopLevelNullableRefWrapper(schema.AnyOf) {
 			plan.Kind = TypePlanAnyOfDeferred
-			plan.Reason = "top-level nullable params wrapper is represented by aggregate request params handling"
+			plan.Reason = "top-level nullable ref wrapper is represented by aggregate request params handling"
 			return plan, nil
 		}
-		if file.Path != "JSONRPCMessage.json" {
-			return TypePlan{}, fmt.Errorf("top-level anyOf schema %s has no reviewed generation policy", file.Path)
+		if isUntaggedObjectUnionDefinitionSchema(schema) {
+			plan.Kind = TypePlanAnyOfDeferred
+			plan.Reason = "top-level untagged object union"
+			return plan, nil
 		}
-		plan.Kind = TypePlanAnyOfDeferred
-		plan.Reason = "top-level anyOf needs dedicated reviewed value/dispatch logic"
+		if isJSONRPCEnvelopeSchema(file.Path) {
+			plan.Kind = TypePlanAnyOfDeferred
+			plan.Reason = "JSON-RPC envelope anyOf is transport-owned rather than public protocol payload"
+			return plan, nil
+		}
+		return TypePlan{}, fmt.Errorf("top-level anyOf schema %s has unsupported union shape", file.Path)
 	default:
 		return TypePlan{}, fmt.Errorf("schema %s has unsupported top-level shape", file.Path)
 	}
 	return plan, nil
 }
 
-func isReviewedTopLevelNullableParamsWrapper(path string, variants []*Schema) bool {
-	switch path {
-	case "v2/NullableGetAccountRateLimitsParams.json",
-		"v2/NullableGetAccountTokenUsageParams.json",
-		"v2/NullableRemoteControlDisableParams.json",
-		"v2/NullableRemoteControlEnableParams.json":
-	default:
-		return false
-	}
+func isTopLevelNullableRefWrapper(variants []*Schema) bool {
 	if len(variants) != 2 {
 		return false
 	}
@@ -732,12 +733,13 @@ func isReviewedTopLevelNullableParamsWrapper(path string, variants []*Schema) bo
 			hasRef = true
 		case variant != nil && variant.Type.Only("null"):
 			hasNull = true
+		default:
+			return false
 		}
 	}
 	return hasRef && hasNull
 }
-
-func isReviewedScalarUnion(variants []*Schema) bool {
+func isSupportedScalarUnion(variants []*Schema) bool {
 	if len(variants) == 0 {
 		return false
 	}
@@ -829,7 +831,7 @@ func planField(coverage CoverageField, schema *Schema) (FieldPlan, error) {
 		return plan, nil
 	}
 	if schema.Ref != "" {
-		if scalarAlias, ok := scalarAliasRefGoType(schema.Ref); ok {
+		if scalarAlias, ok := inlineScalarAliasGoType(schema.Ref); ok {
 			plan.Kind = FieldPlanScalar
 			plan.GoType = optionalGoType(plan.Required, scalarAlias)
 			plan.Reason = "reviewed scalar alias ref"
@@ -842,7 +844,7 @@ func planField(coverage CoverageField, schema *Schema) (FieldPlan, error) {
 		return plan, nil
 	}
 	if len(schema.AllOf) == 1 && schema.AllOf[0].Ref != "" {
-		if scalarAlias, ok := scalarAliasRefGoType(schema.AllOf[0].Ref); ok {
+		if scalarAlias, ok := inlineScalarAliasGoType(schema.AllOf[0].Ref); ok {
 			plan.Kind = FieldPlanScalar
 			plan.GoType = optionalGoType(plan.Required, scalarAlias)
 			plan.Reason = "reviewed scalar alias allOf ref"
@@ -1084,7 +1086,7 @@ func planAnyOfField(plan FieldPlan, schema *Schema) (FieldPlan, error) {
 	plan.WireAllowsNull = true
 	switch {
 	case inner.Ref != "":
-		if scalarAlias, ok := scalarAliasRefGoType(inner.Ref); ok {
+		if scalarAlias, ok := inlineScalarAliasGoType(inner.Ref); ok {
 			plan.Kind = FieldPlanNullableScalar
 			plan.GoType = nullableGoType(plan.Required, scalarAlias)
 			plan.Reason = "nullable scalar alias ref represented with Nullable"
@@ -1145,7 +1147,7 @@ func planArrayField(plan FieldPlan, schema *Schema, nullable bool) (FieldPlan, e
 	fieldRequired := plan.Required && !nullable
 	switch {
 	case schema.Items.Ref != "":
-		if scalarAlias, ok := scalarAliasRefGoType(schema.Items.Ref); ok {
+		if scalarAlias, ok := inlineScalarAliasGoType(schema.Items.Ref); ok {
 			if scalarAlias != "string" {
 				return FieldPlan{}, fmt.Errorf("field %s has unsupported array scalar alias item type %s", plan.Path, scalarAlias)
 			}
@@ -1462,7 +1464,8 @@ func scalarGoType(schema *Schema, schemaType string) (string, error) {
 	}
 }
 
-func scalarAliasRefGoType(ref string) (string, bool) {
+// inlineScalarAliasGoType is an explicit public-representation overlay for upstream string aliases that remain plain Go strings.
+func inlineScalarAliasGoType(ref string) (string, bool) {
 	switch refTypeName(ref) {
 	case "AgentPath":
 		return "string", true
@@ -1546,17 +1549,6 @@ func nullableGoType(required bool, typ string) string {
 
 func isAggregateBundle(path string) bool {
 	return path == "codex_app_server_protocol.schemas.json" || path == "codex_app_server_protocol.v2.schemas.json"
-}
-
-func topLevelUnionHasKnownDiscriminator(path string) bool {
-	switch path {
-	case "ClientNotification.json", "ClientRequest.json", "ServerNotification.json", "ServerRequest.json",
-		"McpServerElicitationRequestParams.json",
-		"v2/BedrockSetupParams.json", "v2/LoginAccountParams.json", "v2/LoginAccountResponse.json":
-		return true
-	default:
-		return false
-	}
 }
 
 func isServiceTierPath(path string) bool {
