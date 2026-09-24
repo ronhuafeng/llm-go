@@ -2013,6 +2013,29 @@ func TestGeneratedDefinitionNameResolverReusesSameNameSameShape(t *testing.T) {
 	}
 }
 
+func TestReachableScalarAliasUsesExistingScalarNormalization(t *testing.T) {
+	parent := TypePlan{
+		GeneratedDefinitions: map[string]bool{"AbsolutePathBuf": true},
+		SchemaPath:           "v2/ExampleResponse.json",
+		TypeName:             "ExampleResponse",
+		Schema: &Schema{Definitions: map[string]*Schema{
+			"AbsolutePathBuf": {
+				Type: SchemaTypeSet{Values: []string{"string"}},
+			},
+		}},
+	}
+	if isGeneratedDefinitionSelected(parent, "AbsolutePathBuf") {
+		t.Fatal("reachable AbsolutePathBuf must stay normalized to string")
+	}
+	aliases, err := SelectGeneratedScalarAliases(ProtocolTypePlan{Types: []TypePlan{parent}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(aliases) != 0 {
+		t.Fatalf("normalized scalar alias was generated: %#v", aliases)
+	}
+}
+
 func TestGeneratedDefinitionNameResolverPreservesLegacyNameAgainstReachableCollision(t *testing.T) {
 	legacy := TypePlan{
 		SchemaPath: "v2/ThreadStartParams.json",
