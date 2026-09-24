@@ -453,7 +453,21 @@ func isGeneratedDefinitionNameResolverSource(parent TypePlan, name string, schem
 }
 
 func isGeneratedDefinitionSelected(parent TypePlan, name string) bool {
-	return parent.GeneratedDefinitions[name] || isReviewedGeneratedDefinition(parent.SchemaPath, name)
+	if isReviewedGeneratedDefinition(parent.SchemaPath, name) {
+		return true
+	}
+	if !parent.GeneratedDefinitions[name] {
+		return false
+	}
+	if parent.Schema != nil {
+		schema := parent.Schema.Definitions[name]
+		if classifyGeneratedDefinition(schema) == generatedDefinitionScalarAlias {
+			if _, ok := scalarAliasRefGoType(name); ok {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func definitionSchemaPath(schemaPath string, name string) string {
