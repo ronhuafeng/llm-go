@@ -10,6 +10,7 @@ import (
 )
 
 func GenerateProtocolTypes(plan ProtocolTypePlan) ([]byte, error) {
+	plan = normalizeExplicitProtocolTypePlan(plan)
 	if err := validateGeneratedDefinitionShapes(plan); err != nil {
 		return nil, err
 	}
@@ -365,6 +366,7 @@ func isUntaggedObjectUnionDefinitionSchema(schema *Schema) bool {
 }
 
 func SelectGeneratedEnums(plan ProtocolTypePlan) ([]EnumPlan, error) {
+	plan = normalizeExplicitProtocolTypePlan(plan)
 	resolver, err := newGeneratedDefinitionNameResolver(plan)
 	if err != nil {
 		return nil, err
@@ -382,7 +384,7 @@ func SelectGeneratedEnums(plan ProtocolTypePlan) ([]EnumPlan, error) {
 			if classifyGeneratedDefinition(schema) != generatedDefinitionStringEnum {
 				continue
 			}
-			if !isGeneratedDefinitionSelected(typ, name) && !isImplicitGeneratedStringEnumDefinitionSchema(schema) {
+			if !isGeneratedDefinitionSelected(typ, name) {
 				continue
 			}
 			typeName := generatedDefinitionTypeName(resolver, typ.SchemaPath, name)
@@ -431,6 +433,7 @@ func SelectGeneratedEnums(plan ProtocolTypePlan) ([]EnumPlan, error) {
 }
 
 func SelectGeneratedScalarAliases(plan ProtocolTypePlan) ([]ScalarAliasPlan, error) {
+	plan = normalizeExplicitProtocolTypePlan(plan)
 	resolver, err := newGeneratedDefinitionNameResolver(plan)
 	if err != nil {
 		return nil, err
@@ -488,6 +491,7 @@ func SelectGeneratedScalarAliases(plan ProtocolTypePlan) ([]ScalarAliasPlan, err
 }
 
 func SelectFirstPassGeneratedTypes(plan ProtocolTypePlan) ([]TypePlan, error) {
+	plan = normalizeExplicitProtocolTypePlan(plan)
 	enums, err := SelectGeneratedEnums(plan)
 	if err != nil {
 		return nil, err
@@ -588,8 +592,11 @@ func firstPassTypeCandidates(plan ProtocolTypePlan) ([]TypePlan, error) {
 	}
 	var candidates []TypePlan
 	for _, typ := range plan.Types {
-		if !isJSONRPCEnvelopeSchema(typ.SchemaPath) {
-			candidates = append(candidates, typ)
+		if isGeneratedTopLevelType(typ) {
+			switch typ.Kind {
+			case TypePlanEmptyStructCandidate, TypePlanObjectStructCandidate:
+				candidates = append(candidates, typ)
+			}
 		}
 		definitions, err := generatedDefinitionTypeCandidates(typ, resolver)
 		if err != nil {
@@ -659,6 +666,7 @@ func generatedDefinitionTypeCandidates(parent TypePlan, resolver generatedDefini
 }
 
 func SelectGeneratedMixedUnions(plan ProtocolTypePlan) ([]MixedUnionPlan, error) {
+	plan = normalizeExplicitProtocolTypePlan(plan)
 	resolver, err := newGeneratedDefinitionNameResolver(plan)
 	if err != nil {
 		return nil, err
@@ -686,7 +694,7 @@ func SelectGeneratedMixedUnions(plan ProtocolTypePlan) ([]MixedUnionPlan, error)
 	for _, name := range generatedMixedUnionTypeNames(plan) {
 		generatedNamedTypes[name] = true
 	}
-	for _, name := range reviewedMixedUnionStructDependencyNames() {
+	for _, name := range generatedStructTypeNames(plan) {
 		generatedNamedTypes[name] = true
 	}
 
@@ -911,6 +919,7 @@ func mixedUnionObjectVariantPlan(typ TypePlan, schema *Schema, variantIndex int,
 }
 
 func SelectGeneratedUntaggedObjectUnions(plan ProtocolTypePlan) ([]UntaggedObjectUnionPlan, error) {
+	plan = normalizeExplicitProtocolTypePlan(plan)
 	resolver, err := newGeneratedDefinitionNameResolver(plan)
 	if err != nil {
 		return nil, err
@@ -980,6 +989,17 @@ func SelectGeneratedUntaggedObjectUnions(plan ProtocolTypePlan) ([]UntaggedObjec
 func untaggedObjectUnionCandidates(plan ProtocolTypePlan, resolver generatedDefinitionNameResolver) ([]TypePlan, error) {
 	var candidates []TypePlan
 	for _, typ := range plan.Types {
+		if typ.GeneratedRoot && classifyGeneratedDefinition(typ.Schema) == generatedDefinitionUntaggedObjectUnion {
+			candidates = append(candidates, TypePlan{
+				Kind:       TypePlanAnyOfDeferred,
+				Reason:     "top-level reachable untagged object union",
+				Schema:     typ.Schema,
+				SchemaPath: typ.SchemaPath,
+				Stability:  typ.Stability,
+				Status:     typ.Status,
+				TypeName:   typ.TypeName,
+			})
+		}
 		if typ.Schema == nil || len(typ.Schema.Definitions) == 0 {
 			continue
 		}
@@ -1125,7 +1145,7 @@ func definitionObjectTypePlan(parent TypePlan, name string, schema *Schema, reso
 	}
 	typeName := generatedDefinitionTypeName(resolver, parent.SchemaPath, name)
 	typ := TypePlan{
-		OpenDynamicProperties: isGeneratedDefinitionOpenDynamicPropertiesCheckpoint(parent.SchemaPath, name),
+		OpenDynamicProperties: schema.AdditionalProperties.Bool != nil && *schema.AdditionalProperties.Bool,
 		Reason:                "object schema definition selected for generated struct coverage",
 		Schema:                schema,
 		SchemaPath:            parent.SchemaPath + "#/definitions/" + name,
@@ -1171,28 +1191,15 @@ func definitionObjectTypePlan(parent TypePlan, name string, schema *Schema, reso
 	return typ, nil
 }
 
-func isGeneratedDefinitionOpenDynamicPropertiesCheckpoint(schemaPath string, name string) bool {
-	switch schemaPath {
-	case "v2/ConfigReadResponse.json":
-		switch name {
-		case "AnalyticsConfig", "Config", "ProfileV2":
-			return true
-		default:
-			return false
-		}
-	default:
-		return false
-	}
-}
-
 func SelectGeneratedScalarUnions(plan ProtocolTypePlan) ([]ScalarUnionPlan, error) {
+	plan = normalizeExplicitProtocolTypePlan(plan)
 	resolver, err := newGeneratedDefinitionNameResolver(plan)
 	if err != nil {
 		return nil, err
 	}
 	var candidates []TypePlan
 	for _, typ := range plan.Types {
-		if typ.Kind == TypePlanScalarUnionCandidate && isGeneratedScalarUnionCheckpoint(typ.SchemaPath) {
+		if typ.Kind == TypePlanScalarUnionCandidate && typ.GeneratedRoot {
 			candidates = append(candidates, typ)
 		}
 		definitions, err := generatedDefinitionScalarUnionCandidates(typ, resolver)
@@ -1357,6 +1364,7 @@ func scalarUnionVariantPlan(typ TypePlan, schema *Schema) (ScalarUnionVariantPla
 }
 
 func SelectGeneratedTaggedUnions(plan ProtocolTypePlan) ([]TaggedUnionPlan, error) {
+	plan = normalizeExplicitProtocolTypePlan(plan)
 	resolver, err := newGeneratedDefinitionNameResolver(plan)
 	if err != nil {
 		return nil, err
@@ -1400,9 +1408,7 @@ func SelectGeneratedTaggedUnions(plan ProtocolTypePlan) ([]TaggedUnionPlan, erro
 	for _, typ := range candidates {
 		generatedNamedTypes[typ.TypeName] = true
 	}
-	for _, name := range reviewedTaggedUnionStructDependencyNames() {
-		generatedNamedTypes[name] = true
-	}
+
 	var selected []TaggedUnionPlan
 	seenNames := map[string]string{}
 	for _, typ := range candidates {
@@ -1435,7 +1441,7 @@ func generatedScalarUnionTypeNames(plan ProtocolTypePlan) []string {
 	}
 	names := map[string]bool{}
 	for _, typ := range plan.Types {
-		if typ.Kind == TypePlanScalarUnionCandidate && isGeneratedScalarUnionCheckpoint(typ.SchemaPath) {
+		if typ.Kind == TypePlanScalarUnionCandidate && typ.GeneratedRoot {
 			names[typ.TypeName] = true
 		}
 		if typ.Schema == nil || len(typ.Schema.Definitions) == 0 {
@@ -1576,7 +1582,7 @@ func generatedUntaggedObjectUnionTypeNames(plan ProtocolTypePlan) []string {
 func taggedUnionCandidates(plan ProtocolTypePlan, resolver generatedDefinitionNameResolver) ([]TypePlan, error) {
 	var candidates []TypePlan
 	for _, typ := range plan.Types {
-		if typ.Kind == TypePlanTaggedUnionCandidate && isGeneratedTaggedUnionCheckpoint(typ.SchemaPath) {
+		if typ.Kind == TypePlanTaggedUnionCandidate && typ.GeneratedRoot {
 			candidates = append(candidates, typ)
 		}
 		definitions, err := generatedDefinitionTaggedUnionCandidates(typ, resolver)
@@ -2063,693 +2069,8 @@ func enumConstName(typeName, value string) string {
 	return b.String()
 }
 
-func isGeneratedTaggedUnionCheckpoint(path string) bool {
-	switch path {
-	case "ClientNotification.json", "ClientRequest.json", "ServerNotification.json", "ServerRequest.json",
-		"McpServerElicitationRequestParams.json",
-		"v2/BedrockSetupParams.json", "v2/LoginAccountParams.json", "v2/LoginAccountResponse.json":
-		return true
-	default:
-		return false
-	}
-}
-
-func isGeneratedScalarUnionCheckpoint(path string) bool {
-	return path == "RequestId.json"
-}
-
-func isReviewedGeneratedDefinition(schemaPath string, name string) bool {
-	return isGeneratedDefinitionScalarAliasCheckpoint(schemaPath, name) ||
-		isGeneratedDefinitionScalarUnionCheckpoint(schemaPath, name) ||
-		isGeneratedDefinitionStringEnumCheckpoint(schemaPath, name) ||
-		isGeneratedDefinitionStructCheckpoint(schemaPath, name) ||
-		isGeneratedDefinitionTaggedUnionCheckpoint(schemaPath, name) ||
-		isGeneratedDefinitionMixedUnionCheckpoint(schemaPath, name) ||
-		isGeneratedDefinitionUntaggedObjectUnionCheckpoint(schemaPath, name)
-}
-
-func isGeneratedDefinitionScalarUnionCheckpoint(schemaPath string, name string) bool {
-	switch schemaPath {
-	case "v2/ConfigReadResponse.json":
-		return name == "ForcedChatgptWorkspaceIds"
-	case "v2/ThreadListParams.json":
-		return name == "ThreadListCwdFilter"
-	case "v2/ThreadResumeParams.json":
-		return name == "FunctionCallOutputBody"
-	default:
-		return false
-	}
-}
-
-func isGeneratedDefinitionScalarAliasCheckpoint(schemaPath string, name string) bool {
-	switch schemaPath {
-	case "v2/ConfigReadResponse.json",
-		"v2/ThreadSettingsUpdateParams.json",
-		"v2/ThreadSettingsUpdatedNotification.json",
-		"v2/ThreadStartParams.json",
-		"v2/TurnStartParams.json":
-		switch name {
-		case "ReasoningEffort", "ThreadSource":
-			return true
-		default:
-			return false
-		}
-	default:
-		return false
-	}
-}
-
-func isGeneratedDefinitionStringEnumCheckpoint(schemaPath string, name string) bool {
-	switch schemaPath {
-	case "McpServerElicitationRequestParams.json":
-		switch name {
-		case "McpElicitationArrayType", "McpElicitationBooleanType", "McpElicitationNumberType", "McpElicitationObjectType", "McpElicitationStringType":
-			return true
-		default:
-			return false
-		}
-	case "v2/AccountUpdatedNotification.json":
-		return name == "AuthMode"
-	case "v2/AccountRateLimitsUpdatedNotification.json":
-		switch name {
-		case "PlanType", "RateLimitReachedType":
-			return true
-		default:
-			return false
-		}
-	case "v2/ConsumeAccountRateLimitResetCreditResponse.json":
-		return name == "ConsumeAccountRateLimitResetCreditOutcome"
-	case "FileChangeRequestApprovalResponse.json":
-		return name == "FileChangeApprovalDecision"
-	case "v2/ModelListResponse.json":
-		return name == "InputModality"
-	case "v2/CommandExecOutputDeltaNotification.json":
-		return name == "CommandExecOutputStream"
-	case "v2/ConfigReadResponse.json":
-		switch name {
-		case "AllowDenyRequirement", "AutoCompactTokenLimitScope", "ReasoningSummary":
-			return true
-		default:
-			return false
-		}
-	case "v2/ConfigRequirementsReadResponse.json":
-		switch name {
-		case "AllowDenyRequirement",
-			"ApprovalsReviewer",
-			"BrowserUseAccessApprovalLifetime",
-			"NetworkDomainPermission",
-			"NetworkUnixSocketPermission",
-			"ResidencyRequirement",
-			"SandboxMode",
-			"WebSearchMode":
-			return true
-		default:
-			return false
-		}
-	case "v2/ExperimentalFeatureListResponse.json":
-		return name == "ExperimentalFeatureStage"
-	case "v2/EnvironmentStatusResponse.json":
-		return name == "EnvironmentStatusKind"
-	case "v2/GetWorkspaceMessagesResponse.json":
-		return name == "WorkspaceMessageType"
-	case "v2/ListMcpServerStatusResponse.json":
-		return name == "McpAuthStatus"
-	case "v2/ProcessOutputDeltaNotification.json":
-		return name == "ProcessOutputStream"
-	case "v2/PluginListResponse.json":
-		return name == "PluginAvailability"
-	case "v2/PluginReadResponse.json":
-		return name == "AppTemplateUnavailableReason"
-	case "v2/ThreadStartParams.json":
-		switch name {
-		case "Personality", "ThreadSource", "ThreadStartSource":
-			return true
-		default:
-			return false
-		}
-	case "v2/ThreadResumeParams.json":
-		switch name {
-		case "ImageDetail", "LocalShellStatus", "SortDirection":
-			return true
-		default:
-			return false
-		}
-	case "v2/TurnStartParams.json":
-		switch name {
-		case "AdditionalContextKind", "ImageDetail", "ModeKind", "NetworkAccess":
-			return true
-		default:
-			return false
-		}
-	case "v2/TurnSettingsUpdateResponse.json":
-		return name == "TurnSettingsUpdateStatus"
-	case "v2/TurnSteerParams.json":
-		return name == "AdditionalContextKind"
-	default:
-		return false
-	}
-}
-
-func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool {
-	switch schemaPath {
-	case "ApplyPatchApprovalResponse.json":
-		return name == "NetworkPolicyAmendment"
-	case "ClientRequest.json":
-		switch name {
-		case "GetAccountRateLimitsParams", "GetAccountTokenUsageParams", "RemoteControlDisableParams", "RemoteControlEnableParams":
-			return true
-		default:
-			return false
-		}
-	case "CommandExecutionRequestApprovalParams.json":
-		switch name {
-		case "AdditionalFileSystemPermissions",
-			"AdditionalNetworkPermissions",
-			"AdditionalPermissionProfile",
-			"FileSystemSandboxEntry",
-			"NetworkApprovalContext":
-			return true
-		default:
-			return false
-		}
-	case "FuzzyFileSearchResponse.json":
-		return name == "FuzzyFileSearchResult"
-	case "v2/BedrockDiscoverResponse.json":
-		switch name {
-		case "BedrockAwsProfile", "BedrockEnvironmentCredential":
-			return true
-		default:
-			return false
-		}
-	case "v2/CollaborationModeListResponse.json":
-		return name == "CollaborationModeMask"
-	case "v2/AppsListResponse.json":
-		switch name {
-		case "AppBranding",
-			"AppInfo",
-			"AppMetadata",
-			"AppReview",
-			"AppScreenshot":
-			return true
-		default:
-			return false
-		}
-	case "v2/AppsInstalledResponse.json":
-		return name == "InstalledApp"
-	case "v2/AppsReadResponse.json":
-		switch name {
-		case "AppToolSummary", "ConnectorMetadata":
-			return true
-		default:
-			return false
-		}
-	case "v2/CommandExecParams.json":
-		switch name {
-		case "CommandExecTerminalSize",
-			"PermissionProfileNetworkPermissions":
-			return true
-		default:
-			return false
-		}
-	case "v2/ConfigBatchWriteParams.json":
-		return name == "ConfigEdit"
-	case "v2/ConfigReadResponse.json":
-		switch name {
-		case "AnalyticsConfig",
-			"AppConfig",
-			"AppLinksConfig",
-			"AppToolConfig",
-			"AppToolsConfig",
-			"AppsConfig",
-			"AppsDefaultConfig",
-			"BrowserUseConfig",
-			"BrowserUseOriginPolicyConfig",
-			"ComputerUseConfig",
-			"ComputerUseMacosConfig",
-			"ComputerUseWindowsConfig",
-			"ComputerUseWindowsExeConfig",
-			"Config",
-			"ConfigLayer",
-			"ProfileV2",
-			"SandboxWorkspaceWrite",
-			"ToolsV2",
-			"WebSearchLocation",
-			"WebSearchToolConfig":
-			return true
-		default:
-			return false
-		}
-	case "v2/ConfigWarningNotification.json":
-		switch name {
-		case "TextPosition", "TextRange":
-			return true
-		default:
-			return false
-		}
-	case "v2/ConfigWriteResponse.json":
-		switch name {
-		case "ConfigLayerMetadata", "OverriddenMetadata":
-			return true
-		default:
-			return false
-		}
-	case "v2/ConfigRequirementsReadResponse.json":
-		switch name {
-		case "ApplicationNetworkRequirements",
-			"ApplicationRequirements",
-			"AutoReviewRequirements",
-			"BrowserUseOriginPolicy",
-			"BrowserUseRequirements",
-			"ComputerUseMacosRequirements",
-			"ComputerUseRequirements",
-			"ComputerUseWindowsExeRequirement",
-			"ComputerUseWindowsRequirements",
-			"ConfigRequirements",
-			"ConfiguredHookMatcherGroup",
-			"FeedbackRequirements",
-			"InAppBrowserRequirements",
-			"ManagedHooksRequirements",
-			"ModelsRequirements",
-			"NewThreadModelDefaults",
-			"NetworkRequirements":
-			return true
-		default:
-			return false
-		}
-	case "v2/ExperimentalFeatureListResponse.json":
-		return name == "ExperimentalFeature"
-	case "v2/ExternalAgentConfigDetectResponse.json":
-		switch name {
-		case "CommandMigration",
-			"ExternalAgentConfigMigrationItem",
-			"ExternalAgentDetectedConnectorCandidate",
-			"HookMigration",
-			"McpServerMigration",
-			"MigrationDetails",
-			"PluginsMigration",
-			"SessionMigration",
-			"SkillMigration",
-			"SubagentMigration":
-			return true
-		default:
-			return false
-		}
-	case "v2/ExternalAgentConfigImportHistoriesReadResponse.json":
-		switch name {
-		case "ExternalAgentConfigImportHistory", "ExternalAgentImportedConnectorCandidate":
-			return true
-		default:
-			return false
-		}
-	case "v2/ExternalAgentConfigImportHistoryRecordParams.json":
-		switch name {
-		case "ExternalAgentConfigImportHistoryRecordSuccessParams",
-			"ExternalAgentConfigImportHistoryRecordTypeResultParams":
-			return true
-		default:
-			return false
-		}
-	case "v2/ExternalAgentConfigImportCompletedNotification.json":
-		switch name {
-		case "ExternalAgentConfigImportItemTypeFailure",
-			"ExternalAgentConfigImportItemTypeSuccess",
-			"ExternalAgentConfigImportTypeResult":
-			return true
-		default:
-			return false
-		}
-	case "v2/GetWorkspaceMessagesResponse.json":
-		return name == "WorkspaceMessage"
-	case "v2/FsReadDirectoryResponse.json":
-		return name == "FsReadDirectoryEntry"
-	case "v2/GetAccountRateLimitsResponse.json":
-		switch name {
-		case "CreditsSnapshot",
-			"RateLimitResetCredit",
-			"RateLimitResetCreditsSummary",
-			"RateLimitSnapshot",
-			"RateLimitWindow",
-			"SpendControlLimitSnapshot":
-			return true
-		default:
-			return false
-		}
-	case "McpServerElicitationRequestParams.json":
-		return name == "McpElicitationSchema"
-	case "v2/HooksListResponse.json":
-		switch name {
-		case "HookErrorInfo", "HookMetadata", "HooksListEntry":
-			return true
-		default:
-			return false
-		}
-	case "v2/HookStartedNotification.json":
-		switch name {
-		case "HookOutputEntry", "HookRunSummary":
-			return true
-		default:
-			return false
-		}
-	case "v2/ItemGuardianApprovalReviewCompletedNotification.json":
-		return name == "GuardianApprovalReview"
-	case "v2/ListMcpServerStatusResponse.json":
-		switch name {
-		case "McpServerInfo", "McpServerStatus", "Resource", "ResourceTemplate", "Tool":
-			return true
-		default:
-			return false
-		}
-	case "v2/McpServerEventStreamNotification.json":
-		return name == "McpServerEventNotification"
-	case "v2/ThreadRealtimeStartParams.json":
-		return name == "ThreadRealtimeInitialItem"
-	case "v2/ThreadRealtimeListVoicesResponse.json":
-		return name == "RealtimeVoicesList"
-	case "v2/ThreadItemsListResponse.json":
-		return name == "ThreadItemEntry"
-	case "v2/ThreadSearchOccurrencesResponse.json":
-		switch name {
-		case "ThreadSearchOccurrence", "ThreadSearchTextRange":
-			return true
-		default:
-			return false
-		}
-	case "v1/InitializeParams.json":
-		switch name {
-		case "ClientInfo", "InitializeCapabilities":
-			return true
-		default:
-			return false
-		}
-	case "JSONRPCRequest.json":
-		return name == "W3cTraceContext"
-	case "v2/ModelListResponse.json":
-		switch name {
-		case "Model",
-			"ModelAvailabilityNux",
-			"ModelServiceTier",
-			"ModelUpgradeInfo",
-			"ReasoningEffortOption":
-			return true
-		default:
-			return false
-		}
-	case "v2/PluginListResponse.json":
-		switch name {
-		case "MarketplaceInterface",
-			"MarketplaceLoadErrorInfo",
-			"PluginInterface",
-			"PluginMarketplaceEntry",
-			"PluginShareContext",
-			"PluginSharePrincipal",
-			"PluginSummary":
-			return true
-		default:
-			return false
-		}
-	case "v2/PluginReadResponse.json":
-		switch name {
-		case "AppSummary",
-			"AppTemplateSummary",
-			"PluginDetail",
-			"PluginHookSummary",
-			"ScheduledTaskSummary",
-			"SkillInterface",
-			"SkillSummary":
-			return true
-		default:
-			return false
-		}
-	case "v2/PluginReconcileResponse.json":
-		return name == "PluginReconcileChangedPlugin"
-	case "v2/PluginSearchResponse.json":
-		return name == "PluginSearchResult"
-	case "v2/PluginShareListResponse.json":
-		return name == "PluginShareListItem"
-	case "v2/PluginShareSaveParams.json":
-		return name == "PluginShareTarget"
-	case "v2/SkillsListResponse.json":
-		switch name {
-		case "SkillDependencies",
-			"SkillErrorInfo",
-			"SkillMetadata",
-			"SkillToolDependency",
-			"SkillsListEntry":
-			return true
-		default:
-			return false
-		}
-	case "v2/MarketplaceUpgradeResponse.json":
-		return name == "MarketplaceUpgradeErrorInfo"
-	case "v2/ProcessSpawnParams.json":
-		return name == "ProcessTerminalSize"
-	case "v2/ProjectCreateResponse.json":
-		switch name {
-		case "Project", "ProjectRoot":
-			return true
-		default:
-			return false
-		}
-	case "v2/ServerDiagnosticsResponse.json":
-		switch name {
-		case "ServerDiagnosticsGauge", "ServerDiagnosticsProcess":
-			return true
-		default:
-			return false
-		}
-	case "v2/ThreadTokenUsageUpdatedNotification.json":
-		switch name {
-		case "ThreadTokenUsage", "TokenUsageBreakdown":
-			return true
-		default:
-			return false
-		}
-	case "v2/ThreadRealtimeOutputAudioDeltaNotification.json":
-		return name == "ThreadRealtimeAudioChunk"
-	case "v2/ThreadQueueAddResponse.json":
-		return name == "QueuedSubmission"
-	case "v2/ThreadGoalUpdatedNotification.json":
-		return name == "ThreadGoal"
-	case "v2/TurnPlanUpdatedNotification.json":
-		return name == "TurnPlanStep"
-	case "v2/TurnStartResponse.json":
-		switch name {
-		case "AsyncUserInputQuestion",
-			"CollabAgentState",
-			"FileUpdateChange",
-			"HookPromptFragment",
-			"McpToolCallAppContext",
-			"McpToolCallError",
-			"McpToolCallResult",
-			"MemoryCitation",
-			"MemoryCitationEntry",
-			"MisalignmentErrorDetails",
-			"MisalignmentSteer",
-			"Turn",
-			"TurnError":
-			return true
-		default:
-			return false
-		}
-	case "v2/ThreadStartResponse.json":
-		switch name {
-		case "ActivePermissionProfile",
-			"GitInfo",
-			"Thread",
-			"ThreadEnvironment",
-			"ThreadExtra",
-			"ThreadSection",
-			"ThreadSectionAppearance":
-			return true
-		default:
-			return false
-		}
-	case "v2/UserVerificationVerifyResponse.json":
-		return name == "UserVerificationProof"
-	case "v2/ThreadStartParams.json":
-		switch name {
-		case "DynamicToolSpec", "SelectedCapabilityRoot", "TurnEnvironmentParams":
-			return true
-		default:
-			return false
-		}
-	case "v2/ThreadResumeParams.json":
-		switch name {
-		case "ConfigurationReasoning", "InternalChatMessageMetadataPassthrough", "ResponseItemMetadata", "ThreadResumeInitialTurnsPageParams":
-			return true
-		default:
-			return false
-		}
-	case "v2/ThreadResumeResponse.json":
-		return name == "TurnsPage"
-	case "v2/ThreadSettingsUpdatedNotification.json":
-		return name == "ThreadSettings"
-	case "v2/ThreadMetadataUpdateParams.json":
-		return name == "ThreadMetadataGitInfoUpdateParams"
-	case "v2/TurnStartParams.json":
-		switch name {
-		case "AdditionalContextEntry", "ByteRange", "CollaborationMode", "Settings", "TextElement", "TurnToolOutput":
-			return true
-		default:
-			return false
-		}
-	case "PermissionsRequestApprovalParams.json":
-		return name == "RequestPermissionProfile"
-	case "PermissionsRequestApprovalResponse.json":
-		return name == "GrantedPermissionProfile"
-	case "ToolRequestUserInputParams.json":
-		switch name {
-		case "ToolRequestUserInputOption", "ToolRequestUserInputQuestion":
-			return true
-		default:
-			return false
-		}
-	case "ToolRequestUserInputResponse.json":
-		return name == "ToolRequestUserInputAnswer"
-	default:
-		return false
-	}
-}
-
 func isObjectStructDefinitionSchema(schema *Schema) bool {
 	return schema != nil && schema.Type.Only("object") && len(schema.OneOf) == 0 && len(schema.AnyOf) == 0
-}
-
-func isGeneratedDefinitionMixedUnionCheckpoint(schemaPath string, name string) bool {
-	switch schemaPath {
-	case "ApplyPatchApprovalResponse.json":
-		return name == "ReviewDecision"
-	case "CommandExecutionRequestApprovalResponse.json":
-		return name == "CommandExecutionApprovalDecision"
-	case "v2/ThreadStartParams.json":
-		return name == "MultiAgentMode"
-	case "v2/ThreadResumeParams.json":
-		return name == "MessagePhase"
-	case "v2/TurnStartResponse.json":
-		switch name {
-		case "CodexErrorInfo", "TurnItemsView":
-			return true
-		default:
-			return false
-		}
-	case "v2/ThreadStartResponse.json":
-		switch name {
-		case "SessionSource", "SubAgentSource":
-			return true
-		default:
-			return false
-		}
-	case "v2/ConfigRequirementsReadResponse.json":
-		return name == "AskForApproval"
-	default:
-		return false
-	}
-}
-
-func isGeneratedDefinitionUntaggedObjectUnionCheckpoint(schemaPath string, name string) bool {
-	switch schemaPath {
-	case "v2/McpResourceReadResponse.json":
-		return name == "ResourceContent"
-	default:
-		return false
-	}
-}
-
-func reviewedMixedUnionStructDependencyNames() []string {
-	return []string{
-		"NetworkPolicyAmendment",
-	}
-}
-
-func reviewedTaggedUnionStructDependencyNames() []string {
-	return []string{
-		"FileSystemSandboxEntry",
-		"PermissionProfileNetworkPermissions",
-		"ReasoningEffort",
-		"TextElement",
-	}
-}
-
-func isGeneratedDefinitionTaggedUnionCheckpoint(schemaPath string, name string) bool {
-	switch schemaPath {
-	case "ApplyPatchApprovalParams.json":
-		return name == "FileChange"
-	case "CommandExecutionRequestApprovalParams.json":
-		switch name {
-		case "CommandAction", "FileSystemPath", "FileSystemSpecialPath":
-			return true
-		default:
-			return false
-		}
-	case "DynamicToolCallResponse.json":
-		return name == "DynamicToolCallOutputContentItem"
-	case "ExecCommandApprovalParams.json":
-		return name == "ParsedCommand"
-	case "v2/GetAccountResponse.json":
-		return name == "Account"
-	case "v2/ThreadRealtimeStartParams.json":
-		return name == "ThreadRealtimeStartTransport"
-	case "v2/ItemGuardianApprovalReviewCompletedNotification.json":
-		return name == "GuardianApprovalReviewAction"
-	case "v2/CommandExecParams.json":
-		switch name {
-		case "PermissionProfile", "PermissionProfileFileSystemPermissions", "SandboxPolicy":
-			return true
-		default:
-			return false
-		}
-	case "v2/ConfigWriteResponse.json":
-		return name == "ConfigLayerSource"
-	case "v2/ConfigRequirementsReadResponse.json":
-		return name == "ConfiguredHookHandler"
-	case "v2/ThreadStartParams.json":
-		switch name {
-		case "CapabilityRootLocation", "DynamicToolNamespaceTool", "DynamicToolSpec", "PermissionProfileModificationParams", "PermissionProfileSelectionParams":
-			return true
-		default:
-			return false
-		}
-	case "v2/ThreadStartResponse.json":
-		switch name {
-		case "ActivePermissionProfileModification", "ThreadStatus":
-			return true
-		default:
-			return false
-		}
-	case "v2/PluginListResponse.json":
-		return name == "PluginSource"
-	case "v2/PluginReadResponse.json":
-		return name == "ScheduledTaskSchedule"
-	case "v2/ReviewStartParams.json":
-		return name == "ReviewTarget"
-	case "v2/ThreadResumeParams.json":
-		switch name {
-		case "AgentMessageInputContent",
-			"ContentItem",
-			"FunctionCallOutputContentItem",
-			"LocalShellAction",
-			"ReasoningItemContent",
-			"ReasoningItemReasoningSummary",
-			"ResponseItem",
-			"ResponsesApiWebSearchAction":
-			return true
-		default:
-			return false
-		}
-	case "v2/TurnStartResponse.json":
-		switch name {
-		case "ImageGenerationFailure", "PatchChangeKind", "ThreadItem", "WebSearchAction":
-			return true
-		default:
-			return false
-		}
-	case "v2/TurnStartParams.json":
-		return name == "UserInput"
-	case "v2/UserVerificationRpcError.json":
-		return name == "UserVerificationErrorDetails"
-	default:
-		return false
-	}
 }
 
 func taggedUnionKindConstName(union TaggedUnionPlan, variant TaggedUnionVariantPlan) string {
