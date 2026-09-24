@@ -26,21 +26,6 @@ func TestDecideAfterPolicy(t *testing.T) {
 	}
 }
 
-func TestDecideAfterDrift(t *testing.T) {
-	if got := decideAfterDrift(true, "clean"); got != "comparison" {
-		t.Fatalf("got %s", got)
-	}
-	if got := decideAfterDrift(true, "review-required"); got != "comparison_dirty" {
-		t.Fatalf("got %s", got)
-	}
-	if got := decideAfterDrift(false, "clean"); got != "comparison" {
-		t.Fatalf("got %s", got)
-	}
-	if got := decideAfterDrift(false, "review-required"); got != "apply" {
-		t.Fatalf("got %s", got)
-	}
-}
-
 func TestSyncCurrentSkipsGenerate(t *testing.T) {
 	repo := initSyncRepo(t, oldSHA, "rust-v0.140.0", KindStableTag)
 	generated := false
@@ -230,7 +215,10 @@ func TestSyncCleanNewTargetAppliesProvenanceOnly(t *testing.T) {
 			return Candidate{Dir: "/tmp/candidate", SchemaDir: "/tmp/candidate/schema", SourceCommit: newSHA, DriftStatus: "clean"}, nil
 		},
 		Plan: func(protocolupgrade.ApplyRequest) (protocolupgrade.PlanResult, error) {
-			return protocolupgrade.PlanResult{Status: protocolupgrade.PlanReady}, nil
+			return protocolupgrade.PlanResult{
+				Status:  protocolupgrade.PlanReady,
+				Preview: protocolupgrade.ApplyResult{GeneratedReleaseImpact: "metadata-only"},
+			}, nil
 		},
 		Apply: func(protocolupgrade.ApplyRequest) (protocolupgrade.ApplyResult, error) {
 			applied = true
@@ -246,6 +234,42 @@ func TestSyncCleanNewTargetAppliesProvenanceOnly(t *testing.T) {
 	}
 	if !applied || result.Outcome != OutcomeApplied || !strings.Contains(result.Reason, "provenance-only") {
 		t.Fatalf("applied=%v result=%+v", applied, result)
+	}
+}
+
+func TestSyncCleanSchemaWithGeneratedSurfaceChangeIsMechanical(t *testing.T) {
+	repo := initSyncRepo(t, oldSHA, "rust-v0.140.0", KindStableTag)
+	result, err := Sync(SyncRequest{
+		RepoRoot:     repo,
+		ModuleRoot:   filepath.Join(repo, "codexsdk"),
+		UpstreamRepo: "fake",
+		UpstreamRef:  "rust-v0.141.0",
+		Lookuper: fakeLookuper{byPattern: map[string]string{
+			"refs/tags/rust-v0.141.0":    newSHA + "\trefs/tags/rust-v0.141.0",
+			"refs/tags/rust-v0.141.0^{}": newSHA + "\trefs/tags/rust-v0.141.0^{}",
+		}},
+		Generate: func(GenerateRequest) (Candidate, error) {
+			return Candidate{Dir: "/tmp/candidate", SchemaDir: "/tmp/candidate/schema", SourceCommit: newSHA, DriftStatus: "clean"}, nil
+		},
+		Plan: func(protocolupgrade.ApplyRequest) (protocolupgrade.PlanResult, error) {
+			return protocolupgrade.PlanResult{
+				Status:  protocolupgrade.PlanReady,
+				Preview: protocolupgrade.ApplyResult{GeneratedReleaseImpact: "additive"},
+			}, nil
+		},
+		Apply: func(protocolupgrade.ApplyRequest) (protocolupgrade.ApplyResult, error) {
+			path := filepath.Join(repo, "codexsdk", "sdk_surface.gen.go")
+			if err := os.WriteFile(path, []byte("package codexsdk\n"), 0o644); err != nil {
+				return protocolupgrade.ApplyResult{}, err
+			}
+			return protocolupgrade.ApplyResult{Status: "ok"}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Outcome != OutcomeApplied || !strings.Contains(result.Reason, "mechanical") {
+		t.Fatalf("result = %+v", result)
 	}
 }
 
