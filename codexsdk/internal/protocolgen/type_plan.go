@@ -431,7 +431,6 @@ type generatedDefinitionSource struct {
 	baseName       string
 	encoded        []byte
 	kind           generatedDefinitionKind
-	legacySelected bool
 	parentTypeName string
 	path           string
 	shape          []byte
@@ -443,6 +442,7 @@ type generatedTopLevelSource struct {
 }
 
 func newGeneratedDefinitionNameResolver(plan ProtocolTypePlan) (generatedDefinitionNameResolver, error) {
+	plan = normalizeExplicitProtocolTypePlan(plan)
 	usedNames := map[string]bool{}
 	topLevels := map[string]generatedTopLevelSource{}
 	for _, typ := range plan.Types {
@@ -450,6 +450,9 @@ func newGeneratedDefinitionNameResolver(plan ProtocolTypePlan) (generatedDefinit
 			continue
 		}
 		usedNames[typ.TypeName] = true
+		if !isGeneratedTopLevelType(typ) {
+			continue
+		}
 		kind := classifyGeneratedDefinition(typ.Schema)
 		if kind == generatedDefinitionUnsupported {
 			continue
@@ -486,7 +489,6 @@ func newGeneratedDefinitionNameResolver(plan ProtocolTypePlan) (generatedDefinit
 				baseName:       name,
 				encoded:        encoded,
 				kind:           kind,
-				legacySelected: isReviewedGeneratedDefinition(typ.SchemaPath, name),
 				parentTypeName: typ.TypeName,
 				path:           definitionSchemaPath(typ.SchemaPath, name),
 				shape:          shape,
@@ -537,33 +539,13 @@ func newGeneratedDefinitionNameResolver(plan ProtocolTypePlan) (generatedDefinit
 		}
 
 		var signatures []string
-		var legacySignatures []string
-		for signature, signatureSources := range bySignature {
+		for signature := range bySignature {
 			signatures = append(signatures, signature)
-			for _, source := range signatureSources {
-				if source.legacySelected {
-					legacySignatures = append(legacySignatures, signature)
-					break
-				}
-			}
 		}
 		sort.Slice(signatures, func(i, j int) bool {
 			return bySignature[signatures[i]][0].path < bySignature[signatures[j]][0].path
 		})
-		sort.Strings(legacySignatures)
-
-		legacySignature := ""
-		if len(legacySignatures) == 1 {
-			legacySignature = legacySignatures[0]
-			typeName := claimGeneratedDefinitionTypeName(baseName, usedNames)
-			for _, source := range bySignature[legacySignature] {
-				resolver.namesByPath[source.path] = typeName
-			}
-		}
 		for _, signature := range signatures {
-			if signature == legacySignature {
-				continue
-			}
 			signatureSources := bySignature[signature]
 			sort.Slice(signatureSources, func(i, j int) bool {
 				return signatureSources[i].path < signatureSources[j].path
@@ -578,9 +560,6 @@ func newGeneratedDefinitionNameResolver(plan ProtocolTypePlan) (generatedDefinit
 }
 
 func isGeneratedDefinitionNameResolverSource(parent TypePlan, name string, schema *Schema) bool {
-	if classifyGeneratedDefinition(schema) == generatedDefinitionStringEnum && isImplicitGeneratedStringEnumDefinitionSchema(schema) {
-		return true
-	}
 	return isGeneratedDefinitionSelected(parent, name)
 }
 
@@ -629,9 +608,6 @@ func cloneSchemaSliceWithoutDocumentation(in []*Schema) []*Schema {
 }
 
 func isGeneratedDefinitionSelected(parent TypePlan, name string) bool {
-	if isReviewedGeneratedDefinition(parent.SchemaPath, name) {
-		return true
-	}
 	if !parent.GeneratedDefinitions[name] {
 		return false
 	}
@@ -644,6 +620,51 @@ func isGeneratedDefinitionSelected(parent TypePlan, name string) bool {
 		}
 	}
 	return true
+}
+
+func isGeneratedTopLevelType(typ TypePlan) bool {
+	if !typ.GeneratedRoot || isAggregateBundle(typ.SchemaPath) || isJSONRPCEnvelopeSchema(typ.SchemaPath) {
+		return false
+	}
+	switch typ.Kind {
+	case TypePlanEmptyStructCandidate,
+		TypePlanObjectStructCandidate,
+		TypePlanScalarUnionCandidate,
+		TypePlanTaggedUnionCandidate,
+		TypePlanAnyOfDeferred:
+		return true
+	default:
+		return false
+	}
+}
+
+func normalizeExplicitProtocolTypePlan(plan ProtocolTypePlan) ProtocolTypePlan {
+	explicit := len(plan.Types) > 0
+	for _, typ := range plan.Types {
+		if typ.Status != "" {
+			explicit = false
+			break
+		}
+	}
+	if !explicit {
+		return plan
+	}
+	for index := range plan.Types {
+		typ := &plan.Types[index]
+		typ.GeneratedRoot = true
+		if typ.GeneratedDefinitions == nil {
+			typ.GeneratedDefinitions = map[string]bool{}
+		}
+		if typ.Schema == nil {
+			continue
+		}
+		for name, schema := range typ.Schema.Definitions {
+			if classifyGeneratedDefinition(schema) != generatedDefinitionUnsupported {
+				typ.GeneratedDefinitions[name] = true
+			}
+		}
+	}
+	return plan
 }
 
 func definitionSchemaPath(schemaPath string, name string) string {
