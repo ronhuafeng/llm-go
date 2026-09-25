@@ -47,7 +47,7 @@ func TestSyncCurrentSkipsGenerate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Outcome != OutcomeCurrent {
+	if result.Outcome != OutcomeBaselineMatches {
 		t.Fatalf("outcome = %s", result.Outcome)
 	}
 	if generated {
@@ -74,7 +74,7 @@ func TestSyncForceCompareCurrentStillGenerates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Outcome != OutcomeCurrent || result.Candidate != "/tmp/schema" {
+	if result.Outcome != OutcomeSchemasMatch || result.Candidate != "/tmp/schema" {
 		t.Fatalf("%+v", result)
 	}
 }
@@ -126,7 +126,7 @@ func TestSyncValidationOnlyVerifiesFreshExactCandidateWithoutEffects(t *testing.
 				if err == nil || !strings.Contains(err.Error(), "stale requiredness") {
 					t.Fatalf("unresolved exact verification: %v", err)
 				}
-			} else if err != nil || result.Outcome != OutcomeCurrent {
+			} else if err != nil || result.Outcome != OutcomeExactVerified {
 				t.Fatalf("result=%+v err=%v", result, err)
 			}
 			if err := AssertClean(repo); err != nil {
@@ -329,7 +329,7 @@ func TestSyncOrdinaryPlanFailureNeverRequestsAgentOrApplies(t *testing.T) {
 			return protocolupgrade.ApplyResult{}, nil
 		},
 	})
-	if !errors.Is(err, os.ErrNotExist) || result.Outcome == OutcomeSemanticUnresolved || planCalls != 1 || applyCalls != 0 {
+	if !errors.Is(err, os.ErrNotExist) || result.Outcome != OutcomeFailed || result.FailureCategory != FailureExecution || result.Stage != "plan" || planCalls != 1 || applyCalls != 0 {
 		t.Fatalf("result=%+v err=%v planCalls=%d applyCalls=%d", result, err, planCalls, applyCalls)
 	}
 }
@@ -609,4 +609,38 @@ func mustRead(t *testing.T, path string) []byte {
 		t.Fatal(err)
 	}
 	return raw
+}
+
+func TestSyncFailureKeepsOwnerAttributionAndCause(t *testing.T) {
+	for _, test := range []struct {
+		name, category string
+		cause          error
+	}{
+		{"unknown", FailureUnknown, errors.New("schema path missing: do not infer a repair")},
+		{"source", FailureSource, &Failure{Category: FailureSource, Err: errors.New("source mismatch")}},
+		{"environment", FailureExecution, os.ErrPermission},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			repo := initSyncRepo(t, oldSHA, "rust-v0.140.0", KindStableTag)
+			result, err := Sync(SyncRequest{
+				RepoRoot: repo, UpstreamRef: "rust-v0.141.0",
+				Lookuper: fakeLookuper{byPattern: map[string]string{
+					"refs/tags/rust-v0.141.0":    newSHA + "\trefs/tags/rust-v0.141.0",
+					"refs/tags/rust-v0.141.0^{}": newSHA + "\trefs/tags/rust-v0.141.0^{}",
+				}},
+				Generate: func(GenerateRequest) (Candidate, error) { return Candidate{}, test.cause },
+				Plan: func(protocolupgrade.ApplyRequest) (protocolupgrade.PlanResult, error) {
+					t.Fatal("failed generation must not plan or authorize Agent")
+					return protocolupgrade.PlanResult{}, nil
+				},
+				Apply: func(protocolupgrade.ApplyRequest) (protocolupgrade.ApplyResult, error) {
+					t.Fatal("failed generation must not apply")
+					return protocolupgrade.ApplyResult{}, nil
+				},
+			})
+			if !errors.Is(err, test.cause) || result.Outcome != OutcomeFailed || result.Stage != "generate" || result.FailureCategory != test.category || result.Target.PeeledCommitSHA != newSHA {
+				t.Fatalf("result=%+v err=%v", result, err)
+			}
+		})
+	}
 }

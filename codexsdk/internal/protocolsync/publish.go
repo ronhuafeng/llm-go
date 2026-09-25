@@ -23,7 +23,12 @@ type PublishRequest struct {
 }
 
 // Publish pushes HEAD and creates or reuses the sync PR.
-func Publish(req PublishRequest) (string, error) {
+func Publish(req PublishRequest) (url string, err error) {
+	defer func() {
+		if err != nil {
+			_ = appendGitHubOutput(req.GitHubOutputPath, map[string]string{"outcome": OutcomeFailed, "stage": "publication", "failure_category": failureCategory(err)})
+		}
+	}()
 	if req.RepoRoot == "" || req.BaseBranch == "" || req.TargetRef == "" || req.TargetKind == "" || req.TargetSHA == "" {
 		return "", fmt.Errorf("repo-root, base-branch, and target identity are required")
 	}
@@ -60,20 +65,20 @@ func Publish(req PublishRequest) (string, error) {
 		return "", err
 	}
 	if strings.TrimSpace(landingSHA) != strings.TrimSpace(parent) {
-		return "", fmt.Errorf("landing ref %s moved to %s; HEAD parent is %s. Rerun protocol sync against current %s", baseBranch, strings.TrimSpace(landingSHA), strings.TrimSpace(parent), baseBranch)
+		return "", &Failure{Category: FailurePublication, Err: fmt.Errorf("landing ref %s moved to %s; HEAD parent is %s. Rerun protocol sync against current %s", baseBranch, strings.TrimSpace(landingSHA), strings.TrimSpace(parent), baseBranch)}
 	}
 	resolved, err := ResolveUpstream(ResolveRequest{UpstreamRef: req.TargetRef})
 	if err != nil {
 		return "", err
 	}
 	if resolved.PeeledCommitSHA != req.TargetSHA {
-		return "", fmt.Errorf("upstream target moved: %s resolved to %s, expected %s", req.TargetRef, resolved.PeeledCommitSHA, req.TargetSHA)
+		return "", &Failure{Category: FailurePublication, Err: fmt.Errorf("upstream target moved: %s resolved to %s, expected %s", req.TargetRef, resolved.PeeledCommitSHA, req.TargetSHA)}
 	}
 
 	if prURL, ok, err := findExactExistingPR(baseBranch, req.TargetRef, req.TargetKind, req.TargetSHA, head); err != nil {
 		return "", err
 	} else if ok {
-		if err := appendGitHubOutput(req.GitHubOutputPath, map[string]string{"pr_url": prURL}); err != nil {
+		if err := appendGitHubOutput(req.GitHubOutputPath, map[string]string{"pr_url": prURL, "outcome": "pr_pending"}); err != nil {
 			return "", err
 		}
 		return prURL, nil
@@ -88,6 +93,7 @@ func Publish(req PublishRequest) (string, error) {
 		return "", err
 	}
 	if err := appendGitHubOutput(req.GitHubOutputPath, map[string]string{
+		"outcome":     "pr_pending",
 		"sync_branch": syncBranch,
 		"sync_commit": head,
 		"pr_number":   prNumber,
@@ -128,7 +134,7 @@ func pushSyncBranch(repoRoot, remote, syncBranch, head string) error {
 		if strings.TrimSpace(existing) == head {
 			return nil
 		}
-		return fmt.Errorf("refusing to overwrite existing sync branch %s at %s", syncBranch, strings.TrimSpace(existing))
+		return &Failure{Category: FailurePublication, Err: fmt.Errorf("refusing to overwrite existing sync branch %s at %s", syncBranch, strings.TrimSpace(existing))}
 	}
 	return runGit(repoRoot, "push", remote, "HEAD:refs/heads/"+syncBranch)
 }
@@ -156,21 +162,21 @@ func findExactExistingPR(landRef, targetRef, targetKind, targetSHA, validatedCom
 			continue
 		}
 		if pr.BaseRefName != landRef || meta["base_branch"] != "" && meta["base_branch"] != landRef {
-			return "", false, fmt.Errorf("existing sync PR for %s is not an exact publication of the validated commit: #%d", targetSHA, pr.Number)
+			return "", false, &Failure{Category: FailurePublication, Err: fmt.Errorf("existing sync PR for %s is not an exact publication of the validated commit: #%d", targetSHA, pr.Number)}
 		}
 		if pr.HeadRefOid != validatedCommit || meta["sync_commit"] != "" && meta["sync_commit"] != validatedCommit {
-			return "", false, fmt.Errorf("existing sync PR for %s is not an exact publication of the validated commit: #%d", targetSHA, pr.Number)
+			return "", false, &Failure{Category: FailurePublication, Err: fmt.Errorf("existing sync PR for %s is not an exact publication of the validated commit: #%d", targetSHA, pr.Number)}
 		}
 		if meta["upstream_ref"] != "" && meta["upstream_ref"] != targetRef {
-			return "", false, fmt.Errorf("existing sync PR for %s is not an exact publication of the validated commit: #%d", targetSHA, pr.Number)
+			return "", false, &Failure{Category: FailurePublication, Err: fmt.Errorf("existing sync PR for %s is not an exact publication of the validated commit: #%d", targetSHA, pr.Number)}
 		}
 		if meta["upstream_ref_kind"] != "" && meta["upstream_ref_kind"] != targetKind {
-			return "", false, fmt.Errorf("existing sync PR for %s is not an exact publication of the validated commit: #%d", targetSHA, pr.Number)
+			return "", false, &Failure{Category: FailurePublication, Err: fmt.Errorf("existing sync PR for %s is not an exact publication of the validated commit: #%d", targetSHA, pr.Number)}
 		}
 		matches = append(matches, pr.URL)
 	}
 	if len(matches) > 1 {
-		return "", false, fmt.Errorf("multiple exact sync PRs for %s", targetSHA)
+		return "", false, &Failure{Category: FailurePublication, Err: fmt.Errorf("multiple exact sync PRs for %s", targetSHA)}
 	}
 	if len(matches) == 1 {
 		return matches[0], true, nil

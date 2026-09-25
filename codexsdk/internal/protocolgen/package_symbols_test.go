@@ -52,3 +52,19 @@ func TestHandwrittenCollisionIsNotSchemaIncompatibility(t *testing.T) {
 		t.Fatalf("expected ordinary handwritten source error, got %v", err)
 	}
 }
+
+func TestCollisionRepairEligibilityDoesNotDependOnSchemaPath(t *testing.T) {
+	for _, sources := range []map[string][]string{nil, {"a.gen.go:type:Name": {"v2/Name.json"}}} {
+		err := validateGeneratedPackage("protocolv2", "", map[string][]byte{
+			"a.gen.go": []byte("package protocolv2; type Name int"),
+			"b.gen.go": []byte("package protocolv2; var Name int"),
+		}, sources)
+		var unsupported *UnsupportedSchemaError
+		if !errors.As(err, &unsupported) {
+			t.Fatalf("collision lost owner-assigned incompatibility: %v", err)
+		}
+		if !strings.Contains(err.Error(), "a.gen.go") || !strings.Contains(err.Error(), "b.gen.go") {
+			t.Fatalf("lost Go diagnostic locations: %v", err)
+		}
+	}
+}

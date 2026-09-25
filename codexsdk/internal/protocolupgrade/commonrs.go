@@ -36,10 +36,10 @@ func loadCommonRSSourceSHA(commonRS, explicit string) (string, error) {
 
 func verifyCommonRSProvenance(commonRS, sourceSHA, targetSHA, codexRepo string) error {
 	if sourceSHA == "" {
-		return fmt.Errorf("common.rs source SHA is required")
+		return &SourceIntegrityError{Err: fmt.Errorf("common.rs source SHA is required")}
 	}
 	if sourceSHA != targetSHA {
-		return fmt.Errorf("common.rs source SHA %s does not match target %s", sourceSHA, targetSHA)
+		return &SourceIntegrityError{Err: fmt.Errorf("common.rs source SHA %s does not match target %s", sourceSHA, targetSHA)}
 	}
 	if codexRepo == "" {
 		return nil
@@ -54,7 +54,7 @@ func verifyCommonRSProvenance(commonRS, sourceSHA, targetSHA, codexRepo string) 
 		return err
 	}
 	if string(out) != string(got) {
-		return fmt.Errorf("common.rs content does not match %s:%s", targetSHA, commonRSRef)
+		return &SourceIntegrityError{Err: fmt.Errorf("common.rs content does not match %s:%s", targetSHA, commonRSRef)}
 	}
 	return nil
 }

@@ -1,6 +1,7 @@
 package protocolupgrade
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -92,7 +93,8 @@ func TestCompareExactBaselineRejectsStaleSemanticArtifacts(t *testing.T) {
 			}
 			test.mutate(root)
 			err := compareExactBaseline(root, rebuilt, acceptedRoot, rebuiltRoot)
-			if err == nil || !strings.Contains(err.Error(), test.artifact) {
+			var verification *VerificationError
+			if !errors.As(err, &verification) || !strings.Contains(err.Error(), test.artifact) {
 				t.Fatalf("got %v, want %s mismatch", err, test.artifact)
 			}
 		})
