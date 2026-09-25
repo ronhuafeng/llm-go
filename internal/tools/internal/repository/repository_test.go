@@ -205,8 +205,8 @@ func TestProtocolSyncPreservesAuthorityAndPublicationBoundaries(t *testing.T) {
 	if !strings.Contains(agent, "inputs.validation_only != true") {
 		t.Fatal("exact validation must not invoke the Agent")
 	}
-	mechanical, ok := workflowStepByID(syncText, "mechanical")
-	if !ok || !strings.Contains(mechanical, "-validation-only") || !strings.Contains(mechanical, "-force-compare") {
+	exact, ok := workflowStepByID(syncText, "exact")
+	if !ok || !strings.Contains(exact, "-validation-only") || !strings.Contains(exact, "-force-compare") {
 		t.Fatal("workflow must pass exact validation and forced comparison to Go")
 	}
 
@@ -297,6 +297,30 @@ func TestProtocolDiagnosisHasReadOnlyJobBoundary(t *testing.T) {
 	sync, ok := workflowJobByID(workflow, "sync")
 	if !ok || !strings.Contains(sync, "inputs.diagnostic_only != true") {
 		t.Fatal("write-capable sync job must be skipped during diagnosis")
+	}
+}
+
+func TestExactProtocolValidationUsesReadOnlyJob(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := readWorkflow(t, root, "codexsdk-upstream-protocol-sync.yml")
+	readOnly, ok := workflowJobByID(workflow, "diagnose")
+	if !ok || !strings.Contains(readOnly, "inputs.validation_only == true") || !strings.Contains(readOnly, "contents: read") || !strings.Contains(readOnly, "pull-requests: read") {
+		t.Fatal("exact validation must run in a read-only job")
+	}
+	if strings.Contains(readOnly, "contents: write") || strings.Contains(readOnly, "pull-requests: write") || strings.Contains(readOnly, "codex-exec") || strings.Contains(readOnly, "protocolupgrade publish") || strings.Contains(readOnly, "protocolupgrade resume") {
+		t.Fatal("exact validation job must not have Agent or publication authority")
+	}
+	for _, ref := range checkoutRefs(readOnly) {
+		if ref != "${{ github.sha }}" {
+			t.Fatalf("exact validation checks out %q, want triggering commit", ref)
+		}
+	}
+	sync, ok := workflowJobByID(workflow, "sync")
+	if !ok || !strings.Contains(sync, "inputs.validation_only != true") {
+		t.Fatal("write-capable sync job must be skipped during exact validation")
 	}
 }
 

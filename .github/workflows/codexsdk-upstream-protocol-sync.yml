@@ -37,8 +37,8 @@ concurrency:
 
 jobs:
   diagnose:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.diagnostic_only == true }}
-    name: Diagnose upstream protocol
+    if: ${{ github.event_name == 'workflow_dispatch' && (inputs.diagnostic_only == true || inputs.validation_only == true) }}
+    name: Read-only upstream protocol
     runs-on: ubuntu-latest
     timeout-minutes: 360
     permissions:
@@ -50,8 +50,19 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DIAGNOSTIC_ONLY: ${{ inputs.diagnostic_only == true }}
+          VALIDATION_ONLY: ${{ inputs.validation_only == true }}
+          FORCE_COMPARE: ${{ inputs.force_compare == true }}
         run: |
           set -euo pipefail
+          if [[ "${DIAGNOSTIC_ONLY}" == "true" && "${VALIDATION_ONLY}" == "true" ]]; then
+            echo 'diagnostic_only and validation_only are mutually exclusive.' >&2
+            exit 1
+          fi
+          if [[ "${VALIDATION_ONLY}" == "true" && "${FORCE_COMPARE}" != "true" ]]; then
+            echo 'validation_only requires force_compare=true.' >&2
+            exit 1
+          fi
           if [[ "${GITHUB_REF_NAME}" == "${DEFAULT_BRANCH}" ]]; then
             exit 0
           fi
@@ -93,6 +104,7 @@ jobs:
 
       - name: Generate and plan candidate
         id: diagnostic
+        if: ${{ inputs.diagnostic_only == true }}
         working-directory: codexsdk
         env:
           GOTOOLCHAIN: local
@@ -118,7 +130,7 @@ jobs:
           test -z "$(git -C "${GITHUB_WORKSPACE}" status --porcelain --untracked-files=normal)"
 
       - name: Summarize read-only diagnosis
-        if: ${{ always() }}
+        if: ${{ always() && inputs.diagnostic_only == true }}
         env:
           TARGET_REF: ${{ steps.diagnostic.outputs.target_ref }}
           TARGET_SHA: ${{ steps.diagnostic.outputs.target_sha }}
@@ -144,8 +156,92 @@ jobs:
             echo '- Agent, Apply, commit, and publication: not invoked'
           } >> "${GITHUB_STEP_SUMMARY}"
 
+      - name: Verify exact accepted baseline
+        id: exact
+        if: ${{ inputs.validation_only == true && inputs.diagnostic_only != true }}
+        working-directory: codexsdk
+        env:
+          GOTOOLCHAIN: local
+          REQUESTED_REF: ${{ inputs.upstream_ref || '' }}
+          ALLOW_DOWNGRADE: ${{ inputs.allow_downgrade || false }}
+        run: |
+          set -euo pipefail
+          args=(
+            sync
+            -repo-root "${GITHUB_WORKSPACE}"
+            -module-root .
+            -upstream-repo https://github.com/openai/codex.git
+            -event-name "${GITHUB_EVENT_NAME}"
+            -force-compare
+            -validation-only
+          )
+          if [[ -n "${REQUESTED_REF}" ]]; then
+            args+=(-upstream-ref "${REQUESTED_REF}")
+          fi
+          if [[ "${ALLOW_DOWNGRADE}" == "true" ]]; then
+            args+=(-allow-downgrade)
+          fi
+          go run ./internal/cmd/protocolupgrade "${args[@]}"
+          git -C "${GITHUB_WORKSPACE}" diff --exit-code
+          test -z "$(git -C "${GITHUB_WORKSPACE}" status --porcelain --untracked-files=normal)"
+
+      - name: Check exact baseline and Go source
+        id: exact_checks
+        if: ${{ inputs.validation_only == true && inputs.diagnostic_only != true }}
+        working-directory: codexsdk
+        env:
+          GOTOOLCHAIN: local
+        run: |
+          set -euo pipefail
+          go run ./internal/cmd/protocolupgrade check -module-root .
+          git -C "${GITHUB_WORKSPACE}" diff --check
+          test -z "$(git -C "${GITHUB_WORKSPACE}" ls-files -z -- 'codexsdk/*.go' 'codexsdk/**/*.go' | xargs -0 -r -I{} gofmt -l "${GITHUB_WORKSPACE}/{}")"
+          go vet ./...
+          go test ./...
+
+      - name: Summarize exact baseline validation
+        if: ${{ always() && inputs.validation_only == true && inputs.diagnostic_only != true }}
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_REF: ${{ steps.exact.outputs.target_ref }}
+          TARGET_SHA: ${{ steps.exact.outputs.target_sha }}
+          OUTCOME: ${{ steps.exact.outputs.outcome }}
+          REASON: ${{ steps.exact.outputs.reason }}
+          CHECKS_OUTCOME: ${{ steps.exact_checks.outcome }}
+        run: |
+          set -euo pipefail
+          merge_candidate='not applicable to default branch'
+          if [[ "${GITHUB_REF_NAME}" != "${DEFAULT_BRANCH}" ]]; then
+            pr_number="$(
+              gh pr list --repo "${GH_REPO}" --state open \
+                --base "${DEFAULT_BRANCH}" --head "${GITHUB_REF_NAME}" \
+                --json number,headRefOid \
+                --jq '[.[] | select(.headRefOid == env.GITHUB_SHA) | .number][0] // empty'
+            )"
+            if [[ -n "${pr_number}" ]]; then
+              merge_candidate="$(gh api "repos/${GH_REPO}/git/ref/pull/${pr_number}/merge" --jq .object.sha)"
+            else
+              merge_candidate='PR head changed during validation; no current merge candidate for this head'
+            fi
+          fi
+          {
+            echo '## Exact upstream baseline validation'
+            echo
+            echo "- Workflow run/attempt: ${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}"
+            echo "- Validated PR head H: ${GITHUB_SHA}"
+            echo "- PR merge candidate at summary time (separate PR verification): ${merge_candidate}"
+            echo "- Exact upstream ref: ${TARGET_REF}"
+            echo "- Exact upstream commit: ${TARGET_SHA}"
+            echo "- Rebuild outcome: ${OUTCOME:-unavailable}"
+            echo "- Rebuild reason: ${REASON}"
+            echo "- Go checks outcome: ${CHECKS_OUTCOME}"
+            echo '- Agent, accepted-worktree Apply, commit, push, and PR publication: not invoked'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
   sync:
-    if: ${{ inputs.diagnostic_only != true }}
+    if: ${{ inputs.diagnostic_only != true && inputs.validation_only != true }}
     name: Sync upstream protocol
     runs-on: ubuntu-latest
     timeout-minutes: 360
@@ -156,39 +252,13 @@ jobs:
       - name: Guard control-plane ref
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          GH_REPO: ${{ github.repository }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VALIDATION_ONLY: ${{ inputs.validation_only == true }}
-          FORCE_COMPARE: ${{ inputs.force_compare == true }}
         run: |
           set -euo pipefail
-
-          if [[ "${VALIDATION_ONLY}" == "true" && "${FORCE_COMPARE}" != "true" ]]; then
-            echo 'validation_only requires force_compare=true.' >&2
-            exit 1
-          fi
-
           if [[ "${GITHUB_REF_NAME}" == "${DEFAULT_BRANCH}" ]]; then
             exit 0
           fi
-          if [[ "${GITHUB_EVENT_NAME}" != "workflow_dispatch" || "${VALIDATION_ONLY}" != "true" ]]; then
-            echo "Refusing to run protocol sync from ${GITHUB_REF_NAME}; use ${DEFAULT_BRANCH} or validation_only from an open PR." >&2
-            exit 1
-          fi
-
-          matching_prs="$(
-            gh pr list \
-              --repo "${GH_REPO}" \
-              --state open \
-              --base "${DEFAULT_BRANCH}" \
-              --head "${GITHUB_REF_NAME}" \
-              --json headRefOid,headRepository \
-              --jq '[.[] | select(.headRefOid == env.GITHUB_SHA and .headRepository.nameWithOwner == env.GH_REPO)] | length'
-          )"
-          if [[ "${matching_prs}" != "1" ]]; then
-            echo "validation_only requires exactly one open same-repository PR from ${GITHUB_REF_NAME} at ${GITHUB_SHA}." >&2
-            exit 1
-          fi
+          echo "Refusing to run write-capable protocol sync from ${GITHUB_REF_NAME}; use ${DEFAULT_BRANCH}." >&2
+          exit 1
 
       - name: Check out trusted control plane
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -223,7 +293,6 @@ jobs:
           GOTOOLCHAIN: local
           ALLOW_DOWNGRADE: ${{ inputs.allow_downgrade || false }}
           FORCE_COMPARE: ${{ inputs.force_compare || false }}
-          VALIDATION_ONLY: ${{ inputs.validation_only || false }}
           REQUESTED_REF: ${{ inputs.upstream_ref || '' }}
           EVENT_NAME: ${{ github.event_name }}
         run: |
@@ -243,9 +312,6 @@ jobs:
           fi
           if [[ "${FORCE_COMPARE}" == "true" ]]; then
             args+=(-force-compare)
-          fi
-          if [[ "${VALIDATION_ONLY}" == "true" ]]; then
-            args+=(-validation-only)
           fi
           go run ./internal/cmd/protocolupgrade "${args[@]}"
 
@@ -354,47 +420,6 @@ jobs:
           fi
           go vet ./...
           go test ./...
-
-      - name: Summarize exact baseline validation
-        if: ${{ always() && inputs.validation_only == true }}
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          GH_REPO: ${{ github.repository }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
-          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
-          OUTCOME: ${{ steps.mechanical.outputs.outcome }}
-          REASON: ${{ steps.mechanical.outputs.reason }}
-          CHECKS_OUTCOME: ${{ steps.checks.outcome }}
-        run: |
-          set -euo pipefail
-          merge_candidate='not applicable to default branch'
-          if [[ "${GITHUB_REF_NAME}" != "${DEFAULT_BRANCH}" ]]; then
-            pr_number="$(
-              gh pr list --repo "${GH_REPO}" --state open \
-                --base "${DEFAULT_BRANCH}" --head "${GITHUB_REF_NAME}" \
-                --json number,headRefOid \
-                --jq '[.[] | select(.headRefOid == env.GITHUB_SHA) | .number][0] // empty'
-            )"
-            if [[ -n "${pr_number}" ]]; then
-              merge_candidate="$(gh api "repos/${GH_REPO}/git/ref/pull/${pr_number}/merge" --jq .object.sha)"
-            else
-              merge_candidate='PR head changed during validation; no current merge candidate for this head'
-            fi
-          fi
-          {
-            echo '## Exact upstream baseline validation'
-            echo
-            echo "- Workflow run/attempt: ${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}"
-            echo "- Validated PR head H: ${GITHUB_SHA}"
-            echo "- PR merge candidate at summary time (separate PR verification): ${merge_candidate}"
-            echo "- Exact upstream ref: ${TARGET_REF}"
-            echo "- Exact upstream commit: ${TARGET_SHA}"
-            echo "- Rebuild outcome: ${OUTCOME:-unavailable}"
-            echo "- Rebuild reason: ${REASON}"
-            echo "- Go checks outcome: ${CHECKS_OUTCOME}"
-            echo '- Agent, accepted-worktree Apply, commit, push, and PR publication: not invoked'
-          } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Publish protected sync PR
         id: publish
