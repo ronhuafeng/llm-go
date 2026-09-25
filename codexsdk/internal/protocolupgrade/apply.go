@@ -154,22 +154,19 @@ func constructCandidate(req ApplyRequest) (ApplyResult, error) {
 	if err != nil {
 		return ApplyResult{}, err
 	}
-	if err := writeJSON(filepath.Join(req.Baseline, "manifest.json"), manifest); err != nil {
-		return ApplyResult{}, err
-	}
 	coverage, err := buildCoverage(req.Baseline, req.StableCandidate, oldCoverage, manifest)
 	if err != nil {
 		return ApplyResult{}, err
 	}
-	if err := writeJSON(filepath.Join(req.Baseline, "coverage_matrix.json"), coverage); err != nil {
-		return ApplyResult{}, err
-	}
-	surface, generatedFiles, err := deriveSurface(req.StableCandidate, req.Baseline, req.ModuleRoot)
+	surface, generatedFiles, err := deriveSurface(req.StableCandidate, req.Baseline, req.ModuleRoot, manifest, coverage)
 	if err != nil {
 		return ApplyResult{}, classifyUnsupported("surface", err)
 	}
 	updateManifestSurface(&manifest, surface)
 	if err := writeJSON(filepath.Join(req.Baseline, "manifest.json"), manifest); err != nil {
+		return ApplyResult{}, err
+	}
+	if err := writeJSON(filepath.Join(req.Baseline, "coverage_matrix.json"), coverage.coverageFile); err != nil {
 		return ApplyResult{}, err
 	}
 	generatedCompatibility := compatibilityReport(oldManifest, manifest)

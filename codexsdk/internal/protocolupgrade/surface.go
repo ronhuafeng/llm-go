@@ -11,26 +11,26 @@ import (
 	"github.com/ronhuafeng/llm-go/codexsdk/internal/protocolgen"
 )
 
-func deriveSurface(stableSchema, completeSchema, moduleRoot string) ([]map[string]any, map[string][]byte, error) {
+func deriveSurface(stableSchema, completeSchema, moduleRoot string, manifest manifestFile, coverage derivedCoverage) ([]map[string]any, map[string][]byte, error) {
 	handwrittenDir := filepath.Join(moduleRoot, "protocolv2")
-	tmp, err := os.MkdirTemp("", "protocolupgrade-surface-")
+	stableManifest := manifest
+	stableManifest.Entries = nil
+	stableManifest.Surface = nil
+	for _, entry := range manifest.Entries {
+		if entry.Stability == "stable" {
+			stableManifest.Entries = append(stableManifest.Entries, entry)
+		}
+	}
+	stableCoverage, err := buildCoverage(stableSchema, stableSchema, coverage.coverageFile, stableManifest)
 	if err != nil {
 		return nil, nil, err
 	}
-	defer os.RemoveAll(tmp)
-	stableRoot := filepath.Join(tmp, "stable-schema")
-	completeRoot := filepath.Join(tmp, "complete-schema")
-	if err := prepareGenerationRoot(stableSchema, completeSchema, stableRoot); err != nil {
-		return nil, nil, err
-	}
-	if err := prepareCompleteGenerationRoot(completeSchema, completeRoot); err != nil {
-		return nil, nil, err
-	}
-	stableSource, err := generatePackage(stableRoot, handwrittenDir)
+	stableFacts, completeFacts := methodFacts(stableManifest), methodFacts(manifest)
+	stableSource, err := generatePackage(stableSchema, stableFacts, stableCoverage.facts, handwrittenDir)
 	if err != nil {
 		return nil, nil, fmt.Errorf("generate stable protocol package: %w", err)
 	}
-	completeSource, err := generatePackage(completeRoot, handwrittenDir)
+	completeSource, err := generatePackage(completeSchema, completeFacts, coverage.facts, handwrittenDir)
 	if err != nil {
 		return nil, nil, fmt.Errorf("generate complete protocol package: %w", err)
 	}
@@ -41,21 +41,13 @@ func deriveSurface(stableSchema, completeSchema, moduleRoot string) ([]map[strin
 	if err != nil {
 		return nil, nil, err
 	}
-	stableManifest, err := protocolgen.LoadMethodFacts(filepath.Join(stableRoot, "manifest.json"))
+	stableFacts.Surface = preliminary
+	completeFacts.Surface = preliminary
+	stableSource.ExperimentalMembers, err = protocolgen.GenerateExperimentalMembers(stableFacts)
 	if err != nil {
 		return nil, nil, err
 	}
-	completeManifest, err := protocolgen.LoadMethodFacts(filepath.Join(completeRoot, "manifest.json"))
-	if err != nil {
-		return nil, nil, err
-	}
-	stableManifest.Surface = preliminary
-	completeManifest.Surface = preliminary
-	stableSource.ExperimentalMembers, err = protocolgen.GenerateExperimentalMembers(stableManifest)
-	if err != nil {
-		return nil, nil, err
-	}
-	completeSource.ExperimentalMembers, err = protocolgen.GenerateExperimentalMembers(completeManifest)
+	completeSource.ExperimentalMembers, err = protocolgen.GenerateExperimentalMembers(completeFacts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -76,89 +68,16 @@ func deriveSurface(stableSchema, completeSchema, moduleRoot string) ([]map[strin
 		}
 		out = append(out, item)
 	}
-	completeManifest.Surface = surface
-	files, err := generatedcheck.FilesFromPackage(moduleRoot, completeManifest, completeSource)
+	completeFacts.Surface = surface
+	files, err := generatedcheck.FilesFromPackage(moduleRoot, completeFacts, completeSource)
 	if err != nil {
 		return nil, nil, err
 	}
 	return out, files, nil
 }
 
-func prepareGenerationRoot(source, complete, destination string) error {
-	if err := copyTreeFiles(source, destination); err != nil {
-		return err
-	}
-	var coverage coverageFile
-	if err := loadJSON(filepath.Join(complete, "coverage_matrix.json"), &coverage); err != nil {
-		return err
-	}
-	schemas := map[string]bool{}
-	files, err := schemaFiles(destination)
-	if err != nil {
-		return err
-	}
-	for _, rel := range files {
-		schemas[rel] = true
-	}
-	filteredTypes := []map[string]any{}
-	for _, item := range coverage.Types {
-		schema, _ := item["schema"].(string)
-		if schemas[schema] {
-			filteredTypes = append(filteredTypes, item)
-		}
-	}
-	coverage.Types = filteredTypes
-	filteredFields := []map[string]any{}
-	for _, item := range coverage.Fields {
-		schema, _ := item["schema"].(string)
-		path, _ := item["path"].(string)
-		if schemas[schema] && pointerExists(destination, schema, path) {
-			filteredFields = append(filteredFields, item)
-		}
-	}
-	coverage.Fields = filteredFields
-	if err := writeJSON(filepath.Join(destination, "coverage_matrix.json"), coverage); err != nil {
-		return err
-	}
-	var manifest manifestFile
-	if err := loadJSON(filepath.Join(complete, "manifest.json"), &manifest); err != nil {
-		return err
-	}
-	stableMethods := map[string]bool{}
-	for _, entry := range manifest.Entries {
-		if entry.Stability == "stable" {
-			stableMethods[entry.Method] = true
-		}
-	}
-	filteredEntries := []manifestEntry{}
-	for _, entry := range manifest.Entries {
-		if stableMethods[entry.Method] {
-			filteredEntries = append(filteredEntries, entry)
-		}
-	}
-	manifest.Entries = filteredEntries
-	manifest.Surface = nil
-	return writeJSON(filepath.Join(destination, "manifest.json"), manifest)
-}
-
-func prepareCompleteGenerationRoot(source, destination string) error {
-	if err := copyTreeFiles(source, destination); err != nil {
-		return err
-	}
-	var manifest manifestFile
-	if err := loadJSON(filepath.Join(destination, "manifest.json"), &manifest); err != nil {
-		return err
-	}
-	manifest.Surface = nil
-	return writeJSON(filepath.Join(destination, "manifest.json"), manifest)
-}
-
-func generatePackage(schemaRoot, handwrittenDir string) (protocolgen.ProtocolPackage, error) {
-	plan, err := protocolgen.BuildProtocolTypePlan(schemaRoot)
-	if err != nil {
-		return protocolgen.ProtocolPackage{}, err
-	}
-	manifest, err := protocolgen.LoadMethodFacts(filepath.Join(schemaRoot, "manifest.json"))
+func generatePackage(schemaRoot string, manifest protocolgen.Manifest, coverage protocolgen.CoverageMatrix, handwrittenDir string) (protocolgen.ProtocolPackage, error) {
+	plan, err := protocolgen.BuildProtocolTypePlanFromFacts(schemaRoot, coverage, manifest)
 	if err != nil {
 		return protocolgen.ProtocolPackage{}, err
 	}

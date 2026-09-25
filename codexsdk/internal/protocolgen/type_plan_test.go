@@ -1146,7 +1146,7 @@ func TestReachableGeneratedDefinitionsFollowRefsTransitively(t *testing.T) {
 			},
 		},
 	}}}
-	if err := markReachableGeneratedDefinitions(&plan, ""); err != nil {
+	if err := markReachableGeneratedDefinitions(&plan, nil); err != nil {
 		t.Fatal(err)
 	}
 	selected := plan.Types[0].GeneratedDefinitions
@@ -1206,7 +1206,11 @@ func TestGeneratedDefinitionRootsUseAllManifestProtocolEntries(t *testing.T) {
 		{SchemaPath: "JSONRPCErrorError.json", TypeName: "JSONRPCErrorError", Kind: TypePlanObjectStructCandidate, Status: "supported-generated", Schema: mustParseSchema(t, `{"type":"object","additionalProperties":false,"properties":{"code":{"type":"integer","format":"int64"},"message":{"type":"string"},"data":true},"required":["code","message","data"]}`)},
 		{SchemaPath: "v2/UserVerificationRpcError.json", TypeName: "UserVerificationRpcError", Kind: TypePlanObjectStructCandidate, Status: "supported-generated", Schema: mustParseSchema(t, `{"type":"object","additionalProperties":false,"properties":{"code":{"type":"integer","format":"int64"},"message":{"type":"string"},"data":{"type":"object"}},"required":["code","message","data"]}`)},
 	}}
-	roots, err := generatedDefinitionRootIndexes(&plan, root)
+	facts, err := LoadMethodFacts(filepath.Join(root, "manifest.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	roots, err := generatedDefinitionRootIndexes(&plan, &facts)
 	if err != nil {
 		t.Fatal(err)
 	}
