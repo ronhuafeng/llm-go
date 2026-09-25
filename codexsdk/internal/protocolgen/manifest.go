@@ -127,5 +127,16 @@ func ApplyWireMessageRoles(plan *ProtocolTypePlan, manifest Manifest) error {
 			return fmt.Errorf("wire message root schema %q is absent from the protocol type plan", schemaPath)
 		}
 	}
+	reserved := map[string]bool{
+		"AllMethods": true, "LookupMethod": true, "methodRegistry": true,
+		"MethodDirectionClientToServer": true, "MethodDirectionServerToClient": true,
+		"MethodKindRequest": true, "MethodKindNotification": true,
+		"MethodStabilityStable": true, "MethodStabilityExperimental": true,
+		"ResponseSchemaStatusDeclared": true, "ResponseSchemaStatusNotApplicable": true,
+	}
+	for _, entry := range manifest.Entries {
+		reserved[methodConstName(entry.Method)] = true
+	}
+	plan.ReservedPackageNames = reserved
 	return nil
 }

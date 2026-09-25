@@ -48,6 +48,9 @@ func GenerateProtocolTypes(plan ProtocolTypePlan) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := validateGeneratedPackageNames(plan, enums, scalarAliases, types, scalarUnions, mixedUnions, untaggedObjectUnions, unions); err != nil {
+		return nil, err
+	}
 	for _, typ := range types {
 		reserved := []string{"UnmarshalJSON"}
 		if typ.OpenDynamicProperties {
@@ -187,6 +190,69 @@ func GenerateProtocolTypes(plan ProtocolTypePlan) ([]byte, error) {
 		return nil, fmt.Errorf("format generated protocol types: %w", err)
 	}
 	return formatted, nil
+}
+
+func validateGeneratedPackageNames(plan ProtocolTypePlan, enums []EnumPlan, aliases []ScalarAliasPlan, types []TypePlan, scalar []ScalarUnionPlan, mixed []MixedUnionPlan, untagged []UntaggedObjectUnionPlan, tagged []TaggedUnionPlan) error {
+	seen := map[string]string{}
+	for name := range plan.ReservedPackageNames {
+		seen[name] = "method registry"
+	}
+	claim := func(name, path string) error {
+		if previous, exists := seen[name]; exists {
+			return unsupportedGeneratedSchema(path, "generated package name %s conflicts with %s", name, previous)
+		}
+		seen[name] = path
+		return nil
+	}
+	for _, enum := range enums {
+		source := ""
+		if len(enum.Sources) > 0 {
+			source = enum.Sources[0]
+		}
+		if err := claim(enum.TypeName, source); err != nil {
+			return err
+		}
+		for _, value := range enum.Values {
+			if err := claim(enumConstName(enum.TypeName, value), source); err != nil {
+				return err
+			}
+		}
+	}
+	for _, alias := range aliases {
+		source := ""
+		if len(alias.Sources) > 0 {
+			source = alias.Sources[0]
+		}
+		if err := claim(alias.TypeName, source); err != nil {
+			return err
+		}
+	}
+	for _, typ := range types {
+		if err := claim(typ.TypeName, typ.SchemaPath); err != nil {
+			return err
+		}
+	}
+	for _, union := range scalar {
+		if err := claim(union.TypeName, union.SchemaPath); err != nil {
+			return err
+		}
+	}
+	for _, union := range mixed {
+		if err := claim(union.TypeName, union.SchemaPath); err != nil {
+			return err
+		}
+	}
+	for _, union := range untagged {
+		if err := claim(union.TypeName, union.SchemaPath); err != nil {
+			return err
+		}
+	}
+	for _, union := range tagged {
+		if err := claim(union.TypeName, union.SchemaPath); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func validateGeneratedFieldNames(fields []FieldPlan, reserved ...string) error {

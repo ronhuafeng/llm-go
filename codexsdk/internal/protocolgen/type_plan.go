@@ -13,8 +13,9 @@ import (
 )
 
 type ProtocolTypePlan struct {
-	Fields []FieldPlan
-	Types  []TypePlan
+	Fields               []FieldPlan
+	Types                []TypePlan
+	ReservedPackageNames map[string]bool
 }
 
 type TypePlan struct {
