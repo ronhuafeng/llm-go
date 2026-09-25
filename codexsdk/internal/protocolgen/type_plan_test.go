@@ -1,6 +1,7 @@
 package protocolgen
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -166,7 +167,7 @@ func TestBuildProtocolTypePlanClassifiesReviewedNullableTokenUsageParams(t *test
 				t.Fatal(err)
 			}
 
-			plan, err := BuildProtocolTypePlan(root)
+			plan, err := buildFixtureProtocolTypePlan(t, root)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatal("BuildProtocolTypePlan accepted drifted nullable params wrapper")
@@ -255,7 +256,7 @@ func TestBuildProtocolTypePlanClassifiesReviewedNullableRateLimitsParams(t *test
 				t.Fatal(err)
 			}
 
-			plan, err := BuildProtocolTypePlan(root)
+			plan, err := buildFixtureProtocolTypePlan(t, root)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatal("BuildProtocolTypePlan accepted drifted nullable params wrapper")
@@ -997,7 +998,7 @@ func TestProtocolTypePlanFailsClosedForOverlayShapeDrift(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "v2", "TurnStartParams.json"), []byte(schema), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	_, err := BuildProtocolTypePlan(root)
+	_, err := buildFixtureProtocolTypePlan(t, root)
 	if err == nil {
 		t.Fatal("BuildProtocolTypePlan accepted drifted serviceTier overlay shape")
 	}
@@ -1055,7 +1056,7 @@ func TestProtocolTypePlanFailsClosedForRequestIdScalarUnionDrift(t *testing.T) {
 			if err := os.WriteFile(filepath.Join(root, "RequestId.json"), []byte(schema), 0o600); err != nil {
 				t.Fatal(err)
 			}
-			_, err := BuildProtocolTypePlan(root)
+			_, err := buildFixtureProtocolTypePlan(t, root)
 			if err == nil {
 				t.Fatal("BuildProtocolTypePlan accepted drifted RequestId scalar union")
 			}
@@ -1102,7 +1103,7 @@ func TestProtocolTypePlanFailsClosedForUnreviewedShape(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "Example.json"), []byte(schema), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	_, err := BuildProtocolTypePlan(root)
+	_, err := buildFixtureProtocolTypePlan(t, root)
 	var unsupported *UnsupportedSchemaError
 	if !errors.As(err, &unsupported) || unsupported.Path != "Example.json#/properties/value" {
 		t.Fatalf("error = %v, want typed unsupported field path", err)
@@ -1146,7 +1147,7 @@ func TestReachableGeneratedDefinitionsFollowRefsTransitively(t *testing.T) {
 			},
 		},
 	}}}
-	if err := markReachableGeneratedDefinitions(&plan, nil); err != nil {
+	if err := markReachableGeneratedDefinitions(&plan, Manifest{Entries: []ManifestEntry{{SourceSchema: "Example.json"}}}); err != nil {
 		t.Fatal(err)
 	}
 	selected := plan.Types[0].GeneratedDefinitions
@@ -1210,7 +1211,7 @@ func TestGeneratedDefinitionRootsUseAllManifestProtocolEntries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	roots, err := generatedDefinitionRootIndexes(&plan, &facts)
+	roots, err := generatedDefinitionRootIndexes(&plan, facts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1231,4 +1232,75 @@ func TestInlineScalarAliasGoTypeRecognizesLegacyAppPathString(t *testing.T) {
 
 func optionalField(plan ProtocolTypePlan, path string) (FieldPlan, bool) {
 	return plan.FieldByPath(path)
+}
+
+func TestUnconstrainedFieldMeaningDoesNotDependOnName(t *testing.T) {
+	for _, raw := range []string{`true`, `{}`, `{"description":"opaque data"}`, `{"title":"AnyPayload","default":null}`} {
+		for _, required := range []bool{false, true} {
+			field, err := planField(CoverageField{Field: "newPayload", Path: "Arbitrary.json#/properties/newPayload", Schema: "Arbitrary.json", Required: required}, mustParseSchema(t, raw))
+			if err != nil || field.Kind != FieldPlanJSONValue || !field.WireAllowsNull || field.WireOmitAllowed == required {
+				t.Fatalf("%s required=%v: %+v err=%v", raw, required, field, err)
+			}
+		}
+	}
+	for _, raw := range []string{`false`, `{"description":"opaque","pattern":"x"}`, `{"enum":[]}`, `{"anyOf":[]}`, `{"mysteryConstraint":true}`} {
+		field, err := planField(CoverageField{Field: "newPayload", Path: "Arbitrary.json#/properties/newPayload", Schema: "Arbitrary.json"}, mustParseSchema(t, raw))
+		if err == nil && field.Kind == FieldPlanJSONValue {
+			t.Fatalf("constraint silently discarded: %s", raw)
+		}
+	}
+}
+
+// Small schema fixtures explicitly model each listed type as an independent payload.
+// Production construction always requires method facts; it never infers roots from coverage.
+func buildFixtureProtocolTypePlan(t *testing.T, root string) (ProtocolTypePlan, error) {
+	t.Helper()
+	if _, err := os.Stat(filepath.Join(root, "manifest.json")); err == nil {
+		return BuildProtocolTypePlan(root)
+	}
+	matrix, err := LoadCoverageMatrix(filepath.Join(root, "coverage_matrix.json"))
+	if err != nil {
+		return ProtocolTypePlan{}, err
+	}
+	manifest := Manifest{}
+	for _, typ := range matrix.Types {
+		manifest.Entries = append(manifest.Entries, ManifestEntry{SourceSchema: typ.Schema})
+	}
+	return BuildProtocolTypePlanFromFacts(root, matrix, manifest)
+}
+
+func TestRootsRequireFactsAndDoNotAdmitUnrelatedScalarUnions(t *testing.T) {
+	plan := ProtocolTypePlan{Types: []TypePlan{
+		{SchemaPath: "JSONRPCFuturePayload.json", TypeName: "JSONRPCFuturePayload", Kind: TypePlanObjectStructCandidate, Schema: mustParseSchema(t, `{"type":"object"}`)},
+		{SchemaPath: "Unrelated.json", TypeName: "Unrelated", Kind: TypePlanScalarUnionCandidate, Status: "supported-generated", Schema: mustParseSchema(t, `{"anyOf":[{"type":"string"},{"type":"integer","format":"int64"}]}`)},
+	}}
+	roots, err := generatedDefinitionRootIndexes(&plan, Manifest{Entries: []ManifestEntry{{SourceSchema: "JSONRPCFuturePayload.json"}}})
+	if err != nil || !roots[0] || roots[1] || !isGeneratedTopLevelType(plan.Types[0]) {
+		t.Fatalf("roots=%v err=%v", roots, err)
+	}
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "coverage_matrix.json"), []byte(`{"status":"classified-manifest","types":[{"schema":"Payload.json","type":"Payload","status":"deferred","stability":"stable"}]}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := BuildProtocolTypePlan(root); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("missing manifest accepted: %v", err)
+	}
+}
+
+func TestNullIsNotAnUnconstrainedSchema(t *testing.T) {
+	var schema Schema
+	if err := json.Unmarshal([]byte("null"), &schema); err == nil {
+		t.Fatal("invalid null schema accepted as an empty schema")
+	}
+}
+
+func TestMalformedKeywordsCannotBecomeUnconstrained(t *testing.T) {
+	for _, key := range []string{"type", "enum", "anyOf", "oneOf", "allOf", "properties", "required", "items", "additionalProperties", "$ref", "definitions"} {
+		t.Run(key, func(t *testing.T) {
+			var schema Schema
+			if err := json.Unmarshal([]byte(`{"`+key+`":null}`), &schema); err == nil {
+				t.Fatalf("explicit null %s was accepted", key)
+			}
+		})
+	}
 }

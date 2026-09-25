@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"go/token"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -81,7 +80,6 @@ const (
 	FieldPlanArrayString         FieldPlanKind = "array_string"
 	FieldPlanBool                FieldPlanKind = "bool"
 	FieldPlanConstrainedDeferred FieldPlanKind = "constrained_deferred"
-	FieldPlanDescriptionOnly     FieldPlanKind = "description_only_deferred"
 	FieldPlanJSONValue           FieldPlanKind = "json_value"
 	FieldPlanJSONValueMap        FieldPlanKind = "json_value_map"
 	FieldPlanNullableRef         FieldPlanKind = "nullable_ref"
@@ -100,23 +98,20 @@ func BuildProtocolTypePlan(schemaRoot string) (ProtocolTypePlan, error) {
 	if err != nil {
 		return ProtocolTypePlan{}, err
 	}
-	var manifest *Manifest
-	loaded, err := LoadMethodFacts(filepath.Join(schemaRoot, "manifest.json"))
-	if err == nil {
-		manifest = &loaded
-	} else if !os.IsNotExist(err) {
+	manifest, err := LoadMethodFacts(filepath.Join(schemaRoot, "manifest.json"))
+	if err != nil {
 		return ProtocolTypePlan{}, err
 	}
-	return buildProtocolTypePlanFromFacts(schemaRoot, matrix, manifest)
+	return BuildProtocolTypePlanFromFacts(schemaRoot, matrix, manifest)
 }
 
 // BuildProtocolTypePlanFromFacts consumes freshly derived inputs without reading
 // persisted manifest or coverage projections. Schema bytes remain exact inputs.
 func BuildProtocolTypePlanFromFacts(schemaRoot string, matrix CoverageMatrix, manifest Manifest) (ProtocolTypePlan, error) {
-	return buildProtocolTypePlanFromFacts(schemaRoot, matrix, &manifest)
+	return buildProtocolTypePlanFromFacts(schemaRoot, matrix, manifest)
 }
 
-func buildProtocolTypePlanFromFacts(schemaRoot string, matrix CoverageMatrix, manifest *Manifest) (ProtocolTypePlan, error) {
+func buildProtocolTypePlanFromFacts(schemaRoot string, matrix CoverageMatrix, manifest Manifest) (ProtocolTypePlan, error) {
 	schemas, err := LoadCoverageSchemas(schemaRoot, matrix)
 	if err != nil {
 		return ProtocolTypePlan{}, err
@@ -162,7 +157,7 @@ func buildProtocolTypePlanFromFacts(schemaRoot string, matrix CoverageMatrix, ma
 	return plan, nil
 }
 
-func markReachableGeneratedDefinitions(plan *ProtocolTypePlan, manifest *Manifest) error {
+func markReachableGeneratedDefinitions(plan *ProtocolTypePlan, manifest Manifest) error {
 	if plan == nil {
 		return fmt.Errorf("protocol type plan is nil")
 	}
@@ -354,14 +349,7 @@ func markReachableGeneratedDefinitions(plan *ProtocolTypePlan, manifest *Manifes
 			return err
 		}
 	}
-	for index := range plan.Types {
-		typ := &plan.Types[index]
-		if typ.Kind == TypePlanScalarUnionCandidate && typ.Status == "supported-generated" {
-			if err := walkType(index); err != nil {
-				return err
-			}
-		}
-	}
+
 	return nil
 }
 
@@ -401,22 +389,7 @@ func sameGeneratedRootShape(definition *Schema, sourceDefinitions map[string]*Sc
 	return true, nil
 }
 
-func generatedDefinitionRootIndexes(plan *ProtocolTypePlan, manifest *Manifest) (map[int]bool, error) {
-	fallback := func() map[int]bool {
-		roots := map[int]bool{}
-		for index := range plan.Types {
-			typ := &plan.Types[index]
-			if typ.Schema == nil || isAggregateBundle(typ.SchemaPath) || isJSONRPCEnvelopeSchema(typ.SchemaPath) {
-				continue
-			}
-			typ.GeneratedRoot = true
-			roots[index] = true
-		}
-		return roots
-	}
-	if manifest == nil {
-		return fallback(), nil
-	}
+func generatedDefinitionRootIndexes(plan *ProtocolTypePlan, manifest Manifest) (map[int]bool, error) {
 	byTypeName := map[string][]int{}
 	bySchemaPath := map[string]int{}
 	for index := range plan.Types {
@@ -441,9 +414,8 @@ func generatedDefinitionRootIndexes(plan *ProtocolTypePlan, manifest *Manifest) 
 	}
 	for index := range plan.Types {
 		typ := &plan.Types[index]
-		if typ.Status == "supported-generated" &&
-			(typ.Kind == TypePlanScalarUnionCandidate || isClosedRPCErrorRoot(*typ) ||
-				isJSONRPCEnvelopeSchema(typ.SchemaPath) && typ.Kind == TypePlanObjectStructCandidate) {
+		if typ.SchemaPath == "RequestId.json" || isClosedRPCErrorRoot(*typ) ||
+			isJSONRPCEnvelopeSchema(typ.SchemaPath) && typ.Kind == TypePlanObjectStructCandidate {
 			typ.GeneratedRoot = true
 			roots[index] = true
 		}
@@ -1019,7 +991,7 @@ func planField(coverage CoverageField, schema *Schema) (FieldPlan, error) {
 	if overlay, ok, err := overlayFieldPlan(plan, schema); ok || err != nil {
 		return overlay, err
 	}
-	if schema.IsTrueSchema() {
+	if schema.IsUnconstrained() {
 		plan.Kind = FieldPlanJSONValue
 		plan.GoType = optionalGoType(plan.Required, "protocolv2.JSONValue")
 		plan.Reason = "protocol-native unconstrained JSON value"
@@ -1027,11 +999,6 @@ func planField(coverage CoverageField, schema *Schema) (FieldPlan, error) {
 	}
 	if schema.IsFalseSchema() {
 		return FieldPlan{}, fmt.Errorf("field %s uses unsupported false schema", coverage.Path)
-	}
-	if len(schema.Type.Values) == 0 && schema.Description != "" && !hasStructuralShape(schema) && len(unmodeledKeywords(schema)) == 0 {
-		plan.Kind = FieldPlanDescriptionOnly
-		plan.Reason = "schema field only has description; typed representation is deferred until reviewed"
-		return plan, nil
 	}
 	if arrayCanPlanBeforeRecursiveConstraints(schema) {
 		if nullableType, ok := schema.Type.NullableSingle(); ok {
@@ -1229,24 +1196,9 @@ func overlayFieldPlan(plan FieldPlan, schema *Schema) (FieldPlan, bool, error) {
 			return FieldPlan{}, true, fmt.Errorf("field %s outputSchema overlay no longer matches description-only schema shape", plan.Path)
 		}
 		plan.Kind = FieldPlanOutputSchema
+		plan.WireAllowsNull = false // OutputSchema is the narrower application contract.
 		plan.GoType = optionalGoType(plan.Required, "protocolv2.OutputSchema")
 		plan.Reason = "turn-level output JSON Schema contract"
-		return plan, true, nil
-	case plan.Path == "v2/ThreadApproveGuardianDeniedActionParams.json#/properties/event":
-		if !isDescriptionOnlySchema(schema) {
-			return FieldPlan{}, true, fmt.Errorf("field %s GuardianAssessmentEvent overlay no longer matches description-only JsonValue schema shape", plan.Path)
-		}
-		plan.Kind = FieldPlanJSONValue
-		plan.GoType = optionalGoType(plan.Required, "protocolv2.JSONValue")
-		plan.Reason = "reviewed protocol JsonValue carrying serialized GuardianAssessmentEvent"
-		return plan, true, nil
-	case plan.Path == "v2/GetAccountRateLimitsResponse.json#/properties/rateLimitUpsell":
-		if !isDescriptionOnlySchema(schema) {
-			return FieldPlan{}, true, fmt.Errorf("field %s rate limit upsell overlay no longer matches description-only JsonValue schema shape", plan.Path)
-		}
-		plan.Kind = FieldPlanJSONValue
-		plan.GoType = optionalGoType(plan.Required, "protocolv2.JSONValue")
-		plan.Reason = "reviewed backend-owned rate limit upsell JSON value"
 		return plan, true, nil
 	case plan.Path == "McpServerElicitationRequestParams.json#/definitions/McpElicitationSchema/properties/properties":
 		if !schema.Type.Only("object") || schema.AdditionalProperties.Schema == nil || schema.AdditionalProperties.Schema.Ref != "#/definitions/McpElicitationPrimitiveSchema" {
@@ -1255,15 +1207,6 @@ func overlayFieldPlan(plan FieldPlan, schema *Schema) (FieldPlan, bool, error) {
 		plan.Kind = FieldPlanJSONValueMap
 		plan.GoType = nullableAwareGoType(plan.Required, plan.WireAllowsNull, "map[string]protocolv2.JSONValue")
 		plan.Reason = "reviewed MCP elicitation form properties preserved as JSON values"
-		return plan, true, nil
-	case plan.Path == "McpServerElicitationRequestResponse.json#/properties/_meta" ||
-		plan.Path == "McpServerElicitationRequestResponse.json#/properties/content":
-		if !isDescriptionOnlySchema(schema) {
-			return FieldPlan{}, true, fmt.Errorf("field %s MCP elicitation JSONValue overlay no longer matches description-only schema shape", plan.Path)
-		}
-		plan.Kind = FieldPlanJSONValue
-		plan.GoType = optionalGoType(plan.Required, "protocolv2.JSONValue")
-		plan.Reason = "reviewed MCP elicitation dynamic JSON value"
 		return plan, true, nil
 	case plan.Path == "v2/ThreadRealtimeItemCompletedNotification.json#/properties/item" ||
 		plan.Path == "v2/ThreadRealtimeItemStartedNotification.json#/properties/item":
@@ -1434,7 +1377,7 @@ func planArrayField(plan FieldPlan, schema *Schema, nullable bool) (FieldPlan, e
 		plan.GoType = optionalOrNullableGoType(fieldRequired, nullable, "[]"+itemType)
 		plan.Reason = "array of scalar values"
 		return plan, nil
-	case schema.Items.IsTrueSchema():
+	case schema.Items.IsUnconstrained():
 		plan.Kind = FieldPlanArrayJSONValue
 		plan.GoType = optionalOrNullableGoType(fieldRequired, nullable, "[]protocolv2.JSONValue")
 		plan.Reason = "array of protocol-native JSON values"
@@ -1555,7 +1498,7 @@ func mapValueType(path string, schemaPath string, schema *Schema) (string, strin
 		default:
 			return "", "", fmt.Errorf("field %s has unsupported nullable additionalProperties type %q", path, nonNull)
 		}
-	case schema.IsTrueSchema():
+	case schema.IsUnconstrained():
 		return "protocolv2.JSONValue", "", nil
 	default:
 		return "", "", fmt.Errorf("field %s has unsupported additionalProperties schema", path)
@@ -1633,7 +1576,7 @@ func schemaAllowsNull(schema *Schema) bool {
 	if schema == nil {
 		return false
 	}
-	if schema.Type.Has("null") {
+	if schema.IsUnconstrained() || schema.Type.Has("null") {
 		return true
 	}
 	if _, ok := nullableUnionInner(schema.AnyOf); ok {
@@ -1665,12 +1608,7 @@ func hasNonTypeShape(schema *Schema) bool {
 }
 
 func isDescriptionOnlySchema(schema *Schema) bool {
-	return schema != nil &&
-		schema.Description != "" &&
-		!schema.IsTrueSchema() &&
-		!schema.IsFalseSchema() &&
-		!hasStructuralShape(schema) &&
-		len(unmodeledKeywords(schema)) == 0
+	return schema != nil && schema.Description != "" && schema.IsUnconstrained()
 }
 
 func partitionUnmodeledKeywords(keywords []string) (constraints []string, unknown []string) {
