@@ -237,6 +237,10 @@ func TestProtocolSyncPreservesAuthorityAndPublicationBoundaries(t *testing.T) {
 		t.Fatal("trusted proposal scope must be rechecked after tests and before publication")
 	}
 
+	if !strings.Contains(syncText, "steps.final_scope.outcome == 'failure'") {
+		t.Fatal("final scope failure must retain policy attribution in the workflow summary")
+	}
+
 	checks, ok := workflowStepByID(syncText, "checks")
 	if !ok {
 		t.Fatal("protocol sync must expose deterministic protocol proof")
@@ -452,6 +456,9 @@ func TestProtocolAgentProposalScopeRunsBeforeUntrustedGo(t *testing.T) {
 		{name: "generated artifact", path: "codexsdk/protocolv2/method_registry.gen.go"},
 		{name: "generated artifact after Apply", path: "codexsdk/protocolv2/method_registry.gen.go", allowed: true, allowMechanical: true},
 		{name: "schema artifact after Apply", path: "codexsdk/internal/protocolschema/appserver/v2/manifest.json", allowed: true, allowMechanical: true},
+		{name: "baseline control after tests", path: "codexsdk/internal/protocolschema/appserver/v2/baseline.go", allowMechanical: true},
+		{name: "new baseline test after tests", path: "codexsdk/internal/protocolschema/appserver/v2/new_test.go", allowMechanical: true},
+		{name: "unknown generated output", path: "codexsdk/protocolv2/unknown.gen.go", allowMechanical: true},
 		{name: "publication control after tests", path: "codexsdk/internal/protocolsync/publish.go", allowMechanical: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {

@@ -99,13 +99,18 @@ func isAgentProposalPath(p string) bool {
 }
 
 func isMechanicalPath(p string) bool {
-	if p == mechanicalPrefix || strings.HasPrefix(p, mechanicalPrefix+"/") {
+	if strings.HasPrefix(p, mechanicalPrefix+"/") && strings.HasSuffix(p, ".json") {
 		return true
 	}
-	if p == "codexsdk/sdk_surface.gen.go" {
+	switch p {
+	case "codexsdk/sdk_surface.gen.go",
+		"codexsdk/protocolv2/method_registry.gen.go",
+		"codexsdk/protocolv2/protocol_types.gen.go",
+		"codexsdk/protocolv2/experimental_members.gen.go":
 		return true
+	default:
+		return false
 	}
-	return path.Dir(p) == "codexsdk/protocolv2" && strings.HasSuffix(p, ".gen.go")
 }
 
 // StagePaths git-adds the current dirty set after validating it for phase.

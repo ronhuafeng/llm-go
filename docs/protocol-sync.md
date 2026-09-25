@@ -304,7 +304,9 @@ Go and focused tests. `protocolsync/changes.go` is the single path-policy
 owner. Before proposed code runs and again after tests, the workflow verifies
 the prebuilt control binary digest and invokes its `scope` command. Publication
 uses the same policy through trusted `stage -phase final`; final scope is only
-the union of permitted handwritten proposals and mechanical outputs. Unknown
+the union of permitted handwritten proposals and mechanical outputs (baseline
+JSON and the four owned generated Go files). Handwritten baseline validators
+and unknown generated filenames remain protected. Unknown
 phases or control changes fail with `needs-maintainer` evidence. It rejects changes to sync policy,
 candidate identity, Plan/Apply acceptance, generated checks, schema/generated
 artifacts, and publication code. A needed change to those control paths takes

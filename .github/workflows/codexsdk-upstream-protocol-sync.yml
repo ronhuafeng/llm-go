@@ -277,7 +277,7 @@ jobs:
       category: ${{ steps.resume.outputs.failure_category || steps.mechanical.outputs.failure_category }}
       checks: ${{ steps.checks.outcome }}
       agent: ${{ steps.codex.outcome }}
-      scope: ${{ steps.proposal_scope.outcome }}
+      scope: ${{ steps.final_scope.outcome == 'failure' && 'failure' || steps.proposal_scope.outcome }}
       handoff: ${{ steps.handoff.outcome }}
     steps:
       - name: Guard control-plane ref
@@ -489,6 +489,7 @@ jobs:
           go vet ./...
 
       - name: Recheck Agent proposal scope after tests
+        id: final_scope
         if: ${{ success() && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
         env:
           CONTROL_SHA256: ${{ steps.control.outputs.sha256 }}
@@ -665,6 +666,7 @@ jobs:
             elif [[ "${SCOPE}" == failure ]]; then
               STAGE=proposal_scope
               CATEGORY=policy_configuration
+              next='needs-maintainer: review the rejected proposal paths before attempting another repair.'
             elif [[ "${HANDOFF}" == failure ]]; then
               STAGE=handoff
               CATEGORY=source_integrity

@@ -84,3 +84,18 @@ func TestFinalScopeRejectsControlAndUnknownPhase(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestMechanicalScopeRejectsHandwrittenBaselineControl(t *testing.T) {
+	for _, p := range []string{
+		"codexsdk/internal/protocolschema/appserver/v2/baseline.go",
+		"codexsdk/internal/protocolschema/appserver/v2/schema_baseline_test.go",
+		"codexsdk/internal/protocolschema/appserver/v2/new_control.go",
+		"codexsdk/protocolv2/unknown.gen.go",
+	} {
+		for _, phase := range []string{"mechanical", "final"} {
+			if err := validatePaths([]string{p}, phase); err == nil {
+				t.Fatalf("%s admits non-output %s", phase, p)
+			}
+		}
+	}
+}
