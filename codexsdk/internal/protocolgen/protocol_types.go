@@ -49,7 +49,14 @@ func GenerateProtocolTypes(plan ProtocolTypePlan) ([]byte, error) {
 		return nil, err
 	}
 	for _, typ := range types {
-		if err := validateGeneratedFieldNames(typ.Fields); err != nil {
+		reserved := []string{"UnmarshalJSON"}
+		if typ.OpenDynamicProperties {
+			reserved = append(reserved, "DynamicProperties")
+		}
+		if needsCustomStructMarshal(typ) {
+			reserved = append(reserved, "MarshalJSON")
+		}
+		if err := validateGeneratedFieldNames(typ.Fields, reserved...); err != nil {
 			return nil, err
 		}
 	}
@@ -68,7 +75,11 @@ func GenerateProtocolTypes(plan ProtocolTypePlan) ([]byte, error) {
 		}
 	}
 	for _, union := range unions {
-		if err := validateGeneratedFieldNames(union.SharedFields); err != nil {
+		reserved := []string{"Kind", "IsValid", "MarshalJSON", "UnmarshalJSON"}
+		for _, variant := range union.Variants {
+			reserved = append(reserved, variant.AccessorName)
+		}
+		if err := validateGeneratedFieldNames(union.SharedFields, reserved...); err != nil {
 			return nil, err
 		}
 		for _, variant := range union.Variants {
@@ -178,10 +189,23 @@ func GenerateProtocolTypes(plan ProtocolTypePlan) ([]byte, error) {
 	return formatted, nil
 }
 
-func validateGeneratedFieldNames(fields []FieldPlan) error {
+func validateGeneratedFieldNames(fields []FieldPlan, reserved ...string) error {
+	reservedNames := map[string]bool{}
+	for _, name := range reserved {
+		reservedNames[name] = true
+	}
 	seen := map[string]string{}
 	for _, field := range fields {
+		if !representableJSONTagName(field.FieldName) {
+			return unsupportedGeneratedSchema(unsupportedPropertyPath(field.Path, field.FieldName), "field name %q cannot be represented by a Go JSON struct tag", field.FieldName)
+		}
 		name := fieldGoName(field.FieldName)
+		if reservedNames[name] {
+			return unsupportedGeneratedSchema(
+				unsupportedPropertyPath(field.Path, field.FieldName),
+				"wire field %q conflicts with generated member %s", field.FieldName, name,
+			)
+		}
 		if previous, ok := seen[name]; ok {
 			return unsupportedGeneratedSchema(
 				unsupportedPropertyPath(field.Path, field.FieldName),
@@ -191,6 +215,18 @@ func validateGeneratedFieldNames(fields []FieldPlan) error {
 		seen[name] = field.FieldName
 	}
 	return nil
+}
+
+func needsCustomStructMarshal(typ TypePlan) bool {
+	if typ.OpenDynamicProperties {
+		return true
+	}
+	for _, field := range typ.Fields {
+		if fieldNeedsMarshalNilCheck(field) || field.MinItems != nil || field.Minimum != nil {
+			return true
+		}
+	}
+	return false
 }
 
 type EnumPlan struct {
@@ -2204,7 +2240,7 @@ func writeStructMarshal(out *bytes.Buffer, typ TypePlan, fields []FieldPlan) {
 			minimumFields = append(minimumFields, field)
 		}
 	}
-	if len(guardedFields) == 0 && len(minItemsFields) == 0 && len(minimumFields) == 0 && !typ.OpenDynamicProperties {
+	if !needsCustomStructMarshal(typ) {
 		return
 	}
 	out.WriteString("\n")

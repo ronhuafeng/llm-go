@@ -373,6 +373,60 @@ func TestPlanAcceptsRepresentableUnfamiliarFieldNames(t *testing.T) {
 	}
 }
 
+func TestPlanReportsGeneratedMemberCollision(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		schema map[string]any
+		path   string
+	}{
+		{
+			name: "method",
+			schema: map[string]any{
+				"title": "BedrockDiscoverParams", "type": "object",
+				"properties": map[string]any{"unmarshalJSON": map[string]any{"type": "string"}},
+			},
+			path: "v2/BedrockDiscoverParams.json#/properties/unmarshalJSON",
+		},
+		{
+			name: "dynamic properties",
+			schema: map[string]any{
+				"title": "BedrockDiscoverParams", "type": "object",
+				"properties": map[string]any{"value": map[string]any{"$ref": "#/definitions/Extras"}},
+				"definitions": map[string]any{"Extras": map[string]any{
+					"type": "object", "additionalProperties": true,
+					"properties": map[string]any{"dynamicProperties": map[string]any{"type": "string"}},
+				}},
+			},
+			path: "v2/BedrockDiscoverParams.json#/definitions/Extras/properties/dynamicProperties",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := copyModuleForCheck(t)
+			baseline := filepath.Join(root, filepath.FromSlash(defaultBaselineRel))
+			candidate := t.TempDir()
+			if err := copyTree(baseline, candidate); err != nil {
+				t.Fatal(err)
+			}
+			writeJSONFile(t, filepath.Join(candidate, "v2", "BedrockDiscoverParams.json"), tc.schema)
+			commonRS := filepath.Join(root, "common.rs")
+			writeBaselineMappingFixture(t, baseline, commonRS)
+			sha := strings.Repeat("b", 40)
+			planned, err := Plan(ApplyRequest{
+				Baseline: baseline, Candidate: candidate, StableCandidate: candidate,
+				CommonRS: commonRS, CommonRSSourceSHA: sha,
+				TargetRef: "rust-v0.154.0", TargetKind: "stable_rust_tag", TargetSHA: sha,
+				ModuleRoot: root,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if planned.Status != PlanSemanticUnresolved || planned.Issue == nil || planned.Issue.Stage != "surface" || planned.Issue.Path != tc.path {
+				t.Fatalf("plan = %+v issue = %+v, want generated member collision at %s", planned, planned.Issue, tc.path)
+			}
+		})
+	}
+}
+
 func TestPlanReportsFacadeNameCollisionAsSemanticDrift(t *testing.T) {
 	root := copyModuleForCheck(t)
 	baseline := filepath.Join(root, filepath.FromSlash(defaultBaselineRel))
