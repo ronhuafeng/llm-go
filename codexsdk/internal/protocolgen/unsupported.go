@@ -1,6 +1,10 @@
 package protocolgen
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+	"strings"
+)
 
 // UnsupportedSchemaError identifies a concrete schema representation that the
 // current generator cannot preserve. Filesystem and source-integrity errors
@@ -18,4 +22,17 @@ func (e *UnsupportedSchemaError) Unwrap() error { return e.Err }
 
 func unsupportedGeneratedSchema(path, format string, args ...any) error {
 	return &UnsupportedSchemaError{Path: path, Err: fmt.Errorf(format, args...)}
+}
+
+func unsupportedDefinitionPath(schemaPath, name string) string {
+	name = strings.ReplaceAll(strings.ReplaceAll(name, "~", "~0"), "/", "~1")
+	return schemaPath + "#/definitions/" + name
+}
+
+func classifyGeneratedSchemaError(path string, err error) error {
+	var unsupported *UnsupportedSchemaError
+	if errors.As(err, &unsupported) {
+		return err
+	}
+	return &UnsupportedSchemaError{Path: path, Err: err}
 }

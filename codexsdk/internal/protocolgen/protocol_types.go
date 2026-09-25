@@ -281,9 +281,8 @@ func validateGeneratedDefinitionShapes(plan ProtocolTypePlan) error {
 				continue
 			}
 			if classifyGeneratedDefinition(schema) == generatedDefinitionUnsupported {
-				pointer := strings.ReplaceAll(strings.ReplaceAll(name, "~", "~0"), "/", "~1")
 				return &UnsupportedSchemaError{
-					Path: typ.SchemaPath + "#/definitions/" + pointer,
+					Path: unsupportedDefinitionPath(typ.SchemaPath, name),
 					Err:  fmt.Errorf("selected generated definition %s in %s has unsupported schema shape", name, typ.SchemaPath),
 				}
 			}
@@ -367,6 +366,7 @@ func SelectGeneratedEnums(plan ProtocolTypePlan) ([]EnumPlan, error) {
 	}
 	byName := map[string]EnumPlan{}
 	schemaByName := map[string][]byte{}
+	pathByName := map[string]string{}
 	for _, typ := range plan.Types {
 		if typ.Schema == nil || isAggregateBundle(typ.SchemaPath) {
 			continue
@@ -387,7 +387,7 @@ func SelectGeneratedEnums(plan ProtocolTypePlan) ([]EnumPlan, error) {
 				continue
 			}
 			if reservedProtocolTypeName(typeName) {
-				return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated enum %s conflicts with handwritten protocolv2 type", typeName)
+				return nil, unsupportedGeneratedSchema(unsupportedDefinitionPath(typ.SchemaPath, name), "generated enum %s conflicts with handwritten protocolv2 type", typeName)
 			}
 			encoded, err := json.Marshal(schema)
 			if err != nil {
@@ -396,16 +396,17 @@ func SelectGeneratedEnums(plan ProtocolTypePlan) ([]EnumPlan, error) {
 			existing, ok := byName[typeName]
 			if ok {
 				if !sameStrings(existing.Values, enumValues) {
-					return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated enum %s has conflicting values between %s and %s", typeName, strings.Join(existing.Sources, ", "), typ.SchemaPath)
+					return nil, unsupportedGeneratedSchema(unsupportedDefinitionPath(typ.SchemaPath, name), "generated enum %s has conflicting values between %s and %s", typeName, strings.Join(existing.Sources, ", "), typ.SchemaPath)
 				}
 				if !bytes.Equal(schemaByName[typeName], encoded) {
-					return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated enum %s has conflicting schemas between %s and %s", typeName, strings.Join(existing.Sources, ", "), typ.SchemaPath)
+					return nil, unsupportedGeneratedSchema(unsupportedDefinitionPath(typ.SchemaPath, name), "generated enum %s has conflicting schemas between %s and %s", typeName, strings.Join(existing.Sources, ", "), typ.SchemaPath)
 				}
 				existing.Sources = append(existing.Sources, typ.SchemaPath)
 				byName[typeName] = existing
 				continue
 			}
 			schemaByName[typeName] = encoded
+			pathByName[typeName] = unsupportedDefinitionPath(typ.SchemaPath, name)
 			byName[typeName] = EnumPlan{
 				TypeName: typeName,
 				Values:   append([]string(nil), enumValues...),
@@ -416,7 +417,7 @@ func SelectGeneratedEnums(plan ProtocolTypePlan) ([]EnumPlan, error) {
 	enums := make([]EnumPlan, 0, len(byName))
 	for _, enum := range byName {
 		if err := validateEnumConstNames(enum); err != nil {
-			return nil, err
+			return nil, &UnsupportedSchemaError{Path: pathByName[enum.TypeName], Err: err}
 		}
 		enums = append(enums, enum)
 	}
@@ -447,11 +448,11 @@ func SelectGeneratedScalarAliases(plan ProtocolTypePlan) ([]ScalarAliasPlan, err
 			}
 			typeName := generatedDefinitionTypeName(resolver, typ.SchemaPath, name)
 			if schema == nil || !schema.Type.Only("string") || len(schema.Enum) != 0 || hasNonTypeShape(schema) {
-				return nil, unsupportedGeneratedSchema(definitionSchemaPath(typ.SchemaPath, name), "generated scalar alias %s in %s no longer matches supported string alias shape", typeName, typ.SchemaPath)
+				return nil, unsupportedGeneratedSchema(unsupportedDefinitionPath(typ.SchemaPath, name), "generated scalar alias %s in %s no longer matches supported string alias shape", typeName, typ.SchemaPath)
 			}
 			for _, keyword := range unmodeledKeywords(schema) {
 				if keyword != "minLength" {
-					return nil, unsupportedGeneratedSchema(definitionSchemaPath(typ.SchemaPath, name), "generated scalar alias %s in %s has unsupported keyword %s", typeName, typ.SchemaPath, keyword)
+					return nil, unsupportedGeneratedSchema(unsupportedDefinitionPath(typ.SchemaPath, name), "generated scalar alias %s in %s has unsupported keyword %s", typeName, typ.SchemaPath, keyword)
 				}
 			}
 			encoded, err := json.Marshal(schema)
@@ -461,7 +462,7 @@ func SelectGeneratedScalarAliases(plan ProtocolTypePlan) ([]ScalarAliasPlan, err
 			existing, ok := byName[typeName]
 			if ok {
 				if !bytes.Equal(schemaByName[typeName], encoded) {
-					return nil, unsupportedGeneratedSchema(definitionSchemaPath(typ.SchemaPath, name), "generated scalar alias %s has conflicting schemas between %s and %s", typeName, strings.Join(existing.Sources, ", "), typ.SchemaPath)
+					return nil, unsupportedGeneratedSchema(unsupportedDefinitionPath(typ.SchemaPath, name), "generated scalar alias %s has conflicting schemas between %s and %s", typeName, strings.Join(existing.Sources, ", "), typ.SchemaPath)
 				}
 				existing.Sources = append(existing.Sources, typ.SchemaPath)
 				byName[typeName] = existing
@@ -594,7 +595,7 @@ func firstPassTypeCandidates(plan ProtocolTypePlan) ([]TypePlan, error) {
 		}
 		definitions, err := generatedDefinitionTypeCandidates(typ, resolver)
 		if err != nil {
-			return nil, err
+			return nil, classifyGeneratedSchemaError(typ.SchemaPath, err)
 		}
 		candidates = append(candidates, definitions...)
 	}
@@ -652,7 +653,7 @@ func generatedDefinitionTypeCandidates(parent TypePlan, resolver generatedDefini
 		schema := parent.Schema.Definitions[name]
 		typ, err := definitionObjectTypePlan(parent, name, schema, resolver)
 		if err != nil {
-			return nil, err
+			return nil, classifyGeneratedSchemaError(unsupportedDefinitionPath(parent.SchemaPath, name), err)
 		}
 		candidates = append(candidates, typ)
 	}
@@ -711,7 +712,7 @@ func SelectGeneratedMixedUnions(plan ProtocolTypePlan) ([]MixedUnionPlan, error)
 		seenNames[typ.TypeName] = typ.SchemaPath
 		union, err := buildMixedUnionPlan(typ, generatedNamedTypes, resolver)
 		if err != nil {
-			return nil, err
+			return nil, classifyGeneratedSchemaError(typ.SchemaPath, err)
 		}
 		selected = append(selected, union)
 	}
@@ -744,7 +745,7 @@ func mixedUnionCandidates(plan ProtocolTypePlan) ([]TypePlan, error) {
 		for _, name := range names {
 			schema := typ.Schema.Definitions[name]
 			if schema == nil || len(schema.OneOf) == 0 {
-				return nil, fmt.Errorf("definition mixed union %s in %s is not a oneOf schema", name, typ.SchemaPath)
+				return nil, unsupportedGeneratedSchema(unsupportedDefinitionPath(typ.SchemaPath, name), "definition mixed union %s in %s is not a oneOf schema", name, typ.SchemaPath)
 			}
 			candidates = append(candidates, TypePlan{
 				Kind:       TypePlanTaggedUnionCandidate,
@@ -970,7 +971,7 @@ func SelectGeneratedUntaggedObjectUnions(plan ProtocolTypePlan) ([]UntaggedObjec
 		seenNames[typ.TypeName] = typ.SchemaPath
 		union, err := buildUntaggedObjectUnionPlan(typ, generatedNamedTypes, resolver)
 		if err != nil {
-			return nil, err
+			return nil, classifyGeneratedSchemaError(typ.SchemaPath, err)
 		}
 		selected = append(selected, union)
 	}
@@ -1010,7 +1011,7 @@ func untaggedObjectUnionCandidates(plan ProtocolTypePlan, resolver generatedDefi
 		for _, name := range names {
 			schema := typ.Schema.Definitions[name]
 			if schema == nil || len(schema.AnyOf) == 0 {
-				return nil, fmt.Errorf("definition untagged object union %s in %s is not an anyOf schema", name, typ.SchemaPath)
+				return nil, unsupportedGeneratedSchema(unsupportedDefinitionPath(typ.SchemaPath, name), "definition untagged object union %s in %s is not an anyOf schema", name, typ.SchemaPath)
 			}
 			candidates = append(candidates, TypePlan{
 				Kind:       TypePlanAnyOfDeferred,
@@ -1198,7 +1199,7 @@ func SelectGeneratedScalarUnions(plan ProtocolTypePlan) ([]ScalarUnionPlan, erro
 		}
 		definitions, err := generatedDefinitionScalarUnionCandidates(typ, resolver)
 		if err != nil {
-			return nil, err
+			return nil, classifyGeneratedSchemaError(typ.SchemaPath, err)
 		}
 		candidates = append(candidates, definitions...)
 	}
@@ -1210,7 +1211,7 @@ func SelectGeneratedScalarUnions(plan ProtocolTypePlan) ([]ScalarUnionPlan, erro
 	for _, typ := range candidates {
 		union, err := buildScalarUnionPlan(typ)
 		if err != nil {
-			return nil, err
+			return nil, classifyGeneratedSchemaError(typ.SchemaPath, err)
 		}
 		selected = append(selected, union)
 	}
@@ -1239,7 +1240,7 @@ func generatedDefinitionScalarUnionCandidates(parent TypePlan, resolver generate
 	for _, name := range names {
 		schema := parent.Schema.Definitions[name]
 		if schema == nil || len(schema.AnyOf) == 0 {
-			return nil, fmt.Errorf("definition scalar union %s in %s is not an anyOf schema", name, parent.SchemaPath)
+			return nil, unsupportedGeneratedSchema(unsupportedDefinitionPath(parent.SchemaPath, name), "definition scalar union %s in %s is not an anyOf schema", name, parent.SchemaPath)
 		}
 		candidates = append(candidates, TypePlan{
 			Kind:       TypePlanScalarUnionCandidate,
@@ -1418,7 +1419,7 @@ func SelectGeneratedTaggedUnions(plan ProtocolTypePlan) ([]TaggedUnionPlan, erro
 		seenNames[typ.TypeName] = typ.SchemaPath
 		union, err := buildTaggedUnionPlan(typ, generatedNamedTypes, resolver)
 		if err != nil {
-			return nil, err
+			return nil, classifyGeneratedSchemaError(typ.SchemaPath, err)
 		}
 		selected = append(selected, union)
 	}
@@ -1614,7 +1615,7 @@ func generatedDefinitionTaggedUnionCandidates(parent TypePlan, resolver generate
 	for _, name := range names {
 		schema := parent.Schema.Definitions[name]
 		if schema == nil || len(schema.OneOf) == 0 {
-			return nil, fmt.Errorf("definition tagged union %s in %s is not a oneOf schema", name, parent.SchemaPath)
+			return nil, unsupportedGeneratedSchema(unsupportedDefinitionPath(parent.SchemaPath, name), "definition tagged union %s in %s is not a oneOf schema", name, parent.SchemaPath)
 		}
 		candidates = append(candidates, TypePlan{
 			Kind:       TypePlanTaggedUnionCandidate,
