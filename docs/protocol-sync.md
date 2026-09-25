@@ -100,6 +100,22 @@ A new protocol instance is not, by itself, a reason for a handwritten
 checkpoint. If the generic mapping preserves the entire wire value and its
 presence/nullability semantics, generation should accept it.
 
+For each candidate, the complete schema supplies methods, types, fields,
+requiredness, and nullability. Method and type stability come from presence in
+the stable schema generated from the same upstream commit. Request response
+types come from that commit's `common.rs`; a missing mapping fails instead of
+falling back to the accepted manifest. The accepted manifest and coverage are
+comparison input and may retain local explanatory annotations, but their old
+wire facts do not decide the candidate. `generated_at` records observation time:
+it may be retained for the same exact source commit and is excluded from
+protocol-semantic comparisons.
+
+Facade target names are local public Go API representation. A small handwritten
+name map keeps established acronyms and notification names where the wire method
+and schema title cannot derive them. It has no authority over method presence,
+stability, parameters, responses, or type generation; revisit entries when a
+deliberate public API rename is accepted.
+
 Keep an explicit semantic overlay only when schema facts are insufficient to
 derive the required local meaning. Examples include application-owned authority,
 lifecycle or correlation semantics, and a deliberately narrower public behavior

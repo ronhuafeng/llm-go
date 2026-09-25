@@ -57,21 +57,34 @@ var familyAccessors = map[string]string{
 }
 
 var rootOperationOverrides = map[string]string{
-	"applyPatchApproval":  "ApplyPatchApproval",
-	"configWarning":       "ConfigWarning",
-	"deprecationNotice":   "DeprecationNotice",
-	"error":               "Error",
-	"execCommandApproval": "ExecCommandApproval",
-	"fuzzyFileSearch":     "Search",
-	"guardianWarning":     "GuardianWarning",
-	"initialize":          "Initialize",
-	"initialized":         "Initialized",
-	"warning":             "Warning",
+	"fuzzyFileSearch": "Search",
 }
 
 var rootInternalOverrides = map[string]string{
 	"initialize":  "internal.InitializeHandshake.Request",
 	"initialized": "internal.InitializeHandshake.InitializedNotification",
+}
+
+// These are established public Go names that cannot be inferred from wire
+// method strings or schema titles. They affect names only, never wire facts.
+var publicFacadeNames = map[string]string{
+	"config/mcpServer/reload":                   "Config().MCPServerReload",
+	"item/agentMessage/delta":                   "ServerNotifications().AgentMessageDelta",
+	"item/autoApprovalReview/completed":         "ServerNotifications().ItemGuardianApprovalReviewCompleted",
+	"item/autoApprovalReview/started":           "ServerNotifications().ItemGuardianApprovalReviewStarted",
+	"item/commandExecution/outputDelta":         "ServerNotifications().CommandExecutionOutputDelta",
+	"item/commandExecution/terminalInteraction": "ServerNotifications().TerminalInteraction",
+	"item/fileChange/outputDelta":               "ServerNotifications().FileChangeOutputDelta",
+	"item/fileChange/patchUpdated":              "ServerNotifications().FileChangePatchUpdated",
+	"item/mcpToolCall/progress":                 "ServerNotifications().McpToolCallProgress",
+	"item/plan/delta":                           "ServerNotifications().PlanDelta",
+	"item/reasoning/summaryPartAdded":           "ServerNotifications().ReasoningSummaryPartAdded",
+	"item/reasoning/summaryTextDelta":           "ServerNotifications().ReasoningSummaryTextDelta",
+	"item/reasoning/textDelta":                  "ServerNotifications().ReasoningTextDelta",
+	"mcpServer/oauth/login":                     "MCPServers().OAuthLogin",
+	"mcpServer/startupStatus/updated":           "ServerNotifications().McpServerStatusUpdated",
+	"process/resizePty":                         "Processes().ResizePTY",
+	"thread/compacted":                          "ServerNotifications().ContextCompacted",
 }
 
 var facadeTargetRE = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*\(\)\.[A-Za-z][A-Za-z0-9]*$`)
@@ -171,7 +184,7 @@ func typeNameFromSchema(path string) (string, error) {
 	return strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)), nil
 }
 
-func schemaFilesMap(root string) (map[string]string, error) {
+func schemaTypeIndex(root string) (map[string]string, error) {
 	files, err := schemaFiles(root)
 	if err != nil {
 		return nil, err
@@ -180,34 +193,16 @@ func schemaFilesMap(root string) (map[string]string, error) {
 	for _, rel := range files {
 		out[strings.TrimSuffix(filepath.Base(rel), filepath.Ext(rel))] = rel
 	}
-	return out, nil
-}
-
-func schemaPathForType(root, typeName string) (string, error) {
-	if typeName == "" {
-		return "", nil
-	}
-	byFile, err := schemaFilesMap(root)
-	if err != nil {
-		return "", err
-	}
-	if rel, ok := byFile[typeName]; ok {
-		return rel, nil
-	}
-	files, err := schemaFiles(root)
-	if err != nil {
-		return "", err
-	}
 	for _, rel := range files {
 		var data map[string]any
 		if err := loadJSON(filepath.Join(root, filepath.FromSlash(rel)), &data); err != nil {
-			continue
+			return nil, err
 		}
-		if title, _ := data["title"].(string); title == typeName {
-			return rel, nil
+		if title, _ := data["title"].(string); title != "" && out[title] == "" {
+			out[title] = rel
 		}
 	}
-	return "", nil
+	return out, nil
 }
 
 func aggregateKindDirection(aggregate string) (string, string, error) {
@@ -258,9 +253,12 @@ func loadAggregateEntries(root, aggregate string) ([]aggregateEntry, error) {
 	return entries, nil
 }
 
-func facadeTarget(entry aggregateEntry, direction, kind string, existing *manifestEntry, mapping *requestMapping) string {
-	if existing != nil && existing.FacadeTarget != "" {
-		return existing.FacadeTarget
+func facadeTarget(entry aggregateEntry, direction, kind string, mapping *requestMapping) string {
+	if override, ok := rootInternalOverrides[entry.method]; ok {
+		return override
+	}
+	if name, ok := publicFacadeNames[entry.method]; ok {
+		return name
 	}
 	variant := titleVariant(entry.schemaTitle)
 	if mapping != nil {
@@ -276,15 +274,12 @@ func facadeTarget(entry aggregateEntry, direction, kind string, existing *manife
 		return "ClientNotifications()." + titleVariant(entry.schemaTitle)
 	}
 	family := strings.SplitN(entry.method, "/", 2)[0]
-	if override, ok := rootInternalOverrides[entry.method]; ok {
-		return override
-	}
-	if override, ok := rootOperationOverrides[family]; ok {
-		return override
-	}
 	accessor := familyAccessors[family]
 	if accessor == "" {
 		accessor = pascalCase(family) + "()"
+	}
+	if operation, ok := rootOperationOverrides[entry.method]; ok {
+		return accessor + "." + operation
 	}
 	suffix := entry.method
 	if parts := strings.SplitN(entry.method, "/", 2); len(parts) == 2 {
@@ -293,17 +288,14 @@ func facadeTarget(entry aggregateEntry, direction, kind string, existing *manife
 	return accessor + "." + pascalCase(suffix)
 }
 
-func buildManifest(root string, old manifestFile, mappings map[string]requestMapping, sourceCommit string) (manifestFile, error) {
+func buildManifest(root, stableRoot string, old manifestFile, mappings map[string]requestMapping, sourceCommit string) (manifestFile, error) {
 	if old.SchemaVersion < 2 {
 		return manifestFile{}, fmt.Errorf("classified manifest schema_version must be at least 2")
 	}
-	oldEntries := map[string]manifestEntry{}
-	for _, entry := range old.Entries {
-		oldEntries[entry.Method] = entry
-	}
-	aggregates := old.AggregateSchemas
-	if len(aggregates) == 0 {
-		aggregates = append([]string(nil), aggregateSchemas...)
+	aggregates := append([]string(nil), aggregateSchemas...)
+	typePaths, err := schemaTypeIndex(root)
+	if err != nil {
+		return manifestFile{}, err
 	}
 	var entries []manifestEntry
 	for _, aggregate := range aggregates {
@@ -315,28 +307,32 @@ func buildManifest(root string, old manifestFile, mappings map[string]requestMap
 		if err != nil {
 			return manifestFile{}, err
 		}
-		for _, aggregateEntry := range aggEntries {
-			var existingPtr *manifestEntry
-			if existing, ok := oldEntries[aggregateEntry.method]; ok {
-				copy := existing
-				existingPtr = &copy
+		stableEntries, err := loadAggregateEntries(stableRoot, aggregate)
+		if err != nil {
+			return manifestFile{}, fmt.Errorf("load stable %s: %w", aggregate, err)
+		}
+		completeMethods := make(map[string]bool, len(aggEntries))
+		for _, entry := range aggEntries {
+			completeMethods[entry.method] = true
+		}
+		stableMethods := make(map[string]bool, len(stableEntries))
+		for _, entry := range stableEntries {
+			if !completeMethods[entry.method] {
+				return manifestFile{}, fmt.Errorf("stable %s contains method %q absent from complete schema", aggregate, entry.method)
 			}
+			stableMethods[entry.method] = true
+		}
+		for _, aggregateEntry := range aggEntries {
 			var mappingPtr *requestMapping
 			if mapping, ok := mappings[aggregateEntry.method]; ok {
 				copy := mapping
 				mappingPtr = &copy
 			}
 			paramsName := refName(aggregateEntry.paramsRef)
-			paramsSchema, err := schemaPathForType(root, paramsName)
-			if err != nil {
-				return manifestFile{}, err
-			}
+			paramsSchema := typePaths[paramsName]
 			stability := "stable"
 			stabilitySource := "present_in_stable_schema"
-			if existingPtr != nil && existingPtr.Stability != "" {
-				stability = existingPtr.Stability
-				stabilitySource = existingPtr.StabilitySource
-			} else if mappingPtr != nil && mappingPtr.experimental {
+			if !stableMethods[aggregateEntry.method] {
 				stability = "experimental"
 				stabilitySource = "experimental_only_in_schema"
 			}
@@ -350,32 +346,24 @@ func buildManifest(root string, old manifestFile, mappings map[string]requestMap
 			responseMapping := "not_applicable:notification_does_not_expect_response"
 			if kind == "request" {
 				responseStatus = "declared"
-				if mappingPtr != nil {
-					responseType = mappingPtr.responseType
-				} else if existingPtr != nil {
-					responseType = existingPtr.ResponseType
+				if mappingPtr == nil || mappingPtr.responseType == "" {
+					return manifestFile{}, fmt.Errorf("missing response mapping for request method %q", aggregateEntry.method)
 				}
-				resolved, err := schemaPathForType(root, responseType)
-				if err != nil {
-					return manifestFile{}, err
+				wantMacro := "client_request_definitions"
+				if direction == "server_to_client" {
+					wantMacro = "server_request_definitions"
 				}
-				responseSchema = resolved
-				if responseSchema == "" && existingPtr != nil {
-					responseSchema = existingPtr.ResponseSchema
+				if mappingPtr.macroName != wantMacro {
+					return manifestFile{}, fmt.Errorf("response mapping for %q came from %s, want %s", aggregateEntry.method, mappingPtr.macroName, wantMacro)
 				}
+				responseType = mappingPtr.responseType
+				responseSchema = typePaths[responseType]
 				if responseSchema == "" {
 					return manifestFile{}, fmt.Errorf("unable to resolve response schema for request method %q", aggregateEntry.method)
 				}
-				if mappingPtr != nil {
-					responseMapping = commonRSRef + "#" + mappingPtr.macroName + "/" + mappingPtr.variant
-				} else if existingPtr != nil && existingPtr.SourceRef != nil {
-					responseMapping = existingPtr.SourceRef["response_mapping"]
-				}
-				if responseMapping == "" || strings.HasPrefix(responseMapping, "not_applicable") {
-					return manifestFile{}, fmt.Errorf("missing response mapping for request method %q", aggregateEntry.method)
-				}
+				responseMapping = commonRSRef + "#" + mappingPtr.macroName + "/" + mappingPtr.variant
 			}
-			target := facadeTarget(aggregateEntry, direction, kind, existingPtr, mappingPtr)
+			target := facadeTarget(aggregateEntry, direction, kind, mappingPtr)
 			entry := manifestEntry{
 				Direction:             direction,
 				FacadeTarget:          target,
@@ -514,11 +502,7 @@ func defaultTypeCoverage(root, schema, stability string) (map[string]any, error)
 	}, nil
 }
 
-func defaultFieldCoverage(root, schema, field string, required bool, stability string) (map[string]any, error) {
-	typ, err := typeNameFromSchema(filepath.Join(root, filepath.FromSlash(schema)))
-	if err != nil {
-		return nil, err
-	}
+func defaultFieldCoverage(schema, typ, field string, required bool, stability string) map[string]any {
 	return map[string]any{
 		"exit_condition":  fmt.Sprintf("Regenerate if upstream schema drift changes %s.%s semantics.", typ, field),
 		"field":           field,
@@ -531,29 +515,38 @@ func defaultFieldCoverage(root, schema, field string, required bool, stability s
 		"stability":       stability,
 		"status":          "supported-generated",
 		"type":            typ,
-	}, nil
+	}
 }
 
-func topLevelObjectFields(root, schema, stability string) ([]map[string]any, error) {
-	var data map[string]any
-	if err := loadJSON(filepath.Join(root, filepath.FromSlash(schema)), &data); err != nil {
-		return nil, err
-	}
-	if data["type"] != "object" {
-		return nil, nil
-	}
-	properties, _ := data["properties"].(map[string]any)
-	if properties == nil {
-		return nil, nil
-	}
-	requiredSet := map[string]bool{}
+func requiredNames(data map[string]any) map[string]bool {
+	names := map[string]bool{}
 	if required, ok := data["required"].([]any); ok {
 		for _, item := range required {
 			if name, ok := item.(string); ok {
-				requiredSet[name] = true
+				names[name] = true
 			}
 		}
 	}
+	return names
+}
+
+func topLevelObjectFields(root, schema, stability string) (map[string]any, []map[string]any, error) {
+	var data map[string]any
+	if err := loadJSON(filepath.Join(root, filepath.FromSlash(schema)), &data); err != nil {
+		return nil, nil, err
+	}
+	if data["type"] != "object" {
+		return data, nil, nil
+	}
+	properties, _ := data["properties"].(map[string]any)
+	if properties == nil {
+		return data, nil, nil
+	}
+	typ, _ := data["title"].(string)
+	if typ == "" {
+		typ = strings.TrimSuffix(filepath.Base(schema), filepath.Ext(schema))
+	}
+	requiredSet := requiredNames(data)
 	var names []string
 	for name := range properties {
 		names = append(names, name)
@@ -561,16 +554,12 @@ func topLevelObjectFields(root, schema, stability string) ([]map[string]any, err
 	sort.Strings(names)
 	var fields []map[string]any
 	for _, name := range names {
-		field, err := defaultFieldCoverage(root, schema, name, requiredSet[name], stability)
-		if err != nil {
-			return nil, err
-		}
-		fields = append(fields, field)
+		fields = append(fields, defaultFieldCoverage(schema, typ, name, requiredSet[name], stability))
 	}
-	return fields, nil
+	return data, fields, nil
 }
 
-func buildCoverage(root string, old coverageFile, manifest manifestFile, fieldSeedSchemas map[string]bool) (coverageFile, error) {
+func buildCoverage(root, stableRoot string, old coverageFile, manifest manifestFile) (coverageFile, error) {
 	if old.SchemaVersion != 1 {
 		return coverageFile{}, fmt.Errorf("coverage matrix schema_version must be 1")
 	}
@@ -601,93 +590,98 @@ func buildCoverage(root string, old coverageFile, manifest manifestFile, fieldSe
 	if err != nil {
 		return coverageFile{}, err
 	}
+	stablePaths, err := schemaFiles(stableRoot)
+	if err != nil {
+		return coverageFile{}, err
+	}
+	completeSet := make(map[string]bool, len(schemaPaths))
+	for _, path := range schemaPaths {
+		completeSet[path] = true
+	}
+	stableSet := make(map[string]bool, len(stablePaths))
+	for _, path := range stablePaths {
+		if !completeSet[path] {
+			return coverageFile{}, fmt.Errorf("stable schema %s is absent from complete candidate", path)
+		}
+		stableSet[path] = true
+	}
 	oldTypes := map[string]map[string]any{}
 	for _, item := range old.Types {
 		if schema, _ := item["schema"].(string); schema != "" {
 			oldTypes[schema] = item
 		}
 	}
-	manifestStability := map[string]string{}
-	for _, entry := range manifest.Entries {
-		if entry.ResponseSchema != "" {
-			manifestStability[entry.ResponseSchema] = entry.Stability
-		}
-		paramsSchema, err := schemaPathForType(root, entry.ParamsOrPayloadSchema)
-		if err != nil {
-			return coverageFile{}, err
-		}
-		if paramsSchema != "" {
-			if _, ok := manifestStability[paramsSchema]; !ok {
-				manifestStability[paramsSchema] = entry.Stability
-			}
-		}
-	}
 	var types []map[string]any
 	for _, schema := range schemaPaths {
-		stability := manifestStability[schema]
-		if stability == "" {
-			if oldType, ok := oldTypes[schema]; ok {
-				stability, _ = oldType["stability"].(string)
-			}
-			if stability == "" {
-				stability = "stable"
-			}
+		stability := "experimental"
+		if stableSet[schema] {
+			stability = "stable"
 		}
-		typ, err := defaultTypeCoverage(root, schema, stability)
+		derivedType, err := defaultTypeCoverage(root, schema, stability)
 		if err != nil {
 			return coverageFile{}, err
 		}
+		if schema == "codex_app_server_protocol.schemas.json" || schema == "codex_app_server_protocol.v2.schemas.json" {
+			derivedType["status"] = "intentionally-unsupported"
+		}
+		typ := derivedType
 		if existing, ok := oldTypes[schema]; ok {
 			typ = cloneMap(existing)
-			typ["schema"] = schema
-		}
-		if _, ok := manifestStability[schema]; ok {
-			typ["stability"] = manifestStability[schema]
+			for _, key := range []string{"schema", "stability", "status", "type"} {
+				typ[key] = derivedType[key]
+			}
 		}
 		types = append(types, typ)
 	}
-	fieldsByPath := map[string]map[string]any{}
+	oldFields := map[string]map[string]any{}
 	for _, field := range old.Fields {
-		schema, _ := field["schema"].(string)
 		path, _ := field["path"].(string)
-		if pointerExists(root, schema, path) {
-			fieldsByPath[path] = cloneMap(field)
-		}
+		oldFields[path] = field
 	}
-	for schema := range fieldSeedSchemas {
-		found := false
-		for _, path := range schemaPaths {
-			if path == schema {
-				found = true
-				break
-			}
+	var fields []map[string]any
+	for _, schema := range schemaPaths {
+		stability := "experimental"
+		if stableSet[schema] {
+			stability = "stable"
 		}
-		if !found {
-			continue
-		}
-		stability := manifestStability[schema]
-		if stability == "" {
-			if oldType, ok := oldTypes[schema]; ok {
-				stability, _ = oldType["stability"].(string)
-			}
-			if stability == "" {
-				stability = "stable"
-			}
-		}
-		fields, err := topLevelObjectFields(root, schema, stability)
+		completeData, generatedFields, err := topLevelObjectFields(root, schema, stability)
 		if err != nil {
 			return coverageFile{}, err
 		}
-		for _, field := range fields {
-			path, _ := field["path"].(string)
-			if _, ok := fieldsByPath[path]; !ok {
-				fieldsByPath[path] = field
+		stableProperties := map[string]any{}
+		if stableSet[schema] {
+			var stableData map[string]any
+			if err := loadJSON(filepath.Join(stableRoot, filepath.FromSlash(schema)), &stableData); err != nil {
+				return coverageFile{}, err
+			}
+			stableProperties, _ = stableData["properties"].(map[string]any)
+			completeProperties, _ := completeData["properties"].(map[string]any)
+			completeRequired := requiredNames(completeData)
+			stableRequired := requiredNames(stableData)
+			for name := range stableProperties {
+				if _, present := completeProperties[name]; !present {
+					return coverageFile{}, fmt.Errorf("stable field %s#/properties/%s is absent from complete schema", schema, name)
+				}
+				if completeRequired[name] != stableRequired[name] {
+					return coverageFile{}, fmt.Errorf("stable field %s#/properties/%s requiredness differs from complete schema", schema, name)
+				}
 			}
 		}
-	}
-	var fields []map[string]any
-	for _, field := range fieldsByPath {
-		fields = append(fields, field)
+		for _, field := range generatedFields {
+			path, _ := field["path"].(string)
+			name, _ := field["field"].(string)
+			if _, present := stableProperties[name]; !present {
+				field["stability"] = "experimental"
+			}
+			if oldField, ok := oldFields[path]; ok {
+				merged := cloneMap(oldField)
+				for _, key := range []string{"field", "path", "required", "schema", "stability", "status", "type"} {
+					merged[key] = field[key]
+				}
+				field = merged
+			}
+			fields = append(fields, field)
+		}
 	}
 	sort.Slice(fields, func(i, j int) bool {
 		left, _ := fields[i]["path"].(string)

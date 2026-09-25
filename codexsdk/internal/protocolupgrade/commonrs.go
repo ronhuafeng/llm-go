@@ -13,11 +13,11 @@ const commonRSRef = "codex-rs/app-server-protocol/src/protocol/common.rs"
 type requestMapping struct {
 	variant      string
 	responseType string
-	experimental bool
 	macroName    string
 }
 
 var requestEntryRE = regexp.MustCompile(`(?s)(?P<prefix>(?:\s*(?:#\[[^\n]*\]|///[^\n]*|//[^\n]*)\n)*)\s*(?P<variant>[A-Za-z][A-Za-z0-9_]*)(?:\s*=>\s*"(?P<wire>[^"]+)")?\s*\{(?P<body>.*?)\n\s*\},`)
+var responseEntryRE = regexp.MustCompile(`response:\s*([^,\n]+)`)
 
 func loadCommonRSSourceSHA(commonRS, explicit string) (string, error) {
 	if explicit != "" {
@@ -77,14 +77,16 @@ func parseRequestMappings(path string) (map[string]requestMapping, error) {
 			if wire == "" {
 				continue
 			}
-			response := regexp.MustCompile(`response:\s*([^,\n]+)`).FindStringSubmatch(named["body"])
+			response := responseEntryRE.FindStringSubmatch(named["body"])
 			if response == nil {
 				continue
+			}
+			if _, duplicate := mappings[wire]; duplicate {
+				return nil, fmt.Errorf("duplicate response mapping for %q", wire)
 			}
 			mappings[wire] = requestMapping{
 				variant:      named["variant"],
 				responseType: responseTypeName(response[1]),
-				experimental: strings.Contains(named["prefix"], "#[experimental"),
 				macroName:    macroName,
 			}
 		}

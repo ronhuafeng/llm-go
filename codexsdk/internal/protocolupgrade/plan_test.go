@@ -55,9 +55,7 @@ func TestPlanRunsCanonicalCodegenInIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 	commonRS := filepath.Join(root, "common.rs")
-	if err := os.WriteFile(commonRS, []byte(tinyCommonRS), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	writeBaselineMappingFixture(t, baseline, commonRS)
 	sha := strings.Repeat("b", 40)
 	before, err := snapshotHashes(baseline)
 	if err != nil {

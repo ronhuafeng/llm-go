@@ -111,13 +111,6 @@ func Apply(req ApplyRequest) (ApplyResult, error) {
 		return ApplyResult{}, err
 	}
 	added := append([]string(nil), preflight.FileDiff.Added...)
-	fieldSeeds := map[string]bool{}
-	for _, rel := range preflight.FileDiff.Added {
-		fieldSeeds[rel] = true
-	}
-	for _, rel := range preflight.FileDiff.Changed {
-		fieldSeeds[rel] = true
-	}
 
 	if err := copyCandidateSchema(req.Candidate, req.Baseline); err != nil {
 		return ApplyResult{}, err
@@ -145,14 +138,14 @@ func Apply(req ApplyRequest) (ApplyResult, error) {
 	if err != nil {
 		return ApplyResult{}, wrapIncompatibility("manifest", err)
 	}
-	manifest, err := buildManifest(req.Baseline, oldManifest, mappings, req.TargetSHA)
+	manifest, err := buildManifest(req.Baseline, req.StableCandidate, oldManifest, mappings, req.TargetSHA)
 	if err != nil {
 		return ApplyResult{}, wrapIncompatibility("manifest", err)
 	}
 	if err := writeJSON(filepath.Join(req.Baseline, "manifest.json"), manifest); err != nil {
 		return ApplyResult{}, err
 	}
-	coverage, err := buildCoverage(req.Baseline, oldCoverage, manifest, fieldSeeds)
+	coverage, err := buildCoverage(req.Baseline, req.StableCandidate, oldCoverage, manifest)
 	if err != nil {
 		return ApplyResult{}, wrapIncompatibility("coverage", err)
 	}
