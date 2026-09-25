@@ -197,7 +197,9 @@ func goNamePart(part string) string {
 	case "urls":
 		return "URLs"
 	default:
-		return strings.ToUpper(part[:1]) + part[1:]
+		runes := []rune(part)
+		runes[0] = unicode.ToUpper(runes[0])
+		return string(runes)
 	}
 }
 

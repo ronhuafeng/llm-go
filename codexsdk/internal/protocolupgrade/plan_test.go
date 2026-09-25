@@ -291,8 +291,8 @@ func TestPlanReportsUnrepresentableWireFieldName(t *testing.T) {
 	}
 	writeJSONFile(t, filepath.Join(candidate, "v2", "BedrockDiscoverParams.json"), map[string]any{
 		"title": "BedrockDiscoverParams", "type": "object",
-		"required": []string{"a\"b"},
-		"properties": map[string]any{"a\"b": map[string]any{
+		"required": []string{"a~/b\""},
+		"properties": map[string]any{"a~/b\"": map[string]any{
 			"type": "array", "items": map[string]any{"type": "string"},
 		}},
 	})
@@ -308,8 +308,68 @@ func TestPlanReportsUnrepresentableWireFieldName(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if planned.Status != PlanSemanticUnresolved || planned.Issue == nil || planned.Issue.Stage != "surface" || planned.Issue.Path != "v2/BedrockDiscoverParams.json#/properties/a\"b" {
+	if planned.Status != PlanSemanticUnresolved || planned.Issue == nil || planned.Issue.Stage != "surface" || planned.Issue.Path != "v2/BedrockDiscoverParams.json#/properties/a~0~1b\"" {
 		t.Fatalf("plan = %+v issue = %+v, want wire field source", planned, planned.Issue)
+	}
+}
+
+func TestPlanReportsGeneratedFieldNameCollision(t *testing.T) {
+	root := copyModuleForCheck(t)
+	baseline := filepath.Join(root, filepath.FromSlash(defaultBaselineRel))
+	candidate := t.TempDir()
+	if err := copyTree(baseline, candidate); err != nil {
+		t.Fatal(err)
+	}
+	writeJSONFile(t, filepath.Join(candidate, "v2", "BedrockDiscoverParams.json"), map[string]any{
+		"title": "BedrockDiscoverParams", "type": "object",
+		"properties": map[string]any{
+			"foo-bar": map[string]any{"type": "string"},
+			"foo_bar": map[string]any{"type": "string"},
+		},
+	})
+	commonRS := filepath.Join(root, "common.rs")
+	writeBaselineMappingFixture(t, baseline, commonRS)
+	sha := strings.Repeat("b", 40)
+	planned, err := Plan(ApplyRequest{
+		Baseline: baseline, Candidate: candidate, StableCandidate: candidate,
+		CommonRS: commonRS, CommonRSSourceSHA: sha,
+		TargetRef: "rust-v0.154.0", TargetKind: "stable_rust_tag", TargetSHA: sha,
+		ModuleRoot: root,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if planned.Status != PlanSemanticUnresolved || planned.Issue == nil || planned.Issue.Stage != "surface" || planned.Issue.Path != "v2/BedrockDiscoverParams.json#/properties/foo_bar" {
+		t.Fatalf("plan = %+v issue = %+v, want colliding field source", planned, planned.Issue)
+	}
+}
+
+func TestPlanAcceptsRepresentableUnfamiliarFieldNames(t *testing.T) {
+	root := copyModuleForCheck(t)
+	baseline := filepath.Join(root, filepath.FromSlash(defaultBaselineRel))
+	candidate := t.TempDir()
+	if err := copyTree(baseline, candidate); err != nil {
+		t.Fatal(err)
+	}
+	writeJSONFile(t, filepath.Join(candidate, "v2", "BedrockDiscoverParams.json"), map[string]any{
+		"title": "BedrockDiscoverParams", "type": "object",
+		"required": []string{"-", "é"},
+		"properties": map[string]any{
+			"-": map[string]any{"type": "string"},
+			"é": map[string]any{"type": "string"},
+		},
+	})
+	commonRS := filepath.Join(root, "common.rs")
+	writeBaselineMappingFixture(t, baseline, commonRS)
+	sha := strings.Repeat("b", 40)
+	planned, err := Plan(ApplyRequest{
+		Baseline: baseline, Candidate: candidate, StableCandidate: candidate,
+		CommonRS: commonRS, CommonRSSourceSHA: sha,
+		TargetRef: "rust-v0.154.0", TargetKind: "stable_rust_tag", TargetSHA: sha,
+		ModuleRoot: root,
+	})
+	if err != nil || planned.Status != PlanReady {
+		t.Fatalf("plan = %+v, err = %v, want ready", planned, err)
 	}
 }
 

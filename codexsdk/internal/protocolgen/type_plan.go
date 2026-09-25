@@ -127,7 +127,7 @@ func BuildProtocolTypePlan(schemaRoot string) (ProtocolTypePlan, error) {
 			}
 			fieldPlan, err := planField(coverageField, fieldSchema)
 			if err != nil {
-				return ProtocolTypePlan{}, &UnsupportedSchemaError{Path: coverageField.Path, Err: err}
+				return ProtocolTypePlan{}, classifyGeneratedSchemaError(coverageField.Path, err)
 			}
 			typePlan.Fields = append(typePlan.Fields, fieldPlan)
 			plan.Fields = append(plan.Fields, fieldPlan)
@@ -995,7 +995,7 @@ func isSupportedScalarUnion(variants []*Schema) bool {
 
 func planField(coverage CoverageField, schema *Schema) (FieldPlan, error) {
 	if !representableJSONTagName(coverage.Field) {
-		return FieldPlan{}, unsupportedGeneratedSchema(coverage.Path, "field name %q cannot be represented by a Go JSON struct tag", coverage.Field)
+		return FieldPlan{}, unsupportedGeneratedSchema(unsupportedPropertyPath(coverage.Path, coverage.Field), "field name %q cannot be represented by a Go JSON struct tag", coverage.Field)
 	}
 	plan := FieldPlan{
 		FieldName:       coverage.Field,

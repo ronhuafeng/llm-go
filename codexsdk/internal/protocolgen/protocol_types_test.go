@@ -44,6 +44,29 @@ func TestGenerateProtocolTypesReportsSourceForReservedName(t *testing.T) {
 	}
 }
 
+func TestGenerateProtocolTypesPreservesDashAndUnicodeFieldNames(t *testing.T) {
+	plan := ProtocolTypePlan{Types: []TypePlan{{
+		Kind: TypePlanObjectStructCandidate, SchemaPath: "Example.json", TypeName: "Example",
+		Schema: &Schema{Type: SchemaTypeSet{Values: []string{"object"}}, Properties: map[string]*Schema{
+			"-": {Type: SchemaTypeSet{Values: []string{"string"}}},
+			"é": {Type: SchemaTypeSet{Values: []string{"string"}}},
+		}},
+		Fields: []FieldPlan{
+			{FieldName: "-", GoType: "string", Kind: FieldPlanScalar, Required: true, Path: "Example.json#/properties/-"},
+			{FieldName: "é", GoType: "string", Kind: FieldPlanScalar, Required: true, Path: "Example.json#/properties/é"},
+		},
+	}}}
+	generated, err := GenerateProtocolTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Field string `json:\"-,\"`", "`json:\"é\"`", "\tÉ"} {
+		if !strings.Contains(string(generated), want) {
+			t.Fatalf("generated protocol type lacks %q", want)
+		}
+	}
+}
+
 func TestGenerateProtocolTypesMatchesCheckedInOutput(t *testing.T) {
 	schemaRoot := filepath.Join("..", "protocolschema", "appserver", "v2")
 	plan, err := BuildProtocolTypePlan(schemaRoot)

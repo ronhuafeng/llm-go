@@ -25,8 +25,18 @@ func unsupportedGeneratedSchema(path, format string, args ...any) error {
 }
 
 func unsupportedDefinitionPath(schemaPath, name string) string {
-	name = strings.ReplaceAll(strings.ReplaceAll(name, "~", "~0"), "/", "~1")
-	return schemaPath + "#/definitions/" + name
+	return schemaPath + "#/definitions/" + escapedJSONPointerToken(name)
+}
+
+func unsupportedPropertyPath(path, name string) string {
+	if !strings.HasSuffix(path, name) {
+		return path
+	}
+	return strings.TrimSuffix(path, name) + escapedJSONPointerToken(name)
+}
+
+func escapedJSONPointerToken(name string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(name, "~", "~0"), "/", "~1")
 }
 
 func classifyGeneratedSchemaError(path string, err error) error {

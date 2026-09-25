@@ -48,6 +48,35 @@ func GenerateProtocolTypes(plan ProtocolTypePlan) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	for _, typ := range types {
+		if err := validateGeneratedFieldNames(typ.Fields); err != nil {
+			return nil, err
+		}
+	}
+	for _, union := range mixedUnions {
+		for _, variant := range union.Variants {
+			if err := validateGeneratedFieldNames(variant.Fields); err != nil {
+				return nil, err
+			}
+		}
+	}
+	for _, union := range untaggedObjectUnions {
+		for _, variant := range union.Variants {
+			if err := validateGeneratedFieldNames(variant.Fields); err != nil {
+				return nil, err
+			}
+		}
+	}
+	for _, union := range unions {
+		if err := validateGeneratedFieldNames(union.SharedFields); err != nil {
+			return nil, err
+		}
+		for _, variant := range union.Variants {
+			if err := validateGeneratedFieldNames(variant.Fields); err != nil {
+				return nil, err
+			}
+		}
+	}
 	generatedWireTypes := map[string]bool{}
 	for _, typ := range types {
 		generatedWireTypes[typ.TypeName] = true
@@ -147,6 +176,21 @@ func GenerateProtocolTypes(plan ProtocolTypePlan) ([]byte, error) {
 		return nil, fmt.Errorf("format generated protocol types: %w", err)
 	}
 	return formatted, nil
+}
+
+func validateGeneratedFieldNames(fields []FieldPlan) error {
+	seen := map[string]string{}
+	for _, field := range fields {
+		name := fieldGoName(field.FieldName)
+		if previous, ok := seen[name]; ok {
+			return unsupportedGeneratedSchema(
+				unsupportedPropertyPath(field.Path, field.FieldName),
+				"wire fields %q and %q both generate Go field %s", previous, field.FieldName, name,
+			)
+		}
+		seen[name] = field.FieldName
+	}
+	return nil
 }
 
 type EnumPlan struct {
@@ -3521,6 +3565,9 @@ func generatedGoType(goType string) string {
 
 func jsonTagOmitEmpty(field FieldPlan) string {
 	if field.Required {
+		if field.FieldName == "-" {
+			return ","
+		}
 		return ""
 	}
 	return ",omitempty"
