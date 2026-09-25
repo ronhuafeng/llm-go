@@ -327,6 +327,12 @@ Before publication, require evidence appropriate to the candidate:
 - `go vet ./codexsdk/...` passes;
 - `go test ./codexsdk/...` passes.
 
+Ambient Rust/Cargo environment overrides are removed; owned cache locations
+are then set explicitly. Cargo configuration outside the selected checkout
+(including the Cargo home cache and ancestor directories) rejects generation.
+Selected source configuration remains authoritative. This bounds build inputs;
+it does not claim a hermetic operating system or compiler installation.
+
 Upstream schema generation and CLI version queries use `cargo run --locked`
 in the exact selected checkout. The selected source's Rust toolchain declaration
 controls the build; an ambient `RUSTUP_TOOLCHAIN` override is not inherited.

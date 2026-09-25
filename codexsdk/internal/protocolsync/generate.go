@@ -87,11 +87,32 @@ func GenerateCandidate(req GenerateRequest) (Candidate, error) {
 			return Candidate{}, err
 		}
 	}
-	// Let rustup use the selected source's toolchain declaration, not an
-	// ambient override belonging to the calling environment.
+	// Cargo searches ancestor directories and CARGO_HOME for configuration.
+	// Only configuration in the selected source is a build input; caches
+	// must not silently supply additional compiler or dependency settings.
+	configDirs := []string{cargoHome}
+	for dir := filepath.Dir(worktree); ; dir = filepath.Dir(dir) {
+		configDirs = append(configDirs, filepath.Join(dir, ".cargo"))
+		if filepath.Dir(dir) == dir {
+			break
+		}
+	}
+	for _, dir := range configDirs {
+		for _, name := range []string{"config", "config.toml"} {
+			path := filepath.Join(dir, name)
+			if _, err := os.Stat(path); err == nil {
+				return Candidate{}, &Failure{Category: FailureSource, Err: fmt.Errorf("external Cargo configuration is not a selected source input: %s", path)}
+			} else if !os.IsNotExist(err) {
+				return Candidate{}, err
+			}
+		}
+	}
+	// Use the selected source's toolchain and Cargo settings. Preserve the
+	// host execution/network environment, but remove ambient Rust/Cargo
+	// overrides before setting the owned cache locations below.
 	var env []string
 	for _, value := range os.Environ() {
-		if !strings.HasPrefix(value, "RUSTUP_TOOLCHAIN=") {
+		if !strings.HasPrefix(value, "RUST") && !strings.HasPrefix(value, "CARGO_") {
 			env = append(env, value)
 		}
 	}

@@ -12,11 +12,9 @@ func TestGenerateCandidateUsesLockedSourceAndRejectsBuildMutation(t *testing.T) 
 	if runtime.GOOS == "windows" {
 		t.Skip("POSIX cargo fixture")
 	}
-	for _, mutate := range []bool{false, true} {
-		name := "unchanged"
-		if mutate {
-			name = "mutated source"
-		}
+	for _, name := range []string{"unchanged", "mutated source", "cached cargo config", "parent cargo config"} {
+		mutate := name == "mutated source"
+		config := strings.Contains(name, "cargo config")
 		t.Run(name, func(t *testing.T) {
 			upstream := t.TempDir()
 			writeFile(t, filepath.Join(upstream, "codex-rs", "Cargo.lock"), "selected-lock\n")
@@ -35,7 +33,10 @@ func TestGenerateCandidateUsesLockedSourceAndRejectsBuildMutation(t *testing.T) 
 			script := `#!/bin/sh
 set -eu
 test "${RUSTUP_TOOLCHAIN+x}" != x
-printf '%s\n' "$*" >> "$CARGO_CALLS"
+test "${RUSTFLAGS+x}" != x
+test "${CARGO_ENCODED_RUSTFLAGS+x}" != x
+test "${RUSTC_WRAPPER+x}" != x
+printf '%s\n' "$*" >> "$FIXTURE_CALLS"
 test "$(cat rust-toolchain.toml)" = selected-toolchain
 case " $* " in *" --locked "*) ;; *) echo 'lockfile updates are forbidden' >&2; exit 35;; esac
 case " $* " in *" --version "*) echo 'codex-cli 1.2.3'; exit 0;; esac
@@ -50,15 +51,24 @@ exit 36
 				t.Fatal(err)
 			}
 			t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
-			t.Setenv("CARGO_CALLS", calls)
+			t.Setenv("FIXTURE_CALLS", calls)
 			t.Setenv("RUSTUP_TOOLCHAIN", "ambient-override")
+			t.Setenv("RUSTFLAGS", "--cfg ambient")
+			t.Setenv("CARGO_ENCODED_RUSTFLAGS", "--cfg=ambient")
+			t.Setenv("RUSTC_WRAPPER", "/ambient/wrapper")
+			if name == "cached cargo config" {
+				writeFile(t, filepath.Join(module, ".cache", "cargo-home", "config.toml"), "[build]\nrustflags = ['--cfg=ambient']\n")
+			}
+			if name == "parent cargo config" {
+				writeFile(t, filepath.Join(module, ".cargo", "config"), "[build]\nrustflags = ['--cfg=ambient']\n")
+			}
 			if mutate {
 				t.Setenv("MUTATE_SOURCE", "true")
 			} else {
 				t.Setenv("MUTATE_SOURCE", "false")
 			}
 			candidate, err := GenerateCandidate(GenerateRequest{ModuleRoot: module, UpstreamRepo: upstream, Target: Target{RefName: "rust-v1.2.3", RefKind: KindStableTag, PeeledCommitSHA: sha}})
-			if mutate {
+			if mutate || config {
 				if err == nil || failureCategory(err) != FailureSource || candidate.Dir != "" {
 					t.Fatalf("mutated build accepted: candidate=%+v err=%v", candidate, err)
 				}
