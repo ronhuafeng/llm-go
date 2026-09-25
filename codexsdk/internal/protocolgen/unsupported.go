@@ -15,3 +15,7 @@ func (e *UnsupportedSchemaError) Error() string {
 }
 
 func (e *UnsupportedSchemaError) Unwrap() error { return e.Err }
+
+func unsupportedGeneratedSchema(path, format string, args ...any) error {
+	return &UnsupportedSchemaError{Path: path, Err: fmt.Errorf(format, args...)}
+}

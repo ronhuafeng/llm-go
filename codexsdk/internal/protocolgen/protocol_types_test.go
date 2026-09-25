@@ -27,6 +27,23 @@ func TestGenerateProtocolTypesClassifiesSelectedUnsupportedDefinition(t *testing
 	}
 }
 
+func TestGenerateProtocolTypesReportsSourceForReservedName(t *testing.T) {
+	plan := ProtocolTypePlan{Types: []TypePlan{{
+		Kind: TypePlanObjectStructCandidate, SchemaPath: "Clashing.json", TypeName: "JSONValue",
+		Schema: &Schema{
+			Type: SchemaTypeSet{Values: []string{"object"}},
+			Properties: map[string]*Schema{
+				"value": {Type: SchemaTypeSet{Values: []string{"string"}}},
+			},
+		},
+	}}}
+	_, err := GenerateProtocolTypes(plan)
+	var unsupported *UnsupportedSchemaError
+	if !errors.As(err, &unsupported) || unsupported.Path != "Clashing.json" {
+		t.Fatalf("error = %v, want source schema path", err)
+	}
+}
+
 func TestGenerateProtocolTypesMatchesCheckedInOutput(t *testing.T) {
 	schemaRoot := filepath.Join("..", "protocolschema", "appserver", "v2")
 	plan, err := BuildProtocolTypePlan(schemaRoot)

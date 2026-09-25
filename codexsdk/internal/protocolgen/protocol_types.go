@@ -3,25 +3,13 @@ package protocolgen
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"go/format"
 	"sort"
 	"strings"
 )
 
-func GenerateProtocolTypes(plan ProtocolTypePlan) (source []byte, err error) {
-	// All work here is pure generation from an already loaded type plan. A
-	// failure is a representation problem, never a filesystem failure.
-	defer func() {
-		if err == nil {
-			return
-		}
-		var unsupported *UnsupportedSchemaError
-		if !errors.As(err, &unsupported) {
-			err = &UnsupportedSchemaError{Path: "protocolv2/protocol_types.gen.go", Err: err}
-		}
-	}()
+func GenerateProtocolTypes(plan ProtocolTypePlan) ([]byte, error) {
 	plan = normalizeExplicitProtocolTypePlan(plan)
 	if err := validateGeneratedDefinitionShapes(plan); err != nil {
 		return nil, err
@@ -399,7 +387,7 @@ func SelectGeneratedEnums(plan ProtocolTypePlan) ([]EnumPlan, error) {
 				continue
 			}
 			if reservedProtocolTypeName(typeName) {
-				return nil, fmt.Errorf("generated enum %s conflicts with handwritten protocolv2 type", typeName)
+				return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated enum %s conflicts with handwritten protocolv2 type", typeName)
 			}
 			encoded, err := json.Marshal(schema)
 			if err != nil {
@@ -408,10 +396,10 @@ func SelectGeneratedEnums(plan ProtocolTypePlan) ([]EnumPlan, error) {
 			existing, ok := byName[typeName]
 			if ok {
 				if !sameStrings(existing.Values, enumValues) {
-					return nil, fmt.Errorf("generated enum %s has conflicting values between %s and %s", typeName, strings.Join(existing.Sources, ", "), typ.SchemaPath)
+					return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated enum %s has conflicting values between %s and %s", typeName, strings.Join(existing.Sources, ", "), typ.SchemaPath)
 				}
 				if !bytes.Equal(schemaByName[typeName], encoded) {
-					return nil, fmt.Errorf("generated enum %s has conflicting schemas between %s and %s", typeName, strings.Join(existing.Sources, ", "), typ.SchemaPath)
+					return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated enum %s has conflicting schemas between %s and %s", typeName, strings.Join(existing.Sources, ", "), typ.SchemaPath)
 				}
 				existing.Sources = append(existing.Sources, typ.SchemaPath)
 				byName[typeName] = existing
@@ -459,11 +447,11 @@ func SelectGeneratedScalarAliases(plan ProtocolTypePlan) ([]ScalarAliasPlan, err
 			}
 			typeName := generatedDefinitionTypeName(resolver, typ.SchemaPath, name)
 			if schema == nil || !schema.Type.Only("string") || len(schema.Enum) != 0 || hasNonTypeShape(schema) {
-				return nil, fmt.Errorf("generated scalar alias %s in %s no longer matches supported string alias shape", typeName, typ.SchemaPath)
+				return nil, unsupportedGeneratedSchema(definitionSchemaPath(typ.SchemaPath, name), "generated scalar alias %s in %s no longer matches supported string alias shape", typeName, typ.SchemaPath)
 			}
 			for _, keyword := range unmodeledKeywords(schema) {
 				if keyword != "minLength" {
-					return nil, fmt.Errorf("generated scalar alias %s in %s has unsupported keyword %s", typeName, typ.SchemaPath, keyword)
+					return nil, unsupportedGeneratedSchema(definitionSchemaPath(typ.SchemaPath, name), "generated scalar alias %s in %s has unsupported keyword %s", typeName, typ.SchemaPath, keyword)
 				}
 			}
 			encoded, err := json.Marshal(schema)
@@ -473,7 +461,7 @@ func SelectGeneratedScalarAliases(plan ProtocolTypePlan) ([]ScalarAliasPlan, err
 			existing, ok := byName[typeName]
 			if ok {
 				if !bytes.Equal(schemaByName[typeName], encoded) {
-					return nil, fmt.Errorf("generated scalar alias %s has conflicting schemas between %s and %s", typeName, strings.Join(existing.Sources, ", "), typ.SchemaPath)
+					return nil, unsupportedGeneratedSchema(definitionSchemaPath(typ.SchemaPath, name), "generated scalar alias %s has conflicting schemas between %s and %s", typeName, strings.Join(existing.Sources, ", "), typ.SchemaPath)
 				}
 				existing.Sources = append(existing.Sources, typ.SchemaPath)
 				byName[typeName] = existing
@@ -564,16 +552,16 @@ func SelectFirstPassGeneratedTypes(plan ProtocolTypePlan) ([]TypePlan, error) {
 				continue
 			}
 			if enumTypes[typ.TypeName] {
-				return nil, fmt.Errorf("generated type %s conflicts with generated enum type", typ.TypeName)
+				return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated type %s conflicts with generated enum type", typ.TypeName)
 			}
 			if reservedProtocolTypeName(typ.TypeName) {
-				return nil, fmt.Errorf("generated type %s conflicts with handwritten protocolv2 type", typ.TypeName)
+				return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated type %s conflicts with handwritten protocolv2 type", typ.TypeName)
 			}
 			if previous, ok := seenNames[typ.TypeName]; ok {
-				return nil, fmt.Errorf("generated type %s appears in both %s and %s", typ.TypeName, previous, typ.SchemaPath)
+				return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated type %s appears in both %s and %s", typ.TypeName, previous, typ.SchemaPath)
 			}
 			if generatedNamedTypes[typ.TypeName] {
-				return nil, fmt.Errorf("generated type %s conflicts with earlier generated type", typ.TypeName)
+				return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated type %s conflicts with earlier generated type", typ.TypeName)
 			}
 			seenNames[typ.TypeName] = typ.SchemaPath
 			selectedIndexes[index] = true
@@ -624,10 +612,10 @@ func dedupeDefinitionTypeCandidates(candidates []TypePlan) ([]TypePlan, error) {
 			continue
 		}
 		if !strings.Contains(previous.SchemaPath, "#/definitions/") || !strings.Contains(candidate.SchemaPath, "#/definitions/") {
-			return nil, fmt.Errorf("generated type %s appears in both %s and %s", candidate.TypeName, previous.SchemaPath, candidate.SchemaPath)
+			return nil, unsupportedGeneratedSchema(candidate.SchemaPath, "generated type %s appears in both %s and %s", candidate.TypeName, previous.SchemaPath, candidate.SchemaPath)
 		}
 		if previous.Kind != candidate.Kind {
-			return nil, fmt.Errorf("generated definition %s has conflicting kinds between %s and %s", candidate.TypeName, previous.SchemaPath, candidate.SchemaPath)
+			return nil, unsupportedGeneratedSchema(candidate.SchemaPath, "generated definition %s has conflicting kinds between %s and %s", candidate.TypeName, previous.SchemaPath, candidate.SchemaPath)
 		}
 		left, err := json.Marshal(previous.Schema)
 		if err != nil {
@@ -638,7 +626,7 @@ func dedupeDefinitionTypeCandidates(candidates []TypePlan) ([]TypePlan, error) {
 			return nil, fmt.Errorf("encode generated definition %s from %s: %w", candidate.TypeName, candidate.SchemaPath, err)
 		}
 		if !bytes.Equal(left, right) {
-			return nil, fmt.Errorf("generated definition %s has conflicting schemas between %s and %s", candidate.TypeName, previous.SchemaPath, candidate.SchemaPath)
+			return nil, unsupportedGeneratedSchema(candidate.SchemaPath, "generated definition %s has conflicting schemas between %s and %s", candidate.TypeName, previous.SchemaPath, candidate.SchemaPath)
 		}
 	}
 	return out, nil
@@ -712,13 +700,13 @@ func SelectGeneratedMixedUnions(plan ProtocolTypePlan) ([]MixedUnionPlan, error)
 	seenNames := map[string]string{}
 	for _, typ := range candidates {
 		if enumTypes[typ.TypeName] {
-			return nil, fmt.Errorf("generated mixed union %s conflicts with generated enum type", typ.TypeName)
+			return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated mixed union %s conflicts with generated enum type", typ.TypeName)
 		}
 		if reservedProtocolTypeName(typ.TypeName) {
-			return nil, fmt.Errorf("generated mixed union %s conflicts with handwritten protocolv2 type", typ.TypeName)
+			return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated mixed union %s conflicts with handwritten protocolv2 type", typ.TypeName)
 		}
 		if previous, ok := seenNames[typ.TypeName]; ok {
-			return nil, fmt.Errorf("generated mixed union %s appears in both %s and %s", typ.TypeName, previous, typ.SchemaPath)
+			return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated mixed union %s appears in both %s and %s", typ.TypeName, previous, typ.SchemaPath)
 		}
 		seenNames[typ.TypeName] = typ.SchemaPath
 		union, err := buildMixedUnionPlan(typ, generatedNamedTypes, resolver)
@@ -971,13 +959,13 @@ func SelectGeneratedUntaggedObjectUnions(plan ProtocolTypePlan) ([]UntaggedObjec
 	seenNames := map[string]string{}
 	for _, typ := range candidates {
 		if enumTypes[typ.TypeName] {
-			return nil, fmt.Errorf("generated untagged object union %s conflicts with generated enum type", typ.TypeName)
+			return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated untagged object union %s conflicts with generated enum type", typ.TypeName)
 		}
 		if reservedProtocolTypeName(typ.TypeName) {
-			return nil, fmt.Errorf("generated untagged object union %s conflicts with handwritten protocolv2 type", typ.TypeName)
+			return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated untagged object union %s conflicts with handwritten protocolv2 type", typ.TypeName)
 		}
 		if previous, ok := seenNames[typ.TypeName]; ok {
-			return nil, fmt.Errorf("generated untagged object union %s appears in both %s and %s", typ.TypeName, previous, typ.SchemaPath)
+			return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated untagged object union %s appears in both %s and %s", typ.TypeName, previous, typ.SchemaPath)
 		}
 		seenNames[typ.TypeName] = typ.SchemaPath
 		union, err := buildUntaggedObjectUnionPlan(typ, generatedNamedTypes, resolver)
@@ -1419,13 +1407,13 @@ func SelectGeneratedTaggedUnions(plan ProtocolTypePlan) ([]TaggedUnionPlan, erro
 	seenNames := map[string]string{}
 	for _, typ := range candidates {
 		if enumTypes[typ.TypeName] {
-			return nil, fmt.Errorf("generated tagged union %s conflicts with generated enum type", typ.TypeName)
+			return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated tagged union %s conflicts with generated enum type", typ.TypeName)
 		}
 		if reservedProtocolTypeName(typ.TypeName) {
-			return nil, fmt.Errorf("generated tagged union %s conflicts with handwritten protocolv2 type", typ.TypeName)
+			return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated tagged union %s conflicts with handwritten protocolv2 type", typ.TypeName)
 		}
 		if previous, ok := seenNames[typ.TypeName]; ok {
-			return nil, fmt.Errorf("generated tagged union %s appears in both %s and %s", typ.TypeName, previous, typ.SchemaPath)
+			return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated tagged union %s appears in both %s and %s", typ.TypeName, previous, typ.SchemaPath)
 		}
 		seenNames[typ.TypeName] = typ.SchemaPath
 		union, err := buildTaggedUnionPlan(typ, generatedNamedTypes, resolver)
