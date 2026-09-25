@@ -74,6 +74,12 @@ func parseRequestMappings(path string) (map[string]requestMapping, error) {
 		for _, match := range requestEntryRE.FindAllStringSubmatch(macroBody, -1) {
 			named := namedGroups(requestEntryRE, match)
 			wire := named["wire"]
+			if wire == "" && macroName == "server_request_definitions" {
+				// This macro uses serde(rename_all = "camelCase") when a
+				// variant has no explicit wire literal.
+				variant := named["variant"]
+				wire = strings.ToLower(variant[:1]) + variant[1:]
+			}
 			if wire == "" {
 				continue
 			}

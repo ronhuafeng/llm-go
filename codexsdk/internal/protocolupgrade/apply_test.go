@@ -25,6 +25,36 @@ func TestVerifyCommonRSSourceSHAMustMatchTarget(t *testing.T) {
 	}
 }
 
+func TestParseRequestMappingsDerivesImplicitServerWireName(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "common.rs")
+	source := `client_request_definitions! {}
+server_request_definitions! {
+    ApplyPatchApproval {
+        params: v1::ApplyPatchApprovalParams,
+        response: v1::ApplyPatchApprovalResponse,
+    },
+    ExecCommandApproval {
+        params: v1::ExecCommandApprovalParams,
+        response: v1::ExecCommandApprovalResponse,
+    },
+}`
+	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mappings, err := parseRequestMappings(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for method, response := range map[string]string{
+		"applyPatchApproval":  "ApplyPatchApprovalResponse",
+		"execCommandApproval": "ExecCommandApprovalResponse",
+	} {
+		if got := mappings[method]; got.responseType != response || got.macroName != "server_request_definitions" {
+			t.Fatalf("%s mapping = %+v, want %s", method, got, response)
+		}
+	}
+}
+
 func TestVerifyCommonRSContentMatchesCodexRepo(t *testing.T) {
 	root := t.TempDir()
 	codexRepo := filepath.Join(root, "codex")
