@@ -100,6 +100,23 @@ func BuildProtocolTypePlan(schemaRoot string) (ProtocolTypePlan, error) {
 	if err != nil {
 		return ProtocolTypePlan{}, err
 	}
+	var manifest *Manifest
+	loaded, err := LoadMethodFacts(filepath.Join(schemaRoot, "manifest.json"))
+	if err == nil {
+		manifest = &loaded
+	} else if !os.IsNotExist(err) {
+		return ProtocolTypePlan{}, err
+	}
+	return buildProtocolTypePlanFromFacts(schemaRoot, matrix, manifest)
+}
+
+// BuildProtocolTypePlanFromFacts consumes freshly derived inputs without reading
+// persisted manifest or coverage projections. Schema bytes remain exact inputs.
+func BuildProtocolTypePlanFromFacts(schemaRoot string, matrix CoverageMatrix, manifest Manifest) (ProtocolTypePlan, error) {
+	return buildProtocolTypePlanFromFacts(schemaRoot, matrix, &manifest)
+}
+
+func buildProtocolTypePlanFromFacts(schemaRoot string, matrix CoverageMatrix, manifest *Manifest) (ProtocolTypePlan, error) {
 	schemas, err := LoadCoverageSchemas(schemaRoot, matrix)
 	if err != nil {
 		return ProtocolTypePlan{}, err
@@ -134,7 +151,7 @@ func BuildProtocolTypePlan(schemaRoot string) (ProtocolTypePlan, error) {
 		}
 		plan.Types = append(plan.Types, typePlan)
 	}
-	if err := markReachableGeneratedDefinitions(&plan, schemaRoot); err != nil {
+	if err := markReachableGeneratedDefinitions(&plan, manifest); err != nil {
 		return ProtocolTypePlan{}, err
 	}
 	resolver, err := newGeneratedDefinitionNameResolver(plan)
@@ -145,7 +162,7 @@ func BuildProtocolTypePlan(schemaRoot string) (ProtocolTypePlan, error) {
 	return plan, nil
 }
 
-func markReachableGeneratedDefinitions(plan *ProtocolTypePlan, schemaRoot string) error {
+func markReachableGeneratedDefinitions(plan *ProtocolTypePlan, manifest *Manifest) error {
 	if plan == nil {
 		return fmt.Errorf("protocol type plan is nil")
 	}
@@ -328,7 +345,7 @@ func markReachableGeneratedDefinitions(plan *ProtocolTypePlan, schemaRoot string
 		return nil
 	}
 
-	rootIndexes, err := generatedDefinitionRootIndexes(plan, schemaRoot)
+	rootIndexes, err := generatedDefinitionRootIndexes(plan, manifest)
 	if err != nil {
 		return err
 	}
@@ -384,7 +401,7 @@ func sameGeneratedRootShape(definition *Schema, sourceDefinitions map[string]*Sc
 	return true, nil
 }
 
-func generatedDefinitionRootIndexes(plan *ProtocolTypePlan, schemaRoot string) (map[int]bool, error) {
+func generatedDefinitionRootIndexes(plan *ProtocolTypePlan, manifest *Manifest) (map[int]bool, error) {
 	fallback := func() map[int]bool {
 		roots := map[int]bool{}
 		for index := range plan.Types {
@@ -397,19 +414,8 @@ func generatedDefinitionRootIndexes(plan *ProtocolTypePlan, schemaRoot string) (
 		}
 		return roots
 	}
-	if schemaRoot == "" {
+	if manifest == nil {
 		return fallback(), nil
-	}
-	manifestPath := filepath.Join(schemaRoot, "manifest.json")
-	if _, err := os.Stat(manifestPath); err != nil {
-		if os.IsNotExist(err) {
-			return fallback(), nil
-		}
-		return nil, err
-	}
-	manifest, err := LoadMethodFacts(manifestPath)
-	if err != nil {
-		return nil, err
 	}
 	byTypeName := map[string][]int{}
 	bySchemaPath := map[string]int{}

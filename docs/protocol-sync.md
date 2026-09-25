@@ -93,6 +93,18 @@ state that can be regenerated.
 
 ## Protocol facts and semantic overlays
 
+Fresh construction keeps the current method and field/type facts in memory.
+Generation consumes those facts with the exact complete/stable schema inputs;
+it does not write manifest/coverage and then reload them as generation authority.
+Persisted annotations are attached to the metadata projection after the current
+wire facts are selected. Editing that projection cannot alter the constructed
+requiredness, visibility, field set, or response mapping.
+
+The checked-in reproducibility path may load manifest/coverage as derived inputs.
+That proves reproducibility only; fresh exact reconstruction separately proves
+agreement with the immutable upstream source tuple. `generated_at` remains an
+observation time and the only excluded metadata field in exact comparison.
+
 The selected Codex schema is the authority for wire facts. The generator should
 derive lossless mappings from stable schema properties rather than from lists of
 today's field paths or type names.

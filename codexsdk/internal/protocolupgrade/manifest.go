@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/ronhuafeng/llm-go/codexsdk/internal/protocolgen"
 )
 
 var familyAccessors = map[string]string{
@@ -598,25 +600,26 @@ func topLevelObjectFields(root, schema, stability string) (map[string]any, []map
 	return data, fields, nil
 }
 
-func buildCoverage(root, stableRoot string, old coverageFile, manifest manifestFile) (coverageFile, error) {
+func buildCoverage(root, stableRoot string, old coverageFile, manifest manifestFile) (derivedCoverage, error) {
 	if old.SchemaVersion != 1 {
-		return coverageFile{}, fmt.Errorf("coverage matrix schema_version must be 1")
+		return derivedCoverage{}, fmt.Errorf("coverage matrix schema_version must be 1")
 	}
 	validStatuses := old.ValidStatuses
 	if len(validStatuses) == 0 {
 		validStatuses = append([]string(nil), validCoverageStatuses...)
 	}
+	facts := protocolgen.CoverageMatrix{Status: "classified-manifest"}
 	var methods []map[string]any
 	for _, entry := range manifest.Entries {
 		methods = append(methods, defaultMethodCoverage(entry))
 	}
 	schemaPaths, err := schemaFiles(root)
 	if err != nil {
-		return coverageFile{}, err
+		return derivedCoverage{}, err
 	}
 	stablePaths, err := schemaFiles(stableRoot)
 	if err != nil {
-		return coverageFile{}, err
+		return derivedCoverage{}, err
 	}
 	completeSet := make(map[string]bool, len(schemaPaths))
 	for _, path := range schemaPaths {
@@ -625,7 +628,7 @@ func buildCoverage(root, stableRoot string, old coverageFile, manifest manifestF
 	stableSet := make(map[string]bool, len(stablePaths))
 	for _, path := range stablePaths {
 		if !completeSet[path] {
-			return coverageFile{}, fmt.Errorf("stable schema %s is absent from complete candidate", path)
+			return derivedCoverage{}, fmt.Errorf("stable schema %s is absent from complete candidate", path)
 		}
 		stableSet[path] = true
 	}
@@ -643,11 +646,12 @@ func buildCoverage(root, stableRoot string, old coverageFile, manifest manifestF
 		}
 		derivedType, err := defaultTypeCoverage(root, schema, stability)
 		if err != nil {
-			return coverageFile{}, err
+			return derivedCoverage{}, err
 		}
 		if schema == "codex_app_server_protocol.schemas.json" || schema == "codex_app_server_protocol.v2.schemas.json" {
 			derivedType["status"] = "intentionally-unsupported"
 		}
+		facts.Types = append(facts.Types, coverageTypeFact(derivedType))
 		typ := derivedType
 		if existing, ok := oldTypes[schema]; ok {
 			typ = cloneMap(existing)
@@ -670,13 +674,13 @@ func buildCoverage(root, stableRoot string, old coverageFile, manifest manifestF
 		}
 		completeData, generatedFields, err := topLevelObjectFields(root, schema, stability)
 		if err != nil {
-			return coverageFile{}, err
+			return derivedCoverage{}, err
 		}
 		stableProperties := map[string]any{}
 		if stableSet[schema] {
 			var stableData map[string]any
 			if err := loadJSON(filepath.Join(stableRoot, filepath.FromSlash(schema)), &stableData); err != nil {
-				return coverageFile{}, err
+				return derivedCoverage{}, err
 			}
 			stableProperties, _ = stableData["properties"].(map[string]any)
 			completeProperties, _ := completeData["properties"].(map[string]any)
@@ -684,10 +688,10 @@ func buildCoverage(root, stableRoot string, old coverageFile, manifest manifestF
 			stableRequired := requiredNames(stableData)
 			for name := range stableProperties {
 				if _, present := completeProperties[name]; !present {
-					return coverageFile{}, fmt.Errorf("stable field %s#/properties/%s is absent from complete schema", schema, name)
+					return derivedCoverage{}, fmt.Errorf("stable field %s#/properties/%s is absent from complete schema", schema, name)
 				}
 				if completeRequired[name] != stableRequired[name] {
-					return coverageFile{}, fmt.Errorf("stable field %s#/properties/%s requiredness differs from complete schema", schema, name)
+					return derivedCoverage{}, fmt.Errorf("stable field %s#/properties/%s requiredness differs from complete schema", schema, name)
 				}
 			}
 		}
@@ -697,6 +701,7 @@ func buildCoverage(root, stableRoot string, old coverageFile, manifest manifestF
 			if _, present := stableProperties[name]; !present {
 				field["stability"] = "experimental"
 			}
+			facts.Fields = append(facts.Fields, coverageFieldFact(field))
 			if oldField, ok := oldFields[path]; ok {
 				merged := cloneMap(oldField)
 				for _, key := range []string{"field", "path", "required", "schema", "stability", "status", "type"} {
@@ -726,7 +731,7 @@ func buildCoverage(root, stableRoot string, old coverageFile, manifest manifestF
 	if description == "" {
 		description = "Coverage classification for the checked-in Codex app-server protocol baseline."
 	}
-	return coverageFile{
+	return derivedCoverage{facts: facts, coverageFile: coverageFile{
 		Description:   description,
 		Fields:        fields,
 		Methods:       methods,
@@ -734,7 +739,7 @@ func buildCoverage(root, stableRoot string, old coverageFile, manifest manifestF
 		Status:        "classified-manifest",
 		Types:         types,
 		ValidStatuses: validStatuses,
-	}, nil
+	}}, nil
 }
 
 func cloneMap(in map[string]any) map[string]any {
