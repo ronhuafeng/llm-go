@@ -352,7 +352,7 @@ func buildManifest(root, stableRoot string, old manifestFile, mappings map[strin
 		stableMethods := make(map[string]bool, len(stableEntries))
 		for _, entry := range stableEntries {
 			if !completeMethods[entry.method] {
-				return manifestFile{}, fmt.Errorf("stable %s contains method %q absent from complete schema", aggregate, entry.method)
+				return manifestFile{}, &SourceIntegrityError{Err: fmt.Errorf("stable %s contains method %q absent from complete schema", aggregate, entry.method)}
 			}
 			stableMethods[entry.method] = true
 		}
@@ -628,7 +628,7 @@ func buildCoverage(root, stableRoot string, old coverageFile, manifest manifestF
 	stableSet := make(map[string]bool, len(stablePaths))
 	for _, path := range stablePaths {
 		if !completeSet[path] {
-			return derivedCoverage{}, fmt.Errorf("stable schema %s is absent from complete candidate", path)
+			return derivedCoverage{}, &SourceIntegrityError{Err: fmt.Errorf("stable schema %s is absent from complete candidate", path)}
 		}
 		stableSet[path] = true
 	}
@@ -688,10 +688,10 @@ func buildCoverage(root, stableRoot string, old coverageFile, manifest manifestF
 			stableRequired := requiredNames(stableData)
 			for name := range stableProperties {
 				if _, present := completeProperties[name]; !present {
-					return derivedCoverage{}, fmt.Errorf("stable field %s#/properties/%s is absent from complete schema", schema, name)
+					return derivedCoverage{}, &SourceIntegrityError{Err: fmt.Errorf("stable field %s#/properties/%s is absent from complete schema", schema, name)}
 				}
 				if completeRequired[name] != stableRequired[name] {
-					return derivedCoverage{}, fmt.Errorf("stable field %s#/properties/%s requiredness differs from complete schema", schema, name)
+					return derivedCoverage{}, &SourceIntegrityError{Err: fmt.Errorf("stable field %s#/properties/%s requiredness differs from complete schema", schema, name)}
 				}
 			}
 		}

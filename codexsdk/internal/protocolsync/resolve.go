@@ -42,7 +42,7 @@ func (GitLookuper) LSRemote(remote string, patterns ...string) (string, error) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("git ls-remote: %w: %s", err, strings.TrimSpace(stderr.String()))
+		return "", &Failure{Category: FailureExecution, Err: fmt.Errorf("git ls-remote: %w: %s", err, strings.TrimSpace(stderr.String()))}
 	}
 	return stdout.String(), nil
 }

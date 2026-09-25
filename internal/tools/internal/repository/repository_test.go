@@ -1028,7 +1028,7 @@ func workflowStepByID(yaml, id string) (string, bool) {
 	for end < len(lines) {
 		line := lines[end]
 		trimmed := strings.TrimLeft(line, " ")
-		if strings.HasPrefix(trimmed, "- ") && countLeadingSpaces(line) == startIndent {
+		if strings.TrimSpace(line) != "" && (countLeadingSpaces(line) < startIndent || (strings.HasPrefix(trimmed, "- ") && countLeadingSpaces(line) == startIndent)) {
 			break
 		}
 		end++
@@ -1045,4 +1045,44 @@ func countLeadingSpaces(s string) int {
 		n++
 	}
 	return n
+}
+
+func TestProtocolSummaryNeverConvertsFailureIntoSuccess(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := readWorkflow(t, root, "codexsdk-upstream-protocol-sync.yml")
+	job, ok := workflowJobByID(workflow, "summary")
+	if !ok || !strings.Contains(job, "always()") || !strings.Contains(job, "permissions: {}") {
+		t.Fatal("summary must report failures without effect authority")
+	}
+	step, ok := workflowStepByID(job, "observed_summary")
+	if !ok {
+		t.Fatal("missing summary")
+	}
+	script := workflowRunScript(t, step)
+	for _, test := range []struct{ name, sync, publish, outcome, checks, want string }{
+		{"compile failure", "failure", "skipped", "applied", "failure", "failed"},
+		{"publication failure", "success", "failure", "applied", "success", "failed"},
+		{"timeout", "cancelled", "skipped", "semantic_unresolved", "skipped", "failed"},
+		{"pending", "success", "success", "pr_pending", "success", "pr_pending"},
+		{"identity only", "success", "skipped", "baseline_matches", "success", "baseline_matches"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			summary := filepath.Join(t.TempDir(), "summary")
+			cmd := exec.Command("bash", "-c", script)
+			cmd.Env = append(os.Environ(), "DIAGNOSE_RESULT=skipped", "SYNC_RESULT="+test.sync, "PUBLISH_RESULT="+test.publish, "OUTCOME="+test.outcome, "CHECKS="+test.checks, "STAGE=apply", "CATEGORY=", "TARGET_REF=rust-v0.1.0", "TARGET_SHA=known-sha", "AGENT=skipped", "SCOPE=skipped", "HANDOFF=skipped", "PR_URL=", "GITHUB_SHA=repo-sha", "GITHUB_SERVER_URL=https://github.com", "GITHUB_REPOSITORY=fixture/repo", "GITHUB_RUN_ID=1", "GITHUB_RUN_ATTEMPT=1", "GITHUB_STEP_SUMMARY="+summary)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("summary: %v %s", err, out)
+			}
+			raw, err := os.ReadFile(summary)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(raw), "- Result: "+test.want+"\n") {
+				t.Fatalf("summary = %s", raw)
+			}
+		})
+	}
 }

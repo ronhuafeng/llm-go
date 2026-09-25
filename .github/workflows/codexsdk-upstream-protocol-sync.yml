@@ -44,6 +44,13 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+    outputs:
+      outcome: ${{ steps.exact.outputs.outcome || steps.diagnostic.outputs.outcome }}
+      stage: ${{ steps.exact.outputs.stage || steps.diagnostic.outputs.stage }}
+      category: ${{ steps.exact.outputs.failure_category || steps.diagnostic.outputs.failure_category }}
+      target_ref: ${{ steps.exact.outputs.target_ref || steps.diagnostic.outputs.target_ref }}
+      target_sha: ${{ steps.exact.outputs.target_sha || steps.diagnostic.outputs.target_sha }}
+      checks: ${{ steps.exact_checks.outcome }}
     steps:
       - name: Guard diagnostic ref
         env:
@@ -255,6 +262,12 @@ jobs:
       target_kind: ${{ steps.mechanical.outputs.target_kind }}
       target_sha: ${{ steps.mechanical.outputs.target_sha }}
       patch_sha256: ${{ steps.handoff.outputs.patch_sha256 }}
+      stage: ${{ steps.resume.outputs.stage || steps.mechanical.outputs.stage }}
+      category: ${{ steps.resume.outputs.failure_category || steps.mechanical.outputs.failure_category }}
+      checks: ${{ steps.checks.outcome }}
+      agent: ${{ steps.codex.outcome }}
+      scope: ${{ steps.proposal_scope.outcome }}
+      handoff: ${{ steps.handoff.outcome }}
     steps:
       - name: Guard control-plane ref
         env:
@@ -549,6 +562,10 @@ jobs:
   publish:
     if: ${{ needs.sync.outputs.outcome == 'applied' || needs.sync.outputs.resume_outcome == 'applied' }}
     needs: sync
+    outputs:
+      outcome: ${{ steps.publish.outputs.outcome }}
+      category: ${{ steps.publish.outputs.failure_category }}
+      pr_url: ${{ steps.publish.outputs.pr_url }}
     name: Publish protected sync PR
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -618,3 +635,72 @@ jobs:
             -target-ref "${TARGET_REF}" \
             -target-kind "${TARGET_KIND}" \
             -target-sha "${TARGET_SHA}"
+
+  summary:
+    if: ${{ always() }}
+    needs: [diagnose, sync, publish]
+    name: Report observed sync result
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Summarize observed result
+        id: observed_summary
+        env:
+          DIAGNOSE_RESULT: ${{ needs.diagnose.result }}
+          SYNC_RESULT: ${{ needs.sync.result }}
+          PUBLISH_RESULT: ${{ needs.publish.result }}
+          OUTCOME: ${{ needs.publish.outputs.outcome || needs.sync.outputs.resume_outcome || needs.sync.outputs.outcome || needs.diagnose.outputs.outcome }}
+          STAGE: ${{ needs.sync.outputs.stage || needs.diagnose.outputs.stage }}
+          CATEGORY: ${{ needs.publish.outputs.category || needs.sync.outputs.category || needs.diagnose.outputs.category }}
+          TARGET_REF: ${{ needs.sync.outputs.target_ref || needs.diagnose.outputs.target_ref }}
+          TARGET_SHA: ${{ needs.sync.outputs.target_sha || needs.diagnose.outputs.target_sha }}
+          CHECKS: ${{ needs.sync.outputs.checks || needs.diagnose.outputs.checks }}
+          AGENT: ${{ needs.sync.outputs.agent }}
+          SCOPE: ${{ needs.sync.outputs.scope }}
+          HANDOFF: ${{ needs.sync.outputs.handoff }}
+          PR_URL: ${{ needs.publish.outputs.pr_url }}
+        run: |
+          set -euo pipefail
+          next='Inspect the failing job logs; attribution is unknown until evidence identifies the cause.'
+          result="${OUTCOME:-unavailable}"
+          if [[ "${DIAGNOSE_RESULT}" == failure || "${SYNC_RESULT}" == failure || "${PUBLISH_RESULT}" == failure || "${DIAGNOSE_RESULT}" == cancelled || "${SYNC_RESULT}" == cancelled || "${PUBLISH_RESULT}" == cancelled ]]; then
+            result=failed
+            if [[ "${PUBLISH_RESULT}" == failure || "${PUBLISH_RESULT}" == cancelled ]]; then
+              STAGE=publication
+            elif [[ "${CHECKS}" == failure ]]; then
+              STAGE=repository_checks
+              CATEGORY=repository_validation
+            elif [[ "${AGENT}" == failure ]]; then
+              STAGE=agent
+              CATEGORY=unknown
+            elif [[ "${SCOPE}" == failure ]]; then
+              STAGE=proposal_scope
+              CATEGORY=policy_configuration
+            elif [[ "${HANDOFF}" == failure ]]; then
+              STAGE=handoff
+              CATEGORY=source_integrity
+            fi
+          else
+            case "${result}" in
+              baseline_matches) next='Accepted baseline already points to this target; no fresh upstream proof was acquired.' ;;
+              schemas_match) next='Schemas match only; provenance has not been advanced and no PR was published.' ;;
+              exact_verified) next='Fresh reconstruction verified this repository head; required PR checks remain separate.' ;;
+              plan_ready) next='Candidate can be generated; run the trusted sync workflow to apply and validate it.' ;;
+              semantic_unresolved) next='Review the reported unsupported representation; only the trusted sync workflow may attempt one constrained repair.' ;;
+              pr_pending) next='PR is pending required checks and repository review/integration; publication is not integration.' ;;
+              applied) next='Candidate was applied locally; inspect publication status before claiming delivery.' ;;
+            esac
+          fi
+          {
+            echo '## Observed protocol sync result'
+            echo "- Result: ${result}"
+            echo "- Jobs: diagnosis=${DIAGNOSE_RESULT}; sync=${SYNC_RESULT}; publication=${PUBLISH_RESULT}"
+            echo "- Stage: ${STAGE:-setup_or_unavailable}"
+            echo "- Failure category: ${CATEGORY:-unknown}"
+            echo "- Repository commit: ${GITHUB_SHA}"
+            echo "- Upstream: ${TARGET_REF:-unavailable} / ${TARGET_SHA:-unavailable}"
+            echo "- Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID} (attempt ${GITHUB_RUN_ATTEMPT})"
+            echo "- PR: ${PR_URL:-not_published}"
+            echo "- Next: ${next}"
+            echo '- This summary reports observations and never certifies or integrates a candidate.'
+          } >> "${GITHUB_STEP_SUMMARY}"

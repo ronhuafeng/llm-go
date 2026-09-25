@@ -33,7 +33,7 @@ func compareExactBaseline(baseline, rebuilt, moduleRoot, rebuiltModuleRoot strin
 		return fmt.Errorf("hash rebuilt schemas: %w", err)
 	}
 	if diff := fileDiff(acceptedSchemas, rebuiltSchemas); !diff.empty() {
-		return fmt.Errorf("schema mismatch:\n%s", fileDiffDiagnostic(diff))
+		return &VerificationError{Err: fmt.Errorf("schema mismatch:\n%s", fileDiffDiagnostic(diff))}
 	}
 	for _, name := range exactMetadataFiles {
 		accepted, err := semanticJSON(filepath.Join(baseline, name), name == "baseline_metadata.json")
@@ -45,7 +45,7 @@ func compareExactBaseline(baseline, rebuilt, moduleRoot, rebuiltModuleRoot strin
 			return err
 		}
 		if !bytes.Equal(accepted, candidate) {
-			return fmt.Errorf("%s differs from exact upstream reconstruction", name)
+			return &VerificationError{Err: fmt.Errorf("%s differs from exact upstream reconstruction", name)}
 		}
 	}
 	for _, rel := range generatedProtocolArtifacts {
@@ -58,7 +58,7 @@ func compareExactBaseline(baseline, rebuilt, moduleRoot, rebuiltModuleRoot strin
 			return err
 		}
 		if !bytes.Equal(accepted, candidate) {
-			return fmt.Errorf("%s differs from exact upstream reconstruction: accepted sha256=%x rebuilt sha256=%x", rel, sha256.Sum256(accepted), sha256.Sum256(candidate))
+			return &VerificationError{Err: fmt.Errorf("%s differs from exact upstream reconstruction: accepted sha256=%x rebuilt sha256=%x", rel, sha256.Sum256(accepted), sha256.Sum256(candidate))}
 		}
 	}
 	return nil

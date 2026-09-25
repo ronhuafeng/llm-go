@@ -155,7 +155,7 @@ func prepareUpstreamRepo(codexRepo, upstreamRepo string) error {
 			return err
 		}
 		if strings.TrimSpace(origin) != upstreamRepo {
-			return fmt.Errorf("cached Codex origin %s does not match %s", strings.TrimSpace(origin), upstreamRepo)
+			return &Failure{Category: FailureSource, Err: fmt.Errorf("cached Codex origin %s does not match %s", strings.TrimSpace(origin), upstreamRepo)}
 		}
 		return nil
 	}

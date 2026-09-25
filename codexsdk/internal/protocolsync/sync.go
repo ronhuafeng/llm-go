@@ -11,7 +11,10 @@ import (
 )
 
 const (
-	OutcomeCurrent            = "current"
+	OutcomeBaselineMatches    = "baseline_matches"
+	OutcomeSchemasMatch       = "schemas_match"
+	OutcomeExactVerified      = "exact_verified"
+	OutcomeFailed             = "failed"
 	OutcomeApplied            = "applied"
 	OutcomePlanReady          = "plan_ready"
 	OutcomeSemanticUnresolved = "semantic_unresolved"
@@ -52,6 +55,8 @@ type ResumeRequest struct {
 
 // SyncResult is the minimal outcome the workflow needs.
 type SyncResult struct {
+	Stage           string
+	FailureCategory string
 	Outcome         string
 	Reason          string
 	Target          Target
@@ -63,12 +68,14 @@ type SyncResult struct {
 
 // Sync resolves, generates, plans, and applies only a fully planned candidate.
 // Semantic/generator incompatibility returns a read-only escalation outcome.
-func Sync(req SyncRequest) (SyncResult, error) {
+func Sync(req SyncRequest) (result SyncResult, err error) {
+	stage := "configuration"
+	defer func() { finishSync(&result, err, stage) }()
 	if req.ValidationOnly && req.Diagnostic {
-		return SyncResult{}, fmt.Errorf("validation-only cannot be combined with diagnostic mode")
+		return result, &Failure{Category: FailurePolicy, Err: fmt.Errorf("validation-only cannot be combined with diagnostic mode")}
 	}
 	if req.ValidationOnly && !req.ForceCompare {
-		return SyncResult{}, fmt.Errorf("validation-only requires force-compare")
+		return result, &Failure{Category: FailurePolicy, Err: fmt.Errorf("validation-only requires force-compare")}
 	}
 	if err := AssertClean(req.RepoRoot); err != nil {
 		return SyncResult{}, err
@@ -81,6 +88,7 @@ func Sync(req SyncRequest) (SyncResult, error) {
 	if upstreamRepo == "" {
 		upstreamRepo = defaultRemote
 	}
+	stage = "resolve"
 	target, err := ResolveUpstream(ResolveRequest{
 		Remote:       upstreamRepo,
 		UpstreamRef:  req.UpstreamRef,
@@ -97,9 +105,11 @@ func Sync(req SyncRequest) (SyncResult, error) {
 		target.TargetExplicit = true
 	}
 
+	result.Target = target
+	stage = "baseline"
 	baseline, err := loadBaselineIdentity(filepath.Join(moduleRoot, filepath.FromSlash(defaultBaselineRel), "baseline_metadata.json"))
 	if err != nil {
-		return SyncResult{}, err
+		return result, err
 	}
 	mode := "manual"
 	if req.EventName == "schedule" {
@@ -115,12 +125,13 @@ func Sync(req SyncRequest) (SyncResult, error) {
 		AllowDowngrade: req.AllowDowngrade,
 	})
 	afterPolicy := decideAfterPolicy(policy.Decision, req.ForceCompare || req.Diagnostic || req.ValidationOnly)
-	result := SyncResult{Target: target, Reason: policy.Reason}
+	result.Reason = policy.Reason
+	stage = "policy"
 	if afterPolicy == "blocked" {
-		return result, fmt.Errorf("%s", policy.Reason)
+		return result, &Failure{Category: FailurePolicy, Err: fmt.Errorf("%s", policy.Reason)}
 	}
 	if afterPolicy == "current" {
-		result.Outcome = OutcomeCurrent
+		result.Outcome = OutcomeBaselineMatches
 		return result, nil
 	}
 
@@ -128,6 +139,7 @@ func Sync(req SyncRequest) (SyncResult, error) {
 	if generate == nil {
 		generate = GenerateCandidate
 	}
+	stage = "generate"
 	candidate, err := generate(GenerateRequest{
 		ModuleRoot:   moduleRoot,
 		UpstreamRepo: upstreamRepo,
@@ -137,11 +149,12 @@ func Sync(req SyncRequest) (SyncResult, error) {
 		return result, err
 	}
 	if candidate.SourceCommit != target.PeeledCommitSHA {
-		return result, fmt.Errorf("candidate source_commit does not match the resolved target")
+		return result, &Failure{Category: FailureSource, Err: fmt.Errorf("candidate source_commit does not match the resolved target")}
 	}
 	result.Candidate = candidate.SchemaDir
 	result.CandidateDir = candidate.Dir
 	if req.ValidationOnly {
+		stage = "exact_verification"
 		verify := req.VerifyExact
 		if verify == nil {
 			verify = protocolupgrade.VerifyExact
@@ -152,19 +165,20 @@ func Sync(req SyncRequest) (SyncResult, error) {
 		}
 		if proof.Status != protocolupgrade.PlanReady {
 			if proof.Issue != nil {
-				return result, fmt.Errorf("exact upstream verification unresolved at %s %s: %s", proof.Issue.Stage, proof.Issue.Path, proof.Issue.Reason)
+				return result, &Failure{Category: FailureUnsupported, Err: fmt.Errorf("exact upstream verification unresolved at %s %s: %s", proof.Issue.Stage, proof.Issue.Path, proof.Issue.Reason)}
 			}
 			return result, fmt.Errorf("exact upstream verification returned %q", proof.Status)
 		}
 		if err := AssertClean(req.RepoRoot); err != nil {
 			return result, fmt.Errorf("exact upstream verification changed the accepted worktree: %w", err)
 		}
-		result.Outcome = OutcomeCurrent
+		result.Outcome = OutcomeExactVerified
 		result.Reason = "fresh exact upstream reconstruction matches all accepted semantic artifacts"
 		return result, nil
 	}
 
 	if req.ForceCompare && !req.Diagnostic {
+		stage = "schema_comparison"
 		dirty, err := ChangedPaths(req.RepoRoot)
 		if err != nil {
 			return result, err
@@ -173,11 +187,11 @@ func Sync(req SyncRequest) (SyncResult, error) {
 			return result, fmt.Errorf("comparison must leave the protocol worktree unchanged:\n- %s", strings.Join(dirty, "\n- "))
 		}
 		if candidate.DriftStatus == "clean" {
-			result.Outcome = OutcomeCurrent
+			result.Outcome = OutcomeSchemasMatch
 			result.Reason = "read-only comparison found no protocol drift"
 			return result, nil
 		}
-		return result, fmt.Errorf("read-only comparison found protocol drift; comparison never applies")
+		return result, &Failure{Category: FailureValidation, Err: fmt.Errorf("read-only comparison found protocol drift; comparison never applies")}
 	}
 
 	applyReq := candidateApplyRequest(moduleRoot, candidate, target)
@@ -185,6 +199,7 @@ func Sync(req SyncRequest) (SyncResult, error) {
 	if plan == nil {
 		plan = protocolupgrade.Plan
 	}
+	stage = "plan"
 	planned, err := plan(applyReq)
 	if err != nil {
 		if req.Diagnostic {
@@ -208,6 +223,7 @@ func Sync(req SyncRequest) (SyncResult, error) {
 		}
 		result.CandidateSHA256 = fingerprint
 		result.Outcome = OutcomeSemanticUnresolved
+		result.FailureCategory = FailureUnsupported
 		result.Issue = planned.Issue
 		if planned.Issue != nil {
 			result.Reason = planned.Issue.Reason
@@ -233,6 +249,7 @@ func Sync(req SyncRequest) (SyncResult, error) {
 	if apply == nil {
 		apply = func(protocolupgrade.ApplyRequest) (protocolupgrade.ApplyResult, error) { return planned.Apply() }
 	}
+	stage = "apply"
 	if _, err := apply(applyReq); err != nil {
 		return result, fmt.Errorf("apply planned candidate: %w", err)
 	}
@@ -254,23 +271,27 @@ func Sync(req SyncRequest) (SyncResult, error) {
 
 // Resume verifies the Agent touched only handwritten codexsdk paths, re-plans
 // the same target/candidate, then applies only if the second plan is complete.
-func Resume(req ResumeRequest) (SyncResult, error) {
+func Resume(req ResumeRequest) (result SyncResult, err error) {
+	stage := "proposal_scope"
+	result.Target = Target{RefName: req.TargetRef, RefKind: req.TargetKind, PeeledCommitSHA: req.TargetSHA, TargetExplicit: true}
+	defer func() { finishSync(&result, err, stage) }()
 	if req.RepoRoot == "" || req.CandidateDir == "" {
-		return SyncResult{}, fmt.Errorf("repo-root and candidate-dir are required")
+		return result, fmt.Errorf("repo-root and candidate-dir are required")
 	}
 	if req.TargetRef == "" || req.TargetKind == "" || req.TargetSHA == "" {
-		return SyncResult{}, fmt.Errorf("target ref, kind, and sha are required")
+		return result, fmt.Errorf("target ref, kind, and sha are required")
 	}
 	paths, err := ChangedPaths(req.RepoRoot)
 	if err != nil {
-		return SyncResult{}, err
+		return result, err
 	}
 	if err := validatePaths(paths, "agent"); err != nil {
-		return SyncResult{}, fmt.Errorf("Agent pass escaped handwritten codexsdk scope: %w", err)
+		return result, fmt.Errorf("Agent pass escaped handwritten codexsdk scope: %w", err)
 	}
+	stage = "candidate_integrity"
 	verifiedDir, cleanup, err := copyVerifiedCandidate(req.CandidateDir, req.CandidateSHA256, req.TargetRef, req.TargetKind, req.TargetSHA)
 	if err != nil {
-		return SyncResult{}, fmt.Errorf("verify initial candidate: %w", err)
+		return result, &Failure{Category: FailureSource, Err: fmt.Errorf("verify initial candidate: %w", err)}
 	}
 	defer cleanup()
 
@@ -285,7 +306,7 @@ func Resume(req ResumeRequest) (SyncResult, error) {
 		TargetExplicit:  true,
 	}
 	candidate := candidateFromDir(verifiedDir, moduleRoot, target)
-	result := SyncResult{
+	result = SyncResult{
 		Target:          target,
 		Candidate:       filepath.Join(req.CandidateDir, "schema"),
 		CandidateDir:    req.CandidateDir,
@@ -296,6 +317,7 @@ func Resume(req ResumeRequest) (SyncResult, error) {
 	if plan == nil {
 		plan = protocolupgrade.Plan
 	}
+	stage = "replan"
 	planned, err := plan(applyReq)
 	if err != nil {
 		return result, fmt.Errorf("re-plan candidate: %w", err)
@@ -305,9 +327,9 @@ func Resume(req ResumeRequest) (SyncResult, error) {
 		result.Issue = planned.Issue
 		if planned.Issue != nil {
 			result.Reason = planned.Issue.Reason
-			return result, fmt.Errorf("semantic drift remains unresolved after Agent: %s", planned.Issue.Reason)
+			return result, &Failure{Category: FailureUnsupported, Err: fmt.Errorf("semantic drift remains unresolved after Agent: %s", planned.Issue.Reason)}
 		}
-		return result, fmt.Errorf("semantic drift remains unresolved after Agent")
+		return result, &Failure{Category: FailureUnsupported, Err: fmt.Errorf("semantic drift remains unresolved after Agent")}
 	}
 	if planned.Status != protocolupgrade.PlanReady {
 		return result, fmt.Errorf("unknown re-plan status %q", planned.Status)
@@ -317,6 +339,7 @@ func Resume(req ResumeRequest) (SyncResult, error) {
 	if apply == nil {
 		apply = func(protocolupgrade.ApplyRequest) (protocolupgrade.ApplyResult, error) { return planned.Apply() }
 	}
+	stage = "apply"
 	if _, err := apply(applyReq); err != nil {
 		return result, fmt.Errorf("apply re-planned candidate: %w", err)
 	}
@@ -414,6 +437,8 @@ func WriteGitHubOutput(path string, result SyncResult) error {
 	}
 	lines := []string{
 		"outcome=" + githubOutputValue(result.Outcome),
+		"stage=" + githubOutputValue(result.Stage),
+		"failure_category=" + githubOutputValue(result.FailureCategory),
 		"applied=" + applied,
 		"target_ref=" + githubOutputValue(result.Target.RefName),
 		"target_kind=" + githubOutputValue(result.Target.RefKind),

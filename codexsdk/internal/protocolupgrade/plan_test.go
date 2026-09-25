@@ -592,6 +592,10 @@ func TestPlanKeepsSourceAndEnvironmentFailuresOrdinary(t *testing.T) {
 			}
 			test.mutate(t, &req)
 			planned, err := Plan(req)
+			var source *SourceIntegrityError
+			if test.name == "source SHA mismatch" && !errors.As(err, &source) {
+				t.Fatalf("expected typed source integrity failure, got %v", err)
+			}
 			var incompatibility *IncompatibilityError
 			if err == nil || errors.As(err, &incompatibility) || planned.Status == PlanSemanticUnresolved {
 				t.Fatalf("plan = %+v, err = %v; want ordinary failure", planned, err)

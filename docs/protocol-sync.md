@@ -216,8 +216,17 @@ capability rather than a remembered inability from an older generator.
 
 A target comparison has one of these meanings:
 
-- **current:** baseline identity already matches the exact selected target and a
-  fresh deterministic check succeeds;
+- **baseline_matches:** accepted baseline identity already points at the target;
+  no fresh upstream reconstruction was performed;
+- **schemas_match:** read-only schema comparison found no drift; this does not
+  advance provenance or prove all derived artifacts;
+- **exact_verified:** fresh exact upstream reconstruction matches the accepted
+  semantic artifacts; repository tests and required PR checks remain separate;
+- **plan_ready:** read-only candidate construction succeeded without applying it;
+- **applied:** candidate bytes were materialized locally, awaiting checks and
+  publication; this does not mean integrated;
+- **pr_pending:** publication found or created a PR; required checks, review and
+  integration remain pending;
 - **provenance-only:** a newer accepted target regenerates to the same protocol
   bytes/surface, so only exact upstream provenance needs to advance;
 - **mechanical drift:** schema/surface changed and the generic generator can
@@ -227,6 +236,16 @@ A target comparison has one of these meanings:
   owner-local source/test change before re-planning;
 - **blocked/failure:** target policy, generation, planning, semantic work, or
   deterministic proof failed. Nothing is published.
+
+Failures report the last native stage, known target identity and an explicit
+owner-assigned category where known: unsupported representation, source
+integrity, execution environment, repository validation, publication conflict,
+or policy/configuration. Unknown attribution stays `unknown`; error causes
+remain unwrap-able. File locations are diagnostic data, never repair authority.
+The always-running read-only workflow summary reports failed/cancelled jobs as
+failed even when an earlier Plan/Apply succeeded. Its own green status does not
+certify synchronization. A published PR remains pending; an accepted baseline
+containing the target is observed separately on a subsequent main run.
 
 Only an owner-identified unsupported schema representation or missing protocol
 mapping/prerequisite yields `semantic_unresolved`. File I/O, temporary storage,
