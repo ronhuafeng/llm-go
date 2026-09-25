@@ -73,3 +73,14 @@ func TestValidatePathsRejectsCacheAndAgents(t *testing.T) {
 		t.Fatal("non-codexsdk path must fail final scope")
 	}
 }
+
+func TestFinalScopeRejectsControlAndUnknownPhase(t *testing.T) {
+	for _, phase := range []string{"agent", "final", "typo"} {
+		if err := validatePaths([]string{"codexsdk/internal/protocolsync/sync.go"}, phase); err == nil || !strings.Contains(err.Error(), "needs-maintainer") {
+			t.Fatalf("phase %s allowed control change: %v", phase, err)
+		}
+	}
+	if err := validatePaths([]string{"codexsdk/internal/protocolgen/type_plan.go", "codexsdk/protocolv2/protocol_types.gen.go"}, "final"); err != nil {
+		t.Fatal(err)
+	}
+}

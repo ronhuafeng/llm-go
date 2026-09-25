@@ -46,27 +46,32 @@ func AssertClean(repoRoot string) error {
 	return fmt.Errorf("sync worktree must be clean before apply:\n- %s", strings.Join(paths, "\n- "))
 }
 
+// CheckScope checks all tracked and new paths using trusted control policy,
+// without staging or executing proposed source.
+func CheckScope(repoRoot, phase string) error {
+	paths, err := ChangedPaths(repoRoot)
+	if err != nil {
+		return err
+	}
+	return validatePaths(paths, phase)
+}
+
 func validatePaths(paths []string, phase string) error {
+	if phase != "mechanical" && phase != "agent" && phase != "final" {
+		return &Failure{Category: FailurePolicy, Err: fmt.Errorf("needs-maintainer: unknown sync scope %q", phase)}
+	}
 	var invalid []string
 	for _, p := range paths {
-		if phase == "mechanical" {
-			if !isMechanicalPath(p) {
-				invalid = append(invalid, p)
-			}
-			continue
-		}
-		if !strings.HasPrefix(p, "codexsdk/") || strings.HasPrefix(p, "codexsdk/.cache/") || strings.HasPrefix(p, "codexsdk/.agents/") {
-			invalid = append(invalid, p)
-			continue
-		}
-		if phase == "agent" && !isAgentProposalPath(p) {
+		allowed := (phase == "mechanical" || phase == "final") && isMechanicalPath(p)
+		allowed = allowed || (phase == "agent" || phase == "final") && isAgentProposalPath(p)
+		if !allowed {
 			invalid = append(invalid, p)
 		}
 	}
 	if len(invalid) == 0 {
 		return nil
 	}
-	return fmt.Errorf("sync changes escape the %s scope:\n- %s", phase, strings.Join(invalid, "\n- "))
+	return &Failure{Category: FailurePolicy, Err: fmt.Errorf("needs-maintainer: sync changes escape the %s scope:\n- %s", phase, strings.Join(invalid, "\n- "))}
 }
 
 // Agent proposals may change runtime or generator implementation and focused
@@ -86,7 +91,7 @@ func isAgentProposalPath(p string) bool {
 		return true
 	}
 	switch path.Base(p) {
-	case "manifest.go", "surface.go", "commonrs.go":
+	case "manifest.go", "surface.go", "commonrs.go", "current_facts.go":
 		return true
 	default:
 		return false

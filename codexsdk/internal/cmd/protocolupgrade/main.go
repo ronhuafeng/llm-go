@@ -17,7 +17,7 @@ func main() {
 
 func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "protocolupgrade: command is required: sync, diagnose, resume, verify-candidate, compare, apply, check, stage, or publish\n")
+		fmt.Fprintf(stderr, "protocolupgrade: command is required: sync, diagnose, resume, verify-candidate, compare, apply, check, scope, stage, or publish\n")
 		return 2
 	}
 	switch args[0] {
@@ -35,6 +35,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runApply(args[1:], stdout, stderr)
 	case "check":
 		return runCheck(args[1:], stdout, stderr)
+	case "scope":
+		return runScope(args[1:], stderr)
 	case "stage":
 		return runStage(args[1:], stdout, stderr)
 	case "publish":
@@ -298,6 +300,25 @@ func runResume(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	fmt.Fprintf(stderr, "protocolupgrade resume: %s\n", result.Reason)
+	return 0
+}
+
+func runScope(args []string, stderr io.Writer) int {
+	fs := flag.NewFlagSet("scope", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	repoRoot := fs.String("repo-root", "", "repository root")
+	phase := fs.String("phase", "agent", "agent, mechanical or final")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *repoRoot == "" {
+		fmt.Fprintln(stderr, "protocolupgrade scope: -repo-root is required")
+		return 2
+	}
+	if err := protocolsync.CheckScope(*repoRoot, *phase); err != nil {
+		fmt.Fprintf(stderr, "protocolupgrade scope: %v\n", err)
+		return 1
+	}
 	return 0
 }
 

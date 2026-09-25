@@ -39,7 +39,10 @@ another target or inventing missing facts.
 
 ## Boundaries
 
-- Work only in `codexsdk` and directly related tests/docs justified by the drift.
+- Read `codexsdk/internal/protocolsync/changes.go` before choosing files; its
+  `isAgentProposalPath` defines the permitted handwritten Go and test scope.
+- If the required repair touches control policy or falls outside that scope,
+  report `needs-maintainer` with the evidence and stop this proposal.
 - Do not configure Git/GitHub identity or authentication.
 - Do not stage, commit, push, create/edit/merge PRs, dispatch workflows, or tag.
 - Do not change unrelated runtime behavior.
