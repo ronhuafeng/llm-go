@@ -165,7 +165,7 @@ func Sync(req SyncRequest) (result SyncResult, err error) {
 		}
 		if proof.Status != protocolupgrade.PlanReady {
 			if proof.Issue != nil {
-				return result, fmt.Errorf("exact upstream verification unresolved at %s %s: %s", proof.Issue.Stage, proof.Issue.Path, proof.Issue.Reason)
+				return result, &Failure{Category: FailureUnsupported, Err: fmt.Errorf("exact upstream verification unresolved at %s %s: %s", proof.Issue.Stage, proof.Issue.Path, proof.Issue.Reason)}
 			}
 			return result, fmt.Errorf("exact upstream verification returned %q", proof.Status)
 		}

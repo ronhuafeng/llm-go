@@ -33,6 +33,10 @@ func failureCategory(err error) string {
 		return failure.Category
 	}
 	var path *os.PathError
+	var unsupported *protocolupgrade.IncompatibilityError
+	if errors.As(err, &unsupported) {
+		return FailureUnsupported
+	}
 	var source *protocolupgrade.SourceIntegrityError
 	if errors.As(err, &source) {
 		return FailureSource

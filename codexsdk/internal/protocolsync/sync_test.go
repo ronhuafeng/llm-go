@@ -83,10 +83,12 @@ func TestSyncValidationOnlyVerifiesFreshExactCandidateWithoutEffects(t *testing.
 	for _, test := range []struct {
 		name  string
 		proof protocolupgrade.PlanResult
+		cause error
 		fail  bool
 	}{
 		{name: "matching", proof: protocolupgrade.PlanResult{Status: protocolupgrade.PlanReady}},
 		{name: "unresolved", proof: protocolupgrade.PlanResult{Status: protocolupgrade.PlanSemanticUnresolved, Issue: &protocolupgrade.PlanIssue{Stage: "manifest", Reason: "stale requiredness"}}, fail: true},
+		{name: "typed incompatibility", cause: &protocolupgrade.IncompatibilityError{Stage: "surface", Err: errors.New("stale requiredness")}, fail: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			repo := initSyncRepo(t, oldSHA, "rust-v0.140.0", KindStableTag)
@@ -108,7 +110,7 @@ func TestSyncValidationOnlyVerifiesFreshExactCandidateWithoutEffects(t *testing.
 					if req.TargetSHA != oldSHA || req.Candidate != "/tmp/schema" {
 						t.Fatalf("exact verification input: %+v", req)
 					}
-					return test.proof, nil
+					return test.proof, test.cause
 				},
 				Plan: func(protocolupgrade.ApplyRequest) (protocolupgrade.PlanResult, error) {
 					planned = true
@@ -123,7 +125,7 @@ func TestSyncValidationOnlyVerifiesFreshExactCandidateWithoutEffects(t *testing.
 				t.Fatalf("generated=%v verified=%v planned=%v applied=%v", generated, verified, planned, applied)
 			}
 			if test.fail {
-				if err == nil || !strings.Contains(err.Error(), "stale requiredness") {
+				if err == nil || result.FailureCategory != FailureUnsupported || !strings.Contains(err.Error(), "stale requiredness") {
 					t.Fatalf("unresolved exact verification: %v", err)
 				}
 			} else if err != nil || result.Outcome != OutcomeExactVerified {
@@ -642,5 +644,24 @@ func TestSyncFailureKeepsOwnerAttributionAndCause(t *testing.T) {
 				t.Fatalf("result=%+v err=%v", result, err)
 			}
 		})
+	}
+}
+
+func TestCachedUpstreamOriginMismatchIsSourceFailure(t *testing.T) {
+	repo := initSyncRepo(t, oldSHA, "rust-v0.140.0", KindStableTag)
+	writeFile(t, filepath.Join(repo, ".git", "info", "exclude"), "codexsdk/.cache/\n")
+	cache := filepath.Join(repo, "codexsdk", ".cache", "openai-codex")
+	if err := prepareUpstreamRepo(cache, "https://example.invalid/old.git"); err != nil {
+		t.Fatal(err)
+	}
+	result, err := Sync(SyncRequest{
+		RepoRoot: repo, UpstreamRepo: "https://example.invalid/new.git", UpstreamRef: "rust-v0.141.0",
+		Lookuper: fakeLookuper{byPattern: map[string]string{
+			"refs/tags/rust-v0.141.0":    newSHA + "\trefs/tags/rust-v0.141.0",
+			"refs/tags/rust-v0.141.0^{}": newSHA + "\trefs/tags/rust-v0.141.0^{}",
+		}},
+	})
+	if err == nil || result.Stage != "generate" || result.FailureCategory != FailureSource || result.Outcome != OutcomeFailed {
+		t.Fatalf("result=%+v err=%v", result, err)
 	}
 }
