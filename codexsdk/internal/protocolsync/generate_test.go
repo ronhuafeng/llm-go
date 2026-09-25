@@ -12,9 +12,9 @@ func TestGenerateCandidateUsesLockedSourceAndRejectsBuildMutation(t *testing.T) 
 	if runtime.GOOS == "windows" {
 		t.Skip("POSIX cargo fixture")
 	}
-	for _, name := range []string{"unchanged", "mutated source", "cached cargo config", "parent cargo config"} {
+	for _, name := range []string{"unchanged", "mutated source", "cached cargo config", "parent cargo config", "cached rustup override"} {
 		mutate := name == "mutated source"
-		config := strings.Contains(name, "cargo config")
+		config := strings.Contains(name, "cargo config") || name == "cached rustup override"
 		t.Run(name, func(t *testing.T) {
 			upstream := t.TempDir()
 			writeFile(t, filepath.Join(upstream, "codex-rs", "Cargo.lock"), "selected-lock\n")
@@ -49,6 +49,14 @@ exit 36
 `
 			if err := os.WriteFile(filepath.Join(bin, "cargo"), []byte(script), 0700); err != nil {
 				t.Fatal(err)
+			}
+			rustup := "#!/bin/sh\nset -eu\ntest \"$*\" = 'override list'\nprintf '%s\\n' \"$FIXTURE_OVERRIDES\"\n"
+			if err := os.WriteFile(filepath.Join(bin, "rustup"), []byte(rustup), 0700); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("FIXTURE_OVERRIDES", "no overrides")
+			if name == "cached rustup override" {
+				t.Setenv("FIXTURE_OVERRIDES", module+"\tambient-toolchain")
 			}
 			t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 			t.Setenv("FIXTURE_CALLS", calls)

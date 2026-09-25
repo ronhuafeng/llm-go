@@ -335,7 +335,9 @@ it does not claim a hermetic operating system or compiler installation.
 
 Upstream schema generation and CLI version queries use `cargo run --locked`
 in the exact selected checkout. The selected source's Rust toolchain declaration
-controls the build; an ambient `RUSTUP_TOOLCHAIN` override is not inherited.
+controls the build; ambient `RUSTUP_TOOLCHAIN` and persisted rustup directory
+overrides cannot override it. A toolchain cache with directory overrides is
+rejected.
 Actual command arguments are logged. A tracked source change during these
 commands, including a Cargo.lock change, rejects the candidate. Cargo caches
 only accelerate that build and do not replace the selected source inputs.

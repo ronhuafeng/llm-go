@@ -121,6 +121,18 @@ func GenerateCandidate(req GenerateRequest) (Candidate, error) {
 		"CARGO_HOME="+cargoHome,
 		"CARGO_TARGET_DIR="+cargoTarget,
 	)
+	// Persisted directory overrides take precedence over rust-toolchain.toml.
+	// A shared toolchain cache is usable only when it has no such policy.
+	overrides := exec.Command("rustup", "override", "list")
+	overrides.Dir = codexRS
+	overrides.Env = env
+	overrideOut, err := overrides.Output()
+	if err != nil {
+		return Candidate{}, fmt.Errorf("inspect cached rustup overrides: %w", err)
+	}
+	if strings.TrimSpace(string(overrideOut)) != "no overrides" {
+		return Candidate{}, &Failure{Category: FailureSource, Err: fmt.Errorf("cached rustup directory overrides are not selected source inputs")}
+	}
 	if err := runCargo(codexRS, env, "run", "--locked", "-p", "codex-cli", "--", "app-server", "generate-json-schema", "--experimental", "--out", schemaDir); err != nil {
 		return Candidate{}, err
 	}
