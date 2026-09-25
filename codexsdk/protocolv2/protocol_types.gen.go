@@ -87,6 +87,8 @@ func decodeWireProtocolValue(data []byte, target any, role wirejson.Role) error 
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleActionBearing)
 	case *EnvironmentAddResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
+	case *EnvironmentInfoResponse:
+		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *EnvironmentStatusResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *ExecCommandApprovalResponse:
@@ -137,6 +139,8 @@ func decodeWireProtocolValue(data []byte, target any, role wirejson.Role) error 
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *GetAccountResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
+	case *GetAccountTokenUsageResponse:
+		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *GetWorkspaceMessagesResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *HooksListResponse:
@@ -176,6 +180,8 @@ func decodeWireProtocolValue(data []byte, target any, role wirejson.Role) error 
 	case *ModelListResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *ModelProviderCapabilitiesReadResponse:
+		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
+	case *PermissionProfileListResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *PermissionsRequestApprovalResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleActionBearing)
@@ -227,6 +233,8 @@ func decodeWireProtocolValue(data []byte, target any, role wirejson.Role) error 
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *ProjectUpdateResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
+	case *RemoteControlClientsListResponse:
+		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *RemoteControlClientsRevokeResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *RemoteControlDisableResponse:
@@ -260,6 +268,8 @@ func decodeWireProtocolValue(data []byte, target any, role wirejson.Role) error 
 	case *ThreadArchiveResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *ThreadBackgroundTerminalsCleanResponse:
+		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
+	case *ThreadBackgroundTerminalsListResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *ThreadBackgroundTerminalsTerminateResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
@@ -325,6 +335,8 @@ func decodeWireProtocolValue(data []byte, target any, role wirejson.Role) error 
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *ThreadSearchOccurrencesResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
+	case *ThreadSearchResponse:
+		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *ThreadSectionCreateResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *ThreadSectionDeleteResponse:
@@ -342,6 +354,8 @@ func decodeWireProtocolValue(data []byte, target any, role wirejson.Role) error 
 	case *ThreadShellCommandResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *ThreadStartResponse:
+		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
+	case *ThreadTimelineListResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *ThreadTurnsListResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
@@ -3001,114 +3015,6 @@ func (value *McpAuthStatus) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-type McpElicitationArrayType string
-
-const (
-	McpElicitationArrayTypeArray McpElicitationArrayType = "array"
-)
-
-func (value McpElicitationArrayType) IsValid() bool {
-	switch value {
-	case McpElicitationArrayTypeArray:
-		return true
-	default:
-		return false
-	}
-}
-
-func (value McpElicitationArrayType) MarshalJSON() ([]byte, error) {
-	if !value.IsValid() {
-		return nil, invalidEnumValue("McpElicitationArrayType", string(value))
-	}
-	return json.Marshal(string(value))
-}
-
-func (value *McpElicitationArrayType) UnmarshalJSON(data []byte) error {
-	var raw string
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	parsed := McpElicitationArrayType(raw)
-	if !parsed.IsValid() {
-		return invalidEnumValue("McpElicitationArrayType", raw)
-	}
-	*value = parsed
-	return nil
-}
-
-type McpElicitationBooleanType string
-
-const (
-	McpElicitationBooleanTypeBoolean McpElicitationBooleanType = "boolean"
-)
-
-func (value McpElicitationBooleanType) IsValid() bool {
-	switch value {
-	case McpElicitationBooleanTypeBoolean:
-		return true
-	default:
-		return false
-	}
-}
-
-func (value McpElicitationBooleanType) MarshalJSON() ([]byte, error) {
-	if !value.IsValid() {
-		return nil, invalidEnumValue("McpElicitationBooleanType", string(value))
-	}
-	return json.Marshal(string(value))
-}
-
-func (value *McpElicitationBooleanType) UnmarshalJSON(data []byte) error {
-	var raw string
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	parsed := McpElicitationBooleanType(raw)
-	if !parsed.IsValid() {
-		return invalidEnumValue("McpElicitationBooleanType", raw)
-	}
-	*value = parsed
-	return nil
-}
-
-type McpElicitationNumberType string
-
-const (
-	McpElicitationNumberTypeNumber  McpElicitationNumberType = "number"
-	McpElicitationNumberTypeInteger McpElicitationNumberType = "integer"
-)
-
-func (value McpElicitationNumberType) IsValid() bool {
-	switch value {
-	case McpElicitationNumberTypeNumber:
-		return true
-	case McpElicitationNumberTypeInteger:
-		return true
-	default:
-		return false
-	}
-}
-
-func (value McpElicitationNumberType) MarshalJSON() ([]byte, error) {
-	if !value.IsValid() {
-		return nil, invalidEnumValue("McpElicitationNumberType", string(value))
-	}
-	return json.Marshal(string(value))
-}
-
-func (value *McpElicitationNumberType) UnmarshalJSON(data []byte) error {
-	var raw string
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	parsed := McpElicitationNumberType(raw)
-	if !parsed.IsValid() {
-		return invalidEnumValue("McpElicitationNumberType", raw)
-	}
-	*value = parsed
-	return nil
-}
-
 type McpElicitationObjectType string
 
 const (
@@ -3139,85 +3045,6 @@ func (value *McpElicitationObjectType) UnmarshalJSON(data []byte) error {
 	parsed := McpElicitationObjectType(raw)
 	if !parsed.IsValid() {
 		return invalidEnumValue("McpElicitationObjectType", raw)
-	}
-	*value = parsed
-	return nil
-}
-
-type McpElicitationStringFormat string
-
-const (
-	McpElicitationStringFormatEmail    McpElicitationStringFormat = "email"
-	McpElicitationStringFormatURI      McpElicitationStringFormat = "uri"
-	McpElicitationStringFormatDate     McpElicitationStringFormat = "date"
-	McpElicitationStringFormatDateTime McpElicitationStringFormat = "date-time"
-)
-
-func (value McpElicitationStringFormat) IsValid() bool {
-	switch value {
-	case McpElicitationStringFormatEmail:
-		return true
-	case McpElicitationStringFormatURI:
-		return true
-	case McpElicitationStringFormatDate:
-		return true
-	case McpElicitationStringFormatDateTime:
-		return true
-	default:
-		return false
-	}
-}
-
-func (value McpElicitationStringFormat) MarshalJSON() ([]byte, error) {
-	if !value.IsValid() {
-		return nil, invalidEnumValue("McpElicitationStringFormat", string(value))
-	}
-	return json.Marshal(string(value))
-}
-
-func (value *McpElicitationStringFormat) UnmarshalJSON(data []byte) error {
-	var raw string
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	parsed := McpElicitationStringFormat(raw)
-	if !parsed.IsValid() {
-		return invalidEnumValue("McpElicitationStringFormat", raw)
-	}
-	*value = parsed
-	return nil
-}
-
-type McpElicitationStringType string
-
-const (
-	McpElicitationStringTypeString McpElicitationStringType = "string"
-)
-
-func (value McpElicitationStringType) IsValid() bool {
-	switch value {
-	case McpElicitationStringTypeString:
-		return true
-	default:
-		return false
-	}
-}
-
-func (value McpElicitationStringType) MarshalJSON() ([]byte, error) {
-	if !value.IsValid() {
-		return nil, invalidEnumValue("McpElicitationStringType", string(value))
-	}
-	return json.Marshal(string(value))
-}
-
-func (value *McpElicitationStringType) UnmarshalJSON(data []byte) error {
-	var raw string
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	parsed := McpElicitationStringType(raw)
-	if !parsed.IsValid() {
-		return invalidEnumValue("McpElicitationStringType", raw)
 	}
 	*value = parsed
 	return nil
@@ -6575,6 +6402,8 @@ func (value *WriteStatus) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+type PathUri string
+
 type ReasoningEffort string
 
 type ThreadSource string
@@ -6644,6 +6473,87 @@ func (value *AccountRateLimitsUpdatedNotification) unmarshalJSON(data []byte, mo
 		return missingRequiredField("AccountRateLimitsUpdatedNotification.rateLimits")
 	}
 	if err := rejectUnexpectedFieldsForMode(fields, "AccountRateLimitsUpdatedNotification", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type AccountTokenUsageDailyBucket struct {
+	StartDate string `json:"startDate"`
+	Tokens    int64  `json:"tokens"`
+}
+
+func (value *AccountTokenUsageDailyBucket) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *AccountTokenUsageDailyBucket) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "AccountTokenUsageDailyBucket")
+	if err != nil {
+		return err
+	}
+	var decoded AccountTokenUsageDailyBucket
+	seenStartDate, err := decodeJSONField(fields, "startDate", "AccountTokenUsageDailyBucket.startDate", false, mode, decodeWireValue[string], &decoded.StartDate)
+	if err != nil {
+		return err
+	}
+	if !seenStartDate {
+		return missingRequiredField("AccountTokenUsageDailyBucket.startDate")
+	}
+	seenTokens, err := decodeJSONField(fields, "tokens", "AccountTokenUsageDailyBucket.tokens", false, mode, decodeWireValue[int64], &decoded.Tokens)
+	if err != nil {
+		return err
+	}
+	if !seenTokens {
+		return missingRequiredField("AccountTokenUsageDailyBucket.tokens")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "AccountTokenUsageDailyBucket", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type AccountTokenUsageSummary struct {
+	CurrentStreakDays     *Nullable[int64] `json:"currentStreakDays,omitempty"`
+	LifetimeTokens        *Nullable[int64] `json:"lifetimeTokens,omitempty"`
+	LongestRunningTurnSec *Nullable[int64] `json:"longestRunningTurnSec,omitempty"`
+	LongestStreakDays     *Nullable[int64] `json:"longestStreakDays,omitempty"`
+	PeakDailyTokens       *Nullable[int64] `json:"peakDailyTokens,omitempty"`
+}
+
+func (value *AccountTokenUsageSummary) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *AccountTokenUsageSummary) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "AccountTokenUsageSummary")
+	if err != nil {
+		return err
+	}
+	var decoded AccountTokenUsageSummary
+	_, err = decodeNullableJSONField[int64](fields, "currentStreakDays", "AccountTokenUsageSummary.currentStreakDays", mode, decodeWireValue[int64], &decoded.CurrentStreakDays)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[int64](fields, "lifetimeTokens", "AccountTokenUsageSummary.lifetimeTokens", mode, decodeWireValue[int64], &decoded.LifetimeTokens)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[int64](fields, "longestRunningTurnSec", "AccountTokenUsageSummary.longestRunningTurnSec", mode, decodeWireValue[int64], &decoded.LongestRunningTurnSec)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[int64](fields, "longestStreakDays", "AccountTokenUsageSummary.longestStreakDays", mode, decodeWireValue[int64], &decoded.LongestStreakDays)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[int64](fields, "peakDailyTokens", "AccountTokenUsageSummary.peakDailyTokens", mode, decodeWireValue[int64], &decoded.PeakDailyTokens)
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "AccountTokenUsageSummary", mode); err != nil {
 		return err
 	}
 	*value = decoded
@@ -7018,66 +6928,6 @@ func (value *AppBranding) unmarshalJSON(data []byte, mode wireDecodeMode) error 
 	return nil
 }
 
-type AppConfig struct {
-	ApprovalsReviewer        *Nullable[ApprovalsReviewer] `json:"approvals_reviewer,omitempty"`
-	DefaultToolsApprovalMode *Nullable[AppToolApproval]   `json:"default_tools_approval_mode,omitempty"`
-	DefaultToolsEnabled      *Nullable[bool]              `json:"default_tools_enabled,omitempty"`
-	DestructiveEnabled       *Nullable[bool]              `json:"destructive_enabled,omitempty"`
-	Enabled                  *bool                        `json:"enabled,omitempty"`
-	Links                    *Nullable[AppLinksConfig]    `json:"links,omitempty"`
-	OpenWorldEnabled         *Nullable[bool]              `json:"open_world_enabled,omitempty"`
-	Tools                    *Nullable[AppToolsConfig]    `json:"tools,omitempty"`
-}
-
-func (value *AppConfig) UnmarshalJSON(data []byte) error {
-	return value.unmarshalJSON(data, wireDecodeClosed)
-}
-
-func (value *AppConfig) unmarshalJSON(data []byte, mode wireDecodeMode) error {
-	fields, err := decodeObjectFields(data, "AppConfig")
-	if err != nil {
-		return err
-	}
-	var decoded AppConfig
-	_, err = decodeNullableJSONField[ApprovalsReviewer](fields, "approvals_reviewer", "AppConfig.approvals_reviewer", mode, decodeWireValue[ApprovalsReviewer], &decoded.ApprovalsReviewer)
-	if err != nil {
-		return err
-	}
-	_, err = decodeNullableJSONField[AppToolApproval](fields, "default_tools_approval_mode", "AppConfig.default_tools_approval_mode", mode, decodeWireValue[AppToolApproval], &decoded.DefaultToolsApprovalMode)
-	if err != nil {
-		return err
-	}
-	_, err = decodeNullableJSONField[bool](fields, "default_tools_enabled", "AppConfig.default_tools_enabled", mode, decodeWireValue[bool], &decoded.DefaultToolsEnabled)
-	if err != nil {
-		return err
-	}
-	_, err = decodeNullableJSONField[bool](fields, "destructive_enabled", "AppConfig.destructive_enabled", mode, decodeWireValue[bool], &decoded.DestructiveEnabled)
-	if err != nil {
-		return err
-	}
-	_, err = decodeJSONField(fields, "enabled", "AppConfig.enabled", false, mode, wirePointerDecoder(decodeWireValue[bool]), &decoded.Enabled)
-	if err != nil {
-		return err
-	}
-	_, err = decodeNullableJSONField[AppLinksConfig](fields, "links", "AppConfig.links", mode, decodeWireValue[AppLinksConfig], &decoded.Links)
-	if err != nil {
-		return err
-	}
-	_, err = decodeNullableJSONField[bool](fields, "open_world_enabled", "AppConfig.open_world_enabled", mode, decodeWireValue[bool], &decoded.OpenWorldEnabled)
-	if err != nil {
-		return err
-	}
-	_, err = decodeNullableJSONField[AppToolsConfig](fields, "tools", "AppConfig.tools", mode, decodeWireValue[AppToolsConfig], &decoded.Tools)
-	if err != nil {
-		return err
-	}
-	if err := rejectUnexpectedFieldsForMode(fields, "AppConfig", mode); err != nil {
-		return err
-	}
-	*value = decoded
-	return nil
-}
-
 type AppInfo struct {
 	AppMetadata         *Nullable[AppMetadata]       `json:"appMetadata,omitempty"`
 	Branding            *Nullable[AppBranding]       `json:"branding,omitempty"`
@@ -7176,24 +7026,6 @@ func (value *AppInfo) unmarshalJSON(data []byte, mode wireDecodeMode) error {
 		return err
 	}
 	*value = decoded
-	return nil
-}
-
-type AppLinksConfig struct{}
-
-func (value *AppLinksConfig) UnmarshalJSON(data []byte) error {
-	return value.unmarshalJSON(data, wireDecodeClosed)
-}
-
-func (value *AppLinksConfig) unmarshalJSON(data []byte, mode wireDecodeMode) error {
-	fields, err := decodeObjectFields(data, "AppLinksConfig")
-	if err != nil {
-		return err
-	}
-	if err := rejectUnexpectedFieldsForMode(fields, "AppLinksConfig", mode); err != nil {
-		return err
-	}
-	*value = AppLinksConfig{}
 	return nil
 }
 
@@ -7507,36 +7339,6 @@ func (value *AppTemplateSummary) unmarshalJSON(data []byte, mode wireDecodeMode)
 	return nil
 }
 
-type AppToolConfig struct {
-	ApprovalMode *Nullable[AppToolApproval] `json:"approval_mode,omitempty"`
-	Enabled      *Nullable[bool]            `json:"enabled,omitempty"`
-}
-
-func (value *AppToolConfig) UnmarshalJSON(data []byte) error {
-	return value.unmarshalJSON(data, wireDecodeClosed)
-}
-
-func (value *AppToolConfig) unmarshalJSON(data []byte, mode wireDecodeMode) error {
-	fields, err := decodeObjectFields(data, "AppToolConfig")
-	if err != nil {
-		return err
-	}
-	var decoded AppToolConfig
-	_, err = decodeNullableJSONField[AppToolApproval](fields, "approval_mode", "AppToolConfig.approval_mode", mode, decodeWireValue[AppToolApproval], &decoded.ApprovalMode)
-	if err != nil {
-		return err
-	}
-	_, err = decodeNullableJSONField[bool](fields, "enabled", "AppToolConfig.enabled", mode, decodeWireValue[bool], &decoded.Enabled)
-	if err != nil {
-		return err
-	}
-	if err := rejectUnexpectedFieldsForMode(fields, "AppToolConfig", mode); err != nil {
-		return err
-	}
-	*value = decoded
-	return nil
-}
-
 type AppToolSummary struct {
 	Description    string            `json:"description"`
 	DisabledReason *Nullable[string] `json:"disabledReason,omitempty"`
@@ -7590,24 +7392,6 @@ func (value *AppToolSummary) unmarshalJSON(data []byte, mode wireDecodeMode) err
 		return err
 	}
 	*value = decoded
-	return nil
-}
-
-type AppToolsConfig struct{}
-
-func (value *AppToolsConfig) UnmarshalJSON(data []byte) error {
-	return value.unmarshalJSON(data, wireDecodeClosed)
-}
-
-func (value *AppToolsConfig) unmarshalJSON(data []byte, mode wireDecodeMode) error {
-	fields, err := decodeObjectFields(data, "AppToolsConfig")
-	if err != nil {
-		return err
-	}
-	if err := rejectUnexpectedFieldsForMode(fields, "AppToolsConfig", mode); err != nil {
-		return err
-	}
-	*value = AppToolsConfig{}
 	return nil
 }
 
@@ -11333,6 +11117,75 @@ func (value *EnvironmentInfoParams) unmarshalJSON(data []byte, mode wireDecodeMo
 	return nil
 }
 
+type EnvironmentInfoResponse struct {
+	CWD   *Nullable[PathUri]   `json:"cwd,omitempty"`
+	Shell EnvironmentShellInfo `json:"shell"`
+}
+
+func (value *EnvironmentInfoResponse) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *EnvironmentInfoResponse) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "EnvironmentInfoResponse")
+	if err != nil {
+		return err
+	}
+	var decoded EnvironmentInfoResponse
+	_, err = decodeNullableJSONField[PathUri](fields, "cwd", "EnvironmentInfoResponse.cwd", mode, decodeWireValue[PathUri], &decoded.CWD)
+	if err != nil {
+		return err
+	}
+	seenShell, err := decodeJSONField(fields, "shell", "EnvironmentInfoResponse.shell", false, mode, decodeWireValue[EnvironmentShellInfo], &decoded.Shell)
+	if err != nil {
+		return err
+	}
+	if !seenShell {
+		return missingRequiredField("EnvironmentInfoResponse.shell")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "EnvironmentInfoResponse", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type EnvironmentShellInfo struct {
+	Name string `json:"name"`
+	Path string `json:"path"`
+}
+
+func (value *EnvironmentShellInfo) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *EnvironmentShellInfo) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "EnvironmentShellInfo")
+	if err != nil {
+		return err
+	}
+	var decoded EnvironmentShellInfo
+	seenName, err := decodeJSONField(fields, "name", "EnvironmentShellInfo.name", false, mode, decodeWireValue[string], &decoded.Name)
+	if err != nil {
+		return err
+	}
+	if !seenName {
+		return missingRequiredField("EnvironmentShellInfo.name")
+	}
+	seenPath, err := decodeJSONField(fields, "path", "EnvironmentShellInfo.path", false, mode, decodeWireValue[string], &decoded.Path)
+	if err != nil {
+		return err
+	}
+	if !seenPath {
+		return missingRequiredField("EnvironmentShellInfo.path")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "EnvironmentShellInfo", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
 type EnvironmentStatusParams struct {
 	EnvironmentID string `json:"environmentId"`
 }
@@ -14185,6 +14038,44 @@ func (value *GetAccountTokenUsageParams) unmarshalJSON(data []byte, mode wireDec
 		return err
 	}
 	if err := rejectUnexpectedFieldsForMode(fields, "GetAccountTokenUsageParams", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type GetAccountTokenUsageResponse struct {
+	DailyUsageBuckets *Nullable[[]AccountTokenUsageDailyBucket] `json:"dailyUsageBuckets,omitempty"`
+	Summary           AccountTokenUsageSummary                  `json:"summary"`
+	ThreadUsage       *Nullable[ThreadUsage]                    `json:"threadUsage,omitempty"`
+}
+
+func (value *GetAccountTokenUsageResponse) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *GetAccountTokenUsageResponse) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "GetAccountTokenUsageResponse")
+	if err != nil {
+		return err
+	}
+	var decoded GetAccountTokenUsageResponse
+	_, err = decodeNullableJSONField[[]AccountTokenUsageDailyBucket](fields, "dailyUsageBuckets", "GetAccountTokenUsageResponse.dailyUsageBuckets", mode, wireSliceDecoder(decodeWireValue[AccountTokenUsageDailyBucket]), &decoded.DailyUsageBuckets)
+	if err != nil {
+		return err
+	}
+	seenSummary, err := decodeJSONField(fields, "summary", "GetAccountTokenUsageResponse.summary", false, mode, decodeWireValue[AccountTokenUsageSummary], &decoded.Summary)
+	if err != nil {
+		return err
+	}
+	if !seenSummary {
+		return missingRequiredField("GetAccountTokenUsageResponse.summary")
+	}
+	_, err = decodeNullableJSONField[ThreadUsage](fields, "threadUsage", "GetAccountTokenUsageResponse.threadUsage", mode, decodeWireValue[ThreadUsage], &decoded.ThreadUsage)
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "GetAccountTokenUsageResponse", mode); err != nil {
 		return err
 	}
 	*value = decoded
@@ -18139,6 +18030,88 @@ func (value *PermissionProfileListParams) unmarshalJSON(data []byte, mode wireDe
 	return nil
 }
 
+type PermissionProfileListResponse struct {
+	Data       []PermissionProfileSummary `json:"data"`
+	NextCursor *Nullable[string]          `json:"nextCursor,omitempty"`
+}
+
+func (value PermissionProfileListResponse) MarshalJSON() ([]byte, error) {
+	if value.Data == nil {
+		return nil, fmt.Errorf("encode PermissionProfileListResponse.data: nil is not allowed")
+	}
+	type wire PermissionProfileListResponse
+	return json.Marshal(wire(value))
+}
+
+func (value *PermissionProfileListResponse) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *PermissionProfileListResponse) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "PermissionProfileListResponse")
+	if err != nil {
+		return err
+	}
+	var decoded PermissionProfileListResponse
+	seenData, err := decodeJSONField(fields, "data", "PermissionProfileListResponse.data", false, mode, wireSliceDecoder(decodeWireValue[PermissionProfileSummary]), &decoded.Data)
+	if err != nil {
+		return err
+	}
+	if !seenData {
+		return missingRequiredField("PermissionProfileListResponse.data")
+	}
+	_, err = decodeNullableJSONField[string](fields, "nextCursor", "PermissionProfileListResponse.nextCursor", mode, decodeWireValue[string], &decoded.NextCursor)
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "PermissionProfileListResponse", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type PermissionProfileSummary struct {
+	Allowed     bool              `json:"allowed"`
+	Description *Nullable[string] `json:"description,omitempty"`
+	ID          string            `json:"id"`
+}
+
+func (value *PermissionProfileSummary) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *PermissionProfileSummary) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "PermissionProfileSummary")
+	if err != nil {
+		return err
+	}
+	var decoded PermissionProfileSummary
+	seenAllowed, err := decodeJSONField(fields, "allowed", "PermissionProfileSummary.allowed", false, mode, decodeWireValue[bool], &decoded.Allowed)
+	if err != nil {
+		return err
+	}
+	if !seenAllowed {
+		return missingRequiredField("PermissionProfileSummary.allowed")
+	}
+	_, err = decodeNullableJSONField[string](fields, "description", "PermissionProfileSummary.description", mode, decodeWireValue[string], &decoded.Description)
+	if err != nil {
+		return err
+	}
+	seenID, err := decodeJSONField(fields, "id", "PermissionProfileSummary.id", false, mode, decodeWireValue[string], &decoded.ID)
+	if err != nil {
+		return err
+	}
+	if !seenID {
+		return missingRequiredField("PermissionProfileSummary.id")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "PermissionProfileSummary", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
 type PermissionsRequestApprovalParams struct {
 	CWD           string                   `json:"cwd"`
 	EnvironmentID *Nullable[string]        `json:"environmentId,omitempty"`
@@ -21410,50 +21383,6 @@ func (value *RateLimitWindow) unmarshalJSON(data []byte, mode wireDecodeMode) er
 	return nil
 }
 
-type RawResponseItemCompletedNotification struct {
-	Item     ResponseItem `json:"item"`
-	ThreadID string       `json:"threadId"`
-	TurnID   string       `json:"turnId"`
-}
-
-func (value *RawResponseItemCompletedNotification) UnmarshalJSON(data []byte) error {
-	return value.unmarshalJSON(data, wireDecodeClosed)
-}
-
-func (value *RawResponseItemCompletedNotification) unmarshalJSON(data []byte, mode wireDecodeMode) error {
-	fields, err := decodeObjectFields(data, "RawResponseItemCompletedNotification")
-	if err != nil {
-		return err
-	}
-	var decoded RawResponseItemCompletedNotification
-	seenItem, err := decodeJSONField(fields, "item", "RawResponseItemCompletedNotification.item", false, mode, decodeWireValue[ResponseItem], &decoded.Item)
-	if err != nil {
-		return err
-	}
-	if !seenItem {
-		return missingRequiredField("RawResponseItemCompletedNotification.item")
-	}
-	seenThreadID, err := decodeJSONField(fields, "threadId", "RawResponseItemCompletedNotification.threadId", false, mode, decodeWireValue[string], &decoded.ThreadID)
-	if err != nil {
-		return err
-	}
-	if !seenThreadID {
-		return missingRequiredField("RawResponseItemCompletedNotification.threadId")
-	}
-	seenTurnID, err := decodeJSONField(fields, "turnId", "RawResponseItemCompletedNotification.turnId", false, mode, decodeWireValue[string], &decoded.TurnID)
-	if err != nil {
-		return err
-	}
-	if !seenTurnID {
-		return missingRequiredField("RawResponseItemCompletedNotification.turnId")
-	}
-	if err := rejectUnexpectedFieldsForMode(fields, "RawResponseItemCompletedNotification", mode); err != nil {
-		return err
-	}
-	*value = decoded
-	return nil
-}
-
 type RealtimeVoicesList struct {
 	DefaultV1 RealtimeVoice   `json:"defaultV1"`
 	DefaultV2 RealtimeVoice   `json:"defaultV2"`
@@ -21725,6 +21654,69 @@ func (value *ReasoningTextDeltaNotification) unmarshalJSON(data []byte, mode wir
 	return nil
 }
 
+type RemoteControlClient struct {
+	AppVersion  *Nullable[string] `json:"appVersion,omitempty"`
+	ClientID    string            `json:"clientId"`
+	DeviceModel *Nullable[string] `json:"deviceModel,omitempty"`
+	DeviceType  *Nullable[string] `json:"deviceType,omitempty"`
+	DisplayName *Nullable[string] `json:"displayName,omitempty"`
+	LastSeenAt  *Nullable[int64]  `json:"lastSeenAt,omitempty"`
+	OsVersion   *Nullable[string] `json:"osVersion,omitempty"`
+	Platform    *Nullable[string] `json:"platform,omitempty"`
+}
+
+func (value *RemoteControlClient) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *RemoteControlClient) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "RemoteControlClient")
+	if err != nil {
+		return err
+	}
+	var decoded RemoteControlClient
+	_, err = decodeNullableJSONField[string](fields, "appVersion", "RemoteControlClient.appVersion", mode, decodeWireValue[string], &decoded.AppVersion)
+	if err != nil {
+		return err
+	}
+	seenClientID, err := decodeJSONField(fields, "clientId", "RemoteControlClient.clientId", false, mode, decodeWireValue[string], &decoded.ClientID)
+	if err != nil {
+		return err
+	}
+	if !seenClientID {
+		return missingRequiredField("RemoteControlClient.clientId")
+	}
+	_, err = decodeNullableJSONField[string](fields, "deviceModel", "RemoteControlClient.deviceModel", mode, decodeWireValue[string], &decoded.DeviceModel)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[string](fields, "deviceType", "RemoteControlClient.deviceType", mode, decodeWireValue[string], &decoded.DeviceType)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[string](fields, "displayName", "RemoteControlClient.displayName", mode, decodeWireValue[string], &decoded.DisplayName)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[int64](fields, "lastSeenAt", "RemoteControlClient.lastSeenAt", mode, decodeWireValue[int64], &decoded.LastSeenAt)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[string](fields, "osVersion", "RemoteControlClient.osVersion", mode, decodeWireValue[string], &decoded.OsVersion)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[string](fields, "platform", "RemoteControlClient.platform", mode, decodeWireValue[string], &decoded.Platform)
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "RemoteControlClient", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
 type RemoteControlClientsListParams struct {
 	Cursor        *Nullable[string]                        `json:"cursor,omitempty"`
 	EnvironmentID string                                   `json:"environmentId"`
@@ -21762,6 +21754,47 @@ func (value *RemoteControlClientsListParams) unmarshalJSON(data []byte, mode wir
 		return err
 	}
 	if err := rejectUnexpectedFieldsForMode(fields, "RemoteControlClientsListParams", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type RemoteControlClientsListResponse struct {
+	Data       []RemoteControlClient `json:"data"`
+	NextCursor *Nullable[string]     `json:"nextCursor,omitempty"`
+}
+
+func (value RemoteControlClientsListResponse) MarshalJSON() ([]byte, error) {
+	if value.Data == nil {
+		return nil, fmt.Errorf("encode RemoteControlClientsListResponse.data: nil is not allowed")
+	}
+	type wire RemoteControlClientsListResponse
+	return json.Marshal(wire(value))
+}
+
+func (value *RemoteControlClientsListResponse) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *RemoteControlClientsListResponse) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "RemoteControlClientsListResponse")
+	if err != nil {
+		return err
+	}
+	var decoded RemoteControlClientsListResponse
+	seenData, err := decodeJSONField(fields, "data", "RemoteControlClientsListResponse.data", false, mode, wireSliceDecoder(decodeWireValue[RemoteControlClient]), &decoded.Data)
+	if err != nil {
+		return err
+	}
+	if !seenData {
+		return missingRequiredField("RemoteControlClientsListResponse.data")
+	}
+	_, err = decodeNullableJSONField[string](fields, "nextCursor", "RemoteControlClientsListResponse.nextCursor", mode, decodeWireValue[string], &decoded.NextCursor)
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "RemoteControlClientsListResponse", mode); err != nil {
 		return err
 	}
 	*value = decoded
@@ -24127,6 +24160,73 @@ func (value *ThreadArchivedNotification) unmarshalJSON(data []byte, mode wireDec
 	return nil
 }
 
+type ThreadBackgroundTerminal struct {
+	Command    string             `json:"command"`
+	CpuPercent *Nullable[float64] `json:"cpuPercent,omitempty"`
+	CWD        string             `json:"cwd"`
+	ItemID     string             `json:"itemId"`
+	OsPid      *Nullable[uint32]  `json:"osPid,omitempty"`
+	ProcessID  string             `json:"processId"`
+	RssKb      *Nullable[uint64]  `json:"rssKb,omitempty"`
+}
+
+func (value *ThreadBackgroundTerminal) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ThreadBackgroundTerminal) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ThreadBackgroundTerminal")
+	if err != nil {
+		return err
+	}
+	var decoded ThreadBackgroundTerminal
+	seenCommand, err := decodeJSONField(fields, "command", "ThreadBackgroundTerminal.command", false, mode, decodeWireValue[string], &decoded.Command)
+	if err != nil {
+		return err
+	}
+	if !seenCommand {
+		return missingRequiredField("ThreadBackgroundTerminal.command")
+	}
+	_, err = decodeNullableJSONField[float64](fields, "cpuPercent", "ThreadBackgroundTerminal.cpuPercent", mode, decodeWireValue[float64], &decoded.CpuPercent)
+	if err != nil {
+		return err
+	}
+	seenCWD, err := decodeJSONField(fields, "cwd", "ThreadBackgroundTerminal.cwd", false, mode, decodeWireValue[string], &decoded.CWD)
+	if err != nil {
+		return err
+	}
+	if !seenCWD {
+		return missingRequiredField("ThreadBackgroundTerminal.cwd")
+	}
+	seenItemID, err := decodeJSONField(fields, "itemId", "ThreadBackgroundTerminal.itemId", false, mode, decodeWireValue[string], &decoded.ItemID)
+	if err != nil {
+		return err
+	}
+	if !seenItemID {
+		return missingRequiredField("ThreadBackgroundTerminal.itemId")
+	}
+	_, err = decodeNullableJSONField[uint32](fields, "osPid", "ThreadBackgroundTerminal.osPid", mode, decodeWireValue[uint32], &decoded.OsPid)
+	if err != nil {
+		return err
+	}
+	seenProcessID, err := decodeJSONField(fields, "processId", "ThreadBackgroundTerminal.processId", false, mode, decodeWireValue[string], &decoded.ProcessID)
+	if err != nil {
+		return err
+	}
+	if !seenProcessID {
+		return missingRequiredField("ThreadBackgroundTerminal.processId")
+	}
+	_, err = decodeNullableJSONField[uint64](fields, "rssKb", "ThreadBackgroundTerminal.rssKb", mode, decodeWireValue[uint64], &decoded.RssKb)
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ThreadBackgroundTerminal", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
 type ThreadBackgroundTerminalsCleanParams struct {
 	ThreadID string `json:"threadId"`
 }
@@ -24205,6 +24305,47 @@ func (value *ThreadBackgroundTerminalsListParams) unmarshalJSON(data []byte, mod
 		return missingRequiredField("ThreadBackgroundTerminalsListParams.threadId")
 	}
 	if err := rejectUnexpectedFieldsForMode(fields, "ThreadBackgroundTerminalsListParams", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ThreadBackgroundTerminalsListResponse struct {
+	Data       []ThreadBackgroundTerminal `json:"data"`
+	NextCursor *Nullable[string]          `json:"nextCursor,omitempty"`
+}
+
+func (value ThreadBackgroundTerminalsListResponse) MarshalJSON() ([]byte, error) {
+	if value.Data == nil {
+		return nil, fmt.Errorf("encode ThreadBackgroundTerminalsListResponse.data: nil is not allowed")
+	}
+	type wire ThreadBackgroundTerminalsListResponse
+	return json.Marshal(wire(value))
+}
+
+func (value *ThreadBackgroundTerminalsListResponse) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ThreadBackgroundTerminalsListResponse) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ThreadBackgroundTerminalsListResponse")
+	if err != nil {
+		return err
+	}
+	var decoded ThreadBackgroundTerminalsListResponse
+	seenData, err := decodeJSONField(fields, "data", "ThreadBackgroundTerminalsListResponse.data", false, mode, wireSliceDecoder(decodeWireValue[ThreadBackgroundTerminal]), &decoded.Data)
+	if err != nil {
+		return err
+	}
+	if !seenData {
+		return missingRequiredField("ThreadBackgroundTerminalsListResponse.data")
+	}
+	_, err = decodeNullableJSONField[string](fields, "nextCursor", "ThreadBackgroundTerminalsListResponse.nextCursor", mode, decodeWireValue[string], &decoded.NextCursor)
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ThreadBackgroundTerminalsListResponse", mode); err != nil {
 		return err
 	}
 	*value = decoded
@@ -27878,6 +28019,88 @@ func (value *ThreadSearchParams) unmarshalJSON(data []byte, mode wireDecodeMode)
 	return nil
 }
 
+type ThreadSearchResponse struct {
+	BackwardsCursor *Nullable[string]    `json:"backwardsCursor,omitempty"`
+	Data            []ThreadSearchResult `json:"data"`
+	NextCursor      *Nullable[string]    `json:"nextCursor,omitempty"`
+}
+
+func (value ThreadSearchResponse) MarshalJSON() ([]byte, error) {
+	if value.Data == nil {
+		return nil, fmt.Errorf("encode ThreadSearchResponse.data: nil is not allowed")
+	}
+	type wire ThreadSearchResponse
+	return json.Marshal(wire(value))
+}
+
+func (value *ThreadSearchResponse) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ThreadSearchResponse) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ThreadSearchResponse")
+	if err != nil {
+		return err
+	}
+	var decoded ThreadSearchResponse
+	_, err = decodeNullableJSONField[string](fields, "backwardsCursor", "ThreadSearchResponse.backwardsCursor", mode, decodeWireValue[string], &decoded.BackwardsCursor)
+	if err != nil {
+		return err
+	}
+	seenData, err := decodeJSONField(fields, "data", "ThreadSearchResponse.data", false, mode, wireSliceDecoder(decodeWireValue[ThreadSearchResult]), &decoded.Data)
+	if err != nil {
+		return err
+	}
+	if !seenData {
+		return missingRequiredField("ThreadSearchResponse.data")
+	}
+	_, err = decodeNullableJSONField[string](fields, "nextCursor", "ThreadSearchResponse.nextCursor", mode, decodeWireValue[string], &decoded.NextCursor)
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ThreadSearchResponse", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ThreadSearchResult struct {
+	Snippet string `json:"snippet"`
+	Thread  Thread `json:"thread"`
+}
+
+func (value *ThreadSearchResult) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ThreadSearchResult) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ThreadSearchResult")
+	if err != nil {
+		return err
+	}
+	var decoded ThreadSearchResult
+	seenSnippet, err := decodeJSONField(fields, "snippet", "ThreadSearchResult.snippet", false, mode, decodeWireValue[string], &decoded.Snippet)
+	if err != nil {
+		return err
+	}
+	if !seenSnippet {
+		return missingRequiredField("ThreadSearchResult.snippet")
+	}
+	seenThread, err := decodeJSONField(fields, "thread", "ThreadSearchResult.thread", false, mode, decodeWireValue[Thread], &decoded.Thread)
+	if err != nil {
+		return err
+	}
+	if !seenThread {
+		return missingRequiredField("ThreadSearchResult.thread")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ThreadSearchResult", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
 type ThreadSearchTextRange struct {
 	End   uint32 `json:"end"`
 	Start uint32 `json:"start"`
@@ -29010,6 +29233,52 @@ func (value *ThreadTimelineListParams) unmarshalJSON(data []byte, mode wireDecod
 	return nil
 }
 
+type ThreadTimelineListResponse struct {
+	ActiveRealtimeSessionAtPageStart *Nullable[string]     `json:"activeRealtimeSessionAtPageStart,omitempty"`
+	Data                             []ThreadTimelineEntry `json:"data"`
+	NextCursor                       *Nullable[string]     `json:"nextCursor,omitempty"`
+}
+
+func (value ThreadTimelineListResponse) MarshalJSON() ([]byte, error) {
+	if value.Data == nil {
+		return nil, fmt.Errorf("encode ThreadTimelineListResponse.data: nil is not allowed")
+	}
+	type wire ThreadTimelineListResponse
+	return json.Marshal(wire(value))
+}
+
+func (value *ThreadTimelineListResponse) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ThreadTimelineListResponse) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ThreadTimelineListResponse")
+	if err != nil {
+		return err
+	}
+	var decoded ThreadTimelineListResponse
+	_, err = decodeNullableJSONField[string](fields, "activeRealtimeSessionAtPageStart", "ThreadTimelineListResponse.activeRealtimeSessionAtPageStart", mode, decodeWireValue[string], &decoded.ActiveRealtimeSessionAtPageStart)
+	if err != nil {
+		return err
+	}
+	seenData, err := decodeJSONField(fields, "data", "ThreadTimelineListResponse.data", false, mode, wireSliceDecoder(decodeWireValue[ThreadTimelineEntry]), &decoded.Data)
+	if err != nil {
+		return err
+	}
+	if !seenData {
+		return missingRequiredField("ThreadTimelineListResponse.data")
+	}
+	_, err = decodeNullableJSONField[string](fields, "nextCursor", "ThreadTimelineListResponse.nextCursor", mode, decodeWireValue[string], &decoded.NextCursor)
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ThreadTimelineListResponse", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
 type ThreadTokenUsage struct {
 	Last               TokenUsageBreakdown `json:"last"`
 	ModelContextWindow *Nullable[int64]    `json:"modelContextWindow,omitempty"`
@@ -29323,6 +29592,131 @@ func (value *ThreadUnsubscribeResponse) unmarshalJSON(data []byte, mode wireDeco
 		return missingRequiredField("ThreadUnsubscribeResponse.status")
 	}
 	if err := rejectUnexpectedFieldsForMode(fields, "ThreadUnsubscribeResponse", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ThreadUsage struct {
+	EstimatedUsageCreditsMicros int64                       `json:"estimatedUsageCreditsMicros"`
+	EstimatedUsageUsdMicros     *Nullable[int64]            `json:"estimatedUsageUsdMicros,omitempty"`
+	Groups                      []ThreadUsageBreakdownGroup `json:"groups"`
+	ThreadID                    string                      `json:"threadId"`
+}
+
+func (value ThreadUsage) MarshalJSON() ([]byte, error) {
+	if value.Groups == nil {
+		return nil, fmt.Errorf("encode ThreadUsage.groups: nil is not allowed")
+	}
+	type wire ThreadUsage
+	return json.Marshal(wire(value))
+}
+
+func (value *ThreadUsage) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ThreadUsage) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ThreadUsage")
+	if err != nil {
+		return err
+	}
+	var decoded ThreadUsage
+	seenEstimatedUsageCreditsMicros, err := decodeJSONField(fields, "estimatedUsageCreditsMicros", "ThreadUsage.estimatedUsageCreditsMicros", false, mode, decodeWireValue[int64], &decoded.EstimatedUsageCreditsMicros)
+	if err != nil {
+		return err
+	}
+	if !seenEstimatedUsageCreditsMicros {
+		return missingRequiredField("ThreadUsage.estimatedUsageCreditsMicros")
+	}
+	_, err = decodeNullableJSONField[int64](fields, "estimatedUsageUsdMicros", "ThreadUsage.estimatedUsageUsdMicros", mode, decodeWireValue[int64], &decoded.EstimatedUsageUsdMicros)
+	if err != nil {
+		return err
+	}
+	seenGroups, err := decodeJSONField(fields, "groups", "ThreadUsage.groups", false, mode, wireSliceDecoder(decodeWireValue[ThreadUsageBreakdownGroup]), &decoded.Groups)
+	if err != nil {
+		return err
+	}
+	if !seenGroups {
+		return missingRequiredField("ThreadUsage.groups")
+	}
+	seenThreadID, err := decodeJSONField(fields, "threadId", "ThreadUsage.threadId", false, mode, decodeWireValue[string], &decoded.ThreadID)
+	if err != nil {
+		return err
+	}
+	if !seenThreadID {
+		return missingRequiredField("ThreadUsage.threadId")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ThreadUsage", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ThreadUsageBreakdownGroup struct {
+	CachedInputTokens           *Nullable[int64]  `json:"cachedInputTokens,omitempty"`
+	EstimatedUsageCreditsMicros int64             `json:"estimatedUsageCreditsMicros"`
+	InputTokens                 *Nullable[int64]  `json:"inputTokens,omitempty"`
+	Model                       *Nullable[string] `json:"model,omitempty"`
+	NetNewInputTokens           *Nullable[int64]  `json:"netNewInputTokens,omitempty"`
+	OutputTokens                *Nullable[int64]  `json:"outputTokens,omitempty"`
+	ReasoningEffort             *Nullable[string] `json:"reasoningEffort,omitempty"`
+	Speed                       *Nullable[string] `json:"speed,omitempty"`
+	TotalTokens                 *Nullable[int64]  `json:"totalTokens,omitempty"`
+}
+
+func (value *ThreadUsageBreakdownGroup) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ThreadUsageBreakdownGroup) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ThreadUsageBreakdownGroup")
+	if err != nil {
+		return err
+	}
+	var decoded ThreadUsageBreakdownGroup
+	_, err = decodeNullableJSONField[int64](fields, "cachedInputTokens", "ThreadUsageBreakdownGroup.cachedInputTokens", mode, decodeWireValue[int64], &decoded.CachedInputTokens)
+	if err != nil {
+		return err
+	}
+	seenEstimatedUsageCreditsMicros, err := decodeJSONField(fields, "estimatedUsageCreditsMicros", "ThreadUsageBreakdownGroup.estimatedUsageCreditsMicros", false, mode, decodeWireValue[int64], &decoded.EstimatedUsageCreditsMicros)
+	if err != nil {
+		return err
+	}
+	if !seenEstimatedUsageCreditsMicros {
+		return missingRequiredField("ThreadUsageBreakdownGroup.estimatedUsageCreditsMicros")
+	}
+	_, err = decodeNullableJSONField[int64](fields, "inputTokens", "ThreadUsageBreakdownGroup.inputTokens", mode, decodeWireValue[int64], &decoded.InputTokens)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[string](fields, "model", "ThreadUsageBreakdownGroup.model", mode, decodeWireValue[string], &decoded.Model)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[int64](fields, "netNewInputTokens", "ThreadUsageBreakdownGroup.netNewInputTokens", mode, decodeWireValue[int64], &decoded.NetNewInputTokens)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[int64](fields, "outputTokens", "ThreadUsageBreakdownGroup.outputTokens", mode, decodeWireValue[int64], &decoded.OutputTokens)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[string](fields, "reasoningEffort", "ThreadUsageBreakdownGroup.reasoningEffort", mode, decodeWireValue[string], &decoded.ReasoningEffort)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[string](fields, "speed", "ThreadUsageBreakdownGroup.speed", mode, decodeWireValue[string], &decoded.Speed)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[int64](fields, "totalTokens", "ThreadUsageBreakdownGroup.totalTokens", mode, decodeWireValue[int64], &decoded.TotalTokens)
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ThreadUsageBreakdownGroup", mode); err != nil {
 		return err
 	}
 	*value = decoded
@@ -56925,6 +57319,439 @@ func (value *ThreadItem) unmarshalJSON(data []byte, mode wireDecodeMode) error {
 	}
 }
 
+type ThreadRealtimeBemItemPresentationKind string
+
+const (
+	ThreadRealtimeBemItemPresentationKindWholeItem           ThreadRealtimeBemItemPresentationKind = "wholeItem"
+	ThreadRealtimeBemItemPresentationKindInlineMarkdown      ThreadRealtimeBemItemPresentationKind = "inlineMarkdown"
+	ThreadRealtimeBemItemPresentationKindInlineVisualization ThreadRealtimeBemItemPresentationKind = "inlineVisualization"
+)
+
+type ThreadRealtimeBemItemPresentation struct {
+	kind                       ThreadRealtimeBemItemPresentationKind
+	variantWholeItem           *ThreadRealtimeBemItemPresentationWholeItem
+	variantInlineMarkdown      *ThreadRealtimeBemItemPresentationInlineMarkdown
+	variantInlineVisualization *ThreadRealtimeBemItemPresentationInlineVisualization
+}
+
+type ThreadRealtimeBemItemPresentationWholeItem struct{}
+
+type ThreadRealtimeBemItemPresentationInlineMarkdown struct{}
+
+type ThreadRealtimeBemItemPresentationInlineVisualization struct {
+	Index uint32 `json:"index"`
+}
+
+func NewThreadRealtimeBemItemPresentationWholeItem() ThreadRealtimeBemItemPresentation {
+	payload := ThreadRealtimeBemItemPresentationWholeItem{}
+	return ThreadRealtimeBemItemPresentation{kind: ThreadRealtimeBemItemPresentationKindWholeItem, variantWholeItem: &payload}
+}
+
+func NewThreadRealtimeBemItemPresentationInlineMarkdown() ThreadRealtimeBemItemPresentation {
+	payload := ThreadRealtimeBemItemPresentationInlineMarkdown{}
+	return ThreadRealtimeBemItemPresentation{kind: ThreadRealtimeBemItemPresentationKindInlineMarkdown, variantInlineMarkdown: &payload}
+}
+
+func NewThreadRealtimeBemItemPresentationInlineVisualization(payload ThreadRealtimeBemItemPresentationInlineVisualization) ThreadRealtimeBemItemPresentation {
+	return ThreadRealtimeBemItemPresentation{kind: ThreadRealtimeBemItemPresentationKindInlineVisualization, variantInlineVisualization: &payload}
+}
+
+func (value ThreadRealtimeBemItemPresentation) Kind() ThreadRealtimeBemItemPresentationKind {
+	return value.kind
+}
+
+func (value ThreadRealtimeBemItemPresentation) IsValid() bool {
+	switch value.kind {
+	case ThreadRealtimeBemItemPresentationKindWholeItem:
+		return value.variantWholeItem != nil
+	case ThreadRealtimeBemItemPresentationKindInlineMarkdown:
+		return value.variantInlineMarkdown != nil
+	case ThreadRealtimeBemItemPresentationKindInlineVisualization:
+		return value.variantInlineVisualization != nil
+	default:
+		return false
+	}
+}
+
+func (value ThreadRealtimeBemItemPresentation) AsWholeItem() (ThreadRealtimeBemItemPresentationWholeItem, bool) {
+	if value.kind != ThreadRealtimeBemItemPresentationKindWholeItem || value.variantWholeItem == nil {
+		return ThreadRealtimeBemItemPresentationWholeItem{}, false
+	}
+	return *value.variantWholeItem, true
+}
+
+func (value ThreadRealtimeBemItemPresentation) AsInlineMarkdown() (ThreadRealtimeBemItemPresentationInlineMarkdown, bool) {
+	if value.kind != ThreadRealtimeBemItemPresentationKindInlineMarkdown || value.variantInlineMarkdown == nil {
+		return ThreadRealtimeBemItemPresentationInlineMarkdown{}, false
+	}
+	return *value.variantInlineMarkdown, true
+}
+
+func (value ThreadRealtimeBemItemPresentation) AsInlineVisualization() (ThreadRealtimeBemItemPresentationInlineVisualization, bool) {
+	if value.kind != ThreadRealtimeBemItemPresentationKindInlineVisualization || value.variantInlineVisualization == nil {
+		return ThreadRealtimeBemItemPresentationInlineVisualization{}, false
+	}
+	return *value.variantInlineVisualization, true
+}
+
+func (value ThreadRealtimeBemItemPresentation) MarshalJSON() ([]byte, error) {
+	switch value.kind {
+	case ThreadRealtimeBemItemPresentationKindWholeItem:
+		if value.variantWholeItem == nil {
+			return nil, invalidUnionVariant("ThreadRealtimeBemItemPresentation", "wholeItem")
+		}
+		return json.Marshal(struct {
+			Type string `json:"type"`
+		}{
+			Type: "wholeItem",
+		})
+	case ThreadRealtimeBemItemPresentationKindInlineMarkdown:
+		if value.variantInlineMarkdown == nil {
+			return nil, invalidUnionVariant("ThreadRealtimeBemItemPresentation", "inlineMarkdown")
+		}
+		return json.Marshal(struct {
+			Type string `json:"type"`
+		}{
+			Type: "inlineMarkdown",
+		})
+	case ThreadRealtimeBemItemPresentationKindInlineVisualization:
+		if value.variantInlineVisualization == nil {
+			return nil, invalidUnionVariant("ThreadRealtimeBemItemPresentation", "inlineVisualization")
+		}
+		return json.Marshal(struct {
+			Index uint32 `json:"index"`
+			Type  string `json:"type"`
+		}{
+			Index: value.variantInlineVisualization.Index,
+			Type:  "inlineVisualization",
+		})
+	default:
+		return nil, invalidUnionValue("ThreadRealtimeBemItemPresentation")
+	}
+}
+
+func (value *ThreadRealtimeBemItemPresentation) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ThreadRealtimeBemItemPresentation) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ThreadRealtimeBemItemPresentation")
+	if err != nil {
+		return err
+	}
+	variant, err := decodeTaggedUnionDiscriminator(fields, "type", "ThreadRealtimeBemItemPresentation")
+	if err != nil {
+		return err
+	}
+	switch variant {
+	case "wholeItem":
+		var decoded ThreadRealtimeBemItemPresentationWholeItem
+		if err := rejectUnexpectedFieldsForMode(fields, "ThreadRealtimeBemItemPresentation.wholeItem", mode); err != nil {
+			return err
+		}
+		*value = ThreadRealtimeBemItemPresentation{kind: ThreadRealtimeBemItemPresentationKindWholeItem, variantWholeItem: &decoded}
+		return nil
+	case "inlineMarkdown":
+		var decoded ThreadRealtimeBemItemPresentationInlineMarkdown
+		if err := rejectUnexpectedFieldsForMode(fields, "ThreadRealtimeBemItemPresentation.inlineMarkdown", mode); err != nil {
+			return err
+		}
+		*value = ThreadRealtimeBemItemPresentation{kind: ThreadRealtimeBemItemPresentationKindInlineMarkdown, variantInlineMarkdown: &decoded}
+		return nil
+	case "inlineVisualization":
+		var decoded ThreadRealtimeBemItemPresentationInlineVisualization
+		seenIndex, err := decodeJSONField(fields, "index", "ThreadRealtimeBemItemPresentation.index", false, mode, decodeWireValue[uint32], &decoded.Index)
+		if err != nil {
+			return err
+		}
+		if !seenIndex {
+			return missingRequiredField("ThreadRealtimeBemItemPresentation.index")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ThreadRealtimeBemItemPresentation.inlineVisualization", mode); err != nil {
+			return err
+		}
+		*value = ThreadRealtimeBemItemPresentation{kind: ThreadRealtimeBemItemPresentationKindInlineVisualization, variantInlineVisualization: &decoded}
+		return nil
+	default:
+		return unknownUnionVariant("ThreadRealtimeBemItemPresentation", "type", variant)
+	}
+}
+
+type ThreadRealtimeItemKind string
+
+const (
+	ThreadRealtimeItemKindRealtimeSessionStarted ThreadRealtimeItemKind = "realtimeSessionStarted"
+	ThreadRealtimeItemKindTranscriptSegment      ThreadRealtimeItemKind = "transcriptSegment"
+	ThreadRealtimeItemKindBemItemPromoted        ThreadRealtimeItemKind = "bemItemPromoted"
+	ThreadRealtimeItemKindRealtimeSessionClosed  ThreadRealtimeItemKind = "realtimeSessionClosed"
+)
+
+type ThreadRealtimeItem struct {
+	ID                            string `json:"id"`
+	RealtimeSessionID             string `json:"realtimeSessionId"`
+	kind                          ThreadRealtimeItemKind
+	variantRealtimeSessionStarted *ThreadRealtimeItemRealtimeSessionStarted
+	variantTranscriptSegment      *ThreadRealtimeItemTranscriptSegment
+	variantBemItemPromoted        *ThreadRealtimeItemBemItemPromoted
+	variantRealtimeSessionClosed  *ThreadRealtimeItemRealtimeSessionClosed
+}
+
+type ThreadRealtimeItemRealtimeSessionStarted struct{}
+
+type ThreadRealtimeItemTranscriptSegment struct {
+	Role ThreadRealtimeTranscriptRole `json:"role"`
+	Text string                       `json:"text"`
+}
+
+type ThreadRealtimeItemBemItemPromoted struct {
+	ItemID       string                            `json:"item_id"`
+	Presentation ThreadRealtimeBemItemPresentation `json:"presentation"`
+	TurnID       string                            `json:"turn_id"`
+}
+
+type ThreadRealtimeItemRealtimeSessionClosed struct {
+	Outcome ThreadRealtimeSessionOutcome `json:"outcome"`
+}
+
+func NewThreadRealtimeItemRealtimeSessionStarted() ThreadRealtimeItem {
+	payload := ThreadRealtimeItemRealtimeSessionStarted{}
+	return ThreadRealtimeItem{kind: ThreadRealtimeItemKindRealtimeSessionStarted, variantRealtimeSessionStarted: &payload}
+}
+
+func NewThreadRealtimeItemTranscriptSegment(payload ThreadRealtimeItemTranscriptSegment) ThreadRealtimeItem {
+	return ThreadRealtimeItem{kind: ThreadRealtimeItemKindTranscriptSegment, variantTranscriptSegment: &payload}
+}
+
+func NewThreadRealtimeItemBemItemPromoted(payload ThreadRealtimeItemBemItemPromoted) ThreadRealtimeItem {
+	return ThreadRealtimeItem{kind: ThreadRealtimeItemKindBemItemPromoted, variantBemItemPromoted: &payload}
+}
+
+func NewThreadRealtimeItemRealtimeSessionClosed(payload ThreadRealtimeItemRealtimeSessionClosed) ThreadRealtimeItem {
+	return ThreadRealtimeItem{kind: ThreadRealtimeItemKindRealtimeSessionClosed, variantRealtimeSessionClosed: &payload}
+}
+
+func (value ThreadRealtimeItem) Kind() ThreadRealtimeItemKind {
+	return value.kind
+}
+
+func (value ThreadRealtimeItem) IsValid() bool {
+	switch value.kind {
+	case ThreadRealtimeItemKindRealtimeSessionStarted:
+		return value.variantRealtimeSessionStarted != nil
+	case ThreadRealtimeItemKindTranscriptSegment:
+		return value.variantTranscriptSegment != nil
+	case ThreadRealtimeItemKindBemItemPromoted:
+		return value.variantBemItemPromoted != nil
+	case ThreadRealtimeItemKindRealtimeSessionClosed:
+		return value.variantRealtimeSessionClosed != nil
+	default:
+		return false
+	}
+}
+
+func (value ThreadRealtimeItem) AsRealtimeSessionStarted() (ThreadRealtimeItemRealtimeSessionStarted, bool) {
+	if value.kind != ThreadRealtimeItemKindRealtimeSessionStarted || value.variantRealtimeSessionStarted == nil {
+		return ThreadRealtimeItemRealtimeSessionStarted{}, false
+	}
+	return *value.variantRealtimeSessionStarted, true
+}
+
+func (value ThreadRealtimeItem) AsTranscriptSegment() (ThreadRealtimeItemTranscriptSegment, bool) {
+	if value.kind != ThreadRealtimeItemKindTranscriptSegment || value.variantTranscriptSegment == nil {
+		return ThreadRealtimeItemTranscriptSegment{}, false
+	}
+	return *value.variantTranscriptSegment, true
+}
+
+func (value ThreadRealtimeItem) AsBemItemPromoted() (ThreadRealtimeItemBemItemPromoted, bool) {
+	if value.kind != ThreadRealtimeItemKindBemItemPromoted || value.variantBemItemPromoted == nil {
+		return ThreadRealtimeItemBemItemPromoted{}, false
+	}
+	return *value.variantBemItemPromoted, true
+}
+
+func (value ThreadRealtimeItem) AsRealtimeSessionClosed() (ThreadRealtimeItemRealtimeSessionClosed, bool) {
+	if value.kind != ThreadRealtimeItemKindRealtimeSessionClosed || value.variantRealtimeSessionClosed == nil {
+		return ThreadRealtimeItemRealtimeSessionClosed{}, false
+	}
+	return *value.variantRealtimeSessionClosed, true
+}
+
+func (value ThreadRealtimeItem) MarshalJSON() ([]byte, error) {
+	switch value.kind {
+	case ThreadRealtimeItemKindRealtimeSessionStarted:
+		if value.variantRealtimeSessionStarted == nil {
+			return nil, invalidUnionVariant("ThreadRealtimeItem", "realtimeSessionStarted")
+		}
+		return json.Marshal(struct {
+			ID                string `json:"id"`
+			RealtimeSessionID string `json:"realtimeSessionId"`
+			Type              string `json:"type"`
+		}{
+			ID:                value.ID,
+			RealtimeSessionID: value.RealtimeSessionID,
+			Type:              "realtimeSessionStarted",
+		})
+	case ThreadRealtimeItemKindTranscriptSegment:
+		if value.variantTranscriptSegment == nil {
+			return nil, invalidUnionVariant("ThreadRealtimeItem", "transcriptSegment")
+		}
+		return json.Marshal(struct {
+			ID                string                       `json:"id"`
+			RealtimeSessionID string                       `json:"realtimeSessionId"`
+			Role              ThreadRealtimeTranscriptRole `json:"role"`
+			Text              string                       `json:"text"`
+			Type              string                       `json:"type"`
+		}{
+			ID:                value.ID,
+			RealtimeSessionID: value.RealtimeSessionID,
+			Role:              value.variantTranscriptSegment.Role,
+			Text:              value.variantTranscriptSegment.Text,
+			Type:              "transcriptSegment",
+		})
+	case ThreadRealtimeItemKindBemItemPromoted:
+		if value.variantBemItemPromoted == nil {
+			return nil, invalidUnionVariant("ThreadRealtimeItem", "bemItemPromoted")
+		}
+		return json.Marshal(struct {
+			ID                string                            `json:"id"`
+			ItemID            string                            `json:"item_id"`
+			Presentation      ThreadRealtimeBemItemPresentation `json:"presentation"`
+			RealtimeSessionID string                            `json:"realtimeSessionId"`
+			TurnID            string                            `json:"turn_id"`
+			Type              string                            `json:"type"`
+		}{
+			ID:                value.ID,
+			ItemID:            value.variantBemItemPromoted.ItemID,
+			Presentation:      value.variantBemItemPromoted.Presentation,
+			RealtimeSessionID: value.RealtimeSessionID,
+			TurnID:            value.variantBemItemPromoted.TurnID,
+			Type:              "bemItemPromoted",
+		})
+	case ThreadRealtimeItemKindRealtimeSessionClosed:
+		if value.variantRealtimeSessionClosed == nil {
+			return nil, invalidUnionVariant("ThreadRealtimeItem", "realtimeSessionClosed")
+		}
+		return json.Marshal(struct {
+			ID                string                       `json:"id"`
+			Outcome           ThreadRealtimeSessionOutcome `json:"outcome"`
+			RealtimeSessionID string                       `json:"realtimeSessionId"`
+			Type              string                       `json:"type"`
+		}{
+			ID:                value.ID,
+			Outcome:           value.variantRealtimeSessionClosed.Outcome,
+			RealtimeSessionID: value.RealtimeSessionID,
+			Type:              "realtimeSessionClosed",
+		})
+	default:
+		return nil, invalidUnionValue("ThreadRealtimeItem")
+	}
+}
+
+func (value *ThreadRealtimeItem) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ThreadRealtimeItem) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ThreadRealtimeItem")
+	if err != nil {
+		return err
+	}
+	var shared ThreadRealtimeItem
+	seenID, err := decodeJSONField(fields, "id", "ThreadRealtimeItem.id", false, mode, decodeWireValue[string], &shared.ID)
+	if err != nil {
+		return err
+	}
+	if !seenID {
+		return missingRequiredField("ThreadRealtimeItem.id")
+	}
+	seenRealtimeSessionID, err := decodeJSONField(fields, "realtimeSessionId", "ThreadRealtimeItem.realtimeSessionId", false, mode, decodeWireValue[string], &shared.RealtimeSessionID)
+	if err != nil {
+		return err
+	}
+	if !seenRealtimeSessionID {
+		return missingRequiredField("ThreadRealtimeItem.realtimeSessionId")
+	}
+	variant, err := decodeTaggedUnionDiscriminator(fields, "type", "ThreadRealtimeItem")
+	if err != nil {
+		return err
+	}
+	switch variant {
+	case "realtimeSessionStarted":
+		var decoded ThreadRealtimeItemRealtimeSessionStarted
+		if err := rejectUnexpectedFieldsForMode(fields, "ThreadRealtimeItem.realtimeSessionStarted", mode); err != nil {
+			return err
+		}
+		*value = ThreadRealtimeItem{ID: shared.ID, RealtimeSessionID: shared.RealtimeSessionID, kind: ThreadRealtimeItemKindRealtimeSessionStarted, variantRealtimeSessionStarted: &decoded}
+		return nil
+	case "transcriptSegment":
+		var decoded ThreadRealtimeItemTranscriptSegment
+		seenRole, err := decodeJSONField(fields, "role", "ThreadRealtimeItem.role", false, mode, decodeWireValue[ThreadRealtimeTranscriptRole], &decoded.Role)
+		if err != nil {
+			return err
+		}
+		if !seenRole {
+			return missingRequiredField("ThreadRealtimeItem.role")
+		}
+		seenText, err := decodeJSONField(fields, "text", "ThreadRealtimeItem.text", false, mode, decodeWireValue[string], &decoded.Text)
+		if err != nil {
+			return err
+		}
+		if !seenText {
+			return missingRequiredField("ThreadRealtimeItem.text")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ThreadRealtimeItem.transcriptSegment", mode); err != nil {
+			return err
+		}
+		*value = ThreadRealtimeItem{ID: shared.ID, RealtimeSessionID: shared.RealtimeSessionID, kind: ThreadRealtimeItemKindTranscriptSegment, variantTranscriptSegment: &decoded}
+		return nil
+	case "bemItemPromoted":
+		var decoded ThreadRealtimeItemBemItemPromoted
+		seenItemID, err := decodeJSONField(fields, "item_id", "ThreadRealtimeItem.item_id", false, mode, decodeWireValue[string], &decoded.ItemID)
+		if err != nil {
+			return err
+		}
+		if !seenItemID {
+			return missingRequiredField("ThreadRealtimeItem.item_id")
+		}
+		seenPresentation, err := decodeJSONField(fields, "presentation", "ThreadRealtimeItem.presentation", false, mode, decodeWireValue[ThreadRealtimeBemItemPresentation], &decoded.Presentation)
+		if err != nil {
+			return err
+		}
+		if !seenPresentation {
+			return missingRequiredField("ThreadRealtimeItem.presentation")
+		}
+		seenTurnID, err := decodeJSONField(fields, "turn_id", "ThreadRealtimeItem.turn_id", false, mode, decodeWireValue[string], &decoded.TurnID)
+		if err != nil {
+			return err
+		}
+		if !seenTurnID {
+			return missingRequiredField("ThreadRealtimeItem.turn_id")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ThreadRealtimeItem.bemItemPromoted", mode); err != nil {
+			return err
+		}
+		*value = ThreadRealtimeItem{ID: shared.ID, RealtimeSessionID: shared.RealtimeSessionID, kind: ThreadRealtimeItemKindBemItemPromoted, variantBemItemPromoted: &decoded}
+		return nil
+	case "realtimeSessionClosed":
+		var decoded ThreadRealtimeItemRealtimeSessionClosed
+		seenOutcome, err := decodeJSONField(fields, "outcome", "ThreadRealtimeItem.outcome", false, mode, decodeWireValue[ThreadRealtimeSessionOutcome], &decoded.Outcome)
+		if err != nil {
+			return err
+		}
+		if !seenOutcome {
+			return missingRequiredField("ThreadRealtimeItem.outcome")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ThreadRealtimeItem.realtimeSessionClosed", mode); err != nil {
+			return err
+		}
+		*value = ThreadRealtimeItem{ID: shared.ID, RealtimeSessionID: shared.RealtimeSessionID, kind: ThreadRealtimeItemKindRealtimeSessionClosed, variantRealtimeSessionClosed: &decoded}
+		return nil
+	default:
+		return unknownUnionVariant("ThreadRealtimeItem", "type", variant)
+	}
+}
+
 type ThreadRealtimeStartTransportKind string
 
 const (
@@ -57285,6 +58112,323 @@ func (value *ThreadStatus) unmarshalJSON(data []byte, mode wireDecodeMode) error
 		return nil
 	default:
 		return unknownUnionVariant("ThreadStatus", "type", variant)
+	}
+}
+
+type ThreadTimelineEntryKind string
+
+const (
+	ThreadTimelineEntryKindItem          ThreadTimelineEntryKind = "item"
+	ThreadTimelineEntryKindRealtime      ThreadTimelineEntryKind = "realtime"
+	ThreadTimelineEntryKindTurnStarted   ThreadTimelineEntryKind = "turnStarted"
+	ThreadTimelineEntryKindTurnCompleted ThreadTimelineEntryKind = "turnCompleted"
+)
+
+type ThreadTimelineEntry struct {
+	kind                 ThreadTimelineEntryKind
+	variantItem          *ThreadTimelineEntryItem
+	variantRealtime      *ThreadTimelineEntryRealtime
+	variantTurnStarted   *ThreadTimelineEntryTurnStarted
+	variantTurnCompleted *ThreadTimelineEntryTurnCompleted
+}
+
+type ThreadTimelineEntryItem struct {
+	Item     ThreadItem `json:"item"`
+	Position uint64     `json:"position"`
+	TurnID   string     `json:"turnId"`
+}
+
+type ThreadTimelineEntryRealtime struct {
+	Item     ThreadRealtimeItem `json:"item"`
+	Position uint64             `json:"position"`
+}
+
+type ThreadTimelineEntryTurnStarted struct {
+	Position  uint64           `json:"position"`
+	StartedAt *Nullable[int64] `json:"started_at,omitempty"`
+	TurnID    string           `json:"turn_id"`
+}
+
+type ThreadTimelineEntryTurnCompleted struct {
+	CompletedAt *Nullable[int64]     `json:"completed_at,omitempty"`
+	DurationMS  *Nullable[int64]     `json:"duration_ms,omitempty"`
+	Error       *Nullable[TurnError] `json:"error,omitempty"`
+	Position    uint64               `json:"position"`
+	StartedAt   *Nullable[int64]     `json:"started_at,omitempty"`
+	Status      TurnStatus           `json:"status"`
+	TurnID      string               `json:"turn_id"`
+}
+
+func NewThreadTimelineEntryItem(payload ThreadTimelineEntryItem) ThreadTimelineEntry {
+	return ThreadTimelineEntry{kind: ThreadTimelineEntryKindItem, variantItem: &payload}
+}
+
+func NewThreadTimelineEntryRealtime(payload ThreadTimelineEntryRealtime) ThreadTimelineEntry {
+	return ThreadTimelineEntry{kind: ThreadTimelineEntryKindRealtime, variantRealtime: &payload}
+}
+
+func NewThreadTimelineEntryTurnStarted(payload ThreadTimelineEntryTurnStarted) ThreadTimelineEntry {
+	return ThreadTimelineEntry{kind: ThreadTimelineEntryKindTurnStarted, variantTurnStarted: &payload}
+}
+
+func NewThreadTimelineEntryTurnCompleted(payload ThreadTimelineEntryTurnCompleted) ThreadTimelineEntry {
+	return ThreadTimelineEntry{kind: ThreadTimelineEntryKindTurnCompleted, variantTurnCompleted: &payload}
+}
+
+func (value ThreadTimelineEntry) Kind() ThreadTimelineEntryKind {
+	return value.kind
+}
+
+func (value ThreadTimelineEntry) IsValid() bool {
+	switch value.kind {
+	case ThreadTimelineEntryKindItem:
+		return value.variantItem != nil
+	case ThreadTimelineEntryKindRealtime:
+		return value.variantRealtime != nil
+	case ThreadTimelineEntryKindTurnStarted:
+		return value.variantTurnStarted != nil
+	case ThreadTimelineEntryKindTurnCompleted:
+		return value.variantTurnCompleted != nil
+	default:
+		return false
+	}
+}
+
+func (value ThreadTimelineEntry) AsItem() (ThreadTimelineEntryItem, bool) {
+	if value.kind != ThreadTimelineEntryKindItem || value.variantItem == nil {
+		return ThreadTimelineEntryItem{}, false
+	}
+	return *value.variantItem, true
+}
+
+func (value ThreadTimelineEntry) AsRealtime() (ThreadTimelineEntryRealtime, bool) {
+	if value.kind != ThreadTimelineEntryKindRealtime || value.variantRealtime == nil {
+		return ThreadTimelineEntryRealtime{}, false
+	}
+	return *value.variantRealtime, true
+}
+
+func (value ThreadTimelineEntry) AsTurnStarted() (ThreadTimelineEntryTurnStarted, bool) {
+	if value.kind != ThreadTimelineEntryKindTurnStarted || value.variantTurnStarted == nil {
+		return ThreadTimelineEntryTurnStarted{}, false
+	}
+	return *value.variantTurnStarted, true
+}
+
+func (value ThreadTimelineEntry) AsTurnCompleted() (ThreadTimelineEntryTurnCompleted, bool) {
+	if value.kind != ThreadTimelineEntryKindTurnCompleted || value.variantTurnCompleted == nil {
+		return ThreadTimelineEntryTurnCompleted{}, false
+	}
+	return *value.variantTurnCompleted, true
+}
+
+func (value ThreadTimelineEntry) MarshalJSON() ([]byte, error) {
+	switch value.kind {
+	case ThreadTimelineEntryKindItem:
+		if value.variantItem == nil {
+			return nil, invalidUnionVariant("ThreadTimelineEntry", "item")
+		}
+		return json.Marshal(struct {
+			Item     ThreadItem `json:"item"`
+			Position uint64     `json:"position"`
+			TurnID   string     `json:"turnId"`
+			Type     string     `json:"type"`
+		}{
+			Item:     value.variantItem.Item,
+			Position: value.variantItem.Position,
+			TurnID:   value.variantItem.TurnID,
+			Type:     "item",
+		})
+	case ThreadTimelineEntryKindRealtime:
+		if value.variantRealtime == nil {
+			return nil, invalidUnionVariant("ThreadTimelineEntry", "realtime")
+		}
+		return json.Marshal(struct {
+			Item     ThreadRealtimeItem `json:"item"`
+			Position uint64             `json:"position"`
+			Type     string             `json:"type"`
+		}{
+			Item:     value.variantRealtime.Item,
+			Position: value.variantRealtime.Position,
+			Type:     "realtime",
+		})
+	case ThreadTimelineEntryKindTurnStarted:
+		if value.variantTurnStarted == nil {
+			return nil, invalidUnionVariant("ThreadTimelineEntry", "turnStarted")
+		}
+		return json.Marshal(struct {
+			Position  uint64           `json:"position"`
+			StartedAt *Nullable[int64] `json:"started_at,omitempty"`
+			TurnID    string           `json:"turn_id"`
+			Type      string           `json:"type"`
+		}{
+			Position:  value.variantTurnStarted.Position,
+			StartedAt: value.variantTurnStarted.StartedAt,
+			TurnID:    value.variantTurnStarted.TurnID,
+			Type:      "turnStarted",
+		})
+	case ThreadTimelineEntryKindTurnCompleted:
+		if value.variantTurnCompleted == nil {
+			return nil, invalidUnionVariant("ThreadTimelineEntry", "turnCompleted")
+		}
+		return json.Marshal(struct {
+			CompletedAt *Nullable[int64]     `json:"completed_at,omitempty"`
+			DurationMS  *Nullable[int64]     `json:"duration_ms,omitempty"`
+			Error       *Nullable[TurnError] `json:"error,omitempty"`
+			Position    uint64               `json:"position"`
+			StartedAt   *Nullable[int64]     `json:"started_at,omitempty"`
+			Status      TurnStatus           `json:"status"`
+			TurnID      string               `json:"turn_id"`
+			Type        string               `json:"type"`
+		}{
+			CompletedAt: value.variantTurnCompleted.CompletedAt,
+			DurationMS:  value.variantTurnCompleted.DurationMS,
+			Error:       value.variantTurnCompleted.Error,
+			Position:    value.variantTurnCompleted.Position,
+			StartedAt:   value.variantTurnCompleted.StartedAt,
+			Status:      value.variantTurnCompleted.Status,
+			TurnID:      value.variantTurnCompleted.TurnID,
+			Type:        "turnCompleted",
+		})
+	default:
+		return nil, invalidUnionValue("ThreadTimelineEntry")
+	}
+}
+
+func (value *ThreadTimelineEntry) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ThreadTimelineEntry) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ThreadTimelineEntry")
+	if err != nil {
+		return err
+	}
+	variant, err := decodeTaggedUnionDiscriminator(fields, "type", "ThreadTimelineEntry")
+	if err != nil {
+		return err
+	}
+	switch variant {
+	case "item":
+		var decoded ThreadTimelineEntryItem
+		seenItem, err := decodeJSONField(fields, "item", "ThreadTimelineEntry.item", false, mode, decodeWireValue[ThreadItem], &decoded.Item)
+		if err != nil {
+			return err
+		}
+		if !seenItem {
+			return missingRequiredField("ThreadTimelineEntry.item")
+		}
+		seenPosition, err := decodeJSONField(fields, "position", "ThreadTimelineEntry.position", false, mode, decodeWireValue[uint64], &decoded.Position)
+		if err != nil {
+			return err
+		}
+		if !seenPosition {
+			return missingRequiredField("ThreadTimelineEntry.position")
+		}
+		seenTurnID, err := decodeJSONField(fields, "turnId", "ThreadTimelineEntry.turnId", false, mode, decodeWireValue[string], &decoded.TurnID)
+		if err != nil {
+			return err
+		}
+		if !seenTurnID {
+			return missingRequiredField("ThreadTimelineEntry.turnId")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ThreadTimelineEntry.item", mode); err != nil {
+			return err
+		}
+		*value = ThreadTimelineEntry{kind: ThreadTimelineEntryKindItem, variantItem: &decoded}
+		return nil
+	case "realtime":
+		var decoded ThreadTimelineEntryRealtime
+		seenItem, err := decodeJSONField(fields, "item", "ThreadTimelineEntry.item", false, mode, decodeWireValue[ThreadRealtimeItem], &decoded.Item)
+		if err != nil {
+			return err
+		}
+		if !seenItem {
+			return missingRequiredField("ThreadTimelineEntry.item")
+		}
+		seenPosition, err := decodeJSONField(fields, "position", "ThreadTimelineEntry.position", false, mode, decodeWireValue[uint64], &decoded.Position)
+		if err != nil {
+			return err
+		}
+		if !seenPosition {
+			return missingRequiredField("ThreadTimelineEntry.position")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ThreadTimelineEntry.realtime", mode); err != nil {
+			return err
+		}
+		*value = ThreadTimelineEntry{kind: ThreadTimelineEntryKindRealtime, variantRealtime: &decoded}
+		return nil
+	case "turnStarted":
+		var decoded ThreadTimelineEntryTurnStarted
+		seenPosition, err := decodeJSONField(fields, "position", "ThreadTimelineEntry.position", false, mode, decodeWireValue[uint64], &decoded.Position)
+		if err != nil {
+			return err
+		}
+		if !seenPosition {
+			return missingRequiredField("ThreadTimelineEntry.position")
+		}
+		_, err = decodeNullableJSONField[int64](fields, "started_at", "ThreadTimelineEntry.started_at", mode, decodeWireValue[int64], &decoded.StartedAt)
+		if err != nil {
+			return err
+		}
+		seenTurnID, err := decodeJSONField(fields, "turn_id", "ThreadTimelineEntry.turn_id", false, mode, decodeWireValue[string], &decoded.TurnID)
+		if err != nil {
+			return err
+		}
+		if !seenTurnID {
+			return missingRequiredField("ThreadTimelineEntry.turn_id")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ThreadTimelineEntry.turnStarted", mode); err != nil {
+			return err
+		}
+		*value = ThreadTimelineEntry{kind: ThreadTimelineEntryKindTurnStarted, variantTurnStarted: &decoded}
+		return nil
+	case "turnCompleted":
+		var decoded ThreadTimelineEntryTurnCompleted
+		_, err = decodeNullableJSONField[int64](fields, "completed_at", "ThreadTimelineEntry.completed_at", mode, decodeWireValue[int64], &decoded.CompletedAt)
+		if err != nil {
+			return err
+		}
+		_, err = decodeNullableJSONField[int64](fields, "duration_ms", "ThreadTimelineEntry.duration_ms", mode, decodeWireValue[int64], &decoded.DurationMS)
+		if err != nil {
+			return err
+		}
+		_, err = decodeNullableJSONField[TurnError](fields, "error", "ThreadTimelineEntry.error", mode, decodeWireValue[TurnError], &decoded.Error)
+		if err != nil {
+			return err
+		}
+		seenPosition, err := decodeJSONField(fields, "position", "ThreadTimelineEntry.position", false, mode, decodeWireValue[uint64], &decoded.Position)
+		if err != nil {
+			return err
+		}
+		if !seenPosition {
+			return missingRequiredField("ThreadTimelineEntry.position")
+		}
+		_, err = decodeNullableJSONField[int64](fields, "started_at", "ThreadTimelineEntry.started_at", mode, decodeWireValue[int64], &decoded.StartedAt)
+		if err != nil {
+			return err
+		}
+		seenStatus, err := decodeJSONField(fields, "status", "ThreadTimelineEntry.status", false, mode, decodeWireValue[TurnStatus], &decoded.Status)
+		if err != nil {
+			return err
+		}
+		if !seenStatus {
+			return missingRequiredField("ThreadTimelineEntry.status")
+		}
+		seenTurnID, err := decodeJSONField(fields, "turn_id", "ThreadTimelineEntry.turn_id", false, mode, decodeWireValue[string], &decoded.TurnID)
+		if err != nil {
+			return err
+		}
+		if !seenTurnID {
+			return missingRequiredField("ThreadTimelineEntry.turn_id")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ThreadTimelineEntry.turnCompleted", mode); err != nil {
+			return err
+		}
+		*value = ThreadTimelineEntry{kind: ThreadTimelineEntryKindTurnCompleted, variantTurnCompleted: &decoded}
+		return nil
+	default:
+		return unknownUnionVariant("ThreadTimelineEntry", "type", variant)
 	}
 }
 

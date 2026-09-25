@@ -45,6 +45,19 @@ type ManifestEntry struct {
 }
 
 func LoadManifest(path string) (Manifest, error) {
+	manifest, err := LoadMethodFacts(path)
+	if err != nil {
+		return Manifest{}, err
+	}
+	if err := ValidateSurface(manifest.Surface); err != nil {
+		return Manifest{}, fmt.Errorf("validate manifest surface: %w", err)
+	}
+	return manifest, nil
+}
+
+// LoadMethodFacts reads the routing inputs needed before generated surface
+// classification exists. A final persisted manifest still uses LoadManifest.
+func LoadMethodFacts(path string) (Manifest, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return Manifest{}, err
@@ -58,9 +71,6 @@ func LoadManifest(path string) (Manifest, error) {
 	}
 	if manifest.SchemaVersion < 2 {
 		return Manifest{}, fmt.Errorf("manifest schema_version %d is older than the classified surface contract", manifest.SchemaVersion)
-	}
-	if err := ValidateSurface(manifest.Surface); err != nil {
-		return Manifest{}, fmt.Errorf("validate manifest surface: %w", err)
 	}
 	seen := map[string]bool{}
 	for _, entry := range manifest.Entries {

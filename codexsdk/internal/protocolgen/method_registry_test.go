@@ -2,6 +2,7 @@ package protocolgen
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -117,5 +118,17 @@ func TestMethodConstNameUsesGoAcronyms(t *testing.T) {
 		if got := methodConstName(method); got != want {
 			t.Fatalf("methodConstName(%q) = %q, want %q", method, got, want)
 		}
+	}
+}
+
+func TestGenerateMethodRegistryClassifiesConstantCollision(t *testing.T) {
+	manifest := Manifest{Entries: []ManifestEntry{
+		{Method: "example/foo-bar", SourceSchema: "ClientRequest.json"},
+		{Method: "example/foo_bar", SourceSchema: "ClientRequest.json"},
+	}}
+	_, err := GenerateMethodRegistry(manifest)
+	var unsupported *UnsupportedSchemaError
+	if !errors.As(err, &unsupported) || unsupported.Path != "ClientRequest.json" || !strings.Contains(unsupported.Error(), "MethodExampleFooBar") {
+		t.Fatalf("collision = %v, want typed method constant conflict", err)
 	}
 }

@@ -1,0 +1,33 @@
+name: Verify llmkit
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  llmkit:
+    name: llmkit native verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Vet llmkit
+        env:
+          GOTOOLCHAIN: local
+        run: go vet ./llmkit/...
+
+      - name: Race-test llmkit
+        env:
+          GOTOOLCHAIN: local
+        run: go test -race ./llmkit/...

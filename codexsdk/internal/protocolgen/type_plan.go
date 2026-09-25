@@ -1,11 +1,15 @@
 package protocolgen
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"go/token"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode"
 )
 
 type ProtocolTypePlan struct {
@@ -15,12 +19,15 @@ type ProtocolTypePlan struct {
 
 type TypePlan struct {
 	Fields                []FieldPlan
+	GeneratedDefinitions  map[string]bool
+	GeneratedRoot         bool
 	Kind                  TypePlanKind
 	OpenDynamicProperties bool
 	Reason                string
 	Schema                *Schema
 	SchemaPath            string
 	Stability             string
+	Status                string
 	TypeName              string
 	WireMessageRoles      WireMessageRoles
 }
@@ -111,7 +118,7 @@ func BuildProtocolTypePlan(schemaRoot string) (ProtocolTypePlan, error) {
 	for _, file := range schemas {
 		typePlan, err := planType(file)
 		if err != nil {
-			return ProtocolTypePlan{}, err
+			return ProtocolTypePlan{}, &UnsupportedSchemaError{Path: file.Path, Err: err}
 		}
 		for _, coverageField := range fieldsBySchema[file.Path] {
 			fieldSchema := file.Schema.Properties[coverageField.Field]
@@ -120,12 +127,15 @@ func BuildProtocolTypePlan(schemaRoot string) (ProtocolTypePlan, error) {
 			}
 			fieldPlan, err := planField(coverageField, fieldSchema)
 			if err != nil {
-				return ProtocolTypePlan{}, err
+				return ProtocolTypePlan{}, classifyGeneratedSchemaError(coverageField.Path, err)
 			}
 			typePlan.Fields = append(typePlan.Fields, fieldPlan)
 			plan.Fields = append(plan.Fields, fieldPlan)
 		}
 		plan.Types = append(plan.Types, typePlan)
+	}
+	if err := markReachableGeneratedDefinitions(&plan, schemaRoot); err != nil {
+		return ProtocolTypePlan{}, err
 	}
 	resolver, err := newGeneratedDefinitionNameResolver(plan)
 	if err != nil {
@@ -133,6 +143,349 @@ func BuildProtocolTypePlan(schemaRoot string) (ProtocolTypePlan, error) {
 	}
 	resolveProtocolTypePlanRefs(&plan, resolver)
 	return plan, nil
+}
+
+func markReachableGeneratedDefinitions(plan *ProtocolTypePlan, schemaRoot string) error {
+	if plan == nil {
+		return fmt.Errorf("protocol type plan is nil")
+	}
+	byDocument := map[string]int{}
+	byTypeName := map[string][]int{}
+	for index := range plan.Types {
+		typ := &plan.Types[index]
+		if typ.Schema == nil {
+			continue
+		}
+		document := schemaDocumentPath(typ.SchemaPath)
+		if document == "" {
+			continue
+		}
+		byDocument[document] = index
+		byTypeName[typ.TypeName] = append(byTypeName[typ.TypeName], index)
+		if typ.GeneratedDefinitions == nil {
+			typ.GeneratedDefinitions = map[string]bool{}
+		}
+	}
+
+	visitedSchemas := map[string]bool{}
+	visitedDefinitions := map[string]bool{}
+	visitedTypes := map[int]bool{}
+	var walkSchema func(string, string, string, string, *Schema, bool) error
+	var walkRef func(string, string) error
+	var walkType func(int) error
+
+	walkType = func(index int) error {
+		if visitedTypes[index] {
+			return nil
+		}
+		visitedTypes[index] = true
+		typ := &plan.Types[index]
+		typ.GeneratedRoot = true
+		for _, field := range typ.Fields {
+			if field.RefPath != "" {
+				if err := walkRef(typ.SchemaPath, field.RefPath); err != nil {
+					return err
+				}
+			}
+		}
+		switch typ.Kind {
+		case TypePlanTaggedUnionCandidate, TypePlanScalarUnionCandidate, TypePlanAnyOfDeferred:
+			return walkSchema(schemaDocumentPath(typ.SchemaPath), typ.SchemaPath, typ.Stability, typ.TypeName, typ.Schema, false)
+		default:
+			return nil
+		}
+	}
+
+	walkRef = func(currentDocument, ref string) error {
+		absolute := absoluteRefPath(currentDocument, ref)
+		document, fragment, hasFragment := strings.Cut(absolute, "#")
+		index, ok := byDocument[document]
+		if !ok {
+			return nil
+		}
+		target := &plan.Types[index]
+		if !hasFragment || fragment == "" {
+			return walkType(index)
+		}
+		const prefix = "/definitions/"
+		if !strings.HasPrefix(fragment, prefix) {
+			return nil
+		}
+		token := strings.TrimPrefix(fragment, prefix)
+		if before, _, ok := strings.Cut(token, "/"); ok {
+			token = before
+		}
+		name := strings.ReplaceAll(strings.ReplaceAll(token, "~1", "/"), "~0", "~")
+		definition := target.Schema.Definitions[name]
+		if definition == nil {
+			return fmt.Errorf("schema ref %s resolves missing definition %s in %s", ref, name, document)
+		}
+		if isJSONRPCEnvelopeSchema(document) && isJSONRPCEnvelopeSchema(name) {
+			// Handwritten envelope validation owns these shapes. Other reachable
+			// definitions, such as trace context, still need generated types.
+			return nil
+		}
+		for _, topLevelIndex := range byTypeName[name] {
+			topLevel := &plan.Types[topLevelIndex]
+			if topLevel.SchemaPath == document || !isGeneratedTopLevelType(*topLevel) {
+				continue
+			}
+			same, err := sameGeneratedRootShape(definition, target.Schema.Definitions, topLevel.Schema)
+			if err != nil {
+				return err
+			}
+			if same {
+				return walkType(topLevelIndex)
+			}
+		}
+		definitionPath := definitionSchemaPath(document, name)
+		target.GeneratedDefinitions[name] = true
+		if visitedDefinitions[definitionPath] {
+			return nil
+		}
+		visitedDefinitions[definitionPath] = true
+		return walkSchema(document, definitionPath, target.Stability, name, definition, false)
+	}
+
+	walkSchema = func(document, schemaPath, stability, typeName string, schema *Schema, expandObjectPayload bool) error {
+		if schema == nil || visitedSchemas[schemaPath] {
+			return nil
+		}
+		visitedSchemas[schemaPath] = true
+		if schema.Ref != "" {
+			if err := walkRef(document, schema.Ref); err != nil {
+				return err
+			}
+		}
+		if len(schema.Properties) > 0 {
+			required := schema.RequiredSet()
+			names := make([]string, 0, len(schema.Properties))
+			for name := range schema.Properties {
+				names = append(names, name)
+			}
+			sort.Strings(names)
+			for _, name := range names {
+				property := schema.Properties[name]
+				if property != nil && property.Type.Only("null") && !required[name] {
+					// Optional null-only fields carry no typed dependencies.
+					continue
+				}
+				fieldPath := schemaPropertyPath(schemaPath, name)
+				field, err := planField(CoverageField{
+					Field:     name,
+					Path:      fieldPath,
+					Required:  required[name],
+					Schema:    document,
+					Stability: stability,
+					Status:    "supported-generated",
+					Type:      typeName,
+				}, property)
+				if err != nil {
+					return fmt.Errorf("dependency %s: %w", fieldPath, err)
+				}
+				if field.RefPath != "" {
+					if err := walkRef(document, field.RefPath); err != nil {
+						return err
+					}
+				}
+				if expandObjectPayload && len(schema.Properties) == 1 && required[name] &&
+					schema.AdditionalProperties.Bool != nil && !*schema.AdditionalProperties.Bool &&
+					property != nil && property.Type.Only("object") && len(property.Properties) > 0 {
+					if err := walkSchema(document, fieldPath, stability, typeName, property, false); err != nil {
+						return err
+					}
+				}
+			}
+		}
+		if schema.Type.Only("array") && schema.Items != nil {
+			if schema.Items.Ref != "" {
+				if err := walkRef(document, schema.Items.Ref); err != nil {
+					return err
+				}
+			} else if err := walkSchema(document, nestedSchemaPath(schemaPath, "items", 0), stability, typeName, schema.Items, false); err != nil {
+				return err
+			}
+		}
+		if len(schema.Properties) == 0 && schema.AdditionalProperties.Schema != nil && schema.AdditionalProperties.Schema.Ref != "" {
+			if err := walkRef(document, schema.AdditionalProperties.Schema.Ref); err != nil {
+				return err
+			}
+		}
+		for _, group := range []struct {
+			keyword  string
+			variants []*Schema
+		}{
+			{keyword: "allOf", variants: schema.AllOf},
+			{keyword: "anyOf", variants: schema.AnyOf},
+			{keyword: "oneOf", variants: schema.OneOf},
+		} {
+			for index, variant := range group.variants {
+				if err := walkSchema(document, nestedSchemaPath(schemaPath, group.keyword, index), stability, typeName, variant, group.keyword == "oneOf" && isMixedUnionDefinitionSchema(schema)); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+
+	rootIndexes, err := generatedDefinitionRootIndexes(plan, schemaRoot)
+	if err != nil {
+		return err
+	}
+	for index := range rootIndexes {
+		if err := walkType(index); err != nil {
+			return err
+		}
+	}
+	for index := range plan.Types {
+		typ := &plan.Types[index]
+		if typ.Kind == TypePlanScalarUnionCandidate && typ.Status == "supported-generated" {
+			if err := walkType(index); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func sameGeneratedRootShape(definition *Schema, sourceDefinitions map[string]*Schema, topLevel *Schema) (bool, error) {
+	left := cloneSchemaWithoutDocumentation(definition)
+	right := cloneSchemaWithoutDocumentation(topLevel)
+	left.Definitions = nil
+	right.Definitions = nil
+	leftShape, err := json.Marshal(left)
+	if err != nil {
+		return false, err
+	}
+	rightShape, err := json.Marshal(right)
+	if err != nil {
+		return false, err
+	}
+	if !bytes.Equal(leftShape, rightShape) {
+		return false, nil
+	}
+	for name, topDefinition := range topLevel.Definitions {
+		sourceDefinition := sourceDefinitions[name]
+		if sourceDefinition == nil {
+			return false, nil
+		}
+		sourceShape, err := generatedSchemaShape(sourceDefinition)
+		if err != nil {
+			return false, err
+		}
+		topShape, err := generatedSchemaShape(topDefinition)
+		if err != nil {
+			return false, err
+		}
+		if !bytes.Equal(sourceShape, topShape) {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+func generatedDefinitionRootIndexes(plan *ProtocolTypePlan, schemaRoot string) (map[int]bool, error) {
+	fallback := func() map[int]bool {
+		roots := map[int]bool{}
+		for index := range plan.Types {
+			typ := &plan.Types[index]
+			if typ.Schema == nil || isAggregateBundle(typ.SchemaPath) || isJSONRPCEnvelopeSchema(typ.SchemaPath) {
+				continue
+			}
+			typ.GeneratedRoot = true
+			roots[index] = true
+		}
+		return roots
+	}
+	if schemaRoot == "" {
+		return fallback(), nil
+	}
+	manifestPath := filepath.Join(schemaRoot, "manifest.json")
+	if _, err := os.Stat(manifestPath); err != nil {
+		if os.IsNotExist(err) {
+			return fallback(), nil
+		}
+		return nil, err
+	}
+	manifest, err := LoadMethodFacts(manifestPath)
+	if err != nil {
+		return nil, err
+	}
+	byTypeName := map[string][]int{}
+	bySchemaPath := map[string]int{}
+	for index := range plan.Types {
+		typ := &plan.Types[index]
+		byTypeName[typ.TypeName] = append(byTypeName[typ.TypeName], index)
+		bySchemaPath[typ.SchemaPath] = index
+	}
+	roots := map[int]bool{}
+	for _, entry := range manifest.Entries {
+		if index, ok := bySchemaPath[entry.SourceSchema]; ok {
+			plan.Types[index].GeneratedRoot = true
+			roots[index] = true
+		}
+		for _, index := range byTypeName[entry.ParamsOrPayloadSchema] {
+			plan.Types[index].GeneratedRoot = true
+			roots[index] = true
+		}
+		if index, ok := bySchemaPath[entry.ResponseSchema]; ok {
+			plan.Types[index].GeneratedRoot = true
+			roots[index] = true
+		}
+	}
+	for index := range plan.Types {
+		typ := &plan.Types[index]
+		if typ.Status == "supported-generated" &&
+			(typ.Kind == TypePlanScalarUnionCandidate || isClosedRPCErrorRoot(*typ) ||
+				isJSONRPCEnvelopeSchema(typ.SchemaPath) && typ.Kind == TypePlanObjectStructCandidate) {
+			typ.GeneratedRoot = true
+			roots[index] = true
+		}
+	}
+	if len(roots) == 0 {
+		return nil, fmt.Errorf("manifest has no generated protocol type roots")
+	}
+	return roots, nil
+}
+
+func isClosedRPCErrorRoot(typ TypePlan) bool {
+	schema := typ.Schema
+	if schema == nil || !schema.Type.Only("object") || isJSONRPCEnvelopeSchema(typ.SchemaPath) {
+		return false
+	}
+	code, message, data := schema.Properties["code"], schema.Properties["message"], schema.Properties["data"]
+	required := schema.RequiredSet()
+	return code != nil && code.Type.Only("integer") && code.Format == "int64" &&
+		message != nil && message.Type.Only("string") && data != nil &&
+		required["code"] && required["message"] && required["data"] &&
+		schema.AdditionalProperties.Bool != nil && !*schema.AdditionalProperties.Bool
+}
+
+func schemaDocumentPath(path string) string {
+	if before, _, ok := strings.Cut(path, "#"); ok {
+		return before
+	}
+	return path
+}
+
+func schemaPropertyPath(schemaPath, field string) string {
+	if strings.Contains(schemaPath, "#") {
+		return schemaPath + "/properties/" + field
+	}
+	return schemaPath + "#/properties/" + field
+}
+
+func nestedSchemaPath(schemaPath, keyword string, index int) string {
+	if keyword == "items" {
+		if strings.Contains(schemaPath, "#") {
+			return schemaPath + "/items"
+		}
+		return schemaPath + "#/items"
+	}
+	if strings.Contains(schemaPath, "#") {
+		return fmt.Sprintf("%s/%s/%d", schemaPath, keyword, index)
+	}
+	return fmt.Sprintf("%s#/%s/%d", schemaPath, keyword, index)
 }
 
 func (p ProtocolTypePlan) TypeBySchema(path string) (TypePlan, bool) {
@@ -154,23 +507,36 @@ func (p ProtocolTypePlan) FieldByPath(path string) (FieldPlan, bool) {
 }
 
 type generatedDefinitionNameResolver struct {
-	namesByPath map[string]string
+	namesByPath    map[string]string
+	topLevelReuses map[string]bool
 }
 
 type generatedDefinitionSource struct {
-	baseName       string
-	encoded        []byte
+	schema         *Schema
 	kind           generatedDefinitionKind
 	parentTypeName string
 	path           string
 }
 
+type generatedTopLevelSource struct {
+	kind  generatedDefinitionKind
+	shape []byte
+}
+
 func newGeneratedDefinitionNameResolver(plan ProtocolTypePlan) (generatedDefinitionNameResolver, error) {
+	plan = normalizeExplicitProtocolTypePlan(plan)
 	usedNames := map[string]bool{}
+	topLevelPlans := map[string]TypePlan{}
 	for _, typ := range plan.Types {
-		if typ.TypeName != "" {
-			usedNames[typ.TypeName] = true
+		if typ.TypeName == "" || !isGeneratedTopLevelType(typ) {
+			continue
 		}
+		usedNames[typ.TypeName] = true
+		kind := classifyGeneratedDefinition(typ.Schema)
+		if kind == generatedDefinitionUnsupported {
+			continue
+		}
+		topLevelPlans[typ.TypeName] = typ
 	}
 
 	byBaseName := map[string][]generatedDefinitionSource{}
@@ -179,20 +545,15 @@ func newGeneratedDefinitionNameResolver(plan ProtocolTypePlan) (generatedDefinit
 			continue
 		}
 		for name, schema := range typ.Schema.Definitions {
-			if !isGeneratedDefinitionNameResolverSource(typ.SchemaPath, name, schema) {
+			if !isGeneratedDefinitionNameResolverSource(typ, name, schema) {
 				continue
 			}
 			kind := classifyGeneratedDefinition(schema)
 			if kind == generatedDefinitionUnsupported {
 				continue
 			}
-			encoded, err := json.Marshal(schema)
-			if err != nil {
-				return generatedDefinitionNameResolver{}, fmt.Errorf("generated definition %s in %s cannot be encoded: %w", name, typ.SchemaPath, err)
-			}
 			byBaseName[name] = append(byBaseName[name], generatedDefinitionSource{
-				baseName:       name,
-				encoded:        encoded,
+				schema:         schema,
 				kind:           kind,
 				parentTypeName: typ.TypeName,
 				path:           definitionSchemaPath(typ.SchemaPath, name),
@@ -200,7 +561,10 @@ func newGeneratedDefinitionNameResolver(plan ProtocolTypePlan) (generatedDefinit
 		}
 	}
 
-	resolver := generatedDefinitionNameResolver{namesByPath: map[string]string{}}
+	resolver := generatedDefinitionNameResolver{
+		namesByPath:    map[string]string{},
+		topLevelReuses: map[string]bool{},
+	}
 	var baseNames []string
 	for name := range byBaseName {
 		baseNames = append(baseNames, name)
@@ -211,9 +575,43 @@ func newGeneratedDefinitionNameResolver(plan ProtocolTypePlan) (generatedDefinit
 		sort.Slice(sources, func(i, j int) bool {
 			return sources[i].path < sources[j].path
 		})
+		if topLevelPlan, ok := topLevelPlans[baseName]; ok {
+			topLevelShape, err := generatedSchemaShape(topLevelPlan.Schema)
+			if err != nil {
+				return generatedDefinitionNameResolver{}, fmt.Errorf("generated top-level type %s in %s cannot be encoded: %w", topLevelPlan.TypeName, topLevelPlan.SchemaPath, err)
+			}
+			topLevel := generatedTopLevelSource{kind: classifyGeneratedDefinition(topLevelPlan.Schema), shape: topLevelShape}
+			remaining := sources[:0]
+			for _, source := range sources {
+				if source.kind == topLevel.kind {
+					shape, err := generatedSchemaShape(source.schema)
+					if err != nil {
+						return generatedDefinitionNameResolver{}, fmt.Errorf("generated definition %s in %s shape cannot be encoded: %w", baseName, source.path, err)
+					}
+					if bytes.Equal(shape, topLevel.shape) {
+						resolver.namesByPath[source.path] = baseName
+						resolver.topLevelReuses[source.path] = true
+						continue
+					}
+				}
+				remaining = append(remaining, source)
+			}
+			sources = remaining
+			if len(sources) == 0 {
+				continue
+			}
+		}
+		if len(sources) == 1 {
+			resolver.namesByPath[sources[0].path] = claimGeneratedDefinitionTypeName(baseName, usedNames)
+			continue
+		}
 		bySignature := map[string][]generatedDefinitionSource{}
 		for _, source := range sources {
-			signature := string(source.kind) + "\x00" + string(source.encoded)
+			encoded, err := json.Marshal(source.schema)
+			if err != nil {
+				return generatedDefinitionNameResolver{}, fmt.Errorf("generated definition %s in %s cannot be encoded: %w", baseName, source.path, err)
+			}
+			signature := string(source.kind) + "\x00" + string(encoded)
 			bySignature[signature] = append(bySignature[signature], source)
 		}
 		if len(bySignature) == 1 {
@@ -242,14 +640,137 @@ func newGeneratedDefinitionNameResolver(plan ProtocolTypePlan) (generatedDefinit
 			}
 		}
 	}
+	paths := make([]string, 0, len(resolver.namesByPath))
+	for path := range resolver.namesByPath {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	for _, path := range paths {
+		name := resolver.namesByPath[path]
+		if token.IsIdentifier(name) {
+			continue
+		}
+		schemaPath, definition, _ := strings.Cut(path, "#/definitions/")
+		return generatedDefinitionNameResolver{}, unsupportedGeneratedSchema(
+			unsupportedDefinitionPath(schemaPath, definition),
+			"generated definition type name %q is not a Go identifier", name,
+		)
+	}
 	return resolver, nil
 }
 
-func isGeneratedDefinitionNameResolverSource(schemaPath string, name string, schema *Schema) bool {
-	if classifyGeneratedDefinition(schema) == generatedDefinitionStringEnum && isImplicitGeneratedStringEnumDefinitionSchema(schema) {
-		return true
+func isGeneratedDefinitionNameResolverSource(parent TypePlan, name string, schema *Schema) bool {
+	return isGeneratedDefinitionSelected(parent, name)
+}
+
+func generatedSchemaShape(schema *Schema) ([]byte, error) {
+	normalized := cloneSchemaWithoutDocumentation(schema)
+	return json.Marshal(normalized)
+}
+
+func cloneSchemaWithoutDocumentation(schema *Schema) *Schema {
+	if schema == nil {
+		return nil
 	}
-	return isReviewedGeneratedDefinition(schemaPath, name)
+	cloned := *schema
+	cloned.Description = ""
+	cloned.Title = ""
+	cloned.Items = cloneSchemaWithoutDocumentation(schema.Items)
+	cloned.AdditionalProperties = schema.AdditionalProperties
+	cloned.AdditionalProperties.Schema = cloneSchemaWithoutDocumentation(schema.AdditionalProperties.Schema)
+	cloned.AllOf = cloneSchemaSliceWithoutDocumentation(schema.AllOf)
+	cloned.AnyOf = cloneSchemaSliceWithoutDocumentation(schema.AnyOf)
+	cloned.OneOf = cloneSchemaSliceWithoutDocumentation(schema.OneOf)
+	if schema.Properties != nil {
+		cloned.Properties = make(map[string]*Schema, len(schema.Properties))
+		for name, child := range schema.Properties {
+			cloned.Properties[name] = cloneSchemaWithoutDocumentation(child)
+		}
+	}
+	if schema.Definitions != nil {
+		cloned.Definitions = make(map[string]*Schema, len(schema.Definitions))
+		for name, child := range schema.Definitions {
+			cloned.Definitions[name] = cloneSchemaWithoutDocumentation(child)
+		}
+	}
+	return &cloned
+}
+
+func cloneSchemaSliceWithoutDocumentation(in []*Schema) []*Schema {
+	if in == nil {
+		return nil
+	}
+	out := make([]*Schema, len(in))
+	for index, schema := range in {
+		out[index] = cloneSchemaWithoutDocumentation(schema)
+	}
+	return out
+}
+
+func isGeneratedDefinitionSelected(parent TypePlan, name string) bool {
+	if !parent.GeneratedDefinitions[name] {
+		return false
+	}
+	if parent.Schema != nil {
+		schema := parent.Schema.Definitions[name]
+		if classifyGeneratedDefinition(schema) == generatedDefinitionScalarAlias {
+			if _, ok := inlineScalarAliasGoType(name); ok {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func isGeneratedTopLevelType(typ TypePlan) bool {
+	if !typ.GeneratedRoot || isAggregateBundle(typ.SchemaPath) || isJSONRPCEnvelopeSchema(typ.SchemaPath) {
+		return false
+	}
+	switch typ.Kind {
+	case TypePlanEmptyStructCandidate,
+		TypePlanObjectStructCandidate,
+		TypePlanScalarUnionCandidate,
+		TypePlanTaggedUnionCandidate,
+		TypePlanAnyOfDeferred:
+		return true
+	default:
+		return false
+	}
+}
+
+func normalizeExplicitProtocolTypePlan(plan ProtocolTypePlan) ProtocolTypePlan {
+	explicit := len(plan.Types) > 0
+	for _, typ := range plan.Types {
+		if typ.Status != "" {
+			explicit = false
+			break
+		}
+	}
+	if !explicit {
+		return plan
+	}
+	plan.Types = append([]TypePlan(nil), plan.Types...)
+	for index := range plan.Types {
+		typ := &plan.Types[index]
+		definitions := make(map[string]bool, len(typ.GeneratedDefinitions))
+		for name, selected := range typ.GeneratedDefinitions {
+			definitions[name] = selected
+		}
+		typ.GeneratedDefinitions = definitions
+		typ.GeneratedRoot = true
+		if typ.GeneratedDefinitions == nil {
+			typ.GeneratedDefinitions = map[string]bool{}
+		}
+		if typ.Schema == nil {
+			continue
+		}
+		for name, schema := range typ.Schema.Definitions {
+			if classifyGeneratedDefinition(schema) != generatedDefinitionUnsupported {
+				typ.GeneratedDefinitions[name] = true
+			}
+		}
+	}
+	return plan
 }
 
 func definitionSchemaPath(schemaPath string, name string) string {
@@ -267,21 +788,22 @@ func claimGeneratedDefinitionTypeName(preferred string, used map[string]bool) st
 	if preferred == "" {
 		preferred = "GeneratedDefinition"
 	}
-	if reservedProtocolTypeName(preferred) {
-		preferred += "Value"
-	}
 	if !used[preferred] {
 		used[preferred] = true
 		return preferred
 	}
 	for index := 2; ; index++ {
 		candidate := fmt.Sprintf("%s%d", preferred, index)
-		if reservedProtocolTypeName(candidate) || used[candidate] {
+		if used[candidate] {
 			continue
 		}
 		used[candidate] = true
 		return candidate
 	}
+}
+
+func (r generatedDefinitionNameResolver) ReusesTopLevel(schemaPath string, name string) bool {
+	return r.topLevelReuses[definitionSchemaPath(schemaPath, name)]
 }
 
 func (r generatedDefinitionNameResolver) NameForDefinition(schemaPath string, name string) (string, bool) {
@@ -360,6 +882,7 @@ func planType(file SchemaFile) (TypePlan, error) {
 		Schema:     schema,
 		SchemaPath: file.Path,
 		Stability:  file.Stability,
+		Status:     file.Status,
 		TypeName:   file.TypeName,
 	}
 	switch {
@@ -367,14 +890,14 @@ func planType(file SchemaFile) (TypePlan, error) {
 		plan.Kind = TypePlanAggregateBundle
 		plan.Reason = "aggregate schema bundle is a generator input, not a public protocol type"
 	case len(schema.OneOf) > 0:
-		if !topLevelUnionHasKnownDiscriminator(file.Path) {
-			return TypePlan{}, fmt.Errorf("top-level oneOf schema %s has no reviewed discriminator policy", file.Path)
+		if !isTaggedUnionDefinitionSchema(schema) {
+			return TypePlan{}, fmt.Errorf("top-level oneOf schema %s has unsupported union shape", file.Path)
 		}
 		plan.Kind = TypePlanTaggedUnionCandidate
 		if len(schema.Properties) > 0 {
-			plan.Reason = "top-level object properties plus oneOf payload with reviewed discriminator policy"
+			plan.Reason = "top-level object properties plus discriminator-backed oneOf"
 		} else {
-			plan.Reason = "top-level oneOf with reviewed discriminator policy"
+			plan.Reason = "top-level discriminator-backed oneOf"
 		}
 	case schema.Type.Only("object") && len(schema.Properties) > 0:
 		plan.Kind = TypePlanObjectStructCandidate
@@ -383,36 +906,34 @@ func planType(file SchemaFile) (TypePlan, error) {
 		plan.Kind = TypePlanEmptyStructCandidate
 		plan.Reason = "object schema without top-level properties"
 	case len(schema.AnyOf) > 0:
-		if file.Path == "RequestId.json" && isReviewedScalarUnion(schema.AnyOf) {
+		if isSupportedScalarUnion(schema.AnyOf) {
 			plan.Kind = TypePlanScalarUnionCandidate
-			plan.Reason = "top-level anyOf with reviewed mutually exclusive scalar JSON kinds"
+			plan.Reason = "top-level anyOf with losslessly supported scalar JSON kinds"
 			return plan, nil
 		}
-		if isReviewedTopLevelNullableParamsWrapper(file.Path, schema.AnyOf) {
+		if isTopLevelNullableRefWrapper(schema.AnyOf) {
 			plan.Kind = TypePlanAnyOfDeferred
-			plan.Reason = "top-level nullable params wrapper is represented by aggregate request params handling"
+			plan.Reason = "top-level nullable ref wrapper is represented by aggregate request params handling"
 			return plan, nil
 		}
-		if file.Path != "JSONRPCMessage.json" {
-			return TypePlan{}, fmt.Errorf("top-level anyOf schema %s has no reviewed generation policy", file.Path)
+		if isUntaggedObjectUnionDefinitionSchema(schema) {
+			plan.Kind = TypePlanAnyOfDeferred
+			plan.Reason = "top-level untagged object union"
+			return plan, nil
 		}
-		plan.Kind = TypePlanAnyOfDeferred
-		plan.Reason = "top-level anyOf needs dedicated reviewed value/dispatch logic"
+		if isJSONRPCEnvelopeSchema(file.Path) {
+			plan.Kind = TypePlanAnyOfDeferred
+			plan.Reason = "JSON-RPC envelope anyOf is transport-owned rather than public protocol payload"
+			return plan, nil
+		}
+		return TypePlan{}, fmt.Errorf("top-level anyOf schema %s has unsupported union shape", file.Path)
 	default:
 		return TypePlan{}, fmt.Errorf("schema %s has unsupported top-level shape", file.Path)
 	}
 	return plan, nil
 }
 
-func isReviewedTopLevelNullableParamsWrapper(path string, variants []*Schema) bool {
-	switch path {
-	case "v2/NullableGetAccountRateLimitsParams.json",
-		"v2/NullableGetAccountTokenUsageParams.json",
-		"v2/NullableRemoteControlDisableParams.json",
-		"v2/NullableRemoteControlEnableParams.json":
-	default:
-		return false
-	}
+func isTopLevelNullableRefWrapper(variants []*Schema) bool {
 	if len(variants) != 2 {
 		return false
 	}
@@ -424,12 +945,13 @@ func isReviewedTopLevelNullableParamsWrapper(path string, variants []*Schema) bo
 			hasRef = true
 		case variant != nil && variant.Type.Only("null"):
 			hasNull = true
+		default:
+			return false
 		}
 	}
 	return hasRef && hasNull
 }
-
-func isReviewedScalarUnion(variants []*Schema) bool {
+func isSupportedScalarUnion(variants []*Schema) bool {
 	if len(variants) == 0 {
 		return false
 	}
@@ -475,6 +997,9 @@ func isReviewedScalarUnion(variants []*Schema) bool {
 }
 
 func planField(coverage CoverageField, schema *Schema) (FieldPlan, error) {
+	if !representableJSONTagName(coverage.Field) {
+		return FieldPlan{}, unsupportedGeneratedSchema(unsupportedPropertyPath(coverage.Path, coverage.Field), "field name %q cannot be represented by a Go JSON struct tag", coverage.Field)
+	}
 	plan := FieldPlan{
 		FieldName:       coverage.Field,
 		Path:            coverage.Path,
@@ -489,12 +1014,9 @@ func planField(coverage CoverageField, schema *Schema) (FieldPlan, error) {
 		return overlay, err
 	}
 	if schema.IsTrueSchema() {
-		if !isJSONValueFieldPath(plan.Path) {
-			return FieldPlan{}, fmt.Errorf("field %s has unreviewed true schema", coverage.Path)
-		}
 		plan.Kind = FieldPlanJSONValue
 		plan.GoType = optionalGoType(plan.Required, "protocolv2.JSONValue")
-		plan.Reason = "reviewed protocol-native unconstrained JSON value"
+		plan.Reason = "protocol-native unconstrained JSON value"
 		return plan, nil
 	}
 	if schema.IsFalseSchema() {
@@ -524,7 +1046,7 @@ func planField(coverage CoverageField, schema *Schema) (FieldPlan, error) {
 		return plan, nil
 	}
 	if schema.Ref != "" {
-		if scalarAlias, ok := scalarAliasRefGoType(schema.Ref); ok {
+		if scalarAlias, ok := inlineScalarAliasGoType(schema.Ref); ok {
 			plan.Kind = FieldPlanScalar
 			plan.GoType = optionalGoType(plan.Required, scalarAlias)
 			plan.Reason = "reviewed scalar alias ref"
@@ -537,7 +1059,7 @@ func planField(coverage CoverageField, schema *Schema) (FieldPlan, error) {
 		return plan, nil
 	}
 	if len(schema.AllOf) == 1 && schema.AllOf[0].Ref != "" {
-		if scalarAlias, ok := scalarAliasRefGoType(schema.AllOf[0].Ref); ok {
+		if scalarAlias, ok := inlineScalarAliasGoType(schema.AllOf[0].Ref); ok {
 			plan.Kind = FieldPlanScalar
 			plan.GoType = optionalGoType(plan.Required, scalarAlias)
 			plan.Reason = "reviewed scalar alias allOf ref"
@@ -585,6 +1107,19 @@ func planField(coverage CoverageField, schema *Schema) (FieldPlan, error) {
 	return FieldPlan{}, fmt.Errorf("field %s has unsupported schema shape", coverage.Path)
 }
 
+func representableJSONTagName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for _, r := range name {
+		if strings.ContainsRune("!#$%&()*+-./:;<=>?@[]^_{|}~ ", r) || unicode.IsLetter(r) || unicode.IsDigit(r) {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
 func arrayCanPlanBeforeRecursiveConstraints(schema *Schema) bool {
 	if schema == nil || schema.Items == nil {
 		return false
@@ -603,6 +1138,21 @@ func arrayCanPlanBeforeRecursiveConstraints(schema *Schema) bool {
 }
 
 func planConstrainedField(plan FieldPlan, schema *Schema, constraints []string) (FieldPlan, bool, error) {
+	if schema.Format == "double" && len(constraints) == 1 && constraints[0] == "format" {
+		if nullableType, ok := schema.Type.NullableSingle(); ok && nullableType == "number" {
+			plan.Kind = FieldPlanNullableScalar
+			plan.GoType = nullableGoType(plan.Required, "float64")
+			plan.WireAllowsNull = true
+			plan.Reason = "nullable double represented with float64"
+			return plan, true, nil
+		}
+		if schema.Type.Only("number") {
+			plan.Kind = FieldPlanScalar
+			plan.GoType = optionalGoType(plan.Required, "float64")
+			plan.Reason = "double represented with float64"
+			return plan, true, nil
+		}
+	}
 	if !supportedIntegerConstraints(schema, constraints) {
 		return FieldPlan{}, false, nil
 	}
@@ -747,32 +1297,6 @@ func overlayFieldPlan(plan FieldPlan, schema *Schema) (FieldPlan, bool, error) {
 		plan.WireAllowsNull = true
 		plan.Reason = "reviewed omit/null/value service tier semantics"
 		return plan, true, nil
-	case isJSONValueMapPath(plan.Path):
-		nullableType, nullable := schema.Type.NullableSingle()
-		isObject := schema.Type.Only("object") || nullable && nullableType == "object"
-		if !isObject ||
-			len(unmodeledKeywords(schema)) > 0 ||
-			len(schema.Properties) > 0 ||
-			schema.AdditionalProperties.Bool == nil ||
-			!*schema.AdditionalProperties.Bool {
-			return FieldPlan{}, true, fmt.Errorf("field %s JSONValue map overlay no longer matches object map schema shape", plan.Path)
-		}
-		plan.Kind = FieldPlanJSONValueMap
-		plan.WireAllowsNull = schemaAllowsNull(schema)
-		plan.GoType = nullableAwareGoType(plan.Required, plan.WireAllowsNull, "map[string]protocolv2.JSONValue")
-		plan.Reason = "reviewed dynamic protocol map with JSON values"
-		return plan, true, nil
-	case isJSONValueArrayPath(plan.Path):
-		nullableType, nullable := schema.Type.NullableSingle()
-		isArray := schema.Type.Only("array") || nullable && nullableType == "array"
-		if !isArray || len(unmodeledKeywords(schema)) > 0 || schema.Items == nil || !schema.Items.IsTrueSchema() {
-			return FieldPlan{}, true, fmt.Errorf("field %s JSONValue array overlay no longer matches array-of-JSON schema shape", plan.Path)
-		}
-		plan.Kind = FieldPlanArrayJSONValue
-		plan.WireAllowsNull = schemaAllowsNull(schema)
-		plan.GoType = nullableAwareGoType(plan.Required, plan.WireAllowsNull, "[]protocolv2.JSONValue")
-		plan.Reason = "reviewed array of protocol-native JSON values"
-		return plan, true, nil
 	default:
 		return FieldPlan{}, false, nil
 	}
@@ -805,7 +1329,7 @@ func planAnyOfField(plan FieldPlan, schema *Schema) (FieldPlan, error) {
 	plan.WireAllowsNull = true
 	switch {
 	case inner.Ref != "":
-		if scalarAlias, ok := scalarAliasRefGoType(inner.Ref); ok {
+		if scalarAlias, ok := inlineScalarAliasGoType(inner.Ref); ok {
 			plan.Kind = FieldPlanNullableScalar
 			plan.GoType = nullableGoType(plan.Required, scalarAlias)
 			plan.Reason = "nullable scalar alias ref represented with Nullable"
@@ -866,7 +1390,7 @@ func planArrayField(plan FieldPlan, schema *Schema, nullable bool) (FieldPlan, e
 	fieldRequired := plan.Required && !nullable
 	switch {
 	case schema.Items.Ref != "":
-		if scalarAlias, ok := scalarAliasRefGoType(schema.Items.Ref); ok {
+		if scalarAlias, ok := inlineScalarAliasGoType(schema.Items.Ref); ok {
 			if scalarAlias != "string" {
 				return FieldPlan{}, fmt.Errorf("field %s has unsupported array scalar alias item type %s", plan.Path, scalarAlias)
 			}
@@ -905,12 +1429,9 @@ func planArrayField(plan FieldPlan, schema *Schema, nullable bool) (FieldPlan, e
 		plan.Reason = "array of scalar values"
 		return plan, nil
 	case schema.Items.IsTrueSchema():
-		if !isJSONValueArrayPath(plan.Path) {
-			return FieldPlan{}, fmt.Errorf("field %s has unreviewed true-schema array items", plan.Path)
-		}
 		plan.Kind = FieldPlanArrayJSONValue
 		plan.GoType = optionalOrNullableGoType(fieldRequired, nullable, "[]protocolv2.JSONValue")
-		plan.Reason = "reviewed array of protocol-native JSON values"
+		plan.Reason = "array of protocol-native JSON values"
 		return plan, nil
 	default:
 		plan.Kind = FieldPlanUnionDeferred
@@ -977,18 +1498,15 @@ func planObjectField(plan FieldPlan, schema *Schema) (FieldPlan, error) {
 		return plan, nil
 	}
 	if schema.AdditionalProperties.Bool != nil {
-		if *schema.AdditionalProperties.Bool && isJSONValueMapPath(plan.Path) {
+		if *schema.AdditionalProperties.Bool {
 			plan.Kind = FieldPlanJSONValueMap
 			plan.GoType = nullableAwareGoType(plan.Required, plan.WireAllowsNull, "map[string]protocolv2.JSONValue")
-			plan.Reason = "reviewed dynamic protocol map with JSON values"
+			plan.Reason = "dynamic protocol map with unconstrained JSON values"
 			return plan, nil
 		}
-		if !*schema.AdditionalProperties.Bool {
-			plan.Kind = FieldPlanUnionDeferred
-			plan.Reason = "closed inline object field needs named generated struct policy"
-			return plan, nil
-		}
-		return FieldPlan{}, fmt.Errorf("field %s has unreviewed additionalProperties=true", plan.Path)
+		plan.Kind = FieldPlanUnionDeferred
+		plan.Reason = "closed inline object field needs named generated struct policy"
+		return plan, nil
 	}
 	valueType, refPath, err := mapValueType(plan.Path, plan.SchemaPath, schema.AdditionalProperties.Schema)
 	if err != nil {
@@ -1189,7 +1707,8 @@ func scalarGoType(schema *Schema, schemaType string) (string, error) {
 	}
 }
 
-func scalarAliasRefGoType(ref string) (string, bool) {
+// inlineScalarAliasGoType is an explicit public-representation overlay for upstream string aliases that remain plain Go strings.
+func inlineScalarAliasGoType(ref string) (string, bool) {
 	switch refTypeName(ref) {
 	case "AgentPath":
 		return "string", true
@@ -1275,17 +1794,6 @@ func isAggregateBundle(path string) bool {
 	return path == "codex_app_server_protocol.schemas.json" || path == "codex_app_server_protocol.v2.schemas.json"
 }
 
-func topLevelUnionHasKnownDiscriminator(path string) bool {
-	switch path {
-	case "ClientNotification.json", "ClientRequest.json", "ServerNotification.json", "ServerRequest.json",
-		"McpServerElicitationRequestParams.json",
-		"v2/BedrockSetupParams.json", "v2/LoginAccountParams.json", "v2/LoginAccountResponse.json":
-		return true
-	default:
-		return false
-	}
-}
-
 func isServiceTierPath(path string) bool {
 	switch path {
 	case "v2/ThreadForkParams.json#/properties/serviceTier",
@@ -1295,83 +1803,6 @@ func isServiceTierPath(path string) bool {
 		"v2/ThreadStartParams.json#/properties/serviceTier",
 		"v2/ThreadStartResponse.json#/properties/serviceTier",
 		"v2/TurnStartParams.json#/properties/serviceTier":
-		return true
-	default:
-		return false
-	}
-}
-
-func isJSONValueFieldPath(path string) bool {
-	switch path {
-	case "DynamicToolCallParams.json#/properties/arguments",
-		"JSONRPCErrorError.json#/properties/data",
-		"JSONRPCNotification.json#/properties/params",
-		"JSONRPCRequest.json#/properties/params",
-		"JSONRPCResponse.json#/properties/result",
-		"v2/ConfigBatchWriteParams.json#/definitions/ConfigEdit/properties/value",
-		"v2/ConfigReadResponse.json#/definitions/ConfigLayer/properties/config",
-		"v2/ConfigValueWriteParams.json#/properties/value",
-		"v2/ConfigWriteResponse.json#/definitions/OverriddenMetadata/properties/effectiveValue",
-		"v2/ListMcpServerStatusResponse.json#/definitions/Resource/properties/_meta",
-		"v2/ListMcpServerStatusResponse.json#/definitions/Resource/properties/annotations",
-		"v2/ListMcpServerStatusResponse.json#/definitions/ResourceTemplate/properties/annotations",
-		"v2/ListMcpServerStatusResponse.json#/definitions/Tool/properties/_meta",
-		"v2/ListMcpServerStatusResponse.json#/definitions/Tool/properties/annotations",
-		"v2/ListMcpServerStatusResponse.json#/definitions/Tool/properties/inputSchema",
-		"v2/ListMcpServerStatusResponse.json#/definitions/Tool/properties/outputSchema",
-		"v2/McpResourceReadResponse.json#/definitions/ResourceContent#/anyOf/0/properties/_meta",
-		"v2/McpResourceReadResponse.json#/definitions/ResourceContent#/anyOf/1/properties/_meta",
-		"v2/McpServerEventStreamNotification.json#/definitions/McpServerEventNotification/properties/params",
-		"v2/McpServerEventStreamStartParams.json#/properties/_meta",
-		"v2/McpServerEventStreamStartParams.json#/properties/arguments",
-		"v2/McpServerToolCallParams.json#/properties/_meta",
-		"v2/McpServerToolCallParams.json#/properties/arguments",
-		"v2/McpServerToolCallResponse.json#/properties/_meta",
-		"v2/McpServerToolCallResponse.json#/properties/structuredContent",
-		"v2/ThreadResumeParams.json#/definitions/ResponseItem#/oneOf/4/properties/arguments",
-		"v2/ThreadResumeParams.json#/definitions/ResponseItem#/oneOf/5/properties/arguments",
-		"v2/ThreadStartParams.json#/definitions/DynamicToolSpec/properties/inputSchema",
-		"v2/ThreadStartParams.json#/definitions/DynamicToolSpec#/oneOf/0/properties/inputSchema",
-		"v2/ThreadStartParams.json#/definitions/DynamicToolNamespaceTool#/oneOf/0/properties/inputSchema",
-		"v2/ThreadRealtimeItemAddedNotification.json#/properties/item",
-		"v2/TurnModerationMetadataNotification.json#/properties/metadata",
-		"v2/TurnStartResponse.json#/definitions/McpToolCallResult/properties/_meta",
-		"v2/TurnStartResponse.json#/definitions/McpToolCallResult/properties/structuredContent",
-		"v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/7/properties/arguments",
-		"v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/8/properties/arguments",
-		"v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/9/properties/arguments":
-		return true
-	default:
-		return false
-	}
-}
-
-func isJSONValueMapPath(path string) bool {
-	switch path {
-	case "v1/InitializeParams.json#/definitions/InitializeCapabilities/properties/extensions",
-		"v2/ConfigReadResponse.json#/definitions/Config/properties/desktop",
-		"v2/ConfigRequirementsReadResponse.json#/definitions/ConfiguredHookHandler#/oneOf/1/properties/input",
-		"v2/ThreadForkParams.json#/properties/config",
-		"v2/ThreadResumeParams.json#/properties/config",
-		"v2/ThreadStartParams.json#/properties/config":
-		return true
-	default:
-		return false
-	}
-}
-
-func isJSONValueArrayPath(path string) bool {
-	switch path {
-	case "v2/ListMcpServerStatusResponse.json#/definitions/Resource/properties/icons",
-		"v2/ListMcpServerStatusResponse.json#/definitions/McpServerInfo/properties/icons",
-		"v2/ListMcpServerStatusResponse.json#/definitions/Tool/properties/icons",
-		"v2/McpServerToolCallResponse.json#/properties/content",
-		"v2/ThreadResumeParams.json#/definitions/ResponseItem#/oneOf/8/properties/tools",
-		"v2/ThreadResumeParams.json#/definitions/ResponseItem#/oneOf/9/properties/tools",
-		"v2/ThreadInjectItemsParams.json#/properties/items",
-		"v2/TurnStartResponse.json#/definitions/McpToolCallResult/properties/content",
-		"v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/11/properties/results",
-		"v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/12/properties/results":
 		return true
 	default:
 		return false

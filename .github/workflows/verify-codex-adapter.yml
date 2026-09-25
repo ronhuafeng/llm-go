@@ -1,0 +1,33 @@
+name: Verify Codex adapter
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  adapter:
+    name: Codex adapter native verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Vet Codex adapter
+        env:
+          GOTOOLCHAIN: local
+        run: go vet ./llmcaller/codex/...
+
+      - name: Race-test Codex adapter
+        env:
+          GOTOOLCHAIN: local
+        run: go test -race ./llmcaller/codex/...

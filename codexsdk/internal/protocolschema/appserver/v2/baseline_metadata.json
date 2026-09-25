@@ -10,7 +10,7 @@
   "experimental_included": true,
   "generated_at": "2026-09-12T04:50:12Z",
   "generation_command": "codex app-server generate-json-schema --experimental --out internal/protocolschema/appserver/v2",
-  "schema_bundle_sha256": "944978fb58c64ccf40160a80d91db1d342085bdc0094b151c618b4cdb1df858a",
+  "schema_bundle_sha256": "892d0ef7f9b6b5bb2e5d91f0646523a927f02182aead1204cfff81750c30e159",
   "schema_file_count": 426,
   "schema_output_layout": "root JSON files plus v1/ and v2/",
   "schema_version": 1,

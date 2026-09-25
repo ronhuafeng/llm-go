@@ -57,12 +57,40 @@ func validatePaths(paths []string, phase string) error {
 		}
 		if !strings.HasPrefix(p, "codexsdk/") || strings.HasPrefix(p, "codexsdk/.cache/") || strings.HasPrefix(p, "codexsdk/.agents/") {
 			invalid = append(invalid, p)
+			continue
+		}
+		if phase == "agent" && !isAgentProposalPath(p) {
+			invalid = append(invalid, p)
 		}
 	}
 	if len(invalid) == 0 {
 		return nil
 	}
 	return fmt.Errorf("sync changes escape the %s scope:\n- %s", phase, strings.Join(invalid, "\n- "))
+}
+
+// Agent proposals may change runtime or generator implementation and focused
+// tests. Sync policy, candidate identity, acceptance, and publication code are
+// reviewed through ordinary development rather than through the same proposal.
+func isAgentProposalPath(p string) bool {
+	if !strings.HasSuffix(p, ".go") || strings.HasSuffix(p, ".gen.go") {
+		return false
+	}
+	if dir := path.Dir(p); dir == "codexsdk" || dir == "codexsdk/protocolv2" || dir == "codexsdk/internal/protocolgen" || dir == "codexsdk/internal/wirejson" {
+		return true
+	}
+	if path.Dir(p) != "codexsdk/internal/protocolupgrade" {
+		return false
+	}
+	if strings.HasSuffix(p, "_test.go") {
+		return true
+	}
+	switch path.Base(p) {
+	case "manifest.go", "surface.go", "commonrs.go":
+		return true
+	default:
+		return false
+	}
 }
 
 func isMechanicalPath(p string) bool {

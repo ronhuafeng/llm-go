@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -32,21 +31,7 @@ func main() {
 func run(schemaRootFlag, manifestPathFlag, outDir, stdout, stableSource, completeSource string, writer io.Writer) error {
 	schemaRoot, manifestPath := resolveSchemaInputs(schemaRootFlag, manifestPathFlag)
 	switch stdout {
-	case "":
-	case "method-registry":
-		methodRegistry, err := generateMethodRegistry(manifestPath)
-		if err != nil {
-			return err
-		}
-		_, err = io.Copy(writer, bytes.NewReader(methodRegistry))
-		return err
-	case "protocol-types":
-		protocolTypes, err := generateProtocolTypes(schemaRoot, manifestPath)
-		if err != nil {
-			return err
-		}
-		_, err = io.Copy(writer, bytes.NewReader(protocolTypes))
-		return err
+	case "", "method-registry", "protocol-types":
 	case "classified-surface":
 		if stableSource == "" || completeSource == "" {
 			return fmt.Errorf("-stdout classified-surface requires -stable-source and -complete-source")
@@ -70,12 +55,31 @@ func run(schemaRootFlag, manifestPathFlag, outDir, stdout, stableSource, complet
 		return fmt.Errorf("-stdout must be method-registry, protocol-types, or classified-surface")
 	}
 
-	methodRegistry, err := generateMethodRegistry(manifestPath)
+	typePlan, err := protocolgen.BuildProtocolTypePlan(schemaRoot)
 	if err != nil {
 		return err
 	}
-	protocolTypes, err := generateProtocolTypes(schemaRoot, manifestPath)
+	manifest, err := protocolgen.LoadManifest(manifestPath)
 	if err != nil {
+		return err
+	}
+	handwrittenDir := outDir
+	if _, err := os.Stat(handwrittenDir); os.IsNotExist(err) {
+		handwrittenDir = ""
+	} else if err != nil {
+		return err
+	}
+	generated, err := protocolgen.BuildProtocolPackage(typePlan, manifest, handwrittenDir)
+	if err != nil {
+		return err
+	}
+	protocolTypes, methodRegistry, experimentalMembers := generated.ProtocolTypes, generated.MethodRegistry, generated.ExperimentalMembers
+	switch stdout {
+	case "method-registry":
+		_, err = writer.Write(methodRegistry)
+		return err
+	case "protocol-types":
+		_, err = writer.Write(protocolTypes)
 		return err
 	}
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
@@ -87,22 +91,10 @@ func run(schemaRootFlag, manifestPathFlag, outDir, stdout, stableSource, complet
 	if err := os.WriteFile(filepath.Join(outDir, "protocol_types.gen.go"), protocolTypes, 0o644); err != nil {
 		return err
 	}
-	experimentalMembers, err := generateExperimentalMembers(manifestPath)
-	if err != nil {
-		return err
-	}
 	if err := os.WriteFile(filepath.Join(outDir, "experimental_members.gen.go"), experimentalMembers, 0o644); err != nil {
 		return err
 	}
 	return nil
-}
-
-func generateExperimentalMembers(manifestPath string) ([]byte, error) {
-	manifest, err := protocolgen.LoadManifest(manifestPath)
-	if err != nil {
-		return nil, err
-	}
-	return protocolgen.GenerateExperimentalMembers(manifest)
 }
 
 func readGeneratedSources(path string) ([][]byte, error) {
@@ -131,29 +123,6 @@ func readGeneratedSources(path string) ([][]byte, error) {
 		sources = append(sources, source)
 	}
 	return sources, nil
-}
-
-func generateMethodRegistry(manifestPath string) ([]byte, error) {
-	manifest, err := protocolgen.LoadManifest(manifestPath)
-	if err != nil {
-		return nil, err
-	}
-	return protocolgen.GenerateMethodRegistry(manifest)
-}
-
-func generateProtocolTypes(schemaRoot string, manifestPath string) ([]byte, error) {
-	typePlan, err := protocolgen.BuildProtocolTypePlan(schemaRoot)
-	if err != nil {
-		return nil, err
-	}
-	manifest, err := protocolgen.LoadManifest(manifestPath)
-	if err != nil {
-		return nil, err
-	}
-	if err := protocolgen.ApplyWireMessageRoles(&typePlan, manifest); err != nil {
-		return nil, err
-	}
-	return protocolgen.GenerateProtocolTypes(typePlan)
 }
 
 func resolveSchemaInputs(schemaRootFlag, manifestPathFlag string) (schemaRoot string, manifestPath string) {

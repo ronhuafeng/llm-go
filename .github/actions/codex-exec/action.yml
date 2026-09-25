@@ -14,6 +14,12 @@ inputs:
   prompt:
     description: Task prompt passed to Codex.
     required: true
+  model:
+    description: Codex model selected by the calling workflow.
+    required: true
+  reasoning-effort:
+    description: Reasoning effort selected by the calling workflow.
+    required: true
 
 outputs:
   final-message-path:
@@ -82,8 +88,10 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
+        MODEL: ${{ inputs.model }}
         PROMPT: ${{ inputs.prompt }}
         PROXY_PORT: ${{ steps.proxy.outputs.port }}
+        REASONING_EFFORT: ${{ inputs.reasoning-effort }}
       run: |
         set -euo pipefail
         capacity_error='Selected model is at capacity. Please try a different model.'
@@ -93,8 +101,8 @@ runs:
         codex_args=(
           exec
           --output-last-message "${final_message}"
-          --model gpt-5.6-sol
-          --config 'model_reasoning_effort="high"'
+          --model "${MODEL}"
+          --config "model_reasoning_effort=\"${REASONING_EFFORT}\""
           --config 'model_provider="codex-responses-proxy"'
           --config "model_providers.codex-responses-proxy={ name = 'Codex Responses Proxy', base_url = 'http://127.0.0.1:${PROXY_PORT}/v1', wire_api = 'responses' }"
           --config 'sandbox_workspace_write.network_access=true'

@@ -188,6 +188,15 @@ func (c *Client) Models() Models {
 	return Models{client: c}
 }
 
+// PermissionProfiles is an opaque generated facade for exact Codex operations.
+type PermissionProfiles struct {
+	client *Client
+}
+
+func (c *Client) PermissionProfiles() PermissionProfiles {
+	return PermissionProfiles{client: c}
+}
+
 // Plugins is an opaque generated facade for exact Codex operations.
 type Plugins struct {
 	client *Client
@@ -368,6 +377,14 @@ func (f Accounts) SendAddCreditsNudgeEmail(ctx context.Context, params protocolv
 	return response, nil
 }
 
+func (f Accounts) UsageRead(ctx context.Context) (protocolv2.GetAccountTokenUsageResponse, error) {
+	var response protocolv2.GetAccountTokenUsageResponse
+	if err := f.client.callProtocolNoParams(ctx, protocolv2.MethodAccountUsageRead, &response); err != nil {
+		return protocolv2.GetAccountTokenUsageResponse{}, err
+	}
+	return response, nil
+}
+
 func (f Accounts) WorkspaceMessagesRead(ctx context.Context) (protocolv2.GetWorkspaceMessagesResponse, error) {
 	var response protocolv2.GetWorkspaceMessagesResponse
 	if err := f.client.callProtocolNoParams(ctx, protocolv2.MethodAccountWorkspaceMessagesRead, &response); err != nil {
@@ -484,6 +501,14 @@ func (f Environments) Add(ctx context.Context, params protocolv2.EnvironmentAddP
 	var response protocolv2.EnvironmentAddResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodEnvironmentAdd, params, &response); err != nil {
 		return protocolv2.EnvironmentAddResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Environments) Info(ctx context.Context, params protocolv2.EnvironmentInfoParams) (protocolv2.EnvironmentInfoResponse, error) {
+	var response protocolv2.EnvironmentInfoResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodEnvironmentInfo, params, &response); err != nil {
+		return protocolv2.EnvironmentInfoResponse{}, err
 	}
 	return response, nil
 }
@@ -768,6 +793,14 @@ func (f Models) List(ctx context.Context, params protocolv2.ModelListParams) (pr
 	return response, nil
 }
 
+func (f PermissionProfiles) List(ctx context.Context, params protocolv2.PermissionProfileListParams) (protocolv2.PermissionProfileListResponse, error) {
+	var response protocolv2.PermissionProfileListResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodPermissionProfileList, params, &response); err != nil {
+		return protocolv2.PermissionProfileListResponse{}, err
+	}
+	return response, nil
+}
+
 func (f Plugins) Install(ctx context.Context, params protocolv2.PluginInstallParams) (protocolv2.PluginInstallResponse, error) {
 	var response protocolv2.PluginInstallResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodPluginInstall, params, &response); err != nil {
@@ -960,6 +993,14 @@ func (f Project) Update(ctx context.Context, params protocolv2.ProjectUpdatePara
 	return response, nil
 }
 
+func (f RemoteControl) ClientList(ctx context.Context, params protocolv2.RemoteControlClientsListParams) (protocolv2.RemoteControlClientsListResponse, error) {
+	var response protocolv2.RemoteControlClientsListResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodRemoteControlClientList, params, &response); err != nil {
+		return protocolv2.RemoteControlClientsListResponse{}, err
+	}
+	return response, nil
+}
+
 func (f RemoteControl) ClientRevoke(ctx context.Context, params protocolv2.RemoteControlClientsRevokeParams) (protocolv2.RemoteControlClientsRevokeResponse, error) {
 	var response protocolv2.RemoteControlClientsRevokeResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodRemoteControlClientRevoke, params, &response); err != nil {
@@ -1100,6 +1141,14 @@ func (f Threads) BackgroundTerminalsClean(ctx context.Context, params protocolv2
 	var response protocolv2.ThreadBackgroundTerminalsCleanResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadBackgroundTerminalsClean, params, &response); err != nil {
 		return protocolv2.ThreadBackgroundTerminalsCleanResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Threads) BackgroundTerminalsList(ctx context.Context, params protocolv2.ThreadBackgroundTerminalsListParams) (protocolv2.ThreadBackgroundTerminalsListResponse, error) {
+	var response protocolv2.ThreadBackgroundTerminalsListResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadBackgroundTerminalsList, params, &response); err != nil {
+		return protocolv2.ThreadBackgroundTerminalsListResponse{}, err
 	}
 	return response, nil
 }
@@ -1360,6 +1409,14 @@ func (f Threads) Rollback(ctx context.Context, params protocolv2.ThreadRollbackP
 	return response, nil
 }
 
+func (f Threads) Search(ctx context.Context, params protocolv2.ThreadSearchParams) (protocolv2.ThreadSearchResponse, error) {
+	var response protocolv2.ThreadSearchResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadSearch, params, &response); err != nil {
+		return protocolv2.ThreadSearchResponse{}, err
+	}
+	return response, nil
+}
+
 func (f Threads) SearchOccurrences(ctx context.Context, params protocolv2.ThreadSearchOccurrencesParams) (protocolv2.ThreadSearchOccurrencesResponse, error) {
 	var response protocolv2.ThreadSearchOccurrencesResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadSearchOccurrences, params, &response); err != nil {
@@ -1396,6 +1453,14 @@ func (f Threads) Start(ctx context.Context, params protocolv2.ThreadStartParams)
 	var response protocolv2.ThreadStartResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadStart, params, &response); err != nil {
 		return protocolv2.ThreadStartResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Threads) TimelineList(ctx context.Context, params protocolv2.ThreadTimelineListParams) (protocolv2.ThreadTimelineListResponse, error) {
+	var response protocolv2.ThreadTimelineListResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadTimelineList, params, &response); err != nil {
+		return protocolv2.ThreadTimelineListResponse{}, err
 	}
 	return response, nil
 }

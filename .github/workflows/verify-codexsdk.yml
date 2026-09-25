@@ -1,0 +1,37 @@
+name: Verify codexsdk
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source:
+    name: codexsdk native verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Vet codexsdk
+        env:
+          GOTOOLCHAIN: local
+        run: go vet ./codexsdk/...
+
+      - name: Race-test codexsdk
+        env:
+          GOTOOLCHAIN: local
+        run: go test -race ./codexsdk/...
+
+  generated-reproducibility:
+    name: Codex generated reproducibility
+    uses: ./.github/workflows/verify-generated.yml

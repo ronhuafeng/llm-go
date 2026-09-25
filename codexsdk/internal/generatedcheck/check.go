@@ -173,31 +173,25 @@ func generateArtifacts(moduleRoot string) (generatedSet, error) {
 	if err != nil {
 		return generatedSet{}, err
 	}
-	if err := protocolgen.ApplyWireMessageRoles(&typePlan, manifest); err != nil {
-		return generatedSet{}, err
-	}
-	protocolTypesSource, err := protocolgen.GenerateProtocolTypes(typePlan)
+	generated, err := protocolgen.BuildProtocolPackage(typePlan, manifest, filepath.Join(moduleRoot, "protocolv2"))
 	if err != nil {
 		return generatedSet{}, err
 	}
-	methodRegistrySource, err := protocolgen.GenerateMethodRegistry(manifest)
+	files, err := FilesFromPackage(moduleRoot, manifest, generated)
 	if err != nil {
 		return generatedSet{}, err
 	}
-	experimentalMembers, err := protocolgen.GenerateExperimentalMembers(manifest)
+	return generatedSet{methodRegistry: files[methodRegistry], protocolTypes: files[protocolTypes], experimentalMembers: files[experimentalMem], sdkSurface: files[sdkSurface]}, nil
+}
+
+// FilesFromPackage completes the SDK facade from a constructed protocol package.
+// It never rereads schemas or regenerates protocol declarations.
+func FilesFromPackage(moduleRoot string, manifest protocolgen.Manifest, generated protocolgen.ProtocolPackage) (map[string][]byte, error) {
+	sdk, err := protocolgen.GenerateSDKSurface(moduleRoot, manifest, generated.MethodConstants, generated.TypeNames)
 	if err != nil {
-		return generatedSet{}, err
+		return nil, err
 	}
-	sdkSurfaceSource, err := GenerateSDKSurface(manifest, methodRegistrySource, protocolTypesSource)
-	if err != nil {
-		return generatedSet{}, err
-	}
-	return generatedSet{
-		methodRegistry:      methodRegistrySource,
-		protocolTypes:       protocolTypesSource,
-		experimentalMembers: experimentalMembers,
-		sdkSurface:          sdkSurfaceSource,
-	}, nil
+	return map[string][]byte{methodRegistry: generated.MethodRegistry, protocolTypes: generated.ProtocolTypes, experimentalMem: generated.ExperimentalMembers, sdkSurface: sdk}, nil
 }
 
 func loadBaselineMetadata(path string) (baselineMetadata, error) {
@@ -250,5 +244,30 @@ func scanBaselinePathLeaks(root string) ([]string, error) {
 }
 
 func mismatchDiagnostic(rel string, want, got []byte) string {
-	return fmt.Sprintf("%s mismatch: checked-in sha256=%x generated sha256=%x", rel, sha256.Sum256(want), sha256.Sum256(got))
+	diagnostic := fmt.Sprintf("%s mismatch: checked-in sha256=%x generated sha256=%x", rel, sha256.Sum256(want), sha256.Sum256(got))
+	if line, wantLine, gotLine, ok := firstTextMismatch(want, got); ok {
+		diagnostic += fmt.Sprintf("; first difference line %d: checked-in=%q generated=%q", line, wantLine, gotLine)
+	}
+	return diagnostic
+}
+
+func firstTextMismatch(want, got []byte) (int, string, string, bool) {
+	wantLines := strings.Split(string(want), "\n")
+	gotLines := strings.Split(string(got), "\n")
+	limit := len(wantLines)
+	if len(gotLines) < limit {
+		limit = len(gotLines)
+	}
+	for index := 0; index < limit; index++ {
+		if wantLines[index] != gotLines[index] {
+			return index + 1, wantLines[index], gotLines[index], true
+		}
+	}
+	if len(wantLines) == len(gotLines) {
+		return 0, "", "", false
+	}
+	if len(wantLines) > limit {
+		return limit + 1, wantLines[limit], "<missing>", true
+	}
+	return limit + 1, "<missing>", gotLines[limit], true
 }

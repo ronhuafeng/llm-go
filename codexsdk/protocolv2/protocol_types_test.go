@@ -4436,7 +4436,7 @@ func TestGeneratedConfigReadResponseRejectsMalformedProtocol(t *testing.T) {
 		t.Fatalf("unexpected invalid reasoning summary marshal error: %v", err)
 	}
 
-	var appConfig AppConfig
+	var appConfig AppsDefaultConfig
 	err = json.Unmarshal([]byte(`{"default_tools_approval_mode":"manual"}`), &appConfig)
 	if err == nil {
 		t.Fatal("expected invalid app tool approval to fail")

@@ -9,7 +9,7 @@
     "codex_version": "codex-cli 0.154.0",
     "generator": "cargo",
     "generator_detail": "codex app-server generate-json-schema --experimental --out internal/protocolschema/appserver/v2",
-    "schema_bundle_sha256": "944978fb58c64ccf40160a80d91db1d342085bdc0094b151c618b4cdb1df858a",
+    "schema_bundle_sha256": "892d0ef7f9b6b5bb2e5d91f0646523a927f02182aead1204cfff81750c30e159",
     "canonical_json_note": "Schema comparisons use canonical JSON; object member ordering is irrelevant."
   },
   "file_diff": {
@@ -18,11 +18,11 @@
     "removed": []
   },
   "method_diff": {
-    "ClientRequest.json": {
+    "ClientNotification.json": {
       "added": [],
       "removed": []
     },
-    "ServerRequest.json": {
+    "ClientRequest.json": {
       "added": [],
       "removed": []
     },
@@ -30,88 +30,22 @@
       "added": [],
       "removed": []
     },
-    "ClientNotification.json": {
+    "ServerRequest.json": {
       "added": [],
       "removed": []
     }
   },
   "matrix_update_skeleton": "matrix_update_skeleton.json",
   "generated_compatibility": {
-    "policy": "go_source_compatibility_with_classification_metadata",
-    "compatibility_impact": "additive_or_metadata_only",
-    "release_impact": "additive",
-    "added": [
-      {
-        "kind": "field",
-        "name": "UserVerificationProof.CredentialID",
-        "classification": "experimental",
-        "signature": "string `json:\"credentialId\"`"
-      },
-      {
-        "kind": "field",
-        "name": "UserVerificationProof.Signature",
-        "classification": "experimental",
-        "signature": "string `json:\"signature\"`"
-      },
-      {
-        "kind": "field",
-        "name": "UserVerificationVerifyResponse.Proof",
-        "classification": "experimental",
-        "signature": "UserVerificationProof `json:\"proof\"`"
-      },
-      {
-        "kind": "method",
-        "name": "UserVerificationProof.UnmarshalJSON",
-        "classification": "experimental",
-        "signature": "func(data []byte) error"
-      },
-      {
-        "kind": "method",
-        "name": "UserVerificationVerifyResponse.UnmarshalJSON",
-        "classification": "experimental",
-        "signature": "func(data []byte) error"
-      },
-      {
-        "kind": "type",
-        "name": "UserVerificationProof",
-        "classification": "experimental",
-        "signature": "struct {\n\tCredentialID string `json:\"credentialId\"`\n\tSignature    string `json:\"signature\"`\n}"
-      },
-      {
-        "kind": "type",
-        "name": "UserVerificationVerifyResponse",
-        "classification": "experimental",
-        "signature": "struct {\n\tProof UserVerificationProof `json:\"proof\"`\n}"
-      }
-    ],
-    "removed": [],
-    "reclassified": [],
+    "added": [],
     "changed": [],
+    "compatibility_impact": "additive_or_metadata_only",
     "external_implementation_obligations": [],
-    "weakened_support": [],
+    "policy": "go_source_compatibility_with_classification_metadata",
+    "reclassified": [],
+    "release_impact": "metadata-only",
+    "removed": [],
     "strengthened_support": [],
-    "counts_by_classification": {
-      "stable": {
-        "added": 0,
-        "removed": 0,
-        "changed": 0,
-        "reclassified_from": 0,
-        "reclassified_to": 0
-      },
-      "experimental": {
-        "added": 7,
-        "removed": 0,
-        "changed": 0,
-        "reclassified_from": 0,
-        "reclassified_to": 0
-      },
-      "mixed": {
-        "added": 0,
-        "removed": 0,
-        "changed": 0,
-        "reclassified_from": 0,
-        "reclassified_to": 0
-      }
-    }
+    "weakened_support": []
   }
 }

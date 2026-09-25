@@ -1,35 +1,41 @@
 ---
 name: codexsdk-sync-upstream
-description: Make the minimal codexsdk source and test changes required by an already-observed Codex App Server protocol drift. The Go protocol-sync owner already selected and applied the target. The workflow owns the Agent invocation and whether publication runs.
+description: Make the minimal codexsdk handwritten source and test changes required when read-only planning finds an unresolved Codex App Server protocol incompatibility. The Go protocol-sync owner already selected and generated the exact candidate; the workflow re-plans and applies it after this one pass.
 ---
 
 # Codex SDK Upstream Sync
 
-Use this skill only for implementation work after a Codex App Server protocol
-change has been selected and compared.
+Use this skill only after the Go protocol-sync owner has selected an exact
+Codex App Server target, generated its candidate, and returned a concrete
+`semantic_unresolved` planning result.
 
 ## Contract
 
 The caller/workflow owns:
 
-- invoking the Go-native protocol-sync owner for the selected upstream target,
-  candidate generation, mechanical updates, and deterministic verification;
-- whether publication runs after those checks succeed.
+- exact upstream target selection and candidate generation;
+- the first read-only plan;
+- re-planning the same candidate after this pass;
+- deterministic application only after the re-plan succeeds;
+- final deterministic verification and publication authorization.
 
-You own one targeted implementation pass on the current `codexsdk` worktree.
+You own one targeted handwritten implementation pass on the current `codexsdk`
+worktree.
 
-1. Read the drift/candidate/test information supplied by the caller.
-2. Inspect the current worktree and affected `codexsdk` code/tests.
-3. Make only changes justified by the observed protocol drift.
-4. Add or update focused tests when handwritten behavior changes.
-5. Use the repository's canonical generators/checkers; do not hand-edit generated
-   files when a generator owns them.
+1. Read the supplied target, candidate, stage/path, and failure reason.
+2. Inspect only the affected `codexsdk` generator/semantic source and focused tests.
+3. Change the smallest handwritten owner that makes the supplied candidate
+   mechanically representable without weakening wire meaning.
+4. Add or update focused tests for the changed rule.
+5. Do not hand-edit generated protocol/schema outputs; the workflow applies them
+   only after the second plan succeeds.
 6. Run focused local Go checks when useful, but do not certify success. The
-   workflow runs the final deterministic acceptance set.
+   workflow owns re-plan, apply, and final deterministic acceptance.
 7. Leave changes unstaged and uncommitted.
 
-If the supplied target or drift information is insufficient, stop rather than
-resolving a different target or inventing missing facts.
+If the evidence is insufficient, or the required change would alter product
+intent rather than generator/semantic representation, stop rather than selecting
+another target or inventing missing facts.
 
 ## Boundaries
 

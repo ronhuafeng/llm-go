@@ -3,11 +3,69 @@ package protocolgen
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestGenerateProtocolTypesClassifiesSelectedUnsupportedDefinition(t *testing.T) {
+	falseSchema := false
+	plan := ProtocolTypePlan{Types: []TypePlan{{
+		Kind: TypePlanObjectStructCandidate, SchemaPath: "Arbitrary.json", TypeName: "Arbitrary",
+		GeneratedDefinitions: map[string]bool{"Odd/Name": true},
+		Schema: &Schema{
+			Type:        SchemaTypeSet{Values: []string{"object"}},
+			Definitions: map[string]*Schema{"Odd/Name": {Bool: &falseSchema}},
+		},
+	}}}
+	_, err := GenerateProtocolTypes(plan)
+	var unsupported *UnsupportedSchemaError
+	if !errors.As(err, &unsupported) || unsupported.Path != "Arbitrary.json#/definitions/Odd~1Name" {
+		t.Fatalf("error = %v, want selected definition pointer", err)
+	}
+}
+
+func TestGeneratedPackageReportsSourceForHandwrittenName(t *testing.T) {
+	plan := ProtocolTypePlan{Types: []TypePlan{{
+		Kind: TypePlanObjectStructCandidate, SchemaPath: "Clashing.json", TypeName: "JSONValue",
+		Schema: &Schema{
+			Type: SchemaTypeSet{Values: []string{"object"}},
+			Properties: map[string]*Schema{
+				"value": {Type: SchemaTypeSet{Values: []string{"string"}}},
+			},
+		},
+	}}}
+	_, err := BuildProtocolPackage(plan, Manifest{}, filepath.Join("..", "..", "protocolv2"))
+	var unsupported *UnsupportedSchemaError
+	if !errors.As(err, &unsupported) || unsupported.Path != "Clashing.json" {
+		t.Fatalf("error = %v, want selected schema source path", err)
+	}
+}
+
+func TestGenerateProtocolTypesPreservesDashAndUnicodeFieldNames(t *testing.T) {
+	plan := ProtocolTypePlan{Types: []TypePlan{{
+		Kind: TypePlanObjectStructCandidate, SchemaPath: "Example.json", TypeName: "Example",
+		Schema: &Schema{Type: SchemaTypeSet{Values: []string{"object"}}, Properties: map[string]*Schema{
+			"-": {Type: SchemaTypeSet{Values: []string{"string"}}},
+			"é": {Type: SchemaTypeSet{Values: []string{"string"}}},
+		}},
+		Fields: []FieldPlan{
+			{FieldName: "-", GoType: "string", Kind: FieldPlanScalar, Required: true, Path: "Example.json#/properties/-"},
+			{FieldName: "é", GoType: "string", Kind: FieldPlanScalar, Required: true, Path: "Example.json#/properties/é"},
+		},
+	}}}
+	generated, err := GenerateProtocolTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Field string `json:\"-,\"`", "`json:\"é\"`", "\tÉ"} {
+		if !strings.Contains(string(generated), want) {
+			t.Fatalf("generated protocol type lacks %q", want)
+		}
+	}
+}
 
 func TestGenerateProtocolTypesMatchesCheckedInOutput(t *testing.T) {
 	schemaRoot := filepath.Join("..", "protocolschema", "appserver", "v2")
@@ -83,10 +141,17 @@ func TestJSONRPCMessageIsNotPublicGeneratedSurface(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	traceContextFound := false
 	for _, typ := range selected {
 		if strings.HasPrefix(typ.TypeName, "JSONRPC") {
 			t.Fatalf("JSON-RPC envelope type %s must not be public generated protocolv2 surface", typ.TypeName)
 		}
+		if typ.TypeName == "W3cTraceContext" {
+			traceContextFound = true
+		}
+	}
+	if !traceContextFound {
+		t.Fatal("reachable JSON-RPC trace context is missing from generated protocolv2 surface")
 	}
 }
 
@@ -109,7 +174,7 @@ func TestGeneratedDefinitionSourcesStayCanonical(t *testing.T) {
 			continue
 		}
 		for name, schema := range typ.Schema.Definitions {
-			kind, ok := selectedGeneratedDefinitionKindForTest(typ.SchemaPath, name, schema)
+			kind, ok := selectedGeneratedDefinitionKindForTest(typ, name, schema)
 			if !ok {
 				continue
 			}
@@ -418,11 +483,8 @@ func encodedSchema(t *testing.T, schema *Schema) []byte {
 	return raw
 }
 
-func selectedGeneratedDefinitionKindForTest(schemaPath string, name string, schema *Schema) (string, bool) {
-	if isImplicitGeneratedStringEnumDefinitionSchema(schema) {
-		return string(generatedDefinitionStringEnum), true
-	}
-	if !isReviewedGeneratedDefinition(schemaPath, name) {
+func selectedGeneratedDefinitionKindForTest(typ TypePlan, name string, schema *Schema) (string, bool) {
+	if !isGeneratedDefinitionSelected(typ, name) {
 		return "", false
 	}
 	kind := classifyGeneratedDefinition(schema)
@@ -1882,9 +1944,10 @@ func TestFirstPassTypesIncludeReviewedRPCDependencies(t *testing.T) {
 
 func TestGeneratedDefinitionSelectionFollowsSchemaShape(t *testing.T) {
 	objectParent := TypePlan{
-		SchemaPath: "v2/ThreadStartParams.json",
-		Stability:  "stable",
-		TypeName:   "ThreadStartParams",
+		GeneratedDefinitions: map[string]bool{"DynamicToolSpec": true},
+		SchemaPath:           "v2/ThreadStartParams.json",
+		Stability:            "stable",
+		TypeName:             "ThreadStartParams",
 		Schema: &Schema{
 			Definitions: map[string]*Schema{
 				"DynamicToolSpec": mustParseSchema(t, `{
@@ -1930,9 +1993,10 @@ func TestGeneratedDefinitionSelectionFollowsSchemaShape(t *testing.T) {
 	}
 
 	unionParent := TypePlan{
-		SchemaPath: "v2/ThreadStartParams.json",
-		Stability:  "stable",
-		TypeName:   "ThreadStartParams",
+		GeneratedDefinitions: map[string]bool{"DynamicToolSpec": true},
+		SchemaPath:           "v2/ThreadStartParams.json",
+		Stability:            "stable",
+		TypeName:             "ThreadStartParams",
 		Schema: &Schema{
 			Definitions: map[string]*Schema{
 				"DynamicToolSpec": mustParseSchema(t, `{
@@ -1984,6 +2048,55 @@ func TestGeneratedDefinitionSelectionFollowsSchemaShape(t *testing.T) {
 	}
 }
 
+func TestGeneratedDefinitionNameResolverReusesEquivalentTopLevelType(t *testing.T) {
+	topLevelSchema := mustParseSchema(t, `{
+		"title": "RequestId",
+		"anyOf": [
+			{"type": "string"},
+			{"type": "integer", "format": "int64"}
+		]
+	}`)
+	definitionSchema := mustParseSchema(t, `{
+		"anyOf": [
+			{"type": "string"},
+			{"type": "integer", "format": "int64"}
+		]
+	}`)
+	plan := ProtocolTypePlan{Types: []TypePlan{
+		{
+			Kind:       TypePlanScalarUnionCandidate,
+			SchemaPath: "RequestId.json",
+			TypeName:   "RequestId",
+			Schema:     topLevelSchema,
+		},
+		{
+			GeneratedDefinitions: map[string]bool{"RequestId": true},
+			SchemaPath:           "v2/ServerRequestResolvedNotification.json",
+			TypeName:             "ServerRequestResolvedNotification",
+			Schema: &Schema{Definitions: map[string]*Schema{
+				"RequestId": definitionSchema,
+			}},
+		},
+	}}
+	resolver, err := newGeneratedDefinitionNameResolver(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := resolver.NameForDefinition("v2/ServerRequestResolvedNotification.json", "RequestId"); !ok || got != "RequestId" {
+		t.Fatalf("local RequestId resolved to %q, ok=%t", got, ok)
+	}
+	if !resolver.ReusesTopLevel("v2/ServerRequestResolvedNotification.json", "RequestId") {
+		t.Fatal("equivalent local RequestId must reuse the top-level generated type")
+	}
+	unions, err := SelectGeneratedScalarUnions(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(unions) != 1 || unions[0].TypeName != "RequestId" {
+		t.Fatalf("scalar unions = %#v, want one top-level RequestId", unions)
+	}
+}
+
 func TestGeneratedDefinitionNameResolverReusesSameNameSameShape(t *testing.T) {
 	schema := mustParseSchema(t, `{
 		"type": "string",
@@ -2010,6 +2123,29 @@ func TestGeneratedDefinitionNameResolverReusesSameNameSameShape(t *testing.T) {
 		if got, ok := resolver.NameForDefinition(path, "ReasoningEffort"); !ok || got != "ReasoningEffort" {
 			t.Fatalf("%s ReasoningEffort resolved to %q, ok=%t", path, got, ok)
 		}
+	}
+}
+
+func TestReachableScalarAliasUsesExistingScalarNormalization(t *testing.T) {
+	parent := TypePlan{
+		GeneratedDefinitions: map[string]bool{"AbsolutePathBuf": true},
+		SchemaPath:           "v2/ExampleResponse.json",
+		TypeName:             "ExampleResponse",
+		Schema: &Schema{Definitions: map[string]*Schema{
+			"AbsolutePathBuf": {
+				Type: SchemaTypeSet{Values: []string{"string"}},
+			},
+		}},
+	}
+	if isGeneratedDefinitionSelected(parent, "AbsolutePathBuf") {
+		t.Fatal("reachable AbsolutePathBuf must stay normalized to string")
+	}
+	aliases, err := SelectGeneratedScalarAliases(ProtocolTypePlan{Types: []TypePlan{parent}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(aliases) != 0 {
+		t.Fatalf("normalized scalar alias was generated: %#v", aliases)
 	}
 }
 
@@ -2374,6 +2510,297 @@ func TestGeneratedTypeSelectionResolvesEnumStructNameCollision(t *testing.T) {
 	}
 }
 
+func TestProtocolGeneratorHasNoDefinitionAdmissionCatalogue(t *testing.T) {
+	for _, path := range []string{"type_plan.go", "protocol_types.go"} {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := string(raw)
+		for _, forbidden := range []string{
+			"isReviewedGeneratedDefinition",
+			"isGeneratedDefinitionScalarAliasCheckpoint",
+			"isGeneratedDefinitionScalarUnionCheckpoint",
+			"isGeneratedDefinitionStringEnumCheckpoint",
+			"isGeneratedDefinitionStructCheckpoint",
+			"isGeneratedDefinitionTaggedUnionCheckpoint",
+			"isGeneratedDefinitionMixedUnionCheckpoint",
+			"isGeneratedDefinitionUntaggedObjectUnionCheckpoint",
+			"isGeneratedTaggedUnionCheckpoint",
+			"isGeneratedScalarUnionCheckpoint",
+			"reviewedMixedUnionStructDependencyNames",
+			"reviewedTaggedUnionStructDependencyNames",
+		} {
+			if strings.Contains(text, forbidden) {
+				t.Fatalf("%s reintroduced legacy generated-definition admission %q", path, forbidden)
+			}
+		}
+	}
+}
+
+func TestFormerCheckpointNameDoesNotBypassReachability(t *testing.T) {
+	parent := TypePlan{
+		GeneratedRoot: true,
+		Status:        "supported-generated",
+		SchemaPath:    "v2/ThreadStartParams.json",
+		TypeName:      "ThreadStartParams",
+		Schema: &Schema{
+			Type: SchemaTypeSet{Values: []string{"object"}},
+			Definitions: map[string]*Schema{
+				"ReasoningEffort": {
+					Type: SchemaTypeSet{Values: []string{"string"}},
+				},
+			},
+		},
+	}
+	aliases, err := SelectGeneratedScalarAliases(ProtocolTypePlan{Types: []TypePlan{parent}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(aliases) != 0 {
+		t.Fatalf("unreachable former checkpoint definition was generated: %#v", aliases)
+	}
+
+	parent.GeneratedDefinitions = map[string]bool{"ReasoningEffort": true}
+	aliases, err = SelectGeneratedScalarAliases(ProtocolTypePlan{Types: []TypePlan{parent}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(aliases) != 1 || aliases[0].TypeName != "ReasoningEffort" {
+		t.Fatalf("reachable definition did not generate from schema shape: %#v", aliases)
+	}
+}
+
+func TestFirstPassSelectionIncludesReachableDefinitionWithoutCheckpoint(t *testing.T) {
+	trueValue := true
+	childSchema := &Schema{
+		Type:     SchemaTypeSet{Values: []string{"object"}},
+		Required: []string{"payload"},
+		Properties: map[string]*Schema{
+			"payload": {Bool: &trueValue},
+		},
+	}
+	parent := TypePlan{
+		GeneratedDefinitions: map[string]bool{"Child": true},
+		Kind:                 TypePlanObjectStructCandidate,
+		SchemaPath:           "Example.json",
+		TypeName:             "Example",
+		Schema: &Schema{
+			Type:        SchemaTypeSet{Values: []string{"object"}},
+			Definitions: map[string]*Schema{"Child": childSchema},
+		},
+		Fields: []FieldPlan{{
+			FieldName:  "child",
+			GoType:     "Child",
+			Kind:       FieldPlanRef,
+			Path:       "Example.json#/properties/child",
+			RefPath:    "Example.json#/definitions/Child",
+			Required:   true,
+			SchemaPath: "Example.json",
+			TypeName:   "Example",
+		}},
+	}
+	plan := ProtocolTypePlan{Types: []TypePlan{parent}}
+	resolver, err := newGeneratedDefinitionNameResolver(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolveProtocolTypePlanRefs(&plan, resolver)
+	selected, err := SelectFirstPassGeneratedTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := map[string]bool{}
+	for _, typ := range selected {
+		names[typ.TypeName] = true
+	}
+	if !names["Child"] || !names["Example"] {
+		t.Fatalf("reachable definition closure not generated: %#v", names)
+	}
+}
+
+func TestDefinitionCandidateDedupeAcceptsIdenticalTaggedUnions(t *testing.T) {
+	tagged := func() *Schema {
+		return &Schema{
+			OneOf: []*Schema{{
+				Type:     SchemaTypeSet{Values: []string{"object"}},
+				Required: []string{"type"},
+				Properties: map[string]*Schema{
+					"type": {Type: SchemaTypeSet{Values: []string{"string"}}, Enum: []string{"command"}},
+				},
+			}},
+		}
+	}
+	candidates := []TypePlan{
+		{Kind: TypePlanTaggedUnionCandidate, SchemaPath: "A.json#/definitions/CommandAction", TypeName: "CommandAction", Schema: tagged()},
+		{Kind: TypePlanTaggedUnionCandidate, SchemaPath: "B.json#/definitions/CommandAction", TypeName: "CommandAction", Schema: tagged()},
+	}
+	deduped, err := dedupeDefinitionTypeCandidates(candidates)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(deduped) != 1 || deduped[0].TypeName != "CommandAction" {
+		t.Fatalf("deduped tagged definitions = %#v", deduped)
+	}
+}
+
+func TestFirstPassSelectionDeduplicatesIdenticalReachableDefinitions(t *testing.T) {
+	trueValue := true
+	threadAttachment := func() *Schema {
+		return &Schema{
+			Type:     SchemaTypeSet{Values: []string{"object"}},
+			Required: []string{"payload"},
+			Properties: map[string]*Schema{
+				"payload": {Bool: &trueValue},
+			},
+		}
+	}
+	parent := func(schemaPath, typeName string) TypePlan {
+		return TypePlan{
+			GeneratedDefinitions: map[string]bool{"ThreadAttachment": true},
+			Kind:                 TypePlanObjectStructCandidate,
+			SchemaPath:           schemaPath,
+			TypeName:             typeName,
+			Schema: &Schema{
+				Type:        SchemaTypeSet{Values: []string{"object"}},
+				Definitions: map[string]*Schema{"ThreadAttachment": threadAttachment()},
+			},
+			Fields: []FieldPlan{{
+				FieldName:  "attachment",
+				GoType:     "ThreadAttachment",
+				Kind:       FieldPlanRef,
+				Path:       schemaPath + "#/properties/attachment",
+				RefPath:    schemaPath + "#/definitions/ThreadAttachment",
+				Required:   true,
+				SchemaPath: schemaPath,
+				TypeName:   typeName,
+			}},
+		}
+	}
+	plan := ProtocolTypePlan{Types: []TypePlan{
+		parent("AddResponse.json", "AddResponse"),
+		parent("ListResponse.json", "ListResponse"),
+	}}
+	resolver, err := newGeneratedDefinitionNameResolver(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolveProtocolTypePlanRefs(&plan, resolver)
+	selected, err := SelectFirstPassGeneratedTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for _, typ := range selected {
+		if typ.TypeName == "ThreadAttachment" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("ThreadAttachment generated %d times, want 1: %#v", count, selected)
+	}
+}
+
+func TestThreadAttachmentShapeGeneratesFromReachabilityWithoutCheckpoint(t *testing.T) {
+	root := t.TempDir()
+	write := func(name, contents string) {
+		t.Helper()
+		path := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("coverage_matrix.json", `{
+		"status": "classified-manifest",
+		"types": [
+			{"schema":"v2/ThreadAttachmentAddParams.json","stability":"stable","status":"supported-generated","type":"ThreadAttachmentAddParams"},
+			{"schema":"v2/ThreadAttachmentAddResponse.json","stability":"stable","status":"supported-generated","type":"ThreadAttachmentAddResponse"},
+			{"schema":"v2/ThreadAttachmentListResponse.json","stability":"stable","status":"supported-generated","type":"ThreadAttachmentListResponse"}
+		],
+		"fields": [
+			{"field":"payload","path":"v2/ThreadAttachmentAddParams.json#/properties/payload","required":true,"schema":"v2/ThreadAttachmentAddParams.json","stability":"stable","status":"supported-generated","type":"ThreadAttachmentAddParams"},
+			{"field":"attachment","path":"v2/ThreadAttachmentAddResponse.json#/properties/attachment","required":true,"schema":"v2/ThreadAttachmentAddResponse.json","stability":"stable","status":"supported-generated","type":"ThreadAttachmentAddResponse"},
+			{"field":"outcome","path":"v2/ThreadAttachmentAddResponse.json#/properties/outcome","required":true,"schema":"v2/ThreadAttachmentAddResponse.json","stability":"stable","status":"supported-generated","type":"ThreadAttachmentAddResponse"},
+			{"field":"data","path":"v2/ThreadAttachmentListResponse.json#/properties/data","required":true,"schema":"v2/ThreadAttachmentListResponse.json","stability":"stable","status":"supported-generated","type":"ThreadAttachmentListResponse"}
+		]
+	}`)
+	write("manifest.json", `{
+		"schema_version": 2,
+		"status": "classified-manifest",
+		"surface": [{"kind":"type","name":"ThreadAttachmentAddParams","signature":"struct{Payload JSONValue}","stability":"stable"}],
+		"entries": [
+			{"direction":"client_to_server","facade_status":"generated","facade_target":"Threads().AttachmentAdd","family":"thread","kind":"request","method":"thread/attachment/add","params_or_payload_schema":"ThreadAttachmentAddParams","response_schema":"v2/ThreadAttachmentAddResponse.json","response_schema_status":"declared","response_type":"ThreadAttachmentAddResponse","source_schema":"ClientRequest.json","stability":"stable"},
+			{"direction":"client_to_server","facade_status":"generated","facade_target":"Threads().AttachmentList","family":"thread","kind":"request","method":"thread/attachment/list","params_or_payload_schema":"ThreadAttachmentAddParams","response_schema":"v2/ThreadAttachmentListResponse.json","response_schema_status":"declared","response_type":"ThreadAttachmentListResponse","source_schema":"ClientRequest.json","stability":"stable"}
+		]
+	}`)
+	write("v2/ThreadAttachmentAddParams.json", `{
+		"title":"ThreadAttachmentAddParams",
+		"type":"object",
+		"required":["payload"],
+		"properties":{"payload":true}
+	}`)
+	write("v2/ThreadAttachmentAddResponse.json", `{
+		"title":"ThreadAttachmentAddResponse",
+		"type":"object",
+		"definitions":{
+			"ThreadAttachment":{
+				"type":"object",
+				"required":["payload"],
+				"properties":{"payload":true}
+			},
+			"ThreadAttachmentAddOutcome":{"type":"string","enum":["created","existing"]}
+		},
+		"required":["attachment","outcome"],
+		"properties":{
+			"attachment":{"$ref":"#/definitions/ThreadAttachment"},
+			"outcome":{"$ref":"#/definitions/ThreadAttachmentAddOutcome"}
+		}
+	}`)
+	write("v2/ThreadAttachmentListResponse.json", `{
+		"title":"ThreadAttachmentListResponse",
+		"type":"object",
+		"definitions":{
+			"ThreadAttachment":{
+				"type":"object",
+				"required":["payload"],
+				"properties":{"payload":true}
+			}
+		},
+		"required":["data"],
+		"properties":{
+			"data":{"type":"array","items":{"$ref":"#/definitions/ThreadAttachment"}}
+		}
+	}`)
+
+	plan, err := BuildProtocolTypePlan(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated, err := GenerateProtocolTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(generated)
+	for _, want := range []string{
+		"type ThreadAttachment struct {",
+		"Payload JSONValue `json:\"payload\"`",
+		"type ThreadAttachmentAddOutcome string",
+		"Attachment ThreadAttachment",
+		"`json:\"attachment\"`",
+		"Data []ThreadAttachment",
+		"`json:\"data\"`",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("generated attachment surface missing %q:\n%s", want, text)
+		}
+	}
+	if strings.Count(text, "type ThreadAttachment struct {") != 1 {
+		t.Fatalf("ThreadAttachment struct count = %d, want 1", strings.Count(text, "type ThreadAttachment struct {"))
+	}
+}
 func TestFieldGoNameUsesGoAcronyms(t *testing.T) {
 	cases := map[string]string{
 		"authorizationUrl": "AuthorizationURL",

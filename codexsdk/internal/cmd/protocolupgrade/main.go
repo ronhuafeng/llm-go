@@ -17,12 +17,18 @@ func main() {
 
 func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "protocolupgrade: command is required: sync, compare, apply, check, stage, or publish\n")
+		fmt.Fprintf(stderr, "protocolupgrade: command is required: sync, diagnose, resume, verify-candidate, compare, apply, check, stage, or publish\n")
 		return 2
 	}
 	switch args[0] {
 	case "sync":
-		return runSync(args[1:], stdout, stderr)
+		return runSync(args[1:], stdout, stderr, false)
+	case "diagnose":
+		return runSync(args[1:], stdout, stderr, true)
+	case "resume":
+		return runResume(args[1:], stdout, stderr)
+	case "verify-candidate":
+		return runVerifyCandidate(args[1:], stderr)
 	case "compare":
 		return runCompare(args[1:], stdout, stderr)
 	case "apply":
@@ -37,6 +43,24 @@ func run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "protocolupgrade: unknown command %q\n", args[0])
 		return 2
 	}
+}
+
+func runVerifyCandidate(args []string, stderr io.Writer) int {
+	fs := flag.NewFlagSet("verify-candidate", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	dir := fs.String("candidate-dir", "", "candidate root")
+	digest := fs.String("candidate-sha256", "", "initial candidate digest")
+	ref := fs.String("target-ref", "", "selected upstream ref")
+	kind := fs.String("target-kind", "", "selected upstream kind")
+	sha := fs.String("target-sha", "", "selected upstream commit")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if err := protocolsync.VerifyCandidate(*dir, *digest, *ref, *kind, *sha); err != nil {
+		fmt.Fprintf(stderr, "protocolupgrade verify-candidate: %v\n", err)
+		return 1
+	}
+	return 0
 }
 
 func runCompare(args []string, stdout, stderr io.Writer) int {
@@ -111,12 +135,11 @@ func runApply(args []string, stdout, stderr io.Writer) int {
 	targetKind := fs.String("target-kind", "", "selected upstream ref kind")
 	targetSHA := fs.String("target-sha", "", "selected upstream commit SHA")
 	moduleRoot := fs.String("module-root", ".", "codexsdk module root for generated Go")
-	skipCodegen := fs.Bool("skip-codegen", false, "do not regenerate protocolv2 Go files")
 	jsonOut := fs.Bool("json", false, "print a machine-readable summary")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	result, err := protocolupgrade.Apply(protocolupgrade.ApplyRequest{
+	req := protocolupgrade.ApplyRequest{
 		Baseline:          *baseline,
 		Candidate:         *candidate,
 		StableCandidate:   *stableCandidate,
@@ -128,8 +151,21 @@ func runApply(args []string, stdout, stderr io.Writer) int {
 		TargetKind:        *targetKind,
 		TargetSHA:         *targetSHA,
 		ModuleRoot:        *moduleRoot,
-		SkipCodegen:       *skipCodegen,
-	})
+	}
+	planned, err := protocolupgrade.Plan(req)
+	if err != nil {
+		fmt.Fprintf(stderr, "protocolupgrade apply: plan: %v\n", err)
+		return 1
+	}
+	if planned.Status != protocolupgrade.PlanReady {
+		if planned.Issue != nil {
+			fmt.Fprintf(stderr, "protocolupgrade apply: unresolved %s %s: %s\n", planned.Issue.Stage, planned.Issue.Path, planned.Issue.Reason)
+		} else {
+			fmt.Fprintf(stderr, "protocolupgrade apply: candidate is not ready\n")
+		}
+		return 1
+	}
+	result, err := planned.Apply()
 	if err != nil {
 		fmt.Fprintf(stderr, "protocolupgrade apply: %v\n", err)
 		return 1
@@ -173,8 +209,12 @@ func runCheck(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-func runSync(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("sync", flag.ContinueOnError)
+func runSync(args []string, stdout, stderr io.Writer, diagnostic bool) int {
+	command := "sync"
+	if diagnostic {
+		command = "diagnose"
+	}
+	fs := flag.NewFlagSet(command, flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	repoRoot := fs.String("repo-root", "", "repository root")
 	moduleRoot := fs.String("module-root", "", "codexsdk module root")
@@ -182,12 +222,14 @@ func runSync(args []string, stdout, stderr io.Writer) int {
 	upstreamRef := fs.String("upstream-ref", "", "optional tag, ref, or full SHA; empty selects the latest stable rust-vX.Y.Z tag")
 	allowDowngrade := fs.Bool("allow-downgrade", false, "allow an explicit older stable tag")
 	forceCompare := fs.Bool("force-compare", false, "generate and compare even when the baseline already matches")
+	validationOnly := fs.Bool("validation-only", false, "verify the exact accepted baseline without applying or publishing")
 	eventName := fs.String("event-name", "", "GitHub event name for scheduled vs manual policy")
+	jsonOut := fs.Bool("json", false, "print a machine-readable result")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	if *repoRoot == "" {
-		fmt.Fprintf(stderr, "protocolupgrade sync: -repo-root is required\n")
+		fmt.Fprintf(stderr, "protocolupgrade %s: -repo-root is required\n", command)
 		return 2
 	}
 	result, err := protocolsync.Sync(protocolsync.SyncRequest{
@@ -197,19 +239,65 @@ func runSync(args []string, stdout, stderr io.Writer) int {
 		UpstreamRef:    *upstreamRef,
 		AllowDowngrade: *allowDowngrade,
 		ForceCompare:   *forceCompare,
+		ValidationOnly: *validationOnly,
+		Diagnostic:     diagnostic,
 		EventName:      *eventName,
 	})
+	if *jsonOut {
+		if encodeErr := encodeJSON(stdout, result); encodeErr != nil {
+			fmt.Fprintf(stderr, "protocolupgrade %s: %v\n", command, encodeErr)
+			if err == nil {
+				err = encodeErr
+			}
+		}
+	}
 	if writeErr := protocolsync.WriteGitHubOutput(os.Getenv("GITHUB_OUTPUT"), result); writeErr != nil {
-		fmt.Fprintf(stderr, "protocolupgrade sync: write github output: %v\n", writeErr)
+		fmt.Fprintf(stderr, "protocolupgrade %s: write github output: %v\n", command, writeErr)
 		if err == nil {
 			err = writeErr
 		}
 	}
 	if err != nil {
-		fmt.Fprintf(stderr, "protocolupgrade sync: %v\n", err)
+		fmt.Fprintf(stderr, "protocolupgrade %s: %v\n", command, err)
 		return 1
 	}
-	fmt.Fprintf(stderr, "protocolupgrade sync: %s\n", result.Reason)
+	fmt.Fprintf(stderr, "protocolupgrade %s: %s\n", command, result.Reason)
+	return 0
+}
+
+func runResume(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("resume", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	repoRoot := fs.String("repo-root", "", "repository root")
+	moduleRoot := fs.String("module-root", "", "codexsdk module root")
+	candidateDir := fs.String("candidate-dir", "", "existing candidate root from the initial sync plan")
+	candidateSHA256 := fs.String("candidate-sha256", "", "sha256 of the complete initial candidate set")
+	targetRef := fs.String("target-ref", "", "selected upstream ref name")
+	targetKind := fs.String("target-kind", "", "selected upstream ref kind")
+	targetSHA := fs.String("target-sha", "", "selected upstream commit SHA")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	result, err := protocolsync.Resume(protocolsync.ResumeRequest{
+		RepoRoot:        *repoRoot,
+		ModuleRoot:      *moduleRoot,
+		CandidateDir:    *candidateDir,
+		CandidateSHA256: *candidateSHA256,
+		TargetRef:       *targetRef,
+		TargetKind:      *targetKind,
+		TargetSHA:       *targetSHA,
+	})
+	if writeErr := protocolsync.WriteGitHubOutput(os.Getenv("GITHUB_OUTPUT"), result); writeErr != nil {
+		fmt.Fprintf(stderr, "protocolupgrade resume: write github output: %v\n", writeErr)
+		if err == nil {
+			err = writeErr
+		}
+	}
+	if err != nil {
+		fmt.Fprintf(stderr, "protocolupgrade resume: %v\n", err)
+		return 1
+	}
+	fmt.Fprintf(stderr, "protocolupgrade resume: %s\n", result.Reason)
 	return 0
 }
 

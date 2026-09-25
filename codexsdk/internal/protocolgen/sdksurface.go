@@ -1,4 +1,4 @@
-package generatedcheck
+package protocolgen
 
 import (
 	"fmt"
@@ -6,22 +6,14 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-
-	"github.com/ronhuafeng/llm-go/codexsdk/internal/protocolgen"
-)
-
-const (
-	facadeStatusGenerated = "generated"
-	facadeStatusDeferred  = "deferred_missing_generated_types"
 )
 
 var (
 	facadeTargetRE = regexp.MustCompile(`^([A-Za-z][A-Za-z0-9]*)\(\)\.([A-Za-z][A-Za-z0-9]*)$`)
-	methodConstRE  = regexp.MustCompile(`(?m)^\s*(Method[A-Za-z0-9]+)\s+=\s+"([^"]+)"`)
-	typeDeclRE     = regexp.MustCompile(`(?m)^type\s+([A-Za-z][A-Za-z0-9]*)\b`)
 )
 
 type surfaceMethod struct {
+	sourcePath   string
 	accessor     string
 	operation    string
 	method       string
@@ -30,19 +22,12 @@ type surfaceMethod struct {
 	responseType string
 }
 
-// GenerateSDKSurface renders the public generated facade from classified manifest facts.
-func GenerateSDKSurface(manifest protocolgen.Manifest, methodRegistry, protocolTypes []byte) ([]byte, error) {
-	methodConsts := map[string]string{}
-	for _, match := range methodConstRE.FindAllSubmatch(methodRegistry, -1) {
-		methodConsts[string(match[2])] = string(match[1])
-	}
-	typeNames := map[string]bool{}
-	for _, match := range typeDeclRE.FindAllSubmatch(protocolTypes, -1) {
-		typeNames[string(match[1])] = true
-	}
+// GenerateSDKSurface derives the public facade from current manifest routing facts and generated protocol prerequisites.
+// FacadeStatus is retained as manifest metadata for compatibility but does not authorize or suppress generation.
+func GenerateSDKSurface(handwrittenDir string, manifest Manifest, methodConsts map[string]string, typeNames map[string]bool) ([]byte, error) {
 
 	var methods []surfaceMethod
-	seen := map[string]bool{}
+	seen := map[string]string{}
 	for _, entry := range manifest.Entries {
 		if entry.Direction != "client_to_server" || entry.Kind != "request" {
 			continue
@@ -52,7 +37,10 @@ func GenerateSDKSurface(manifest protocolgen.Manifest, methodRegistry, protocolT
 		}
 		match := facadeTargetRE.FindStringSubmatch(entry.FacadeTarget)
 		if match == nil {
-			return nil, fmt.Errorf("invalid generated facade target %q for method %q", entry.FacadeTarget, entry.Method)
+			return nil, &UnsupportedSchemaError{
+				Path: facadeSourcePath(entry),
+				Err:  fmt.Errorf("invalid generated facade target %q for method %q", entry.FacadeTarget, entry.Method),
+			}
 		}
 		accessor, operation := match[1], match[2]
 		methodConst := methodConsts[entry.Method]
@@ -70,25 +58,26 @@ func GenerateSDKSurface(manifest protocolgen.Manifest, methodRegistry, protocolT
 				missing = append(missing, "response type "+entry.ResponseType)
 			}
 		}
-		switch entry.FacadeStatus {
-		case facadeStatusDeferred:
-			if len(missing) == 0 {
-				return nil, fmt.Errorf("deferred facade method %q has all generated prerequisites; mark it generated", entry.Method)
+		if len(missing) > 0 {
+			path := facadeSourcePath(entry)
+			if (entry.ResponseType == "" || !typeNames[entry.ResponseType]) && entry.ResponseSchema != "" {
+				path = entry.ResponseSchema
 			}
-			continue
-		case facadeStatusGenerated:
-			if len(missing) > 0 {
-				return nil, fmt.Errorf("generated facade method %q is missing %s", entry.Method, strings.Join(missing, ", "))
+			return nil, &UnsupportedSchemaError{
+				Path: path,
+				Err:  fmt.Errorf("facade method %q is missing current generated prerequisites: %s", entry.Method, strings.Join(missing, ", ")),
 			}
-		default:
-			return nil, fmt.Errorf("facade method %q has invalid or missing facade_status %q", entry.Method, entry.FacadeStatus)
 		}
 		key := accessor + "\x00" + operation
-		if seen[key] {
-			return nil, fmt.Errorf("duplicate facade operation %s().%s", accessor, operation)
+		if previous := seen[key]; previous != "" {
+			return nil, &UnsupportedSchemaError{
+				Path: facadeSourcePath(entry),
+				Err:  fmt.Errorf("facade operation %s().%s maps both %q and %q", accessor, operation, previous, entry.Method),
+			}
 		}
-		seen[key] = true
+		seen[key] = entry.Method
 		methods = append(methods, surfaceMethod{
+			sourcePath:   facadeSourcePath(entry),
 			accessor:     accessor,
 			operation:    operation,
 			method:       entry.Method,
@@ -123,8 +112,13 @@ func GenerateSDKSurface(manifest protocolgen.Manifest, methodRegistry, protocolT
 		}
 		byAccessor[method.accessor] = append(byAccessor[method.accessor], method)
 	}
+	knownSources := map[string][]string{}
 	sort.Strings(accessors)
 	for _, accessor := range accessors {
+		for _, method := range byAccessor[accessor] {
+			knownSources["sdk_surface.gen.go:type:"+accessor] = append(knownSources["sdk_surface.gen.go:type:"+accessor], method.sourcePath)
+			knownSources["sdk_surface.gen.go:func:Client."+accessor] = append(knownSources["sdk_surface.gen.go:func:Client."+accessor], method.sourcePath)
+		}
 		b.WriteString("// " + accessor + " is an opaque generated facade for exact Codex operations.\n")
 		b.WriteString("type " + accessor + " struct {\n")
 		b.WriteString("\tclient *Client\n")
@@ -134,6 +128,7 @@ func GenerateSDKSurface(manifest protocolgen.Manifest, methodRegistry, protocolT
 		b.WriteString("}\n\n")
 	}
 	for _, method := range methods {
+		knownSources["sdk_surface.gen.go:func:"+method.accessor+"."+method.operation] = []string{method.sourcePath}
 		if method.paramsType != "" {
 			fmt.Fprintf(&b, "func (f %s) %s(ctx context.Context, params protocolv2.%s) (protocolv2.%s, error) {\n", method.accessor, method.operation, method.paramsType, method.responseType)
 			fmt.Fprintf(&b, "\tvar response protocolv2.%s\n", method.responseType)
@@ -155,7 +150,17 @@ func GenerateSDKSurface(manifest protocolgen.Manifest, methodRegistry, protocolT
 
 	formatted, err := format.Source([]byte(b.String()))
 	if err != nil {
-		return nil, fmt.Errorf("format generated sdk surface: %w", err)
+		return nil, &UnsupportedSchemaError{Path: "sdk_surface.gen.go", Err: fmt.Errorf("format generated sdk surface: %w", err)}
+	}
+	if err := validateGeneratedPackage("codexsdk", handwrittenDir, map[string][]byte{"sdk_surface.gen.go": formatted}, knownSources); err != nil {
+		return nil, err
 	}
 	return formatted, nil
+}
+
+func facadeSourcePath(entry ManifestEntry) string {
+	if entry.SourceSchema != "" {
+		return entry.SourceSchema
+	}
+	return entry.Method
 }

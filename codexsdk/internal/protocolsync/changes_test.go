@@ -33,6 +33,29 @@ func TestAssertCleanAndStagePaths(t *testing.T) {
 	}
 }
 
+func TestValidatePathsAgentAllowsHandwrittenAndRejectsMechanical(t *testing.T) {
+	if err := validatePaths([]string{"codexsdk/client.go", "codexsdk/internal/protocolgen/type_plan.go"}, "agent"); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{
+		"codexsdk/sdk_surface.gen.go",
+		"codexsdk/protocolv2/protocol_types.gen.go",
+		"codexsdk/internal/protocolschema/appserver/v2/manifest.json",
+		"codexsdk/internal/protocolsync/sync.go",
+		"codexsdk/internal/protocolsync/changes.go",
+		"codexsdk/internal/protocolsync/publish.go",
+		"codexsdk/internal/protocolupgrade/plan.go",
+		"codexsdk/internal/protocolupgrade/apply.go",
+		"codexsdk/internal/protocolupgrade/exact.go",
+		"codexsdk/internal/generatedcheck/check.go",
+		"codexsdk/internal/cmd/protocolupgrade/main.go",
+	} {
+		if err := validatePaths([]string{path}, "agent"); err == nil {
+			t.Fatalf("agent path %s should be rejected as mechanical", path)
+		}
+	}
+}
+
 func TestStagePathsRejectsEmptySet(t *testing.T) {
 	repo := initSyncRepo(t, oldSHA, "rust-v0.140.0", KindStableTag)
 	if _, err := StagePaths(repo, "final"); err == nil || !strings.Contains(err.Error(), "empty") {

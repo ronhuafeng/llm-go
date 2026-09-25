@@ -13,11 +13,11 @@ const commonRSRef = "codex-rs/app-server-protocol/src/protocol/common.rs"
 type requestMapping struct {
 	variant      string
 	responseType string
-	experimental bool
 	macroName    string
 }
 
 var requestEntryRE = regexp.MustCompile(`(?s)(?P<prefix>(?:\s*(?:#\[[^\n]*\]|///[^\n]*|//[^\n]*)\n)*)\s*(?P<variant>[A-Za-z][A-Za-z0-9_]*)(?:\s*=>\s*"(?P<wire>[^"]+)")?\s*\{(?P<body>.*?)\n\s*\},`)
+var responseEntryRE = regexp.MustCompile(`response:\s*([^,\n]+)`)
 
 func loadCommonRSSourceSHA(commonRS, explicit string) (string, error) {
 	if explicit != "" {
@@ -74,17 +74,25 @@ func parseRequestMappings(path string) (map[string]requestMapping, error) {
 		for _, match := range requestEntryRE.FindAllStringSubmatch(macroBody, -1) {
 			named := namedGroups(requestEntryRE, match)
 			wire := named["wire"]
+			if wire == "" && macroName == "server_request_definitions" {
+				// This macro uses serde(rename_all = "camelCase") when a
+				// variant has no explicit wire literal.
+				variant := named["variant"]
+				wire = strings.ToLower(variant[:1]) + variant[1:]
+			}
 			if wire == "" {
 				continue
 			}
-			response := regexp.MustCompile(`response:\s*([^,\n]+)`).FindStringSubmatch(named["body"])
+			response := responseEntryRE.FindStringSubmatch(named["body"])
 			if response == nil {
 				continue
+			}
+			if _, duplicate := mappings[wire]; duplicate {
+				return nil, fmt.Errorf("duplicate response mapping for %q", wire)
 			}
 			mappings[wire] = requestMapping{
 				variant:      named["variant"],
 				responseType: responseTypeName(response[1]),
-				experimental: strings.Contains(named["prefix"], "#[experimental"),
 				macroName:    macroName,
 			}
 		}

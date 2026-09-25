@@ -5,41 +5,96 @@ import (
 	"encoding/json"
 	"fmt"
 	"go/format"
+	"go/token"
 	"sort"
 	"strings"
 )
 
 func GenerateProtocolTypes(plan ProtocolTypePlan) ([]byte, error) {
-	if err := validateReviewedGeneratedDefinitionShapes(plan); err != nil {
-		return nil, err
-	}
-	enums, err := SelectGeneratedEnums(plan)
+	c, err := newTypeSelection(plan)
 	if err != nil {
 		return nil, err
 	}
-	scalarAliases, err := SelectGeneratedScalarAliases(plan)
+	return c.generateProtocolTypes()
+}
+
+func (c *typeSelection) generateProtocolTypes() ([]byte, error) {
+	plan := c.plan
+	for _, typ := range plan.Types {
+		if isGeneratedTopLevelType(typ) && !token.IsIdentifier(typ.TypeName) {
+			return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated type name %q is not a Go identifier", typ.TypeName)
+		}
+	}
+	if err := validateGeneratedDefinitionShapes(plan); err != nil {
+		return nil, err
+	}
+	enums, err := c.SelectGeneratedEnums()
 	if err != nil {
 		return nil, err
 	}
-	types, err := SelectFirstPassGeneratedTypes(plan)
+	scalarAliases, err := c.SelectGeneratedScalarAliases()
 	if err != nil {
 		return nil, err
 	}
-	scalarUnions, err := SelectGeneratedScalarUnions(plan)
+	types, err := c.SelectFirstPassGeneratedTypes()
 	if err != nil {
 		return nil, err
 	}
-	mixedUnions, err := SelectGeneratedMixedUnions(plan)
+	scalarUnions, err := c.SelectGeneratedScalarUnions()
 	if err != nil {
 		return nil, err
 	}
-	untaggedObjectUnions, err := SelectGeneratedUntaggedObjectUnions(plan)
+	mixedUnions, err := c.SelectGeneratedMixedUnions()
 	if err != nil {
 		return nil, err
 	}
-	unions, err := SelectGeneratedTaggedUnions(plan)
+	untaggedObjectUnions, err := c.SelectGeneratedUntaggedObjectUnions()
 	if err != nil {
 		return nil, err
+	}
+	unions, err := c.SelectGeneratedTaggedUnions()
+	if err != nil {
+		return nil, err
+	}
+	for _, typ := range types {
+		reserved := []string{"UnmarshalJSON"}
+		if typ.OpenDynamicProperties {
+			reserved = append(reserved, "DynamicProperties")
+		}
+		if needsCustomStructMarshal(typ) {
+			reserved = append(reserved, "MarshalJSON")
+		}
+		if err := validateGeneratedFieldNames(typ.Fields, reserved...); err != nil {
+			return nil, err
+		}
+	}
+	for _, union := range mixedUnions {
+		for _, variant := range union.Variants {
+			if err := validateGeneratedFieldNames(variant.Fields); err != nil {
+				return nil, err
+			}
+		}
+	}
+	for _, union := range untaggedObjectUnions {
+		for _, variant := range union.Variants {
+			if err := validateGeneratedFieldNames(variant.Fields); err != nil {
+				return nil, err
+			}
+		}
+	}
+	for _, union := range unions {
+		reserved := []string{"Kind", "IsValid", "MarshalJSON", "UnmarshalJSON"}
+		for _, variant := range union.Variants {
+			reserved = append(reserved, variant.AccessorName)
+		}
+		if err := validateGeneratedFieldNames(union.SharedFields, reserved...); err != nil {
+			return nil, err
+		}
+		for _, variant := range union.Variants {
+			if err := validateGeneratedFieldNames(variant.Fields); err != nil {
+				return nil, err
+			}
+		}
 	}
 	generatedWireTypes := map[string]bool{}
 	for _, typ := range types {
@@ -140,6 +195,46 @@ func GenerateProtocolTypes(plan ProtocolTypePlan) ([]byte, error) {
 		return nil, fmt.Errorf("format generated protocol types: %w", err)
 	}
 	return formatted, nil
+}
+
+func validateGeneratedFieldNames(fields []FieldPlan, reserved ...string) error {
+	reservedNames := map[string]bool{}
+	for _, name := range reserved {
+		reservedNames[name] = true
+	}
+	seen := map[string]string{}
+	for _, field := range fields {
+		if !representableJSONTagName(field.FieldName) {
+			return unsupportedGeneratedSchema(unsupportedPropertyPath(field.Path, field.FieldName), "field name %q cannot be represented by a Go JSON struct tag", field.FieldName)
+		}
+		name := fieldGoName(field.FieldName)
+		if reservedNames[name] {
+			return unsupportedGeneratedSchema(
+				unsupportedPropertyPath(field.Path, field.FieldName),
+				"wire field %q conflicts with generated member %s", field.FieldName, name,
+			)
+		}
+		if previous, ok := seen[name]; ok {
+			return unsupportedGeneratedSchema(
+				unsupportedPropertyPath(field.Path, field.FieldName),
+				"wire fields %q and %q both generate Go field %s", previous, field.FieldName, name,
+			)
+		}
+		seen[name] = field.FieldName
+	}
+	return nil
+}
+
+func needsCustomStructMarshal(typ TypePlan) bool {
+	if typ.OpenDynamicProperties {
+		return true
+	}
+	for _, field := range typ.Fields {
+		if fieldNeedsMarshalNilCheck(field) || field.MinItems != nil || field.Minimum != nil {
+			return true
+		}
+	}
+	return false
 }
 
 type EnumPlan struct {
@@ -270,17 +365,20 @@ func classifyGeneratedDefinition(schema *Schema) generatedDefinitionKind {
 	}
 }
 
-func validateReviewedGeneratedDefinitionShapes(plan ProtocolTypePlan) error {
+func validateGeneratedDefinitionShapes(plan ProtocolTypePlan) error {
 	for _, typ := range plan.Types {
 		if typ.Schema == nil || len(typ.Schema.Definitions) == 0 {
 			continue
 		}
 		for name, schema := range typ.Schema.Definitions {
-			if !isReviewedGeneratedDefinition(typ.SchemaPath, name) {
+			if !isGeneratedDefinitionSelected(typ, name) {
 				continue
 			}
 			if classifyGeneratedDefinition(schema) == generatedDefinitionUnsupported {
-				return fmt.Errorf("reviewed generated definition %s in %s has unsupported schema shape", name, typ.SchemaPath)
+				return &UnsupportedSchemaError{
+					Path: unsupportedDefinitionPath(typ.SchemaPath, name),
+					Err:  fmt.Errorf("selected generated definition %s in %s has unsupported schema shape", name, typ.SchemaPath),
+				}
 			}
 		}
 	}
@@ -290,16 +388,6 @@ func validateReviewedGeneratedDefinitionShapes(plan ProtocolTypePlan) error {
 func isStringEnumDefinitionSchema(schema *Schema) bool {
 	_, ok := stringEnumValues(schema)
 	return ok
-}
-
-func isImplicitGeneratedStringEnumDefinitionSchema(schema *Schema) bool {
-	if isDirectStringEnumSchema(schema) {
-		return true
-	}
-	if schema == nil || schema.Bool != nil || !isPureSingleOneOfWrapper(schema) {
-		return false
-	}
-	return isDirectStringEnumSchema(schema.OneOf[0])
 }
 
 func isScalarAliasDefinitionSchema(schema *Schema) bool {
@@ -315,7 +403,7 @@ func isScalarAliasDefinitionSchema(schema *Schema) bool {
 }
 
 func isScalarUnionDefinitionSchema(schema *Schema) bool {
-	return schema != nil && isReviewedScalarUnion(schema.AnyOf)
+	return schema != nil && isSupportedScalarUnion(schema.AnyOf)
 }
 
 func isTaggedUnionDefinitionSchema(schema *Schema) bool {
@@ -364,31 +452,36 @@ func isUntaggedObjectUnionDefinitionSchema(schema *Schema) bool {
 	return true
 }
 
-func SelectGeneratedEnums(plan ProtocolTypePlan) ([]EnumPlan, error) {
-	resolver, err := newGeneratedDefinitionNameResolver(plan)
-	if err != nil {
-		return nil, err
+func (c *typeSelection) SelectGeneratedEnums() (result []EnumPlan, err error) {
+	if c.selectGeneratedEnumsDone {
+		return c.selectGeneratedEnums, c.selectGeneratedEnumsErr
 	}
+	defer func() {
+		c.selectGeneratedEnums, c.selectGeneratedEnumsErr, c.selectGeneratedEnumsDone = result, err, true
+	}()
+	plan := c.plan
+	resolver := c.resolver
 	byName := map[string]EnumPlan{}
 	schemaByName := map[string][]byte{}
+	pathByName := map[string]string{}
 	for _, typ := range plan.Types {
 		if typ.Schema == nil || isAggregateBundle(typ.SchemaPath) {
 			continue
 		}
 		for name, schema := range typ.Schema.Definitions {
+			if resolver.ReusesTopLevel(typ.SchemaPath, name) {
+				continue
+			}
 			if classifyGeneratedDefinition(schema) != generatedDefinitionStringEnum {
 				continue
 			}
-			if !isReviewedGeneratedDefinition(typ.SchemaPath, name) && !isImplicitGeneratedStringEnumDefinitionSchema(schema) {
+			if !isGeneratedDefinitionSelected(typ, name) {
 				continue
 			}
 			typeName := generatedDefinitionTypeName(resolver, typ.SchemaPath, name)
 			enumValues, ok := stringEnumValues(schema)
 			if !ok {
 				continue
-			}
-			if reservedProtocolTypeName(typeName) {
-				return nil, fmt.Errorf("generated enum %s conflicts with handwritten protocolv2 type", typeName)
 			}
 			encoded, err := json.Marshal(schema)
 			if err != nil {
@@ -397,16 +490,17 @@ func SelectGeneratedEnums(plan ProtocolTypePlan) ([]EnumPlan, error) {
 			existing, ok := byName[typeName]
 			if ok {
 				if !sameStrings(existing.Values, enumValues) {
-					return nil, fmt.Errorf("generated enum %s has conflicting values between %s and %s", typeName, strings.Join(existing.Sources, ", "), typ.SchemaPath)
+					return nil, unsupportedGeneratedSchema(unsupportedDefinitionPath(typ.SchemaPath, name), "generated enum %s has conflicting values between %s and %s", typeName, strings.Join(existing.Sources, ", "), typ.SchemaPath)
 				}
 				if !bytes.Equal(schemaByName[typeName], encoded) {
-					return nil, fmt.Errorf("generated enum %s has conflicting schemas between %s and %s", typeName, strings.Join(existing.Sources, ", "), typ.SchemaPath)
+					return nil, unsupportedGeneratedSchema(unsupportedDefinitionPath(typ.SchemaPath, name), "generated enum %s has conflicting schemas between %s and %s", typeName, strings.Join(existing.Sources, ", "), typ.SchemaPath)
 				}
 				existing.Sources = append(existing.Sources, typ.SchemaPath)
 				byName[typeName] = existing
 				continue
 			}
 			schemaByName[typeName] = encoded
+			pathByName[typeName] = unsupportedDefinitionPath(typ.SchemaPath, name)
 			byName[typeName] = EnumPlan{
 				TypeName: typeName,
 				Values:   append([]string(nil), enumValues...),
@@ -417,7 +511,7 @@ func SelectGeneratedEnums(plan ProtocolTypePlan) ([]EnumPlan, error) {
 	enums := make([]EnumPlan, 0, len(byName))
 	for _, enum := range byName {
 		if err := validateEnumConstNames(enum); err != nil {
-			return nil, err
+			return nil, &UnsupportedSchemaError{Path: pathByName[enum.TypeName], Err: err}
 		}
 		enums = append(enums, enum)
 	}
@@ -427,11 +521,15 @@ func SelectGeneratedEnums(plan ProtocolTypePlan) ([]EnumPlan, error) {
 	return enums, nil
 }
 
-func SelectGeneratedScalarAliases(plan ProtocolTypePlan) ([]ScalarAliasPlan, error) {
-	resolver, err := newGeneratedDefinitionNameResolver(plan)
-	if err != nil {
-		return nil, err
+func (c *typeSelection) SelectGeneratedScalarAliases() (result []ScalarAliasPlan, err error) {
+	if c.selectGeneratedScalarAliasesDone {
+		return c.selectGeneratedScalarAliases, c.selectGeneratedScalarAliasesErr
 	}
+	defer func() {
+		c.selectGeneratedScalarAliases, c.selectGeneratedScalarAliasesErr, c.selectGeneratedScalarAliasesDone = result, err, true
+	}()
+	plan := c.plan
+	resolver := c.resolver
 	byName := map[string]ScalarAliasPlan{}
 	schemaByName := map[string][]byte{}
 	for _, typ := range plan.Types {
@@ -439,16 +537,19 @@ func SelectGeneratedScalarAliases(plan ProtocolTypePlan) ([]ScalarAliasPlan, err
 			continue
 		}
 		for name, schema := range typ.Schema.Definitions {
-			if !isReviewedGeneratedDefinition(typ.SchemaPath, name) || classifyGeneratedDefinition(schema) != generatedDefinitionScalarAlias {
+			if resolver.ReusesTopLevel(typ.SchemaPath, name) {
+				continue
+			}
+			if !isGeneratedDefinitionSelected(typ, name) || classifyGeneratedDefinition(schema) != generatedDefinitionScalarAlias {
 				continue
 			}
 			typeName := generatedDefinitionTypeName(resolver, typ.SchemaPath, name)
 			if schema == nil || !schema.Type.Only("string") || len(schema.Enum) != 0 || hasNonTypeShape(schema) {
-				return nil, fmt.Errorf("generated scalar alias %s in %s no longer matches reviewed string alias shape", typeName, typ.SchemaPath)
+				return nil, unsupportedGeneratedSchema(unsupportedDefinitionPath(typ.SchemaPath, name), "generated scalar alias %s in %s no longer matches supported string alias shape", typeName, typ.SchemaPath)
 			}
 			for _, keyword := range unmodeledKeywords(schema) {
 				if keyword != "minLength" {
-					return nil, fmt.Errorf("generated scalar alias %s in %s has unreviewed keyword %s", typeName, typ.SchemaPath, keyword)
+					return nil, unsupportedGeneratedSchema(unsupportedDefinitionPath(typ.SchemaPath, name), "generated scalar alias %s in %s has unsupported keyword %s", typeName, typ.SchemaPath, keyword)
 				}
 			}
 			encoded, err := json.Marshal(schema)
@@ -458,7 +559,7 @@ func SelectGeneratedScalarAliases(plan ProtocolTypePlan) ([]ScalarAliasPlan, err
 			existing, ok := byName[typeName]
 			if ok {
 				if !bytes.Equal(schemaByName[typeName], encoded) {
-					return nil, fmt.Errorf("generated scalar alias %s has conflicting schemas between %s and %s", typeName, strings.Join(existing.Sources, ", "), typ.SchemaPath)
+					return nil, unsupportedGeneratedSchema(unsupportedDefinitionPath(typ.SchemaPath, name), "generated scalar alias %s has conflicting schemas between %s and %s", typeName, strings.Join(existing.Sources, ", "), typ.SchemaPath)
 				}
 				existing.Sources = append(existing.Sources, typ.SchemaPath)
 				byName[typeName] = existing
@@ -481,8 +582,14 @@ func SelectGeneratedScalarAliases(plan ProtocolTypePlan) ([]ScalarAliasPlan, err
 	return aliases, nil
 }
 
-func SelectFirstPassGeneratedTypes(plan ProtocolTypePlan) ([]TypePlan, error) {
-	enums, err := SelectGeneratedEnums(plan)
+func (c *typeSelection) SelectFirstPassGeneratedTypes() (result []TypePlan, err error) {
+	if c.selectFirstPassGeneratedTypesDone {
+		return c.selectFirstPassGeneratedTypes, c.selectFirstPassGeneratedTypesErr
+	}
+	defer func() {
+		c.selectFirstPassGeneratedTypes, c.selectFirstPassGeneratedTypesErr, c.selectFirstPassGeneratedTypesDone = result, err, true
+	}()
+	enums, err := c.SelectGeneratedEnums()
 	if err != nil {
 		return nil, err
 	}
@@ -492,42 +599,42 @@ func SelectFirstPassGeneratedTypes(plan ProtocolTypePlan) ([]TypePlan, error) {
 		enumTypes[enum.TypeName] = true
 		generatedNamedTypes[enum.TypeName] = true
 	}
-	scalarAliases, err := SelectGeneratedScalarAliases(plan)
+	scalarAliases, err := c.SelectGeneratedScalarAliases()
 	if err != nil {
 		return nil, err
 	}
 	for _, alias := range scalarAliases {
 		generatedNamedTypes[alias.TypeName] = true
 	}
-	scalarUnions, err := SelectGeneratedScalarUnions(plan)
+	scalarUnions, err := c.SelectGeneratedScalarUnions()
 	if err != nil {
 		return nil, err
 	}
 	for _, union := range scalarUnions {
 		generatedNamedTypes[union.TypeName] = true
 	}
-	taggedUnions, err := SelectGeneratedTaggedUnions(plan)
+	taggedUnions, err := c.SelectGeneratedTaggedUnions()
 	if err != nil {
 		return nil, err
 	}
 	for _, union := range taggedUnions {
 		generatedNamedTypes[union.TypeName] = true
 	}
-	mixedUnions, err := SelectGeneratedMixedUnions(plan)
+	mixedUnions, err := c.SelectGeneratedMixedUnions()
 	if err != nil {
 		return nil, err
 	}
 	for _, union := range mixedUnions {
 		generatedNamedTypes[union.TypeName] = true
 	}
-	untaggedObjectUnions, err := SelectGeneratedUntaggedObjectUnions(plan)
+	untaggedObjectUnions, err := c.SelectGeneratedUntaggedObjectUnions()
 	if err != nil {
 		return nil, err
 	}
 	for _, union := range untaggedObjectUnions {
 		generatedNamedTypes[union.TypeName] = true
 	}
-	candidates, err := firstPassTypeCandidates(plan)
+	candidates, err := c.firstPassTypeCandidates()
 	if err != nil {
 		return nil, err
 	}
@@ -548,16 +655,13 @@ func SelectFirstPassGeneratedTypes(plan ProtocolTypePlan) ([]TypePlan, error) {
 				continue
 			}
 			if enumTypes[typ.TypeName] {
-				return nil, fmt.Errorf("generated type %s conflicts with generated enum type", typ.TypeName)
-			}
-			if reservedProtocolTypeName(typ.TypeName) {
-				return nil, fmt.Errorf("generated type %s conflicts with handwritten protocolv2 type", typ.TypeName)
+				return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated type %s conflicts with generated enum type", typ.TypeName)
 			}
 			if previous, ok := seenNames[typ.TypeName]; ok {
-				return nil, fmt.Errorf("generated type %s appears in both %s and %s", typ.TypeName, previous, typ.SchemaPath)
+				return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated type %s appears in both %s and %s", typ.TypeName, previous, typ.SchemaPath)
 			}
 			if generatedNamedTypes[typ.TypeName] {
-				return nil, fmt.Errorf("generated type %s conflicts with earlier generated type", typ.TypeName)
+				return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated type %s conflicts with earlier generated type", typ.TypeName)
 			}
 			seenNames[typ.TypeName] = typ.SchemaPath
 			selectedIndexes[index] = true
@@ -575,23 +679,55 @@ func SelectFirstPassGeneratedTypes(plan ProtocolTypePlan) ([]TypePlan, error) {
 	return selected, nil
 }
 
-func firstPassTypeCandidates(plan ProtocolTypePlan) ([]TypePlan, error) {
-	resolver, err := newGeneratedDefinitionNameResolver(plan)
-	if err != nil {
-		return nil, err
-	}
+func (c *typeSelection) firstPassTypeCandidates() ([]TypePlan, error) {
+	plan := c.plan
+	resolver := c.resolver
 	var candidates []TypePlan
 	for _, typ := range plan.Types {
-		if !isJSONRPCEnvelopeSchema(typ.SchemaPath) {
-			candidates = append(candidates, typ)
+		if isGeneratedTopLevelType(typ) {
+			switch typ.Kind {
+			case TypePlanEmptyStructCandidate, TypePlanObjectStructCandidate:
+				candidates = append(candidates, typ)
+			}
 		}
 		definitions, err := generatedDefinitionTypeCandidates(typ, resolver)
 		if err != nil {
-			return nil, err
+			return nil, classifyGeneratedSchemaError(typ.SchemaPath, err)
 		}
 		candidates = append(candidates, definitions...)
 	}
-	return candidates, nil
+	return dedupeDefinitionTypeCandidates(candidates)
+}
+
+func dedupeDefinitionTypeCandidates(candidates []TypePlan) ([]TypePlan, error) {
+	byName := map[string]TypePlan{}
+	out := make([]TypePlan, 0, len(candidates))
+	for _, candidate := range candidates {
+		previous, ok := byName[candidate.TypeName]
+		if !ok {
+			byName[candidate.TypeName] = candidate
+			out = append(out, candidate)
+			continue
+		}
+		if !strings.Contains(previous.SchemaPath, "#/definitions/") || !strings.Contains(candidate.SchemaPath, "#/definitions/") {
+			return nil, unsupportedGeneratedSchema(candidate.SchemaPath, "generated type %s appears in both %s and %s", candidate.TypeName, previous.SchemaPath, candidate.SchemaPath)
+		}
+		if previous.Kind != candidate.Kind {
+			return nil, unsupportedGeneratedSchema(candidate.SchemaPath, "generated definition %s has conflicting kinds between %s and %s", candidate.TypeName, previous.SchemaPath, candidate.SchemaPath)
+		}
+		left, err := json.Marshal(previous.Schema)
+		if err != nil {
+			return nil, fmt.Errorf("encode generated definition %s from %s: %w", candidate.TypeName, previous.SchemaPath, err)
+		}
+		right, err := json.Marshal(candidate.Schema)
+		if err != nil {
+			return nil, fmt.Errorf("encode generated definition %s from %s: %w", candidate.TypeName, candidate.SchemaPath, err)
+		}
+		if !bytes.Equal(left, right) {
+			return nil, unsupportedGeneratedSchema(candidate.SchemaPath, "generated definition %s has conflicting schemas between %s and %s", candidate.TypeName, previous.SchemaPath, candidate.SchemaPath)
+		}
+	}
+	return out, nil
 }
 
 func generatedDefinitionTypeCandidates(parent TypePlan, resolver generatedDefinitionNameResolver) ([]TypePlan, error) {
@@ -600,7 +736,10 @@ func generatedDefinitionTypeCandidates(parent TypePlan, resolver generatedDefini
 	}
 	var names []string
 	for name, schema := range parent.Schema.Definitions {
-		if isReviewedGeneratedDefinition(parent.SchemaPath, name) && classifyGeneratedDefinition(schema) == generatedDefinitionStruct {
+		if resolver.ReusesTopLevel(parent.SchemaPath, name) {
+			continue
+		}
+		if isGeneratedDefinitionSelected(parent, name) && classifyGeneratedDefinition(schema) == generatedDefinitionStruct {
 			names = append(names, name)
 		}
 	}
@@ -611,19 +750,22 @@ func generatedDefinitionTypeCandidates(parent TypePlan, resolver generatedDefini
 		schema := parent.Schema.Definitions[name]
 		typ, err := definitionObjectTypePlan(parent, name, schema, resolver)
 		if err != nil {
-			return nil, err
+			return nil, classifyGeneratedSchemaError(unsupportedDefinitionPath(parent.SchemaPath, name), err)
 		}
 		candidates = append(candidates, typ)
 	}
 	return candidates, nil
 }
 
-func SelectGeneratedMixedUnions(plan ProtocolTypePlan) ([]MixedUnionPlan, error) {
-	resolver, err := newGeneratedDefinitionNameResolver(plan)
-	if err != nil {
-		return nil, err
+func (c *typeSelection) SelectGeneratedMixedUnions() (result []MixedUnionPlan, err error) {
+	if c.selectGeneratedMixedUnionsDone {
+		return c.selectGeneratedMixedUnions, c.selectGeneratedMixedUnionsErr
 	}
-	enums, err := SelectGeneratedEnums(plan)
+	defer func() {
+		c.selectGeneratedMixedUnions, c.selectGeneratedMixedUnionsErr, c.selectGeneratedMixedUnionsDone = result, err, true
+	}()
+	resolver := c.resolver
+	enums, err := c.SelectGeneratedEnums()
 	if err != nil {
 		return nil, err
 	}
@@ -633,24 +775,24 @@ func SelectGeneratedMixedUnions(plan ProtocolTypePlan) ([]MixedUnionPlan, error)
 		generatedNamedTypes[enum.TypeName] = true
 		enumTypes[enum.TypeName] = true
 	}
-	for _, name := range generatedScalarAliasTypeNames(plan) {
+	for _, name := range c.generatedScalarAliasTypeNames() {
 		generatedNamedTypes[name] = true
 	}
-	taggedUnions, err := SelectGeneratedTaggedUnions(plan)
+	taggedUnions, err := c.SelectGeneratedTaggedUnions()
 	if err != nil {
 		return nil, err
 	}
 	for _, union := range taggedUnions {
 		generatedNamedTypes[union.TypeName] = true
 	}
-	for _, name := range generatedMixedUnionTypeNames(plan) {
+	for _, name := range c.generatedMixedUnionTypeNames() {
 		generatedNamedTypes[name] = true
 	}
-	for _, name := range reviewedMixedUnionStructDependencyNames() {
+	for _, name := range c.generatedStructTypeNames() {
 		generatedNamedTypes[name] = true
 	}
 
-	candidates, err := mixedUnionCandidates(plan)
+	candidates, err := c.mixedUnionCandidates()
 	if err != nil {
 		return nil, err
 	}
@@ -658,18 +800,15 @@ func SelectGeneratedMixedUnions(plan ProtocolTypePlan) ([]MixedUnionPlan, error)
 	seenNames := map[string]string{}
 	for _, typ := range candidates {
 		if enumTypes[typ.TypeName] {
-			return nil, fmt.Errorf("generated mixed union %s conflicts with generated enum type", typ.TypeName)
-		}
-		if reservedProtocolTypeName(typ.TypeName) {
-			return nil, fmt.Errorf("generated mixed union %s conflicts with handwritten protocolv2 type", typ.TypeName)
+			return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated mixed union %s conflicts with generated enum type", typ.TypeName)
 		}
 		if previous, ok := seenNames[typ.TypeName]; ok {
-			return nil, fmt.Errorf("generated mixed union %s appears in both %s and %s", typ.TypeName, previous, typ.SchemaPath)
+			return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated mixed union %s appears in both %s and %s", typ.TypeName, previous, typ.SchemaPath)
 		}
 		seenNames[typ.TypeName] = typ.SchemaPath
 		union, err := buildMixedUnionPlan(typ, generatedNamedTypes, resolver)
 		if err != nil {
-			return nil, err
+			return nil, classifyGeneratedSchemaError(typ.SchemaPath, err)
 		}
 		selected = append(selected, union)
 	}
@@ -679,11 +818,9 @@ func SelectGeneratedMixedUnions(plan ProtocolTypePlan) ([]MixedUnionPlan, error)
 	return selected, nil
 }
 
-func mixedUnionCandidates(plan ProtocolTypePlan) ([]TypePlan, error) {
-	resolver, err := newGeneratedDefinitionNameResolver(plan)
-	if err != nil {
-		return nil, err
-	}
+func (c *typeSelection) mixedUnionCandidates() ([]TypePlan, error) {
+	plan := c.plan
+	resolver := c.resolver
 	var candidates []TypePlan
 	for _, typ := range plan.Types {
 		if typ.Schema == nil || len(typ.Schema.Definitions) == 0 {
@@ -691,7 +828,10 @@ func mixedUnionCandidates(plan ProtocolTypePlan) ([]TypePlan, error) {
 		}
 		var names []string
 		for name, schema := range typ.Schema.Definitions {
-			if isReviewedGeneratedDefinition(typ.SchemaPath, name) && classifyGeneratedDefinition(schema) == generatedDefinitionMixedUnion {
+			if resolver.ReusesTopLevel(typ.SchemaPath, name) {
+				continue
+			}
+			if isGeneratedDefinitionSelected(typ, name) && classifyGeneratedDefinition(schema) == generatedDefinitionMixedUnion {
 				names = append(names, name)
 			}
 		}
@@ -699,7 +839,7 @@ func mixedUnionCandidates(plan ProtocolTypePlan) ([]TypePlan, error) {
 		for _, name := range names {
 			schema := typ.Schema.Definitions[name]
 			if schema == nil || len(schema.OneOf) == 0 {
-				return nil, fmt.Errorf("definition mixed union %s in %s is not a oneOf schema", name, typ.SchemaPath)
+				return nil, unsupportedGeneratedSchema(unsupportedDefinitionPath(typ.SchemaPath, name), "definition mixed union %s in %s is not a oneOf schema", name, typ.SchemaPath)
 			}
 			candidates = append(candidates, TypePlan{
 				Kind:       TypePlanTaggedUnionCandidate,
@@ -711,10 +851,14 @@ func mixedUnionCandidates(plan ProtocolTypePlan) ([]TypePlan, error) {
 			})
 		}
 	}
-	sort.Slice(candidates, func(i, j int) bool {
-		return candidates[i].TypeName < candidates[j].TypeName
+	deduped, err := dedupeDefinitionTypeCandidates(candidates)
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(deduped, func(i, j int) bool {
+		return deduped[i].TypeName < deduped[j].TypeName
 	})
-	return candidates, nil
+	return deduped, nil
 }
 
 func buildMixedUnionPlan(typ TypePlan, generatedNamedTypes map[string]bool, resolver generatedDefinitionNameResolver) (MixedUnionPlan, error) {
@@ -771,7 +915,7 @@ func mixedUnionVariantPlans(typ TypePlan, schema *Schema, variantIndex int, gene
 		}
 		return []MixedUnionVariantPlan{planned}, nil
 	default:
-		return nil, fmt.Errorf("variant is not a reviewed string enum or singleton object")
+		return nil, fmt.Errorf("variant is not a supported string enum or singleton object")
 	}
 }
 
@@ -863,12 +1007,16 @@ func mixedUnionObjectVariantPlan(typ TypePlan, schema *Schema, variantIndex int,
 	}, nil
 }
 
-func SelectGeneratedUntaggedObjectUnions(plan ProtocolTypePlan) ([]UntaggedObjectUnionPlan, error) {
-	resolver, err := newGeneratedDefinitionNameResolver(plan)
-	if err != nil {
-		return nil, err
+func (c *typeSelection) SelectGeneratedUntaggedObjectUnions() (result []UntaggedObjectUnionPlan, err error) {
+	if c.selectGeneratedUntaggedObjectUnionsDone {
+		return c.selectGeneratedUntaggedObjectUnions, c.selectGeneratedUntaggedObjectUnionsErr
 	}
-	enums, err := SelectGeneratedEnums(plan)
+	defer func() {
+		c.selectGeneratedUntaggedObjectUnions, c.selectGeneratedUntaggedObjectUnionsErr, c.selectGeneratedUntaggedObjectUnionsDone = result, err, true
+	}()
+	plan := c.plan
+	resolver := c.resolver
+	enums, err := c.SelectGeneratedEnums()
 	if err != nil {
 		return nil, err
 	}
@@ -878,26 +1026,26 @@ func SelectGeneratedUntaggedObjectUnions(plan ProtocolTypePlan) ([]UntaggedObjec
 		generatedNamedTypes[enum.TypeName] = true
 		enumTypes[enum.TypeName] = true
 	}
-	for _, name := range generatedScalarAliasTypeNames(plan) {
+	for _, name := range c.generatedScalarAliasTypeNames() {
 		generatedNamedTypes[name] = true
 	}
-	taggedUnions, err := SelectGeneratedTaggedUnions(plan)
+	taggedUnions, err := c.SelectGeneratedTaggedUnions()
 	if err != nil {
 		return nil, err
 	}
 	for _, union := range taggedUnions {
 		generatedNamedTypes[union.TypeName] = true
 	}
-	for _, name := range generatedStructTypeNames(plan) {
+	for _, name := range c.generatedStructTypeNames() {
 		generatedNamedTypes[name] = true
 	}
-	for _, name := range generatedScalarUnionTypeNames(plan) {
+	for _, name := range c.generatedScalarUnionTypeNames() {
 		generatedNamedTypes[name] = true
 	}
-	for _, name := range generatedMixedUnionTypeNames(plan) {
+	for _, name := range c.generatedMixedUnionTypeNames() {
 		generatedNamedTypes[name] = true
 	}
-	for _, name := range generatedUntaggedObjectUnionTypeNames(plan) {
+	for _, name := range c.generatedUntaggedObjectUnionTypeNames() {
 		generatedNamedTypes[name] = true
 	}
 
@@ -909,18 +1057,15 @@ func SelectGeneratedUntaggedObjectUnions(plan ProtocolTypePlan) ([]UntaggedObjec
 	seenNames := map[string]string{}
 	for _, typ := range candidates {
 		if enumTypes[typ.TypeName] {
-			return nil, fmt.Errorf("generated untagged object union %s conflicts with generated enum type", typ.TypeName)
-		}
-		if reservedProtocolTypeName(typ.TypeName) {
-			return nil, fmt.Errorf("generated untagged object union %s conflicts with handwritten protocolv2 type", typ.TypeName)
+			return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated untagged object union %s conflicts with generated enum type", typ.TypeName)
 		}
 		if previous, ok := seenNames[typ.TypeName]; ok {
-			return nil, fmt.Errorf("generated untagged object union %s appears in both %s and %s", typ.TypeName, previous, typ.SchemaPath)
+			return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated untagged object union %s appears in both %s and %s", typ.TypeName, previous, typ.SchemaPath)
 		}
 		seenNames[typ.TypeName] = typ.SchemaPath
 		union, err := buildUntaggedObjectUnionPlan(typ, generatedNamedTypes, resolver)
 		if err != nil {
-			return nil, err
+			return nil, classifyGeneratedSchemaError(typ.SchemaPath, err)
 		}
 		selected = append(selected, union)
 	}
@@ -933,12 +1078,26 @@ func SelectGeneratedUntaggedObjectUnions(plan ProtocolTypePlan) ([]UntaggedObjec
 func untaggedObjectUnionCandidates(plan ProtocolTypePlan, resolver generatedDefinitionNameResolver) ([]TypePlan, error) {
 	var candidates []TypePlan
 	for _, typ := range plan.Types {
+		if typ.GeneratedRoot && classifyGeneratedDefinition(typ.Schema) == generatedDefinitionUntaggedObjectUnion {
+			candidates = append(candidates, TypePlan{
+				Kind:       TypePlanAnyOfDeferred,
+				Reason:     "top-level reachable untagged object union",
+				Schema:     typ.Schema,
+				SchemaPath: typ.SchemaPath,
+				Stability:  typ.Stability,
+				Status:     typ.Status,
+				TypeName:   typ.TypeName,
+			})
+		}
 		if typ.Schema == nil || len(typ.Schema.Definitions) == 0 {
 			continue
 		}
 		var names []string
 		for name, schema := range typ.Schema.Definitions {
-			if isReviewedGeneratedDefinition(typ.SchemaPath, name) && classifyGeneratedDefinition(schema) == generatedDefinitionUntaggedObjectUnion {
+			if resolver.ReusesTopLevel(typ.SchemaPath, name) {
+				continue
+			}
+			if isGeneratedDefinitionSelected(typ, name) && classifyGeneratedDefinition(schema) == generatedDefinitionUntaggedObjectUnion {
 				names = append(names, name)
 			}
 		}
@@ -946,7 +1105,7 @@ func untaggedObjectUnionCandidates(plan ProtocolTypePlan, resolver generatedDefi
 		for _, name := range names {
 			schema := typ.Schema.Definitions[name]
 			if schema == nil || len(schema.AnyOf) == 0 {
-				return nil, fmt.Errorf("definition untagged object union %s in %s is not an anyOf schema", name, typ.SchemaPath)
+				return nil, unsupportedGeneratedSchema(unsupportedDefinitionPath(typ.SchemaPath, name), "definition untagged object union %s in %s is not an anyOf schema", name, typ.SchemaPath)
 			}
 			candidates = append(candidates, TypePlan{
 				Kind:       TypePlanAnyOfDeferred,
@@ -958,10 +1117,14 @@ func untaggedObjectUnionCandidates(plan ProtocolTypePlan, resolver generatedDefi
 			})
 		}
 	}
-	sort.Slice(candidates, func(i, j int) bool {
-		return candidates[i].TypeName < candidates[j].TypeName
+	deduped, err := dedupeDefinitionTypeCandidates(candidates)
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(deduped, func(i, j int) bool {
+		return deduped[i].TypeName < deduped[j].TypeName
 	})
-	return candidates, nil
+	return deduped, nil
 }
 
 func buildUntaggedObjectUnionPlan(typ TypePlan, generatedNamedTypes map[string]bool, resolver generatedDefinitionNameResolver) (UntaggedObjectUnionPlan, error) {
@@ -1071,7 +1234,7 @@ func definitionObjectTypePlan(parent TypePlan, name string, schema *Schema, reso
 	}
 	typeName := generatedDefinitionTypeName(resolver, parent.SchemaPath, name)
 	typ := TypePlan{
-		OpenDynamicProperties: isGeneratedDefinitionOpenDynamicPropertiesCheckpoint(parent.SchemaPath, name),
+		OpenDynamicProperties: schema.AdditionalProperties.Bool != nil && *schema.AdditionalProperties.Bool,
 		Reason:                "object schema definition selected for generated struct coverage",
 		Schema:                schema,
 		SchemaPath:            parent.SchemaPath + "#/definitions/" + name,
@@ -1117,45 +1280,37 @@ func definitionObjectTypePlan(parent TypePlan, name string, schema *Schema, reso
 	return typ, nil
 }
 
-func isGeneratedDefinitionOpenDynamicPropertiesCheckpoint(schemaPath string, name string) bool {
-	switch schemaPath {
-	case "v2/ConfigReadResponse.json":
-		switch name {
-		case "AnalyticsConfig", "Config", "ProfileV2":
-			return true
-		default:
-			return false
-		}
-	default:
-		return false
+func (c *typeSelection) SelectGeneratedScalarUnions() (result []ScalarUnionPlan, err error) {
+	if c.selectGeneratedScalarUnionsDone {
+		return c.selectGeneratedScalarUnions, c.selectGeneratedScalarUnionsErr
 	}
-}
-
-func SelectGeneratedScalarUnions(plan ProtocolTypePlan) ([]ScalarUnionPlan, error) {
-	resolver, err := newGeneratedDefinitionNameResolver(plan)
+	defer func() {
+		c.selectGeneratedScalarUnions, c.selectGeneratedScalarUnionsErr, c.selectGeneratedScalarUnionsDone = result, err, true
+	}()
+	plan := c.plan
+	resolver := c.resolver
+	var candidates []TypePlan
+	for _, typ := range plan.Types {
+		if typ.Kind == TypePlanScalarUnionCandidate && typ.GeneratedRoot {
+			candidates = append(candidates, typ)
+		}
+		definitions, err := generatedDefinitionScalarUnionCandidates(typ, resolver)
+		if err != nil {
+			return nil, classifyGeneratedSchemaError(typ.SchemaPath, err)
+		}
+		candidates = append(candidates, definitions...)
+	}
+	candidates, err = dedupeDefinitionTypeCandidates(candidates)
 	if err != nil {
 		return nil, err
 	}
 	var selected []ScalarUnionPlan
-	for _, typ := range plan.Types {
-		if typ.Kind == TypePlanScalarUnionCandidate && isGeneratedScalarUnionCheckpoint(typ.SchemaPath) {
-			union, err := buildScalarUnionPlan(typ)
-			if err != nil {
-				return nil, err
-			}
-			selected = append(selected, union)
-		}
-		definitions, err := generatedDefinitionScalarUnionCandidates(typ, resolver)
+	for _, typ := range candidates {
+		union, err := buildScalarUnionPlan(typ)
 		if err != nil {
-			return nil, err
+			return nil, classifyGeneratedSchemaError(typ.SchemaPath, err)
 		}
-		for _, definition := range definitions {
-			union, err := buildScalarUnionPlan(definition)
-			if err != nil {
-				return nil, err
-			}
-			selected = append(selected, union)
-		}
+		selected = append(selected, union)
 	}
 	sort.Slice(selected, func(i, j int) bool {
 		return selected[i].TypeName < selected[j].TypeName
@@ -1169,7 +1324,10 @@ func generatedDefinitionScalarUnionCandidates(parent TypePlan, resolver generate
 	}
 	var names []string
 	for name, schema := range parent.Schema.Definitions {
-		if isReviewedGeneratedDefinition(parent.SchemaPath, name) && classifyGeneratedDefinition(schema) == generatedDefinitionScalarUnion {
+		if resolver.ReusesTopLevel(parent.SchemaPath, name) {
+			continue
+		}
+		if isGeneratedDefinitionSelected(parent, name) && classifyGeneratedDefinition(schema) == generatedDefinitionScalarUnion {
 			names = append(names, name)
 		}
 	}
@@ -1179,7 +1337,7 @@ func generatedDefinitionScalarUnionCandidates(parent TypePlan, resolver generate
 	for _, name := range names {
 		schema := parent.Schema.Definitions[name]
 		if schema == nil || len(schema.AnyOf) == 0 {
-			return nil, fmt.Errorf("definition scalar union %s in %s is not an anyOf schema", name, parent.SchemaPath)
+			return nil, unsupportedGeneratedSchema(unsupportedDefinitionPath(parent.SchemaPath, name), "definition scalar union %s in %s is not an anyOf schema", name, parent.SchemaPath)
 		}
 		candidates = append(candidates, TypePlan{
 			Kind:       TypePlanScalarUnionCandidate,
@@ -1297,12 +1455,16 @@ func scalarUnionVariantPlan(typ TypePlan, schema *Schema) (ScalarUnionVariantPla
 	}
 }
 
-func SelectGeneratedTaggedUnions(plan ProtocolTypePlan) ([]TaggedUnionPlan, error) {
-	resolver, err := newGeneratedDefinitionNameResolver(plan)
-	if err != nil {
-		return nil, err
+func (c *typeSelection) SelectGeneratedTaggedUnions() (result []TaggedUnionPlan, err error) {
+	if c.selectGeneratedTaggedUnionsDone {
+		return c.selectGeneratedTaggedUnions, c.selectGeneratedTaggedUnionsErr
 	}
-	enums, err := SelectGeneratedEnums(plan)
+	defer func() {
+		c.selectGeneratedTaggedUnions, c.selectGeneratedTaggedUnionsErr, c.selectGeneratedTaggedUnionsDone = result, err, true
+	}()
+	plan := c.plan
+	resolver := c.resolver
+	enums, err := c.SelectGeneratedEnums()
 	if err != nil {
 		return nil, err
 	}
@@ -1312,22 +1474,22 @@ func SelectGeneratedTaggedUnions(plan ProtocolTypePlan) ([]TaggedUnionPlan, erro
 		enumTypes[enum.TypeName] = true
 		generatedNamedTypes[enum.TypeName] = true
 	}
-	for _, name := range generatedScalarAliasTypeNames(plan) {
+	for _, name := range c.generatedScalarAliasTypeNames() {
 		generatedNamedTypes[name] = true
 	}
-	for _, name := range generatedScalarUnionTypeNames(plan) {
+	for _, name := range c.generatedScalarUnionTypeNames() {
 		generatedNamedTypes[name] = true
 	}
-	for _, name := range generatedMixedUnionTypeNames(plan) {
+	for _, name := range c.generatedMixedUnionTypeNames() {
 		generatedNamedTypes[name] = true
 	}
-	for _, name := range generatedUntaggedObjectUnionTypeNames(plan) {
+	for _, name := range c.generatedUntaggedObjectUnionTypeNames() {
 		generatedNamedTypes[name] = true
 	}
-	for _, name := range generatedStructTypeNames(plan) {
+	for _, name := range c.generatedStructTypeNames() {
 		generatedNamedTypes[name] = true
 	}
-	firstPassStructNames, err := generatedFirstPassStructCandidateTypeNames(plan)
+	firstPassStructNames, err := c.generatedFirstPassStructCandidateTypeNames()
 	if err != nil {
 		return nil, err
 	}
@@ -1341,25 +1503,20 @@ func SelectGeneratedTaggedUnions(plan ProtocolTypePlan) ([]TaggedUnionPlan, erro
 	for _, typ := range candidates {
 		generatedNamedTypes[typ.TypeName] = true
 	}
-	for _, name := range reviewedTaggedUnionStructDependencyNames() {
-		generatedNamedTypes[name] = true
-	}
+
 	var selected []TaggedUnionPlan
 	seenNames := map[string]string{}
 	for _, typ := range candidates {
 		if enumTypes[typ.TypeName] {
-			return nil, fmt.Errorf("generated tagged union %s conflicts with generated enum type", typ.TypeName)
-		}
-		if reservedProtocolTypeName(typ.TypeName) {
-			return nil, fmt.Errorf("generated tagged union %s conflicts with handwritten protocolv2 type", typ.TypeName)
+			return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated tagged union %s conflicts with generated enum type", typ.TypeName)
 		}
 		if previous, ok := seenNames[typ.TypeName]; ok {
-			return nil, fmt.Errorf("generated tagged union %s appears in both %s and %s", typ.TypeName, previous, typ.SchemaPath)
+			return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated tagged union %s appears in both %s and %s", typ.TypeName, previous, typ.SchemaPath)
 		}
 		seenNames[typ.TypeName] = typ.SchemaPath
 		union, err := buildTaggedUnionPlan(typ, generatedNamedTypes, resolver)
 		if err != nil {
-			return nil, err
+			return nil, classifyGeneratedSchemaError(typ.SchemaPath, err)
 		}
 		selected = append(selected, union)
 	}
@@ -1369,21 +1526,19 @@ func SelectGeneratedTaggedUnions(plan ProtocolTypePlan) ([]TaggedUnionPlan, erro
 	return selected, nil
 }
 
-func generatedScalarUnionTypeNames(plan ProtocolTypePlan) []string {
-	resolver, err := newGeneratedDefinitionNameResolver(plan)
-	if err != nil {
-		return nil
-	}
+func (c *typeSelection) generatedScalarUnionTypeNames() []string {
+	plan := c.plan
+	resolver := c.resolver
 	names := map[string]bool{}
 	for _, typ := range plan.Types {
-		if typ.Kind == TypePlanScalarUnionCandidate && isGeneratedScalarUnionCheckpoint(typ.SchemaPath) {
+		if typ.Kind == TypePlanScalarUnionCandidate && typ.GeneratedRoot {
 			names[typ.TypeName] = true
 		}
 		if typ.Schema == nil || len(typ.Schema.Definitions) == 0 {
 			continue
 		}
 		for name, schema := range typ.Schema.Definitions {
-			if isReviewedGeneratedDefinition(typ.SchemaPath, name) && classifyGeneratedDefinition(schema) == generatedDefinitionScalarUnion {
+			if isGeneratedDefinitionSelected(typ, name) && classifyGeneratedDefinition(schema) == generatedDefinitionScalarUnion {
 				names[generatedDefinitionTypeName(resolver, typ.SchemaPath, name)] = true
 			}
 		}
@@ -1396,18 +1551,16 @@ func generatedScalarUnionTypeNames(plan ProtocolTypePlan) []string {
 	return sorted
 }
 
-func generatedScalarAliasTypeNames(plan ProtocolTypePlan) []string {
-	resolver, err := newGeneratedDefinitionNameResolver(plan)
-	if err != nil {
-		return nil
-	}
+func (c *typeSelection) generatedScalarAliasTypeNames() []string {
+	plan := c.plan
+	resolver := c.resolver
 	names := map[string]bool{}
 	for _, typ := range plan.Types {
 		if typ.Schema == nil || len(typ.Schema.Definitions) == 0 {
 			continue
 		}
 		for name, schema := range typ.Schema.Definitions {
-			if isReviewedGeneratedDefinition(typ.SchemaPath, name) && classifyGeneratedDefinition(schema) == generatedDefinitionScalarAlias {
+			if isGeneratedDefinitionSelected(typ, name) && classifyGeneratedDefinition(schema) == generatedDefinitionScalarAlias {
 				names[generatedDefinitionTypeName(resolver, typ.SchemaPath, name)] = true
 			}
 		}
@@ -1420,18 +1573,16 @@ func generatedScalarAliasTypeNames(plan ProtocolTypePlan) []string {
 	return sorted
 }
 
-func generatedStructTypeNames(plan ProtocolTypePlan) []string {
-	resolver, err := newGeneratedDefinitionNameResolver(plan)
-	if err != nil {
-		return nil
-	}
+func (c *typeSelection) generatedStructTypeNames() []string {
+	plan := c.plan
+	resolver := c.resolver
 	names := map[string]bool{}
 	for _, typ := range plan.Types {
 		if typ.Schema == nil || len(typ.Schema.Definitions) == 0 {
 			continue
 		}
 		for name, schema := range typ.Schema.Definitions {
-			if isReviewedGeneratedDefinition(typ.SchemaPath, name) && classifyGeneratedDefinition(schema) == generatedDefinitionStruct {
+			if isGeneratedDefinitionSelected(typ, name) && classifyGeneratedDefinition(schema) == generatedDefinitionStruct {
 				names[generatedDefinitionTypeName(resolver, typ.SchemaPath, name)] = true
 			}
 		}
@@ -1444,8 +1595,8 @@ func generatedStructTypeNames(plan ProtocolTypePlan) []string {
 	return sorted
 }
 
-func generatedFirstPassStructCandidateTypeNames(plan ProtocolTypePlan) ([]string, error) {
-	candidates, err := firstPassTypeCandidates(plan)
+func (c *typeSelection) generatedFirstPassStructCandidateTypeNames() ([]string, error) {
+	candidates, err := c.firstPassTypeCandidates()
 	if err != nil {
 		return nil, err
 	}
@@ -1466,18 +1617,16 @@ func generatedFirstPassStructCandidateTypeNames(plan ProtocolTypePlan) ([]string
 	return sorted, nil
 }
 
-func generatedMixedUnionTypeNames(plan ProtocolTypePlan) []string {
-	resolver, err := newGeneratedDefinitionNameResolver(plan)
-	if err != nil {
-		return nil
-	}
+func (c *typeSelection) generatedMixedUnionTypeNames() []string {
+	plan := c.plan
+	resolver := c.resolver
 	names := map[string]bool{}
 	for _, typ := range plan.Types {
 		if typ.Schema == nil || len(typ.Schema.Definitions) == 0 {
 			continue
 		}
 		for name, schema := range typ.Schema.Definitions {
-			if isReviewedGeneratedDefinition(typ.SchemaPath, name) && classifyGeneratedDefinition(schema) == generatedDefinitionMixedUnion {
+			if isGeneratedDefinitionSelected(typ, name) && classifyGeneratedDefinition(schema) == generatedDefinitionMixedUnion {
 				names[generatedDefinitionTypeName(resolver, typ.SchemaPath, name)] = true
 			}
 		}
@@ -1490,18 +1639,16 @@ func generatedMixedUnionTypeNames(plan ProtocolTypePlan) []string {
 	return sorted
 }
 
-func generatedUntaggedObjectUnionTypeNames(plan ProtocolTypePlan) []string {
-	resolver, err := newGeneratedDefinitionNameResolver(plan)
-	if err != nil {
-		return nil
-	}
+func (c *typeSelection) generatedUntaggedObjectUnionTypeNames() []string {
+	plan := c.plan
+	resolver := c.resolver
 	names := map[string]bool{}
 	for _, typ := range plan.Types {
 		if typ.Schema == nil || len(typ.Schema.Definitions) == 0 {
 			continue
 		}
 		for name, schema := range typ.Schema.Definitions {
-			if isReviewedGeneratedDefinition(typ.SchemaPath, name) && classifyGeneratedDefinition(schema) == generatedDefinitionUntaggedObjectUnion {
+			if isGeneratedDefinitionSelected(typ, name) && classifyGeneratedDefinition(schema) == generatedDefinitionUntaggedObjectUnion {
 				names[generatedDefinitionTypeName(resolver, typ.SchemaPath, name)] = true
 			}
 		}
@@ -1517,7 +1664,7 @@ func generatedUntaggedObjectUnionTypeNames(plan ProtocolTypePlan) []string {
 func taggedUnionCandidates(plan ProtocolTypePlan, resolver generatedDefinitionNameResolver) ([]TypePlan, error) {
 	var candidates []TypePlan
 	for _, typ := range plan.Types {
-		if typ.Kind == TypePlanTaggedUnionCandidate && isGeneratedTaggedUnionCheckpoint(typ.SchemaPath) {
+		if typ.Kind == TypePlanTaggedUnionCandidate && typ.GeneratedRoot {
 			candidates = append(candidates, typ)
 		}
 		definitions, err := generatedDefinitionTaggedUnionCandidates(typ, resolver)
@@ -1526,10 +1673,14 @@ func taggedUnionCandidates(plan ProtocolTypePlan, resolver generatedDefinitionNa
 		}
 		candidates = append(candidates, definitions...)
 	}
-	sort.Slice(candidates, func(i, j int) bool {
-		return candidates[i].TypeName < candidates[j].TypeName
+	deduped, err := dedupeDefinitionTypeCandidates(candidates)
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(deduped, func(i, j int) bool {
+		return deduped[i].TypeName < deduped[j].TypeName
 	})
-	return candidates, nil
+	return deduped, nil
 }
 
 func generatedDefinitionTaggedUnionCandidates(parent TypePlan, resolver generatedDefinitionNameResolver) ([]TypePlan, error) {
@@ -1538,7 +1689,10 @@ func generatedDefinitionTaggedUnionCandidates(parent TypePlan, resolver generate
 	}
 	var names []string
 	for name, schema := range parent.Schema.Definitions {
-		if isReviewedGeneratedDefinition(parent.SchemaPath, name) && classifyGeneratedDefinition(schema) == generatedDefinitionTaggedUnion {
+		if resolver.ReusesTopLevel(parent.SchemaPath, name) {
+			continue
+		}
+		if isGeneratedDefinitionSelected(parent, name) && classifyGeneratedDefinition(schema) == generatedDefinitionTaggedUnion {
 			names = append(names, name)
 		}
 	}
@@ -1548,7 +1702,7 @@ func generatedDefinitionTaggedUnionCandidates(parent TypePlan, resolver generate
 	for _, name := range names {
 		schema := parent.Schema.Definitions[name]
 		if schema == nil || len(schema.OneOf) == 0 {
-			return nil, fmt.Errorf("definition tagged union %s in %s is not a oneOf schema", name, parent.SchemaPath)
+			return nil, unsupportedGeneratedSchema(unsupportedDefinitionPath(parent.SchemaPath, name), "definition tagged union %s in %s is not a oneOf schema", name, parent.SchemaPath)
 		}
 		candidates = append(candidates, TypePlan{
 			Kind:       TypePlanTaggedUnionCandidate,
@@ -1661,7 +1815,7 @@ func variantDiscriminator(schema *Schema) (fieldName string, value string, err e
 	}
 	sort.Strings(candidates)
 	if len(candidates) != 1 {
-		return "", "", fmt.Errorf("expected exactly one reviewed discriminator candidate, got %d", len(candidates))
+		return "", "", fmt.Errorf("expected exactly one supported discriminator candidate, got %d", len(candidates))
 	}
 	fieldName = candidates[0]
 	return fieldName, schema.Properties[fieldName].Enum[0], nil
@@ -1807,7 +1961,7 @@ func firstPassGoTypeSafe(goType string) bool {
 		return firstPassGoTypeSafe(inner)
 	}
 	switch leaf {
-	case "bool", "int32", "int64", "uint16", "uint32", "uint64", "string", "JSONValue", "OutputSchema", "Nullable[string]":
+	case "bool", "float64", "int32", "int64", "uint16", "uint32", "uint64", "string", "JSONValue", "OutputSchema", "Nullable[string]":
 		return true
 	default:
 		return false
@@ -1997,693 +2151,14 @@ func enumConstName(typeName, value string) string {
 	return b.String()
 }
 
-func isGeneratedTaggedUnionCheckpoint(path string) bool {
-	switch path {
-	case "ClientNotification.json", "ClientRequest.json", "ServerNotification.json", "ServerRequest.json",
-		"McpServerElicitationRequestParams.json",
-		"v2/BedrockSetupParams.json", "v2/LoginAccountParams.json", "v2/LoginAccountResponse.json":
-		return true
-	default:
-		return false
-	}
-}
-
-func isGeneratedScalarUnionCheckpoint(path string) bool {
-	return path == "RequestId.json"
-}
-
-func isReviewedGeneratedDefinition(schemaPath string, name string) bool {
-	return isGeneratedDefinitionScalarAliasCheckpoint(schemaPath, name) ||
-		isGeneratedDefinitionScalarUnionCheckpoint(schemaPath, name) ||
-		isGeneratedDefinitionStringEnumCheckpoint(schemaPath, name) ||
-		isGeneratedDefinitionStructCheckpoint(schemaPath, name) ||
-		isGeneratedDefinitionTaggedUnionCheckpoint(schemaPath, name) ||
-		isGeneratedDefinitionMixedUnionCheckpoint(schemaPath, name) ||
-		isGeneratedDefinitionUntaggedObjectUnionCheckpoint(schemaPath, name)
-}
-
-func isGeneratedDefinitionScalarUnionCheckpoint(schemaPath string, name string) bool {
-	switch schemaPath {
-	case "v2/ConfigReadResponse.json":
-		return name == "ForcedChatgptWorkspaceIds"
-	case "v2/ThreadListParams.json":
-		return name == "ThreadListCwdFilter"
-	case "v2/ThreadResumeParams.json":
-		return name == "FunctionCallOutputBody"
-	default:
-		return false
-	}
-}
-
-func isGeneratedDefinitionScalarAliasCheckpoint(schemaPath string, name string) bool {
-	switch schemaPath {
-	case "v2/ConfigReadResponse.json",
-		"v2/ThreadSettingsUpdateParams.json",
-		"v2/ThreadSettingsUpdatedNotification.json",
-		"v2/ThreadStartParams.json",
-		"v2/TurnStartParams.json":
-		switch name {
-		case "ReasoningEffort", "ThreadSource":
-			return true
-		default:
-			return false
-		}
-	default:
-		return false
-	}
-}
-
-func isGeneratedDefinitionStringEnumCheckpoint(schemaPath string, name string) bool {
-	switch schemaPath {
-	case "McpServerElicitationRequestParams.json":
-		switch name {
-		case "McpElicitationArrayType", "McpElicitationBooleanType", "McpElicitationNumberType", "McpElicitationObjectType", "McpElicitationStringType":
-			return true
-		default:
-			return false
-		}
-	case "v2/AccountUpdatedNotification.json":
-		return name == "AuthMode"
-	case "v2/AccountRateLimitsUpdatedNotification.json":
-		switch name {
-		case "PlanType", "RateLimitReachedType":
-			return true
-		default:
-			return false
-		}
-	case "v2/ConsumeAccountRateLimitResetCreditResponse.json":
-		return name == "ConsumeAccountRateLimitResetCreditOutcome"
-	case "FileChangeRequestApprovalResponse.json":
-		return name == "FileChangeApprovalDecision"
-	case "v2/ModelListResponse.json":
-		return name == "InputModality"
-	case "v2/CommandExecOutputDeltaNotification.json":
-		return name == "CommandExecOutputStream"
-	case "v2/ConfigReadResponse.json":
-		switch name {
-		case "AllowDenyRequirement", "AutoCompactTokenLimitScope", "ReasoningSummary":
-			return true
-		default:
-			return false
-		}
-	case "v2/ConfigRequirementsReadResponse.json":
-		switch name {
-		case "AllowDenyRequirement",
-			"ApprovalsReviewer",
-			"BrowserUseAccessApprovalLifetime",
-			"NetworkDomainPermission",
-			"NetworkUnixSocketPermission",
-			"ResidencyRequirement",
-			"SandboxMode",
-			"WebSearchMode":
-			return true
-		default:
-			return false
-		}
-	case "v2/ExperimentalFeatureListResponse.json":
-		return name == "ExperimentalFeatureStage"
-	case "v2/EnvironmentStatusResponse.json":
-		return name == "EnvironmentStatusKind"
-	case "v2/GetWorkspaceMessagesResponse.json":
-		return name == "WorkspaceMessageType"
-	case "v2/ListMcpServerStatusResponse.json":
-		return name == "McpAuthStatus"
-	case "v2/ProcessOutputDeltaNotification.json":
-		return name == "ProcessOutputStream"
-	case "v2/PluginListResponse.json":
-		return name == "PluginAvailability"
-	case "v2/PluginReadResponse.json":
-		return name == "AppTemplateUnavailableReason"
-	case "v2/ThreadStartParams.json":
-		switch name {
-		case "Personality", "ThreadSource", "ThreadStartSource":
-			return true
-		default:
-			return false
-		}
-	case "v2/ThreadResumeParams.json":
-		switch name {
-		case "ImageDetail", "LocalShellStatus", "SortDirection":
-			return true
-		default:
-			return false
-		}
-	case "v2/TurnStartParams.json":
-		switch name {
-		case "AdditionalContextKind", "ImageDetail", "ModeKind", "NetworkAccess":
-			return true
-		default:
-			return false
-		}
-	case "v2/TurnSettingsUpdateResponse.json":
-		return name == "TurnSettingsUpdateStatus"
-	case "v2/TurnSteerParams.json":
-		return name == "AdditionalContextKind"
-	default:
-		return false
-	}
-}
-
-func isGeneratedDefinitionStructCheckpoint(schemaPath string, name string) bool {
-	switch schemaPath {
-	case "ApplyPatchApprovalResponse.json":
-		return name == "NetworkPolicyAmendment"
-	case "ClientRequest.json":
-		switch name {
-		case "GetAccountRateLimitsParams", "GetAccountTokenUsageParams", "RemoteControlDisableParams", "RemoteControlEnableParams":
-			return true
-		default:
-			return false
-		}
-	case "CommandExecutionRequestApprovalParams.json":
-		switch name {
-		case "AdditionalFileSystemPermissions",
-			"AdditionalNetworkPermissions",
-			"AdditionalPermissionProfile",
-			"FileSystemSandboxEntry",
-			"NetworkApprovalContext":
-			return true
-		default:
-			return false
-		}
-	case "FuzzyFileSearchResponse.json":
-		return name == "FuzzyFileSearchResult"
-	case "v2/BedrockDiscoverResponse.json":
-		switch name {
-		case "BedrockAwsProfile", "BedrockEnvironmentCredential":
-			return true
-		default:
-			return false
-		}
-	case "v2/CollaborationModeListResponse.json":
-		return name == "CollaborationModeMask"
-	case "v2/AppsListResponse.json":
-		switch name {
-		case "AppBranding",
-			"AppInfo",
-			"AppMetadata",
-			"AppReview",
-			"AppScreenshot":
-			return true
-		default:
-			return false
-		}
-	case "v2/AppsInstalledResponse.json":
-		return name == "InstalledApp"
-	case "v2/AppsReadResponse.json":
-		switch name {
-		case "AppToolSummary", "ConnectorMetadata":
-			return true
-		default:
-			return false
-		}
-	case "v2/CommandExecParams.json":
-		switch name {
-		case "CommandExecTerminalSize",
-			"PermissionProfileNetworkPermissions":
-			return true
-		default:
-			return false
-		}
-	case "v2/ConfigBatchWriteParams.json":
-		return name == "ConfigEdit"
-	case "v2/ConfigReadResponse.json":
-		switch name {
-		case "AnalyticsConfig",
-			"AppConfig",
-			"AppLinksConfig",
-			"AppToolConfig",
-			"AppToolsConfig",
-			"AppsConfig",
-			"AppsDefaultConfig",
-			"BrowserUseConfig",
-			"BrowserUseOriginPolicyConfig",
-			"ComputerUseConfig",
-			"ComputerUseMacosConfig",
-			"ComputerUseWindowsConfig",
-			"ComputerUseWindowsExeConfig",
-			"Config",
-			"ConfigLayer",
-			"ProfileV2",
-			"SandboxWorkspaceWrite",
-			"ToolsV2",
-			"WebSearchLocation",
-			"WebSearchToolConfig":
-			return true
-		default:
-			return false
-		}
-	case "v2/ConfigWarningNotification.json":
-		switch name {
-		case "TextPosition", "TextRange":
-			return true
-		default:
-			return false
-		}
-	case "v2/ConfigWriteResponse.json":
-		switch name {
-		case "ConfigLayerMetadata", "OverriddenMetadata":
-			return true
-		default:
-			return false
-		}
-	case "v2/ConfigRequirementsReadResponse.json":
-		switch name {
-		case "ApplicationNetworkRequirements",
-			"ApplicationRequirements",
-			"AutoReviewRequirements",
-			"BrowserUseOriginPolicy",
-			"BrowserUseRequirements",
-			"ComputerUseMacosRequirements",
-			"ComputerUseRequirements",
-			"ComputerUseWindowsExeRequirement",
-			"ComputerUseWindowsRequirements",
-			"ConfigRequirements",
-			"ConfiguredHookMatcherGroup",
-			"FeedbackRequirements",
-			"InAppBrowserRequirements",
-			"ManagedHooksRequirements",
-			"ModelsRequirements",
-			"NewThreadModelDefaults",
-			"NetworkRequirements":
-			return true
-		default:
-			return false
-		}
-	case "v2/ExperimentalFeatureListResponse.json":
-		return name == "ExperimentalFeature"
-	case "v2/ExternalAgentConfigDetectResponse.json":
-		switch name {
-		case "CommandMigration",
-			"ExternalAgentConfigMigrationItem",
-			"ExternalAgentDetectedConnectorCandidate",
-			"HookMigration",
-			"McpServerMigration",
-			"MigrationDetails",
-			"PluginsMigration",
-			"SessionMigration",
-			"SkillMigration",
-			"SubagentMigration":
-			return true
-		default:
-			return false
-		}
-	case "v2/ExternalAgentConfigImportHistoriesReadResponse.json":
-		switch name {
-		case "ExternalAgentConfigImportHistory", "ExternalAgentImportedConnectorCandidate":
-			return true
-		default:
-			return false
-		}
-	case "v2/ExternalAgentConfigImportHistoryRecordParams.json":
-		switch name {
-		case "ExternalAgentConfigImportHistoryRecordSuccessParams",
-			"ExternalAgentConfigImportHistoryRecordTypeResultParams":
-			return true
-		default:
-			return false
-		}
-	case "v2/ExternalAgentConfigImportCompletedNotification.json":
-		switch name {
-		case "ExternalAgentConfigImportItemTypeFailure",
-			"ExternalAgentConfigImportItemTypeSuccess",
-			"ExternalAgentConfigImportTypeResult":
-			return true
-		default:
-			return false
-		}
-	case "v2/GetWorkspaceMessagesResponse.json":
-		return name == "WorkspaceMessage"
-	case "v2/FsReadDirectoryResponse.json":
-		return name == "FsReadDirectoryEntry"
-	case "v2/GetAccountRateLimitsResponse.json":
-		switch name {
-		case "CreditsSnapshot",
-			"RateLimitResetCredit",
-			"RateLimitResetCreditsSummary",
-			"RateLimitSnapshot",
-			"RateLimitWindow",
-			"SpendControlLimitSnapshot":
-			return true
-		default:
-			return false
-		}
-	case "McpServerElicitationRequestParams.json":
-		return name == "McpElicitationSchema"
-	case "v2/HooksListResponse.json":
-		switch name {
-		case "HookErrorInfo", "HookMetadata", "HooksListEntry":
-			return true
-		default:
-			return false
-		}
-	case "v2/HookStartedNotification.json":
-		switch name {
-		case "HookOutputEntry", "HookRunSummary":
-			return true
-		default:
-			return false
-		}
-	case "v2/ItemGuardianApprovalReviewCompletedNotification.json":
-		return name == "GuardianApprovalReview"
-	case "v2/ListMcpServerStatusResponse.json":
-		switch name {
-		case "McpServerInfo", "McpServerStatus", "Resource", "ResourceTemplate", "Tool":
-			return true
-		default:
-			return false
-		}
-	case "v2/McpServerEventStreamNotification.json":
-		return name == "McpServerEventNotification"
-	case "v2/ThreadRealtimeStartParams.json":
-		return name == "ThreadRealtimeInitialItem"
-	case "v2/ThreadRealtimeListVoicesResponse.json":
-		return name == "RealtimeVoicesList"
-	case "v2/ThreadItemsListResponse.json":
-		return name == "ThreadItemEntry"
-	case "v2/ThreadSearchOccurrencesResponse.json":
-		switch name {
-		case "ThreadSearchOccurrence", "ThreadSearchTextRange":
-			return true
-		default:
-			return false
-		}
-	case "v1/InitializeParams.json":
-		switch name {
-		case "ClientInfo", "InitializeCapabilities":
-			return true
-		default:
-			return false
-		}
-	case "JSONRPCRequest.json":
-		return name == "W3cTraceContext"
-	case "v2/ModelListResponse.json":
-		switch name {
-		case "Model",
-			"ModelAvailabilityNux",
-			"ModelServiceTier",
-			"ModelUpgradeInfo",
-			"ReasoningEffortOption":
-			return true
-		default:
-			return false
-		}
-	case "v2/PluginListResponse.json":
-		switch name {
-		case "MarketplaceInterface",
-			"MarketplaceLoadErrorInfo",
-			"PluginInterface",
-			"PluginMarketplaceEntry",
-			"PluginShareContext",
-			"PluginSharePrincipal",
-			"PluginSummary":
-			return true
-		default:
-			return false
-		}
-	case "v2/PluginReadResponse.json":
-		switch name {
-		case "AppSummary",
-			"AppTemplateSummary",
-			"PluginDetail",
-			"PluginHookSummary",
-			"ScheduledTaskSummary",
-			"SkillInterface",
-			"SkillSummary":
-			return true
-		default:
-			return false
-		}
-	case "v2/PluginReconcileResponse.json":
-		return name == "PluginReconcileChangedPlugin"
-	case "v2/PluginSearchResponse.json":
-		return name == "PluginSearchResult"
-	case "v2/PluginShareListResponse.json":
-		return name == "PluginShareListItem"
-	case "v2/PluginShareSaveParams.json":
-		return name == "PluginShareTarget"
-	case "v2/SkillsListResponse.json":
-		switch name {
-		case "SkillDependencies",
-			"SkillErrorInfo",
-			"SkillMetadata",
-			"SkillToolDependency",
-			"SkillsListEntry":
-			return true
-		default:
-			return false
-		}
-	case "v2/MarketplaceUpgradeResponse.json":
-		return name == "MarketplaceUpgradeErrorInfo"
-	case "v2/ProcessSpawnParams.json":
-		return name == "ProcessTerminalSize"
-	case "v2/ProjectCreateResponse.json":
-		switch name {
-		case "Project", "ProjectRoot":
-			return true
-		default:
-			return false
-		}
-	case "v2/ServerDiagnosticsResponse.json":
-		switch name {
-		case "ServerDiagnosticsGauge", "ServerDiagnosticsProcess":
-			return true
-		default:
-			return false
-		}
-	case "v2/ThreadTokenUsageUpdatedNotification.json":
-		switch name {
-		case "ThreadTokenUsage", "TokenUsageBreakdown":
-			return true
-		default:
-			return false
-		}
-	case "v2/ThreadRealtimeOutputAudioDeltaNotification.json":
-		return name == "ThreadRealtimeAudioChunk"
-	case "v2/ThreadQueueAddResponse.json":
-		return name == "QueuedSubmission"
-	case "v2/ThreadGoalUpdatedNotification.json":
-		return name == "ThreadGoal"
-	case "v2/TurnPlanUpdatedNotification.json":
-		return name == "TurnPlanStep"
-	case "v2/TurnStartResponse.json":
-		switch name {
-		case "AsyncUserInputQuestion",
-			"CollabAgentState",
-			"FileUpdateChange",
-			"HookPromptFragment",
-			"McpToolCallAppContext",
-			"McpToolCallError",
-			"McpToolCallResult",
-			"MemoryCitation",
-			"MemoryCitationEntry",
-			"MisalignmentErrorDetails",
-			"MisalignmentSteer",
-			"Turn",
-			"TurnError":
-			return true
-		default:
-			return false
-		}
-	case "v2/ThreadStartResponse.json":
-		switch name {
-		case "ActivePermissionProfile",
-			"GitInfo",
-			"Thread",
-			"ThreadEnvironment",
-			"ThreadExtra",
-			"ThreadSection",
-			"ThreadSectionAppearance":
-			return true
-		default:
-			return false
-		}
-	case "v2/UserVerificationVerifyResponse.json":
-		return name == "UserVerificationProof"
-	case "v2/ThreadStartParams.json":
-		switch name {
-		case "DynamicToolSpec", "SelectedCapabilityRoot", "TurnEnvironmentParams":
-			return true
-		default:
-			return false
-		}
-	case "v2/ThreadResumeParams.json":
-		switch name {
-		case "ConfigurationReasoning", "InternalChatMessageMetadataPassthrough", "ResponseItemMetadata", "ThreadResumeInitialTurnsPageParams":
-			return true
-		default:
-			return false
-		}
-	case "v2/ThreadResumeResponse.json":
-		return name == "TurnsPage"
-	case "v2/ThreadSettingsUpdatedNotification.json":
-		return name == "ThreadSettings"
-	case "v2/ThreadMetadataUpdateParams.json":
-		return name == "ThreadMetadataGitInfoUpdateParams"
-	case "v2/TurnStartParams.json":
-		switch name {
-		case "AdditionalContextEntry", "ByteRange", "CollaborationMode", "Settings", "TextElement", "TurnToolOutput":
-			return true
-		default:
-			return false
-		}
-	case "PermissionsRequestApprovalParams.json":
-		return name == "RequestPermissionProfile"
-	case "PermissionsRequestApprovalResponse.json":
-		return name == "GrantedPermissionProfile"
-	case "ToolRequestUserInputParams.json":
-		switch name {
-		case "ToolRequestUserInputOption", "ToolRequestUserInputQuestion":
-			return true
-		default:
-			return false
-		}
-	case "ToolRequestUserInputResponse.json":
-		return name == "ToolRequestUserInputAnswer"
-	default:
-		return false
-	}
-}
-
 func isObjectStructDefinitionSchema(schema *Schema) bool {
-	return schema != nil && schema.Type.Only("object") && len(schema.OneOf) == 0 && len(schema.AnyOf) == 0
-}
-
-func isGeneratedDefinitionMixedUnionCheckpoint(schemaPath string, name string) bool {
-	switch schemaPath {
-	case "ApplyPatchApprovalResponse.json":
-		return name == "ReviewDecision"
-	case "CommandExecutionRequestApprovalResponse.json":
-		return name == "CommandExecutionApprovalDecision"
-	case "v2/ThreadStartParams.json":
-		return name == "MultiAgentMode"
-	case "v2/ThreadResumeParams.json":
-		return name == "MessagePhase"
-	case "v2/TurnStartResponse.json":
-		switch name {
-		case "CodexErrorInfo", "TurnItemsView":
-			return true
-		default:
-			return false
-		}
-	case "v2/ThreadStartResponse.json":
-		switch name {
-		case "SessionSource", "SubAgentSource":
-			return true
-		default:
-			return false
-		}
-	case "v2/ConfigRequirementsReadResponse.json":
-		return name == "AskForApproval"
-	default:
+	if schema == nil || !schema.Type.Only("object") || len(schema.OneOf) != 0 || len(schema.AnyOf) != 0 {
 		return false
 	}
-}
-
-func isGeneratedDefinitionUntaggedObjectUnionCheckpoint(schemaPath string, name string) bool {
-	switch schemaPath {
-	case "v2/McpResourceReadResponse.json":
-		return name == "ResourceContent"
-	default:
-		return false
-	}
-}
-
-func reviewedMixedUnionStructDependencyNames() []string {
-	return []string{
-		"NetworkPolicyAmendment",
-	}
-}
-
-func reviewedTaggedUnionStructDependencyNames() []string {
-	return []string{
-		"FileSystemSandboxEntry",
-		"PermissionProfileNetworkPermissions",
-		"ReasoningEffort",
-		"TextElement",
-	}
-}
-
-func isGeneratedDefinitionTaggedUnionCheckpoint(schemaPath string, name string) bool {
-	switch schemaPath {
-	case "ApplyPatchApprovalParams.json":
-		return name == "FileChange"
-	case "CommandExecutionRequestApprovalParams.json":
-		switch name {
-		case "CommandAction", "FileSystemPath", "FileSystemSpecialPath":
-			return true
-		default:
-			return false
-		}
-	case "DynamicToolCallResponse.json":
-		return name == "DynamicToolCallOutputContentItem"
-	case "ExecCommandApprovalParams.json":
-		return name == "ParsedCommand"
-	case "v2/GetAccountResponse.json":
-		return name == "Account"
-	case "v2/ThreadRealtimeStartParams.json":
-		return name == "ThreadRealtimeStartTransport"
-	case "v2/ItemGuardianApprovalReviewCompletedNotification.json":
-		return name == "GuardianApprovalReviewAction"
-	case "v2/CommandExecParams.json":
-		switch name {
-		case "PermissionProfile", "PermissionProfileFileSystemPermissions", "SandboxPolicy":
-			return true
-		default:
-			return false
-		}
-	case "v2/ConfigWriteResponse.json":
-		return name == "ConfigLayerSource"
-	case "v2/ConfigRequirementsReadResponse.json":
-		return name == "ConfiguredHookHandler"
-	case "v2/ThreadStartParams.json":
-		switch name {
-		case "CapabilityRootLocation", "DynamicToolNamespaceTool", "DynamicToolSpec", "PermissionProfileModificationParams", "PermissionProfileSelectionParams":
-			return true
-		default:
-			return false
-		}
-	case "v2/ThreadStartResponse.json":
-		switch name {
-		case "ActivePermissionProfileModification", "ThreadStatus":
-			return true
-		default:
-			return false
-		}
-	case "v2/PluginListResponse.json":
-		return name == "PluginSource"
-	case "v2/PluginReadResponse.json":
-		return name == "ScheduledTaskSchedule"
-	case "v2/ReviewStartParams.json":
-		return name == "ReviewTarget"
-	case "v2/ThreadResumeParams.json":
-		switch name {
-		case "AgentMessageInputContent",
-			"ContentItem",
-			"FunctionCallOutputContentItem",
-			"LocalShellAction",
-			"ReasoningItemContent",
-			"ReasoningItemReasoningSummary",
-			"ResponseItem",
-			"ResponsesApiWebSearchAction":
-			return true
-		default:
-			return false
-		}
-	case "v2/TurnStartResponse.json":
-		switch name {
-		case "ImageGenerationFailure", "PatchChangeKind", "ThreadItem", "WebSearchAction":
-			return true
-		default:
-			return false
-		}
-	case "v2/TurnStartParams.json":
-		return name == "UserInput"
-	case "v2/UserVerificationRpcError.json":
-		return name == "UserVerificationErrorDetails"
-	default:
-		return false
-	}
+	// Typed dynamic maps need a dedicated representation rather than pretending
+	// to be closed structs. Boolean additionalProperties is losslessly handled:
+	// false is closed, true uses DynamicProperties JSONValue preservation.
+	return schema.AdditionalProperties.Schema == nil
 }
 
 func taggedUnionKindConstName(union TaggedUnionPlan, variant TaggedUnionVariantPlan) string {
@@ -2766,7 +2241,7 @@ func writeStructMarshal(out *bytes.Buffer, typ TypePlan, fields []FieldPlan) {
 			minimumFields = append(minimumFields, field)
 		}
 	}
-	if len(guardedFields) == 0 && len(minItemsFields) == 0 && len(minimumFields) == 0 && !typ.OpenDynamicProperties {
+	if !needsCustomStructMarshal(typ) {
 		return
 	}
 	out.WriteString("\n")
@@ -4127,24 +3602,10 @@ func generatedGoType(goType string) string {
 
 func jsonTagOmitEmpty(field FieldPlan) string {
 	if field.Required {
+		if field.FieldName == "-" {
+			return ","
+		}
 		return ""
 	}
 	return ",omitempty"
-}
-
-func reservedProtocolTypeName(name string) bool {
-	switch name {
-	case "JSONKind",
-		"JSONValue",
-		"MethodDirection",
-		"MethodInfo",
-		"MethodKind",
-		"MethodStability",
-		"Nullable",
-		"OutputSchema",
-		"ResponseSchemaStatus":
-		return true
-	default:
-		return false
-	}
 }

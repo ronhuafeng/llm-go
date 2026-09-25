@@ -1,6 +1,7 @@
 package protocolgen
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -74,9 +75,6 @@ func TestPlanTypePreservesSharedObjectPropertiesAndOneOfPayload(t *testing.T) {
 	}
 	if plan.Kind != TypePlanTaggedUnionCandidate {
 		t.Fatalf("kind = %s, want tagged union so shared properties do not erase oneOf", plan.Kind)
-	}
-	if !strings.Contains(plan.Reason, "properties plus oneOf") {
-		t.Fatalf("reason = %q, want shared-object plus union composition", plan.Reason)
 	}
 	if got, want := len(schema.Properties), 1; got != want {
 		t.Fatalf("schema properties dropped: %d", got)
@@ -409,35 +407,36 @@ func TestBuildProtocolTypePlanClassifiesDynamicJSONFields(t *testing.T) {
 	}
 }
 
-func TestFieldPlannerSupportsOnlyReviewedDynamicToolArgumentsJSON(t *testing.T) {
+func TestFieldPlannerMapsTrueSchemaToJSONValueByShape(t *testing.T) {
 	trueSchema := true
 	schema := &Schema{Bool: &trueSchema}
-	reviewed := CoverageField{
-		Field:     "arguments",
-		Path:      "v2/TurnStartResponse.json#/definitions/ThreadItem#/oneOf/9/properties/arguments",
-		Required:  true,
-		Schema:    "v2/TurnStartResponse.json",
-		Stability: "stable",
-		Status:    "supported-generated",
-		Type:      "DynamicToolCallThreadItem",
-	}
-
-	field, err := planField(reviewed, schema)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if field.Kind != FieldPlanJSONValue || field.GoType != "protocolv2.JSONValue" {
-		t.Fatalf("reviewed dynamic tool arguments = kind %s GoType %q, want JSON value", field.Kind, field.GoType)
-	}
-
-	unreviewed := reviewed
-	unreviewed.Path = "Example.json#/properties/arguments"
-	if _, err := planField(unreviewed, schema); err == nil || !strings.Contains(err.Error(), "unreviewed true schema") {
-		t.Fatalf("unreviewed true schema error = %v", err)
+	for _, tt := range []struct {
+		required bool
+		want     string
+	}{
+		{required: true, want: "protocolv2.JSONValue"},
+		{required: false, want: "*protocolv2.JSONValue"},
+	} {
+		coverage := CoverageField{
+			Field:     "payload",
+			Path:      "Example.json#/properties/payload",
+			Required:  tt.required,
+			Schema:    "Example.json",
+			Stability: "stable",
+			Status:    "supported-generated",
+			Type:      "Example",
+		}
+		field, err := planField(coverage, schema)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if field.Kind != FieldPlanJSONValue || field.GoType != tt.want {
+			t.Fatalf("required=%v field = kind %s GoType %q, want JSONValue %q", tt.required, field.Kind, field.GoType, tt.want)
+		}
 	}
 }
 
-func TestArrayPlannerSupportsOnlyReviewedNullableJSONValueArrays(t *testing.T) {
+func TestArrayPlannerMapsTrueSchemaItemsToJSONValueByShape(t *testing.T) {
 	trueSchema := true
 	schema := &Schema{
 		Items: &Schema{Bool: &trueSchema},
@@ -467,10 +466,14 @@ func TestArrayPlannerSupportsOnlyReviewedNullableJSONValueArrays(t *testing.T) {
 		t.Fatal("reviewed nullable JSON array must preserve omit/null/value semantics")
 	}
 
-	unreviewed := reviewed
-	unreviewed.Path = "Example.json#/properties/results"
-	if _, err := planField(unreviewed, schema); err == nil || !strings.Contains(err.Error(), "unreviewed true-schema array items") {
-		t.Fatalf("unreviewed true-schema array error = %v", err)
+	generic := reviewed
+	generic.Path = "Example.json#/properties/results"
+	field, err = planField(generic, schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if field.Kind != FieldPlanArrayJSONValue || field.GoType != "*protocolv2.Nullable[[]protocolv2.JSONValue]" {
+		t.Fatalf("generic nullable JSON array = kind %s GoType %q", field.Kind, field.GoType)
 	}
 }
 
@@ -531,6 +534,38 @@ func TestBuildProtocolTypePlanSupportsConstrainedIntegerScalars(t *testing.T) {
 	}
 }
 
+func TestFieldPlannerPreservesDoubleNumberShape(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		schema   string
+		required bool
+		kind     FieldPlanKind
+		goType   string
+		wantErr  bool
+	}{
+		{name: "required double", schema: `{"type":"number","format":"double"}`, required: true, kind: FieldPlanScalar, goType: "float64"},
+		{name: "optional nullable double", schema: `{"type":["number","null"],"format":"double"}`, kind: FieldPlanNullableScalar, goType: "*protocolv2.Nullable[float64]"},
+		{name: "unformatted number", schema: `{"type":"number"}`, wantErr: true},
+		{name: "unrepresented minimum", schema: `{"type":"number","format":"double","minimum":1}`, kind: FieldPlanConstrainedDeferred},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			field, err := planField(CoverageField{Field: "value", Path: "Example.json#/properties/value", Schema: "Example.json", Required: tt.required}, mustParseSchema(t, tt.schema))
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected unsupported schema error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if field.Kind != tt.kind || field.GoType != tt.goType {
+				t.Fatalf("field = (%s, %q), want (%s, %q)", field.Kind, field.GoType, tt.kind, tt.goType)
+			}
+		})
+	}
+}
+
 func TestBuildProtocolTypePlanPreservesNullableTypedMapValues(t *testing.T) {
 	plan, err := BuildProtocolTypePlan(schemaRoot())
 	if err != nil {
@@ -553,6 +588,32 @@ func TestBuildProtocolTypePlanPreservesNullableTypedMapValues(t *testing.T) {
 		if !env.WireAllowsNull || !env.WireOmitAllowed {
 			t.Fatalf("%s must preserve omit/null/value semantics", path)
 		}
+	}
+}
+
+func TestPlanFieldMapsAdditionalPropertiesTrueToJSONValueMapByShape(t *testing.T) {
+	trueValue := true
+	coverage := CoverageField{
+		Field:     "metadata",
+		Path:      "Example.json#/properties/metadata",
+		Required:  false,
+		Schema:    "Example.json",
+		Stability: "stable",
+		Status:    "supported-generated",
+		Type:      "Example",
+	}
+	field, err := planField(coverage, &Schema{
+		AdditionalProperties: AdditionalProperties{Present: true, Bool: &trueValue},
+		Type:                 SchemaTypeSet{Values: []string{"object", "null"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if field.Kind != FieldPlanJSONValueMap || field.GoType != "*protocolv2.Nullable[map[string]protocolv2.JSONValue]" {
+		t.Fatalf("JSONValue map = kind %s GoType %q", field.Kind, field.GoType)
+	}
+	if !field.WireAllowsNull || !field.WireOmitAllowed {
+		t.Fatal("nullable JSONValue map must preserve omit/null/value semantics")
 	}
 }
 
@@ -1042,16 +1103,123 @@ func TestProtocolTypePlanFailsClosedForUnreviewedShape(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err := BuildProtocolTypePlan(root)
-	if err == nil {
-		t.Fatal("BuildProtocolTypePlan accepted unreviewed schema shape")
-	}
-	if !strings.Contains(err.Error(), "Example.json#/properties/value") {
-		t.Fatalf("error %q does not include field path", err)
+	var unsupported *UnsupportedSchemaError
+	if !errors.As(err, &unsupported) || unsupported.Path != "Example.json#/properties/value" {
+		t.Fatalf("error = %v, want typed unsupported field path", err)
 	}
 }
 
-func TestScalarAliasRefGoTypeRecognizesLegacyAppPathString(t *testing.T) {
-	goType, ok := scalarAliasRefGoType("#/definitions/LegacyAppPathString")
+func TestBuildProtocolTypePlanKeepsMissingInputOrdinary(t *testing.T) {
+	_, err := BuildProtocolTypePlan(t.TempDir())
+	var unsupported *UnsupportedSchemaError
+	if !errors.Is(err, os.ErrNotExist) || errors.As(err, &unsupported) {
+		t.Fatalf("error = %v, want ordinary missing input", err)
+	}
+}
+
+func TestReachableGeneratedDefinitionsFollowRefsTransitively(t *testing.T) {
+	child := &Schema{
+		Type: SchemaTypeSet{Values: []string{"object"}},
+		Properties: map[string]*Schema{
+			"leaf":    {Ref: "#/definitions/Leaf"},
+			"ignored": {Type: SchemaTypeSet{Values: []string{"null"}}},
+		},
+	}
+	leaf := &Schema{Type: SchemaTypeSet{Values: []string{"object"}}}
+	unused := &Schema{Type: SchemaTypeSet{Values: []string{"object"}}}
+	plan := ProtocolTypePlan{Types: []TypePlan{{
+		SchemaPath: "Example.json",
+		TypeName:   "Example",
+		Fields: []FieldPlan{{
+			FieldName:  "child",
+			GoType:     "Child",
+			Kind:       FieldPlanRef,
+			RefPath:    "Example.json#/definitions/Child",
+			SchemaPath: "Example.json",
+		}},
+		Schema: &Schema{
+			Type: SchemaTypeSet{Values: []string{"object"}},
+			Definitions: map[string]*Schema{
+				"Child":  child,
+				"Leaf":   leaf,
+				"Unused": unused,
+			},
+		},
+	}}}
+	if err := markReachableGeneratedDefinitions(&plan, ""); err != nil {
+		t.Fatal(err)
+	}
+	selected := plan.Types[0].GeneratedDefinitions
+	for _, name := range []string{"Child", "Leaf"} {
+		if !selected[name] {
+			t.Fatalf("definition %s was not selected transitively: %#v", name, selected)
+		}
+	}
+	if selected["Unused"] {
+		t.Fatalf("unreferenced definition was selected: %#v", selected)
+	}
+}
+
+func TestGeneratedDefinitionRootsUseAllManifestProtocolEntries(t *testing.T) {
+	root := t.TempDir()
+	manifest := `{
+		"schema_version": 2,
+		"status": "classified-manifest",
+		"surface": [{"kind":"type","name":"Used","signature":"struct{}","stability":"stable"}],
+		"entries": [{
+			"direction": "client_to_server",
+			"facade_status": "generated",
+			"facade_target": "Threads().Add",
+			"family": "thread",
+			"kind": "request",
+			"method": "thread/add",
+			"params_or_payload_schema": "Used",
+			"response_schema": "UsedResponse.json",
+			"response_schema_status": "declared",
+			"response_type": "UsedResponse",
+			"source_schema": "ClientRequest.json",
+			"stability": "stable"
+		},{
+			"direction": "client_to_server",
+			"facade_status": "deferred",
+			"facade_target": "Account().UsageRead",
+			"family": "account",
+			"kind": "request",
+			"method": "account/usage/read",
+			"params_or_payload_schema": "Deferred",
+			"response_schema": "DeferredResponse.json",
+			"response_schema_status": "declared",
+			"response_type": "DeferredResponse",
+			"source_schema": "ClientRequest.json",
+			"stability": "stable"
+		}]
+	}`
+	if err := os.WriteFile(filepath.Join(root, "manifest.json"), []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	plan := ProtocolTypePlan{Types: []TypePlan{
+		{SchemaPath: "Used.json", TypeName: "Used", Schema: &Schema{Type: SchemaTypeSet{Values: []string{"object"}}}},
+		{SchemaPath: "UsedResponse.json", TypeName: "UsedResponse", Schema: &Schema{Type: SchemaTypeSet{Values: []string{"object"}}}},
+		{SchemaPath: "Unrelated.json", TypeName: "Unrelated", Schema: &Schema{Type: SchemaTypeSet{Values: []string{"object"}}}},
+		{SchemaPath: "Deferred.json", TypeName: "Deferred", Schema: &Schema{Type: SchemaTypeSet{Values: []string{"object"}}}},
+		{SchemaPath: "DeferredResponse.json", TypeName: "DeferredResponse", Schema: &Schema{Type: SchemaTypeSet{Values: []string{"object"}}}},
+		{SchemaPath: "JSONRPCErrorError.json", TypeName: "JSONRPCErrorError", Kind: TypePlanObjectStructCandidate, Status: "supported-generated", Schema: mustParseSchema(t, `{"type":"object","additionalProperties":false,"properties":{"code":{"type":"integer","format":"int64"},"message":{"type":"string"},"data":true},"required":["code","message","data"]}`)},
+		{SchemaPath: "v2/UserVerificationRpcError.json", TypeName: "UserVerificationRpcError", Kind: TypePlanObjectStructCandidate, Status: "supported-generated", Schema: mustParseSchema(t, `{"type":"object","additionalProperties":false,"properties":{"code":{"type":"integer","format":"int64"},"message":{"type":"string"},"data":{"type":"object"}},"required":["code","message","data"]}`)},
+	}}
+	roots, err := generatedDefinitionRootIndexes(&plan, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !roots[0] || !roots[1] || roots[2] || !roots[3] || !roots[4] || !roots[5] || !roots[6] {
+		t.Fatalf("manifest roots = %#v, want protocol payloads, envelope dependencies, and closed RPC errors", roots)
+	}
+	if isGeneratedTopLevelType(plan.Types[5]) {
+		t.Fatal("JSON-RPC envelope root became a public generated type")
+	}
+}
+
+func TestInlineScalarAliasGoTypeRecognizesLegacyAppPathString(t *testing.T) {
+	goType, ok := inlineScalarAliasGoType("#/definitions/LegacyAppPathString")
 	if !ok || goType != "string" {
 		t.Fatalf("LegacyAppPathString alias = (%q, %v), want (string, true)", goType, ok)
 	}

@@ -21,7 +21,12 @@ on:
         type: boolean
         default: false
       validation_only:
-        description: "Run mechanical sync and local validation from the current open PR without committing or publishing protocol changes."
+        description: "Rebuild and verify the exact accepted baseline from an open PR without Agent, Apply, commit, or publication. Requires force_compare."
+        required: false
+        type: boolean
+        default: false
+      diagnostic_only:
+        description: "Generate the latest stable candidate and run a read-only Plan; never invoke Agent, Apply, checks, or publication."
         required: false
         type: boolean
         default: false
@@ -31,31 +36,36 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  sync:
-    name: Sync upstream protocol
+  diagnose:
+    if: ${{ github.event_name == 'workflow_dispatch' && (inputs.diagnostic_only == true || inputs.validation_only == true) }}
+    name: Read-only upstream protocol
     runs-on: ubuntu-latest
     timeout-minutes: 360
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
+      pull-requests: read
     steps:
-      - name: Guard control-plane ref
+      - name: Guard diagnostic ref
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DIAGNOSTIC_ONLY: ${{ inputs.diagnostic_only == true }}
           VALIDATION_ONLY: ${{ inputs.validation_only == true }}
+          FORCE_COMPARE: ${{ inputs.force_compare == true }}
         run: |
           set -euo pipefail
-
+          if [[ "${DIAGNOSTIC_ONLY}" == "true" && "${VALIDATION_ONLY}" == "true" ]]; then
+            echo 'diagnostic_only and validation_only are mutually exclusive.' >&2
+            exit 1
+          fi
+          if [[ "${VALIDATION_ONLY}" == "true" && "${FORCE_COMPARE}" != "true" ]]; then
+            echo 'validation_only requires force_compare=true.' >&2
+            exit 1
+          fi
           if [[ "${GITHUB_REF_NAME}" == "${DEFAULT_BRANCH}" ]]; then
             exit 0
           fi
-          if [[ "${GITHUB_EVENT_NAME}" != "workflow_dispatch" || "${VALIDATION_ONLY}" != "true" ]]; then
-            echo "Refusing to run protocol sync from ${GITHUB_REF_NAME}; use ${DEFAULT_BRANCH} or validation_only from an open PR." >&2
-            exit 1
-          fi
-
           matching_prs="$(
             gh pr list \
               --repo "${GH_REPO}" \
@@ -65,10 +75,197 @@ jobs:
               --json headRefOid,headRepository \
               --jq '[.[] | select(.headRefOid == env.GITHUB_SHA and .headRepository.nameWithOwner == env.GH_REPO)] | length'
           )"
-          if [[ "${matching_prs}" != "1" ]]; then
-            echo "validation_only requires exactly one open same-repository PR from ${GITHUB_REF_NAME} at ${GITHUB_SHA}." >&2
-            exit 1
+          test "${matching_prs}" = 1
+
+      - name: Check out diagnostic revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Provision Codex schema build dependencies
+        run: |
+          set -euo pipefail
+          rustup default stable
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang \
+            cmake \
+            libasound2-dev \
+            libssl-dev \
+            pkg-config \
+            protobuf-compiler
+
+      - name: Generate and plan candidate
+        id: diagnostic
+        if: ${{ inputs.diagnostic_only == true }}
+        working-directory: codexsdk
+        env:
+          GOTOOLCHAIN: local
+          REQUESTED_REF: ${{ inputs.upstream_ref || '' }}
+          ALLOW_DOWNGRADE: ${{ inputs.allow_downgrade || false }}
+        run: |
+          set -euo pipefail
+          args=(
+            diagnose
+            -repo-root "${GITHUB_WORKSPACE}"
+            -module-root .
+            -upstream-repo https://github.com/openai/codex.git
+            -event-name "${GITHUB_EVENT_NAME}"
+          )
+          if [[ -n "${REQUESTED_REF}" ]]; then
+            args+=(-upstream-ref "${REQUESTED_REF}")
           fi
+          if [[ "${ALLOW_DOWNGRADE}" == "true" ]]; then
+            args+=(-allow-downgrade)
+          fi
+          go run ./internal/cmd/protocolupgrade "${args[@]}" -json
+          git -C "${GITHUB_WORKSPACE}" diff --exit-code
+          test -z "$(git -C "${GITHUB_WORKSPACE}" status --porcelain --untracked-files=normal)"
+
+      - name: Summarize read-only diagnosis
+        if: ${{ always() && inputs.diagnostic_only == true }}
+        env:
+          TARGET_REF: ${{ steps.diagnostic.outputs.target_ref }}
+          TARGET_SHA: ${{ steps.diagnostic.outputs.target_sha }}
+          OUTCOME: ${{ steps.diagnostic.outputs.outcome }}
+          ISSUE_STAGE: ${{ steps.diagnostic.outputs.issue_stage }}
+          ISSUE_PATH: ${{ steps.diagnostic.outputs.issue_path }}
+          ISSUE_REASON: ${{ steps.diagnostic.outputs.issue_reason }}
+          REASON: ${{ steps.diagnostic.outputs.reason }}
+        run: |
+          {
+            echo '## Read-only upstream Plan diagnosis'
+            echo
+            echo "- Repository commit: ${GITHUB_SHA}"
+            echo "- Workflow run/attempt: ${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}"
+            echo "- Upstream ref: ${TARGET_REF}"
+            echo "- Upstream peeled commit: ${TARGET_SHA}"
+            echo '- Generation: cargo run -p codex-cli -- app-server generate-json-schema --experimental --out <complete-schema>; cargo run -p codex-cli -- app-server generate-json-schema --out <stable-schema> (both from that commit)'
+            echo "- Plan outcome: ${OUTCOME:-unavailable}"
+            echo "- Reason: ${REASON}"
+            echo "- Stage: ${ISSUE_STAGE}"
+            echo "- Path: ${ISSUE_PATH}"
+            echo "- Unresolved reason: ${ISSUE_REASON}"
+            echo '- Agent, Apply, commit, and publication: not invoked'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Verify exact accepted baseline
+        id: exact
+        if: ${{ inputs.validation_only == true && inputs.diagnostic_only != true }}
+        working-directory: codexsdk
+        env:
+          GOTOOLCHAIN: local
+          REQUESTED_REF: ${{ inputs.upstream_ref || '' }}
+          ALLOW_DOWNGRADE: ${{ inputs.allow_downgrade || false }}
+        run: |
+          set -euo pipefail
+          args=(
+            sync
+            -repo-root "${GITHUB_WORKSPACE}"
+            -module-root .
+            -upstream-repo https://github.com/openai/codex.git
+            -event-name "${GITHUB_EVENT_NAME}"
+            -force-compare
+            -validation-only
+          )
+          if [[ -n "${REQUESTED_REF}" ]]; then
+            args+=(-upstream-ref "${REQUESTED_REF}")
+          fi
+          if [[ "${ALLOW_DOWNGRADE}" == "true" ]]; then
+            args+=(-allow-downgrade)
+          fi
+          go run ./internal/cmd/protocolupgrade "${args[@]}"
+          git -C "${GITHUB_WORKSPACE}" diff --exit-code
+          test -z "$(git -C "${GITHUB_WORKSPACE}" status --porcelain --untracked-files=normal)"
+
+      - name: Check exact baseline and Go source
+        id: exact_checks
+        if: ${{ inputs.validation_only == true && inputs.diagnostic_only != true }}
+        working-directory: codexsdk
+        env:
+          GOTOOLCHAIN: local
+        run: |
+          set -euo pipefail
+          go run ./internal/cmd/protocolupgrade check -module-root .
+          git -C "${GITHUB_WORKSPACE}" diff --check
+          test -z "$(git -C "${GITHUB_WORKSPACE}" ls-files -z -- 'codexsdk/*.go' 'codexsdk/**/*.go' | xargs -0 -r -I{} gofmt -l "${GITHUB_WORKSPACE}/{}")"
+          go vet ./...
+          go test ./...
+
+      - name: Summarize exact baseline validation
+        if: ${{ always() && inputs.validation_only == true && inputs.diagnostic_only != true }}
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_REF: ${{ steps.exact.outputs.target_ref }}
+          TARGET_SHA: ${{ steps.exact.outputs.target_sha }}
+          OUTCOME: ${{ steps.exact.outputs.outcome }}
+          REASON: ${{ steps.exact.outputs.reason }}
+          CHECKS_OUTCOME: ${{ steps.exact_checks.outcome }}
+        run: |
+          set -euo pipefail
+          merge_candidate='not applicable to default branch'
+          if [[ "${GITHUB_REF_NAME}" != "${DEFAULT_BRANCH}" ]]; then
+            pr_number="$(
+              gh pr list --repo "${GH_REPO}" --state open \
+                --base "${DEFAULT_BRANCH}" --head "${GITHUB_REF_NAME}" \
+                --json number,headRefOid \
+                --jq '[.[] | select(.headRefOid == env.GITHUB_SHA) | .number][0] // empty'
+            )"
+            if [[ -n "${pr_number}" ]]; then
+              merge_candidate="$(gh api "repos/${GH_REPO}/git/ref/pull/${pr_number}/merge" --jq .object.sha)"
+            else
+              merge_candidate='PR head changed during validation; no current merge candidate for this head'
+            fi
+          fi
+          {
+            echo '## Exact upstream baseline validation'
+            echo
+            echo "- Workflow run/attempt: ${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}"
+            echo "- Validated PR head H: ${GITHUB_SHA}"
+            echo "- PR merge candidate at summary time (separate PR verification): ${merge_candidate}"
+            echo "- Exact upstream ref: ${TARGET_REF}"
+            echo "- Exact upstream commit: ${TARGET_SHA}"
+            echo "- Rebuild outcome: ${OUTCOME:-unavailable}"
+            echo "- Rebuild reason: ${REASON}"
+            echo "- Go checks outcome: ${CHECKS_OUTCOME}"
+            echo '- Agent, accepted-worktree Apply, commit, push, and PR publication: not invoked'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  sync:
+    if: ${{ inputs.diagnostic_only != true && inputs.validation_only != true }}
+    name: Sync upstream protocol
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      outcome: ${{ steps.mechanical.outputs.outcome }}
+      resume_outcome: ${{ steps.resume.outputs.outcome }}
+      target_ref: ${{ steps.mechanical.outputs.target_ref }}
+      target_kind: ${{ steps.mechanical.outputs.target_kind }}
+      target_sha: ${{ steps.mechanical.outputs.target_sha }}
+      patch_sha256: ${{ steps.handoff.outputs.patch_sha256 }}
+    steps:
+      - name: Guard control-plane ref
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_NAME}" == "${DEFAULT_BRANCH}" ]]; then
+            exit 0
+          fi
+          echo "Refusing to run write-capable protocol sync from ${GITHUB_REF_NAME}; use ${DEFAULT_BRANCH}." >&2
+          exit 1
 
       - name: Check out trusted control plane
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -96,7 +293,19 @@ jobs:
             pkg-config \
             protobuf-compiler
 
-      - name: Run native protocol sync
+      - name: Build trusted publication control
+        id: control
+        working-directory: codexsdk
+        env:
+          GOTOOLCHAIN: local
+        run: |
+          set -euo pipefail
+          control="${RUNNER_TEMP}/protocolupgrade-control"
+          go build -o "${control}" ./internal/cmd/protocolupgrade
+          digest="$(sha256sum "${control}" | cut -d ' ' -f1)"
+          echo "sha256=${digest}" >> "${GITHUB_OUTPUT}"
+
+      - name: Plan/apply native protocol sync
         id: mechanical
         working-directory: codexsdk
         env:
@@ -126,13 +335,18 @@ jobs:
           go run ./internal/cmd/protocolupgrade "${args[@]}"
 
       - name: Write Agent drift input
-        if: ${{ success() && steps.mechanical.outputs.outcome == 'applied' }}
+        if: ${{ success() && inputs.validation_only != true && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
         working-directory: codexsdk
         env:
           TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
           TARGET_KIND: ${{ steps.mechanical.outputs.target_kind }}
           TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
           CANDIDATE: ${{ steps.mechanical.outputs.candidate }}
+          CANDIDATE_DIR: ${{ steps.mechanical.outputs.candidate_dir }}
+          CANDIDATE_SHA256: ${{ steps.mechanical.outputs.candidate_sha256 }}
+          ISSUE_STAGE: ${{ steps.mechanical.outputs.issue_stage }}
+          ISSUE_PATH: ${{ steps.mechanical.outputs.issue_path }}
+          ISSUE_REASON: ${{ steps.mechanical.outputs.issue_reason }}
         run: |
           set -euo pipefail
           mkdir -p .cache/codexsdk-sync
@@ -142,16 +356,23 @@ jobs:
             echo "- kind: ${TARGET_KIND}"
             echo "- commit: ${TARGET_SHA}"
             echo
+            echo "Candidate root: ${CANDIDATE_DIR}"
+            echo "Candidate sha256: ${CANDIDATE_SHA256}"
             echo "Candidate schema: ${CANDIDATE}"
-            echo "Drift summary: ${CANDIDATE%/schema}/reports/drift_summary.json"
+            echo "Drift summary: ${CANDIDATE_DIR}/reports/drift_summary.json"
             echo
-            echo "Mechanical apply already updated the checked-in protocol/generated surface."
-            echo "Make only the handwritten source and test changes required by that drift."
+            echo "Read-only planning found an unresolved deterministic incompatibility."
+            echo "- stage: ${ISSUE_STAGE}"
+            echo "- path: ${ISSUE_PATH}"
+            echo "- reason: ${ISSUE_REASON}"
+            echo
+            echo "No mechanical protocol/generated changes have been applied."
+            echo "Make only the handwritten source and focused test changes required to make this exact candidate plan successfully."
           } > .cache/codexsdk-sync/agent-input.md
 
-      - name: Apply one Agent pass for real drift
+      - name: Apply one Agent pass for unresolved semantic drift
         id: codex
-        if: ${{ success() && steps.mechanical.outputs.outcome == 'applied' }}
+        if: ${{ success() && inputs.validation_only != true && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
         uses: ./.github/actions/codex-exec
         env:
           GITHUB_TOKEN: ""
@@ -159,16 +380,97 @@ jobs:
         with:
           api-key: ${{ secrets.AZURE_OPENAI_API_KEY }}
           responses-api-endpoint: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
+          model: gpt-6-sol
+          reasoning-effort: xhigh
           working-directory: .
           prompt: >-
             Read .agents/skills/codexsdk-sync-upstream/SKILL.md.
             Read codexsdk/.cache/codexsdk-sync/agent-input.md.
-            The selected upstream target has already been compared and applied.
-            Make only the targeted handwritten and test changes required by that
-            observed protocol drift. Do not resolve a different target. Do not
+            The selected upstream target has been generated and compared, but
+            read-only planning found a concrete unresolved incompatibility. No
+            mechanical protocol/generated changes have been applied. Make only
+            the targeted handwritten generator/semantic source and focused test
+            changes required for that exact candidate to plan successfully. Do
+            not resolve a different target or hand-edit generated outputs. Do not
             stage, commit, push, create or update a pull request, or treat a
             final model message as proof that the implementation is correct.
             Leave changes unstaged.
+
+      - name: Check Agent proposal scope
+        id: proposal_scope
+        if: ${{ success() && inputs.validation_only != true && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
+        run: &agent_proposal_scope |
+          set -euo pipefail
+          allowed_agent_path() {
+            local path="$1" remainder
+            if [[ "${ALLOW_MECHANICAL:-false}" == "true" ]]; then
+              case "${path}" in
+                codexsdk/internal/protocolschema/appserver/v2/*|codexsdk/sdk_surface.gen.go) return 0 ;;
+                codexsdk/protocolv2/*.gen.go)
+                  [[ "${path%/*}" == codexsdk/protocolv2 ]] && return 0
+                  ;;
+              esac
+            fi
+            case "${path}" in
+              codexsdk/protocolv2/*.go|codexsdk/internal/protocolgen/*.go|codexsdk/internal/wirejson/*.go)
+                remainder="${path##*/}"
+                [[ "${path%/*}" == codexsdk/protocolv2 || "${path%/*}" == codexsdk/internal/protocolgen || "${path%/*}" == codexsdk/internal/wirejson ]] && [[ "${remainder}" != *.gen.go ]] && return 0
+                ;;
+              codexsdk/internal/protocolupgrade/*.go)
+                [[ "${path%/*}" == codexsdk/internal/protocolupgrade ]] || return 1
+                remainder="${path##*/}"
+                case "${remainder}" in
+                  manifest.go|surface.go|commonrs.go|*_test.go) return 0 ;;
+                esac
+                ;;
+              codexsdk/*.go)
+                remainder="${path#codexsdk/}"
+                [[ "${remainder}" != */* && "${remainder}" != *.gen.go ]] && return 0
+                ;;
+            esac
+            return 1
+          }
+          changes_file="$(mktemp)"
+          trap 'rm -f "${changes_file}"' EXIT
+          git diff --name-only --no-renames -z HEAD -- > "${changes_file}"
+          git ls-files --others --exclude-standard -z >> "${changes_file}"
+          while IFS= read -r -d '' path; do
+            if ! allowed_agent_path "${path}"; then
+              echo "Agent proposal changed protected path: ${path}" >&2
+              exit 1
+            fi
+          done < "${changes_file}"
+
+      - name: Re-plan and apply candidate
+        id: resume
+        if: ${{ success() && inputs.validation_only != true && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
+        working-directory: codexsdk
+        env:
+          GOTOOLCHAIN: local
+          CANDIDATE_DIR: ${{ steps.mechanical.outputs.candidate_dir }}
+          CANDIDATE_SHA256: ${{ steps.mechanical.outputs.candidate_sha256 }}
+          TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
+          TARGET_KIND: ${{ steps.mechanical.outputs.target_kind }}
+          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
+        run: |
+          set -euo pipefail
+          go run ./internal/cmd/protocolupgrade resume \
+            -repo-root "${GITHUB_WORKSPACE}" \
+            -module-root . \
+            -candidate-dir "${CANDIDATE_DIR}" \
+            -candidate-sha256 "${CANDIDATE_SHA256}" \
+            -target-ref "${TARGET_REF}" \
+            -target-kind "${TARGET_KIND}" \
+            -target-sha "${TARGET_SHA}"
+
+      - name: Freeze proposal bytes before tests
+        id: freeze
+        run: |
+          set -euo pipefail
+          git ls-files --others --exclude-standard -z |
+            git add -N --pathspec-from-file=- --pathspec-file-nul
+          digest="$(git diff --binary --no-ext-diff HEAD -- | sha256sum | cut -d ' ' -f1)"
+          echo "patch_sha256=${digest}" >> "${GITHUB_OUTPUT}"
 
       - name: Run deterministic protocol checks
         id: checks
@@ -178,6 +480,7 @@ jobs:
           CANDIDATE: ${{ steps.mechanical.outputs.candidate }}
         run: |
           set -euo pipefail
+          go test ./...
           args=(check -module-root .)
           if [[ -n "${CANDIDATE}" ]]; then
             args+=(-candidate "${CANDIDATE}")
@@ -194,22 +497,108 @@ jobs:
             exit 1
           fi
           go vet ./...
-          go test ./...
 
-      - name: Publish protected sync PR
-        id: publish
-        if: ${{ success() && steps.mechanical.outputs.outcome == 'applied' && inputs.validation_only != true }}
+      - name: Recheck Agent proposal scope after tests
+        if: ${{ success() && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
+        env:
+          ALLOW_MECHANICAL: true
+        run: *agent_proposal_scope
+
+      - name: Seal verified proposal
+        id: handoff
+        if: ${{ success() && (steps.mechanical.outputs.outcome == 'applied' || steps.resume.outputs.outcome == 'applied') && inputs.validation_only != true }}
         working-directory: codexsdk
         env:
-          GOTOOLCHAIN: local
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CANDIDATE_DIR: ${{ steps.mechanical.outputs.candidate_dir }}
+          CANDIDATE_SHA256: ${{ steps.mechanical.outputs.candidate_sha256 }}
           TARGET_KIND: ${{ steps.mechanical.outputs.target_kind }}
           TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
           TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
+          CONTROL_SHA256: ${{ steps.control.outputs.sha256 }}
+          PROPOSAL_SHA256: ${{ steps.freeze.outputs.patch_sha256 }}
         run: |
           set -euo pipefail
-          go run ./internal/cmd/protocolupgrade stage \
+          git -C "${GITHUB_WORKSPACE}" ls-files --others --exclude-standard -z |
+            git -C "${GITHUB_WORKSPACE}" add -N --pathspec-from-file=- --pathspec-file-nul
+          git -C "${GITHUB_WORKSPACE}" diff --binary --no-ext-diff HEAD -- > "${RUNNER_TEMP}/protocol-sync.final.patch"
+          echo "${PROPOSAL_SHA256}  ${RUNNER_TEMP}/protocol-sync.final.patch" | sha256sum -c -
+          test -s "${RUNNER_TEMP}/protocol-sync.final.patch"
+          control="${RUNNER_TEMP}/protocolupgrade-control"
+          echo "${CONTROL_SHA256}  ${control}" | sha256sum -c -
+          if [[ -n "${CANDIDATE_SHA256}" ]]; then
+            "${control}" verify-candidate \
+              -candidate-dir "${CANDIDATE_DIR}" \
+              -candidate-sha256 "${CANDIDATE_SHA256}" \
+              -target-ref "${TARGET_REF}" \
+              -target-kind "${TARGET_KIND}" \
+              -target-sha "${TARGET_SHA}"
+          fi
+          mkdir -p "${RUNNER_TEMP}/protocol-sync-handoff"
+          cp "${RUNNER_TEMP}/protocol-sync.final.patch" "${RUNNER_TEMP}/protocol-sync-handoff/proposal.patch"
+          digest="$(sha256sum "${RUNNER_TEMP}/protocol-sync-handoff/proposal.patch" | cut -d ' ' -f1)"
+          echo "patch_sha256=${digest}" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload verified proposal
+        if: ${{ success() && steps.handoff.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: protocol-sync-proposal
+          path: ${{ runner.temp }}/protocol-sync-handoff/proposal.patch
+          if-no-files-found: error
+
+  publish:
+    if: ${{ needs.sync.outputs.outcome == 'applied' || needs.sync.outputs.resume_outcome == 'applied' }}
+    needs: sync
+    name: Publish protected sync PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check out trusted control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Build trusted publication control
+        working-directory: codexsdk
+        env:
+          GOTOOLCHAIN: local
+        run: go build -o "${RUNNER_TEMP}/protocolupgrade-control" ./internal/cmd/protocolupgrade
+
+      - name: Download verified proposal
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: protocol-sync-proposal
+          path: ${{ runner.temp }}/protocol-sync-handoff
+
+      - name: Publish verified proposal
+        id: publish
+        working-directory: codexsdk
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PATCH_SHA256: ${{ needs.sync.outputs.patch_sha256 }}
+          TARGET_KIND: ${{ needs.sync.outputs.target_kind }}
+          TARGET_REF: ${{ needs.sync.outputs.target_ref }}
+          TARGET_SHA: ${{ needs.sync.outputs.target_sha }}
+        run: |
+          set -euo pipefail
+          patch="${RUNNER_TEMP}/protocol-sync-handoff/proposal.patch"
+          echo "${PATCH_SHA256}  ${patch}" | sha256sum -c -
+          git -C "${GITHUB_WORKSPACE}" apply --check "${patch}"
+          git -C "${GITHUB_WORKSPACE}" apply "${patch}"
+          control="${RUNNER_TEMP}/protocolupgrade-control"
+          "${control}" stage \
             -repo-root "${GITHUB_WORKSPACE}" \
             -phase final
           git diff --cached --check
@@ -222,7 +611,7 @@ jobs:
             -m "Upstream-commit: ${TARGET_SHA}"
           gh auth status
           gh auth setup-git
-          go run ./internal/cmd/protocolupgrade publish \
+          "${control}" publish \
             -repo-root "${GITHUB_WORKSPACE}" \
             -base-branch "${DEFAULT_BRANCH}" \
             -branch-prefix "codex/sync-upstream/run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \

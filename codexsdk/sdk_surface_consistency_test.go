@@ -19,7 +19,6 @@ type generatedFacadeManifest struct {
 
 type generatedFacadeEntry struct {
 	Direction             string `json:"direction"`
-	FacadeStatus          string `json:"facade_status"`
 	FacadeTarget          string `json:"facade_target"`
 	Kind                  string `json:"kind"`
 	Method                string `json:"method"`
@@ -57,7 +56,7 @@ func TestGeneratedSDKFacadeMatchesClassifiedManifest(t *testing.T) {
 	expectedCalls := map[string]bool{}
 	generatedEntries := 0
 	for _, entry := range manifest.Entries {
-		if entry.Direction != "client_to_server" || entry.Kind != "request" || entry.FacadeStatus != "generated" {
+		if entry.Direction != "client_to_server" || entry.Kind != "request" || strings.HasPrefix(entry.FacadeTarget, "internal.") {
 			continue
 		}
 		generatedEntries++
@@ -101,11 +100,11 @@ func TestGeneratedSDKFacadeMatchesClassifiedManifest(t *testing.T) {
 		}
 	}
 	if generatedEntries == 0 {
-		t.Fatal("classified manifest has no generated facade entries")
+		t.Fatal("classified manifest has no public facade entries")
 	}
 	for key := range facadeCalls {
 		if !expectedCalls[key] {
-			t.Errorf("sdk_surface.gen.go contains generated operation %s absent from classified manifest", key)
+			t.Errorf("sdk_surface.gen.go contains generated operation %s absent from public manifest targets", key)
 		}
 	}
 }

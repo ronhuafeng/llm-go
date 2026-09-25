@@ -2,13 +2,14 @@ package protocolupgrade
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/ronhuafeng/llm-go/codexsdk/internal/generatedcheck"
+	"github.com/ronhuafeng/llm-go/codexsdk/internal/protocolgen"
 )
 
 // ApplyRequest is the apply command input.
@@ -24,9 +25,7 @@ type ApplyRequest struct {
 	TargetKind        string
 	TargetSHA         string
 	ModuleRoot        string
-	SkipCodegen       bool
 	Now               func() time.Time
-	skipSurface       bool
 }
 
 // ApplyResult is the machine-readable apply summary.
@@ -40,6 +39,7 @@ type ApplyResult struct {
 	CoverageFieldCount           int      `json:"coverage_field_count"`
 	ClassifiedSurfaceCount       int      `json:"classified_surface_count"`
 	GeneratedCompatibilityImpact string   `json:"generated_compatibility_impact"`
+	GeneratedReleaseImpact       string   `json:"generated_release_impact"`
 	TargetRef                    string   `json:"target_ref"`
 	TargetSHA                    string   `json:"target_sha"`
 }
@@ -47,6 +47,19 @@ type ApplyResult struct {
 // Apply copies a generated candidate onto the checked-in protocol surface,
 // regenerates deterministic metadata/generated Go, and writes only that surface.
 func Apply(req ApplyRequest) (ApplyResult, error) {
+	planned, err := Plan(req)
+	if err != nil {
+		return ApplyResult{}, err
+	}
+	if planned.Status != PlanReady {
+		return ApplyResult{}, fmt.Errorf("candidate is not ready: %+v", planned.Issue)
+	}
+	return planned.Apply()
+}
+
+// constructCandidate writes into the private construction directory owned by
+// Plan. Only the resulting captured bytes can be materialized in the worktree.
+func constructCandidate(req ApplyRequest) (ApplyResult, error) {
 	if req.Baseline == "" || req.Candidate == "" || req.StableCandidate == "" || req.CommonRS == "" {
 		return ApplyResult{}, fmt.Errorf("baseline, candidate, stable-candidate, and common.rs are required")
 	}
@@ -110,13 +123,6 @@ func Apply(req ApplyRequest) (ApplyResult, error) {
 		return ApplyResult{}, err
 	}
 	added := append([]string(nil), preflight.FileDiff.Added...)
-	fieldSeeds := map[string]bool{}
-	for _, rel := range preflight.FileDiff.Added {
-		fieldSeeds[rel] = true
-	}
-	for _, rel := range preflight.FileDiff.Changed {
-		fieldSeeds[rel] = true
-	}
 
 	if err := copyCandidateSchema(req.Candidate, req.Baseline); err != nil {
 		return ApplyResult{}, err
@@ -144,45 +150,34 @@ func Apply(req ApplyRequest) (ApplyResult, error) {
 	if err != nil {
 		return ApplyResult{}, err
 	}
-	manifest, err := buildManifest(req.Baseline, oldManifest, mappings, req.TargetSHA)
+	manifest, err := buildManifest(req.Baseline, req.StableCandidate, oldManifest, mappings, req.TargetSHA)
 	if err != nil {
 		return ApplyResult{}, err
 	}
 	if err := writeJSON(filepath.Join(req.Baseline, "manifest.json"), manifest); err != nil {
 		return ApplyResult{}, err
 	}
-	coverage, err := buildCoverage(req.Baseline, oldCoverage, manifest, fieldSeeds)
+	coverage, err := buildCoverage(req.Baseline, req.StableCandidate, oldCoverage, manifest)
 	if err != nil {
 		return ApplyResult{}, err
 	}
 	if err := writeJSON(filepath.Join(req.Baseline, "coverage_matrix.json"), coverage); err != nil {
 		return ApplyResult{}, err
 	}
-	if !req.skipSurface {
-		surface, err := deriveSurface(req.StableCandidate, req.Baseline)
-		if err != nil {
-			return ApplyResult{}, err
-		}
-		updateManifestSurface(&manifest, surface)
-		if err := writeJSON(filepath.Join(req.Baseline, "manifest.json"), manifest); err != nil {
-			return ApplyResult{}, err
-		}
+	surface, generatedFiles, err := deriveSurface(req.StableCandidate, req.Baseline, req.ModuleRoot)
+	if err != nil {
+		return ApplyResult{}, classifyUnsupported("surface", err)
+	}
+	updateManifestSurface(&manifest, surface)
+	if err := writeJSON(filepath.Join(req.Baseline, "manifest.json"), manifest); err != nil {
+		return ApplyResult{}, err
 	}
 	generatedCompatibility := compatibilityReport(oldManifest, manifest)
 	if err := writeAppliedReports(req, generatedCompatibility, codexVersion); err != nil {
 		return ApplyResult{}, err
 	}
-	if !req.SkipCodegen {
-		moduleRoot := req.ModuleRoot
-		if moduleRoot == "" {
-			moduleRoot = "."
-		}
-		if err := requireModuleBaseline(moduleRoot, req.Baseline); err != nil {
-			return ApplyResult{}, err
-		}
-		if err := generatedcheck.WriteArtifacts(moduleRoot); err != nil {
-			return ApplyResult{}, err
-		}
+	if err := writeCandidateFiles(req.ModuleRoot, generatedFiles); err != nil {
+		return ApplyResult{}, err
 	}
 	files, err := schemaFiles(req.Baseline)
 	if err != nil {
@@ -192,6 +187,7 @@ func Apply(req ApplyRequest) (ApplyResult, error) {
 		added = []string{}
 	}
 	impact, _ := generatedCompatibility["compatibility_impact"].(string)
+	releaseImpact, _ := generatedCompatibility["release_impact"].(string)
 	return ApplyResult{
 		Status:                       "ok",
 		AddedSchemas:                 added,
@@ -202,9 +198,18 @@ func Apply(req ApplyRequest) (ApplyResult, error) {
 		CoverageFieldCount:           len(coverage.Fields),
 		ClassifiedSurfaceCount:       len(manifest.Surface),
 		GeneratedCompatibilityImpact: impact,
+		GeneratedReleaseImpact:       releaseImpact,
 		TargetRef:                    req.TargetRef,
 		TargetSHA:                    req.TargetSHA,
 	}, nil
+}
+
+func classifyUnsupported(stage string, err error) error {
+	var unsupported *protocolgen.UnsupportedSchemaError
+	if !errors.As(err, &unsupported) {
+		return err
+	}
+	return &IncompatibilityError{Stage: stage, Path: unsupported.Path, Err: err}
 }
 
 func writeAppliedReports(req ApplyRequest, generatedCompatibility map[string]any, codexVersion string) error {

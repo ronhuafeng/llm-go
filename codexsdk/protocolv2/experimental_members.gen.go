@@ -2,6 +2,37 @@
 package protocolv2
 
 var ExperimentalJSONFields = map[string]map[string]struct{}{
+	"AdditionalContextEntry": {
+		"kind":  {},
+		"value": {},
+	},
+	"AdditionalPermissionProfile": {
+		"fileSystem": {},
+		"network":    {},
+	},
+	"AgentMessageInputContentEncryptedContent": {
+		"encrypted_content": {},
+	},
+	"AgentMessageInputContentInputText": {
+		"text": {},
+	},
+	"ApplicationNetworkRequirements": {
+		"domains": {},
+		"enabled": {},
+	},
+	"ApplicationRequirements": {
+		"network": {},
+	},
+	"AppsConfig": {
+		"_default": {},
+	},
+	"AppsDefaultConfig": {
+		"approvals_reviewer":          {},
+		"default_tools_approval_mode": {},
+		"destructive_enabled":         {},
+		"enabled":                     {},
+		"open_world_enabled":          {},
+	},
 	"BedrockAwsProfile": {
 		"name":   {},
 		"region": {},
@@ -20,6 +51,10 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 	"BedrockSetupParamsProfile": {
 		"profile": {},
 		"region":  {},
+	},
+	"CapabilityRootLocationEnvironment": {
+		"environmentId": {},
+		"path":          {},
 	},
 	"ClientRequestAccountBedrockDiscover": {
 		"id":     {},
@@ -284,11 +319,63 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"hooks":                     {},
 		"network":                   {},
 	},
+	"ConfigurationReasoning": {
+		"effort": {},
+	},
+	"ConfiguredHookHandlerCommand": {
+		"additionalContextLimit": {},
+		"async":                  {},
+		"command":                {},
+		"commandWindows":         {},
+		"statusMessage":          {},
+		"timeoutSec":             {},
+	},
+	"ConfiguredHookHandlerMCPTool": {
+		"input":         {},
+		"server":        {},
+		"statusMessage": {},
+		"timeoutSec":    {},
+		"tool":          {},
+	},
+	"ConfiguredHookMatcherGroup": {
+		"hooks":   {},
+		"matcher": {},
+	},
+	"ContentItemInputAudio": {
+		"audio_url": {},
+	},
+	"ContentItemInputImage": {
+		"detail":    {},
+		"image_url": {},
+	},
+	"ContentItemInputText": {
+		"text": {},
+	},
+	"ContentItemOutputText": {
+		"text": {},
+	},
 	"CurrentTimeReadParams": {
 		"threadId": {},
 	},
 	"CurrentTimeReadResponse": {
 		"currentTimeAt": {},
+	},
+	"DynamicToolNamespaceToolFunction": {
+		"deferLoading": {},
+		"description":  {},
+		"inputSchema":  {},
+		"name":         {},
+	},
+	"DynamicToolSpecFunction": {
+		"deferLoading": {},
+		"description":  {},
+		"inputSchema":  {},
+		"name":         {},
+	},
+	"DynamicToolSpecNamespace": {
+		"description": {},
+		"name":        {},
+		"tools":       {},
 	},
 	"EnvironmentAddParams": {
 		"connectTimeoutMs": {},
@@ -297,6 +384,14 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 	},
 	"EnvironmentInfoParams": {
 		"environmentId": {},
+	},
+	"EnvironmentInfoResponse": {
+		"cwd":   {},
+		"shell": {},
+	},
+	"EnvironmentShellInfo": {
+		"name": {},
+		"path": {},
 	},
 	"EnvironmentStatusParams": {
 		"environmentId": {},
@@ -315,6 +410,32 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 	"FuzzyFileSearchSessionUpdateParams": {
 		"query":     {},
 		"sessionId": {},
+	},
+	"InternalChatMessageMetadataPassthrough": {
+		"turn_id": {},
+	},
+	"LocalShellActionExec": {
+		"command":           {},
+		"env":               {},
+		"timeout_ms":        {},
+		"user":              {},
+		"working_directory": {},
+	},
+	"ManagedHooksRequirements": {
+		"Interrupt":         {},
+		"PermissionRequest": {},
+		"PostCompact":       {},
+		"PostToolUse":       {},
+		"PreCompact":        {},
+		"PreToolUse":        {},
+		"SessionEnd":        {},
+		"SessionStart":      {},
+		"Stop":              {},
+		"SubagentStart":     {},
+		"SubagentStop":      {},
+		"UserPromptSubmit":  {},
+		"managedDir":        {},
+		"windowsManagedDir": {},
 	},
 	"McpServerElicitationRequestParamsOpenaiUserVerification": {
 		"challenge":   {},
@@ -337,6 +458,24 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 	},
 	"MockExperimentalMethodResponse": {
 		"echoed": {},
+	},
+	"MultiAgentModeCustom": {
+		"custom": {},
+	},
+	"NetworkRequirements": {
+		"allowLocalBinding":                {},
+		"allowUnixSockets":                 {},
+		"allowUpstreamProxy":               {},
+		"allowedDomains":                   {},
+		"dangerouslyAllowAllUnixSockets":   {},
+		"dangerouslyAllowNonLoopbackProxy": {},
+		"deniedDomains":                    {},
+		"domains":                          {},
+		"enabled":                          {},
+		"httpPort":                         {},
+		"managedAllowedDomainsOnly":        {},
+		"socksPort":                        {},
+		"unixSockets":                      {},
 	},
 	"PluginSearchParams": {
 		"cursor":     {},
@@ -457,21 +596,50 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"v1":        {},
 		"v2":        {},
 	},
+	"ReasoningItemContentReasoningText": {
+		"text": {},
+	},
+	"ReasoningItemContentText": {
+		"text": {},
+	},
+	"ReasoningItemReasoningSummarySummaryText": {
+		"text": {},
+	},
+	"RemoteControlClient": {
+		"appVersion":  {},
+		"clientId":    {},
+		"deviceModel": {},
+		"deviceType":  {},
+		"displayName": {},
+		"lastSeenAt":  {},
+		"osVersion":   {},
+		"platform":    {},
+	},
 	"RemoteControlClientsListParams": {
 		"cursor":        {},
 		"environmentId": {},
 		"limit":         {},
 		"order":         {},
 	},
+	"RemoteControlClientsListResponse": {
+		"data":       {},
+		"nextCursor": {},
+	},
 	"RemoteControlClientsRevokeParams": {
 		"clientId":      {},
 		"environmentId": {},
+	},
+	"RemoteControlDisableParams": {
+		"ephemeral": {},
 	},
 	"RemoteControlDisableResponse": {
 		"environmentId":  {},
 		"installationId": {},
 		"serverName":     {},
 		"status":         {},
+	},
+	"RemoteControlEnableParams": {
+		"ephemeral": {},
 	},
 	"RemoteControlEnableResponse": {
 		"environmentId":  {},
@@ -501,6 +669,124 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"serverName":     {},
 		"status":         {},
 	},
+	"ResponseItemAgentMessage": {
+		"author":  {},
+		"content": {},
+		"id":      {},
+		"internal_chat_message_metadata_passthrough": {},
+		"recipient": {},
+	},
+	"ResponseItemCompaction": {
+		"encrypted_content": {},
+		"id":                {},
+		"internal_chat_message_metadata_passthrough": {},
+	},
+	"ResponseItemConfigurationUpdate": {
+		"reasoning": {},
+	},
+	"ResponseItemContextCompaction": {
+		"encrypted_content": {},
+		"id":                {},
+		"internal_chat_message_metadata_passthrough": {},
+	},
+	"ResponseItemCustomToolCall": {
+		"call_id": {},
+		"id":      {},
+		"input":   {},
+		"internal_chat_message_metadata_passthrough": {},
+		"name":      {},
+		"namespace": {},
+		"status":    {},
+	},
+	"ResponseItemCustomToolCallOutput": {
+		"call_id": {},
+		"id":      {},
+		"internal_chat_message_metadata_passthrough": {},
+		"name":   {},
+		"output": {},
+	},
+	"ResponseItemFunctionCall": {
+		"arguments":               {},
+		"call_id":                 {},
+		"encrypted_function_args": {},
+		"id":                      {},
+		"internal_chat_message_metadata_passthrough": {},
+		"name":      {},
+		"namespace": {},
+	},
+	"ResponseItemFunctionCallOutput": {
+		"call_id": {},
+		"id":      {},
+		"internal_chat_message_metadata_passthrough": {},
+		"name":      {},
+		"namespace": {},
+		"output":    {},
+	},
+	"ResponseItemImageGenerationCall": {
+		"id": {},
+		"internal_chat_message_metadata_passthrough": {},
+		"result":         {},
+		"revised_prompt": {},
+		"status":         {},
+	},
+	"ResponseItemLocalShellCall": {
+		"action":  {},
+		"call_id": {},
+		"id":      {},
+		"internal_chat_message_metadata_passthrough": {},
+		"status": {},
+	},
+	"ResponseItemMessage": {
+		"content": {},
+		"id":      {},
+		"internal_chat_message_metadata_passthrough": {},
+		"phase": {},
+		"role":  {},
+	},
+	"ResponseItemReasoning": {
+		"content":           {},
+		"encrypted_content": {},
+		"id":                {},
+		"internal_chat_message_metadata_passthrough": {},
+		"summary": {},
+	},
+	"ResponseItemToolSearchCall": {
+		"arguments": {},
+		"call_id":   {},
+		"execution": {},
+		"id":        {},
+		"internal_chat_message_metadata_passthrough": {},
+		"status": {},
+	},
+	"ResponseItemToolSearchOutput": {
+		"call_id":   {},
+		"execution": {},
+		"id":        {},
+		"internal_chat_message_metadata_passthrough": {},
+		"status": {},
+		"tools":  {},
+	},
+	"ResponseItemWebSearchCall": {
+		"action": {},
+		"id":     {},
+		"internal_chat_message_metadata_passthrough": {},
+		"status": {},
+	},
+	"ResponsesApiWebSearchActionFindInPage": {
+		"pattern": {},
+		"url":     {},
+	},
+	"ResponsesApiWebSearchActionOpenPage": {
+		"url": {},
+	},
+	"ResponsesApiWebSearchActionSearch": {
+		"queries": {},
+		"query":   {},
+	},
+	"SelectedCapabilityRoot": {
+		"id":       {},
+		"location": {},
+	},
 	"ServerDiagnosticsGauge": {
 		"name":  {},
 		"value": {},
@@ -524,6 +810,15 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"environments":         {},
 		"extra":                {},
 	},
+	"ThreadBackgroundTerminal": {
+		"command":    {},
+		"cpuPercent": {},
+		"cwd":        {},
+		"itemId":     {},
+		"osPid":      {},
+		"processId":  {},
+		"rssKb":      {},
+	},
 	"ThreadBackgroundTerminalsCleanParams": {
 		"threadId": {},
 	},
@@ -531,6 +826,10 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"cursor":   {},
 		"limit":    {},
 		"threadId": {},
+	},
+	"ThreadBackgroundTerminalsListResponse": {
+		"data":       {},
+		"nextCursor": {},
 	},
 	"ThreadBackgroundTerminalsTerminateParams": {
 		"processId": {},
@@ -545,6 +844,11 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 	"ThreadDecrementElicitationResponse": {
 		"count":  {},
 		"paused": {},
+	},
+	"ThreadEnvironment": {
+		"cwd":                   {},
+		"environmentId":         {},
+		"runtimeWorkspaceRoots": {},
 	},
 	"ThreadForkParams": {
 		"beforeTurnId":          {},
@@ -634,7 +938,26 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"text":     {},
 		"threadId": {},
 	},
+	"ThreadRealtimeBemItemPresentationInlineVisualization": {
+		"index": {},
+	},
 	"ThreadRealtimeInitialItem": {
+		"role": {},
+		"text": {},
+	},
+	"ThreadRealtimeItem": {
+		"id":                {},
+		"realtimeSessionId": {},
+	},
+	"ThreadRealtimeItemBemItemPromoted": {
+		"item_id":      {},
+		"presentation": {},
+		"turn_id":      {},
+	},
+	"ThreadRealtimeItemRealtimeSessionClosed": {
+		"outcome": {},
+	},
+	"ThreadRealtimeItemTranscriptSegment": {
 		"role": {},
 		"text": {},
 	},
@@ -670,6 +993,11 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 	},
 	"ThreadRealtimeStopParams": {
 		"threadId": {},
+	},
+	"ThreadResumeInitialTurnsPageParams": {
+		"itemsView":     {},
+		"limit":         {},
+		"sortDirection": {},
 	},
 	"ThreadResumeParams": {
 		"history":               {},
@@ -709,6 +1037,15 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"sortDirection": {},
 		"sortKey":       {},
 		"sourceKinds":   {},
+	},
+	"ThreadSearchResponse": {
+		"backwardsCursor": {},
+		"data":            {},
+		"nextCursor":      {},
+	},
+	"ThreadSearchResult": {
+		"snippet": {},
+		"thread":  {},
 	},
 	"ThreadSearchTextRange": {
 		"end":   {},
@@ -750,10 +1087,43 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"multiAgentMode":          {},
 		"runtimeWorkspaceRoots":   {},
 	},
+	"ThreadTimelineEntryItem": {
+		"item":     {},
+		"position": {},
+		"turnId":   {},
+	},
+	"ThreadTimelineEntryRealtime": {
+		"item":     {},
+		"position": {},
+	},
+	"ThreadTimelineEntryTurnCompleted": {
+		"completed_at": {},
+		"duration_ms":  {},
+		"error":        {},
+		"position":     {},
+		"started_at":   {},
+		"status":       {},
+		"turn_id":      {},
+	},
+	"ThreadTimelineEntryTurnStarted": {
+		"position":   {},
+		"started_at": {},
+		"turn_id":    {},
+	},
 	"ThreadTimelineListParams": {
 		"cursor":   {},
 		"limit":    {},
 		"threadId": {},
+	},
+	"ThreadTimelineListResponse": {
+		"activeRealtimeSessionAtPageStart": {},
+		"data":                             {},
+		"nextCursor":                       {},
+	},
+	"TurnEnvironmentParams": {
+		"cwd":                   {},
+		"environmentId":         {},
+		"runtimeWorkspaceRoots": {},
 	},
 	"TurnSettingsUpdateParams": {
 		"approvalsReviewer": {},
@@ -780,6 +1150,11 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 	"TurnSteerParams": {
 		"additionalContext":          {},
 		"responsesapiClientMetadata": {},
+	},
+	"TurnsPage": {
+		"backwardsCursor": {},
+		"data":            {},
+		"nextCursor":      {},
 	},
 	"UserVerificationEnrollResponse": {
 		"credentialId": {},
@@ -821,6 +1196,20 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 }
 
 var ExperimentalUnionValues = map[string]map[string]struct{}{
+	"AdditionalContext": {
+		"application": {},
+		"untrusted":   {},
+	},
+	"AgentMessageInputContent": {
+		"encrypted_content": {},
+		"input_text":        {},
+	},
+	"AppToolApproval": {
+		"approve": {},
+		"auto":    {},
+		"prompt":  {},
+		"writes":  {},
+	},
 	"AwsCredentialType": {
 		"accessKeys":    {},
 		"bedrockApiKey": {},
@@ -828,6 +1217,9 @@ var ExperimentalUnionValues = map[string]map[string]struct{}{
 	"BedrockSetupParams": {
 		"environment": {},
 		"profile":     {},
+	},
+	"CapabilityRootLocation": {
+		"environment": {},
 	},
 	"ClientRequest": {
 		"account/bedrock/discover":             {},
@@ -891,26 +1283,181 @@ var ExperimentalUnionValues = map[string]map[string]struct{}{
 		"userVerification/status":              {},
 		"userVerification/verify":              {},
 	},
+	"CodexResponseHandoffMode": {
+		"bemTags":    {},
+		"commentary": {},
+		"thinking":   {},
+	},
+	"ConfiguredHookHandler": {
+		"agent":    {},
+		"command":  {},
+		"mcp_tool": {},
+		"prompt":   {},
+	},
+	"ContentItem": {
+		"input_audio": {},
+		"input_image": {},
+		"input_text":  {},
+		"output_text": {},
+	},
+	"ConversationTextRole": {
+		"assistant": {},
+		"developer": {},
+		"user":      {},
+	},
+	"CyberAccessProgram": {
+		"daybreakBlue": {},
+		"daybreakRed":  {},
+		"standard":     {},
+	},
+	"DynamicToolNamespaceTool": {
+		"function": {},
+	},
+	"DynamicToolSpec": {
+		"function":  {},
+		"namespace": {},
+	},
 	"EnvironmentStatus": {
 		"disconnected": {},
 		"pending":      {},
 		"ready":        {},
 		"unknown":      {},
 	},
+	"LocalShellAction": {
+		"exec": {},
+	},
+	"LocalShellStatus": {
+		"completed":   {},
+		"in_progress": {},
+		"incomplete":  {},
+	},
 	"McpServerElicitationRequestParams": {
 		"openai/userVerification": {},
+	},
+	"MultiAgentMode": {
+		"custom":              {},
+		"explicitRequestOnly": {},
+		"proactive":           {},
+	},
+	"NetworkDomainPermission": {
+		"allow": {},
+		"deny":  {},
+	},
+	"NetworkUnixSocketPermission": {
+		"allow": {},
+		"deny":  {},
+	},
+	"PluginSearchScope": {
+		"global":    {},
+		"personal":  {},
+		"workspace": {},
+	},
+	"ProjectSortKey": {
+		"position":  {},
+		"recencyAt": {},
+	},
+	"RealtimeOutputModality": {
+		"audio": {},
+		"text":  {},
+	},
+	"RealtimeVoice": {
+		"alloy":   {},
+		"arbor":   {},
+		"ash":     {},
+		"ballad":  {},
+		"breeze":  {},
+		"cedar":   {},
+		"coral":   {},
+		"cove":    {},
+		"echo":    {},
+		"ember":   {},
+		"juniper": {},
+		"maple":   {},
+		"marin":   {},
+		"sage":    {},
+		"shimmer": {},
+		"sol":     {},
+		"spruce":  {},
+		"vale":    {},
+		"verse":   {},
+	},
+	"ReasoningItemContent": {
+		"reasoning_text": {},
+		"text":           {},
+	},
+	"ReasoningItemReasoningSummary": {
+		"summary_text": {},
 	},
 	"RemoteControlClientsListOrder": {
 		"asc":  {},
 		"desc": {},
 	},
+	"ResponseItem": {
+		"agent_message":           {},
+		"compaction":              {},
+		"compaction_trigger":      {},
+		"configuration_update":    {},
+		"context_compaction":      {},
+		"custom_tool_call":        {},
+		"custom_tool_call_output": {},
+		"function_call":           {},
+		"function_call_output":    {},
+		"image_generation_call":   {},
+		"local_shell_call":        {},
+		"message":                 {},
+		"other":                   {},
+		"reasoning":               {},
+		"tool_search_call":        {},
+		"tool_search_output":      {},
+		"web_search_call":         {},
+	},
+	"ResponsesApiWebSearchAction": {
+		"find_in_page": {},
+		"open_page":    {},
+		"other":        {},
+		"search":       {},
+	},
 	"ServerRequest": {
 		"currentTime/read": {},
+	},
+	"ThreadMemoryMode": {
+		"disabled": {},
+		"enabled":  {},
+	},
+	"ThreadRealtimeBemItemPresentation": {
+		"inlineMarkdown":      {},
+		"inlineVisualization": {},
+		"wholeItem":           {},
+	},
+	"ThreadRealtimeItem": {
+		"bemItemPromoted":        {},
+		"realtimeSessionClosed":  {},
+		"realtimeSessionStarted": {},
+		"transcriptSegment":      {},
+	},
+	"ThreadRealtimeSessionOutcome": {
+		"ended":  {},
+		"failed": {},
 	},
 	"ThreadRealtimeStartTransport": {
 		"existingCall": {},
 		"webrtc":       {},
 		"websocket":    {},
+	},
+	"ThreadRealtimeTranscriptRole": {
+		"assistant": {},
+		"user":      {},
+	},
+	"ThreadSearchSortKey": {
+		"created_at": {},
+		"recency_at": {},
+		"updated_at": {},
+	},
+	"ThreadTimelineEntry": {
+		"item":          {},
+		"realtime":      {},
+		"turnCompleted": {},
+		"turnStarted":   {},
 	},
 	"TurnSettingsUpdateStatus": {
 		"applied":           {},
@@ -966,12 +1513,6 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"fileSystem": "AdditionalFileSystemPermissions",
 		"network":    "AdditionalNetworkPermissions",
 	},
-	"AppConfig": {
-		"approvals_reviewer":          "ApprovalsReviewer",
-		"default_tools_approval_mode": "AppToolApproval",
-		"links":                       "AppLinksConfig",
-		"tools":                       "AppToolsConfig",
-	},
 	"AppInfo": {
 		"appMetadata": "AppMetadata",
 		"branding":    "AppBranding",
@@ -985,9 +1526,6 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	},
 	"AppTemplateSummary": {
 		"reason": "AppTemplateUnavailableReason",
-	},
-	"AppToolConfig": {
-		"approval_mode": "AppToolApproval",
 	},
 	"ApplicationNetworkRequirements": {
 		"domains": "NetworkDomainPermission",
@@ -1838,6 +2376,10 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"DynamicToolSpecNamespace": {
 		"tools": "DynamicToolNamespaceTool",
 	},
+	"EnvironmentInfoResponse": {
+		"cwd":   "PathUri",
+		"shell": "EnvironmentShellInfo",
+	},
 	"EnvironmentStatusResponse": {
 		"status": "EnvironmentStatusKind",
 	},
@@ -1947,6 +2489,11 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	},
 	"GetAccountResponse": {
 		"account": "Account",
+	},
+	"GetAccountTokenUsageResponse": {
+		"dailyUsageBuckets": "AccountTokenUsageDailyBucket",
+		"summary":           "AccountTokenUsageSummary",
+		"threadUsage":       "ThreadUsage",
 	},
 	"GetWorkspaceMessagesResponse": {
 		"messages": "WorkspaceMessage",
@@ -2129,6 +2676,9 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"OverriddenMetadata": {
 		"overridingLayer": "ConfigLayerMetadata",
 	},
+	"PermissionProfileListResponse": {
+		"data": "PermissionProfileSummary",
+	},
 	"PermissionsRequestApprovalParams": {
 		"permissions": "RequestPermissionProfile",
 	},
@@ -2282,9 +2832,6 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"rateLimitReachedType": "RateLimitReachedType",
 		"secondary":            "RateLimitWindow",
 	},
-	"RawResponseItemCompletedNotification": {
-		"item": "ResponseItem",
-	},
 	"RealtimeVoicesList": {
 		"defaultV1": "RealtimeVoice",
 		"defaultV2": "RealtimeVoice",
@@ -2296,6 +2843,9 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	},
 	"RemoteControlClientsListParams": {
 		"order": "RemoteControlClientsListOrder",
+	},
+	"RemoteControlClientsListResponse": {
+		"data": "RemoteControlClient",
 	},
 	"RemoteControlDisableResponse": {
 		"status": "RemoteControlConnectionStatus",
@@ -2736,6 +3286,9 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"threadSource":    "ThreadSource",
 		"turns":           "Turn",
 	},
+	"ThreadBackgroundTerminalsListResponse": {
+		"data": "ThreadBackgroundTerminal",
+	},
 	"ThreadForkParams": {
 		"approvalPolicy":    "AskForApproval",
 		"approvalsReviewer": "ApprovalsReviewer",
@@ -2872,6 +3425,15 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"ThreadRealtimeInitialItem": {
 		"role": "ConversationTextRole",
 	},
+	"ThreadRealtimeItemBemItemPromoted": {
+		"presentation": "ThreadRealtimeBemItemPresentation",
+	},
+	"ThreadRealtimeItemRealtimeSessionClosed": {
+		"outcome": "ThreadRealtimeSessionOutcome",
+	},
+	"ThreadRealtimeItemTranscriptSegment": {
+		"role": "ThreadRealtimeTranscriptRole",
+	},
 	"ThreadRealtimeListVoicesResponse": {
 		"voices": "RealtimeVoicesList",
 	},
@@ -2927,6 +3489,12 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"sortDirection": "SortDirection",
 		"sortKey":       "ThreadSearchSortKey",
 		"sourceKinds":   "ThreadSourceKind",
+	},
+	"ThreadSearchResponse": {
+		"data": "ThreadSearchResult",
+	},
+	"ThreadSearchResult": {
+		"thread": "Thread",
 	},
 	"ThreadSection": {
 		"appearance": "ThreadSectionAppearance",
@@ -3001,6 +3569,19 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"ThreadStatusChangedNotification": {
 		"status": "ThreadStatus",
 	},
+	"ThreadTimelineEntryItem": {
+		"item": "ThreadItem",
+	},
+	"ThreadTimelineEntryRealtime": {
+		"item": "ThreadRealtimeItem",
+	},
+	"ThreadTimelineEntryTurnCompleted": {
+		"error":  "TurnError",
+		"status": "TurnStatus",
+	},
+	"ThreadTimelineListResponse": {
+		"data": "ThreadTimelineEntry",
+	},
 	"ThreadTokenUsage": {
 		"last":  "TokenUsageBreakdown",
 		"total": "TokenUsageBreakdown",
@@ -3020,6 +3601,9 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	},
 	"ThreadUnsubscribeResponse": {
 		"status": "ThreadUnsubscribeStatus",
+	},
+	"ThreadUsage": {
+		"groups": "ThreadUsageBreakdownGroup",
 	},
 	"ToolRequestUserInputParams": {
 		"questions": "ToolRequestUserInputQuestion",
