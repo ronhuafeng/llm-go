@@ -10,7 +10,7 @@ import (
 	"github.com/ronhuafeng/llm-go/codexsdk/internal/protocolgen"
 )
 
-func deriveSurface(stableSchema, completeSchema string) ([]map[string]any, error) {
+func deriveSurface(stableSchema, completeSchema, handwrittenDir string) ([]map[string]any, error) {
 	tmp, err := os.MkdirTemp("", "protocolupgrade-surface-")
 	if err != nil {
 		return nil, err
@@ -24,11 +24,11 @@ func deriveSurface(stableSchema, completeSchema string) ([]map[string]any, error
 	if err := prepareCompleteGenerationRoot(completeSchema, completeRoot); err != nil {
 		return nil, err
 	}
-	stableSource, err := generatePackage(stableRoot, filepath.Join(tmp, "stable-go"))
+	stableSource, err := generatePackage(stableRoot, filepath.Join(tmp, "stable-go"), handwrittenDir)
 	if err != nil {
 		return nil, fmt.Errorf("generate stable protocol package: %w", err)
 	}
-	completeSource, err := generatePackage(completeRoot, filepath.Join(tmp, "complete-go"))
+	completeSource, err := generatePackage(completeRoot, filepath.Join(tmp, "complete-go"), handwrittenDir)
 	if err != nil {
 		return nil, fmt.Errorf("generate complete protocol package: %w", err)
 	}
@@ -150,7 +150,7 @@ func prepareCompleteGenerationRoot(source, destination string) error {
 	return writeJSON(filepath.Join(destination, "manifest.json"), manifest)
 }
 
-func generatePackage(schemaRoot, outDir string) ([][]byte, error) {
+func generatePackage(schemaRoot, outDir, handwrittenDir string) ([][]byte, error) {
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		return nil, err
 	}
@@ -176,6 +176,13 @@ func generatePackage(schemaRoot, outDir string) ([][]byte, error) {
 	}
 	experimentalMembers, err := protocolgen.GenerateExperimentalMembers(manifest)
 	if err != nil {
+		return nil, err
+	}
+	if _, err := protocolgen.ValidateGeneratedPackage(typePlan, manifest, handwrittenDir, map[string][]byte{
+		"method_registry.gen.go":      methodRegistry,
+		"protocol_types.gen.go":       protocolTypes,
+		"experimental_members.gen.go": experimentalMembers,
+	}); err != nil {
 		return nil, err
 	}
 	files := []struct {

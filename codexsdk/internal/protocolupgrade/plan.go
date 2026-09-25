@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const (
@@ -87,6 +88,11 @@ func planCandidate(req ApplyRequest, verifyExact bool) (PlanResult, error) {
 	if err := os.MkdirAll(filepath.Join(tmp, "protocolv2"), 0o755); err != nil {
 		return PlanResult{}, err
 	}
+	if req.ModuleRoot != "" {
+		if err := copyHandwrittenProtocolPackage(filepath.Join(req.ModuleRoot, "protocolv2"), filepath.Join(tmp, "protocolv2")); err != nil {
+			return PlanResult{}, fmt.Errorf("copy handwritten protocol package for plan: %w", err)
+		}
+	}
 
 	planned := req
 	planned.Baseline = plannedBaseline
@@ -132,4 +138,22 @@ func planCandidate(req ApplyRequest, verifyExact bool) (PlanResult, error) {
 		}
 	}
 	return PlanResult{Status: PlanReady, Preview: preview}, nil
+}
+
+func copyHandwrittenProtocolPackage(source, destination string) error {
+	entries, err := os.ReadDir(source)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if !entry.Type().IsRegular() || filepath.Ext(name) != ".go" ||
+			strings.HasSuffix(name, ".gen.go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		if err := copyFileBytes(filepath.Join(source, name), filepath.Join(destination, name)); err != nil {
+			return err
+		}
+	}
+	return nil
 }

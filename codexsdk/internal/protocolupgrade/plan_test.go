@@ -461,6 +461,26 @@ func TestPlanReportsPackageNameCollision(t *testing.T) {
 			},
 			path: "v2/BedrockDiscoverParams.json#/definitions/ColorRed",
 		},
+		{
+			name: "enum constant against method registry type",
+			schema: map[string]any{
+				"title": "BedrockDiscoverParams", "type": "object",
+				"properties":  map[string]any{"value": map[string]any{"$ref": "#/definitions/Method"}},
+				"definitions": map[string]any{"Method": map[string]any{"type": "string", "enum": []string{"direction"}}},
+			},
+			path: "v2/BedrockDiscoverParams.json#/definitions/Method",
+		},
+		{
+			name: "generated type against experimental member map",
+			schema: map[string]any{
+				"title": "BedrockDiscoverParams", "type": "object",
+				"properties": map[string]any{"value": map[string]any{"$ref": "#/definitions/ExperimentalJSONFields"}},
+				"definitions": map[string]any{"ExperimentalJSONFields": map[string]any{
+					"type": "object", "properties": map[string]any{"text": map[string]any{"type": "string"}},
+				}},
+			},
+			path: "v2/BedrockDiscoverParams.json#/definitions/ExperimentalJSONFields",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			root := copyModuleForCheck(t)

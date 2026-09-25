@@ -27,7 +27,7 @@ func TestGenerateProtocolTypesClassifiesSelectedUnsupportedDefinition(t *testing
 	}
 }
 
-func TestGenerateProtocolTypesReportsSourceForReservedName(t *testing.T) {
+func TestGeneratedPackageReportsSourceForHandwrittenName(t *testing.T) {
 	plan := ProtocolTypePlan{Types: []TypePlan{{
 		Kind: TypePlanObjectStructCandidate, SchemaPath: "Clashing.json", TypeName: "JSONValue",
 		Schema: &Schema{
@@ -37,7 +37,13 @@ func TestGenerateProtocolTypesReportsSourceForReservedName(t *testing.T) {
 			},
 		},
 	}}}
-	_, err := GenerateProtocolTypes(plan)
+	generated, err := GenerateProtocolTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = ValidateGeneratedPackage(plan, Manifest{}, filepath.Join("..", "..", "protocolv2"), map[string][]byte{
+		"protocol_types.gen.go": generated,
+	})
 	var unsupported *UnsupportedSchemaError
 	if !errors.As(err, &unsupported) || unsupported.Path != "Clashing.json" {
 		t.Fatalf("error = %v, want source schema path", err)

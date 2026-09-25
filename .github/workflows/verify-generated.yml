@@ -29,6 +29,21 @@ jobs:
           GOTOOLCHAIN: local
         run: go run ./internal/cmd/generatedcheck
 
+      - name: Build regenerated protocol package in isolation
+        env:
+          GOTOOLCHAIN: local
+        run: |
+          set -euo pipefail
+          isolated="$(mktemp -d "${RUNNER_TEMP}/protocolv2-build.XXXXXX")"
+          cp go.mod go.sum "${isolated}/"
+          mkdir -p "${isolated}/codexsdk/internal/protocolschema/appserver" "${isolated}/codexsdk/protocolv2"
+          cp -a codexsdk/internal/protocolschema/appserver/v2 "${isolated}/codexsdk/internal/protocolschema/appserver/"
+          cp -a codexsdk/internal/wirejson "${isolated}/codexsdk/internal/"
+          find codexsdk/protocolv2 -maxdepth 1 -type f -name '*.go' ! -name '*.gen.go' ! -name '*_test.go' \
+            -exec cp -t "${isolated}/codexsdk/protocolv2" {} +
+          go run ./codexsdk/internal/cmd/generatedcheck -module-root "${isolated}/codexsdk" -write-artifacts
+          (cd "${isolated}" && go build ./codexsdk/protocolv2)
+
       - name: Worktree remains clean
         if: ${{ always() && !cancelled() }}
         run: |

@@ -19,7 +19,7 @@ Use the smallest proof that covers the changed owner:
 | `llmkit` | `go vet ./llmkit/...` and `go test -race ./llmkit/...` | `Verify llmkit` | provider-neutral typed inference |
 | `codexsdk` | `go vet ./codexsdk/...`, `go test -race ./codexsdk/...`, generated check | `Verify codexsdk` | SDK/runtime plus generated protocol ownership |
 | `llmcaller/codex` | `go vet ./llmcaller/codex/...` and `go test -race ./llmcaller/codex/...` | `Verify Codex adapter` | adapter/schema translation |
-| generated protocol | generated check | `Verify generated protocol artifacts` | deterministic generated-source reproducibility |
+| generated protocol | generated check and isolated package build | `Verify generated protocol artifacts` | deterministic generated-source reproducibility and compilability |
 | repository | root commands below | `PR verification` | required source acceptance |
 | upstream Codex target | protocol sync validation | `Codex Upstream Protocol Sync` | exact upstream generation/comparison |
 | portability | platform vet/tests | `Advisory OS portability` | advisory OS evidence |
@@ -59,6 +59,8 @@ The generated check regenerates owned protocol/SDK files, compares them with the
 checked-in outputs, validates baseline identity/path safety, and exits non-zero
 on mismatch. It uses the checked-in schema and classification as inputs; it is
 a fast source reproducibility check, not independent upstream reconstruction.
+The GitHub verifier also regenerates into a temporary module containing the
+handwritten protocol package and builds the generated package there.
 
 ## Remote proof without a local environment
 

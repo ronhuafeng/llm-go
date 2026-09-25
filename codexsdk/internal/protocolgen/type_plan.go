@@ -13,9 +13,8 @@ import (
 )
 
 type ProtocolTypePlan struct {
-	Fields               []FieldPlan
-	Types                []TypePlan
-	ReservedPackageNames map[string]bool
+	Fields []FieldPlan
+	Types  []TypePlan
 }
 
 type TypePlan struct {
@@ -783,16 +782,13 @@ func claimGeneratedDefinitionTypeName(preferred string, used map[string]bool) st
 	if preferred == "" {
 		preferred = "GeneratedDefinition"
 	}
-	if reservedProtocolTypeName(preferred) {
-		preferred += "Value"
-	}
 	if !used[preferred] {
 		used[preferred] = true
 		return preferred
 	}
 	for index := 2; ; index++ {
 		candidate := fmt.Sprintf("%s%d", preferred, index)
-		if reservedProtocolTypeName(candidate) || used[candidate] {
+		if used[candidate] {
 			continue
 		}
 		used[candidate] = true

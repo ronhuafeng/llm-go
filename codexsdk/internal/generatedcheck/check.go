@@ -188,6 +188,13 @@ func generateArtifacts(moduleRoot string) (generatedSet, error) {
 	if err != nil {
 		return generatedSet{}, err
 	}
+	if _, err := protocolgen.ValidateGeneratedPackage(typePlan, manifest, filepath.Join(moduleRoot, "protocolv2"), map[string][]byte{
+		"method_registry.gen.go":      methodRegistrySource,
+		"protocol_types.gen.go":       protocolTypesSource,
+		"experimental_members.gen.go": experimentalMembers,
+	}); err != nil {
+		return generatedSet{}, err
+	}
 	sdkSurfaceSource, err := GenerateSDKSurface(manifest, methodRegistrySource, protocolTypesSource)
 	if err != nil {
 		return generatedSet{}, err

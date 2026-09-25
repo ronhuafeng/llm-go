@@ -48,9 +48,6 @@ func GenerateProtocolTypes(plan ProtocolTypePlan) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := validateGeneratedPackageNames(plan, enums, scalarAliases, types, scalarUnions, mixedUnions, untaggedObjectUnions, unions); err != nil {
-		return nil, err
-	}
 	for _, typ := range types {
 		reserved := []string{"UnmarshalJSON"}
 		if typ.OpenDynamicProperties {
@@ -190,69 +187,6 @@ func GenerateProtocolTypes(plan ProtocolTypePlan) ([]byte, error) {
 		return nil, fmt.Errorf("format generated protocol types: %w", err)
 	}
 	return formatted, nil
-}
-
-func validateGeneratedPackageNames(plan ProtocolTypePlan, enums []EnumPlan, aliases []ScalarAliasPlan, types []TypePlan, scalar []ScalarUnionPlan, mixed []MixedUnionPlan, untagged []UntaggedObjectUnionPlan, tagged []TaggedUnionPlan) error {
-	seen := map[string]string{}
-	for name := range plan.ReservedPackageNames {
-		seen[name] = "method registry"
-	}
-	claim := func(name, path string) error {
-		if previous, exists := seen[name]; exists {
-			return unsupportedGeneratedSchema(path, "generated package name %s conflicts with %s", name, previous)
-		}
-		seen[name] = path
-		return nil
-	}
-	for _, enum := range enums {
-		source := ""
-		if len(enum.Sources) > 0 {
-			source = enum.Sources[0]
-		}
-		if err := claim(enum.TypeName, source); err != nil {
-			return err
-		}
-		for _, value := range enum.Values {
-			if err := claim(enumConstName(enum.TypeName, value), source); err != nil {
-				return err
-			}
-		}
-	}
-	for _, alias := range aliases {
-		source := ""
-		if len(alias.Sources) > 0 {
-			source = alias.Sources[0]
-		}
-		if err := claim(alias.TypeName, source); err != nil {
-			return err
-		}
-	}
-	for _, typ := range types {
-		if err := claim(typ.TypeName, typ.SchemaPath); err != nil {
-			return err
-		}
-	}
-	for _, union := range scalar {
-		if err := claim(union.TypeName, union.SchemaPath); err != nil {
-			return err
-		}
-	}
-	for _, union := range mixed {
-		if err := claim(union.TypeName, union.SchemaPath); err != nil {
-			return err
-		}
-	}
-	for _, union := range untagged {
-		if err := claim(union.TypeName, union.SchemaPath); err != nil {
-			return err
-		}
-	}
-	for _, union := range tagged {
-		if err := claim(union.TypeName, union.SchemaPath); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func validateGeneratedFieldNames(fields []FieldPlan, reserved ...string) error {
@@ -538,9 +472,6 @@ func SelectGeneratedEnums(plan ProtocolTypePlan) ([]EnumPlan, error) {
 			if !ok {
 				continue
 			}
-			if reservedProtocolTypeName(typeName) {
-				return nil, unsupportedGeneratedSchema(unsupportedDefinitionPath(typ.SchemaPath, name), "generated enum %s conflicts with handwritten protocolv2 type", typeName)
-			}
 			encoded, err := json.Marshal(schema)
 			if err != nil {
 				return nil, fmt.Errorf("generated enum %s in %s cannot be encoded: %w", typeName, typ.SchemaPath, err)
@@ -707,9 +638,6 @@ func SelectFirstPassGeneratedTypes(plan ProtocolTypePlan) ([]TypePlan, error) {
 			if enumTypes[typ.TypeName] {
 				return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated type %s conflicts with generated enum type", typ.TypeName)
 			}
-			if reservedProtocolTypeName(typ.TypeName) {
-				return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated type %s conflicts with handwritten protocolv2 type", typ.TypeName)
-			}
 			if previous, ok := seenNames[typ.TypeName]; ok {
 				return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated type %s appears in both %s and %s", typ.TypeName, previous, typ.SchemaPath)
 			}
@@ -854,9 +782,6 @@ func SelectGeneratedMixedUnions(plan ProtocolTypePlan) ([]MixedUnionPlan, error)
 	for _, typ := range candidates {
 		if enumTypes[typ.TypeName] {
 			return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated mixed union %s conflicts with generated enum type", typ.TypeName)
-		}
-		if reservedProtocolTypeName(typ.TypeName) {
-			return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated mixed union %s conflicts with handwritten protocolv2 type", typ.TypeName)
 		}
 		if previous, ok := seenNames[typ.TypeName]; ok {
 			return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated mixed union %s appears in both %s and %s", typ.TypeName, previous, typ.SchemaPath)
@@ -1113,9 +1038,6 @@ func SelectGeneratedUntaggedObjectUnions(plan ProtocolTypePlan) ([]UntaggedObjec
 	for _, typ := range candidates {
 		if enumTypes[typ.TypeName] {
 			return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated untagged object union %s conflicts with generated enum type", typ.TypeName)
-		}
-		if reservedProtocolTypeName(typ.TypeName) {
-			return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated untagged object union %s conflicts with handwritten protocolv2 type", typ.TypeName)
 		}
 		if previous, ok := seenNames[typ.TypeName]; ok {
 			return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated untagged object union %s appears in both %s and %s", typ.TypeName, previous, typ.SchemaPath)
@@ -1561,9 +1483,6 @@ func SelectGeneratedTaggedUnions(plan ProtocolTypePlan) ([]TaggedUnionPlan, erro
 	for _, typ := range candidates {
 		if enumTypes[typ.TypeName] {
 			return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated tagged union %s conflicts with generated enum type", typ.TypeName)
-		}
-		if reservedProtocolTypeName(typ.TypeName) {
-			return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated tagged union %s conflicts with handwritten protocolv2 type", typ.TypeName)
 		}
 		if previous, ok := seenNames[typ.TypeName]; ok {
 			return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated tagged union %s appears in both %s and %s", typ.TypeName, previous, typ.SchemaPath)
@@ -3673,21 +3592,4 @@ func jsonTagOmitEmpty(field FieldPlan) string {
 		return ""
 	}
 	return ",omitempty"
-}
-
-func reservedProtocolTypeName(name string) bool {
-	switch name {
-	case "JSONKind",
-		"JSONValue",
-		"MethodDirection",
-		"MethodInfo",
-		"MethodKind",
-		"MethodStability",
-		"Nullable",
-		"OutputSchema",
-		"ResponseSchemaStatus":
-		return true
-	default:
-		return false
-	}
 }

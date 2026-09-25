@@ -155,7 +155,7 @@ func Apply(req ApplyRequest) (ApplyResult, error) {
 		return ApplyResult{}, err
 	}
 	if !req.skipSurface {
-		surface, err := deriveSurface(req.StableCandidate, req.Baseline)
+		surface, err := deriveSurface(req.StableCandidate, req.Baseline, filepath.Join(req.ModuleRoot, "protocolv2"))
 		if err != nil {
 			return ApplyResult{}, classifyUnsupported("surface", err)
 		}

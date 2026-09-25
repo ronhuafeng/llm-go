@@ -154,6 +154,11 @@ generated wire root and its schema shape has a lossless supported
 representation. There is no path/name admission catalogue and no
 "previously reviewed definition" fallback.
 
+Before Plan reports `ready`, the generator checks one package-level symbol
+namespace built from every generated protocol file and the handwritten
+`protocolv2` files. Schema-owned declarations retain their source paths so a
+collision identifies the upstream owner.
+
 Two structurally identical reachable definitions may share one generated type
 when the generator can prove their schema identity. A local definition that is
 wire-identical to an already generated top-level type reuses that top-level
