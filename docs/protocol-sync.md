@@ -195,6 +195,11 @@ A target comparison has one of these meanings:
 - **blocked/failure:** target policy, generation, planning, semantic work, or
   deterministic proof failed. Nothing is published.
 
+Only an owner-identified unsupported schema representation or missing protocol
+mapping/prerequisite yields `semantic_unresolved`. File I/O, temporary storage,
+source identity, and malformed source errors keep their original causes and
+fail normally; their message text is never parsed to authorize an Agent pass.
+
 A provenance-only advance records the newer exact source identity as the
 accepted baseline. Do not persist a second "verified upstream" state when the
 accepted baseline can carry the fact directly.

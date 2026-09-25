@@ -116,7 +116,7 @@ func BuildProtocolTypePlan(schemaRoot string) (ProtocolTypePlan, error) {
 	for _, file := range schemas {
 		typePlan, err := planType(file)
 		if err != nil {
-			return ProtocolTypePlan{}, err
+			return ProtocolTypePlan{}, &UnsupportedSchemaError{Path: file.Path, Err: err}
 		}
 		for _, coverageField := range fieldsBySchema[file.Path] {
 			fieldSchema := file.Schema.Properties[coverageField.Field]
@@ -125,7 +125,7 @@ func BuildProtocolTypePlan(schemaRoot string) (ProtocolTypePlan, error) {
 			}
 			fieldPlan, err := planField(coverageField, fieldSchema)
 			if err != nil {
-				return ProtocolTypePlan{}, err
+				return ProtocolTypePlan{}, &UnsupportedSchemaError{Path: coverageField.Path, Err: err}
 			}
 			typePlan.Fields = append(typePlan.Fields, fieldPlan)
 			plan.Fields = append(plan.Fields, fieldPlan)

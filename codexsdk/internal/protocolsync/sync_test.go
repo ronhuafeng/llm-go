@@ -2,6 +2,7 @@ package protocolsync
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -303,6 +304,33 @@ func TestSyncSemanticUnresolvedDoesNotApply(t *testing.T) {
 	}
 	if err := AssertClean(repo); err != nil {
 		t.Fatalf("planning mutated accepted worktree: %v", err)
+	}
+}
+
+func TestSyncOrdinaryPlanFailureNeverRequestsAgentOrApplies(t *testing.T) {
+	repo := initSyncRepo(t, oldSHA, "rust-v0.140.0", KindStableTag)
+	planCalls, applyCalls := 0, 0
+	result, err := Sync(SyncRequest{
+		RepoRoot: repo, ModuleRoot: filepath.Join(repo, "codexsdk"),
+		UpstreamRepo: "fake", UpstreamRef: "rust-v0.141.0",
+		Lookuper: fakeLookuper{byPattern: map[string]string{
+			"refs/tags/rust-v0.141.0":    newSHA + "\trefs/tags/rust-v0.141.0",
+			"refs/tags/rust-v0.141.0^{}": newSHA + "\trefs/tags/rust-v0.141.0^{}",
+		}},
+		Generate: func(GenerateRequest) (Candidate, error) {
+			return Candidate{SchemaDir: "/tmp/schema", SourceCommit: newSHA, DriftStatus: "review-required"}, nil
+		},
+		Plan: func(protocolupgrade.ApplyRequest) (protocolupgrade.PlanResult, error) {
+			planCalls++
+			return protocolupgrade.PlanResult{}, os.ErrNotExist
+		},
+		Apply: func(protocolupgrade.ApplyRequest) (protocolupgrade.ApplyResult, error) {
+			applyCalls++
+			return protocolupgrade.ApplyResult{}, nil
+		},
+	})
+	if !errors.Is(err, os.ErrNotExist) || result.Outcome == OutcomeSemanticUnresolved || planCalls != 1 || applyCalls != 0 {
+		t.Fatalf("result=%+v err=%v planCalls=%d applyCalls=%d", result, err, planCalls, applyCalls)
 	}
 }
 

@@ -165,6 +165,10 @@ func loadJSON(path string, dst any) error {
 	return nil
 }
 
+func manifestIssue(path, format string, args ...any) error {
+	return &IncompatibilityError{Stage: "manifest", Path: path, Err: fmt.Errorf(format, args...)}
+}
+
 func pascalCase(value string) string {
 	parts := tokenRE.FindAllString(value, -1)
 	var b strings.Builder
@@ -209,7 +213,7 @@ func schemaTypeIndex(root string) (map[string]string, error) {
 	out := map[string]string{}
 	add := func(name, path string) error {
 		if previous := out[name]; previous != "" && previous != path {
-			return fmt.Errorf("ambiguous schema type %s: %s and %s", name, previous, path)
+			return manifestIssue(path, "ambiguous schema type %s: %s and %s", name, previous, path)
 		}
 		out[name] = path
 		return nil
@@ -375,19 +379,19 @@ func buildManifest(root, stableRoot string, old manifestFile, mappings map[strin
 			if kind == "request" {
 				responseStatus = "declared"
 				if mappingPtr == nil || mappingPtr.responseType == "" {
-					return manifestFile{}, fmt.Errorf("missing response mapping for request method %q", aggregateEntry.method)
+					return manifestFile{}, manifestIssue(fmt.Sprintf("%s#/oneOf/%d", aggregateEntry.aggregate, aggregateEntry.index), "missing response mapping for request method %q", aggregateEntry.method)
 				}
 				wantMacro := "client_request_definitions"
 				if direction == "server_to_client" {
 					wantMacro = "server_request_definitions"
 				}
 				if mappingPtr.macroName != wantMacro {
-					return manifestFile{}, fmt.Errorf("response mapping for %q came from %s, want %s", aggregateEntry.method, mappingPtr.macroName, wantMacro)
+					return manifestFile{}, manifestIssue(fmt.Sprintf("%s#/oneOf/%d", aggregateEntry.aggregate, aggregateEntry.index), "response mapping for %q came from %s, want %s", aggregateEntry.method, mappingPtr.macroName, wantMacro)
 				}
 				responseType = mappingPtr.responseType
 				responseSchema = typePaths[responseType]
 				if responseSchema == "" {
-					return manifestFile{}, fmt.Errorf("unable to resolve response schema for request method %q", aggregateEntry.method)
+					return manifestFile{}, manifestIssue(fmt.Sprintf("%s#/oneOf/%d", aggregateEntry.aggregate, aggregateEntry.index), "unable to resolve response schema for request method %q", aggregateEntry.method)
 				}
 				responseMapping = commonRSRef + "#" + mappingPtr.macroName + "/" + mappingPtr.variant
 			}

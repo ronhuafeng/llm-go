@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 )
 
 const (
@@ -45,36 +44,6 @@ func (e *IncompatibilityError) Error() string {
 }
 
 func (e *IncompatibilityError) Unwrap() error { return e.Err }
-
-var (
-	fieldPathRE  = regexp.MustCompile(`field ([^ ]+) has `)
-	schemaPathRE = regexp.MustCompile(`([A-Za-z0-9_./-]+\.json#[^ :;]+)`)
-)
-
-func wrapIncompatibility(stage string, err error) error {
-	if err == nil {
-		return nil
-	}
-	var existing *IncompatibilityError
-	if errors.As(err, &existing) {
-		return err
-	}
-	return &IncompatibilityError{
-		Stage: stage,
-		Path:  incompatibilityPath(err.Error()),
-		Err:   err,
-	}
-}
-
-func incompatibilityPath(message string) string {
-	if match := fieldPathRE.FindStringSubmatch(message); len(match) == 2 {
-		return match[1]
-	}
-	if match := schemaPathRE.FindStringSubmatch(message); len(match) == 2 {
-		return match[1]
-	}
-	return ""
-}
 
 // Plan proves that Apply can materialize the candidate in an isolated module
 // root. It never writes the accepted baseline or candidate.

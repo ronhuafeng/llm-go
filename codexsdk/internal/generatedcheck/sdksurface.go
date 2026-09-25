@@ -38,7 +38,7 @@ func GenerateSDKSurface(manifest protocolgen.Manifest, methodRegistry, protocolT
 	}
 
 	var methods []surfaceMethod
-	seen := map[string]bool{}
+	seen := map[string]string{}
 	for _, entry := range manifest.Entries {
 		if entry.Direction != "client_to_server" || entry.Kind != "request" {
 			continue
@@ -48,7 +48,10 @@ func GenerateSDKSurface(manifest protocolgen.Manifest, methodRegistry, protocolT
 		}
 		match := facadeTargetRE.FindStringSubmatch(entry.FacadeTarget)
 		if match == nil {
-			return nil, fmt.Errorf("invalid generated facade target %q for method %q", entry.FacadeTarget, entry.Method)
+			return nil, &protocolgen.UnsupportedSchemaError{
+				Path: facadeSourcePath(entry),
+				Err:  fmt.Errorf("invalid generated facade target %q for method %q", entry.FacadeTarget, entry.Method),
+			}
 		}
 		accessor, operation := match[1], match[2]
 		methodConst := methodConsts[entry.Method]
@@ -67,13 +70,23 @@ func GenerateSDKSurface(manifest protocolgen.Manifest, methodRegistry, protocolT
 			}
 		}
 		if len(missing) > 0 {
-			return nil, fmt.Errorf("facade method %q is missing current generated prerequisites: %s", entry.Method, strings.Join(missing, ", "))
+			path := facadeSourcePath(entry)
+			if (entry.ResponseType == "" || !typeNames[entry.ResponseType]) && entry.ResponseSchema != "" {
+				path = entry.ResponseSchema
+			}
+			return nil, &protocolgen.UnsupportedSchemaError{
+				Path: path,
+				Err:  fmt.Errorf("facade method %q is missing current generated prerequisites: %s", entry.Method, strings.Join(missing, ", ")),
+			}
 		}
 		key := accessor + "\x00" + operation
-		if seen[key] {
-			return nil, fmt.Errorf("duplicate facade operation %s().%s", accessor, operation)
+		if previous := seen[key]; previous != "" {
+			return nil, &protocolgen.UnsupportedSchemaError{
+				Path: facadeSourcePath(entry),
+				Err:  fmt.Errorf("facade operation %s().%s maps both %q and %q", accessor, operation, previous, entry.Method),
+			}
 		}
-		seen[key] = true
+		seen[key] = entry.Method
 		methods = append(methods, surfaceMethod{
 			accessor:     accessor,
 			operation:    operation,
@@ -141,7 +154,14 @@ func GenerateSDKSurface(manifest protocolgen.Manifest, methodRegistry, protocolT
 
 	formatted, err := format.Source([]byte(b.String()))
 	if err != nil {
-		return nil, fmt.Errorf("format generated sdk surface: %w", err)
+		return nil, &protocolgen.UnsupportedSchemaError{Path: "sdk_surface.gen.go", Err: fmt.Errorf("format generated sdk surface: %w", err)}
 	}
 	return formatted, nil
+}
+
+func facadeSourcePath(entry protocolgen.ManifestEntry) string {
+	if entry.SourceSchema != "" {
+		return entry.SourceSchema
+	}
+	return entry.Method
 }

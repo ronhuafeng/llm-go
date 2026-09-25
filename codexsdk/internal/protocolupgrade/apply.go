@@ -2,6 +2,7 @@ package protocolupgrade
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ronhuafeng/llm-go/codexsdk/internal/generatedcheck"
+	"github.com/ronhuafeng/llm-go/codexsdk/internal/protocolgen"
 )
 
 // ApplyRequest is the apply command input.
@@ -136,18 +138,18 @@ func Apply(req ApplyRequest) (ApplyResult, error) {
 	}
 	mappings, err := parseRequestMappings(req.CommonRS)
 	if err != nil {
-		return ApplyResult{}, wrapIncompatibility("manifest", err)
+		return ApplyResult{}, err
 	}
 	manifest, err := buildManifest(req.Baseline, req.StableCandidate, oldManifest, mappings, req.TargetSHA)
 	if err != nil {
-		return ApplyResult{}, wrapIncompatibility("manifest", err)
+		return ApplyResult{}, err
 	}
 	if err := writeJSON(filepath.Join(req.Baseline, "manifest.json"), manifest); err != nil {
 		return ApplyResult{}, err
 	}
 	coverage, err := buildCoverage(req.Baseline, req.StableCandidate, oldCoverage, manifest)
 	if err != nil {
-		return ApplyResult{}, wrapIncompatibility("coverage", err)
+		return ApplyResult{}, err
 	}
 	if err := writeJSON(filepath.Join(req.Baseline, "coverage_matrix.json"), coverage); err != nil {
 		return ApplyResult{}, err
@@ -155,7 +157,7 @@ func Apply(req ApplyRequest) (ApplyResult, error) {
 	if !req.skipSurface {
 		surface, err := deriveSurface(req.StableCandidate, req.Baseline)
 		if err != nil {
-			return ApplyResult{}, wrapIncompatibility("surface", err)
+			return ApplyResult{}, classifyUnsupported("surface", err)
 		}
 		updateManifestSurface(&manifest, surface)
 		if err := writeJSON(filepath.Join(req.Baseline, "manifest.json"), manifest); err != nil {
@@ -175,7 +177,7 @@ func Apply(req ApplyRequest) (ApplyResult, error) {
 			return ApplyResult{}, err
 		}
 		if err := generatedcheck.WriteArtifacts(moduleRoot); err != nil {
-			return ApplyResult{}, wrapIncompatibility("codegen", err)
+			return ApplyResult{}, classifyUnsupported("codegen", err)
 		}
 	}
 	files, err := schemaFiles(req.Baseline)
@@ -201,6 +203,14 @@ func Apply(req ApplyRequest) (ApplyResult, error) {
 		TargetRef:                    req.TargetRef,
 		TargetSHA:                    req.TargetSHA,
 	}, nil
+}
+
+func classifyUnsupported(stage string, err error) error {
+	var unsupported *protocolgen.UnsupportedSchemaError
+	if !errors.As(err, &unsupported) {
+		return err
+	}
+	return &IncompatibilityError{Stage: stage, Path: unsupported.Path, Err: err}
 }
 
 func writeAppliedReports(req ApplyRequest, generatedCompatibility map[string]any, codexVersion string) error {

@@ -1,6 +1,7 @@
 package generatedcheck
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -47,6 +48,7 @@ func TestGenerateSDKSurfaceIgnoresHistoricalDeferredStatusWhenPrerequisitesExist
 			FacadeTarget:          "Accounts().UsageRead",
 			FacadeStatus:          "deferred_missing_generated_types",
 			ParamsOrPayloadSchema: "GetAccountTokenUsageParams",
+			ResponseSchema:        "GetAccountTokenUsageResponse.json",
 			ResponseType:          "GetAccountTokenUsageResponse",
 			Family:                "account",
 			Stability:             "stable",
@@ -74,6 +76,7 @@ func TestGenerateSDKSurfaceFailsClosedWhenCurrentPrerequisitesAreMissing(t *test
 			FacadeTarget:          "Accounts().UsageRead",
 			FacadeStatus:          "deferred_missing_generated_types",
 			ParamsOrPayloadSchema: "GetAccountTokenUsageParams",
+			ResponseSchema:        "GetAccountTokenUsageResponse.json",
 			ResponseType:          "GetAccountTokenUsageResponse",
 			Family:                "account",
 			Stability:             "stable",
@@ -84,7 +87,8 @@ func TestGenerateSDKSurfaceFailsClosedWhenCurrentPrerequisitesAreMissing(t *test
 		[]byte("\tMethodAccountUsageRead = \"account/usage/read\"\n"),
 		[]byte("type GetAccountTokenUsageParams struct{}\n"),
 	)
-	if err == nil || !strings.Contains(err.Error(), "response type GetAccountTokenUsageResponse") {
+	var unsupported *protocolgen.UnsupportedSchemaError
+	if !errors.As(err, &unsupported) || unsupported.Path != "GetAccountTokenUsageResponse.json" || !strings.Contains(unsupported.Error(), "response type GetAccountTokenUsageResponse") {
 		t.Fatalf("missing prerequisite error = %v", err)
 	}
 }
@@ -105,5 +109,23 @@ func TestGenerateSDKSurfaceRejectsMissingGeneratedType(t *testing.T) {
 	_, err := GenerateSDKSurface(manifest, []byte("\tMethodThreadStart = \"thread/start\"\n"), []byte("type ThreadStartParams struct{}\n"))
 	if err == nil || !strings.Contains(err.Error(), "response type ThreadStartResponse") {
 		t.Fatalf("missing response type error = %v", err)
+	}
+}
+
+func TestGenerateSDKSurfaceClassifiesFacadeNameCollision(t *testing.T) {
+	entries := []protocolgen.ManifestEntry{}
+	for _, method := range []string{"fuzzyFileSearch", "fuzzyFileSearch/search"} {
+		entries = append(entries, protocolgen.ManifestEntry{
+			Direction: "client_to_server", Kind: "request", Method: method,
+			FacadeTarget: "FuzzyFileSearch().Search", SourceSchema: "ClientRequest.json",
+			ParamsOrPayloadSchema: "SearchParams", ResponseSchema: "SearchResponse.json", ResponseType: "SearchResponse",
+		})
+	}
+	_, err := GenerateSDKSurface(protocolgen.Manifest{Entries: entries},
+		[]byte("MethodFuzzyFileSearch = \"fuzzyFileSearch\"\nMethodFuzzyFileSearchSearch = \"fuzzyFileSearch/search\"\n"),
+		[]byte("type SearchParams struct{}\ntype SearchResponse struct{}\n"))
+	var unsupported *protocolgen.UnsupportedSchemaError
+	if !errors.As(err, &unsupported) || unsupported.Path != "ClientRequest.json" || !strings.Contains(unsupported.Error(), "both \"fuzzyFileSearch\" and \"fuzzyFileSearch/search\"") {
+		t.Fatalf("collision = %v, want typed source-linked incompatibility", err)
 	}
 }

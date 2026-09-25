@@ -1,11 +1,15 @@
 package protocolupgrade
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/ronhuafeng/llm-go/codexsdk/internal/protocolgen"
 )
 
 func TestPlanReadyDoesNotMutateAcceptedBaseline(t *testing.T) {
@@ -91,7 +95,7 @@ func TestPlanRunsCanonicalCodegenInIsolation(t *testing.T) {
 
 func TestPlanReturnsStructuredSemanticIncompatibility(t *testing.T) {
 	fix := writeApplyFixture(t)
-	if err := os.WriteFile(fix.commonRS, []byte("client_request_definitions! { broken"), 0o644); err != nil {
+	if err := os.WriteFile(fix.commonRS, []byte("client_request_definitions! {}\nserver_request_definitions! {}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	planned, err := Plan(ApplyRequest{
@@ -110,18 +114,156 @@ func TestPlanReturnsStructuredSemanticIncompatibility(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if planned.Status != PlanSemanticUnresolved || planned.Issue == nil || planned.Issue.Stage != "manifest" {
+	if planned.Status != PlanSemanticUnresolved || planned.Issue == nil || planned.Issue.Stage != "manifest" || planned.Issue.Path != "ClientRequest.json#/oneOf/0" || !strings.Contains(planned.Issue.Reason, "missing response mapping") {
 		t.Fatalf("plan = %+v", planned)
 	}
 }
 
-func TestIncompatibilityPathExtractsSchemaPointer(t *testing.T) {
-	message := "field v2/ThreadAttachmentAddParams.json#/properties/payload has unreviewed true schema"
-	if got := incompatibilityPath(message); got != "v2/ThreadAttachmentAddParams.json#/properties/payload" {
-		t.Fatalf("path = %q", got)
+func TestPlanReportsUnsupportedSchemaFromGenerator(t *testing.T) {
+	root := copyModuleForCheck(t)
+	baseline := filepath.Join(root, filepath.FromSlash(defaultBaselineRel))
+	candidate := t.TempDir()
+	if err := copyTree(baseline, candidate); err != nil {
+		t.Fatal(err)
 	}
-	if got := incompatibilityPath("plain failure"); got != "" {
-		t.Fatalf("unexpected path %q", got)
+	writeJSONFile(t, filepath.Join(candidate, "ArbitraryPayload.json"), map[string]any{
+		"title": "ArbitraryPayload", "type": "object",
+		"properties": map[string]any{"value": map[string]any{"not": map[string]any{"type": "string"}}},
+	})
+	commonRS := filepath.Join(root, "common.rs")
+	writeBaselineMappingFixture(t, baseline, commonRS)
+	sha := strings.Repeat("b", 40)
+	planned, err := Plan(ApplyRequest{
+		Baseline: baseline, Candidate: candidate, StableCandidate: candidate,
+		CommonRS: commonRS, CommonRSSourceSHA: sha,
+		TargetRef: "rust-v0.154.0", TargetKind: "stable_rust_tag", TargetSHA: sha,
+		ModuleRoot: root,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if planned.Status != PlanSemanticUnresolved || planned.Issue == nil || planned.Issue.Stage != "surface" || planned.Issue.Path != "ArbitraryPayload.json#/properties/value" {
+		t.Fatalf("plan = %+v, want typed surface incompatibility", planned)
+	}
+	writeJSONFile(t, filepath.Join(candidate, "ArbitraryPayload.json"), map[string]any{
+		"title": "ArbitraryPayload", "type": "object",
+		"properties": map[string]any{"value": map[string]any{"type": "string"}},
+	})
+	repaired, err := Plan(ApplyRequest{
+		Baseline: baseline, Candidate: candidate, StableCandidate: candidate,
+		CommonRS: commonRS, CommonRSSourceSHA: sha,
+		TargetRef: "rust-v0.154.0", TargetKind: "stable_rust_tag", TargetSHA: sha,
+		ModuleRoot: root,
+	})
+	if err != nil || repaired.Status != PlanReady {
+		t.Fatalf("same candidate after representation repair: plan = %+v, err = %v", repaired, err)
+	}
+}
+
+func TestPlanReportsFacadeNameCollisionAsSemanticDrift(t *testing.T) {
+	root := copyModuleForCheck(t)
+	baseline := filepath.Join(root, filepath.FromSlash(defaultBaselineRel))
+	candidate, stable := t.TempDir(), t.TempDir()
+	for _, dir := range []string{candidate, stable} {
+		if err := copyTree(baseline, dir); err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(dir, "ClientRequest.json")
+		var schema map[string]any
+		if err := loadJSON(path, &schema); err != nil {
+			t.Fatal(err)
+		}
+		variants := schema["oneOf"].([]any)
+		variants = append(variants, map[string]any{
+			"title": "FuzzyFileSearchSearchRequest", "type": "object",
+			"required": []string{"id", "method", "params"},
+			"properties": map[string]any{
+				"id":     map[string]any{"$ref": "#/definitions/RequestId"},
+				"method": map[string]any{"enum": []string{"fuzzyFileSearch/search"}, "type": "string"},
+				"params": map[string]any{"$ref": "#/definitions/FuzzyFileSearchParams"},
+			},
+		})
+		schema["oneOf"] = variants
+		writeJSONFile(t, path, schema)
+	}
+	commonRS := filepath.Join(root, "common.rs")
+	writeBaselineMappingFixture(t, baseline, commonRS)
+	data, err := os.ReadFile(commonRS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	marker := "}\nserver_request_definitions!"
+	if !strings.Contains(string(data), marker) {
+		t.Fatal("mapping fixture is missing server request boundary")
+	}
+	common := strings.Replace(string(data), marker, "  FuzzyFileSearchSearch => \"fuzzyFileSearch/search\" {\n    response: FuzzyFileSearchResponse,\n  },\n"+marker, 1)
+	if err := os.WriteFile(commonRS, []byte(common), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sha := strings.Repeat("b", 40)
+	planned, err := Plan(ApplyRequest{
+		Baseline: baseline, Candidate: candidate, StableCandidate: stable,
+		CommonRS: commonRS, CommonRSSourceSHA: sha,
+		TargetRef: "rust-v0.154.0", TargetKind: "stable_rust_tag", TargetSHA: sha,
+		ModuleRoot: root,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if planned.Status != PlanSemanticUnresolved || planned.Issue == nil || planned.Issue.Stage != "codegen" || planned.Issue.Path != "ClientRequest.json" || !strings.Contains(planned.Issue.Reason, "FuzzyFileSearch().Search") {
+		t.Fatalf("plan = %+v issue = %+v, want typed facade collision", planned, planned.Issue)
+	}
+}
+
+func TestPlanKeepsSourceAndEnvironmentFailuresOrdinary(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		mutate func(t *testing.T, req *ApplyRequest)
+	}{
+		{name: "missing common.rs", mutate: func(t *testing.T, req *ApplyRequest) {
+			req.CommonRS = filepath.Join(t.TempDir(), "missing.rs")
+		}},
+		{name: "malformed common.rs", mutate: func(t *testing.T, req *ApplyRequest) {
+			if err := os.WriteFile(req.CommonRS, []byte("client_request_definitions! { broken"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "source SHA mismatch", mutate: func(t *testing.T, req *ApplyRequest) {
+			req.CommonRSSourceSHA = strings.Repeat("b", 40)
+		}},
+		{name: "temporary directory unavailable", mutate: func(t *testing.T, req *ApplyRequest) {
+			t.Setenv("TMPDIR", filepath.Join(t.TempDir(), "missing"))
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fix := writeApplyFixture(t)
+			req := ApplyRequest{
+				Baseline: fix.baseline, Candidate: fix.candidate, StableCandidate: fix.stable,
+				CommonRS: fix.commonRS, CommonRSSourceSHA: fix.sha, Reports: fix.reports,
+				TargetRef: "rust-v1.2.3", TargetKind: "stable_rust_tag", TargetSHA: fix.sha,
+				SkipCodegen: true, skipSurface: true,
+			}
+			test.mutate(t, &req)
+			planned, err := Plan(req)
+			var incompatibility *IncompatibilityError
+			if err == nil || errors.As(err, &incompatibility) || planned.Status == PlanSemanticUnresolved {
+				t.Fatalf("plan = %+v, err = %v; want ordinary failure", planned, err)
+			}
+		})
+	}
+}
+
+func TestClassifyUnsupportedPreservesCauseAndIgnoresOrdinaryErrors(t *testing.T) {
+	cause := errors.New("unrepresented schema shape")
+	owner := &protocolgen.UnsupportedSchemaError{Path: "Arbitrary.json#/properties/value", Err: cause}
+	err := classifyUnsupported("codegen", owner)
+	var incompatibility *IncompatibilityError
+	if !errors.As(err, &incompatibility) || incompatibility.Stage != "codegen" || incompatibility.Path != owner.Path || !errors.Is(err, cause) {
+		t.Fatalf("typed error = %v, want structured cause-preserving incompatibility", err)
+	}
+	ordinary := classifyUnsupported("codegen", fmt.Errorf("read schema: %w", os.ErrNotExist))
+	if errors.As(ordinary, &incompatibility) || !errors.Is(ordinary, os.ErrNotExist) {
+		t.Fatalf("ordinary error = %v, want original read failure", ordinary)
 	}
 }
 

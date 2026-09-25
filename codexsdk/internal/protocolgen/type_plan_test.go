@@ -1,6 +1,7 @@
 package protocolgen
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1102,11 +1103,17 @@ func TestProtocolTypePlanFailsClosedForUnreviewedShape(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err := BuildProtocolTypePlan(root)
-	if err == nil {
-		t.Fatal("BuildProtocolTypePlan accepted unreviewed schema shape")
+	var unsupported *UnsupportedSchemaError
+	if !errors.As(err, &unsupported) || unsupported.Path != "Example.json#/properties/value" {
+		t.Fatalf("error = %v, want typed unsupported field path", err)
 	}
-	if !strings.Contains(err.Error(), "Example.json#/properties/value") {
-		t.Fatalf("error %q does not include field path", err)
+}
+
+func TestBuildProtocolTypePlanKeepsMissingInputOrdinary(t *testing.T) {
+	_, err := BuildProtocolTypePlan(t.TempDir())
+	var unsupported *UnsupportedSchemaError
+	if !errors.Is(err, os.ErrNotExist) || errors.As(err, &unsupported) {
+		t.Fatalf("error = %v, want ordinary missing input", err)
 	}
 }
 

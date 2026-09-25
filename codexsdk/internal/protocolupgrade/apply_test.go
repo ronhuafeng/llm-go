@@ -1,6 +1,7 @@
 package protocolupgrade
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,6 +13,25 @@ import (
 
 	"github.com/ronhuafeng/llm-go/codexsdk/internal/protocolgen"
 )
+
+func TestApplyReportWriteFailureRemainsOrdinary(t *testing.T) {
+	fix := writeApplyFixture(t)
+	reportsFile := filepath.Join(fix.module, "reports-file")
+	if err := os.WriteFile(reportsFile, []byte("occupied"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Apply(ApplyRequest{
+		Baseline: fix.baseline, Candidate: fix.candidate, StableCandidate: fix.stable,
+		CommonRS: fix.commonRS, CommonRSSourceSHA: fix.sha, Reports: reportsFile,
+		TargetRef: "rust-v1.2.3", TargetKind: "stable_rust_tag", TargetSHA: fix.sha,
+		SkipCodegen: true, skipSurface: true,
+	})
+	var pathErr *os.PathError
+	var incompatibility *IncompatibilityError
+	if !errors.As(err, &pathErr) || errors.As(err, &incompatibility) {
+		t.Fatalf("error = %v, want ordinary report write failure", err)
+	}
+}
 
 func TestVerifyCommonRSSourceSHAMustMatchTarget(t *testing.T) {
 	dir := t.TempDir()
