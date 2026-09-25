@@ -263,6 +263,36 @@ func TestProtocolSyncPreservesAuthorityAndPublicationBoundaries(t *testing.T) {
 	}
 }
 
+func TestProtocolDiagnosisHasReadOnlyJobBoundary(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := readWorkflow(t, root, "codexsdk-upstream-protocol-sync.yml")
+	diagnose, ok := workflowJobByID(workflow, "diagnose")
+	if !ok {
+		t.Fatal("diagnostic job is missing")
+	}
+	if !strings.Contains(diagnose, "inputs.diagnostic_only == true") || !strings.Contains(diagnose, "contents: read") || !strings.Contains(diagnose, "pull-requests: read") {
+		t.Fatal("diagnosis must have a separate read-only job")
+	}
+	if strings.Contains(diagnose, "contents: write") || strings.Contains(diagnose, "pull-requests: write") || strings.Contains(diagnose, "codex-exec") || strings.Contains(diagnose, "protocolupgrade publish") || strings.Contains(diagnose, "protocolupgrade resume") {
+		t.Fatal("diagnosis must not contain Agent, Apply, or publication authority")
+	}
+	if !strings.Contains(diagnose, "go run ./internal/cmd/protocolupgrade \"${args[@]}\" -json") || !strings.Contains(diagnose, "diagnose\n") {
+		t.Fatal("diagnosis must invoke the native read-only Plan entrypoint")
+	}
+	for _, ref := range checkoutRefs(diagnose) {
+		if ref != "${{ github.sha }}" {
+			t.Fatalf("diagnosis checks out %q, want triggering commit", ref)
+		}
+	}
+	sync, ok := workflowJobByID(workflow, "sync")
+	if !ok || !strings.Contains(sync, "inputs.diagnostic_only != true") {
+		t.Fatal("write-capable sync job must be skipped during diagnosis")
+	}
+}
+
 func TestWorkflowJobByIDIsolatesJobs(t *testing.T) {
 	yaml := "" +
 		"jobs:\n" +

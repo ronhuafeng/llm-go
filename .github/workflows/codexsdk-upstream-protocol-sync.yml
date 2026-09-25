@@ -36,7 +36,116 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  diagnose:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.diagnostic_only == true }}
+    name: Diagnose upstream protocol
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Guard diagnostic ref
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_NAME}" == "${DEFAULT_BRANCH}" ]]; then
+            exit 0
+          fi
+          matching_prs="$(
+            gh pr list \
+              --repo "${GH_REPO}" \
+              --state open \
+              --base "${DEFAULT_BRANCH}" \
+              --head "${GITHUB_REF_NAME}" \
+              --json headRefOid,headRepository \
+              --jq '[.[] | select(.headRefOid == env.GITHUB_SHA and .headRepository.nameWithOwner == env.GH_REPO)] | length'
+          )"
+          test "${matching_prs}" = 1
+
+      - name: Check out diagnostic revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Provision Codex schema build dependencies
+        run: |
+          set -euo pipefail
+          rustup default stable
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang \
+            cmake \
+            libasound2-dev \
+            libssl-dev \
+            pkg-config \
+            protobuf-compiler
+
+      - name: Generate and plan candidate
+        id: diagnostic
+        working-directory: codexsdk
+        env:
+          GOTOOLCHAIN: local
+          REQUESTED_REF: ${{ inputs.upstream_ref || '' }}
+          ALLOW_DOWNGRADE: ${{ inputs.allow_downgrade || false }}
+        run: |
+          set -euo pipefail
+          args=(
+            diagnose
+            -repo-root "${GITHUB_WORKSPACE}"
+            -module-root .
+            -upstream-repo https://github.com/openai/codex.git
+            -event-name "${GITHUB_EVENT_NAME}"
+          )
+          if [[ -n "${REQUESTED_REF}" ]]; then
+            args+=(-upstream-ref "${REQUESTED_REF}")
+          fi
+          if [[ "${ALLOW_DOWNGRADE}" == "true" ]]; then
+            args+=(-allow-downgrade)
+          fi
+          go run ./internal/cmd/protocolupgrade "${args[@]}" -json
+          git -C "${GITHUB_WORKSPACE}" diff --exit-code
+          test -z "$(git -C "${GITHUB_WORKSPACE}" status --porcelain --untracked-files=normal)"
+
+      - name: Summarize read-only diagnosis
+        if: ${{ always() }}
+        env:
+          TARGET_REF: ${{ steps.diagnostic.outputs.target_ref }}
+          TARGET_SHA: ${{ steps.diagnostic.outputs.target_sha }}
+          OUTCOME: ${{ steps.diagnostic.outputs.outcome }}
+          ISSUE_STAGE: ${{ steps.diagnostic.outputs.issue_stage }}
+          ISSUE_PATH: ${{ steps.diagnostic.outputs.issue_path }}
+          ISSUE_REASON: ${{ steps.diagnostic.outputs.issue_reason }}
+          REASON: ${{ steps.diagnostic.outputs.reason }}
+        run: |
+          {
+            echo '## Read-only upstream Plan diagnosis'
+            echo
+            echo "- Repository commit: ${GITHUB_SHA}"
+            echo "- Workflow run/attempt: ${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}"
+            echo "- Upstream ref: ${TARGET_REF}"
+            echo "- Upstream peeled commit: ${TARGET_SHA}"
+            echo '- Generation: `cargo run -p codex-cli -- app-server generate-json-schema --experimental --out <complete-schema>` and `cargo run -p codex-cli -- app-server generate-json-schema --out <stable-schema>` from that commit'
+            echo "- Plan outcome: ${OUTCOME:-unavailable}"
+            echo "- Reason: ${REASON}"
+            echo "- Stage: ${ISSUE_STAGE}"
+            echo "- Path: ${ISSUE_PATH}"
+            echo "- Unresolved reason: ${ISSUE_REASON}"
+            echo '- Agent, Apply, commit, and publication: not invoked'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
   sync:
+    if: ${{ inputs.diagnostic_only != true }}
     name: Sync upstream protocol
     runs-on: ubuntu-latest
     timeout-minutes: 360
@@ -49,7 +158,7 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VALIDATION_ONLY: ${{ inputs.validation_only == true || inputs.diagnostic_only == true }}
+          VALIDATION_ONLY: ${{ inputs.validation_only == true }}
         run: |
           set -euo pipefail
 
@@ -110,15 +219,10 @@ jobs:
           FORCE_COMPARE: ${{ inputs.force_compare || false }}
           REQUESTED_REF: ${{ inputs.upstream_ref || '' }}
           EVENT_NAME: ${{ github.event_name }}
-          DIAGNOSTIC_ONLY: ${{ inputs.diagnostic_only == true }}
         run: |
           set -euo pipefail
-          command=sync
-          if [[ "${DIAGNOSTIC_ONLY}" == "true" ]]; then
-            command=diagnose
-          fi
           args=(
-            "${command}"
+            sync
             -repo-root "${GITHUB_WORKSPACE}"
             -module-root .
             -upstream-repo https://github.com/openai/codex.git
@@ -133,44 +237,10 @@ jobs:
           if [[ "${FORCE_COMPARE}" == "true" ]]; then
             args+=(-force-compare)
           fi
-          if [[ "${DIAGNOSTIC_ONLY}" == "true" ]]; then
-            mkdir -p .cache/codexsdk-sync
-            go run ./internal/cmd/protocolupgrade "${args[@]}" -json > .cache/codexsdk-sync/diagnostic.json
-            git -C "${GITHUB_WORKSPACE}" diff --exit-code
-            test -z "$(git -C "${GITHUB_WORKSPACE}" status --porcelain --untracked-files=normal)"
-          else
-            go run ./internal/cmd/protocolupgrade "${args[@]}"
-          fi
-
-      - name: Summarize read-only diagnosis
-        if: ${{ always() && inputs.diagnostic_only == true }}
-        env:
-          TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
-          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
-          OUTCOME: ${{ steps.mechanical.outputs.outcome }}
-          ISSUE_STAGE: ${{ steps.mechanical.outputs.issue_stage }}
-          ISSUE_PATH: ${{ steps.mechanical.outputs.issue_path }}
-          ISSUE_REASON: ${{ steps.mechanical.outputs.issue_reason }}
-          REASON: ${{ steps.mechanical.outputs.reason }}
-        run: |
-          {
-            echo '## Read-only upstream Plan diagnosis'
-            echo
-            echo "- Repository commit: ${GITHUB_SHA}"
-            echo "- Workflow run/attempt: ${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}"
-            echo "- Upstream ref: ${TARGET_REF}"
-            echo "- Upstream peeled commit: ${TARGET_SHA}"
-            echo '- Generation: `cargo run -p codex-cli -- app-server generate-json-schema --experimental --out <complete-schema>` and `cargo run -p codex-cli -- app-server generate-json-schema --out <stable-schema>` from that commit'
-            echo "- Plan outcome: ${OUTCOME:-unavailable}"
-            echo "- Reason: ${REASON}"
-            echo "- Stage: ${ISSUE_STAGE}"
-            echo "- Path: ${ISSUE_PATH}"
-            echo "- Unresolved reason: ${ISSUE_REASON}"
-            echo '- Agent, Apply, commit, and publication: not invoked'
-          } >> "${GITHUB_STEP_SUMMARY}"
+          go run ./internal/cmd/protocolupgrade "${args[@]}"
 
       - name: Write Agent drift input
-        if: ${{ success() && inputs.diagnostic_only != true && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
+        if: ${{ success() && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
         working-directory: codexsdk
         env:
           TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
@@ -205,7 +275,7 @@ jobs:
 
       - name: Apply one Agent pass for unresolved semantic drift
         id: codex
-        if: ${{ success() && inputs.diagnostic_only != true && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
+        if: ${{ success() && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
         uses: ./.github/actions/codex-exec
         env:
           GITHUB_TOKEN: ""
@@ -231,7 +301,7 @@ jobs:
 
       - name: Re-plan and apply candidate
         id: resume
-        if: ${{ success() && inputs.diagnostic_only != true && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
+        if: ${{ success() && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
         working-directory: codexsdk
         env:
           GOTOOLCHAIN: local
@@ -251,7 +321,6 @@ jobs:
 
       - name: Run deterministic protocol checks
         id: checks
-        if: ${{ inputs.diagnostic_only != true }}
         working-directory: codexsdk
         env:
           GOTOOLCHAIN: local
@@ -278,7 +347,7 @@ jobs:
 
       - name: Publish protected sync PR
         id: publish
-        if: ${{ success() && inputs.diagnostic_only != true && (steps.mechanical.outputs.outcome == 'applied' || steps.resume.outputs.outcome == 'applied') && inputs.validation_only != true }}
+        if: ${{ success() && (steps.mechanical.outputs.outcome == 'applied' || steps.resume.outputs.outcome == 'applied') && inputs.validation_only != true }}
         working-directory: codexsdk
         env:
           GOTOOLCHAIN: local
