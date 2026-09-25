@@ -78,6 +78,43 @@ func TestSyncForceCompareCurrentStillGenerates(t *testing.T) {
 	}
 }
 
+func TestSyncDiagnosticPlansCurrentBaselineWithoutApply(t *testing.T) {
+	repo := initSyncRepo(t, oldSHA, "rust-v0.140.0", KindStableTag)
+	generated, planned, applied := false, false, false
+	result, err := Sync(SyncRequest{
+		RepoRoot:     repo,
+		ModuleRoot:   filepath.Join(repo, "codexsdk"),
+		UpstreamRepo: "fake",
+		UpstreamRef:  "rust-v0.140.0",
+		Diagnostic:   true,
+		Lookuper: fakeLookuper{byPattern: map[string]string{
+			"refs/tags/rust-v0.140.0":    oldSHA + "\trefs/tags/rust-v0.140.0",
+			"refs/tags/rust-v0.140.0^{}": oldSHA + "\trefs/tags/rust-v0.140.0^{}",
+		}},
+		Generate: func(GenerateRequest) (Candidate, error) {
+			generated = true
+			return Candidate{Dir: "/tmp/candidate", SchemaDir: "/tmp/candidate/schema", SourceCommit: oldSHA, DriftStatus: "clean"}, nil
+		},
+		Plan: func(protocolupgrade.ApplyRequest) (protocolupgrade.PlanResult, error) {
+			planned = true
+			return protocolupgrade.PlanResult{Status: protocolupgrade.PlanReady}, nil
+		},
+		Apply: func(protocolupgrade.ApplyRequest) (protocolupgrade.ApplyResult, error) {
+			applied = true
+			return protocolupgrade.ApplyResult{}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !generated || !planned || applied || result.Outcome != OutcomePlanReady {
+		t.Fatalf("generated=%v planned=%v applied=%v result=%+v", generated, planned, applied, result)
+	}
+	if err := AssertClean(repo); err != nil {
+		t.Fatalf("diagnostic changed accepted worktree: %v", err)
+	}
+}
+
 func TestSyncBlockedDowngradeFailsClosed(t *testing.T) {
 	repo := initSyncRepo(t, oldSHA, "rust-v0.141.0", KindStableTag)
 	_, err := Sync(SyncRequest{

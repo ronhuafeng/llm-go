@@ -25,6 +25,11 @@ on:
         required: false
         type: boolean
         default: false
+      diagnostic_only:
+        description: "Generate the latest stable candidate and run a read-only Plan; never invoke Agent, Apply, checks, or publication."
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: codex-upstream-protocol-sync
@@ -44,7 +49,7 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VALIDATION_ONLY: ${{ inputs.validation_only == true }}
+          VALIDATION_ONLY: ${{ inputs.validation_only == true || inputs.diagnostic_only == true }}
         run: |
           set -euo pipefail
 
@@ -105,10 +110,15 @@ jobs:
           FORCE_COMPARE: ${{ inputs.force_compare || false }}
           REQUESTED_REF: ${{ inputs.upstream_ref || '' }}
           EVENT_NAME: ${{ github.event_name }}
+          DIAGNOSTIC_ONLY: ${{ inputs.diagnostic_only == true }}
         run: |
           set -euo pipefail
+          command=sync
+          if [[ "${DIAGNOSTIC_ONLY}" == "true" ]]; then
+            command=diagnose
+          fi
           args=(
-            sync
+            "${command}"
             -repo-root "${GITHUB_WORKSPACE}"
             -module-root .
             -upstream-repo https://github.com/openai/codex.git
@@ -123,10 +133,44 @@ jobs:
           if [[ "${FORCE_COMPARE}" == "true" ]]; then
             args+=(-force-compare)
           fi
-          go run ./internal/cmd/protocolupgrade "${args[@]}"
+          if [[ "${DIAGNOSTIC_ONLY}" == "true" ]]; then
+            mkdir -p .cache/codexsdk-sync
+            go run ./internal/cmd/protocolupgrade "${args[@]}" -json > .cache/codexsdk-sync/diagnostic.json
+            git -C "${GITHUB_WORKSPACE}" diff --exit-code
+            test -z "$(git -C "${GITHUB_WORKSPACE}" status --porcelain --untracked-files=normal)"
+          else
+            go run ./internal/cmd/protocolupgrade "${args[@]}"
+          fi
+
+      - name: Summarize read-only diagnosis
+        if: ${{ always() && inputs.diagnostic_only == true }}
+        env:
+          TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
+          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
+          OUTCOME: ${{ steps.mechanical.outputs.outcome }}
+          ISSUE_STAGE: ${{ steps.mechanical.outputs.issue_stage }}
+          ISSUE_PATH: ${{ steps.mechanical.outputs.issue_path }}
+          ISSUE_REASON: ${{ steps.mechanical.outputs.issue_reason }}
+          REASON: ${{ steps.mechanical.outputs.reason }}
+        run: |
+          {
+            echo '## Read-only upstream Plan diagnosis'
+            echo
+            echo "- Repository commit: ${GITHUB_SHA}"
+            echo "- Workflow run/attempt: ${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}"
+            echo "- Upstream ref: ${TARGET_REF}"
+            echo "- Upstream peeled commit: ${TARGET_SHA}"
+            echo '- Generation: `cargo run -p codex-cli -- app-server generate-json-schema --experimental --out <complete-schema>` and `cargo run -p codex-cli -- app-server generate-json-schema --out <stable-schema>` from that commit'
+            echo "- Plan outcome: ${OUTCOME:-unavailable}"
+            echo "- Reason: ${REASON}"
+            echo "- Stage: ${ISSUE_STAGE}"
+            echo "- Path: ${ISSUE_PATH}"
+            echo "- Unresolved reason: ${ISSUE_REASON}"
+            echo '- Agent, Apply, commit, and publication: not invoked'
+          } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Write Agent drift input
-        if: ${{ success() && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
+        if: ${{ success() && inputs.diagnostic_only != true && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
         working-directory: codexsdk
         env:
           TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
@@ -161,7 +205,7 @@ jobs:
 
       - name: Apply one Agent pass for unresolved semantic drift
         id: codex
-        if: ${{ success() && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
+        if: ${{ success() && inputs.diagnostic_only != true && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
         uses: ./.github/actions/codex-exec
         env:
           GITHUB_TOKEN: ""
@@ -187,7 +231,7 @@ jobs:
 
       - name: Re-plan and apply candidate
         id: resume
-        if: ${{ success() && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
+        if: ${{ success() && inputs.diagnostic_only != true && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
         working-directory: codexsdk
         env:
           GOTOOLCHAIN: local
@@ -207,6 +251,7 @@ jobs:
 
       - name: Run deterministic protocol checks
         id: checks
+        if: ${{ inputs.diagnostic_only != true }}
         working-directory: codexsdk
         env:
           GOTOOLCHAIN: local
@@ -233,7 +278,7 @@ jobs:
 
       - name: Publish protected sync PR
         id: publish
-        if: ${{ success() && (steps.mechanical.outputs.outcome == 'applied' || steps.resume.outputs.outcome == 'applied') && inputs.validation_only != true }}
+        if: ${{ success() && inputs.diagnostic_only != true && (steps.mechanical.outputs.outcome == 'applied' || steps.resume.outputs.outcome == 'applied') && inputs.validation_only != true }}
         working-directory: codexsdk
         env:
           GOTOOLCHAIN: local

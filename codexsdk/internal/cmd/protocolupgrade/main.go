@@ -17,12 +17,14 @@ func main() {
 
 func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "protocolupgrade: command is required: sync, resume, compare, apply, check, stage, or publish\n")
+		fmt.Fprintf(stderr, "protocolupgrade: command is required: sync, diagnose, resume, compare, apply, check, stage, or publish\n")
 		return 2
 	}
 	switch args[0] {
 	case "sync":
-		return runSync(args[1:], stdout, stderr)
+		return runSync(args[1:], stdout, stderr, false)
+	case "diagnose":
+		return runSync(args[1:], stdout, stderr, true)
 	case "resume":
 		return runResume(args[1:], stdout, stderr)
 	case "compare":
@@ -189,8 +191,12 @@ func runCheck(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-func runSync(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("sync", flag.ContinueOnError)
+func runSync(args []string, stdout, stderr io.Writer, diagnostic bool) int {
+	command := "sync"
+	if diagnostic {
+		command = "diagnose"
+	}
+	fs := flag.NewFlagSet(command, flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	repoRoot := fs.String("repo-root", "", "repository root")
 	moduleRoot := fs.String("module-root", "", "codexsdk module root")
@@ -199,11 +205,12 @@ func runSync(args []string, stdout, stderr io.Writer) int {
 	allowDowngrade := fs.Bool("allow-downgrade", false, "allow an explicit older stable tag")
 	forceCompare := fs.Bool("force-compare", false, "generate and compare even when the baseline already matches")
 	eventName := fs.String("event-name", "", "GitHub event name for scheduled vs manual policy")
+	jsonOut := fs.Bool("json", false, "print a machine-readable result")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	if *repoRoot == "" {
-		fmt.Fprintf(stderr, "protocolupgrade sync: -repo-root is required\n")
+		fmt.Fprintf(stderr, "protocolupgrade %s: -repo-root is required\n", command)
 		return 2
 	}
 	result, err := protocolsync.Sync(protocolsync.SyncRequest{
@@ -213,19 +220,28 @@ func runSync(args []string, stdout, stderr io.Writer) int {
 		UpstreamRef:    *upstreamRef,
 		AllowDowngrade: *allowDowngrade,
 		ForceCompare:   *forceCompare,
+		Diagnostic:     diagnostic,
 		EventName:      *eventName,
 	})
+	if *jsonOut {
+		if encodeErr := encodeJSON(stdout, result); encodeErr != nil {
+			fmt.Fprintf(stderr, "protocolupgrade %s: %v\n", command, encodeErr)
+			if err == nil {
+				err = encodeErr
+			}
+		}
+	}
 	if writeErr := protocolsync.WriteGitHubOutput(os.Getenv("GITHUB_OUTPUT"), result); writeErr != nil {
-		fmt.Fprintf(stderr, "protocolupgrade sync: write github output: %v\n", writeErr)
+		fmt.Fprintf(stderr, "protocolupgrade %s: write github output: %v\n", command, writeErr)
 		if err == nil {
 			err = writeErr
 		}
 	}
 	if err != nil {
-		fmt.Fprintf(stderr, "protocolupgrade sync: %v\n", err)
+		fmt.Fprintf(stderr, "protocolupgrade %s: %v\n", command, err)
 		return 1
 	}
-	fmt.Fprintf(stderr, "protocolupgrade sync: %s\n", result.Reason)
+	fmt.Fprintf(stderr, "protocolupgrade %s: %s\n", command, result.Reason)
 	return 0
 }
 

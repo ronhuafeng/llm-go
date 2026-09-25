@@ -13,6 +13,7 @@ import (
 const (
 	OutcomeCurrent            = "current"
 	OutcomeApplied            = "applied"
+	OutcomePlanReady          = "plan_ready"
 	OutcomeSemanticUnresolved = "semantic_unresolved"
 )
 
@@ -25,6 +26,7 @@ type SyncRequest struct {
 	LatestStable   bool
 	AllowDowngrade bool
 	ForceCompare   bool
+	Diagnostic     bool
 	EventName      string
 	Lookuper       RemoteLookuper
 	Generate       func(GenerateRequest) (Candidate, error)
@@ -102,7 +104,7 @@ func Sync(req SyncRequest) (SyncResult, error) {
 		Mode:           mode,
 		AllowDowngrade: req.AllowDowngrade,
 	})
-	afterPolicy := decideAfterPolicy(policy.Decision, req.ForceCompare)
+	afterPolicy := decideAfterPolicy(policy.Decision, req.ForceCompare || req.Diagnostic)
 	result := SyncResult{Target: target, Reason: policy.Reason}
 	if afterPolicy == "blocked" {
 		return result, fmt.Errorf("%s", policy.Reason)
@@ -130,7 +132,7 @@ func Sync(req SyncRequest) (SyncResult, error) {
 	result.Candidate = candidate.SchemaDir
 	result.CandidateDir = candidate.Dir
 
-	if req.ForceCompare {
+	if req.ForceCompare && !req.Diagnostic {
 		dirty, err := ChangedPaths(req.RepoRoot)
 		if err != nil {
 			return result, err
@@ -153,6 +155,11 @@ func Sync(req SyncRequest) (SyncResult, error) {
 	}
 	planned, err := plan(applyReq)
 	if err != nil {
+		if req.Diagnostic {
+			if cleanErr := AssertClean(req.RepoRoot); cleanErr != nil {
+				return result, fmt.Errorf("diagnostic planning changed the accepted worktree: %w (plan error: %v)", cleanErr, err)
+			}
+		}
 		return result, fmt.Errorf("plan candidate: %w", err)
 	}
 	if planned.Status == protocolupgrade.PlanSemanticUnresolved {
@@ -174,6 +181,14 @@ func Sync(req SyncRequest) (SyncResult, error) {
 	}
 	if planned.Status != protocolupgrade.PlanReady {
 		return result, fmt.Errorf("unknown plan status %q", planned.Status)
+	}
+	if req.Diagnostic {
+		if err := AssertClean(req.RepoRoot); err != nil {
+			return result, fmt.Errorf("diagnostic planning changed the accepted worktree: %w", err)
+		}
+		result.Outcome = OutcomePlanReady
+		result.Reason = "read-only candidate plan is ready"
+		return result, nil
 	}
 
 	provenanceOnly := candidate.DriftStatus == "clean" && planned.Preview.GeneratedReleaseImpact == "metadata-only"
