@@ -135,7 +135,6 @@ func runApply(args []string, stdout, stderr io.Writer) int {
 	targetKind := fs.String("target-kind", "", "selected upstream ref kind")
 	targetSHA := fs.String("target-sha", "", "selected upstream commit SHA")
 	moduleRoot := fs.String("module-root", ".", "codexsdk module root for generated Go")
-	skipCodegen := fs.Bool("skip-codegen", false, "do not regenerate protocolv2 Go files")
 	jsonOut := fs.Bool("json", false, "print a machine-readable summary")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -152,7 +151,6 @@ func runApply(args []string, stdout, stderr io.Writer) int {
 		TargetKind:        *targetKind,
 		TargetSHA:         *targetSHA,
 		ModuleRoot:        *moduleRoot,
-		SkipCodegen:       *skipCodegen,
 	}
 	planned, err := protocolupgrade.Plan(req)
 	if err != nil {
@@ -167,7 +165,7 @@ func runApply(args []string, stdout, stderr io.Writer) int {
 		}
 		return 1
 	}
-	result, err := protocolupgrade.Apply(req)
+	result, err := planned.Apply()
 	if err != nil {
 		fmt.Fprintf(stderr, "protocolupgrade apply: %v\n", err)
 		return 1

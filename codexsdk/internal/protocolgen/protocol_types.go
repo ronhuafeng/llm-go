@@ -11,7 +11,15 @@ import (
 )
 
 func GenerateProtocolTypes(plan ProtocolTypePlan) ([]byte, error) {
-	plan = normalizeExplicitProtocolTypePlan(plan)
+	c, err := newTypeSelection(plan)
+	if err != nil {
+		return nil, err
+	}
+	return c.generateProtocolTypes()
+}
+
+func (c *typeSelection) generateProtocolTypes() ([]byte, error) {
+	plan := c.plan
 	for _, typ := range plan.Types {
 		if isGeneratedTopLevelType(typ) && !token.IsIdentifier(typ.TypeName) {
 			return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated type name %q is not a Go identifier", typ.TypeName)
@@ -20,31 +28,31 @@ func GenerateProtocolTypes(plan ProtocolTypePlan) ([]byte, error) {
 	if err := validateGeneratedDefinitionShapes(plan); err != nil {
 		return nil, err
 	}
-	enums, err := SelectGeneratedEnums(plan)
+	enums, err := c.SelectGeneratedEnums()
 	if err != nil {
 		return nil, err
 	}
-	scalarAliases, err := SelectGeneratedScalarAliases(plan)
+	scalarAliases, err := c.SelectGeneratedScalarAliases()
 	if err != nil {
 		return nil, err
 	}
-	types, err := SelectFirstPassGeneratedTypes(plan)
+	types, err := c.SelectFirstPassGeneratedTypes()
 	if err != nil {
 		return nil, err
 	}
-	scalarUnions, err := SelectGeneratedScalarUnions(plan)
+	scalarUnions, err := c.SelectGeneratedScalarUnions()
 	if err != nil {
 		return nil, err
 	}
-	mixedUnions, err := SelectGeneratedMixedUnions(plan)
+	mixedUnions, err := c.SelectGeneratedMixedUnions()
 	if err != nil {
 		return nil, err
 	}
-	untaggedObjectUnions, err := SelectGeneratedUntaggedObjectUnions(plan)
+	untaggedObjectUnions, err := c.SelectGeneratedUntaggedObjectUnions()
 	if err != nil {
 		return nil, err
 	}
-	unions, err := SelectGeneratedTaggedUnions(plan)
+	unions, err := c.SelectGeneratedTaggedUnions()
 	if err != nil {
 		return nil, err
 	}
@@ -444,12 +452,15 @@ func isUntaggedObjectUnionDefinitionSchema(schema *Schema) bool {
 	return true
 }
 
-func SelectGeneratedEnums(plan ProtocolTypePlan) ([]EnumPlan, error) {
-	plan = normalizeExplicitProtocolTypePlan(plan)
-	resolver, err := newGeneratedDefinitionNameResolver(plan)
-	if err != nil {
-		return nil, err
+func (c *typeSelection) SelectGeneratedEnums() (result []EnumPlan, err error) {
+	if c.selectGeneratedEnumsDone {
+		return c.selectGeneratedEnums, c.selectGeneratedEnumsErr
 	}
+	defer func() {
+		c.selectGeneratedEnums, c.selectGeneratedEnumsErr, c.selectGeneratedEnumsDone = result, err, true
+	}()
+	plan := c.plan
+	resolver := c.resolver
 	byName := map[string]EnumPlan{}
 	schemaByName := map[string][]byte{}
 	pathByName := map[string]string{}
@@ -510,12 +521,15 @@ func SelectGeneratedEnums(plan ProtocolTypePlan) ([]EnumPlan, error) {
 	return enums, nil
 }
 
-func SelectGeneratedScalarAliases(plan ProtocolTypePlan) ([]ScalarAliasPlan, error) {
-	plan = normalizeExplicitProtocolTypePlan(plan)
-	resolver, err := newGeneratedDefinitionNameResolver(plan)
-	if err != nil {
-		return nil, err
+func (c *typeSelection) SelectGeneratedScalarAliases() (result []ScalarAliasPlan, err error) {
+	if c.selectGeneratedScalarAliasesDone {
+		return c.selectGeneratedScalarAliases, c.selectGeneratedScalarAliasesErr
 	}
+	defer func() {
+		c.selectGeneratedScalarAliases, c.selectGeneratedScalarAliasesErr, c.selectGeneratedScalarAliasesDone = result, err, true
+	}()
+	plan := c.plan
+	resolver := c.resolver
 	byName := map[string]ScalarAliasPlan{}
 	schemaByName := map[string][]byte{}
 	for _, typ := range plan.Types {
@@ -568,9 +582,14 @@ func SelectGeneratedScalarAliases(plan ProtocolTypePlan) ([]ScalarAliasPlan, err
 	return aliases, nil
 }
 
-func SelectFirstPassGeneratedTypes(plan ProtocolTypePlan) ([]TypePlan, error) {
-	plan = normalizeExplicitProtocolTypePlan(plan)
-	enums, err := SelectGeneratedEnums(plan)
+func (c *typeSelection) SelectFirstPassGeneratedTypes() (result []TypePlan, err error) {
+	if c.selectFirstPassGeneratedTypesDone {
+		return c.selectFirstPassGeneratedTypes, c.selectFirstPassGeneratedTypesErr
+	}
+	defer func() {
+		c.selectFirstPassGeneratedTypes, c.selectFirstPassGeneratedTypesErr, c.selectFirstPassGeneratedTypesDone = result, err, true
+	}()
+	enums, err := c.SelectGeneratedEnums()
 	if err != nil {
 		return nil, err
 	}
@@ -580,42 +599,42 @@ func SelectFirstPassGeneratedTypes(plan ProtocolTypePlan) ([]TypePlan, error) {
 		enumTypes[enum.TypeName] = true
 		generatedNamedTypes[enum.TypeName] = true
 	}
-	scalarAliases, err := SelectGeneratedScalarAliases(plan)
+	scalarAliases, err := c.SelectGeneratedScalarAliases()
 	if err != nil {
 		return nil, err
 	}
 	for _, alias := range scalarAliases {
 		generatedNamedTypes[alias.TypeName] = true
 	}
-	scalarUnions, err := SelectGeneratedScalarUnions(plan)
+	scalarUnions, err := c.SelectGeneratedScalarUnions()
 	if err != nil {
 		return nil, err
 	}
 	for _, union := range scalarUnions {
 		generatedNamedTypes[union.TypeName] = true
 	}
-	taggedUnions, err := SelectGeneratedTaggedUnions(plan)
+	taggedUnions, err := c.SelectGeneratedTaggedUnions()
 	if err != nil {
 		return nil, err
 	}
 	for _, union := range taggedUnions {
 		generatedNamedTypes[union.TypeName] = true
 	}
-	mixedUnions, err := SelectGeneratedMixedUnions(plan)
+	mixedUnions, err := c.SelectGeneratedMixedUnions()
 	if err != nil {
 		return nil, err
 	}
 	for _, union := range mixedUnions {
 		generatedNamedTypes[union.TypeName] = true
 	}
-	untaggedObjectUnions, err := SelectGeneratedUntaggedObjectUnions(plan)
+	untaggedObjectUnions, err := c.SelectGeneratedUntaggedObjectUnions()
 	if err != nil {
 		return nil, err
 	}
 	for _, union := range untaggedObjectUnions {
 		generatedNamedTypes[union.TypeName] = true
 	}
-	candidates, err := firstPassTypeCandidates(plan)
+	candidates, err := c.firstPassTypeCandidates()
 	if err != nil {
 		return nil, err
 	}
@@ -660,11 +679,9 @@ func SelectFirstPassGeneratedTypes(plan ProtocolTypePlan) ([]TypePlan, error) {
 	return selected, nil
 }
 
-func firstPassTypeCandidates(plan ProtocolTypePlan) ([]TypePlan, error) {
-	resolver, err := newGeneratedDefinitionNameResolver(plan)
-	if err != nil {
-		return nil, err
-	}
+func (c *typeSelection) firstPassTypeCandidates() ([]TypePlan, error) {
+	plan := c.plan
+	resolver := c.resolver
 	var candidates []TypePlan
 	for _, typ := range plan.Types {
 		if isGeneratedTopLevelType(typ) {
@@ -740,13 +757,15 @@ func generatedDefinitionTypeCandidates(parent TypePlan, resolver generatedDefini
 	return candidates, nil
 }
 
-func SelectGeneratedMixedUnions(plan ProtocolTypePlan) ([]MixedUnionPlan, error) {
-	plan = normalizeExplicitProtocolTypePlan(plan)
-	resolver, err := newGeneratedDefinitionNameResolver(plan)
-	if err != nil {
-		return nil, err
+func (c *typeSelection) SelectGeneratedMixedUnions() (result []MixedUnionPlan, err error) {
+	if c.selectGeneratedMixedUnionsDone {
+		return c.selectGeneratedMixedUnions, c.selectGeneratedMixedUnionsErr
 	}
-	enums, err := SelectGeneratedEnums(plan)
+	defer func() {
+		c.selectGeneratedMixedUnions, c.selectGeneratedMixedUnionsErr, c.selectGeneratedMixedUnionsDone = result, err, true
+	}()
+	resolver := c.resolver
+	enums, err := c.SelectGeneratedEnums()
 	if err != nil {
 		return nil, err
 	}
@@ -756,24 +775,24 @@ func SelectGeneratedMixedUnions(plan ProtocolTypePlan) ([]MixedUnionPlan, error)
 		generatedNamedTypes[enum.TypeName] = true
 		enumTypes[enum.TypeName] = true
 	}
-	for _, name := range generatedScalarAliasTypeNames(plan) {
+	for _, name := range c.generatedScalarAliasTypeNames() {
 		generatedNamedTypes[name] = true
 	}
-	taggedUnions, err := SelectGeneratedTaggedUnions(plan)
+	taggedUnions, err := c.SelectGeneratedTaggedUnions()
 	if err != nil {
 		return nil, err
 	}
 	for _, union := range taggedUnions {
 		generatedNamedTypes[union.TypeName] = true
 	}
-	for _, name := range generatedMixedUnionTypeNames(plan) {
+	for _, name := range c.generatedMixedUnionTypeNames() {
 		generatedNamedTypes[name] = true
 	}
-	for _, name := range generatedStructTypeNames(plan) {
+	for _, name := range c.generatedStructTypeNames() {
 		generatedNamedTypes[name] = true
 	}
 
-	candidates, err := mixedUnionCandidates(plan)
+	candidates, err := c.mixedUnionCandidates()
 	if err != nil {
 		return nil, err
 	}
@@ -799,11 +818,9 @@ func SelectGeneratedMixedUnions(plan ProtocolTypePlan) ([]MixedUnionPlan, error)
 	return selected, nil
 }
 
-func mixedUnionCandidates(plan ProtocolTypePlan) ([]TypePlan, error) {
-	resolver, err := newGeneratedDefinitionNameResolver(plan)
-	if err != nil {
-		return nil, err
-	}
+func (c *typeSelection) mixedUnionCandidates() ([]TypePlan, error) {
+	plan := c.plan
+	resolver := c.resolver
 	var candidates []TypePlan
 	for _, typ := range plan.Types {
 		if typ.Schema == nil || len(typ.Schema.Definitions) == 0 {
@@ -990,13 +1007,16 @@ func mixedUnionObjectVariantPlan(typ TypePlan, schema *Schema, variantIndex int,
 	}, nil
 }
 
-func SelectGeneratedUntaggedObjectUnions(plan ProtocolTypePlan) ([]UntaggedObjectUnionPlan, error) {
-	plan = normalizeExplicitProtocolTypePlan(plan)
-	resolver, err := newGeneratedDefinitionNameResolver(plan)
-	if err != nil {
-		return nil, err
+func (c *typeSelection) SelectGeneratedUntaggedObjectUnions() (result []UntaggedObjectUnionPlan, err error) {
+	if c.selectGeneratedUntaggedObjectUnionsDone {
+		return c.selectGeneratedUntaggedObjectUnions, c.selectGeneratedUntaggedObjectUnionsErr
 	}
-	enums, err := SelectGeneratedEnums(plan)
+	defer func() {
+		c.selectGeneratedUntaggedObjectUnions, c.selectGeneratedUntaggedObjectUnionsErr, c.selectGeneratedUntaggedObjectUnionsDone = result, err, true
+	}()
+	plan := c.plan
+	resolver := c.resolver
+	enums, err := c.SelectGeneratedEnums()
 	if err != nil {
 		return nil, err
 	}
@@ -1006,26 +1026,26 @@ func SelectGeneratedUntaggedObjectUnions(plan ProtocolTypePlan) ([]UntaggedObjec
 		generatedNamedTypes[enum.TypeName] = true
 		enumTypes[enum.TypeName] = true
 	}
-	for _, name := range generatedScalarAliasTypeNames(plan) {
+	for _, name := range c.generatedScalarAliasTypeNames() {
 		generatedNamedTypes[name] = true
 	}
-	taggedUnions, err := SelectGeneratedTaggedUnions(plan)
+	taggedUnions, err := c.SelectGeneratedTaggedUnions()
 	if err != nil {
 		return nil, err
 	}
 	for _, union := range taggedUnions {
 		generatedNamedTypes[union.TypeName] = true
 	}
-	for _, name := range generatedStructTypeNames(plan) {
+	for _, name := range c.generatedStructTypeNames() {
 		generatedNamedTypes[name] = true
 	}
-	for _, name := range generatedScalarUnionTypeNames(plan) {
+	for _, name := range c.generatedScalarUnionTypeNames() {
 		generatedNamedTypes[name] = true
 	}
-	for _, name := range generatedMixedUnionTypeNames(plan) {
+	for _, name := range c.generatedMixedUnionTypeNames() {
 		generatedNamedTypes[name] = true
 	}
-	for _, name := range generatedUntaggedObjectUnionTypeNames(plan) {
+	for _, name := range c.generatedUntaggedObjectUnionTypeNames() {
 		generatedNamedTypes[name] = true
 	}
 
@@ -1260,12 +1280,15 @@ func definitionObjectTypePlan(parent TypePlan, name string, schema *Schema, reso
 	return typ, nil
 }
 
-func SelectGeneratedScalarUnions(plan ProtocolTypePlan) ([]ScalarUnionPlan, error) {
-	plan = normalizeExplicitProtocolTypePlan(plan)
-	resolver, err := newGeneratedDefinitionNameResolver(plan)
-	if err != nil {
-		return nil, err
+func (c *typeSelection) SelectGeneratedScalarUnions() (result []ScalarUnionPlan, err error) {
+	if c.selectGeneratedScalarUnionsDone {
+		return c.selectGeneratedScalarUnions, c.selectGeneratedScalarUnionsErr
 	}
+	defer func() {
+		c.selectGeneratedScalarUnions, c.selectGeneratedScalarUnionsErr, c.selectGeneratedScalarUnionsDone = result, err, true
+	}()
+	plan := c.plan
+	resolver := c.resolver
 	var candidates []TypePlan
 	for _, typ := range plan.Types {
 		if typ.Kind == TypePlanScalarUnionCandidate && typ.GeneratedRoot {
@@ -1432,13 +1455,16 @@ func scalarUnionVariantPlan(typ TypePlan, schema *Schema) (ScalarUnionVariantPla
 	}
 }
 
-func SelectGeneratedTaggedUnions(plan ProtocolTypePlan) ([]TaggedUnionPlan, error) {
-	plan = normalizeExplicitProtocolTypePlan(plan)
-	resolver, err := newGeneratedDefinitionNameResolver(plan)
-	if err != nil {
-		return nil, err
+func (c *typeSelection) SelectGeneratedTaggedUnions() (result []TaggedUnionPlan, err error) {
+	if c.selectGeneratedTaggedUnionsDone {
+		return c.selectGeneratedTaggedUnions, c.selectGeneratedTaggedUnionsErr
 	}
-	enums, err := SelectGeneratedEnums(plan)
+	defer func() {
+		c.selectGeneratedTaggedUnions, c.selectGeneratedTaggedUnionsErr, c.selectGeneratedTaggedUnionsDone = result, err, true
+	}()
+	plan := c.plan
+	resolver := c.resolver
+	enums, err := c.SelectGeneratedEnums()
 	if err != nil {
 		return nil, err
 	}
@@ -1448,22 +1474,22 @@ func SelectGeneratedTaggedUnions(plan ProtocolTypePlan) ([]TaggedUnionPlan, erro
 		enumTypes[enum.TypeName] = true
 		generatedNamedTypes[enum.TypeName] = true
 	}
-	for _, name := range generatedScalarAliasTypeNames(plan) {
+	for _, name := range c.generatedScalarAliasTypeNames() {
 		generatedNamedTypes[name] = true
 	}
-	for _, name := range generatedScalarUnionTypeNames(plan) {
+	for _, name := range c.generatedScalarUnionTypeNames() {
 		generatedNamedTypes[name] = true
 	}
-	for _, name := range generatedMixedUnionTypeNames(plan) {
+	for _, name := range c.generatedMixedUnionTypeNames() {
 		generatedNamedTypes[name] = true
 	}
-	for _, name := range generatedUntaggedObjectUnionTypeNames(plan) {
+	for _, name := range c.generatedUntaggedObjectUnionTypeNames() {
 		generatedNamedTypes[name] = true
 	}
-	for _, name := range generatedStructTypeNames(plan) {
+	for _, name := range c.generatedStructTypeNames() {
 		generatedNamedTypes[name] = true
 	}
-	firstPassStructNames, err := generatedFirstPassStructCandidateTypeNames(plan)
+	firstPassStructNames, err := c.generatedFirstPassStructCandidateTypeNames()
 	if err != nil {
 		return nil, err
 	}
@@ -1500,11 +1526,9 @@ func SelectGeneratedTaggedUnions(plan ProtocolTypePlan) ([]TaggedUnionPlan, erro
 	return selected, nil
 }
 
-func generatedScalarUnionTypeNames(plan ProtocolTypePlan) []string {
-	resolver, err := newGeneratedDefinitionNameResolver(plan)
-	if err != nil {
-		return nil
-	}
+func (c *typeSelection) generatedScalarUnionTypeNames() []string {
+	plan := c.plan
+	resolver := c.resolver
 	names := map[string]bool{}
 	for _, typ := range plan.Types {
 		if typ.Kind == TypePlanScalarUnionCandidate && typ.GeneratedRoot {
@@ -1527,11 +1551,9 @@ func generatedScalarUnionTypeNames(plan ProtocolTypePlan) []string {
 	return sorted
 }
 
-func generatedScalarAliasTypeNames(plan ProtocolTypePlan) []string {
-	resolver, err := newGeneratedDefinitionNameResolver(plan)
-	if err != nil {
-		return nil
-	}
+func (c *typeSelection) generatedScalarAliasTypeNames() []string {
+	plan := c.plan
+	resolver := c.resolver
 	names := map[string]bool{}
 	for _, typ := range plan.Types {
 		if typ.Schema == nil || len(typ.Schema.Definitions) == 0 {
@@ -1551,11 +1573,9 @@ func generatedScalarAliasTypeNames(plan ProtocolTypePlan) []string {
 	return sorted
 }
 
-func generatedStructTypeNames(plan ProtocolTypePlan) []string {
-	resolver, err := newGeneratedDefinitionNameResolver(plan)
-	if err != nil {
-		return nil
-	}
+func (c *typeSelection) generatedStructTypeNames() []string {
+	plan := c.plan
+	resolver := c.resolver
 	names := map[string]bool{}
 	for _, typ := range plan.Types {
 		if typ.Schema == nil || len(typ.Schema.Definitions) == 0 {
@@ -1575,8 +1595,8 @@ func generatedStructTypeNames(plan ProtocolTypePlan) []string {
 	return sorted
 }
 
-func generatedFirstPassStructCandidateTypeNames(plan ProtocolTypePlan) ([]string, error) {
-	candidates, err := firstPassTypeCandidates(plan)
+func (c *typeSelection) generatedFirstPassStructCandidateTypeNames() ([]string, error) {
+	candidates, err := c.firstPassTypeCandidates()
 	if err != nil {
 		return nil, err
 	}
@@ -1597,11 +1617,9 @@ func generatedFirstPassStructCandidateTypeNames(plan ProtocolTypePlan) ([]string
 	return sorted, nil
 }
 
-func generatedMixedUnionTypeNames(plan ProtocolTypePlan) []string {
-	resolver, err := newGeneratedDefinitionNameResolver(plan)
-	if err != nil {
-		return nil
-	}
+func (c *typeSelection) generatedMixedUnionTypeNames() []string {
+	plan := c.plan
+	resolver := c.resolver
 	names := map[string]bool{}
 	for _, typ := range plan.Types {
 		if typ.Schema == nil || len(typ.Schema.Definitions) == 0 {
@@ -1621,11 +1639,9 @@ func generatedMixedUnionTypeNames(plan ProtocolTypePlan) []string {
 	return sorted
 }
 
-func generatedUntaggedObjectUnionTypeNames(plan ProtocolTypePlan) []string {
-	resolver, err := newGeneratedDefinitionNameResolver(plan)
-	if err != nil {
-		return nil
-	}
+func (c *typeSelection) generatedUntaggedObjectUnionTypeNames() []string {
+	plan := c.plan
+	resolver := c.resolver
 	names := map[string]bool{}
 	for _, typ := range plan.Types {
 		if typ.Schema == nil || len(typ.Schema.Definitions) == 0 {

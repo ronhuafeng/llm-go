@@ -73,6 +73,20 @@ validated in temporary state first. Application begins only after the selected
 target has a complete deterministic plan, including any narrowly reviewed
 semantic change.
 
+A successful Plan retains the complete candidate bytes. Apply materializes that
+result after checking the accepted baseline has not changed; it does not reread
+upstream inputs or repeat generation. The direct apply command uses the same
+construction path. Partial generation and surface-skipping modes are unsupported.
+
+Protocol generation shares one package constructor across upgrade planning,
+reproducibility checks, and the protocol CLI. Stable and complete schema visibility
+are distinct construction inputs. Type selection and naming are reused within
+each construction, and the facade consumes those generated facts directly.
+Package collisions are checked from Go declarations in each actual package,
+including handwritten declarations and receiver scopes. Diagnostics retain Go
+file locations without reconstructing upstream ownership from emitted names.
+The isolated compiler check remains the final generated-package proof.
+
 A failed run is retried from the selected upstream source and a fresh candidate.
 Do not create repair queues, cross-run state machines, or proof ledgers for
 state that can be regenerated.

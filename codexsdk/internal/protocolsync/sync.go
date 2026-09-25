@@ -231,7 +231,7 @@ func Sync(req SyncRequest) (SyncResult, error) {
 	provenanceOnly := candidate.DriftStatus == "clean" && planned.Preview.GeneratedReleaseImpact == "metadata-only"
 	apply := req.Apply
 	if apply == nil {
-		apply = protocolupgrade.Apply
+		apply = func(protocolupgrade.ApplyRequest) (protocolupgrade.ApplyResult, error) { return planned.Apply() }
 	}
 	if _, err := apply(applyReq); err != nil {
 		return result, fmt.Errorf("apply planned candidate: %w", err)
@@ -315,7 +315,7 @@ func Resume(req ResumeRequest) (SyncResult, error) {
 
 	apply := req.Apply
 	if apply == nil {
-		apply = protocolupgrade.Apply
+		apply = func(protocolupgrade.ApplyRequest) (protocolupgrade.ApplyResult, error) { return planned.Apply() }
 	}
 	if _, err := apply(applyReq); err != nil {
 		return result, fmt.Errorf("apply re-planned candidate: %w", err)

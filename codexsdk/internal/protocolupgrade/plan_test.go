@@ -13,7 +13,7 @@ import (
 )
 
 func TestPlanReadyDoesNotMutateAcceptedBaseline(t *testing.T) {
-	fix := writeApplyFixture(t)
+	fix := writeCompleteApplyFixture(t)
 	req := ApplyRequest{
 		Baseline:          fix.baseline,
 		Candidate:         fix.candidate,
@@ -24,8 +24,6 @@ func TestPlanReadyDoesNotMutateAcceptedBaseline(t *testing.T) {
 		TargetRef:         "rust-v1.2.3",
 		TargetKind:        "stable_rust_tag",
 		TargetSHA:         fix.sha,
-		SkipCodegen:       true,
-		skipSurface:       true,
 		Now:               func() time.Time { return time.Date(2026, 9, 24, 0, 0, 0, 0, time.UTC) },
 	}
 	before, err := snapshotHashes(fix.baseline)
@@ -94,7 +92,7 @@ func TestPlanRunsCanonicalCodegenInIsolation(t *testing.T) {
 }
 
 func TestPlanReturnsStructuredSemanticIncompatibility(t *testing.T) {
-	fix := writeApplyFixture(t)
+	fix := writeCompleteApplyFixture(t)
 	if err := os.WriteFile(fix.commonRS, []byte("client_request_definitions! {}\nserver_request_definitions! {}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -108,8 +106,6 @@ func TestPlanReturnsStructuredSemanticIncompatibility(t *testing.T) {
 		TargetRef:         "rust-v1.2.3",
 		TargetKind:        "stable_rust_tag",
 		TargetSHA:         fix.sha,
-		SkipCodegen:       true,
-		skipSurface:       true,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -436,18 +432,18 @@ func TestPlanReportsPackageNameCollision(t *testing.T) {
 		{
 			name: "method constant",
 			schema: map[string]any{
-				"title": "BedrockDiscoverParams", "type": "object",
+				"title": "ThreadStartParams", "type": "object",
 				"properties": map[string]any{"value": map[string]any{"$ref": "#/definitions/MethodThreadStart"}},
 				"definitions": map[string]any{"MethodThreadStart": map[string]any{
 					"type": "object", "properties": map[string]any{"text": map[string]any{"type": "string"}},
 				}},
 			},
-			path: "v2/BedrockDiscoverParams.json#/definitions/MethodThreadStart",
+			path: "protocol_types.gen.go",
 		},
 		{
 			name: "enum constant",
 			schema: map[string]any{
-				"title": "BedrockDiscoverParams", "type": "object",
+				"title": "ThreadStartParams", "type": "object",
 				"properties": map[string]any{
 					"color": map[string]any{"$ref": "#/definitions/Color"},
 					"red":   map[string]any{"$ref": "#/definitions/ColorRed"},
@@ -459,40 +455,43 @@ func TestPlanReportsPackageNameCollision(t *testing.T) {
 					},
 				},
 			},
-			path: "v2/BedrockDiscoverParams.json#/definitions/ColorRed",
+			path: "protocol_types.gen.go",
 		},
 		{
 			name: "enum constant against method registry type",
 			schema: map[string]any{
-				"title": "BedrockDiscoverParams", "type": "object",
+				"title": "ThreadStartParams", "type": "object",
 				"properties":  map[string]any{"value": map[string]any{"$ref": "#/definitions/Method"}},
 				"definitions": map[string]any{"Method": map[string]any{"type": "string", "enum": []string{"direction"}}},
 			},
-			path: "v2/BedrockDiscoverParams.json#/definitions/Method",
+			path: "protocol_types.gen.go",
 		},
 		{
 			name: "generated type against experimental member map",
 			schema: map[string]any{
-				"title": "BedrockDiscoverParams", "type": "object",
+				"title": "ThreadStartParams", "type": "object",
 				"properties": map[string]any{"value": map[string]any{"$ref": "#/definitions/ExperimentalJSONFields"}},
 				"definitions": map[string]any{"ExperimentalJSONFields": map[string]any{
 					"type": "object", "properties": map[string]any{"text": map[string]any{"type": "string"}},
 				}},
 			},
-			path: "v2/BedrockDiscoverParams.json#/definitions/ExperimentalJSONFields",
+			path: "protocol_types.gen.go",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			root := copyModuleForCheck(t)
-			baseline := filepath.Join(root, filepath.FromSlash(defaultBaselineRel))
-			candidate := t.TempDir()
-			if err := copyTree(baseline, candidate); err != nil {
+			fix := writeCompleteApplyFixture(t)
+			root, baseline, candidate, commonRS, sha := fix.module, fix.baseline, fix.candidate, fix.commonRS, fix.sha
+			writeJSONFile(t, filepath.Join(candidate, "ThreadStartParams.json"), tc.schema)
+			var aggregate map[string]any
+			if err := loadJSON(filepath.Join(candidate, "ClientRequest.json"), &aggregate); err != nil {
 				t.Fatal(err)
 			}
-			writeJSONFile(t, filepath.Join(candidate, "v2", "BedrockDiscoverParams.json"), tc.schema)
-			commonRS := filepath.Join(root, "common.rs")
-			writeBaselineMappingFixture(t, baseline, commonRS)
-			sha := strings.Repeat("b", 40)
+			definitions := map[string]any{"ThreadStartParams": tc.schema}
+			for name, schema := range tc.schema["definitions"].(map[string]any) {
+				definitions[name] = schema
+			}
+			aggregate["definitions"] = definitions
+			writeJSONFile(t, filepath.Join(candidate, "ClientRequest.json"), aggregate)
 			planned, err := Plan(ApplyRequest{
 				Baseline: baseline, Candidate: candidate, StableCandidate: candidate,
 				CommonRS: commonRS, CommonRSSourceSHA: sha,
@@ -559,7 +558,7 @@ func TestPlanReportsFacadeNameCollisionAsSemanticDrift(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if planned.Status != PlanSemanticUnresolved || planned.Issue == nil || planned.Issue.Stage != "codegen" || planned.Issue.Path != "ClientRequest.json" || !strings.Contains(planned.Issue.Reason, "FuzzyFileSearch().Search") {
+	if planned.Status != PlanSemanticUnresolved || planned.Issue == nil || planned.Issue.Stage != "surface" || planned.Issue.Path != "ClientRequest.json" || !strings.Contains(planned.Issue.Reason, "FuzzyFileSearch().Search") {
 		t.Fatalf("plan = %+v issue = %+v, want typed facade collision", planned, planned.Issue)
 	}
 }
@@ -585,12 +584,11 @@ func TestPlanKeepsSourceAndEnvironmentFailuresOrdinary(t *testing.T) {
 		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			fix := writeApplyFixture(t)
+			fix := writeCompleteApplyFixture(t)
 			req := ApplyRequest{
 				Baseline: fix.baseline, Candidate: fix.candidate, StableCandidate: fix.stable,
 				CommonRS: fix.commonRS, CommonRSSourceSHA: fix.sha, Reports: fix.reports,
 				TargetRef: "rust-v1.2.3", TargetKind: "stable_rust_tag", TargetSHA: fix.sha,
-				SkipCodegen: true, skipSurface: true,
 			}
 			test.mutate(t, &req)
 			planned, err := Plan(req)
@@ -617,7 +615,7 @@ func TestClassifyUnsupportedPreservesCauseAndIgnoresOrdinaryErrors(t *testing.T)
 }
 
 func TestPlanDoesNotWriteConfiguredReportsDirectory(t *testing.T) {
-	fix := writeApplyFixture(t)
+	fix := writeCompleteApplyFixture(t)
 	reports := filepath.Join(fix.module, "external-reports")
 	_, err := Plan(ApplyRequest{
 		Baseline:          fix.baseline,
@@ -629,8 +627,6 @@ func TestPlanDoesNotWriteConfiguredReportsDirectory(t *testing.T) {
 		TargetRef:         "rust-v1.2.3",
 		TargetKind:        "stable_rust_tag",
 		TargetSHA:         fix.sha,
-		SkipCodegen:       true,
-		skipSurface:       true,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -640,5 +636,34 @@ func TestPlanDoesNotWriteConfiguredReportsDirectory(t *testing.T) {
 	}
 	if strings.TrimSpace(reports) == "" {
 		t.Fatal("fixture reports path unexpectedly empty")
+	}
+}
+
+// A successful plan owns its constructed bytes. Writing it does not revisit
+// moving inputs or repeat the generator's decisions.
+func TestPlanAppliesConstructedCandidateWithoutReadingInputsAgain(t *testing.T) {
+	fix := writeCompleteApplyFixture(t)
+	planned, err := Plan(ApplyRequest{
+		Baseline: fix.baseline, Candidate: fix.candidate, StableCandidate: fix.stable,
+		CommonRS: fix.commonRS, CommonRSSourceSHA: fix.sha,
+		TargetRef: "rust-v1.2.3", TargetKind: "stable_rust_tag", TargetSHA: fix.sha,
+		ModuleRoot: fix.module,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if planned.Status != PlanReady {
+		t.Fatalf("plan = %+v", planned)
+	}
+	for _, path := range []string{fix.candidate, fix.stable, fix.commonRS} {
+		if err := os.RemoveAll(path); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := planned.Apply(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Check(CheckRequest{ModuleRoot: fix.module}); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -22,7 +22,7 @@ func TestGenerateSDKSurfaceRendersExactFacade(t *testing.T) {
 			Stability:             "stable",
 		}},
 	}
-	got, err := GenerateSDKSurface(manifest, []byte("\tMethodThreadStart = \"thread/start\"\n"), []byte("type ThreadStartParams struct{}\ntype ThreadStartResponse struct{}\n"))
+	got, err := GenerateSDKSurface(manifest, map[string]string{"thread/start": "MethodThreadStart"}, map[string]bool{"ThreadStartParams": true, "ThreadStartResponse": true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,8 +56,8 @@ func TestGenerateSDKSurfaceIgnoresHistoricalDeferredStatusWhenPrerequisitesExist
 	}
 	got, err := GenerateSDKSurface(
 		manifest,
-		[]byte("\tMethodAccountUsageRead = \"account/usage/read\"\n"),
-		[]byte("type GetAccountTokenUsageParams struct{}\ntype GetAccountTokenUsageResponse struct{}\n"),
+		map[string]string{"account/usage/read": "MethodAccountUsageRead"},
+		map[string]bool{"GetAccountTokenUsageParams": true, "GetAccountTokenUsageResponse": true},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -84,8 +84,8 @@ func TestGenerateSDKSurfaceFailsClosedWhenCurrentPrerequisitesAreMissing(t *test
 	}
 	_, err := GenerateSDKSurface(
 		manifest,
-		[]byte("\tMethodAccountUsageRead = \"account/usage/read\"\n"),
-		[]byte("type GetAccountTokenUsageParams struct{}\n"),
+		map[string]string{"account/usage/read": "MethodAccountUsageRead"},
+		map[string]bool{"GetAccountTokenUsageParams": true},
 	)
 	var unsupported *protocolgen.UnsupportedSchemaError
 	if !errors.As(err, &unsupported) || unsupported.Path != "GetAccountTokenUsageResponse.json" || !strings.Contains(unsupported.Error(), "response type GetAccountTokenUsageResponse") {
@@ -106,7 +106,7 @@ func TestGenerateSDKSurfaceRejectsMissingGeneratedType(t *testing.T) {
 			Stability:             "stable",
 		}},
 	}
-	_, err := GenerateSDKSurface(manifest, []byte("\tMethodThreadStart = \"thread/start\"\n"), []byte("type ThreadStartParams struct{}\n"))
+	_, err := GenerateSDKSurface(manifest, map[string]string{"thread/start": "MethodThreadStart"}, map[string]bool{"ThreadStartParams": true})
 	if err == nil || !strings.Contains(err.Error(), "response type ThreadStartResponse") {
 		t.Fatalf("missing response type error = %v", err)
 	}
@@ -122,8 +122,8 @@ func TestGenerateSDKSurfaceClassifiesFacadeNameCollision(t *testing.T) {
 		})
 	}
 	_, err := GenerateSDKSurface(protocolgen.Manifest{Entries: entries},
-		[]byte("MethodFuzzyFileSearch = \"fuzzyFileSearch\"\nMethodFuzzyFileSearchSearch = \"fuzzyFileSearch/search\"\n"),
-		[]byte("type SearchParams struct{}\ntype SearchResponse struct{}\n"))
+		map[string]string{"fuzzyFileSearch": "MethodFuzzyFileSearch", "fuzzyFileSearch/search": "MethodFuzzyFileSearchSearch"},
+		map[string]bool{"SearchParams": true, "SearchResponse": true})
 	var unsupported *protocolgen.UnsupportedSchemaError
 	if !errors.As(err, &unsupported) || unsupported.Path != "ClientRequest.json" || !strings.Contains(unsupported.Error(), "both \"fuzzyFileSearch\" and \"fuzzyFileSearch/search\"") {
 		t.Fatalf("collision = %v, want typed source-linked incompatibility", err)

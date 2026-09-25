@@ -41,12 +41,12 @@ func TestGeneratedPackageReportsSourceForHandwrittenName(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = ValidateGeneratedPackage(plan, Manifest{}, filepath.Join("..", "..", "protocolv2"), map[string][]byte{
+	err = ValidateGeneratedPackage("protocolv2", filepath.Join("..", "..", "protocolv2"), map[string][]byte{
 		"protocol_types.gen.go": generated,
 	})
 	var unsupported *UnsupportedSchemaError
-	if !errors.As(err, &unsupported) || unsupported.Path != "Clashing.json" {
-		t.Fatalf("error = %v, want source schema path", err)
+	if !errors.As(err, &unsupported) || unsupported.Path != "protocol_types.gen.go" {
+		t.Fatalf("error = %v, want generated source path", err)
 	}
 }
 

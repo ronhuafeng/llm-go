@@ -24,9 +24,10 @@ type PlanIssue struct {
 // PlanResult describes whether a candidate can be applied without mutating the
 // accepted module worktree.
 type PlanResult struct {
-	Status  string      `json:"status"`
-	Preview ApplyResult `json:"preview,omitempty"`
-	Issue   *PlanIssue  `json:"issue,omitempty"`
+	Status   string      `json:"status"`
+	Preview  ApplyResult `json:"preview,omitempty"`
+	Issue    *PlanIssue  `json:"issue,omitempty"`
+	prepared *preparedCandidate
 }
 
 // IncompatibilityError marks a deterministic schema/generator incompatibility.
@@ -46,8 +47,8 @@ func (e *IncompatibilityError) Error() string {
 
 func (e *IncompatibilityError) Unwrap() error { return e.Err }
 
-// Plan proves that Apply can materialize the candidate in an isolated module
-// root. It never writes the accepted baseline or candidate.
+// Plan constructs the candidate in isolation and retains its materializable
+// bytes. It never writes the accepted baseline or candidate.
 func Plan(req ApplyRequest) (PlanResult, error) {
 	return planCandidate(req, false)
 }
@@ -56,7 +57,7 @@ func Plan(req ApplyRequest) (PlanResult, error) {
 // in isolation and compares it with the accepted baseline and generated Go.
 // Only baseline_metadata.generated_at is excluded as observation time.
 func VerifyExact(req ApplyRequest) (PlanResult, error) {
-	if req.ModuleRoot == "" || req.SkipCodegen || req.skipSurface {
+	if req.ModuleRoot == "" {
 		return PlanResult{}, fmt.Errorf("exact verification requires module root, surface derivation, and generated Go")
 	}
 	return planCandidate(req, true)
@@ -65,6 +66,12 @@ func VerifyExact(req ApplyRequest) (PlanResult, error) {
 func planCandidate(req ApplyRequest, verifyExact bool) (PlanResult, error) {
 	if req.Baseline == "" || req.Candidate == "" {
 		return PlanResult{}, fmt.Errorf("baseline and candidate are required")
+	}
+	if req.ModuleRoot == "" {
+		req.ModuleRoot = filepath.Clean(filepath.Join(req.Baseline, "../../../.."))
+	}
+	if err := requireModuleBaseline(req.ModuleRoot, req.Baseline); err != nil {
+		return PlanResult{}, err
 	}
 	beforeBaseline, err := snapshotHashes(req.Baseline)
 	if err != nil {
@@ -89,6 +96,9 @@ func planCandidate(req ApplyRequest, verifyExact bool) (PlanResult, error) {
 		return PlanResult{}, err
 	}
 	if req.ModuleRoot != "" {
+		if err := copyHandwrittenProtocolPackage(req.ModuleRoot, tmp); err != nil {
+			return PlanResult{}, err
+		}
 		if err := copyHandwrittenProtocolPackage(filepath.Join(req.ModuleRoot, "protocolv2"), filepath.Join(tmp, "protocolv2")); err != nil {
 			return PlanResult{}, fmt.Errorf("copy handwritten protocol package for plan: %w", err)
 		}
@@ -98,7 +108,7 @@ func planCandidate(req ApplyRequest, verifyExact bool) (PlanResult, error) {
 	planned.Baseline = plannedBaseline
 	planned.ModuleRoot = tmp
 	planned.Reports = filepath.Join(tmp, "reports")
-	preview, applyErr := Apply(planned)
+	preview, applyErr := constructCandidate(planned)
 
 	afterBaseline, err := snapshotHashes(req.Baseline)
 	if err != nil {
@@ -137,7 +147,11 @@ func planCandidate(req ApplyRequest, verifyExact bool) (PlanResult, error) {
 			return PlanResult{}, fmt.Errorf("exact baseline verification: %w", err)
 		}
 	}
-	return PlanResult{Status: PlanReady, Preview: preview}, nil
+	prepared, err := prepareCandidateWrites(req, tmp, planned.Reports, beforeBaseline)
+	if err != nil {
+		return PlanResult{}, err
+	}
+	return PlanResult{Status: PlanReady, Preview: preview, prepared: prepared}, nil
 }
 
 func copyHandwrittenProtocolPackage(source, destination string) error {

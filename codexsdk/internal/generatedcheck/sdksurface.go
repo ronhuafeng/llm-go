@@ -12,8 +12,6 @@ import (
 
 var (
 	facadeTargetRE = regexp.MustCompile(`^([A-Za-z][A-Za-z0-9]*)\(\)\.([A-Za-z][A-Za-z0-9]*)$`)
-	methodConstRE  = regexp.MustCompile(`(?m)^\s*(Method[A-Za-z0-9]+)\s+=\s+"([^"]+)"`)
-	typeDeclRE     = regexp.MustCompile(`(?m)^type\s+([A-Za-z][A-Za-z0-9]*)\b`)
 )
 
 type surfaceMethod struct {
@@ -27,15 +25,7 @@ type surfaceMethod struct {
 
 // GenerateSDKSurface derives the public facade from current manifest routing facts and generated protocol prerequisites.
 // FacadeStatus is retained as manifest metadata for compatibility but does not authorize or suppress generation.
-func GenerateSDKSurface(manifest protocolgen.Manifest, methodRegistry, protocolTypes []byte) ([]byte, error) {
-	methodConsts := map[string]string{}
-	for _, match := range methodConstRE.FindAllSubmatch(methodRegistry, -1) {
-		methodConsts[string(match[2])] = string(match[1])
-	}
-	typeNames := map[string]bool{}
-	for _, match := range typeDeclRE.FindAllSubmatch(protocolTypes, -1) {
-		typeNames[string(match[1])] = true
-	}
+func GenerateSDKSurface(manifest protocolgen.Manifest, methodConsts map[string]string, typeNames map[string]bool) ([]byte, error) {
 
 	var methods []surfaceMethod
 	seen := map[string]string{}

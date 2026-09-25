@@ -173,38 +173,28 @@ func generateArtifacts(moduleRoot string) (generatedSet, error) {
 	if err != nil {
 		return generatedSet{}, err
 	}
-	if err := protocolgen.ApplyWireMessageRoles(&typePlan, manifest); err != nil {
-		return generatedSet{}, err
-	}
-	protocolTypesSource, err := protocolgen.GenerateProtocolTypes(typePlan)
+	generated, err := protocolgen.BuildProtocolPackage(typePlan, manifest, filepath.Join(moduleRoot, "protocolv2"))
 	if err != nil {
 		return generatedSet{}, err
 	}
-	methodRegistrySource, err := protocolgen.GenerateMethodRegistry(manifest)
+	files, err := FilesFromPackage(moduleRoot, manifest, generated)
 	if err != nil {
 		return generatedSet{}, err
 	}
-	experimentalMembers, err := protocolgen.GenerateExperimentalMembers(manifest)
+	return generatedSet{methodRegistry: files[methodRegistry], protocolTypes: files[protocolTypes], experimentalMembers: files[experimentalMem], sdkSurface: files[sdkSurface]}, nil
+}
+
+// FilesFromPackage completes the SDK facade from a constructed protocol package.
+// It never rereads schemas or regenerates protocol declarations.
+func FilesFromPackage(moduleRoot string, manifest protocolgen.Manifest, generated protocolgen.ProtocolPackage) (map[string][]byte, error) {
+	sdk, err := GenerateSDKSurface(manifest, generated.MethodConstants, generated.TypeNames)
 	if err != nil {
-		return generatedSet{}, err
+		return nil, err
 	}
-	if _, err := protocolgen.ValidateGeneratedPackage(typePlan, manifest, filepath.Join(moduleRoot, "protocolv2"), map[string][]byte{
-		"method_registry.gen.go":      methodRegistrySource,
-		"protocol_types.gen.go":       protocolTypesSource,
-		"experimental_members.gen.go": experimentalMembers,
-	}); err != nil {
-		return generatedSet{}, err
+	if err := protocolgen.ValidateGeneratedPackage("codexsdk", moduleRoot, map[string][]byte{"sdk_surface.gen.go": sdk}); err != nil {
+		return nil, err
 	}
-	sdkSurfaceSource, err := GenerateSDKSurface(manifest, methodRegistrySource, protocolTypesSource)
-	if err != nil {
-		return generatedSet{}, err
-	}
-	return generatedSet{
-		methodRegistry:      methodRegistrySource,
-		protocolTypes:       protocolTypesSource,
-		experimentalMembers: experimentalMembers,
-		sdkSurface:          sdkSurfaceSource,
-	}, nil
+	return map[string][]byte{methodRegistry: generated.MethodRegistry, protocolTypes: generated.ProtocolTypes, experimentalMem: generated.ExperimentalMembers, sdkSurface: sdk}, nil
 }
 
 func loadBaselineMetadata(path string) (baselineMetadata, error) {

@@ -63,34 +63,17 @@ func run(schemaRootFlag, manifestPathFlag, outDir, stdout, stableSource, complet
 	if err != nil {
 		return err
 	}
-	if err := protocolgen.ApplyWireMessageRoles(&typePlan, manifest); err != nil {
-		return err
-	}
-	protocolTypes, err := protocolgen.GenerateProtocolTypes(typePlan)
-	if err != nil {
-		return err
-	}
-	methodRegistry, err := protocolgen.GenerateMethodRegistry(manifest)
-	if err != nil {
-		return err
-	}
-	experimentalMembers, err := protocolgen.GenerateExperimentalMembers(manifest)
-	if err != nil {
-		return err
-	}
 	handwrittenDir := outDir
 	if _, err := os.Stat(handwrittenDir); os.IsNotExist(err) {
 		handwrittenDir = ""
 	} else if err != nil {
 		return err
 	}
-	if _, err := protocolgen.ValidateGeneratedPackage(typePlan, manifest, handwrittenDir, map[string][]byte{
-		"method_registry.gen.go":      methodRegistry,
-		"protocol_types.gen.go":       protocolTypes,
-		"experimental_members.gen.go": experimentalMembers,
-	}); err != nil {
+	generated, err := protocolgen.BuildProtocolPackage(typePlan, manifest, handwrittenDir)
+	if err != nil {
 		return err
 	}
+	protocolTypes, methodRegistry, experimentalMembers := generated.ProtocolTypes, generated.MethodRegistry, generated.ExperimentalMembers
 	switch stdout {
 	case "method-registry":
 		_, err = writer.Write(methodRegistry)

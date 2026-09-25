@@ -15,7 +15,7 @@ import (
 )
 
 func TestApplyReportWriteFailureRemainsOrdinary(t *testing.T) {
-	fix := writeApplyFixture(t)
+	fix := writeCompleteApplyFixture(t)
 	reportsFile := filepath.Join(fix.module, "reports-file")
 	if err := os.WriteFile(reportsFile, []byte("occupied"), 0o644); err != nil {
 		t.Fatal(err)
@@ -24,7 +24,6 @@ func TestApplyReportWriteFailureRemainsOrdinary(t *testing.T) {
 		Baseline: fix.baseline, Candidate: fix.candidate, StableCandidate: fix.stable,
 		CommonRS: fix.commonRS, CommonRSSourceSHA: fix.sha, Reports: reportsFile,
 		TargetRef: "rust-v1.2.3", TargetKind: "stable_rust_tag", TargetSHA: fix.sha,
-		SkipCodegen: true, skipSurface: true,
 	})
 	var pathErr *os.PathError
 	var incompatibility *IncompatibilityError
@@ -219,7 +218,7 @@ func TestSchemaTypeIndexRejectsAmbiguousNames(t *testing.T) {
 }
 
 func TestApplyDoesNotCarryHistoricalDeferredFacadeStatus(t *testing.T) {
-	fix := writeApplyFixture(t)
+	fix := writeCompleteApplyFixture(t)
 	manifestPath := filepath.Join(fix.baseline, "manifest.json")
 	var manifest manifestFile
 	if err := loadJSON(manifestPath, &manifest); err != nil {
@@ -243,8 +242,6 @@ func TestApplyDoesNotCarryHistoricalDeferredFacadeStatus(t *testing.T) {
 		TargetRef:         "rust-v1.2.3",
 		TargetKind:        "stable_rust_tag",
 		TargetSHA:         fix.sha,
-		SkipCodegen:       true,
-		skipSurface:       true,
 		Now:               func() time.Time { return time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC) },
 	})
 	if err != nil {
@@ -269,7 +266,7 @@ func TestApplyUsesCurrentSchemaRequiredness(t *testing.T) {
 		{name: "required becomes optional", oldRequired: true, currentRequired: false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			fix := writeApplyFixture(t)
+			fix := writeCompleteApplyFixture(t)
 			for _, root := range []string{fix.candidate, fix.stable} {
 				var schema map[string]any
 				path := filepath.Join(root, "ThreadStartParams.json")
@@ -299,8 +296,7 @@ func TestApplyUsesCurrentSchemaRequiredness(t *testing.T) {
 			_, err := Apply(ApplyRequest{
 				Baseline: fix.baseline, Candidate: fix.candidate, StableCandidate: fix.stable,
 				CommonRS: fix.commonRS, CommonRSSourceSHA: fix.sha, TargetRef: "rust-v1.2.3",
-				TargetKind: "stable_rust_tag", TargetSHA: fix.sha, SkipCodegen: true, skipSurface: true,
-			})
+				TargetKind: "stable_rust_tag", TargetSHA: fix.sha})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -321,7 +317,7 @@ func TestApplyUsesCurrentSchemaRequiredness(t *testing.T) {
 	}
 }
 
-func TestApplyUsesCurrentStableVisibility(t *testing.T) {
+func TestDerivedFactsUseCurrentStableVisibility(t *testing.T) {
 	for _, test := range []struct {
 		name          string
 		oldStability  string
@@ -332,7 +328,7 @@ func TestApplyUsesCurrentStableVisibility(t *testing.T) {
 		{name: "stable becomes experimental", oldStability: "stable", stableVisible: false, wantStability: "experimental"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			fix := writeApplyFixture(t)
+			fix := writeCompleteApplyFixture(t)
 			manifestPath := filepath.Join(fix.baseline, "manifest.json")
 			var old manifestFile
 			if err := loadJSON(manifestPath, &old); err != nil {
@@ -343,7 +339,7 @@ func TestApplyUsesCurrentStableVisibility(t *testing.T) {
 				t.Fatal(err)
 			}
 			if !test.stableVisible {
-				writeJSONFile(t, filepath.Join(fix.stable, "ClientRequest.json"), map[string]any{"oneOf": []any{}})
+				writeJSONFile(t, filepath.Join(fix.stable, "ClientRequest.json"), map[string]any{"type": "object"})
 				if err := os.Remove(filepath.Join(fix.stable, "ThreadStartParams.json")); err != nil {
 					t.Fatal(err)
 				}
@@ -361,23 +357,19 @@ func TestApplyUsesCurrentStableVisibility(t *testing.T) {
 			if err := writeJSON(coveragePath, oldCoverage); err != nil {
 				t.Fatal(err)
 			}
-			_, err := Apply(ApplyRequest{
-				Baseline: fix.baseline, Candidate: fix.candidate, StableCandidate: fix.stable,
-				CommonRS: fix.commonRS, CommonRSSourceSHA: fix.sha, TargetRef: "rust-v1.2.3",
-				TargetKind: "stable_rust_tag", TargetSHA: fix.sha, SkipCodegen: true, skipSurface: true,
-			})
+			mappings, err := parseRequestMappings(fix.commonRS)
 			if err != nil {
 				t.Fatal(err)
 			}
-			var generated manifestFile
-			if err := loadJSON(manifestPath, &generated); err != nil {
+			generated, err := buildManifest(fix.candidate, fix.stable, old, mappings, fix.sha)
+			if err != nil {
 				t.Fatal(err)
 			}
 			if got := generated.Entries[0].Stability; got != test.wantStability {
 				t.Fatalf("stability = %s, want %s", got, test.wantStability)
 			}
-			var coverage coverageFile
-			if err := loadJSON(coveragePath, &coverage); err != nil {
+			coverage, err := buildCoverage(fix.candidate, fix.stable, oldCoverage, generated)
+			if err != nil {
 				t.Fatal(err)
 			}
 			for _, typ := range coverage.Types {
@@ -390,22 +382,21 @@ func TestApplyUsesCurrentStableVisibility(t *testing.T) {
 }
 
 func TestApplyRejectsMissingCurrentResponseMapping(t *testing.T) {
-	fix := writeApplyFixture(t)
+	fix := writeCompleteApplyFixture(t)
 	if err := os.WriteFile(fix.commonRS, []byte("client_request_definitions! {}\nserver_request_definitions! {}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	_, err := Apply(ApplyRequest{
 		Baseline: fix.baseline, Candidate: fix.candidate, StableCandidate: fix.stable,
 		CommonRS: fix.commonRS, CommonRSSourceSHA: fix.sha, TargetRef: "rust-v1.2.3",
-		TargetKind: "stable_rust_tag", TargetSHA: fix.sha, SkipCodegen: true, skipSurface: true,
-	})
+		TargetKind: "stable_rust_tag", TargetSHA: fix.sha})
 	if err == nil || !strings.Contains(err.Error(), "missing response mapping") {
 		t.Fatalf("missing current mapping must fail, got %v", err)
 	}
 }
 
 func TestApplyUsesChangedCurrentResponseMapping(t *testing.T) {
-	fix := writeApplyFixture(t)
+	fix := writeCompleteApplyFixture(t)
 	for _, root := range []string{fix.candidate, fix.stable} {
 		writeJSONFile(t, filepath.Join(root, "ReplacementResponse.json"), map[string]any{
 			"title": "ReplacementResponse", "type": "object",
@@ -426,8 +417,7 @@ server_request_definitions! {}
 	_, err := Apply(ApplyRequest{
 		Baseline: fix.baseline, Candidate: fix.candidate, StableCandidate: fix.stable,
 		CommonRS: fix.commonRS, CommonRSSourceSHA: fix.sha, TargetRef: "rust-v1.2.3",
-		TargetKind: "stable_rust_tag", TargetSHA: fix.sha, SkipCodegen: true, skipSurface: true,
-	})
+		TargetKind: "stable_rust_tag", TargetSHA: fix.sha})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -451,7 +441,7 @@ func TestApplyDerivedFactsIgnoreOldMetadata(t *testing.T) {
 	}
 	derive := func(t *testing.T, stale bool) facts {
 		t.Helper()
-		fix := writeApplyFixture(t)
+		fix := writeCompleteApplyFixture(t)
 		if stale {
 			manifestPath := filepath.Join(fix.baseline, "manifest.json")
 			var old manifestFile
@@ -492,8 +482,7 @@ func TestApplyDerivedFactsIgnoreOldMetadata(t *testing.T) {
 		_, err := Apply(ApplyRequest{
 			Baseline: fix.baseline, Candidate: fix.candidate, StableCandidate: fix.stable,
 			CommonRS: fix.commonRS, CommonRSSourceSHA: fix.sha, TargetRef: "rust-v1.2.3",
-			TargetKind: "stable_rust_tag", TargetSHA: fix.sha, SkipCodegen: true, skipSurface: true,
-			Now: func() time.Time { return time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC) },
+			TargetKind: "stable_rust_tag", TargetSHA: fix.sha, Now: func() time.Time { return time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC) },
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -534,7 +523,7 @@ func TestApplyDerivedFactsIgnoreOldMetadata(t *testing.T) {
 }
 
 func TestApplyPreservesCurrentPresenceAndNullability(t *testing.T) {
-	fix := writeApplyFixture(t)
+	fix := writeCompleteApplyFixture(t)
 	for _, root := range []string{fix.candidate, fix.stable} {
 		writeJSONFile(t, filepath.Join(root, "ThreadStartParams.json"), map[string]any{
 			"title": "ThreadStartParams", "type": "object", "required": []string{"prompt"},
@@ -547,8 +536,7 @@ func TestApplyPreservesCurrentPresenceAndNullability(t *testing.T) {
 	_, err := Apply(ApplyRequest{
 		Baseline: fix.baseline, Candidate: fix.candidate, StableCandidate: fix.stable,
 		CommonRS: fix.commonRS, CommonRSSourceSHA: fix.sha, TargetRef: "rust-v1.2.3",
-		TargetKind: "stable_rust_tag", TargetSHA: fix.sha, SkipCodegen: true, skipSurface: true,
-	})
+		TargetKind: "stable_rust_tag", TargetSHA: fix.sha})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -674,7 +662,7 @@ func TestCurrentPresenceAndNullability(t *testing.T) {
 }
 
 func TestApplyUsesCurrentFieldSet(t *testing.T) {
-	fix := writeApplyFixture(t)
+	fix := writeCompleteApplyFixture(t)
 	for _, root := range []string{fix.candidate, fix.stable} {
 		writeJSONFile(t, filepath.Join(root, "ThreadStartParams.json"), map[string]any{
 			"title": "ThreadStartParams", "type": "object",
@@ -697,8 +685,7 @@ func TestApplyUsesCurrentFieldSet(t *testing.T) {
 	_, err := Apply(ApplyRequest{
 		Baseline: fix.baseline, Candidate: fix.candidate, StableCandidate: fix.stable,
 		CommonRS: fix.commonRS, CommonRSSourceSHA: fix.sha, TargetRef: "rust-v1.2.3",
-		TargetKind: "stable_rust_tag", TargetSHA: fix.sha, SkipCodegen: true, skipSurface: true,
-	})
+		TargetKind: "stable_rust_tag", TargetSHA: fix.sha})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -718,7 +705,7 @@ func TestApplyUsesCurrentFieldSet(t *testing.T) {
 }
 
 func TestApplyUsesCurrentFieldVisibility(t *testing.T) {
-	fix := writeApplyFixture(t)
+	fix := writeCompleteApplyFixture(t)
 	writeJSONFile(t, filepath.Join(fix.candidate, "ThreadStartParams.json"), map[string]any{
 		"title": "ThreadStartParams", "type": "object",
 		"properties": map[string]any{
@@ -729,8 +716,7 @@ func TestApplyUsesCurrentFieldVisibility(t *testing.T) {
 	_, err := Apply(ApplyRequest{
 		Baseline: fix.baseline, Candidate: fix.candidate, StableCandidate: fix.stable,
 		CommonRS: fix.commonRS, CommonRSSourceSHA: fix.sha, TargetRef: "rust-v1.2.3",
-		TargetKind: "stable_rust_tag", TargetSHA: fix.sha, SkipCodegen: true, skipSurface: true,
-	})
+		TargetKind: "stable_rust_tag", TargetSHA: fix.sha})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -750,7 +736,7 @@ func TestApplyUsesCurrentFieldVisibility(t *testing.T) {
 }
 
 func TestApplyCopiesCandidateAndIsIdempotent(t *testing.T) {
-	fix := writeApplyFixture(t)
+	fix := writeCompleteApplyFixture(t)
 	req := ApplyRequest{
 		Baseline:          fix.baseline,
 		Candidate:         fix.candidate,
@@ -761,8 +747,6 @@ func TestApplyCopiesCandidateAndIsIdempotent(t *testing.T) {
 		TargetRef:         "rust-v1.2.3",
 		TargetKind:        "stable_rust_tag",
 		TargetSHA:         fix.sha,
-		SkipCodegen:       true,
-		skipSurface:       true,
 		Now:               func() time.Time { return time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC) },
 	}
 	first, err := Apply(req)
@@ -830,7 +814,6 @@ func TestApplyRegeneratesGeneratedGoThroughCanonicalGenerator(t *testing.T) {
 		TargetKind:        "stable_rust_tag",
 		TargetSHA:         sha,
 		ModuleRoot:        root,
-		SkipCodegen:       false,
 		Now:               func() time.Time { return time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC) },
 	})
 	if err != nil {
@@ -859,7 +842,7 @@ func TestApplyRegeneratesGeneratedGoThroughCanonicalGenerator(t *testing.T) {
 }
 
 func TestApplyCodegenRequiresModuleBaseline(t *testing.T) {
-	fix := writeApplyFixture(t)
+	fix := writeCompleteApplyFixture(t)
 	_, err := Apply(ApplyRequest{
 		Baseline:          fix.baseline,
 		Candidate:         fix.candidate,
@@ -871,8 +854,6 @@ func TestApplyCodegenRequiresModuleBaseline(t *testing.T) {
 		TargetKind:        "stable_rust_tag",
 		TargetSHA:         fix.sha,
 		ModuleRoot:        t.TempDir(),
-		SkipCodegen:       false,
-		skipSurface:       true,
 	})
 	if err == nil || !strings.Contains(err.Error(), defaultBaselineRel) {
 		t.Fatalf("got %v, want baseline path diagnostic", err)

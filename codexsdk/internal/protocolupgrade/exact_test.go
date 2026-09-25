@@ -99,8 +99,8 @@ func TestCompareExactBaselineRejectsStaleSemanticArtifacts(t *testing.T) {
 	}
 }
 
-func TestVerifyExactRejectsDisabledDerivation(t *testing.T) {
-	for _, req := range []ApplyRequest{{}, {ModuleRoot: t.TempDir(), SkipCodegen: true}} {
+func TestVerifyExactRequiresModuleRoot(t *testing.T) {
+	for _, req := range []ApplyRequest{{}} {
 		if _, err := VerifyExact(req); err == nil || !strings.Contains(err.Error(), "requires module root") {
 			t.Fatalf("got %v, want complete derivation requirement", err)
 		}
@@ -108,27 +108,7 @@ func TestVerifyExactRejectsDisabledDerivation(t *testing.T) {
 }
 
 func TestVerifyExactRebuildsTinyCandidateWithoutMutatingAccepted(t *testing.T) {
-	fix := writeApplyFixture(t)
-	for _, dir := range []string{fix.baseline, fix.candidate, fix.stable} {
-		for _, aggregate := range []string{"ClientNotification.json", "ServerNotification.json", "ServerRequest.json"} {
-			writeJSONFile(t, filepath.Join(dir, aggregate), map[string]any{"type": "object"})
-		}
-		writeJSONFile(t, filepath.Join(dir, "ClientRequest.json"), map[string]any{
-			"definitions": map[string]any{
-				"ThreadStartParams": map[string]any{
-					"type": "object", "properties": map[string]any{"prompt": map[string]any{"type": "string"}},
-				},
-			},
-			"oneOf": []any{map[string]any{
-				"title": "Thread/startRequest", "type": "object",
-				"required": []string{"method", "params"},
-				"properties": map[string]any{
-					"method": map[string]any{"type": "string", "enum": []string{"thread/start"}},
-					"params": map[string]any{"$ref": "#/definitions/ThreadStartParams"},
-				},
-			}},
-		})
-	}
+	fix := writeCompleteApplyFixture(t)
 	req := ApplyRequest{
 		Baseline: fix.baseline, Candidate: fix.candidate, StableCandidate: fix.stable,
 		CommonRS: fix.commonRS, CommonRSSourceSHA: fix.sha,
@@ -155,4 +135,33 @@ func TestVerifyExactRebuildsTinyCandidateWithoutMutatingAccepted(t *testing.T) {
 	if err := sameSnapshot(before, after, "accepted baseline during exact verification"); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func writeCompleteApplyFixture(t *testing.T) applyFixture {
+	t.Helper()
+	fix := writeApplyFixture(t)
+	for _, dir := range []string{fix.baseline, fix.candidate, fix.stable} {
+		for _, aggregate := range []string{"ClientNotification.json", "ServerNotification.json", "ServerRequest.json"} {
+			writeJSONFile(t, filepath.Join(dir, aggregate), map[string]any{"type": "object"})
+		}
+		writeJSONFile(t, filepath.Join(dir, "ClientRequest.json"), map[string]any{
+			"definitions": map[string]any{
+				"ThreadStartParams": map[string]any{
+					"type": "object", "properties": map[string]any{"prompt": map[string]any{"type": "string"}},
+				},
+			},
+			"oneOf": []any{map[string]any{
+				"title": "Thread/startRequest", "type": "object",
+				"required": []string{"method", "params"},
+				"properties": map[string]any{
+					"method": map[string]any{"type": "string", "enum": []string{"thread/start"}},
+					"params": map[string]any{"$ref": "#/definitions/ThreadStartParams"},
+				},
+			}},
+		})
+	}
+	if err := os.MkdirAll(filepath.Join(fix.module, "protocolv2"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return fix
 }

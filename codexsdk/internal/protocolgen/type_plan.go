@@ -407,7 +407,7 @@ func generatedDefinitionRootIndexes(plan *ProtocolTypePlan, schemaRoot string) (
 		}
 		return nil, err
 	}
-	manifest, err := LoadManifest(manifestPath)
+	manifest, err := LoadMethodFacts(manifestPath)
 	if err != nil {
 		return nil, err
 	}
@@ -749,8 +749,14 @@ func normalizeExplicitProtocolTypePlan(plan ProtocolTypePlan) ProtocolTypePlan {
 	if !explicit {
 		return plan
 	}
+	plan.Types = append([]TypePlan(nil), plan.Types...)
 	for index := range plan.Types {
 		typ := &plan.Types[index]
+		definitions := make(map[string]bool, len(typ.GeneratedDefinitions))
+		for name, selected := range typ.GeneratedDefinitions {
+			definitions[name] = selected
+		}
+		typ.GeneratedDefinitions = definitions
 		typ.GeneratedRoot = true
 		if typ.GeneratedDefinitions == nil {
 			typ.GeneratedDefinitions = map[string]bool{}

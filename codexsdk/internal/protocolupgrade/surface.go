@@ -7,59 +7,61 @@ import (
 	"regexp"
 	"sort"
 
+	"github.com/ronhuafeng/llm-go/codexsdk/internal/generatedcheck"
 	"github.com/ronhuafeng/llm-go/codexsdk/internal/protocolgen"
 )
 
-func deriveSurface(stableSchema, completeSchema, handwrittenDir string) ([]map[string]any, error) {
+func deriveSurface(stableSchema, completeSchema, moduleRoot string) ([]map[string]any, map[string][]byte, error) {
+	handwrittenDir := filepath.Join(moduleRoot, "protocolv2")
 	tmp, err := os.MkdirTemp("", "protocolupgrade-surface-")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer os.RemoveAll(tmp)
 	stableRoot := filepath.Join(tmp, "stable-schema")
 	completeRoot := filepath.Join(tmp, "complete-schema")
 	if err := prepareGenerationRoot(stableSchema, completeSchema, stableRoot); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := prepareCompleteGenerationRoot(completeSchema, completeRoot); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	stableSource, err := generatePackage(stableRoot, filepath.Join(tmp, "stable-go"), handwrittenDir)
+	stableSource, err := generatePackage(stableRoot, handwrittenDir)
 	if err != nil {
-		return nil, fmt.Errorf("generate stable protocol package: %w", err)
+		return nil, nil, fmt.Errorf("generate stable protocol package: %w", err)
 	}
-	completeSource, err := generatePackage(completeRoot, filepath.Join(tmp, "complete-go"), handwrittenDir)
+	completeSource, err := generatePackage(completeRoot, handwrittenDir)
 	if err != nil {
-		return nil, fmt.Errorf("generate complete protocol package: %w", err)
+		return nil, nil, fmt.Errorf("generate complete protocol package: %w", err)
 	}
 	// Experimental member maps depend on the classified generated fields. First
 	// classify the independent sources, then regenerate those maps from that
 	// classification before recording their own exported signatures.
-	preliminary, err := protocolgen.ClassifyExportedPackage(stableSource[:2], completeSource[:2])
+	preliminary, err := protocolgen.ClassifyExportedPackage([][]byte{stableSource.MethodRegistry, stableSource.ProtocolTypes}, [][]byte{completeSource.MethodRegistry, completeSource.ProtocolTypes})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	stableManifest, err := protocolgen.LoadManifest(filepath.Join(stableRoot, "manifest.json"))
+	stableManifest, err := protocolgen.LoadMethodFacts(filepath.Join(stableRoot, "manifest.json"))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	completeManifest, err := protocolgen.LoadManifest(filepath.Join(completeRoot, "manifest.json"))
+	completeManifest, err := protocolgen.LoadMethodFacts(filepath.Join(completeRoot, "manifest.json"))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	stableManifest.Surface = preliminary
 	completeManifest.Surface = preliminary
-	stableSource[2], err = protocolgen.GenerateExperimentalMembers(stableManifest)
+	stableSource.ExperimentalMembers, err = protocolgen.GenerateExperimentalMembers(stableManifest)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	completeSource[2], err = protocolgen.GenerateExperimentalMembers(completeManifest)
+	completeSource.ExperimentalMembers, err = protocolgen.GenerateExperimentalMembers(completeManifest)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	surface, err := protocolgen.ClassifyExportedPackage(stableSource, completeSource)
+	surface, err := protocolgen.ClassifyExportedPackage([][]byte{stableSource.MethodRegistry, stableSource.ProtocolTypes, stableSource.ExperimentalMembers}, [][]byte{completeSource.MethodRegistry, completeSource.ProtocolTypes, completeSource.ExperimentalMembers})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	out := make([]map[string]any, 0, len(surface))
 	for _, entry := range surface {
@@ -74,7 +76,12 @@ func deriveSurface(stableSchema, completeSchema, handwrittenDir string) ([]map[s
 		}
 		out = append(out, item)
 	}
-	return out, nil
+	completeManifest.Surface = surface
+	files, err := generatedcheck.FilesFromPackage(moduleRoot, completeManifest, completeSource)
+	if err != nil {
+		return nil, nil, err
+	}
+	return out, files, nil
 }
 
 func prepareGenerationRoot(source, complete, destination string) error {
@@ -130,9 +137,7 @@ func prepareGenerationRoot(source, complete, destination string) error {
 		}
 	}
 	manifest.Entries = filteredEntries
-	manifest.Surface = []map[string]any{
-		{"kind": "type", "name": "SurfaceSeed", "signature": "struct{}", "stability": "stable"},
-	}
+	manifest.Surface = nil
 	return writeJSON(filepath.Join(destination, "manifest.json"), manifest)
 }
 
@@ -144,63 +149,20 @@ func prepareCompleteGenerationRoot(source, destination string) error {
 	if err := loadJSON(filepath.Join(destination, "manifest.json"), &manifest); err != nil {
 		return err
 	}
-	manifest.Surface = []map[string]any{
-		{"kind": "type", "name": "SurfaceSeed", "signature": "struct{}", "stability": "stable"},
-	}
+	manifest.Surface = nil
 	return writeJSON(filepath.Join(destination, "manifest.json"), manifest)
 }
 
-func generatePackage(schemaRoot, outDir, handwrittenDir string) ([][]byte, error) {
-	if err := os.MkdirAll(outDir, 0o755); err != nil {
-		return nil, err
-	}
-	manifestPath := filepath.Join(schemaRoot, "manifest.json")
-	typePlan, err := protocolgen.BuildProtocolTypePlan(schemaRoot)
+func generatePackage(schemaRoot, handwrittenDir string) (protocolgen.ProtocolPackage, error) {
+	plan, err := protocolgen.BuildProtocolTypePlan(schemaRoot)
 	if err != nil {
-		return nil, err
+		return protocolgen.ProtocolPackage{}, err
 	}
-	manifest, err := protocolgen.LoadManifest(manifestPath)
+	manifest, err := protocolgen.LoadMethodFacts(filepath.Join(schemaRoot, "manifest.json"))
 	if err != nil {
-		return nil, err
+		return protocolgen.ProtocolPackage{}, err
 	}
-	if err := protocolgen.ApplyWireMessageRoles(&typePlan, manifest); err != nil {
-		return nil, err
-	}
-	protocolTypes, err := protocolgen.GenerateProtocolTypes(typePlan)
-	if err != nil {
-		return nil, err
-	}
-	methodRegistry, err := protocolgen.GenerateMethodRegistry(manifest)
-	if err != nil {
-		return nil, err
-	}
-	experimentalMembers, err := protocolgen.GenerateExperimentalMembers(manifest)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := protocolgen.ValidateGeneratedPackage(typePlan, manifest, handwrittenDir, map[string][]byte{
-		"method_registry.gen.go":      methodRegistry,
-		"protocol_types.gen.go":       protocolTypes,
-		"experimental_members.gen.go": experimentalMembers,
-	}); err != nil {
-		return nil, err
-	}
-	files := []struct {
-		name string
-		data []byte
-	}{
-		{"method_registry.gen.go", methodRegistry},
-		{"protocol_types.gen.go", protocolTypes},
-		{"experimental_members.gen.go", experimentalMembers},
-	}
-	var sources [][]byte
-	for _, file := range files {
-		if err := os.WriteFile(filepath.Join(outDir, file.name), file.data, 0o644); err != nil {
-			return nil, err
-		}
-		sources = append(sources, file.data)
-	}
-	return sources, nil
+	return protocolgen.BuildProtocolPackage(plan, manifest, handwrittenDir)
 }
 
 func copyTreeFiles(src, dst string) error {
