@@ -1869,7 +1869,7 @@ func firstPassGoTypeSafe(goType string) bool {
 		return firstPassGoTypeSafe(inner)
 	}
 	switch leaf {
-	case "bool", "int32", "int64", "uint16", "uint32", "uint64", "string", "JSONValue", "OutputSchema", "Nullable[string]":
+	case "bool", "float64", "int32", "int64", "uint16", "uint32", "uint64", "string", "JSONValue", "OutputSchema", "Nullable[string]":
 		return true
 	default:
 		return false

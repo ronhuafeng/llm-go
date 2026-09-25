@@ -32,6 +32,31 @@ func deriveSurface(stableSchema, completeSchema string) ([]map[string]any, error
 	if err != nil {
 		return nil, fmt.Errorf("generate complete protocol package: %w", err)
 	}
+	// Experimental member maps depend on the classified generated fields. First
+	// classify the independent sources, then regenerate those maps from that
+	// classification before recording their own exported signatures.
+	preliminary, err := protocolgen.ClassifyExportedPackage(stableSource[:2], completeSource[:2])
+	if err != nil {
+		return nil, err
+	}
+	stableManifest, err := protocolgen.LoadManifest(filepath.Join(stableRoot, "manifest.json"))
+	if err != nil {
+		return nil, err
+	}
+	completeManifest, err := protocolgen.LoadManifest(filepath.Join(completeRoot, "manifest.json"))
+	if err != nil {
+		return nil, err
+	}
+	stableManifest.Surface = preliminary
+	completeManifest.Surface = preliminary
+	stableSource[2], err = protocolgen.GenerateExperimentalMembers(stableManifest)
+	if err != nil {
+		return nil, err
+	}
+	completeSource[2], err = protocolgen.GenerateExperimentalMembers(completeManifest)
+	if err != nil {
+		return nil, err
+	}
 	surface, err := protocolgen.ClassifyExportedPackage(stableSource, completeSource)
 	if err != nil {
 		return nil, err

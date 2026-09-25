@@ -83,10 +83,17 @@ func TestJSONRPCMessageIsNotPublicGeneratedSurface(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	traceContextFound := false
 	for _, typ := range selected {
 		if strings.HasPrefix(typ.TypeName, "JSONRPC") {
 			t.Fatalf("JSON-RPC envelope type %s must not be public generated protocolv2 surface", typ.TypeName)
 		}
+		if typ.TypeName == "W3cTraceContext" {
+			traceContextFound = true
+		}
+	}
+	if !traceContextFound {
+		t.Fatal("reachable JSON-RPC trace context is missing from generated protocolv2 surface")
 	}
 }
 
@@ -1879,9 +1886,10 @@ func TestFirstPassTypesIncludeReviewedRPCDependencies(t *testing.T) {
 
 func TestGeneratedDefinitionSelectionFollowsSchemaShape(t *testing.T) {
 	objectParent := TypePlan{
-		SchemaPath: "v2/ThreadStartParams.json",
-		Stability:  "stable",
-		TypeName:   "ThreadStartParams",
+		GeneratedDefinitions: map[string]bool{"DynamicToolSpec": true},
+		SchemaPath:           "v2/ThreadStartParams.json",
+		Stability:            "stable",
+		TypeName:             "ThreadStartParams",
 		Schema: &Schema{
 			Definitions: map[string]*Schema{
 				"DynamicToolSpec": mustParseSchema(t, `{
@@ -1927,9 +1935,10 @@ func TestGeneratedDefinitionSelectionFollowsSchemaShape(t *testing.T) {
 	}
 
 	unionParent := TypePlan{
-		SchemaPath: "v2/ThreadStartParams.json",
-		Stability:  "stable",
-		TypeName:   "ThreadStartParams",
+		GeneratedDefinitions: map[string]bool{"DynamicToolSpec": true},
+		SchemaPath:           "v2/ThreadStartParams.json",
+		Stability:            "stable",
+		TypeName:             "ThreadStartParams",
 		Schema: &Schema{
 			Definitions: map[string]*Schema{
 				"DynamicToolSpec": mustParseSchema(t, `{
@@ -2663,7 +2672,7 @@ func TestThreadAttachmentShapeGeneratesFromReachabilityWithoutCheckpoint(t *test
 	write("manifest.json", `{
 		"schema_version": 2,
 		"status": "classified-manifest",
-		"surface": [],
+		"surface": [{"kind":"type","name":"ThreadAttachmentAddParams","signature":"struct{Payload JSONValue}","stability":"stable"}],
 		"entries": [
 			{"direction":"client_to_server","facade_status":"generated","facade_target":"Threads().AttachmentAdd","family":"thread","kind":"request","method":"thread/attachment/add","params_or_payload_schema":"ThreadAttachmentAddParams","response_schema":"v2/ThreadAttachmentAddResponse.json","response_schema_status":"declared","response_type":"ThreadAttachmentAddResponse","source_schema":"ClientRequest.json","stability":"stable"},
 			{"direction":"client_to_server","facade_status":"generated","facade_target":"Threads().AttachmentList","family":"thread","kind":"request","method":"thread/attachment/list","params_or_payload_schema":"ThreadAttachmentAddParams","response_schema":"v2/ThreadAttachmentListResponse.json","response_schema_status":"declared","response_type":"ThreadAttachmentListResponse","source_schema":"ClientRequest.json","stability":"stable"}
@@ -2721,8 +2730,10 @@ func TestThreadAttachmentShapeGeneratesFromReachabilityWithoutCheckpoint(t *test
 		"type ThreadAttachment struct {",
 		"Payload JSONValue `json:\"payload\"`",
 		"type ThreadAttachmentAddOutcome string",
-		"Attachment ThreadAttachment `json:\"attachment\"`",
-		"Data []ThreadAttachment `json:\"data\"`",
+		"Attachment ThreadAttachment",
+		"`json:\"attachment\"`",
+		"Data []ThreadAttachment",
+		"`json:\"data\"`",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("generated attachment surface missing %q:\n%s", want, text)

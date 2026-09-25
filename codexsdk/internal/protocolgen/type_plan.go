@@ -148,6 +148,7 @@ func markReachableGeneratedDefinitions(plan *ProtocolTypePlan, schemaRoot string
 		return fmt.Errorf("protocol type plan is nil")
 	}
 	byDocument := map[string]int{}
+	byTypeName := map[string][]int{}
 	for index := range plan.Types {
 		typ := &plan.Types[index]
 		if typ.Schema == nil {
@@ -158,6 +159,7 @@ func markReachableGeneratedDefinitions(plan *ProtocolTypePlan, schemaRoot string
 			continue
 		}
 		byDocument[document] = index
+		byTypeName[typ.TypeName] = append(byTypeName[typ.TypeName], index)
 		if typ.GeneratedDefinitions == nil {
 			typ.GeneratedDefinitions = map[string]bool{}
 		}
@@ -166,7 +168,7 @@ func markReachableGeneratedDefinitions(plan *ProtocolTypePlan, schemaRoot string
 	visitedSchemas := map[string]bool{}
 	visitedDefinitions := map[string]bool{}
 	visitedTypes := map[int]bool{}
-	var walkSchema func(string, string, string, string, *Schema) error
+	var walkSchema func(string, string, string, string, *Schema, bool) error
 	var walkRef func(string, string) error
 	var walkType func(int) error
 
@@ -186,7 +188,7 @@ func markReachableGeneratedDefinitions(plan *ProtocolTypePlan, schemaRoot string
 		}
 		switch typ.Kind {
 		case TypePlanTaggedUnionCandidate, TypePlanScalarUnionCandidate, TypePlanAnyOfDeferred:
-			return walkSchema(schemaDocumentPath(typ.SchemaPath), typ.SchemaPath, typ.Stability, typ.TypeName, typ.Schema)
+			return walkSchema(schemaDocumentPath(typ.SchemaPath), typ.SchemaPath, typ.Stability, typ.TypeName, typ.Schema, false)
 		default:
 			return nil
 		}
@@ -216,16 +218,34 @@ func markReachableGeneratedDefinitions(plan *ProtocolTypePlan, schemaRoot string
 		if definition == nil {
 			return fmt.Errorf("schema ref %s resolves missing definition %s in %s", ref, name, document)
 		}
+		if isJSONRPCEnvelopeSchema(document) && isJSONRPCEnvelopeSchema(name) {
+			// Handwritten envelope validation owns these shapes. Other reachable
+			// definitions, such as trace context, still need generated types.
+			return nil
+		}
+		for _, topLevelIndex := range byTypeName[name] {
+			topLevel := &plan.Types[topLevelIndex]
+			if topLevel.SchemaPath == document || !isGeneratedTopLevelType(*topLevel) {
+				continue
+			}
+			same, err := sameGeneratedRootShape(definition, target.Schema.Definitions, topLevel.Schema)
+			if err != nil {
+				return err
+			}
+			if same {
+				return walkType(topLevelIndex)
+			}
+		}
 		definitionPath := definitionSchemaPath(document, name)
 		target.GeneratedDefinitions[name] = true
 		if visitedDefinitions[definitionPath] {
 			return nil
 		}
 		visitedDefinitions[definitionPath] = true
-		return walkSchema(document, definitionPath, target.Stability, name, definition)
+		return walkSchema(document, definitionPath, target.Stability, name, definition, false)
 	}
 
-	walkSchema = func(document, schemaPath, stability, typeName string, schema *Schema) error {
+	walkSchema = func(document, schemaPath, stability, typeName string, schema *Schema, expandObjectPayload bool) error {
 		if schema == nil || visitedSchemas[schemaPath] {
 			return nil
 		}
@@ -243,6 +263,11 @@ func markReachableGeneratedDefinitions(plan *ProtocolTypePlan, schemaRoot string
 			}
 			sort.Strings(names)
 			for _, name := range names {
+				property := schema.Properties[name]
+				if property != nil && property.Type.Only("null") && !required[name] {
+					// Optional null-only fields carry no typed dependencies.
+					continue
+				}
 				fieldPath := schemaPropertyPath(schemaPath, name)
 				field, err := planField(CoverageField{
 					Field:     name,
@@ -252,12 +277,19 @@ func markReachableGeneratedDefinitions(plan *ProtocolTypePlan, schemaRoot string
 					Stability: stability,
 					Status:    "supported-generated",
 					Type:      typeName,
-				}, schema.Properties[name])
+				}, property)
 				if err != nil {
 					return fmt.Errorf("dependency %s: %w", fieldPath, err)
 				}
 				if field.RefPath != "" {
 					if err := walkRef(document, field.RefPath); err != nil {
+						return err
+					}
+				}
+				if expandObjectPayload && len(schema.Properties) == 1 && required[name] &&
+					schema.AdditionalProperties.Bool != nil && !*schema.AdditionalProperties.Bool &&
+					property != nil && property.Type.Only("object") && len(property.Properties) > 0 {
+					if err := walkSchema(document, fieldPath, stability, typeName, property, false); err != nil {
 						return err
 					}
 				}
@@ -268,7 +300,7 @@ func markReachableGeneratedDefinitions(plan *ProtocolTypePlan, schemaRoot string
 				if err := walkRef(document, schema.Items.Ref); err != nil {
 					return err
 				}
-			} else if err := walkSchema(document, nestedSchemaPath(schemaPath, "items", 0), stability, typeName, schema.Items); err != nil {
+			} else if err := walkSchema(document, nestedSchemaPath(schemaPath, "items", 0), stability, typeName, schema.Items, false); err != nil {
 				return err
 			}
 		}
@@ -286,7 +318,7 @@ func markReachableGeneratedDefinitions(plan *ProtocolTypePlan, schemaRoot string
 			{keyword: "oneOf", variants: schema.OneOf},
 		} {
 			for index, variant := range group.variants {
-				if err := walkSchema(document, nestedSchemaPath(schemaPath, group.keyword, index), stability, typeName, variant); err != nil {
+				if err := walkSchema(document, nestedSchemaPath(schemaPath, group.keyword, index), stability, typeName, variant, group.keyword == "oneOf" && isMixedUnionDefinitionSchema(schema)); err != nil {
 					return err
 				}
 			}
@@ -312,6 +344,42 @@ func markReachableGeneratedDefinitions(plan *ProtocolTypePlan, schemaRoot string
 		}
 	}
 	return nil
+}
+
+func sameGeneratedRootShape(definition *Schema, sourceDefinitions map[string]*Schema, topLevel *Schema) (bool, error) {
+	left := cloneSchemaWithoutDocumentation(definition)
+	right := cloneSchemaWithoutDocumentation(topLevel)
+	left.Definitions = nil
+	right.Definitions = nil
+	leftShape, err := json.Marshal(left)
+	if err != nil {
+		return false, err
+	}
+	rightShape, err := json.Marshal(right)
+	if err != nil {
+		return false, err
+	}
+	if !bytes.Equal(leftShape, rightShape) {
+		return false, nil
+	}
+	for name, topDefinition := range topLevel.Definitions {
+		sourceDefinition := sourceDefinitions[name]
+		if sourceDefinition == nil {
+			return false, nil
+		}
+		sourceShape, err := generatedSchemaShape(sourceDefinition)
+		if err != nil {
+			return false, err
+		}
+		topShape, err := generatedSchemaShape(topDefinition)
+		if err != nil {
+			return false, err
+		}
+		if !bytes.Equal(sourceShape, topShape) {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func generatedDefinitionRootIndexes(plan *ProtocolTypePlan, schemaRoot string) (map[int]bool, error) {
@@ -365,7 +433,9 @@ func generatedDefinitionRootIndexes(plan *ProtocolTypePlan, schemaRoot string) (
 	}
 	for index := range plan.Types {
 		typ := &plan.Types[index]
-		if typ.Kind == TypePlanScalarUnionCandidate && typ.Status == "supported-generated" {
+		if typ.Status == "supported-generated" &&
+			(typ.Kind == TypePlanScalarUnionCandidate || isClosedRPCErrorRoot(*typ) ||
+				isJSONRPCEnvelopeSchema(typ.SchemaPath) && typ.Kind == TypePlanObjectStructCandidate) {
 			typ.GeneratedRoot = true
 			roots[index] = true
 		}
@@ -374,6 +444,19 @@ func generatedDefinitionRootIndexes(plan *ProtocolTypePlan, schemaRoot string) (
 		return nil, fmt.Errorf("manifest has no generated protocol type roots")
 	}
 	return roots, nil
+}
+
+func isClosedRPCErrorRoot(typ TypePlan) bool {
+	schema := typ.Schema
+	if schema == nil || !schema.Type.Only("object") || isJSONRPCEnvelopeSchema(typ.SchemaPath) {
+		return false
+	}
+	code, message, data := schema.Properties["code"], schema.Properties["message"], schema.Properties["data"]
+	required := schema.RequiredSet()
+	return code != nil && code.Type.Only("integer") && code.Format == "int64" &&
+		message != nil && message.Type.Only("string") && data != nil &&
+		required["code"] && required["message"] && required["data"] &&
+		schema.AdditionalProperties.Bool != nil && !*schema.AdditionalProperties.Bool
 }
 
 func schemaDocumentPath(path string) string {
@@ -443,7 +526,7 @@ type generatedTopLevelSource struct {
 func newGeneratedDefinitionNameResolver(plan ProtocolTypePlan) (generatedDefinitionNameResolver, error) {
 	plan = normalizeExplicitProtocolTypePlan(plan)
 	usedNames := map[string]bool{}
-	topLevels := map[string]generatedTopLevelSource{}
+	topLevelPlans := map[string]TypePlan{}
 	for _, typ := range plan.Types {
 		if typ.TypeName == "" || !isGeneratedTopLevelType(typ) {
 			continue
@@ -453,11 +536,7 @@ func newGeneratedDefinitionNameResolver(plan ProtocolTypePlan) (generatedDefinit
 		if kind == generatedDefinitionUnsupported {
 			continue
 		}
-		shape, err := generatedSchemaShape(typ.Schema)
-		if err != nil {
-			return generatedDefinitionNameResolver{}, fmt.Errorf("generated top-level type %s in %s cannot be encoded: %w", typ.TypeName, typ.SchemaPath, err)
-		}
-		topLevels[typ.TypeName] = generatedTopLevelSource{kind: kind, shape: shape}
+		topLevelPlans[typ.TypeName] = typ
 	}
 
 	byBaseName := map[string][]generatedDefinitionSource{}
@@ -506,7 +585,12 @@ func newGeneratedDefinitionNameResolver(plan ProtocolTypePlan) (generatedDefinit
 		sort.Slice(sources, func(i, j int) bool {
 			return sources[i].path < sources[j].path
 		})
-		if topLevel, ok := topLevels[baseName]; ok {
+		if topLevelPlan, ok := topLevelPlans[baseName]; ok {
+			topLevelShape, err := generatedSchemaShape(topLevelPlan.Schema)
+			if err != nil {
+				return generatedDefinitionNameResolver{}, fmt.Errorf("generated top-level type %s in %s cannot be encoded: %w", topLevelPlan.TypeName, topLevelPlan.SchemaPath, err)
+			}
+			topLevel := generatedTopLevelSource{kind: classifyGeneratedDefinition(topLevelPlan.Schema), shape: topLevelShape}
 			remaining := sources[:0]
 			for _, source := range sources {
 				if source.kind == topLevel.kind && bytes.Equal(source.shape, topLevel.shape) {
@@ -1015,6 +1099,21 @@ func arrayCanPlanBeforeRecursiveConstraints(schema *Schema) bool {
 }
 
 func planConstrainedField(plan FieldPlan, schema *Schema, constraints []string) (FieldPlan, bool, error) {
+	if schema.Format == "double" && len(constraints) == 1 && constraints[0] == "format" {
+		if nullableType, ok := schema.Type.NullableSingle(); ok && nullableType == "number" {
+			plan.Kind = FieldPlanNullableScalar
+			plan.GoType = nullableGoType(plan.Required, "float64")
+			plan.WireAllowsNull = true
+			plan.Reason = "nullable double represented with float64"
+			return plan, true, nil
+		}
+		if schema.Type.Only("number") {
+			plan.Kind = FieldPlanScalar
+			plan.GoType = optionalGoType(plan.Required, "float64")
+			plan.Reason = "double represented with float64"
+			return plan, true, nil
+		}
+	}
 	if !supportedIntegerConstraints(schema, constraints) {
 		return FieldPlan{}, false, nil
 	}

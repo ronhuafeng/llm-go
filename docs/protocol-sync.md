@@ -90,6 +90,7 @@ JSON Schema true                  -> protocolv2.JSONValue
 array items: true                 -> []protocolv2.JSONValue
 additionalProperties: true        -> map[string]protocolv2.JSONValue
 string/integer/boolean scalars    -> matching Go scalar
+number with format: double         -> float64
 nullable/required/optional shape  -> matching wire-preserving Go representation
 $ref / definition reachability    -> generated dependency closure
 string enums / supported unions   -> generated named types
@@ -116,6 +117,12 @@ of whether a convenience SDK facade method is currently exposed. Request,
 response, notification, server-request, and aggregate message roots own the
 reachable wire graph. A facade policy may hide a convenience method, but it
 cannot make an upstream wire type cease to exist.
+
+JSON-RPC envelope schemas are traversed for typed dependencies but remain
+outside the public generated protocol surface. Their own envelope definitions
+stay with handwritten validation. Closed RPC error payloads with a required
+typed data field are independent wire roots, so their reachable definitions are
+generated even when they have no manifest method entry.
 
 The planner follows only references accepted by the current schema mapping. A
 field overlay that intentionally represents an upstream subtree as

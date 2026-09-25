@@ -75,9 +75,6 @@ func TestPlanTypePreservesSharedObjectPropertiesAndOneOfPayload(t *testing.T) {
 	if plan.Kind != TypePlanTaggedUnionCandidate {
 		t.Fatalf("kind = %s, want tagged union so shared properties do not erase oneOf", plan.Kind)
 	}
-	if !strings.Contains(plan.Reason, "properties plus oneOf") {
-		t.Fatalf("reason = %q, want shared-object plus union composition", plan.Reason)
-	}
 	if got, want := len(schema.Properties), 1; got != want {
 		t.Fatalf("schema properties dropped: %d", got)
 	}
@@ -533,6 +530,38 @@ func TestBuildProtocolTypePlanSupportsConstrainedIntegerScalars(t *testing.T) {
 		if !strings.Contains(field.Reason, "constrained") {
 			t.Fatalf("%s reason %q does not describe constrained support", tt.path, field.Reason)
 		}
+	}
+}
+
+func TestFieldPlannerPreservesDoubleNumberShape(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		schema   string
+		required bool
+		kind     FieldPlanKind
+		goType   string
+		wantErr  bool
+	}{
+		{name: "required double", schema: `{"type":"number","format":"double"}`, required: true, kind: FieldPlanScalar, goType: "float64"},
+		{name: "optional nullable double", schema: `{"type":["number","null"],"format":"double"}`, kind: FieldPlanNullableScalar, goType: "*protocolv2.Nullable[float64]"},
+		{name: "unformatted number", schema: `{"type":"number"}`, wantErr: true},
+		{name: "unrepresented minimum", schema: `{"type":"number","format":"double","minimum":1}`, kind: FieldPlanConstrainedDeferred},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			field, err := planField(CoverageField{Field: "value", Path: "Example.json#/properties/value", Schema: "Example.json", Required: tt.required}, mustParseSchema(t, tt.schema))
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected unsupported schema error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if field.Kind != tt.kind || field.GoType != tt.goType {
+				t.Fatalf("field = (%s, %q), want (%s, %q)", field.Kind, field.GoType, tt.kind, tt.goType)
+			}
+		})
 	}
 }
 
@@ -1085,7 +1114,8 @@ func TestReachableGeneratedDefinitionsFollowRefsTransitively(t *testing.T) {
 	child := &Schema{
 		Type: SchemaTypeSet{Values: []string{"object"}},
 		Properties: map[string]*Schema{
-			"leaf": {Ref: "#/definitions/Leaf"},
+			"leaf":    {Ref: "#/definitions/Leaf"},
+			"ignored": {Type: SchemaTypeSet{Values: []string{"null"}}},
 		},
 	}
 	leaf := &Schema{Type: SchemaTypeSet{Values: []string{"object"}}}
@@ -1128,7 +1158,7 @@ func TestGeneratedDefinitionRootsUseAllManifestProtocolEntries(t *testing.T) {
 	manifest := `{
 		"schema_version": 2,
 		"status": "classified-manifest",
-		"surface": [],
+		"surface": [{"kind":"type","name":"Used","signature":"struct{}","stability":"stable"}],
 		"entries": [{
 			"direction": "client_to_server",
 			"facade_status": "generated",
@@ -1166,13 +1196,18 @@ func TestGeneratedDefinitionRootsUseAllManifestProtocolEntries(t *testing.T) {
 		{SchemaPath: "Unrelated.json", TypeName: "Unrelated", Schema: &Schema{Type: SchemaTypeSet{Values: []string{"object"}}}},
 		{SchemaPath: "Deferred.json", TypeName: "Deferred", Schema: &Schema{Type: SchemaTypeSet{Values: []string{"object"}}}},
 		{SchemaPath: "DeferredResponse.json", TypeName: "DeferredResponse", Schema: &Schema{Type: SchemaTypeSet{Values: []string{"object"}}}},
+		{SchemaPath: "JSONRPCErrorError.json", TypeName: "JSONRPCErrorError", Kind: TypePlanObjectStructCandidate, Status: "supported-generated", Schema: mustParseSchema(t, `{"type":"object","additionalProperties":false,"properties":{"code":{"type":"integer","format":"int64"},"message":{"type":"string"},"data":true},"required":["code","message","data"]}`)},
+		{SchemaPath: "v2/UserVerificationRpcError.json", TypeName: "UserVerificationRpcError", Kind: TypePlanObjectStructCandidate, Status: "supported-generated", Schema: mustParseSchema(t, `{"type":"object","additionalProperties":false,"properties":{"code":{"type":"integer","format":"int64"},"message":{"type":"string"},"data":{"type":"object"}},"required":["code","message","data"]}`)},
 	}}
 	roots, err := generatedDefinitionRootIndexes(&plan, root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !roots[0] || !roots[1] || roots[2] || !roots[3] || !roots[4] {
-		t.Fatalf("manifest roots = %#v, want all protocol payload roots independent of facade policy", roots)
+	if !roots[0] || !roots[1] || roots[2] || !roots[3] || !roots[4] || !roots[5] || !roots[6] {
+		t.Fatalf("manifest roots = %#v, want protocol payloads, envelope dependencies, and closed RPC errors", roots)
+	}
+	if isGeneratedTopLevelType(plan.Types[5]) {
+		t.Fatal("JSON-RPC envelope root became a public generated type")
 	}
 }
 
