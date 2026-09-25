@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -216,7 +218,7 @@ func TestProtocolSyncPreservesAuthorityAndPublicationBoundaries(t *testing.T) {
 		t.Fatal("protocol sync must re-plan the same candidate after the Agent")
 	}
 	scope, ok := workflowStepByID(syncText, "proposal_scope")
-	if !ok || !strings.Contains(scope, "allowed_agent_path") || !strings.Contains(scope, "git diff --name-only --no-renames -z HEAD") || !strings.Contains(scope, "git ls-files --others --exclude-standard -z") {
+	if !ok || !strings.Contains(scope, `"${control}" scope`) || !strings.Contains(scope, "steps.control.outputs.sha256") || !strings.Contains(scope, "sha256sum -c -") {
 		t.Fatal("trusted workflow must inspect all Git-visible Agent changes before running proposed code")
 	}
 	if !strings.Contains(resume, "-candidate-sha256") || !strings.Contains(resume, "steps.mechanical.outputs.candidate_sha256") || !strings.Contains(resume, "protocolupgrade resume") {
@@ -233,6 +235,10 @@ func TestProtocolSyncPreservesAuthorityAndPublicationBoundaries(t *testing.T) {
 	publishAt := strings.Index(syncText, "id: publish")
 	if controlAt < 0 || controlAt >= agentAt || freezeAt < 0 || freezeAt >= checksAt || checksAt < 0 || finalScopeAt <= checksAt || publishAt <= finalScopeAt || !strings.Contains(syncText, "run: *agent_proposal_scope") {
 		t.Fatal("trusted proposal scope must be rechecked after tests and before publication")
+	}
+
+	if !strings.Contains(syncText, "steps.final_scope.outcome == 'failure'") {
+		t.Fatal("final scope failure must retain policy attribution in the workflow summary")
 	}
 
 	checks, ok := workflowStepByID(syncText, "checks")
@@ -422,19 +428,37 @@ func TestProtocolAgentProposalScopeRunsBeforeUntrustedGo(t *testing.T) {
 		t.Fatal("trusted Agent proposal scope step is missing")
 	}
 	script := workflowRunScript(t, step)
+	runner := t.TempDir()
+	control := filepath.Join(runner, "protocolupgrade-control")
+	build := exec.Command("go", "build", "-o", control, "./codexsdk/internal/cmd/protocolupgrade")
+	build.Dir = root
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build trusted scope owner: %v: %s", err, out)
+	}
+	raw, err := os.ReadFile(control)
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest := fmt.Sprintf("%x", sha256.Sum256(raw))
 	for _, test := range []struct {
 		name, path      string
 		allowed         bool
 		allowMechanical bool
+		tracked         bool
 	}{
 		{name: "generator correction", path: "codexsdk/internal/protocolgen/type_plan.go", allowed: true},
+		{name: "current fact projection", path: "codexsdk/internal/protocolupgrade/current_facts.go", allowed: true},
 		{name: "semantic source", path: "codexsdk/internal/protocolupgrade/manifest.go", allowed: true},
+		{name: "tracked control", path: "codexsdk/internal/protocolsync/sync.go", tracked: true},
 		{name: "resume control", path: "codexsdk/internal/protocolsync/sync.go"},
 		{name: "acceptance control", path: "codexsdk/internal/protocolupgrade/plan.go"},
 		{name: "publication control", path: "codexsdk/internal/protocolsync/publish.go"},
 		{name: "generated artifact", path: "codexsdk/protocolv2/method_registry.gen.go"},
 		{name: "generated artifact after Apply", path: "codexsdk/protocolv2/method_registry.gen.go", allowed: true, allowMechanical: true},
 		{name: "schema artifact after Apply", path: "codexsdk/internal/protocolschema/appserver/v2/manifest.json", allowed: true, allowMechanical: true},
+		{name: "baseline control after tests", path: "codexsdk/internal/protocolschema/appserver/v2/baseline.go", allowMechanical: true},
+		{name: "new baseline test after tests", path: "codexsdk/internal/protocolschema/appserver/v2/new_test.go", allowMechanical: true},
+		{name: "unknown generated output", path: "codexsdk/protocolv2/unknown.gen.go", allowMechanical: true},
 		{name: "publication control after tests", path: "codexsdk/internal/protocolsync/publish.go", allowMechanical: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -463,11 +487,25 @@ func TestProtocolAgentProposalScopeRunsBeforeUntrustedGo(t *testing.T) {
 			if err := os.WriteFile(path, []byte("package fixture\n"), 0o644); err != nil {
 				t.Fatal(err)
 			}
+			if test.tracked {
+				for _, args := range [][]string{{"add", test.path}, {"commit", "-qm", "tracked fixture"}} {
+					cmd := exec.Command("git", args...)
+					cmd.Dir = dir
+					if out, err := cmd.CombinedOutput(); err != nil {
+						t.Fatalf("track fixture: %v: %s", err, out)
+					}
+				}
+				if err := os.WriteFile(path, []byte("package changed\n"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
 			cmd := exec.Command("bash", "-c", script)
 			cmd.Dir = dir
+			phase := "agent"
 			if test.allowMechanical {
-				cmd.Env = append(os.Environ(), "ALLOW_MECHANICAL=true")
+				phase = "final"
 			}
+			cmd.Env = append(os.Environ(), "GITHUB_WORKSPACE="+dir, "RUNNER_TEMP="+runner, "CONTROL_SHA256="+digest, "SCOPE_PHASE="+phase, "GH_TOKEN=", "GITHUB_TOKEN=")
 			out, err := cmd.CombinedOutput()
 			if test.allowed && err != nil || !test.allowed && err == nil {
 				t.Fatalf("scope allowed=%v, err=%v, output=%s", test.allowed, err, out)

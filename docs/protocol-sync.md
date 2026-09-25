@@ -300,7 +300,14 @@ Missing, added, redirected, or changed candidate inputs fail closed. The
 isolated copy is used for both the second Plan and Apply.
 
 Agent proposal scope contains handwritten SDK/runtime or protocol generator
-Go and focused tests. The workflow and Go reject changes to sync policy,
+Go and focused tests. `protocolsync/changes.go` is the single path-policy
+owner. Before proposed code runs and again after tests, the workflow verifies
+the prebuilt control binary digest and invokes its `scope` command. Publication
+uses the same policy through trusted `stage -phase final`; final scope is only
+the union of permitted handwritten proposals and mechanical outputs (baseline
+JSON and the four owned generated Go files). Handwritten baseline validators
+and unknown generated filenames remain protected. Unknown
+phases or control changes fail with `needs-maintainer` evidence. It rejects changes to sync policy,
 candidate identity, Plan/Apply acceptance, generated checks, schema/generated
 artifacts, and publication code. A needed change to those control paths takes
 the ordinary reviewed development path rather than expanding one automatic
@@ -412,6 +419,8 @@ The current Go owner implements the boundary above directly:
 - `semantic_unresolved` returns structured stage/path/reason evidence while the
   accepted worktree remains unchanged;
 - the workflow invokes exactly one tokenless Agent pass only for that outcome;
+- `protocolupgrade scope` checks tracked and new paths without staging or
+  executing proposed code;
 - `protocolupgrade resume` validates that the Agent touched only handwritten
   `codexsdk` paths, re-plans the same candidate/target, and applies only when
   that second plan is ready;

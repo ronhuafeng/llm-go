@@ -277,7 +277,7 @@ jobs:
       category: ${{ steps.resume.outputs.failure_category || steps.mechanical.outputs.failure_category }}
       checks: ${{ steps.checks.outcome }}
       agent: ${{ steps.codex.outcome }}
-      scope: ${{ steps.proposal_scope.outcome }}
+      scope: ${{ steps.final_scope.outcome == 'failure' && 'failure' || steps.proposal_scope.outcome }}
       handoff: ${{ steps.handoff.outcome }}
     steps:
       - name: Guard control-plane ref
@@ -423,47 +423,13 @@ jobs:
       - name: Check Agent proposal scope
         id: proposal_scope
         if: ${{ success() && inputs.validation_only != true && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
+        env:
+          CONTROL_SHA256: ${{ steps.control.outputs.sha256 }}
         run: &agent_proposal_scope |
           set -euo pipefail
-          allowed_agent_path() {
-            local path="$1" remainder
-            if [[ "${ALLOW_MECHANICAL:-false}" == "true" ]]; then
-              case "${path}" in
-                codexsdk/internal/protocolschema/appserver/v2/*|codexsdk/sdk_surface.gen.go) return 0 ;;
-                codexsdk/protocolv2/*.gen.go)
-                  [[ "${path%/*}" == codexsdk/protocolv2 ]] && return 0
-                  ;;
-              esac
-            fi
-            case "${path}" in
-              codexsdk/protocolv2/*.go|codexsdk/internal/protocolgen/*.go|codexsdk/internal/wirejson/*.go)
-                remainder="${path##*/}"
-                [[ "${path%/*}" == codexsdk/protocolv2 || "${path%/*}" == codexsdk/internal/protocolgen || "${path%/*}" == codexsdk/internal/wirejson ]] && [[ "${remainder}" != *.gen.go ]] && return 0
-                ;;
-              codexsdk/internal/protocolupgrade/*.go)
-                [[ "${path%/*}" == codexsdk/internal/protocolupgrade ]] || return 1
-                remainder="${path##*/}"
-                case "${remainder}" in
-                  manifest.go|surface.go|commonrs.go|*_test.go) return 0 ;;
-                esac
-                ;;
-              codexsdk/*.go)
-                remainder="${path#codexsdk/}"
-                [[ "${remainder}" != */* && "${remainder}" != *.gen.go ]] && return 0
-                ;;
-            esac
-            return 1
-          }
-          changes_file="$(mktemp)"
-          trap 'rm -f "${changes_file}"' EXIT
-          git diff --name-only --no-renames -z HEAD -- > "${changes_file}"
-          git ls-files --others --exclude-standard -z >> "${changes_file}"
-          while IFS= read -r -d '' path; do
-            if ! allowed_agent_path "${path}"; then
-              echo "Agent proposal changed protected path: ${path}" >&2
-              exit 1
-            fi
-          done < "${changes_file}"
+          control="${RUNNER_TEMP}/protocolupgrade-control"
+          echo "${CONTROL_SHA256}  ${control}" | sha256sum -c -
+          "${control}" scope -repo-root "${GITHUB_WORKSPACE}" -phase "${SCOPE_PHASE:-agent}"
 
       - name: Re-plan and apply candidate
         id: resume
@@ -523,9 +489,11 @@ jobs:
           go vet ./...
 
       - name: Recheck Agent proposal scope after tests
+        id: final_scope
         if: ${{ success() && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
         env:
-          ALLOW_MECHANICAL: true
+          CONTROL_SHA256: ${{ steps.control.outputs.sha256 }}
+          SCOPE_PHASE: final
         run: *agent_proposal_scope
 
       - name: Seal verified proposal
@@ -698,6 +666,7 @@ jobs:
             elif [[ "${SCOPE}" == failure ]]; then
               STAGE=proposal_scope
               CATEGORY=policy_configuration
+              next='needs-maintainer: review the rejected proposal paths before attempting another repair.'
             elif [[ "${HANDOFF}" == failure ]]; then
               STAGE=handoff
               CATEGORY=source_integrity
