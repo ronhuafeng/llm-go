@@ -106,3 +106,53 @@ func TestVerifyExactRejectsDisabledDerivation(t *testing.T) {
 		}
 	}
 }
+
+func TestVerifyExactRebuildsTinyCandidateWithoutMutatingAccepted(t *testing.T) {
+	fix := writeApplyFixture(t)
+	for _, dir := range []string{fix.baseline, fix.candidate, fix.stable} {
+		for _, aggregate := range []string{"ClientNotification.json", "ServerNotification.json", "ServerRequest.json"} {
+			writeJSONFile(t, filepath.Join(dir, aggregate), map[string]any{"type": "object"})
+		}
+		writeJSONFile(t, filepath.Join(dir, "ClientRequest.json"), map[string]any{
+			"definitions": map[string]any{
+				"ThreadStartParams": map[string]any{
+					"type": "object", "properties": map[string]any{"prompt": map[string]any{"type": "string"}},
+				},
+			},
+			"oneOf": []any{map[string]any{
+				"title": "Thread/startRequest", "type": "object",
+				"required": []string{"method", "params"},
+				"properties": map[string]any{
+					"method": map[string]any{"type": "string", "enum": []string{"thread/start"}},
+					"params": map[string]any{"$ref": "#/definitions/ThreadStartParams"},
+				},
+			}},
+		})
+	}
+	req := ApplyRequest{
+		Baseline: fix.baseline, Candidate: fix.candidate, StableCandidate: fix.stable,
+		CommonRS: fix.commonRS, CommonRSSourceSHA: fix.sha,
+		TargetRef: "rust-v1.2.3", TargetKind: "stable_rust_tag", TargetSHA: fix.sha,
+		ModuleRoot: fix.module,
+	}
+	if err := os.MkdirAll(filepath.Join(fix.module, "protocolv2"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Apply(req); err != nil {
+		t.Fatal(err)
+	}
+	before, err := snapshotHashes(fix.baseline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := VerifyExact(req); err != nil {
+		t.Fatal(err)
+	}
+	after, err := snapshotHashes(fix.baseline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sameSnapshot(before, after, "accepted baseline during exact verification"); err != nil {
+		t.Fatal(err)
+	}
+}
