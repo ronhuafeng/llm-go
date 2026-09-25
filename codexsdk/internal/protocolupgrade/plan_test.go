@@ -438,7 +438,7 @@ func TestPlanReportsPackageNameCollision(t *testing.T) {
 					"type": "object", "properties": map[string]any{"text": map[string]any{"type": "string"}},
 				}},
 			},
-			path: "protocol_types.gen.go",
+			path: "ThreadStartParams.json#/definitions/MethodThreadStart",
 		},
 		{
 			name: "enum constant",
@@ -455,7 +455,7 @@ func TestPlanReportsPackageNameCollision(t *testing.T) {
 					},
 				},
 			},
-			path: "protocol_types.gen.go",
+			path: "ThreadStartParams.json#/definitions/ColorRed",
 		},
 		{
 			name: "enum constant against method registry type",
@@ -475,7 +475,7 @@ func TestPlanReportsPackageNameCollision(t *testing.T) {
 					"type": "object", "properties": map[string]any{"text": map[string]any{"type": "string"}},
 				}},
 			},
-			path: "protocol_types.gen.go",
+			path: "ThreadStartParams.json#/definitions/ExperimentalJSONFields",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -15,6 +15,12 @@ import (
 // receiver scopes. Source locations come directly from parsed files; generation
 // does not reconstruct upstream ownership from emitted names.
 func ValidateGeneratedPackage(packageName, handwrittenDir string, generated map[string][]byte) error {
+	return validateGeneratedPackage(packageName, handwrittenDir, generated, nil)
+}
+
+// knownSources contains only facts already selected by construction. Helpers
+// without a direct schema owner keep their Go location; no naming is replayed.
+func validateGeneratedPackage(packageName, handwrittenDir string, generated map[string][]byte, knownSources map[string][]string) error {
 	sources := map[string][]byte{}
 	if handwrittenDir != "" {
 		entries, err := os.ReadDir(handwrittenDir)
@@ -44,7 +50,12 @@ func ValidateGeneratedPackage(packageName, handwrittenDir string, generated map[
 		paths = append(paths, path)
 	}
 	sort.Strings(paths)
-	seen := map[string]string{}
+	type declaration struct {
+		location  string
+		generated bool
+		sources   []string
+	}
+	seen := map[string]declaration{}
 	for _, path := range paths {
 		fset := token.NewFileSet()
 		file, err := parser.ParseFile(fset, path, sources[path], 0)
@@ -54,16 +65,28 @@ func ValidateGeneratedPackage(packageName, handwrittenDir string, generated map[
 		if file.Name.Name != packageName {
 			return fmt.Errorf("package declarations in %s use package %s, want %s", path, file.Name.Name, packageName)
 		}
-		add := func(scope string, id *ast.Ident) error {
+		add := func(kind, scope string, id *ast.Ident) error {
 			if id.Name == "_" {
 				return nil
 			}
 			key := scope + id.Name
 			location := fset.Position(id.Pos()).String()
+			_, isGenerated := generated[path]
+			sources := knownSources[path+":"+kind+":"+id.Name]
 			if previous, exists := seen[key]; exists {
-				return unsupportedGeneratedSchema(path, "package symbol %s from %s conflicts with %s", key, location, previous)
+				reason := fmt.Sprintf("package symbol %s from %s conflicts with %s", key, location, previous.location)
+				if !isGenerated && !previous.generated {
+					return fmt.Errorf("%s", reason)
+				}
+				owners := append(append([]string(nil), sources...), previous.sources...)
+				sourcePath := path
+				if len(owners) > 0 {
+					sourcePath = owners[0]
+					reason += "; selected schema sources: " + strings.Join(owners, ", ")
+				}
+				return unsupportedGeneratedSchema(sourcePath, "%s", reason)
 			}
-			seen[key] = location
+			seen[key] = declaration{location: location, generated: isGenerated, sources: sources}
 			return nil
 		}
 		for _, decl := range file.Decls {
@@ -72,7 +95,7 @@ func ValidateGeneratedPackage(packageName, handwrittenDir string, generated map[
 				for _, spec := range node.Specs {
 					switch item := spec.(type) {
 					case *ast.TypeSpec:
-						if err := add("", item.Name); err != nil {
+						if err := add("type", "", item.Name); err != nil {
 							return err
 						}
 						if structure, ok := item.Type.(*ast.StructType); ok {
@@ -84,7 +107,7 @@ func ValidateGeneratedPackage(packageName, handwrittenDir string, generated map[
 									}
 								}
 								for _, id := range names {
-									if err := add(item.Name.Name+".", id); err != nil {
+									if err := add("field", item.Name.Name+".", id); err != nil {
 										return err
 									}
 								}
@@ -92,7 +115,7 @@ func ValidateGeneratedPackage(packageName, handwrittenDir string, generated map[
 						}
 					case *ast.ValueSpec:
 						for _, id := range item.Names {
-							if err := add("", id); err != nil {
+							if err := add(node.Tok.String(), "", id); err != nil {
 								return err
 							}
 						}
@@ -109,7 +132,7 @@ func ValidateGeneratedPackage(packageName, handwrittenDir string, generated map[
 				} else if node.Name.Name == "init" {
 					continue
 				}
-				if err := add(scope, node.Name); err != nil {
+				if err := add("func", scope, node.Name); err != nil {
 					return err
 				}
 			}

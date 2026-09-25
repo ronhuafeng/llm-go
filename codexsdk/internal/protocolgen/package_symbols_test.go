@@ -1,6 +1,9 @@
 package protocolgen
 
 import (
+	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -33,5 +36,19 @@ func TestPackageMemberScopes(t *testing.T) {
 				t.Fatalf("conflict = %v, error = %v", test.conflict, err)
 			}
 		})
+	}
+}
+
+func TestHandwrittenCollisionIsNotSchemaIncompatibility(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"a.go", "b.go"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("package protocolv2\nvar duplicate int\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	err := ValidateGeneratedPackage("protocolv2", dir, nil)
+	var unsupported *UnsupportedSchemaError
+	if err == nil || errors.As(err, &unsupported) {
+		t.Fatalf("expected ordinary handwritten source error, got %v", err)
 	}
 }

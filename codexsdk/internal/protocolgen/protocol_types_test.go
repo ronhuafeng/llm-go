@@ -37,16 +37,10 @@ func TestGeneratedPackageReportsSourceForHandwrittenName(t *testing.T) {
 			},
 		},
 	}}}
-	generated, err := GenerateProtocolTypes(plan)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = ValidateGeneratedPackage("protocolv2", filepath.Join("..", "..", "protocolv2"), map[string][]byte{
-		"protocol_types.gen.go": generated,
-	})
+	_, err := BuildProtocolPackage(plan, Manifest{}, filepath.Join("..", "..", "protocolv2"))
 	var unsupported *UnsupportedSchemaError
-	if !errors.As(err, &unsupported) || unsupported.Path != "protocol_types.gen.go" {
-		t.Fatalf("error = %v, want generated source path", err)
+	if !errors.As(err, &unsupported) || unsupported.Path != "Clashing.json" {
+		t.Fatalf("error = %v, want selected schema source path", err)
 	}
 }
 

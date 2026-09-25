@@ -168,10 +168,12 @@ generated wire root and its schema shape has a lossless supported
 representation. There is no path/name admission catalogue and no
 "previously reviewed definition" fallback.
 
-Before Plan reports `ready`, the generator checks one package-level symbol
-namespace built from every generated protocol file and the handwritten
-`protocolv2` files. Schema-owned declarations retain their source paths so a
-collision identifies the upstream owner.
+Before Plan reports `ready`, each real Go package is checked for conflicts
+between generated and handwritten declarations, including receiver members.
+Diagnostics contain Go file locations and any source paths already available
+from selected type or method facts. Generated helpers without a direct schema
+owner retain their Go location; naming is never replayed to infer an owner.
+Handwritten-only conflicts are source errors, not schema incompatibilities.
 
 Two structurally identical reachable definitions may share one generated type
 when the generator can prove their schema identity. A local definition that is

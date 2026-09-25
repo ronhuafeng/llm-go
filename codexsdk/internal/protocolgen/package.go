@@ -32,31 +32,42 @@ func BuildProtocolPackage(plan ProtocolTypePlan, manifest Manifest, handwrittenD
 		return ProtocolPackage{}, err
 	}
 	result := ProtocolPackage{ProtocolTypes: types, MethodRegistry: methods, ExperimentalMembers: experimental, TypeNames: map[string]bool{}, MethodConstants: map[string]string{}}
+	knownSources := map[string][]string{}
 	for _, item := range selection.selectGeneratedEnums {
 		result.TypeNames[item.TypeName] = true
+		knownSources["protocol_types.gen.go:type:"+item.TypeName] = append(knownSources["protocol_types.gen.go:type:"+item.TypeName], item.Sources...)
 	}
 	for _, item := range selection.selectGeneratedScalarAliases {
 		result.TypeNames[item.TypeName] = true
+		knownSources["protocol_types.gen.go:type:"+item.TypeName] = append(knownSources["protocol_types.gen.go:type:"+item.TypeName], item.Sources...)
 	}
 	for _, item := range selection.selectFirstPassGeneratedTypes {
 		result.TypeNames[item.TypeName] = true
+		knownSources["protocol_types.gen.go:type:"+item.TypeName] = append(knownSources["protocol_types.gen.go:type:"+item.TypeName], item.SchemaPath)
 	}
 	for _, item := range selection.selectGeneratedScalarUnions {
 		result.TypeNames[item.TypeName] = true
+		knownSources["protocol_types.gen.go:type:"+item.TypeName] = append(knownSources["protocol_types.gen.go:type:"+item.TypeName], item.SchemaPath)
 	}
 	for _, item := range selection.selectGeneratedMixedUnions {
 		result.TypeNames[item.TypeName] = true
+		knownSources["protocol_types.gen.go:type:"+item.TypeName] = append(knownSources["protocol_types.gen.go:type:"+item.TypeName], item.SchemaPath)
 	}
 	for _, item := range selection.selectGeneratedUntaggedObjectUnions {
 		result.TypeNames[item.TypeName] = true
+		knownSources["protocol_types.gen.go:type:"+item.TypeName] = append(knownSources["protocol_types.gen.go:type:"+item.TypeName], item.SchemaPath)
 	}
 	for _, item := range selection.selectGeneratedTaggedUnions {
 		result.TypeNames[item.TypeName] = true
+		knownSources["protocol_types.gen.go:type:"+item.TypeName] = append(knownSources["protocol_types.gen.go:type:"+item.TypeName], item.SchemaPath)
 	}
 	for _, entry := range manifest.Entries {
 		result.MethodConstants[entry.Method] = methodConstName(entry.Method)
+		if entry.SourceSchema != "" {
+			knownSources["method_registry.gen.go:const:"+result.MethodConstants[entry.Method]] = []string{entry.SourceSchema}
+		}
 	}
-	if err := ValidateGeneratedPackage("protocolv2", handwrittenDir, result.Files()); err != nil {
+	if err := validateGeneratedPackage("protocolv2", handwrittenDir, result.Files(), knownSources); err != nil {
 		return ProtocolPackage{}, err
 	}
 	return result, nil
