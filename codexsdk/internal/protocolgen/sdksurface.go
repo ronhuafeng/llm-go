@@ -1,4 +1,4 @@
-package generatedcheck
+package protocolgen
 
 import (
 	"fmt"
@@ -6,8 +6,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-
-	"github.com/ronhuafeng/llm-go/codexsdk/internal/protocolgen"
 )
 
 var (
@@ -15,6 +13,7 @@ var (
 )
 
 type surfaceMethod struct {
+	sourcePath   string
 	accessor     string
 	operation    string
 	method       string
@@ -25,7 +24,7 @@ type surfaceMethod struct {
 
 // GenerateSDKSurface derives the public facade from current manifest routing facts and generated protocol prerequisites.
 // FacadeStatus is retained as manifest metadata for compatibility but does not authorize or suppress generation.
-func GenerateSDKSurface(manifest protocolgen.Manifest, methodConsts map[string]string, typeNames map[string]bool) ([]byte, error) {
+func GenerateSDKSurface(handwrittenDir string, manifest Manifest, methodConsts map[string]string, typeNames map[string]bool) ([]byte, error) {
 
 	var methods []surfaceMethod
 	seen := map[string]string{}
@@ -38,7 +37,7 @@ func GenerateSDKSurface(manifest protocolgen.Manifest, methodConsts map[string]s
 		}
 		match := facadeTargetRE.FindStringSubmatch(entry.FacadeTarget)
 		if match == nil {
-			return nil, &protocolgen.UnsupportedSchemaError{
+			return nil, &UnsupportedSchemaError{
 				Path: facadeSourcePath(entry),
 				Err:  fmt.Errorf("invalid generated facade target %q for method %q", entry.FacadeTarget, entry.Method),
 			}
@@ -64,20 +63,21 @@ func GenerateSDKSurface(manifest protocolgen.Manifest, methodConsts map[string]s
 			if (entry.ResponseType == "" || !typeNames[entry.ResponseType]) && entry.ResponseSchema != "" {
 				path = entry.ResponseSchema
 			}
-			return nil, &protocolgen.UnsupportedSchemaError{
+			return nil, &UnsupportedSchemaError{
 				Path: path,
 				Err:  fmt.Errorf("facade method %q is missing current generated prerequisites: %s", entry.Method, strings.Join(missing, ", ")),
 			}
 		}
 		key := accessor + "\x00" + operation
 		if previous := seen[key]; previous != "" {
-			return nil, &protocolgen.UnsupportedSchemaError{
+			return nil, &UnsupportedSchemaError{
 				Path: facadeSourcePath(entry),
 				Err:  fmt.Errorf("facade operation %s().%s maps both %q and %q", accessor, operation, previous, entry.Method),
 			}
 		}
 		seen[key] = entry.Method
 		methods = append(methods, surfaceMethod{
+			sourcePath:   facadeSourcePath(entry),
 			accessor:     accessor,
 			operation:    operation,
 			method:       entry.Method,
@@ -112,8 +112,13 @@ func GenerateSDKSurface(manifest protocolgen.Manifest, methodConsts map[string]s
 		}
 		byAccessor[method.accessor] = append(byAccessor[method.accessor], method)
 	}
+	knownSources := map[string][]string{}
 	sort.Strings(accessors)
 	for _, accessor := range accessors {
+		for _, method := range byAccessor[accessor] {
+			knownSources["sdk_surface.gen.go:type:"+accessor] = append(knownSources["sdk_surface.gen.go:type:"+accessor], method.sourcePath)
+			knownSources["sdk_surface.gen.go:func:Client."+accessor] = append(knownSources["sdk_surface.gen.go:func:Client."+accessor], method.sourcePath)
+		}
 		b.WriteString("// " + accessor + " is an opaque generated facade for exact Codex operations.\n")
 		b.WriteString("type " + accessor + " struct {\n")
 		b.WriteString("\tclient *Client\n")
@@ -123,6 +128,7 @@ func GenerateSDKSurface(manifest protocolgen.Manifest, methodConsts map[string]s
 		b.WriteString("}\n\n")
 	}
 	for _, method := range methods {
+		knownSources["sdk_surface.gen.go:func:"+method.accessor+"."+method.operation] = []string{method.sourcePath}
 		if method.paramsType != "" {
 			fmt.Fprintf(&b, "func (f %s) %s(ctx context.Context, params protocolv2.%s) (protocolv2.%s, error) {\n", method.accessor, method.operation, method.paramsType, method.responseType)
 			fmt.Fprintf(&b, "\tvar response protocolv2.%s\n", method.responseType)
@@ -144,12 +150,15 @@ func GenerateSDKSurface(manifest protocolgen.Manifest, methodConsts map[string]s
 
 	formatted, err := format.Source([]byte(b.String()))
 	if err != nil {
-		return nil, &protocolgen.UnsupportedSchemaError{Path: "sdk_surface.gen.go", Err: fmt.Errorf("format generated sdk surface: %w", err)}
+		return nil, &UnsupportedSchemaError{Path: "sdk_surface.gen.go", Err: fmt.Errorf("format generated sdk surface: %w", err)}
+	}
+	if err := validateGeneratedPackage("codexsdk", handwrittenDir, map[string][]byte{"sdk_surface.gen.go": formatted}, knownSources); err != nil {
+		return nil, err
 	}
 	return formatted, nil
 }
 
-func facadeSourcePath(entry protocolgen.ManifestEntry) string {
+func facadeSourcePath(entry ManifestEntry) string {
 	if entry.SourceSchema != "" {
 		return entry.SourceSchema
 	}

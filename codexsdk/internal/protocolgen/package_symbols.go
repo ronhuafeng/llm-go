@@ -72,7 +72,7 @@ func validateGeneratedPackage(packageName, handwrittenDir string, generated map[
 			key := scope + id.Name
 			location := fset.Position(id.Pos()).String()
 			_, isGenerated := generated[path]
-			sources := knownSources[path+":"+kind+":"+id.Name]
+			sources := knownSources[path+":"+kind+":"+scope+id.Name]
 			if previous, exists := seen[key]; exists {
 				reason := fmt.Sprintf("package symbol %s from %s conflicts with %s", key, location, previous.location)
 				if !isGenerated && !previous.generated {

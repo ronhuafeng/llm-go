@@ -1,16 +1,16 @@
-package generatedcheck
+package protocolgen
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/ronhuafeng/llm-go/codexsdk/internal/protocolgen"
 )
 
 func TestGenerateSDKSurfaceRendersExactFacade(t *testing.T) {
-	manifest := protocolgen.Manifest{
-		Entries: []protocolgen.ManifestEntry{{
+	manifest := Manifest{
+		Entries: []ManifestEntry{{
 			Direction:             "client_to_server",
 			Kind:                  "request",
 			Method:                "thread/start",
@@ -22,7 +22,7 @@ func TestGenerateSDKSurfaceRendersExactFacade(t *testing.T) {
 			Stability:             "stable",
 		}},
 	}
-	got, err := GenerateSDKSurface(manifest, map[string]string{"thread/start": "MethodThreadStart"}, map[string]bool{"ThreadStartParams": true, "ThreadStartResponse": true})
+	got, err := GenerateSDKSurface("", manifest, map[string]string{"thread/start": "MethodThreadStart"}, map[string]bool{"ThreadStartParams": true, "ThreadStartResponse": true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,8 +40,8 @@ func TestGenerateSDKSurfaceRendersExactFacade(t *testing.T) {
 }
 
 func TestGenerateSDKSurfaceIgnoresHistoricalDeferredStatusWhenPrerequisitesExist(t *testing.T) {
-	manifest := protocolgen.Manifest{
-		Entries: []protocolgen.ManifestEntry{{
+	manifest := Manifest{
+		Entries: []ManifestEntry{{
 			Direction:             "client_to_server",
 			Kind:                  "request",
 			Method:                "account/usage/read",
@@ -54,7 +54,7 @@ func TestGenerateSDKSurfaceIgnoresHistoricalDeferredStatusWhenPrerequisitesExist
 			Stability:             "stable",
 		}},
 	}
-	got, err := GenerateSDKSurface(
+	got, err := GenerateSDKSurface("",
 		manifest,
 		map[string]string{"account/usage/read": "MethodAccountUsageRead"},
 		map[string]bool{"GetAccountTokenUsageParams": true, "GetAccountTokenUsageResponse": true},
@@ -68,8 +68,8 @@ func TestGenerateSDKSurfaceIgnoresHistoricalDeferredStatusWhenPrerequisitesExist
 }
 
 func TestGenerateSDKSurfaceFailsClosedWhenCurrentPrerequisitesAreMissing(t *testing.T) {
-	manifest := protocolgen.Manifest{
-		Entries: []protocolgen.ManifestEntry{{
+	manifest := Manifest{
+		Entries: []ManifestEntry{{
 			Direction:             "client_to_server",
 			Kind:                  "request",
 			Method:                "account/usage/read",
@@ -82,19 +82,19 @@ func TestGenerateSDKSurfaceFailsClosedWhenCurrentPrerequisitesAreMissing(t *test
 			Stability:             "stable",
 		}},
 	}
-	_, err := GenerateSDKSurface(
+	_, err := GenerateSDKSurface("",
 		manifest,
 		map[string]string{"account/usage/read": "MethodAccountUsageRead"},
 		map[string]bool{"GetAccountTokenUsageParams": true},
 	)
-	var unsupported *protocolgen.UnsupportedSchemaError
+	var unsupported *UnsupportedSchemaError
 	if !errors.As(err, &unsupported) || unsupported.Path != "GetAccountTokenUsageResponse.json" || !strings.Contains(unsupported.Error(), "response type GetAccountTokenUsageResponse") {
 		t.Fatalf("missing prerequisite error = %v", err)
 	}
 }
 func TestGenerateSDKSurfaceRejectsMissingGeneratedType(t *testing.T) {
-	manifest := protocolgen.Manifest{
-		Entries: []protocolgen.ManifestEntry{{
+	manifest := Manifest{
+		Entries: []ManifestEntry{{
 			Direction:             "client_to_server",
 			Kind:                  "request",
 			Method:                "thread/start",
@@ -106,26 +106,46 @@ func TestGenerateSDKSurfaceRejectsMissingGeneratedType(t *testing.T) {
 			Stability:             "stable",
 		}},
 	}
-	_, err := GenerateSDKSurface(manifest, map[string]string{"thread/start": "MethodThreadStart"}, map[string]bool{"ThreadStartParams": true})
+	_, err := GenerateSDKSurface("", manifest, map[string]string{"thread/start": "MethodThreadStart"}, map[string]bool{"ThreadStartParams": true})
 	if err == nil || !strings.Contains(err.Error(), "response type ThreadStartResponse") {
 		t.Fatalf("missing response type error = %v", err)
 	}
 }
 
 func TestGenerateSDKSurfaceClassifiesFacadeNameCollision(t *testing.T) {
-	entries := []protocolgen.ManifestEntry{}
+	entries := []ManifestEntry{}
 	for _, method := range []string{"fuzzyFileSearch", "fuzzyFileSearch/search"} {
-		entries = append(entries, protocolgen.ManifestEntry{
+		entries = append(entries, ManifestEntry{
 			Direction: "client_to_server", Kind: "request", Method: method,
 			FacadeTarget: "FuzzyFileSearch().Search", SourceSchema: "ClientRequest.json",
 			ParamsOrPayloadSchema: "SearchParams", ResponseSchema: "SearchResponse.json", ResponseType: "SearchResponse",
 		})
 	}
-	_, err := GenerateSDKSurface(protocolgen.Manifest{Entries: entries},
+	_, err := GenerateSDKSurface("", Manifest{Entries: entries},
 		map[string]string{"fuzzyFileSearch": "MethodFuzzyFileSearch", "fuzzyFileSearch/search": "MethodFuzzyFileSearchSearch"},
 		map[string]bool{"SearchParams": true, "SearchResponse": true})
-	var unsupported *protocolgen.UnsupportedSchemaError
+	var unsupported *UnsupportedSchemaError
 	if !errors.As(err, &unsupported) || unsupported.Path != "ClientRequest.json" || !strings.Contains(unsupported.Error(), "both \"fuzzyFileSearch\" and \"fuzzyFileSearch/search\"") {
 		t.Fatalf("collision = %v, want typed source-linked incompatibility", err)
+	}
+}
+
+func TestGenerateSDKSurfacePreservesSourceForHandwrittenCollision(t *testing.T) {
+	for _, tc := range []struct{ name, target, handwritten string }{
+		{"type", "Client().X", "type Client struct{}"},
+		{"receiver member", "Threads().X", "type Client struct{ Threads int }"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			if err := os.WriteFile(filepath.Join(root, "client.go"), []byte("package codexsdk\n"+tc.handwritten), 0600); err != nil {
+				t.Fatal(err)
+			}
+			manifest := Manifest{Entries: []ManifestEntry{{Direction: "client_to_server", Kind: "request", Method: "client/x", FacadeTarget: tc.target, SourceSchema: "ClientRequest.json#/oneOf/7", ResponseType: "Response"}}}
+			_, err := GenerateSDKSurface(root, manifest, map[string]string{"client/x": "MethodClientX"}, map[string]bool{"Response": true})
+			var unsupported *UnsupportedSchemaError
+			if !errors.As(err, &unsupported) || unsupported.Path != "ClientRequest.json#/oneOf/7" || !strings.Contains(err.Error(), "client.go:") || !strings.Contains(err.Error(), "sdk_surface.gen.go:") {
+				t.Fatalf("expected schema owner and both Go locations, got %v", err)
+			}
+		})
 	}
 }

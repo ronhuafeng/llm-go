@@ -187,11 +187,8 @@ func generateArtifacts(moduleRoot string) (generatedSet, error) {
 // FilesFromPackage completes the SDK facade from a constructed protocol package.
 // It never rereads schemas or regenerates protocol declarations.
 func FilesFromPackage(moduleRoot string, manifest protocolgen.Manifest, generated protocolgen.ProtocolPackage) (map[string][]byte, error) {
-	sdk, err := GenerateSDKSurface(manifest, generated.MethodConstants, generated.TypeNames)
+	sdk, err := protocolgen.GenerateSDKSurface(moduleRoot, manifest, generated.MethodConstants, generated.TypeNames)
 	if err != nil {
-		return nil, err
-	}
-	if err := protocolgen.ValidateGeneratedPackage("codexsdk", moduleRoot, map[string][]byte{"sdk_surface.gen.go": sdk}); err != nil {
 		return nil, err
 	}
 	return map[string][]byte{methodRegistry: generated.MethodRegistry, protocolTypes: generated.ProtocolTypes, experimentalMem: generated.ExperimentalMembers, sdkSurface: sdk}, nil
