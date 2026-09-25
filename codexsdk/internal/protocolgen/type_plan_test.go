@@ -1293,3 +1293,14 @@ func TestNullIsNotAnUnconstrainedSchema(t *testing.T) {
 		t.Fatal("invalid null schema accepted as an empty schema")
 	}
 }
+
+func TestMalformedKeywordsCannotBecomeUnconstrained(t *testing.T) {
+	for _, key := range []string{"type", "enum", "anyOf", "oneOf", "allOf", "properties", "required", "items", "additionalProperties", "$ref", "definitions"} {
+		t.Run(key, func(t *testing.T) {
+			var schema Schema
+			if err := json.Unmarshal([]byte(`{"`+key+`":null}`), &schema); err == nil {
+				t.Fatalf("explicit null %s was accepted", key)
+			}
+		})
+	}
+}

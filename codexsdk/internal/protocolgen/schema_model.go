@@ -151,6 +151,17 @@ func (s *Schema) UnmarshalJSON(data []byte) error {
 	if raw == nil {
 		return fmt.Errorf("schema must be a boolean or object")
 	}
+	// encoding/json otherwise collapses null into zero values for these keywords.
+	// Reject that malformed input before it can look like an empty schema.
+	for keyword, value := range raw {
+		switch keyword {
+		case "$ref", "type", "enum", "anyOf", "oneOf", "allOf", "properties", "required", "items", "additionalProperties", "definitions":
+			if strings.TrimSpace(string(value)) == "null" {
+				return fmt.Errorf("schema keyword %s cannot be null", keyword)
+			}
+		}
+	}
+
 	type schemaObject struct {
 		AdditionalProperties AdditionalProperties  `json:"additionalProperties"`
 		AllOf                []*Schema             `json:"allOf"`
