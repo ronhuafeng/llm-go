@@ -154,7 +154,7 @@ jobs:
             echo "- Workflow run/attempt: ${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}"
             echo "- Upstream ref: ${TARGET_REF}"
             echo "- Upstream peeled commit: ${TARGET_SHA}"
-            echo '- Generation: cargo run -p codex-cli -- app-server generate-json-schema --experimental --out <complete-schema>; cargo run -p codex-cli -- app-server generate-json-schema --out <stable-schema> (both from that commit)'
+            echo '- Generation: cargo run --locked -p codex-cli -- app-server generate-json-schema --experimental --out <complete-schema>; cargo run --locked -p codex-cli -- app-server generate-json-schema --out <stable-schema> (both from that commit)'
             echo "- Plan outcome: ${OUTCOME:-unavailable}"
             echo "- Reason: ${REASON}"
             echo "- Stage: ${ISSUE_STAGE}"

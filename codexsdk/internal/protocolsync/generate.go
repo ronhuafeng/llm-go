@@ -87,20 +87,29 @@ func GenerateCandidate(req GenerateRequest) (Candidate, error) {
 			return Candidate{}, err
 		}
 	}
-	env := append(os.Environ(),
+	// Let rustup use the selected source's toolchain declaration, not an
+	// ambient override belonging to the calling environment.
+	var env []string
+	for _, value := range os.Environ() {
+		if !strings.HasPrefix(value, "RUSTUP_TOOLCHAIN=") {
+			env = append(env, value)
+		}
+	}
+	env = append(env,
 		"RUSTUP_HOME="+rustupHome,
 		"CARGO_HOME="+cargoHome,
 		"CARGO_TARGET_DIR="+cargoTarget,
 	)
-	if err := runCargo(codexRS, env, "run", "-p", "codex-cli", "--", "app-server", "generate-json-schema", "--experimental", "--out", schemaDir); err != nil {
+	if err := runCargo(codexRS, env, "run", "--locked", "-p", "codex-cli", "--", "app-server", "generate-json-schema", "--experimental", "--out", schemaDir); err != nil {
 		return Candidate{}, err
 	}
-	if err := runCargo(codexRS, env, "run", "-p", "codex-cli", "--", "app-server", "generate-json-schema", "--out", stableDir); err != nil {
+	if err := runCargo(codexRS, env, "run", "--locked", "-p", "codex-cli", "--", "app-server", "generate-json-schema", "--out", stableDir); err != nil {
 		return Candidate{}, err
 	}
-	versionCmd := exec.Command("cargo", "run", "-p", "codex-cli", "--", "--version")
+	versionCmd := exec.Command("cargo", "run", "--locked", "-p", "codex-cli", "--", "--version")
 	versionCmd.Dir = codexRS
 	versionCmd.Env = env
+	fmt.Fprintf(os.Stderr, "protocolsync upstream command: %s\n", versionCmd.String())
 	versionOut, err := versionCmd.Output()
 	if err != nil {
 		return Candidate{}, fmt.Errorf("read exact upstream codex-cli version: %w", err)
@@ -108,6 +117,13 @@ func GenerateCandidate(req GenerateRequest) (Candidate, error) {
 	codexVersion := strings.TrimSpace(string(versionOut))
 	if !strings.HasPrefix(codexVersion, "codex-cli ") {
 		return Candidate{}, fmt.Errorf("unexpected exact upstream codex-cli version %q", codexVersion)
+	}
+	changedSource, err := gitOutput(worktree, "status", "--porcelain", "--untracked-files=no")
+	if err != nil {
+		return Candidate{}, err
+	}
+	if strings.TrimSpace(changedSource) != "" {
+		return Candidate{}, &Failure{Category: FailureSource, Err: fmt.Errorf("upstream build changed selected source %s:\n%s", targetSHA, strings.TrimSpace(changedSource))}
 	}
 	commonRS := filepath.Join(syncOut, "common.rs")
 	if err := writeGitShow(codexRepo, targetSHA+":codex-rs/app-server-protocol/src/protocol/common.rs", commonRS); err != nil {
@@ -126,7 +142,7 @@ func GenerateCandidate(req GenerateRequest) (Candidate, error) {
 		SourceRefKind:   req.Target.RefKind,
 		CodexVersion:    codexVersion,
 		Generator:       "cargo",
-		GeneratorDetail: filepath.Join(worktree, "codex-rs") + " cargo run -p codex-cli",
+		GeneratorDetail: filepath.Join(worktree, "codex-rs") + " cargo run --locked -p codex-cli",
 	})
 	if err != nil {
 		return Candidate{}, err
@@ -181,6 +197,7 @@ func runCargo(dir string, env []string, args ...string) error {
 	cmd.Env = env
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
+	fmt.Fprintf(os.Stderr, "protocolsync upstream command: %s\n", cmd.String())
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("cargo %s: %w", strings.Join(args, " "), err)
 	}

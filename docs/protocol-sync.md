@@ -327,6 +327,13 @@ Before publication, require evidence appropriate to the candidate:
 - `go vet ./codexsdk/...` passes;
 - `go test ./codexsdk/...` passes.
 
+Upstream schema generation and CLI version queries use `cargo run --locked`
+in the exact selected checkout. The selected source's Rust toolchain declaration
+controls the build; an ambient `RUSTUP_TOOLCHAIN` override is not inherited.
+Actual command arguments are logged. A tracked source change during these
+commands, including a Cargo.lock change, rejects the candidate. Cargo caches
+only accelerate that build and do not replace the selected source inputs.
+
 The checked-in generated check is a fast proof that current source inputs
 reproduce generated Go. Final validation is a separate read-only reconstruction:
 resolve the checked-in exact upstream ref/SHA, freshly generate complete and
