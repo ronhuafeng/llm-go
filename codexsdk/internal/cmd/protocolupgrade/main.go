@@ -204,6 +204,7 @@ func runSync(args []string, stdout, stderr io.Writer, diagnostic bool) int {
 	upstreamRef := fs.String("upstream-ref", "", "optional tag, ref, or full SHA; empty selects the latest stable rust-vX.Y.Z tag")
 	allowDowngrade := fs.Bool("allow-downgrade", false, "allow an explicit older stable tag")
 	forceCompare := fs.Bool("force-compare", false, "generate and compare even when the baseline already matches")
+	validationOnly := fs.Bool("validation-only", false, "verify the exact accepted baseline without applying or publishing")
 	eventName := fs.String("event-name", "", "GitHub event name for scheduled vs manual policy")
 	jsonOut := fs.Bool("json", false, "print a machine-readable result")
 	if err := fs.Parse(args); err != nil {
@@ -220,6 +221,7 @@ func runSync(args []string, stdout, stderr io.Writer, diagnostic bool) int {
 		UpstreamRef:    *upstreamRef,
 		AllowDowngrade: *allowDowngrade,
 		ForceCompare:   *forceCompare,
+		ValidationOnly: *validationOnly,
 		Diagnostic:     diagnostic,
 		EventName:      *eventName,
 	})

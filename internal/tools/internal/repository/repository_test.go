@@ -202,6 +202,13 @@ func TestProtocolSyncPreservesAuthorityAndPublicationBoundaries(t *testing.T) {
 	if !strings.Contains(agent, "GITHUB_TOKEN: \"\"") || !strings.Contains(agent, "GH_TOKEN: \"\"") {
 		t.Fatal("Agent must not inherit repository-write tokens")
 	}
+	if !strings.Contains(agent, "inputs.validation_only != true") {
+		t.Fatal("exact validation must not invoke the Agent")
+	}
+	mechanical, ok := workflowStepByID(syncText, "mechanical")
+	if !ok || !strings.Contains(mechanical, "-validation-only") || !strings.Contains(mechanical, "-force-compare") {
+		t.Fatal("workflow must pass exact validation and forced comparison to Go")
+	}
 
 	resume, ok := workflowStepByID(syncText, "resume")
 	if !ok {

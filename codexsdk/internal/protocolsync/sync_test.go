@@ -78,6 +78,74 @@ func TestSyncForceCompareCurrentStillGenerates(t *testing.T) {
 	}
 }
 
+func TestSyncValidationOnlyVerifiesFreshExactCandidateWithoutEffects(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		proof protocolupgrade.PlanResult
+		fail  bool
+	}{
+		{name: "matching", proof: protocolupgrade.PlanResult{Status: protocolupgrade.PlanReady}},
+		{name: "unresolved", proof: protocolupgrade.PlanResult{Status: protocolupgrade.PlanSemanticUnresolved, Issue: &protocolupgrade.PlanIssue{Stage: "manifest", Reason: "stale requiredness"}}, fail: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			repo := initSyncRepo(t, oldSHA, "rust-v0.140.0", KindStableTag)
+			generated, verified, planned, applied := false, false, false, false
+			result, err := Sync(SyncRequest{
+				RepoRoot: repo, ModuleRoot: filepath.Join(repo, "codexsdk"),
+				UpstreamRepo: "fake", UpstreamRef: "rust-v0.140.0",
+				ForceCompare: true, ValidationOnly: true,
+				Lookuper: fakeLookuper{byPattern: map[string]string{
+					"refs/tags/rust-v0.140.0":    oldSHA + "\trefs/tags/rust-v0.140.0",
+					"refs/tags/rust-v0.140.0^{}": oldSHA + "\trefs/tags/rust-v0.140.0^{}",
+				}},
+				Generate: func(GenerateRequest) (Candidate, error) {
+					generated = true
+					return Candidate{SchemaDir: "/tmp/schema", SourceCommit: oldSHA, DriftStatus: "clean"}, nil
+				},
+				VerifyExact: func(req protocolupgrade.ApplyRequest) (protocolupgrade.PlanResult, error) {
+					verified = true
+					if req.TargetSHA != oldSHA || req.Candidate != "/tmp/schema" {
+						t.Fatalf("exact verification input: %+v", req)
+					}
+					return test.proof, nil
+				},
+				Plan: func(protocolupgrade.ApplyRequest) (protocolupgrade.PlanResult, error) {
+					planned = true
+					return protocolupgrade.PlanResult{}, nil
+				},
+				Apply: func(protocolupgrade.ApplyRequest) (protocolupgrade.ApplyResult, error) {
+					applied = true
+					return protocolupgrade.ApplyResult{}, nil
+				},
+			})
+			if generated != true || verified != true || planned || applied {
+				t.Fatalf("generated=%v verified=%v planned=%v applied=%v", generated, verified, planned, applied)
+			}
+			if test.fail {
+				if err == nil || !strings.Contains(err.Error(), "stale requiredness") {
+					t.Fatalf("unresolved exact verification: %v", err)
+				}
+			} else if err != nil || result.Outcome != OutcomeCurrent {
+				t.Fatalf("result=%+v err=%v", result, err)
+			}
+			if err := AssertClean(repo); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestSyncValidationOnlyRequiresExactComparisonMode(t *testing.T) {
+	for _, req := range []SyncRequest{
+		{ValidationOnly: true},
+		{ValidationOnly: true, ForceCompare: true, Diagnostic: true},
+	} {
+		if _, err := Sync(req); err == nil {
+			t.Fatalf("invalid validation mode accepted: %+v", req)
+		}
+	}
+}
+
 func TestSyncDiagnosticPlansCurrentBaselineWithoutApply(t *testing.T) {
 	repo := initSyncRepo(t, oldSHA, "rust-v0.140.0", KindStableTag)
 	generated, planned, applied := false, false, false

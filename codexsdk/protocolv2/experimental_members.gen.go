@@ -869,15 +869,6 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"count":  {},
 		"paused": {},
 	},
-	"ThreadItemEntry": {
-		"item":   {},
-		"turnId": {},
-	},
-	"ThreadItemsListResponse": {
-		"backwardsCursor": {},
-		"data":            {},
-		"nextCursor":      {},
-	},
 	"ThreadListParams": {
 		"ancestorThreadId": {},
 		"parentThreadId":   {},
@@ -1021,11 +1012,6 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"multiAgentMode":          {},
 		"runtimeWorkspaceRoots":   {},
 	},
-	"ThreadRevertResponse": {
-		"itemsBackwardsCursor": {},
-		"thread":               {},
-		"turnsBackwardsCursor": {},
-	},
 	"ThreadSearchOccurrence": {
 		"itemId":            {},
 		"snippet":           {},
@@ -1133,11 +1119,6 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"activeRealtimeSessionAtPageStart": {},
 		"data":                             {},
 		"nextCursor":                       {},
-	},
-	"ThreadTurnsListResponse": {
-		"backwardsCursor": {},
-		"data":            {},
-		"nextCursor":      {},
 	},
 	"TurnEnvironmentParams": {
 		"cwd":                   {},

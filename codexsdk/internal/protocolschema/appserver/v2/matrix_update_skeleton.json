@@ -11,52 +11,9 @@
   "type_updates": [],
   "field_updates": [],
   "generated_compatibility_updates": {
-    "added": [
-      {
-        "kind": "field",
-        "name": "UserVerificationProof.CredentialID",
-        "classification": "experimental",
-        "signature": "string `json:\"credentialId\"`"
-      },
-      {
-        "kind": "field",
-        "name": "UserVerificationProof.Signature",
-        "classification": "experimental",
-        "signature": "string `json:\"signature\"`"
-      },
-      {
-        "kind": "field",
-        "name": "UserVerificationVerifyResponse.Proof",
-        "classification": "experimental",
-        "signature": "UserVerificationProof `json:\"proof\"`"
-      },
-      {
-        "kind": "method",
-        "name": "UserVerificationProof.UnmarshalJSON",
-        "classification": "experimental",
-        "signature": "func(data []byte) error"
-      },
-      {
-        "kind": "method",
-        "name": "UserVerificationVerifyResponse.UnmarshalJSON",
-        "classification": "experimental",
-        "signature": "func(data []byte) error"
-      },
-      {
-        "kind": "type",
-        "name": "UserVerificationProof",
-        "classification": "experimental",
-        "signature": "struct {\n\tCredentialID string `json:\"credentialId\"`\n\tSignature    string `json:\"signature\"`\n}"
-      },
-      {
-        "kind": "type",
-        "name": "UserVerificationVerifyResponse",
-        "classification": "experimental",
-        "signature": "struct {\n\tProof UserVerificationProof `json:\"proof\"`\n}"
-      }
-    ],
-    "removed": [],
+    "added": [],
+    "changed": [],
     "reclassified": [],
-    "changed": []
+    "removed": []
   }
 }

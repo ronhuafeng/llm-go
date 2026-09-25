@@ -74,12 +74,7 @@ func Check(req CheckRequest) (CheckResult, error) {
 		return result, err
 	}
 	allMatch := true
-	for _, rel := range []string{
-		"protocolv2/method_registry.gen.go",
-		"protocolv2/protocol_types.gen.go",
-		"protocolv2/experimental_members.gen.go",
-		"sdk_surface.gen.go",
-	} {
+	for _, rel := range generatedProtocolArtifacts {
 		want, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
 		if err != nil {
 			return result, err

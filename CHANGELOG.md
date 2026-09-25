@@ -13,12 +13,17 @@ changes may occur in minor releases.
 
 #### Fixed
 
+- Classify `thread/items/list`, `thread/revert`, and `thread/turns/list` from
+  the exact upstream stable schema, so runtime stability gates and generated
+  experimental field metadata reflect their current wire status.
 - Stop `Client.Close()` from waiting forever when notification dispatch is
   blocked on Exact Run evidence after a pre-turn application-level request
   failure.
 
 ### Repository
 
+- Verify protocol PR baselines by rebuilding schema, classification, and
+  generated Go from the exact upstream commit in an isolated validation run.
 - Make a failed Live Codex smoke report native, secret-safe turn-failure
   facts already present on typed errors and Exact Run observations,
   without logging raw turn error messages.

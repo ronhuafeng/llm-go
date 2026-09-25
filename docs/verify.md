@@ -57,7 +57,8 @@ go run ./codexsdk/internal/cmd/generatedcheck -module-root ./codexsdk
 
 The generated check regenerates owned protocol/SDK files, compares them with the
 checked-in outputs, validates baseline identity/path safety, and exits non-zero
-on mismatch.
+on mismatch. It uses the checked-in schema and classification as inputs; it is
+a fast source reproducibility check, not independent upstream reconstruction.
 
 ## Remote proof without a local environment
 
@@ -128,8 +129,15 @@ topology when those details protect no independent correctness boundary.
 Use [`protocol-sync.md`](protocol-sync.md).
 
 A protocol PR needs both the normal required repository checks and a fresh
-validation-only protocol-sync proof on the same final head. Candidate generation
-or an Agent completion message cannot replace either deterministic proof.
+validation-only protocol-sync proof on the same final head. Invoke that workflow
+with `upstream_ref` set to the checked-in exact baseline, `force_compare=true`,
+and `validation_only=true`. This path regenerates complete/stable schemas and
+the exact `common.rs` mapping, reconstructs manifest/coverage and generated Go
+in isolation, then compares all semantic artifacts. It excludes only
+`baseline_metadata.generated_at` as observation time. Candidate generation or
+an Agent completion message cannot replace either deterministic proof. Report
+the PR checks' merge candidate separately from the validation workflow's PR
+head and exact upstream commit.
 
 ## Non-gating evidence
 

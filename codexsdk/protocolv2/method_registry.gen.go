@@ -2264,7 +2264,7 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchema:        "v2/ThreadItemsListResponse.json",
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "Threads().ItemsList",
-		Stability:             MethodStabilityExperimental,
+		Stability:             MethodStabilityStable,
 	},
 	MethodThreadList: {
 		Method:                MethodThreadList,
@@ -2638,7 +2638,7 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchema:        "v2/ThreadRevertResponse.json",
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "Threads().Revert",
-		Stability:             MethodStabilityExperimental,
+		Stability:             MethodStabilityStable,
 	},
 	MethodThreadReverted: {
 		Method:                MethodThreadReverted,
@@ -2792,7 +2792,7 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchema:        "v2/ThreadTurnsListResponse.json",
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "Threads().TurnsList",
-		Stability:             MethodStabilityExperimental,
+		Stability:             MethodStabilityStable,
 	},
 	MethodThreadUnarchive: {
 		Method:                MethodThreadUnarchive,

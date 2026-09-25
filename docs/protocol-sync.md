@@ -224,6 +224,18 @@ Before publication, require evidence appropriate to the candidate:
 - `go vet ./codexsdk/...` passes;
 - `go test ./codexsdk/...` passes.
 
+The checked-in generated check is a fast proof that current source inputs
+reproduce generated Go. Final validation is a separate read-only reconstruction:
+resolve the checked-in exact upstream ref/SHA, freshly generate complete and
+stable schemas plus that commit's `common.rs`, and run the same Plan/Apply
+derivation in an isolated module root. Compare schema files, baseline metadata,
+manifest generation rules, manifest, coverage, and all four generated Go files
+against the accepted head. Only `baseline_metadata.generated_at` is excluded
+from semantic comparison. A stale requiredness, stability, response mapping,
+source identity, or generated artifact fails validation even if checked-in Go
+agrees with stale checked-in metadata. Validation-only invokes neither Agent
+nor accepted-worktree Apply or publication.
+
 Repository-wide required verification remains separate; see
 [`verify.md`](verify.md).
 

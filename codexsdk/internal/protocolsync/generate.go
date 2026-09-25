@@ -98,6 +98,17 @@ func GenerateCandidate(req GenerateRequest) (Candidate, error) {
 	if err := runCargo(codexRS, env, "run", "-p", "codex-cli", "--", "app-server", "generate-json-schema", "--out", stableDir); err != nil {
 		return Candidate{}, err
 	}
+	versionCmd := exec.Command("cargo", "run", "-p", "codex-cli", "--", "--version")
+	versionCmd.Dir = codexRS
+	versionCmd.Env = env
+	versionOut, err := versionCmd.Output()
+	if err != nil {
+		return Candidate{}, fmt.Errorf("read exact upstream codex-cli version: %w", err)
+	}
+	codexVersion := strings.TrimSpace(string(versionOut))
+	if !strings.HasPrefix(codexVersion, "codex-cli ") {
+		return Candidate{}, fmt.Errorf("unexpected exact upstream codex-cli version %q", codexVersion)
+	}
 	commonRS := filepath.Join(syncOut, "common.rs")
 	if err := writeGitShow(codexRepo, targetSHA+":codex-rs/app-server-protocol/src/protocol/common.rs", commonRS); err != nil {
 		return Candidate{}, err
@@ -113,7 +124,7 @@ func GenerateCandidate(req GenerateRequest) (Candidate, error) {
 		SourceCommit:    targetSHA,
 		SourceRef:       req.Target.RefName,
 		SourceRefKind:   req.Target.RefKind,
-		CodexVersion:    "cargo",
+		CodexVersion:    codexVersion,
 		Generator:       "cargo",
 		GeneratorDetail: filepath.Join(worktree, "codex-rs") + " cargo run -p codex-cli",
 	})

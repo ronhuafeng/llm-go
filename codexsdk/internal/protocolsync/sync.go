@@ -26,11 +26,13 @@ type SyncRequest struct {
 	LatestStable   bool
 	AllowDowngrade bool
 	ForceCompare   bool
+	ValidationOnly bool
 	Diagnostic     bool
 	EventName      string
 	Lookuper       RemoteLookuper
 	Generate       func(GenerateRequest) (Candidate, error)
 	Plan           func(protocolupgrade.ApplyRequest) (protocolupgrade.PlanResult, error)
+	VerifyExact    func(protocolupgrade.ApplyRequest) (protocolupgrade.PlanResult, error)
 	Apply          func(protocolupgrade.ApplyRequest) (protocolupgrade.ApplyResult, error)
 }
 
@@ -60,6 +62,12 @@ type SyncResult struct {
 // Sync resolves, generates, plans, and applies only a fully planned candidate.
 // Semantic/generator incompatibility returns a read-only escalation outcome.
 func Sync(req SyncRequest) (SyncResult, error) {
+	if req.ValidationOnly && req.Diagnostic {
+		return SyncResult{}, fmt.Errorf("validation-only cannot be combined with diagnostic mode")
+	}
+	if req.ValidationOnly && !req.ForceCompare {
+		return SyncResult{}, fmt.Errorf("validation-only requires force-compare")
+	}
 	if err := AssertClean(req.RepoRoot); err != nil {
 		return SyncResult{}, err
 	}
@@ -104,7 +112,7 @@ func Sync(req SyncRequest) (SyncResult, error) {
 		Mode:           mode,
 		AllowDowngrade: req.AllowDowngrade,
 	})
-	afterPolicy := decideAfterPolicy(policy.Decision, req.ForceCompare || req.Diagnostic)
+	afterPolicy := decideAfterPolicy(policy.Decision, req.ForceCompare || req.Diagnostic || req.ValidationOnly)
 	result := SyncResult{Target: target, Reason: policy.Reason}
 	if afterPolicy == "blocked" {
 		return result, fmt.Errorf("%s", policy.Reason)
@@ -131,6 +139,28 @@ func Sync(req SyncRequest) (SyncResult, error) {
 	}
 	result.Candidate = candidate.SchemaDir
 	result.CandidateDir = candidate.Dir
+	if req.ValidationOnly {
+		verify := req.VerifyExact
+		if verify == nil {
+			verify = protocolupgrade.VerifyExact
+		}
+		proof, err := verify(candidateApplyRequest(moduleRoot, candidate, target))
+		if err != nil {
+			return result, fmt.Errorf("exact upstream verification: %w", err)
+		}
+		if proof.Status != protocolupgrade.PlanReady {
+			if proof.Issue != nil {
+				return result, fmt.Errorf("exact upstream verification unresolved at %s %s: %s", proof.Issue.Stage, proof.Issue.Path, proof.Issue.Reason)
+			}
+			return result, fmt.Errorf("exact upstream verification returned %q", proof.Status)
+		}
+		if err := AssertClean(req.RepoRoot); err != nil {
+			return result, fmt.Errorf("exact upstream verification changed the accepted worktree: %w", err)
+		}
+		result.Outcome = OutcomeCurrent
+		result.Reason = "fresh exact upstream reconstruction matches all accepted semantic artifacts"
+		return result, nil
+	}
 
 	if req.ForceCompare && !req.Diagnostic {
 		dirty, err := ChangedPaths(req.RepoRoot)

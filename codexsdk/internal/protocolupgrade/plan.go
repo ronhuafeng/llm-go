@@ -79,6 +79,20 @@ func incompatibilityPath(message string) string {
 // Plan proves that Apply can materialize the candidate in an isolated module
 // root. It never writes the accepted baseline or candidate.
 func Plan(req ApplyRequest) (PlanResult, error) {
+	return planCandidate(req, false)
+}
+
+// VerifyExact rebuilds every semantic protocol artifact from the exact target
+// in isolation and compares it with the accepted baseline and generated Go.
+// Only baseline_metadata.generated_at is excluded as observation time.
+func VerifyExact(req ApplyRequest) (PlanResult, error) {
+	if req.ModuleRoot == "" || req.SkipCodegen || req.skipSurface {
+		return PlanResult{}, fmt.Errorf("exact verification requires module root, surface derivation, and generated Go")
+	}
+	return planCandidate(req, true)
+}
+
+func planCandidate(req ApplyRequest, verifyExact bool) (PlanResult, error) {
 	if req.Baseline == "" || req.Candidate == "" {
 		return PlanResult{}, fmt.Errorf("baseline and candidate are required")
 	}
@@ -127,6 +141,9 @@ func Plan(req ApplyRequest) (PlanResult, error) {
 	}
 
 	if applyErr != nil {
+		if verifyExact {
+			return PlanResult{}, fmt.Errorf("cannot reconstruct exact accepted baseline: %w", applyErr)
+		}
 		var incompatibility *IncompatibilityError
 		if errors.As(applyErr, &incompatibility) {
 			return PlanResult{
@@ -139,6 +156,11 @@ func Plan(req ApplyRequest) (PlanResult, error) {
 			}, nil
 		}
 		return PlanResult{}, applyErr
+	}
+	if verifyExact {
+		if err := compareExactBaseline(req.Baseline, plannedBaseline, req.ModuleRoot, tmp); err != nil {
+			return PlanResult{}, fmt.Errorf("exact baseline verification: %w", err)
+		}
 	}
 	return PlanResult{Status: PlanReady, Preview: preview}, nil
 }
