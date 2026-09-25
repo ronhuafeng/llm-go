@@ -41,6 +41,14 @@ func TestValidatePathsAgentAllowsHandwrittenAndRejectsMechanical(t *testing.T) {
 		"codexsdk/sdk_surface.gen.go",
 		"codexsdk/protocolv2/protocol_types.gen.go",
 		"codexsdk/internal/protocolschema/appserver/v2/manifest.json",
+		"codexsdk/internal/protocolsync/sync.go",
+		"codexsdk/internal/protocolsync/changes.go",
+		"codexsdk/internal/protocolsync/publish.go",
+		"codexsdk/internal/protocolupgrade/plan.go",
+		"codexsdk/internal/protocolupgrade/apply.go",
+		"codexsdk/internal/protocolupgrade/exact.go",
+		"codexsdk/internal/generatedcheck/check.go",
+		"codexsdk/internal/cmd/protocolupgrade/main.go",
 	} {
 		if err := validatePaths([]string{path}, "agent"); err == nil {
 			t.Fatalf("agent path %s should be rejected as mechanical", path)

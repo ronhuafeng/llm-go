@@ -13,6 +13,9 @@ changes may occur in minor releases.
 
 #### Fixed
 
+- Bind protocol Agent resume to a verified copy of the original complete
+  upstream candidate, reject proposals that change sync acceptance or
+  publication controls, and publish proven changes from a separate runner.
 - Classify `thread/items/list`, `thread/revert`, and `thread/turns/list` from
   the exact upstream stable schema, so runtime stability gates and generated
   experimental field metadata reflect their current wire status.

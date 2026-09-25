@@ -17,7 +17,7 @@ func main() {
 
 func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "protocolupgrade: command is required: sync, diagnose, resume, compare, apply, check, stage, or publish\n")
+		fmt.Fprintf(stderr, "protocolupgrade: command is required: sync, diagnose, resume, verify-candidate, compare, apply, check, stage, or publish\n")
 		return 2
 	}
 	switch args[0] {
@@ -27,6 +27,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runSync(args[1:], stdout, stderr, true)
 	case "resume":
 		return runResume(args[1:], stdout, stderr)
+	case "verify-candidate":
+		return runVerifyCandidate(args[1:], stderr)
 	case "compare":
 		return runCompare(args[1:], stdout, stderr)
 	case "apply":
@@ -41,6 +43,24 @@ func run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "protocolupgrade: unknown command %q\n", args[0])
 		return 2
 	}
+}
+
+func runVerifyCandidate(args []string, stderr io.Writer) int {
+	fs := flag.NewFlagSet("verify-candidate", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	dir := fs.String("candidate-dir", "", "candidate root")
+	digest := fs.String("candidate-sha256", "", "initial candidate digest")
+	ref := fs.String("target-ref", "", "selected upstream ref")
+	kind := fs.String("target-kind", "", "selected upstream kind")
+	sha := fs.String("target-sha", "", "selected upstream commit")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if err := protocolsync.VerifyCandidate(*dir, *digest, *ref, *kind, *sha); err != nil {
+		fmt.Fprintf(stderr, "protocolupgrade verify-candidate: %v\n", err)
+		return 1
+	}
+	return 0
 }
 
 func runCompare(args []string, stdout, stderr io.Writer) int {
@@ -253,6 +273,7 @@ func runResume(args []string, stdout, stderr io.Writer) int {
 	repoRoot := fs.String("repo-root", "", "repository root")
 	moduleRoot := fs.String("module-root", "", "codexsdk module root")
 	candidateDir := fs.String("candidate-dir", "", "existing candidate root from the initial sync plan")
+	candidateSHA256 := fs.String("candidate-sha256", "", "sha256 of the complete initial candidate set")
 	targetRef := fs.String("target-ref", "", "selected upstream ref name")
 	targetKind := fs.String("target-kind", "", "selected upstream ref kind")
 	targetSHA := fs.String("target-sha", "", "selected upstream commit SHA")
@@ -260,12 +281,13 @@ func runResume(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	result, err := protocolsync.Resume(protocolsync.ResumeRequest{
-		RepoRoot:     *repoRoot,
-		ModuleRoot:   *moduleRoot,
-		CandidateDir: *candidateDir,
-		TargetRef:    *targetRef,
-		TargetKind:   *targetKind,
-		TargetSHA:    *targetSHA,
+		RepoRoot:        *repoRoot,
+		ModuleRoot:      *moduleRoot,
+		CandidateDir:    *candidateDir,
+		CandidateSHA256: *candidateSHA256,
+		TargetRef:       *targetRef,
+		TargetKind:      *targetKind,
+		TargetSHA:       *targetSHA,
 	})
 	if writeErr := protocolsync.WriteGitHubOutput(os.Getenv("GITHUB_OUTPUT"), result); writeErr != nil {
 		fmt.Fprintf(stderr, "protocolupgrade resume: write github output: %v\n", writeErr)

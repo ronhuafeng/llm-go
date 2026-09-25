@@ -39,24 +39,26 @@ type SyncRequest struct {
 // ResumeRequest re-plans and applies the exact candidate after one targeted
 // handwritten Agent pass.
 type ResumeRequest struct {
-	RepoRoot     string
-	ModuleRoot   string
-	CandidateDir string
-	TargetRef    string
-	TargetKind   string
-	TargetSHA    string
-	Plan         func(protocolupgrade.ApplyRequest) (protocolupgrade.PlanResult, error)
-	Apply        func(protocolupgrade.ApplyRequest) (protocolupgrade.ApplyResult, error)
+	RepoRoot        string
+	ModuleRoot      string
+	CandidateDir    string
+	CandidateSHA256 string
+	TargetRef       string
+	TargetKind      string
+	TargetSHA       string
+	Plan            func(protocolupgrade.ApplyRequest) (protocolupgrade.PlanResult, error)
+	Apply           func(protocolupgrade.ApplyRequest) (protocolupgrade.ApplyResult, error)
 }
 
 // SyncResult is the minimal outcome the workflow needs.
 type SyncResult struct {
-	Outcome      string
-	Reason       string
-	Target       Target
-	Candidate    string
-	CandidateDir string
-	Issue        *protocolupgrade.PlanIssue
+	Outcome         string
+	Reason          string
+	Target          Target
+	Candidate       string
+	CandidateDir    string
+	CandidateSHA256 string
+	Issue           *protocolupgrade.PlanIssue
 }
 
 // Sync resolves, generates, plans, and applies only a fully planned candidate.
@@ -200,6 +202,11 @@ func Sync(req SyncRequest) (SyncResult, error) {
 		if len(dirty) > 0 {
 			return result, fmt.Errorf("semantic planning must leave the protocol worktree unchanged:\n- %s", strings.Join(dirty, "\n- "))
 		}
+		fingerprint, err := candidateDigest(candidate.Dir)
+		if err != nil {
+			return result, fmt.Errorf("snapshot unresolved candidate: %w", err)
+		}
+		result.CandidateSHA256 = fingerprint
 		result.Outcome = OutcomeSemanticUnresolved
 		result.Issue = planned.Issue
 		if planned.Issue != nil {
@@ -261,6 +268,11 @@ func Resume(req ResumeRequest) (SyncResult, error) {
 	if err := validatePaths(paths, "agent"); err != nil {
 		return SyncResult{}, fmt.Errorf("Agent pass escaped handwritten codexsdk scope: %w", err)
 	}
+	verifiedDir, cleanup, err := copyVerifiedCandidate(req.CandidateDir, req.CandidateSHA256, req.TargetRef, req.TargetKind, req.TargetSHA)
+	if err != nil {
+		return SyncResult{}, fmt.Errorf("verify initial candidate: %w", err)
+	}
+	defer cleanup()
 
 	moduleRoot := req.ModuleRoot
 	if moduleRoot == "" {
@@ -272,11 +284,12 @@ func Resume(req ResumeRequest) (SyncResult, error) {
 		PeeledCommitSHA: req.TargetSHA,
 		TargetExplicit:  true,
 	}
-	candidate := candidateFromDir(req.CandidateDir, moduleRoot, target)
+	candidate := candidateFromDir(verifiedDir, moduleRoot, target)
 	result := SyncResult{
-		Target:       target,
-		Candidate:    candidate.SchemaDir,
-		CandidateDir: candidate.Dir,
+		Target:          target,
+		Candidate:       filepath.Join(req.CandidateDir, "schema"),
+		CandidateDir:    req.CandidateDir,
+		CandidateSHA256: req.CandidateSHA256,
 	}
 	applyReq := candidateApplyRequest(moduleRoot, candidate, target)
 	plan := req.Plan
@@ -407,6 +420,7 @@ func WriteGitHubOutput(path string, result SyncResult) error {
 		"target_sha=" + githubOutputValue(result.Target.PeeledCommitSHA),
 		"candidate=" + githubOutputValue(result.Candidate),
 		"candidate_dir=" + githubOutputValue(result.CandidateDir),
+		"candidate_sha256=" + githubOutputValue(result.CandidateSHA256),
 		"reason=" + githubOutputValue(result.Reason),
 		"issue_stage=" + githubOutputValue(issueStage),
 		"issue_path=" + githubOutputValue(issuePath),

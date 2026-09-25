@@ -208,8 +208,29 @@ evidence. It may change only the owner-local handwritten code and tests required
 by that evidence. It must not choose a different target, stage, commit, push,
 publish, merge, tag, or inherit repository-write credentials.
 
-After the proposal, Go re-plans and performs deterministic checks. A model final
-message has no acceptance meaning.
+The initial unresolved Plan records a digest of the complete per-run candidate:
+complete and stable schemas, reports, `common.rs`, and its exact source marker.
+The digest is held in the workflow step output outside the Agent proposal. Before
+re-planning, the trusted workflow checks every Git-visible Agent path against
+the proposal scope, and Go copies the ignored candidate into an isolated
+directory only if its entire content still matches that digest and target SHA.
+Missing, added, redirected, or changed candidate inputs fail closed. The
+isolated copy is used for both the second Plan and Apply.
+
+Agent proposal scope contains handwritten SDK/runtime or protocol generator
+Go and focused tests. The workflow and Go reject changes to sync policy,
+candidate identity, Plan/Apply acceptance, generated checks, schema/generated
+artifacts, and publication code. A needed change to those control paths takes
+the ordinary reviewed development path rather than expanding one automatic
+proposal's authority.
+
+After the proposal, Go re-plans and performs deterministic checks after the
+executable tests. The read-only job compares the complete Git proposal before
+and after tests, rechecks the candidate digest, and hands the proven patch to a
+separate publication runner. That runner verifies the patch digest and uses a
+control binary built from the trusted checkout. Proposed Go code is never run
+with repository-write credentials. A model final message has no acceptance
+meaning.
 
 ## Deterministic proof
 
@@ -245,7 +266,7 @@ Publication is allowed only after deterministic proof. It creates or updates a
 protected protocol-sync PR from the proven worktree. It does not self-merge,
 publish the module, or create a release.
 
-Repository-write credentials belong only to the publication step. Base movement
+Repository-write credentials belong only to the separate publication job. Base movement
 or any uncertainty about which commit was proven causes publication to fail and
 the run to restart from canonical input.
 

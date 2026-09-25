@@ -59,7 +59,7 @@ func validatePaths(paths []string, phase string) error {
 			invalid = append(invalid, p)
 			continue
 		}
-		if phase == "agent" && isMechanicalPath(p) {
+		if phase == "agent" && !isAgentProposalPath(p) {
 			invalid = append(invalid, p)
 		}
 	}
@@ -67,6 +67,30 @@ func validatePaths(paths []string, phase string) error {
 		return nil
 	}
 	return fmt.Errorf("sync changes escape the %s scope:\n- %s", phase, strings.Join(invalid, "\n- "))
+}
+
+// Agent proposals may change runtime or generator implementation and focused
+// tests. Sync policy, candidate identity, acceptance, and publication code are
+// reviewed through ordinary development rather than through the same proposal.
+func isAgentProposalPath(p string) bool {
+	if !strings.HasSuffix(p, ".go") || strings.HasSuffix(p, ".gen.go") {
+		return false
+	}
+	if dir := path.Dir(p); dir == "codexsdk" || dir == "codexsdk/protocolv2" || dir == "codexsdk/internal/protocolgen" || dir == "codexsdk/internal/wirejson" {
+		return true
+	}
+	if path.Dir(p) != "codexsdk/internal/protocolupgrade" {
+		return false
+	}
+	if strings.HasSuffix(p, "_test.go") {
+		return true
+	}
+	switch path.Base(p) {
+	case "manifest.go", "surface.go", "commonrs.go":
+		return true
+	default:
+		return false
+	}
 }
 
 func isMechanicalPath(p string) bool {
