@@ -93,9 +93,15 @@ exit 36
 			} else {
 				t.Setenv("MUTATE_SOURCE", "none")
 			}
+			if missing {
+				writeFile(t, filepath.Join(module, ".cache", "codexsdk-upstream-"+sha[:12], "prepared.Cargo.lock"), "stale previous attempt")
+			}
 			candidate, err := GenerateCandidate(GenerateRequest{ModuleRoot: module, UpstreamRepo: upstream, Target: Target{RefName: "rust-v1.2.3", RefKind: KindStableTag, PeeledCommitSHA: sha}})
 			if missing {
 				evidence := filepath.Join(module, ".cache", "codexsdk-upstream-"+sha[:12], "upstream.Cargo.lock")
+				if _, staleErr := os.Stat(filepath.Join(filepath.Dir(evidence), "prepared.Cargo.lock")); !os.IsNotExist(staleErr) {
+					t.Fatalf("failed attempt retained stale prepared input: %v", staleErr)
+				}
 				if _, readErr := os.ReadFile(evidence); readErr != nil {
 					t.Fatalf("failed preparation lost original input: %v", readErr)
 				}

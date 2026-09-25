@@ -42,6 +42,13 @@ func GenerateCandidate(req GenerateRequest) (Candidate, error) {
 	}
 	targetSHA := req.Target.PeeledCommitSHA
 	syncOut := filepath.Join(moduleRoot, ".cache", "codexsdk-upstream-"+targetSHA[:12])
+	// Build-input evidence belongs to this attempt, including when acquisition
+	// or preparation fails before producing a new prepared lockfile.
+	for _, name := range []string{"upstream.Cargo.lock", "prepared.Cargo.lock"} {
+		if err := os.Remove(filepath.Join(syncOut, name)); err != nil && !os.IsNotExist(err) {
+			return Candidate{}, err
+		}
+	}
 	codexRepo := filepath.Join(moduleRoot, ".cache", "openai-codex")
 	if err := prepareUpstreamRepo(codexRepo, req.UpstreamRepo); err != nil {
 		return Candidate{}, err
