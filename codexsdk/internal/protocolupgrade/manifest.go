@@ -68,23 +68,40 @@ var rootInternalOverrides = map[string]string{
 // These are established public Go names that cannot be inferred from wire
 // method strings or schema titles. They affect names only, never wire facts.
 var publicFacadeNames = map[string]string{
-	"config/mcpServer/reload":                   "Config().MCPServerReload",
-	"item/agentMessage/delta":                   "ServerNotifications().AgentMessageDelta",
-	"item/autoApprovalReview/completed":         "ServerNotifications().ItemGuardianApprovalReviewCompleted",
-	"item/autoApprovalReview/started":           "ServerNotifications().ItemGuardianApprovalReviewStarted",
-	"item/commandExecution/outputDelta":         "ServerNotifications().CommandExecutionOutputDelta",
+	// MCP is the published acronym in the config accessor.
+	"config/mcpServer/reload": "Config().MCPServerReload",
+	// The published delta handler omits the wire's Item prefix.
+	"item/agentMessage/delta": "ServerNotifications().AgentMessageDelta",
+	// Auto approval review was published under the Guardian name.
+	"item/autoApprovalReview/completed": "ServerNotifications().ItemGuardianApprovalReviewCompleted",
+	// The started handler uses the same published Guardian family.
+	"item/autoApprovalReview/started": "ServerNotifications().ItemGuardianApprovalReviewStarted",
+	// The published output handler omits the wire's Item prefix.
+	"item/commandExecution/outputDelta": "ServerNotifications().CommandExecutionOutputDelta",
+	// Terminal interaction has a published short handler name.
 	"item/commandExecution/terminalInteraction": "ServerNotifications().TerminalInteraction",
-	"item/fileChange/outputDelta":               "ServerNotifications().FileChangeOutputDelta",
-	"item/fileChange/patchUpdated":              "ServerNotifications().FileChangePatchUpdated",
-	"item/mcpToolCall/progress":                 "ServerNotifications().McpToolCallProgress",
-	"item/plan/delta":                           "ServerNotifications().PlanDelta",
-	"item/reasoning/summaryPartAdded":           "ServerNotifications().ReasoningSummaryPartAdded",
-	"item/reasoning/summaryTextDelta":           "ServerNotifications().ReasoningSummaryTextDelta",
-	"item/reasoning/textDelta":                  "ServerNotifications().ReasoningTextDelta",
-	"mcpServer/oauth/login":                     "MCPServers().OAuthLogin",
-	"mcpServer/startupStatus/updated":           "ServerNotifications().McpServerStatusUpdated",
-	"process/resizePty":                         "Processes().ResizePTY",
-	"thread/compacted":                          "ServerNotifications().ContextCompacted",
+	// The published file change delta omits the wire's Item prefix.
+	"item/fileChange/outputDelta": "ServerNotifications().FileChangeOutputDelta",
+	// The published patch handler omits the wire's Item prefix.
+	"item/fileChange/patchUpdated": "ServerNotifications().FileChangePatchUpdated",
+	// The published MCP tool progress handler omits the wire's Item prefix.
+	"item/mcpToolCall/progress": "ServerNotifications().McpToolCallProgress",
+	// The published plan delta handler omits the wire's Item prefix.
+	"item/plan/delta": "ServerNotifications().PlanDelta",
+	// The published summary part handler omits the wire's Item prefix.
+	"item/reasoning/summaryPartAdded": "ServerNotifications().ReasoningSummaryPartAdded",
+	// The published summary text handler omits the wire's Item prefix.
+	"item/reasoning/summaryTextDelta": "ServerNotifications().ReasoningSummaryTextDelta",
+	// The published reasoning text handler omits the wire's Item prefix.
+	"item/reasoning/textDelta": "ServerNotifications().ReasoningTextDelta",
+	// OAuth is the published acronym in the MCP servers accessor.
+	"mcpServer/oauth/login": "MCPServers().OAuthLogin",
+	// The published status handler shortens startupStatus to Status.
+	"mcpServer/startupStatus/updated": "ServerNotifications().McpServerStatusUpdated",
+	// PTY is the published acronym in the process accessor.
+	"process/resizePty": "Processes().ResizePTY",
+	// The published handler calls compaction ContextCompacted.
+	"thread/compacted": "ServerNotifications().ContextCompacted",
 }
 
 var facadeTargetRE = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*\(\)\.[A-Za-z][A-Za-z0-9]*$`)
@@ -190,16 +207,27 @@ func schemaTypeIndex(root string) (map[string]string, error) {
 		return nil, err
 	}
 	out := map[string]string{}
+	add := func(name, path string) error {
+		if previous := out[name]; previous != "" && previous != path {
+			return fmt.Errorf("ambiguous schema type %s: %s and %s", name, previous, path)
+		}
+		out[name] = path
+		return nil
+	}
 	for _, rel := range files {
-		out[strings.TrimSuffix(filepath.Base(rel), filepath.Ext(rel))] = rel
+		if err := add(strings.TrimSuffix(filepath.Base(rel), filepath.Ext(rel)), rel); err != nil {
+			return nil, err
+		}
 	}
 	for _, rel := range files {
 		var data map[string]any
 		if err := loadJSON(filepath.Join(root, filepath.FromSlash(rel)), &data); err != nil {
 			return nil, err
 		}
-		if title, _ := data["title"].(string); title != "" && out[title] == "" {
-			out[title] = rel
+		if title, _ := data["title"].(string); title != "" {
+			if err := add(title, rel); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return out, nil
@@ -407,13 +435,20 @@ func buildManifest(root, stableRoot string, old manifestFile, mappings map[strin
 		description = "Classified app-server protocol manifest."
 	}
 	return manifestFile{
-		AggregateSchemas:      aggregates,
-		ClassificationSources: old.ClassificationSources,
-		Description:           description,
-		Entries:               entries,
-		Surface:               old.Surface,
-		SchemaVersion:         old.SchemaVersion,
-		Status:                "classified-manifest",
+		AggregateSchemas: aggregates,
+		ClassificationSources: map[string]any{
+			"facade_target":     "manifest_generation.json local naming rules plus protocolupgrade.publicFacadeNames",
+			"generated_surface": "exported Go identities compared between stable and complete candidate schemas",
+			"method_surface":    "exact target complete and stable aggregate schemas",
+			"response_schema":   "exact target common.rs request definition macros",
+			"source_ref":        "exact target commit plus aggregate schema pointer",
+			"stability":         "stable-vs-complete schema visibility at the same exact upstream commit",
+		},
+		Description:   description,
+		Entries:       entries,
+		Surface:       old.Surface,
+		SchemaVersion: old.SchemaVersion,
+		Status:        "classified-manifest",
 	}, nil
 }
 
@@ -567,24 +602,9 @@ func buildCoverage(root, stableRoot string, old coverageFile, manifest manifestF
 	if len(validStatuses) == 0 {
 		validStatuses = append([]string(nil), validCoverageStatuses...)
 	}
-	oldMethods := map[string]map[string]any{}
-	for _, item := range old.Methods {
-		if method, _ := item["method"].(string); method != "" {
-			oldMethods[method] = item
-		}
-	}
 	var methods []map[string]any
 	for _, entry := range manifest.Entries {
-		method := defaultMethodCoverage(entry)
-		if existing, ok := oldMethods[entry.Method]; ok {
-			method = cloneMap(existing)
-		}
-		method["direction"] = entry.Direction
-		method["kind"] = entry.Kind
-		method["method"] = entry.Method
-		method["source_schema"] = entry.SourceSchema
-		method["stability"] = entry.Stability
-		methods = append(methods, method)
+		methods = append(methods, defaultMethodCoverage(entry))
 	}
 	schemaPaths, err := schemaFiles(root)
 	if err != nil {

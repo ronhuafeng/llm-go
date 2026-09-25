@@ -108,7 +108,9 @@ falling back to the accepted manifest. The accepted manifest and coverage are
 comparison input and may retain local explanatory annotations, but their old
 wire facts do not decide the candidate. `generated_at` records observation time:
 it may be retained for the same exact source commit and is excluded from
-protocol-semantic comparisons.
+protocol-semantic comparisons. Method coverage status and classification source
+descriptions are regenerated from the current input; an old classification
+cannot suppress a current method. Ambiguous schema type names fail closed.
 
 Facade target names are local public Go API representation. A small handwritten
 name map keeps established acronyms and notification names where the wire method

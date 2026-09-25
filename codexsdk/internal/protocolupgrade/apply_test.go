@@ -157,6 +157,17 @@ func TestBuildCoverageRejectsContradictoryStableFields(t *testing.T) {
 	}
 }
 
+func TestSchemaTypeIndexRejectsAmbiguousNames(t *testing.T) {
+	root := t.TempDir()
+	for _, path := range []string{"v1/Foo.json", "v2/Foo.json"} {
+		writeJSONFile(t, filepath.Join(root, path), map[string]any{"title": "Foo", "type": "object"})
+	}
+	_, err := schemaTypeIndex(root)
+	if err == nil || !strings.Contains(err.Error(), "ambiguous schema type Foo") {
+		t.Fatalf("got %v, want ambiguous schema type", err)
+	}
+}
+
 func TestApplyDoesNotCarryHistoricalDeferredFacadeStatus(t *testing.T) {
 	fix := writeApplyFixture(t)
 	manifestPath := filepath.Join(fix.baseline, "manifest.json")
@@ -382,9 +393,11 @@ server_request_definitions! {}
 
 func TestApplyDerivedFactsIgnoreOldMetadata(t *testing.T) {
 	type facts struct {
-		entries []manifestEntry
-		types   []map[string]any
-		fields  []map[string]any
+		entries               []manifestEntry
+		classificationSources map[string]any
+		methods               []map[string]any
+		types                 []map[string]any
+		fields                []map[string]any
 	}
 	derive := func(t *testing.T, stale bool) facts {
 		t.Helper()
@@ -401,6 +414,7 @@ func TestApplyDerivedFactsIgnoreOldMetadata(t *testing.T) {
 			entry.ResponseSchema = "OldResponse.json"
 			entry.FacadeTarget = "Old().Value"
 			entry.SourceRef["response_mapping"] = "old"
+			old.ClassificationSources = map[string]any{"response_schema": "stale accepted baseline mapping"}
 			if err := writeJSON(manifestPath, old); err != nil {
 				t.Fatal(err)
 			}
@@ -409,6 +423,7 @@ func TestApplyDerivedFactsIgnoreOldMetadata(t *testing.T) {
 			if err := loadJSON(coveragePath, &oldCoverage); err != nil {
 				t.Fatal(err)
 			}
+			oldCoverage.Methods = []map[string]any{{"method": "thread/start", "status": "intentionally-unsupported"}}
 			for _, typ := range oldCoverage.Types {
 				if typ["schema"] == "ThreadStartParams.json" {
 					typ["stability"] = "experimental"
@@ -441,7 +456,13 @@ func TestApplyDerivedFactsIgnoreOldMetadata(t *testing.T) {
 		if err := loadJSON(filepath.Join(fix.baseline, "coverage_matrix.json"), &coverage); err != nil {
 			t.Fatal(err)
 		}
-		out := facts{entries: manifest.Entries}
+		out := facts{entries: manifest.Entries, classificationSources: manifest.ClassificationSources}
+		for _, method := range coverage.Methods {
+			out.methods = append(out.methods, map[string]any{
+				"direction": method["direction"], "kind": method["kind"], "method": method["method"],
+				"source_schema": method["source_schema"], "stability": method["stability"], "status": method["status"],
+			})
+		}
 		for _, typ := range coverage.Types {
 			out.types = append(out.types, map[string]any{
 				"schema": typ["schema"], "stability": typ["stability"], "status": typ["status"], "type": typ["type"],
@@ -533,6 +554,72 @@ func TestApplyPreservesCurrentPresenceAndNullability(t *testing.T) {
 	}
 	if len(want) != 0 {
 		t.Fatalf("missing derived fields: %v", want)
+	}
+	for index := range plan.Types {
+		if plan.Types[index].TypeName == "ThreadStartParams" {
+			plan.Types[index].WireMessageRoles = protocolgen.WireMessageRoleActionBearingMessage
+		}
+	}
+	generated, err := protocolgen.GenerateProtocolTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := filepath.Abs("../../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wirePackage, err := os.MkdirTemp(filepath.Join(root, "codexsdk"), "protocol-upgrade-wire-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(wirePackage) })
+	for name, contents := range map[string][]byte{
+		"protocol_types.gen.go": generated,
+		"presence_test.go": []byte(`package protocolv2
+import (
+  "encoding/json"
+  "reflect"
+  "testing"
+)
+func TestCurrentPresenceAndNullability(t *testing.T) {
+  cases := []struct{ wire, roundtrip string; labelPresent bool }{
+    {"{\"prompt\":null}", "{\"prompt\":null}", false},
+    {"{\"prompt\":null,\"label\":null}", "{\"prompt\":null,\"label\":null}", true},
+    {"{\"prompt\":\"hello\",\"label\":\"name\"}", "{\"prompt\":\"hello\",\"label\":\"name\"}", true},
+  }
+  for _, tc := range cases {
+    var value ThreadStartParams
+    if err := json.Unmarshal([]byte(tc.wire), &value); err != nil { t.Fatal(err) }
+    if (value.Label != nil) != tc.labelPresent { t.Fatalf("label presence for %s", tc.wire) }
+    encoded, err := json.Marshal(value)
+    if err != nil { t.Fatal(err) }
+    var got, want map[string]any
+    if err := json.Unmarshal(encoded, &got); err != nil { t.Fatal(err) }
+    if err := json.Unmarshal([]byte(tc.roundtrip), &want); err != nil { t.Fatal(err) }
+    if !reflect.DeepEqual(got, want) { t.Fatalf("roundtrip %s: %s", tc.wire, encoded) }
+  }
+  var missing ThreadStartParams
+  if err := json.Unmarshal([]byte("{}"), &missing); err == nil { t.Fatal("missing required prompt accepted") }
+}
+`),
+	} {
+		if err := os.WriteFile(filepath.Join(wirePackage, name), contents, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, name := range []string{"nullable.go", "json_value.go"} {
+		body, err := os.ReadFile(filepath.Join(root, "codexsdk", "protocolv2", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(wirePackage, name), body, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cmd := exec.Command("go", "test", "./codexsdk/"+filepath.Base(wirePackage))
+	cmd.Dir = root
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("generated fixture wire test: %v\n%s", err, output)
 	}
 }
 
