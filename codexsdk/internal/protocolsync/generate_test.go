@@ -12,9 +12,10 @@ func TestGenerateCandidateUsesLockedSourceAndRejectsBuildMutation(t *testing.T) 
 	if runtime.GOOS == "windows" {
 		t.Skip("POSIX cargo fixture")
 	}
-	for _, name := range []string{"unchanged", "mutated source", "mutated toolchain", "cached cargo config", "parent cargo config", "cached rustup override"} {
+	for _, name := range []string{"unchanged", "mutated source", "mutated toolchain", "cached cargo config", "parent cargo config", "cached rustup override", "missing workspace identity"} {
 		mutate := strings.HasPrefix(name, "mutated")
 		config := strings.Contains(name, "cargo config") || name == "cached rustup override"
+		missing := name == "missing workspace identity"
 		t.Run(name, func(t *testing.T) {
 			upstream := t.TempDir()
 			writeFile(t, filepath.Join(upstream, "codex-rs", "Cargo.lock"), `version = 4
@@ -43,7 +44,7 @@ test "${RUSTC_WRAPPER+x}" != x
 printf '%s\n' "$*" >> "$FIXTURE_CALLS"
 test "$(cat rust-toolchain.toml)" = selected-toolchain
 if [ "$1" = metadata ]; then
- printf '{"workspace_members":["cli"],"packages":[{"id":"cli","name":"codex-cli","version":"1.2.3","manifest_path":"%s/cli/Cargo.toml"}]}\n' "$PWD"
+ printf '{"workspace_members":["cli"],"packages":[{"id":"cli","name":"%s","version":"1.2.3","manifest_path":"%s/cli/Cargo.toml"}]}\n' "$FIXTURE_PACKAGE" "$PWD"
  exit 0
 fi
 grep -q '1.2.3' Cargo.lock
@@ -70,6 +71,10 @@ exit 36
 			}
 			t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 			t.Setenv("FIXTURE_CALLS", calls)
+			t.Setenv("FIXTURE_PACKAGE", "codex-cli")
+			if missing {
+				t.Setenv("FIXTURE_PACKAGE", "not-in-lock")
+			}
 			t.Setenv("RUSTUP_TOOLCHAIN", "ambient-override")
 			t.Setenv("RUSTFLAGS", "--cfg ambient")
 			t.Setenv("CARGO_ENCODED_RUSTFLAGS", "--cfg=ambient")
@@ -89,7 +94,13 @@ exit 36
 				t.Setenv("MUTATE_SOURCE", "none")
 			}
 			candidate, err := GenerateCandidate(GenerateRequest{ModuleRoot: module, UpstreamRepo: upstream, Target: Target{RefName: "rust-v1.2.3", RefKind: KindStableTag, PeeledCommitSHA: sha}})
-			if mutate || config {
+			if missing {
+				evidence := filepath.Join(module, ".cache", "codexsdk-upstream-"+sha[:12], "upstream.Cargo.lock")
+				if _, readErr := os.ReadFile(evidence); readErr != nil {
+					t.Fatalf("failed preparation lost original input: %v", readErr)
+				}
+			}
+			if mutate || config || missing {
 				if err == nil || failureCategory(err) != FailureSource || candidate.Dir != "" {
 					t.Fatalf("mutated build accepted: candidate=%+v err=%v", candidate, err)
 				}

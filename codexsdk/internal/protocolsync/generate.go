@@ -140,6 +140,10 @@ func GenerateCandidate(req GenerateRequest) (Candidate, error) {
 	if err != nil {
 		return Candidate{}, err
 	}
+	if err := os.WriteFile(filepath.Join(syncOut, "upstream.Cargo.lock"), originalLock, 0o644); err != nil {
+		return Candidate{}, err
+	}
+	fmt.Fprintf(os.Stderr, "protocolsync upstream Cargo.lock sha256: %x\n", sha256.Sum256(originalLock))
 	// --no-deps reads package declarations without resolving dependencies or
 	// building upstream code. It provides the real workspace membership.
 	metadata := exec.Command("cargo", "metadata", "--no-deps", "--format-version", "1")
@@ -161,12 +165,10 @@ func GenerateCandidate(req GenerateRequest) (Candidate, error) {
 	if err != nil {
 		return Candidate{}, &Failure{Category: FailureSource, Err: err}
 	}
-	for name, data := range map[string][]byte{"upstream.Cargo.lock": originalLock, "prepared.Cargo.lock": preparedLock} {
-		if err := os.WriteFile(filepath.Join(syncOut, name), data, 0o644); err != nil {
-			return Candidate{}, err
-		}
+	if err := os.WriteFile(filepath.Join(syncOut, "prepared.Cargo.lock"), preparedLock, 0o644); err != nil {
+		return Candidate{}, err
 	}
-	fmt.Fprintf(os.Stderr, "protocolsync Cargo.lock sha256: upstream=%x prepared=%x\n", sha256.Sum256(originalLock), sha256.Sum256(preparedLock))
+	fmt.Fprintf(os.Stderr, "protocolsync prepared Cargo.lock sha256: %x\n", sha256.Sum256(preparedLock))
 	if err := os.WriteFile(lockPath, preparedLock, 0o644); err != nil {
 		return Candidate{}, err
 	}
