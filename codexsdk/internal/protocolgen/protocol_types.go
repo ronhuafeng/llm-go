@@ -3,13 +3,25 @@ package protocolgen
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"go/format"
 	"sort"
 	"strings"
 )
 
-func GenerateProtocolTypes(plan ProtocolTypePlan) ([]byte, error) {
+func GenerateProtocolTypes(plan ProtocolTypePlan) (source []byte, err error) {
+	// All work here is pure generation from an already loaded type plan. A
+	// failure is a representation problem, never a filesystem failure.
+	defer func() {
+		if err == nil {
+			return
+		}
+		var unsupported *UnsupportedSchemaError
+		if !errors.As(err, &unsupported) {
+			err = &UnsupportedSchemaError{Path: "protocolv2/protocol_types.gen.go", Err: err}
+		}
+	}()
 	plan = normalizeExplicitProtocolTypePlan(plan)
 	if err := validateGeneratedDefinitionShapes(plan); err != nil {
 		return nil, err
@@ -281,7 +293,11 @@ func validateGeneratedDefinitionShapes(plan ProtocolTypePlan) error {
 				continue
 			}
 			if classifyGeneratedDefinition(schema) == generatedDefinitionUnsupported {
-				return fmt.Errorf("selected generated definition %s in %s has unsupported schema shape", name, typ.SchemaPath)
+				pointer := strings.ReplaceAll(strings.ReplaceAll(name, "~", "~0"), "/", "~1")
+				return &UnsupportedSchemaError{
+					Path: typ.SchemaPath + "#/definitions/" + pointer,
+					Err:  fmt.Errorf("selected generated definition %s in %s has unsupported schema shape", name, typ.SchemaPath),
+				}
 			}
 		}
 	}

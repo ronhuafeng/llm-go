@@ -3,11 +3,29 @@ package protocolgen
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestGenerateProtocolTypesClassifiesSelectedUnsupportedDefinition(t *testing.T) {
+	falseSchema := false
+	plan := ProtocolTypePlan{Types: []TypePlan{{
+		Kind: TypePlanObjectStructCandidate, SchemaPath: "Arbitrary.json", TypeName: "Arbitrary",
+		GeneratedDefinitions: map[string]bool{"Odd/Name": true},
+		Schema: &Schema{
+			Type:        SchemaTypeSet{Values: []string{"object"}},
+			Definitions: map[string]*Schema{"Odd/Name": {Bool: &falseSchema}},
+		},
+	}}}
+	_, err := GenerateProtocolTypes(plan)
+	var unsupported *UnsupportedSchemaError
+	if !errors.As(err, &unsupported) || unsupported.Path != "Arbitrary.json#/definitions/Odd~1Name" {
+		t.Fatalf("error = %v, want selected definition pointer", err)
+	}
+}
 
 func TestGenerateProtocolTypesMatchesCheckedInOutput(t *testing.T) {
 	schemaRoot := filepath.Join("..", "protocolschema", "appserver", "v2")
