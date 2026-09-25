@@ -2443,6 +2443,34 @@ func TestGeneratedTypeSelectionResolvesEnumStructNameCollision(t *testing.T) {
 	}
 }
 
+func TestProtocolGeneratorHasNoDefinitionAdmissionCatalogue(t *testing.T) {
+	for _, path := range []string{"type_plan.go", "protocol_types.go"} {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := string(raw)
+		for _, forbidden := range []string{
+			"isReviewedGeneratedDefinition",
+			"isGeneratedDefinitionScalarAliasCheckpoint",
+			"isGeneratedDefinitionScalarUnionCheckpoint",
+			"isGeneratedDefinitionStringEnumCheckpoint",
+			"isGeneratedDefinitionStructCheckpoint",
+			"isGeneratedDefinitionTaggedUnionCheckpoint",
+			"isGeneratedDefinitionMixedUnionCheckpoint",
+			"isGeneratedDefinitionUntaggedObjectUnionCheckpoint",
+			"isGeneratedTaggedUnionCheckpoint",
+			"isGeneratedScalarUnionCheckpoint",
+			"reviewedMixedUnionStructDependencyNames",
+			"reviewedTaggedUnionStructDependencyNames",
+		} {
+			if strings.Contains(text, forbidden) {
+				t.Fatalf("%s reintroduced legacy generated-definition admission %q", path, forbidden)
+			}
+		}
+	}
+}
+
 func TestFormerCheckpointNameDoesNotBypassReachability(t *testing.T) {
 	parent := TypePlan{
 		GeneratedRoot: true,
