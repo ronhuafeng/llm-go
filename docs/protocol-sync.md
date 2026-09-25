@@ -388,6 +388,52 @@ Validation-only execution performs target resolution, fresh generation,
 planning/comparison, and deterministic checks but never commits, pushes, opens
 or updates a PR, merges, tags, or releases.
 
+## Publication App setup
+
+Publication uses a short-lived GitHub App installation token so PR creation and
+updates have their own installation identity. Required checks must be observed
+on the actual bot-created and bot-updated PR events; a manual branch push or
+workflow dispatch does not prove that event chain.
+
+A repository administrator configures this once:
+
+1. Create or select a GitHub App with repository **Contents: read and write**
+   and **Pull requests: read and write**. Metadata read is implicit. This
+   publication path needs no organization, administration, workflow-write or
+   checks-write grant, user OAuth authorization, or webhook receiver.
+2. Install the App on **only `ronhuafeng/llm-go`**. For an existing broader
+   installation, the workflow still requests a token for this repository only;
+   prefer a dedicated installation with the minimal permissions above.
+3. Set repository Actions variable `PROTOCOL_SYNC_APP_CLIENT_ID` to the App's
+   **Client ID** from its settings page. This is the public Client ID expected
+   by create-github-app-token v3, not the numeric installation ID.
+4. Generate an App private key and store its PEM directly as repository Actions
+   secret `PROTOCOL_SYNC_APP_PRIVATE_KEY`. Do not put it in source, Issues,
+   PR text, chat, run artifacts or diagnostic output. A local secure file can
+   be uploaded without displaying it:
+
+   ```sh
+   gh variable set PROTOCOL_SYNC_APP_CLIENT_ID --repo ronhuafeng/llm-go --body '<client-id>'
+   gh secret set PROTOCOL_SYNC_APP_PRIVATE_KEY --repo ronhuafeng/llm-go < /secure/path/app-private-key.pem
+   ```
+
+The independent publication job has only read permission for its built-in
+GITHUB_TOKEN. After building trusted control and downloading the verified
+patch, the pinned App action requests exactly this repository and the two write
+grants. Only the publication step receives that installation token as GH_TOKEN;
+it is not a job output. The action masks it and revokes it on job cleanup
+(default expiry also applies). Agent, proposal tests and read-only verifiers
+receive neither the App key nor token.
+
+Missing Client ID/key fails with configuration instructions and
+`policy_configuration` attribution. Invalid keys, installation scope or grants
+fail token creation and prevent publication; there is no fallback identity.
+Create/update event acceptance records the App actor, event, PR head, actual
+merge candidate and both protected checks. This setup never authorizes
+self-merge, tags or releases. If production evidence requires trusted main,
+merge the reviewed integration first and keep its implementation Issue open
+until the actual events are verified.
+
 ## Final acceptance
 
 On the same final protocol PR head `H`:

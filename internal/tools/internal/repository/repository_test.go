@@ -288,7 +288,7 @@ func TestProtocolSyncPreservesAuthorityAndPublicationBoundaries(t *testing.T) {
 		t.Fatal("Agent and executable proposal tests must run without repository-write authority")
 	}
 	publishJob, ok := workflowJobByID(syncText, "publish")
-	if !ok || !strings.Contains(publishJob, "needs: sync") || !strings.Contains(publishJob, "needs.sync.outputs.outcome == 'applied'") || !strings.Contains(publishJob, "contents: write") || strings.Contains(publishJob, "codex-exec") || strings.Contains(publishJob, "go test ./...") {
+	if !ok || !strings.Contains(publishJob, "needs: sync") || !strings.Contains(publishJob, "needs.sync.outputs.outcome == 'applied'") || !strings.Contains(publishJob, "contents: read") || strings.Contains(publishJob, "      contents: write") || strings.Contains(publishJob, "codex-exec") || strings.Contains(publishJob, "go test ./...") {
 		t.Fatal("credentialed publication must run on a separate runner after successful proof")
 	}
 	if !strings.Contains(publish, "needs.sync.outputs.patch_sha256") || !strings.Contains(publish, "sha256sum -c -") || !strings.Contains(publish, "\"${control}\" stage") || !strings.Contains(publish, "\"${control}\" publish") || strings.Contains(publish, "go run ./internal/cmd/protocolupgrade") {
@@ -1122,5 +1122,58 @@ func TestProtocolSummaryNeverConvertsFailureIntoSuccess(t *testing.T) {
 				t.Fatalf("summary = %s", raw)
 			}
 		})
+	}
+}
+
+func TestProtocolPublicationUsesRepositoryScopedApp(t *testing.T) {
+	root, err := filepath.Abs("../../../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := readWorkflow(t, root, "codexsdk-upstream-protocol-sync.yml")
+	job, ok := workflowJobByID(workflow, "publish")
+	if !ok {
+		t.Fatal("publication job missing")
+	}
+	mint, ok := workflowStepByID(job, "app_token")
+	if !ok {
+		t.Fatal("publication must mint a short-lived App token")
+	}
+	for _, want := range []string{"actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1", "client-id: ${{ vars.PROTOCOL_SYNC_APP_CLIENT_ID }}", "private-key: ${{ secrets.PROTOCOL_SYNC_APP_PRIVATE_KEY }}", "owner: ${{ github.repository_owner }}", "repositories: ${{ github.event.repository.name }}", "permission-contents: write", "permission-pull-requests: write"} {
+		if !strings.Contains(mint, want) {
+			t.Fatalf("App grant missing %s", want)
+		}
+	}
+	if strings.Contains(mint, "skip-token-revoke: true") || strings.Contains(mint, "permission-administration") || strings.Contains(mint, "permission-workflows") {
+		t.Fatal("publication token exceeds the required grant/lifetime")
+	}
+	publish, ok := workflowStepByID(job, "publish")
+	if !ok || !strings.Contains(publish, "GH_TOKEN: ${{ steps.app_token.outputs.token }}") || strings.Contains(publish, "secrets.GITHUB_TOKEN") {
+		t.Fatal("publication must exclusively use the scoped App identity")
+	}
+	for _, id := range []string{"sync", "diagnose", "summary"} {
+		other, ok := workflowJobByID(workflow, id)
+		if !ok || strings.Contains(other, "PROTOCOL_SYNC_APP_PRIVATE_KEY") || strings.Contains(other, "app_token.outputs.token") {
+			t.Fatalf("App credential escaped publication into %s", id)
+		}
+	}
+	guard, ok := workflowStepByID(job, "app_config")
+	if !ok {
+		t.Fatal("missing configuration must fail with actionable evidence")
+	}
+	for _, configured := range []bool{false, true} {
+		cmd := exec.Command("bash", "-c", workflowRunScript(t, guard))
+		output := filepath.Join(t.TempDir(), "output")
+		cmd.Env = append(os.Environ(), fmt.Sprintf("APP_CONFIGURED=%t", configured), "GITHUB_OUTPUT="+output)
+		out, err := cmd.CombinedOutput()
+		if configured && err != nil || !configured && err == nil {
+			t.Fatalf("configured=%t: %v: %s", configured, err, out)
+		}
+		if !configured {
+			raw, err := os.ReadFile(output)
+			if err != nil || !strings.Contains(string(raw), "failure_category=policy_configuration") || !strings.Contains(string(out), "PROTOCOL_SYNC_APP_PRIVATE_KEY") {
+				t.Fatalf("missing App config evidence: %s: %s: %v", raw, out, err)
+			}
+		}
 	}
 }
