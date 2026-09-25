@@ -406,10 +406,9 @@ func buildManifest(root string, old manifestFile, mappings map[string]requestMap
 				entry.SourceVariant = mappingPtr.variant
 			}
 			if direction == "client_to_server" && kind == "request" && facadeTargetRE.MatchString(target) {
+				// Facade availability is derived from the current generated
+				// protocol surface. Historical deferred status is not authority.
 				entry.FacadeStatus = "generated"
-				if existingPtr != nil && existingPtr.FacadeStatus != "" {
-					entry.FacadeStatus = existingPtr.FacadeStatus
-				}
 			}
 			entries = append(entries, entry)
 		}

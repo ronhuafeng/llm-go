@@ -10,11 +10,6 @@ import (
 	"github.com/ronhuafeng/llm-go/codexsdk/internal/protocolgen"
 )
 
-const (
-	facadeStatusGenerated = "generated"
-	facadeStatusDeferred  = "deferred_missing_generated_types"
-)
-
 var (
 	facadeTargetRE = regexp.MustCompile(`^([A-Za-z][A-Za-z0-9]*)\(\)\.([A-Za-z][A-Za-z0-9]*)$`)
 	methodConstRE  = regexp.MustCompile(`(?m)^\s*(Method[A-Za-z0-9]+)\s+=\s+"([^"]+)"`)
@@ -30,7 +25,8 @@ type surfaceMethod struct {
 	responseType string
 }
 
-// GenerateSDKSurface renders the public generated facade from classified manifest facts.
+// GenerateSDKSurface derives the public facade from current manifest routing facts and generated protocol prerequisites.
+// FacadeStatus is retained as manifest metadata for compatibility but does not authorize or suppress generation.
 func GenerateSDKSurface(manifest protocolgen.Manifest, methodRegistry, protocolTypes []byte) ([]byte, error) {
 	methodConsts := map[string]string{}
 	for _, match := range methodConstRE.FindAllSubmatch(methodRegistry, -1) {
@@ -70,18 +66,8 @@ func GenerateSDKSurface(manifest protocolgen.Manifest, methodRegistry, protocolT
 				missing = append(missing, "response type "+entry.ResponseType)
 			}
 		}
-		switch entry.FacadeStatus {
-		case facadeStatusDeferred:
-			// Facade policy is independent from protocol type reachability.
-			// A deferred convenience method stays deferred even when the
-			// protocol generator can now represent all of its wire types.
-			continue
-		case facadeStatusGenerated:
-			if len(missing) > 0 {
-				return nil, fmt.Errorf("generated facade method %q is missing %s", entry.Method, strings.Join(missing, ", "))
-			}
-		default:
-			return nil, fmt.Errorf("facade method %q has invalid or missing facade_status %q", entry.Method, entry.FacadeStatus)
+		if len(missing) > 0 {
+			return nil, fmt.Errorf("facade method %q is missing current generated prerequisites: %s", entry.Method, strings.Join(missing, ", "))
 		}
 		key := accessor + "\x00" + operation
 		if seen[key] {

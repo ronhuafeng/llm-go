@@ -14,7 +14,7 @@ func TestGenerateSDKSurfaceRendersExactFacade(t *testing.T) {
 			Kind:                  "request",
 			Method:                "thread/start",
 			FacadeTarget:          "Threads().Start",
-			FacadeStatus:          facadeStatusGenerated,
+			FacadeStatus:          "generated",
 			ParamsOrPayloadSchema: "ThreadStartParams",
 			ResponseType:          "ThreadStartResponse",
 			Family:                "thread",
@@ -38,14 +38,14 @@ func TestGenerateSDKSurfaceRendersExactFacade(t *testing.T) {
 	}
 }
 
-func TestGenerateSDKSurfaceKeepsDeferredFacadeSeparateFromProtocolTypes(t *testing.T) {
+func TestGenerateSDKSurfaceIgnoresHistoricalDeferredStatusWhenPrerequisitesExist(t *testing.T) {
 	manifest := protocolgen.Manifest{
 		Entries: []protocolgen.ManifestEntry{{
 			Direction:             "client_to_server",
 			Kind:                  "request",
 			Method:                "account/usage/read",
 			FacadeTarget:          "Accounts().UsageRead",
-			FacadeStatus:          facadeStatusDeferred,
+			FacadeStatus:          "deferred_missing_generated_types",
 			ParamsOrPayloadSchema: "GetAccountTokenUsageParams",
 			ResponseType:          "GetAccountTokenUsageResponse",
 			Family:                "account",
@@ -60,11 +60,34 @@ func TestGenerateSDKSurfaceKeepsDeferredFacadeSeparateFromProtocolTypes(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(got), "UsageRead(") {
-		t.Fatalf("deferred facade unexpectedly generated:\n%s", got)
+	if !strings.Contains(string(got), "func (f Accounts) UsageRead(") {
+		t.Fatalf("current prerequisites must generate facade regardless of historical status:\n%s", got)
 	}
 }
 
+func TestGenerateSDKSurfaceFailsClosedWhenCurrentPrerequisitesAreMissing(t *testing.T) {
+	manifest := protocolgen.Manifest{
+		Entries: []protocolgen.ManifestEntry{{
+			Direction:             "client_to_server",
+			Kind:                  "request",
+			Method:                "account/usage/read",
+			FacadeTarget:          "Accounts().UsageRead",
+			FacadeStatus:          "deferred_missing_generated_types",
+			ParamsOrPayloadSchema: "GetAccountTokenUsageParams",
+			ResponseType:          "GetAccountTokenUsageResponse",
+			Family:                "account",
+			Stability:             "stable",
+		}},
+	}
+	_, err := GenerateSDKSurface(
+		manifest,
+		[]byte("\tMethodAccountUsageRead = \"account/usage/read\"\n"),
+		[]byte("type GetAccountTokenUsageParams struct{}\n"),
+	)
+	if err == nil || !strings.Contains(err.Error(), "response type GetAccountTokenUsageResponse") {
+		t.Fatalf("missing prerequisite error = %v", err)
+	}
+}
 func TestGenerateSDKSurfaceRejectsMissingGeneratedType(t *testing.T) {
 	manifest := protocolgen.Manifest{
 		Entries: []protocolgen.ManifestEntry{{
@@ -72,7 +95,7 @@ func TestGenerateSDKSurfaceRejectsMissingGeneratedType(t *testing.T) {
 			Kind:                  "request",
 			Method:                "thread/start",
 			FacadeTarget:          "Threads().Start",
-			FacadeStatus:          facadeStatusGenerated,
+			FacadeStatus:          "generated",
 			ParamsOrPayloadSchema: "ThreadStartParams",
 			ResponseType:          "ThreadStartResponse",
 			Family:                "thread",

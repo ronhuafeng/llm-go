@@ -125,6 +125,47 @@ func TestBuildCoverageSeedsMissingFieldsAndPreservesReviewedFields(t *testing.T)
 	}
 }
 
+func TestApplyDoesNotCarryHistoricalDeferredFacadeStatus(t *testing.T) {
+	fix := writeApplyFixture(t)
+	manifestPath := filepath.Join(fix.baseline, "manifest.json")
+	var manifest manifestFile
+	if err := loadJSON(manifestPath, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if len(manifest.Entries) != 1 {
+		t.Fatalf("fixture manifest entries = %d, want 1", len(manifest.Entries))
+	}
+	manifest.Entries[0].FacadeStatus = "deferred_missing_generated_types"
+	if err := writeJSON(manifestPath, manifest); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Apply(ApplyRequest{
+		Baseline:          fix.baseline,
+		Candidate:         fix.candidate,
+		StableCandidate:   fix.stable,
+		CommonRS:          fix.commonRS,
+		CommonRSSourceSHA: fix.sha,
+		Reports:           fix.reports,
+		TargetRef:         "rust-v1.2.3",
+		TargetKind:        "stable_rust_tag",
+		TargetSHA:         fix.sha,
+		SkipCodegen:       true,
+		skipSurface:       true,
+		Now:               func() time.Time { return time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC) },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var regenerated manifestFile
+	if err := loadJSON(manifestPath, &regenerated); err != nil {
+		t.Fatal(err)
+	}
+	if len(regenerated.Entries) != 1 || regenerated.Entries[0].FacadeStatus != "generated" {
+		t.Fatalf("regenerated facade status = %#v, want derived generated", regenerated.Entries)
+	}
+}
+
 func TestApplyCopiesCandidateAndIsIdempotent(t *testing.T) {
 	fix := writeApplyFixture(t)
 	req := ApplyRequest{

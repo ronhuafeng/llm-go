@@ -141,10 +141,18 @@ remain inline, while `additionalProperties: true` is handled generically as an
 open JSON-value object. Handwritten semantic overlays remain justified only
 when schema facts are insufficient to preserve the required API meaning.
 
-SDK facade status is a separate product-surface policy. Deferred facade methods
-stay deferred even if protocol generation later becomes capable of representing
-all of their wire types; protocol completeness does not silently mutate the
-convenience API.
+SDK facade availability is derived from the current generated protocol surface,
+not inherited from historical `facade_status`. For each client-to-server request
+with a public facade target, the current method constant plus params/response
+types are the complete prerequisites. If they all exist, the facade is generated;
+if any are missing, generation fails closed. Old
+`deferred_missing_generated_types` values remain readable metadata during
+migration but have no admission authority and are normalized away on the next
+manifest regeneration.
+
+This keeps product policy explicit: `internal.*` targets are intentionally not
+public facades, while public facade targets follow current mechanically proven
+capability rather than a remembered inability from an older generator.
 
 ## Outcomes
 
