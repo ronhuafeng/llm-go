@@ -148,6 +148,9 @@ func (s *Schema) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
+	if raw == nil {
+		return fmt.Errorf("schema must be a boolean or object")
+	}
 	type schemaObject struct {
 		AdditionalProperties AdditionalProperties  `json:"additionalProperties"`
 		AllOf                []*Schema             `json:"allOf"`
@@ -195,6 +198,22 @@ func (s *Schema) UnmarshalJSON(data []byte) error {
 
 func (s *Schema) IsTrueSchema() bool {
 	return s != nil && s.Bool != nil && *s.Bool
+}
+
+// IsUnconstrained recognizes schemas that accept every JSON value. Annotations
+// do not constrain values; empty enum/union alternatives still do.
+func (s *Schema) IsUnconstrained() bool {
+	if s == nil || s.IsFalseSchema() {
+		return false
+	}
+	if s.IsTrueSchema() {
+		return true
+	}
+	return s.Ref == "" && s.Type.Values == nil && s.Enum == nil &&
+		s.AnyOf == nil && s.OneOf == nil && len(s.AllOf) == 0 &&
+		len(s.Properties) == 0 && len(s.Required) == 0 && s.Items == nil &&
+		!s.AdditionalProperties.Present && s.Format == "" && s.Minimum == nil && s.MinItems == nil &&
+		len(s.UnknownKeywords) == 0
 }
 
 func (s *Schema) IsFalseSchema() bool {

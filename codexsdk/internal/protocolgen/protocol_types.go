@@ -1870,7 +1870,7 @@ func taggedUnionVariantFields(typ TypePlan, variant *Schema, discriminator strin
 	var nullFields []NullFieldPlan
 	for _, name := range fieldNames {
 		property := variant.Properties[name]
-		if property != nil && property.IsTrueSchema() {
+		if property != nil && property.IsUnconstrained() {
 			field := FieldPlan{
 				FieldName:       name,
 				GoType:          optionalGoType(required[name], "protocolv2.JSONValue"),
@@ -1881,7 +1881,8 @@ func taggedUnionVariantFields(typ TypePlan, variant *Schema, discriminator strin
 				Stability:       typ.Stability,
 				TypeName:        typ.TypeName,
 				WireOmitAllowed: !required[name],
-				Reason:          "schema true in tagged-union variant is unconstrained JSON",
+				WireAllowsNull:  true,
+				Reason:          "unconstrained JSON in tagged-union variant",
 			}
 			fields = append(fields, field)
 			continue
@@ -1952,7 +1953,14 @@ func canGenerateFirstPassField(field FieldPlan, generatedNamedTypes map[string]b
 }
 
 func isJSONRPCEnvelopeSchema(path string) bool {
-	return strings.HasPrefix(path, "JSONRPC")
+	// These are the upstream JSON-RPC transport roles owned by handwritten
+	// envelope validation. A payload merely sharing this prefix is not an envelope.
+	switch strings.TrimSuffix(path, ".json") {
+	case "JSONRPCRequest", "JSONRPCResponse", "JSONRPCNotification", "JSONRPCMessage", "JSONRPCError", "JSONRPCErrorError":
+		return true
+	default:
+		return false
+	}
 }
 
 func firstPassGoTypeSafe(goType string) bool {

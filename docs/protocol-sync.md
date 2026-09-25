@@ -112,7 +112,7 @@ today's field paths or type names.
 Examples of mechanically owned facts include:
 
 ```text
-JSON Schema true                  -> protocolv2.JSONValue
+JSON Schema true / {} / annotations -> protocolv2.JSONValue
 array items: true                 -> []protocolv2.JSONValue
 additionalProperties: true        -> map[string]protocolv2.JSONValue
 string/integer/boolean scalars    -> matching Go scalar
@@ -154,7 +154,30 @@ Unknown or unrepresentable schema meaning fails closed. Do not replace an
 unsupported shape with `any`, `interface{}`, silent field dropping, or another
 lossy passthrough merely to advance the baseline.
 
+
+Unconstrained fields, array items and map values share the same shape rule:
+`true`, empty objects and annotation-only schemas accept every JSON value.
+Unknown keywords, empty enum/union alternatives and real constraints cannot
+enter that mapping. Optional JSONValue fields distinguish absence from JSON null.
+The OutputSchema overlay intentionally remains narrower and rejects null.
+
+Generic JSONValue mapping no longer has separate guardian-event, rate-limit-upsell
+or MCP-response path cases. Remaining opaque overlays retain existing public Go
+contracts: MCP elicitation form properties carry nested schema documents, and
+realtime item notifications expose opaque lifecycle data. Their shape guards and
+owner-local wire tests remain; changing those public representations requires an
+explicit migration, since external consumers cannot be established by repository
+search. Command argv and service-tier overlays preserve their documented
+nonempty and omit/null/value behavior. This change preserves checked-in generated
+Go and public API bytes for the accepted baseline.
+
 ## Dependency generation
+
+Production construction requires current method facts; missing manifest input
+cannot make every coverage type a wire root. Small generator fixtures supply
+explicit payload roots. The JSON-RPC request identity and closed error payloads
+remain independent roots because generated aggregate messages and error decoding
+consume them. Unrelated scalar unions are admitted only through reachability.
 
 Protocol type generation starts from the manifest's wire roots, independently
 of whether a convenience SDK facade method is currently exposed. Request,
@@ -163,8 +186,10 @@ reachable wire graph. A facade policy may hide a convenience method, but it
 cannot make an upstream wire type cease to exist.
 
 JSON-RPC envelope schemas are traversed for typed dependencies but remain
-outside the public generated protocol surface. Their own envelope definitions
-stay with handwritten validation. Closed RPC error payloads with a required
+outside the public generated protocol surface. Their six upstream envelope roles (`JSONRPCRequest`, `JSONRPCResponse`,
+`JSONRPCNotification`, `JSONRPCMessage`, `JSONRPCError`, `JSONRPCErrorError`)
+stay with handwritten validation. A different payload with a `JSONRPC` prefix is
+not excluded by its name. Closed RPC error payloads with a required
 typed data field are independent wire roots, so their reachable definitions are
 generated even when they have no manifest method entry.
 

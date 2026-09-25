@@ -566,7 +566,11 @@ func TestApplyPreservesCurrentPresenceAndNullability(t *testing.T) {
 	writeJSONFile(t, filepath.Join(planRoot, "coverage_matrix.json"), map[string]any{
 		"status": "classified-manifest", "types": types, "fields": fields,
 	})
-	plan, err := protocolgen.BuildProtocolTypePlan(planRoot)
+	matrix, err := protocolgen.LoadCoverageMatrix(filepath.Join(planRoot, "coverage_matrix.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := protocolgen.BuildProtocolTypePlanFromFacts(planRoot, matrix, protocolgen.Manifest{Entries: []protocolgen.ManifestEntry{{SourceSchema: "ThreadStartParams.json"}}})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -943,7 +943,7 @@ func TestSelectGeneratedTaggedUnionsIncludesReviewedBedrockSetupParams(t *testin
 		t.Fatal(err)
 	}
 
-	plan, err := BuildProtocolTypePlan(root)
+	plan, err := buildFixtureProtocolTypePlan(t, root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2775,7 +2775,7 @@ func TestThreadAttachmentShapeGeneratesFromReachabilityWithoutCheckpoint(t *test
 		}
 	}`)
 
-	plan, err := BuildProtocolTypePlan(root)
+	plan, err := buildFixtureProtocolTypePlan(t, root)
 	if err != nil {
 		t.Fatal(err)
 	}
