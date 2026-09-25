@@ -510,12 +510,10 @@ type generatedDefinitionNameResolver struct {
 }
 
 type generatedDefinitionSource struct {
-	baseName       string
-	encoded        []byte
+	schema         *Schema
 	kind           generatedDefinitionKind
 	parentTypeName string
 	path           string
-	shape          []byte
 }
 
 type generatedTopLevelSource struct {
@@ -552,21 +550,11 @@ func newGeneratedDefinitionNameResolver(plan ProtocolTypePlan) (generatedDefinit
 			if kind == generatedDefinitionUnsupported {
 				continue
 			}
-			encoded, err := json.Marshal(schema)
-			if err != nil {
-				return generatedDefinitionNameResolver{}, fmt.Errorf("generated definition %s in %s cannot be encoded: %w", name, typ.SchemaPath, err)
-			}
-			shape, err := generatedSchemaShape(schema)
-			if err != nil {
-				return generatedDefinitionNameResolver{}, fmt.Errorf("generated definition %s in %s shape cannot be encoded: %w", name, typ.SchemaPath, err)
-			}
 			byBaseName[name] = append(byBaseName[name], generatedDefinitionSource{
-				baseName:       name,
-				encoded:        encoded,
+				schema:         schema,
 				kind:           kind,
 				parentTypeName: typ.TypeName,
 				path:           definitionSchemaPath(typ.SchemaPath, name),
-				shape:          shape,
 			})
 		}
 	}
@@ -593,10 +581,16 @@ func newGeneratedDefinitionNameResolver(plan ProtocolTypePlan) (generatedDefinit
 			topLevel := generatedTopLevelSource{kind: classifyGeneratedDefinition(topLevelPlan.Schema), shape: topLevelShape}
 			remaining := sources[:0]
 			for _, source := range sources {
-				if source.kind == topLevel.kind && bytes.Equal(source.shape, topLevel.shape) {
-					resolver.namesByPath[source.path] = baseName
-					resolver.topLevelReuses[source.path] = true
-					continue
+				if source.kind == topLevel.kind {
+					shape, err := generatedSchemaShape(source.schema)
+					if err != nil {
+						return generatedDefinitionNameResolver{}, fmt.Errorf("generated definition %s in %s shape cannot be encoded: %w", baseName, source.path, err)
+					}
+					if bytes.Equal(shape, topLevel.shape) {
+						resolver.namesByPath[source.path] = baseName
+						resolver.topLevelReuses[source.path] = true
+						continue
+					}
 				}
 				remaining = append(remaining, source)
 			}
@@ -605,9 +599,17 @@ func newGeneratedDefinitionNameResolver(plan ProtocolTypePlan) (generatedDefinit
 				continue
 			}
 		}
+		if len(sources) == 1 {
+			resolver.namesByPath[sources[0].path] = claimGeneratedDefinitionTypeName(baseName, usedNames)
+			continue
+		}
 		bySignature := map[string][]generatedDefinitionSource{}
 		for _, source := range sources {
-			signature := string(source.kind) + "\x00" + string(source.encoded)
+			encoded, err := json.Marshal(source.schema)
+			if err != nil {
+				return generatedDefinitionNameResolver{}, fmt.Errorf("generated definition %s in %s cannot be encoded: %w", baseName, source.path, err)
+			}
+			signature := string(source.kind) + "\x00" + string(encoded)
 			bySignature[signature] = append(bySignature[signature], source)
 		}
 		if len(bySignature) == 1 {
