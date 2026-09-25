@@ -343,7 +343,8 @@ or ambiguous workspace identities fail. An already consistent lockfile remains
 byte-identical. This preparation never runs an unlocked dependency update.
 
 Retain original and prepared Cargo.lock files in the candidate directory and log
-their SHA-256 digests. The original remains the upstream fact; the prepared file
+their SHA-256 digests. CI retains those two files as build-input artifacts,
+including on a failed build. The original remains the upstream fact; the prepared file
 is the actual build input. Schema generation and CLI version queries then use
 `cargo run --locked` in that checkout. Reject subsequent changes to the prepared
 lockfile or other tracked source. The selected source's toolchain declaration

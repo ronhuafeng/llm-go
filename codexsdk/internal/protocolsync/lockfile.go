@@ -87,7 +87,9 @@ func prepareLockfile(original, metadata []byte, root string) ([]byte, error) {
 	for _, value := range packages {
 		p := value.(map[string]any)
 		if _, external := p["source"]; external {
-			if _, ambiguous := replacements[fmt.Sprint(p["name"])+" "+fmt.Sprint(p["version"])]; ambiguous {
+			name, version := p["name"].(string), p["version"].(string)
+			_, oldCollision := replacements[name+" "+version]
+			if oldCollision || versions[name] == version {
 				return nil, fmt.Errorf("ambiguous external/workspace locked identity %q", p["name"])
 			}
 		}

@@ -67,6 +67,7 @@ dependencies = ["serde_derive"]
 	for _, tc := range []struct{ name, lock string }{
 		{"missing workspace package", strings.ReplaceAll(string(original), "codex-core", "other-core")},
 		{"ambiguous package", string(original) + "\n[[package]]\nname = \"codex-core\"\nversion = \"0.0.0\"\n"},
+		{"ambiguous new identity", string(original) + "\n[[package]]\nname = \"codex-core\"\nversion = \"0.154.0\"\nsource = \"registry+other\"\n"},
 		{"ambiguous external identity", string(original) + "\n[[package]]\nname = \"codex-core\"\nversion = \"0.0.0\"\nsource = \"registry+other\"\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
