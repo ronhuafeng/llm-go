@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode"
 )
 
 type ProtocolTypePlan struct {
@@ -993,6 +994,9 @@ func isSupportedScalarUnion(variants []*Schema) bool {
 }
 
 func planField(coverage CoverageField, schema *Schema) (FieldPlan, error) {
+	if !representableJSONTagName(coverage.Field) {
+		return FieldPlan{}, unsupportedGeneratedSchema(coverage.Path, "field name %q cannot be represented by a Go JSON struct tag", coverage.Field)
+	}
 	plan := FieldPlan{
 		FieldName:       coverage.Field,
 		Path:            coverage.Path,
@@ -1098,6 +1102,19 @@ func planField(coverage CoverageField, schema *Schema) (FieldPlan, error) {
 		return plan, nil
 	}
 	return FieldPlan{}, fmt.Errorf("field %s has unsupported schema shape", coverage.Path)
+}
+
+func representableJSONTagName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for _, r := range name {
+		if strings.ContainsRune("!#$%&()*+-./:;<=>?@[]^_{|}~ ", r) || unicode.IsLetter(r) || unicode.IsDigit(r) {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func arrayCanPlanBeforeRecursiveConstraints(schema *Schema) bool {
