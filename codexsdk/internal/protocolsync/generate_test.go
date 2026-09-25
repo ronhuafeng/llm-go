@@ -12,12 +12,16 @@ func TestGenerateCandidateUsesLockedSourceAndRejectsBuildMutation(t *testing.T) 
 	if runtime.GOOS == "windows" {
 		t.Skip("POSIX cargo fixture")
 	}
-	for _, name := range []string{"unchanged", "mutated source", "cached cargo config", "parent cargo config", "cached rustup override"} {
-		mutate := name == "mutated source"
+	for _, name := range []string{"unchanged", "mutated source", "mutated toolchain", "cached cargo config", "parent cargo config", "cached rustup override"} {
+		mutate := strings.HasPrefix(name, "mutated")
 		config := strings.Contains(name, "cargo config") || name == "cached rustup override"
 		t.Run(name, func(t *testing.T) {
 			upstream := t.TempDir()
-			writeFile(t, filepath.Join(upstream, "codex-rs", "Cargo.lock"), "selected-lock\n")
+			writeFile(t, filepath.Join(upstream, "codex-rs", "Cargo.lock"), `version = 4
+[[package]]
+name = "codex-cli"
+version = "0.0.0"
+`)
 			writeFile(t, filepath.Join(upstream, "codex-rs", "rust-toolchain.toml"), "selected-toolchain\n")
 			writeFile(t, filepath.Join(upstream, "codex-rs", "app-server-protocol", "src", "protocol", "common.rs"), "exact common.rs\n")
 			runGitInit(t, upstream)
@@ -38,9 +42,15 @@ test "${CARGO_ENCODED_RUSTFLAGS+x}" != x
 test "${RUSTC_WRAPPER+x}" != x
 printf '%s\n' "$*" >> "$FIXTURE_CALLS"
 test "$(cat rust-toolchain.toml)" = selected-toolchain
+if [ "$1" = metadata ]; then
+ printf '{"workspace_members":["cli"],"packages":[{"id":"cli","name":"codex-cli","version":"1.2.3","manifest_path":"%s/cli/Cargo.toml"}]}\n' "$PWD"
+ exit 0
+fi
+grep -q '1.2.3' Cargo.lock
 case " $* " in *" --locked "*) ;; *) echo 'lockfile updates are forbidden' >&2; exit 35;; esac
-case " $* " in *" --version "*) echo 'codex-cli 1.2.3'; exit 0;; esac
-if [ "$MUTATE_SOURCE" = true ]; then echo mutated > Cargo.lock; fi
+case " $* " in *" --version "*)
+ if [ "$MUTATE_SOURCE" != none ]; then echo mutated > "$MUTATE_SOURCE"; fi
+ echo 'codex-cli 1.2.3'; exit 0;; esac
 while [ "$#" -gt 0 ]; do
  if [ "$1" = --out ]; then shift; mkdir -p "$1"; printf '%s' '{"type":"object"}' > "$1/Payload.json"; exit 0; fi
  shift
@@ -71,9 +81,12 @@ exit 36
 				writeFile(t, filepath.Join(module, ".cargo", "config"), "[build]\nrustflags = ['--cfg=ambient']\n")
 			}
 			if mutate {
-				t.Setenv("MUTATE_SOURCE", "true")
+				t.Setenv("MUTATE_SOURCE", "Cargo.lock")
+				if name == "mutated toolchain" {
+					t.Setenv("MUTATE_SOURCE", "rust-toolchain.toml")
+				}
 			} else {
-				t.Setenv("MUTATE_SOURCE", "false")
+				t.Setenv("MUTATE_SOURCE", "none")
 			}
 			candidate, err := GenerateCandidate(GenerateRequest{ModuleRoot: module, UpstreamRepo: upstream, Target: Target{RefName: "rust-v1.2.3", RefKind: KindStableTag, PeeledCommitSHA: sha}})
 			if mutate || config {
@@ -93,13 +106,24 @@ exit 36
 				t.Fatal(err)
 			}
 			lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
-			if len(lines) != 3 {
+			if len(lines) != 4 {
 				t.Fatalf("cargo calls = %s", raw)
 			}
-			for _, line := range lines {
+			if lines[0] != "metadata --no-deps --format-version 1" {
+				t.Fatalf("unexpected metadata invocation %q", lines[0])
+			}
+			for _, line := range lines[1:] {
 				if !strings.HasPrefix(line, "run --locked -p codex-cli -- ") {
 					t.Fatalf("unlocked cargo invocation %q", line)
 				}
+			}
+			original, err := os.ReadFile(filepath.Join(candidate.Dir, "upstream.Cargo.lock"))
+			if err != nil || !strings.Contains(string(original), `version = "0.0.0"`) {
+				t.Fatalf("original lock evidence: %s %v", original, err)
+			}
+			prepared, err := os.ReadFile(filepath.Join(candidate.Dir, "prepared.Cargo.lock"))
+			if err != nil || !strings.Contains(string(prepared), "1.2.3") {
+				t.Fatalf("prepared lock evidence: %s %v", prepared, err)
 			}
 			common, err := os.ReadFile(candidate.CommonRS)
 			if err != nil || string(common) != "exact common.rs\n" {

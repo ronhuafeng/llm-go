@@ -1,6 +1,8 @@
 package protocolsync
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"os/exec"
@@ -133,6 +135,41 @@ func GenerateCandidate(req GenerateRequest) (Candidate, error) {
 	if strings.TrimSpace(string(overrideOut)) != "no overrides" {
 		return Candidate{}, &Failure{Category: FailureSource, Err: fmt.Errorf("cached rustup directory overrides are not selected source inputs")}
 	}
+	lockPath := filepath.Join(codexRS, "Cargo.lock")
+	originalLock, err := os.ReadFile(lockPath)
+	if err != nil {
+		return Candidate{}, err
+	}
+	// --no-deps reads package declarations without resolving dependencies or
+	// building upstream code. It provides the real workspace membership.
+	metadata := exec.Command("cargo", "metadata", "--no-deps", "--format-version", "1")
+	metadata.Dir, metadata.Env = codexRS, env
+	metadata.Stderr = os.Stderr
+	fmt.Fprintf(os.Stderr, "protocolsync upstream command: %s\n", metadata.String())
+	metadataOut, err := metadata.Output()
+	if err != nil {
+		return Candidate{}, fmt.Errorf("read selected Cargo workspace: %w", err)
+	}
+	dirty, err := gitOutput(worktree, "status", "--porcelain", "--untracked-files=no")
+	if err != nil {
+		return Candidate{}, err
+	}
+	if strings.TrimSpace(dirty) != "" {
+		return Candidate{}, &Failure{Category: FailureSource, Err: fmt.Errorf("Cargo metadata changed selected source: %s", dirty)}
+	}
+	preparedLock, err := prepareLockfile(originalLock, metadataOut, codexRS)
+	if err != nil {
+		return Candidate{}, &Failure{Category: FailureSource, Err: err}
+	}
+	for name, data := range map[string][]byte{"upstream.Cargo.lock": originalLock, "prepared.Cargo.lock": preparedLock} {
+		if err := os.WriteFile(filepath.Join(syncOut, name), data, 0o644); err != nil {
+			return Candidate{}, err
+		}
+	}
+	fmt.Fprintf(os.Stderr, "protocolsync Cargo.lock sha256: upstream=%x prepared=%x\n", sha256.Sum256(originalLock), sha256.Sum256(preparedLock))
+	if err := os.WriteFile(lockPath, preparedLock, 0o644); err != nil {
+		return Candidate{}, err
+	}
 	if err := runCargo(codexRS, env, "run", "--locked", "-p", "codex-cli", "--", "app-server", "generate-json-schema", "--experimental", "--out", schemaDir); err != nil {
 		return Candidate{}, err
 	}
@@ -151,12 +188,21 @@ func GenerateCandidate(req GenerateRequest) (Candidate, error) {
 	if !strings.HasPrefix(codexVersion, "codex-cli ") {
 		return Candidate{}, fmt.Errorf("unexpected exact upstream codex-cli version %q", codexVersion)
 	}
-	changedSource, err := gitOutput(worktree, "status", "--porcelain", "--untracked-files=no")
+	builtLock, err := os.ReadFile(lockPath)
 	if err != nil {
 		return Candidate{}, err
 	}
-	if strings.TrimSpace(changedSource) != "" {
-		return Candidate{}, &Failure{Category: FailureSource, Err: fmt.Errorf("upstream build changed selected source %s:\n%s", targetSHA, strings.TrimSpace(changedSource))}
+	changedSource, err := gitOutput(worktree, "diff", "--name-only", "HEAD")
+	if err != nil {
+		return Candidate{}, err
+	}
+	for _, path := range strings.Fields(changedSource) {
+		if path != "codex-rs/Cargo.lock" {
+			return Candidate{}, &Failure{Category: FailureSource, Err: fmt.Errorf("upstream build changed selected source %s: %s", targetSHA, path)}
+		}
+	}
+	if !bytes.Equal(builtLock, preparedLock) {
+		return Candidate{}, &Failure{Category: FailureSource, Err: fmt.Errorf("upstream build changed prepared Cargo.lock for %s", targetSHA)}
 	}
 	commonRS := filepath.Join(syncOut, "common.rs")
 	if err := writeGitShow(codexRepo, targetSHA+":codex-rs/app-server-protocol/src/protocol/common.rs", commonRS); err != nil {

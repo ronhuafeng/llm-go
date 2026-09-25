@@ -333,14 +333,23 @@ are then set explicitly. Cargo configuration outside the selected checkout
 Selected source configuration remains authoritative. This bounds build inputs;
 it does not claim a hermetic operating system or compiler installation.
 
-Upstream schema generation and CLI version queries use `cargo run --locked`
-in the exact selected checkout. The selected source's Rust toolchain declaration
-controls the build; ambient `RUSTUP_TOOLCHAIN` and persisted rustup directory
-overrides cannot override it. A toolchain cache with directory overrides is
-rejected.
-Actual command arguments are logged. A tracked source change during these
-commands, including a Cargo.lock change, rejects the candidate. Cargo caches
-only accelerate that build and do not replace the selected source inputs.
+Upstream release commits may update workspace versions in Cargo.toml while
+Cargo.lock retains development versions. Read `cargo metadata --no-deps` from
+the selected checkout without resolving dependencies. Prepare Cargo.lock by
+changing only local workspace package versions and their explicit internal
+version references to those declarations. Preserve all other lock fields,
+including third-party versions, sources, checksums and dependency edges. Missing
+or ambiguous workspace identities fail. An already consistent lockfile remains
+byte-identical. This preparation never runs an unlocked dependency update.
+
+Retain original and prepared Cargo.lock files in the candidate directory and log
+their SHA-256 digests. The original remains the upstream fact; the prepared file
+is the actual build input. Schema generation and CLI version queries then use
+`cargo run --locked` in that checkout. Reject subsequent changes to the prepared
+lockfile or other tracked source. The selected source's toolchain declaration
+controls the build: ambient Rust/Cargo overrides, external Cargo configuration
+and cached rustup directory overrides cannot override it. Actual commands are
+logged; caches only accelerate the selected build.
 
 The checked-in generated check is a fast proof that current source inputs
 reproduce generated Go. Final validation is a separate read-only reconstruction:
