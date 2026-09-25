@@ -220,6 +220,37 @@ func TestPlanReportsGeneratedEnumNameCollision(t *testing.T) {
 	}
 }
 
+func TestPlanReportsUnrepresentableGeneratedTypeName(t *testing.T) {
+	root := copyModuleForCheck(t)
+	baseline := filepath.Join(root, filepath.FromSlash(defaultBaselineRel))
+	candidate := t.TempDir()
+	if err := copyTree(baseline, candidate); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(candidate, "ClientRequest.json")
+	var schema map[string]any
+	if err := loadJSON(path, &schema); err != nil {
+		t.Fatal(err)
+	}
+	schema["title"] = "Bad-Name"
+	writeJSONFile(t, path, schema)
+	commonRS := filepath.Join(root, "common.rs")
+	writeBaselineMappingFixture(t, baseline, commonRS)
+	sha := strings.Repeat("b", 40)
+	planned, err := Plan(ApplyRequest{
+		Baseline: baseline, Candidate: candidate, StableCandidate: candidate,
+		CommonRS: commonRS, CommonRSSourceSHA: sha,
+		TargetRef: "rust-v0.154.0", TargetKind: "stable_rust_tag", TargetSHA: sha,
+		ModuleRoot: root,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if planned.Status != PlanSemanticUnresolved || planned.Issue == nil || planned.Issue.Stage != "surface" || planned.Issue.Path != "ClientRequest.json" {
+		t.Fatalf("plan = %+v issue = %+v, want generated type source", planned, planned.Issue)
+	}
+}
+
 func TestPlanReportsFacadeNameCollisionAsSemanticDrift(t *testing.T) {
 	root := copyModuleForCheck(t)
 	baseline := filepath.Join(root, filepath.FromSlash(defaultBaselineRel))

@@ -5,12 +5,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"go/format"
+	"go/token"
 	"sort"
 	"strings"
 )
 
 func GenerateProtocolTypes(plan ProtocolTypePlan) ([]byte, error) {
 	plan = normalizeExplicitProtocolTypePlan(plan)
+	for _, typ := range plan.Types {
+		if isGeneratedTopLevelType(typ) && !token.IsIdentifier(typ.TypeName) {
+			return nil, unsupportedGeneratedSchema(typ.SchemaPath, "generated type name %q is not a Go identifier", typ.TypeName)
+		}
+	}
 	if err := validateGeneratedDefinitionShapes(plan); err != nil {
 		return nil, err
 	}
