@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"go/token"
 	"os"
 	"path/filepath"
 	"sort"
@@ -637,6 +638,22 @@ func newGeneratedDefinitionNameResolver(plan ProtocolTypePlan) (generatedDefinit
 				resolver.namesByPath[source.path] = typeName
 			}
 		}
+	}
+	paths := make([]string, 0, len(resolver.namesByPath))
+	for path := range resolver.namesByPath {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	for _, path := range paths {
+		name := resolver.namesByPath[path]
+		if token.IsIdentifier(name) {
+			continue
+		}
+		schemaPath, definition, _ := strings.Cut(path, "#/definitions/")
+		return generatedDefinitionNameResolver{}, unsupportedGeneratedSchema(
+			unsupportedDefinitionPath(schemaPath, definition),
+			"generated definition type name %q is not a Go identifier", name,
+		)
 	}
 	return resolver, nil
 }
