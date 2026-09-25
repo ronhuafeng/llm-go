@@ -554,15 +554,26 @@ jobs:
     needs: sync
     outputs:
       outcome: ${{ steps.publish.outputs.outcome }}
-      category: ${{ steps.publish.outputs.failure_category }}
+      category: ${{ steps.publish.outputs.failure_category || steps.app_config.outputs.failure_category }}
       pr_url: ${{ steps.publish.outputs.pr_url }}
     name: Publish protected sync PR
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
     steps:
+      - name: Check publication App configuration
+        id: app_config
+        env:
+          APP_CONFIGURED: ${{ vars.PROTOCOL_SYNC_APP_CLIENT_ID != '' && secrets.PROTOCOL_SYNC_APP_PRIVATE_KEY != '' }}
+        run: |
+          set -euo pipefail
+          if [[ "${APP_CONFIGURED}" != true ]]; then
+            echo '::error::Configure PROTOCOL_SYNC_APP_CLIENT_ID and PROTOCOL_SYNC_APP_PRIVATE_KEY for an App installed on this repository with Contents and Pull requests write access. See docs/protocol-sync.md.' >&2
+            echo 'failure_category=policy_configuration' >> "${GITHUB_OUTPUT}"
+            exit 1
+          fi
+
       - name: Check out trusted control plane
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -588,12 +599,23 @@ jobs:
           name: protocol-sync-proposal
           path: ${{ runner.temp }}/protocol-sync-handoff
 
+      - name: Mint repository publication token
+        id: app_token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.PROTOCOL_SYNC_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PROTOCOL_SYNC_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+
       - name: Publish verified proposal
         id: publish
         working-directory: codexsdk
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app_token.outputs.token }}
           PATCH_SHA256: ${{ needs.sync.outputs.patch_sha256 }}
           TARGET_KIND: ${{ needs.sync.outputs.target_kind }}
           TARGET_REF: ${{ needs.sync.outputs.target_ref }}
