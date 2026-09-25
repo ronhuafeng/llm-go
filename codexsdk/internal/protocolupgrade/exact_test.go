@@ -7,145 +7,102 @@ import (
 	"testing"
 )
 
-func TestVerifyExactRebuildsAndRejectsStaleFacts(t *testing.T) {
-	root := copyModuleForCheck(t)
-	baseline := filepath.Join(root, filepath.FromSlash(defaultBaselineRel))
-	candidate := t.TempDir()
-	if err := copyTree(baseline, candidate); err != nil {
-		t.Fatal(err)
-	}
-	commonRS := filepath.Join(root, "common.rs")
-	writeBaselineMappingFixture(t, baseline, commonRS)
-	sha := strings.Repeat("b", 40)
-	req := ApplyRequest{
-		Baseline: baseline, Candidate: candidate, StableCandidate: candidate,
-		CommonRS: commonRS, CommonRSSourceSHA: sha, TargetRef: "rust-v1.2.3",
-		TargetKind: "stable_rust_tag", TargetSHA: sha, ModuleRoot: root,
-	}
-	if _, err := Apply(req); err != nil {
-		t.Fatal(err)
-	}
-	before, err := snapshotHashes(baseline)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := VerifyExact(req); err != nil {
-		t.Fatalf("fresh exact reconstruction failed: %v", err)
-	}
-	after, err := snapshotHashes(baseline)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := sameSnapshot(before, after, "accepted baseline during exact validation"); err != nil {
-		t.Fatal(err)
-	}
+func TestCompareExactBaselineRejectsStaleSemanticArtifacts(t *testing.T) {
+	acceptedRoot := t.TempDir()
 	rebuiltRoot := t.TempDir()
-	rebuiltBaseline := filepath.Join(rebuiltRoot, filepath.FromSlash(defaultBaselineRel))
-	if err := copyTree(baseline, rebuiltBaseline); err != nil {
+	accepted := filepath.Join(acceptedRoot, "schema")
+	rebuilt := filepath.Join(rebuiltRoot, "schema")
+	writeJSONFile(t, filepath.Join(accepted, "ClientRequest.json"), map[string]any{
+		"title": "ClientRequest", "type": "object",
+		"properties": map[string]any{"method": map[string]any{"type": "string"}},
+	})
+	writeJSONFile(t, filepath.Join(accepted, "baseline_metadata.json"), map[string]any{
+		"source_commit": strings.Repeat("b", 40), "generated_at": "2026-09-24T00:00:00Z",
+	})
+	writeJSONFile(t, filepath.Join(accepted, "manifest_generation.json"), map[string]any{
+		"inputs": map[string]any{"source_commit": strings.Repeat("b", 40)},
+	})
+	writeJSONFile(t, filepath.Join(accepted, "manifest.json"), manifestFile{
+		Entries: []manifestEntry{{
+			Kind: "request", Method: "thread/start", Stability: "stable",
+			SourceRef: map[string]string{"response_mapping": "exact common.rs mapping"},
+		}},
+	})
+	writeJSONFile(t, filepath.Join(accepted, "coverage_matrix.json"), coverageFile{
+		Fields: []map[string]any{{"path": "ClientRequest.json#/properties/method", "required": true}},
+	})
+	if err := copyTree(accepted, rebuilt); err != nil {
 		t.Fatal(err)
 	}
 	for _, rel := range generatedProtocolArtifacts {
-		from := filepath.Join(root, filepath.FromSlash(rel))
-		to := filepath.Join(rebuiltRoot, filepath.FromSlash(rel))
-		if err := os.MkdirAll(filepath.Dir(to), 0o755); err != nil {
-			t.Fatal(err)
+		for _, root := range []string{acceptedRoot, rebuiltRoot} {
+			path := filepath.Join(root, filepath.FromSlash(rel))
+			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte("// generated from exact input\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
 		}
-		if err := copyFile(from, to); err != nil {
-			t.Fatal(err)
-		}
+	}
+	writeJSONFile(t, filepath.Join(rebuilt, "baseline_metadata.json"), map[string]any{
+		"source_commit": strings.Repeat("b", 40), "generated_at": "2026-09-25T00:00:00Z",
+	})
+	if err := compareExactBaseline(accepted, rebuilt, acceptedRoot, rebuiltRoot); err != nil {
+		t.Fatalf("matching exact artifacts and differing observation time: %v", err)
 	}
 
-	coveragePath := filepath.Join(baseline, "coverage_matrix.json")
-	manifestPath := filepath.Join(baseline, "manifest.json")
-	coverageBytes, err := os.ReadFile(coveragePath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	manifestBytes, err := os.ReadFile(manifestPath)
-	if err != nil {
-		t.Fatal(err)
-	}
 	for _, test := range []struct {
 		name, artifact string
-		mutate         func(t *testing.T)
+		mutate         func(string)
 	}{
-		{name: "requiredness", artifact: "coverage_matrix.json", mutate: func(t *testing.T) {
-			var coverage coverageFile
-			if err := loadJSON(coveragePath, &coverage); err != nil {
-				t.Fatal(err)
-			}
-			coverage.Fields[0]["required"] = coverage.Fields[0]["required"] != true
-			if err := writeJSON(coveragePath, coverage); err != nil {
+		{name: "requiredness", artifact: "coverage_matrix.json", mutate: func(root string) {
+			writeJSONFile(t, filepath.Join(root, "coverage_matrix.json"), coverageFile{
+				Fields: []map[string]any{{"path": "ClientRequest.json#/properties/method", "required": false}},
+			})
+		}},
+		{name: "method stability", artifact: "manifest.json", mutate: func(root string) {
+			writeJSONFile(t, filepath.Join(root, "manifest.json"), manifestFile{
+				Entries: []manifestEntry{{Kind: "request", Method: "thread/start", Stability: "experimental", SourceRef: map[string]string{"response_mapping": "exact common.rs mapping"}}},
+			})
+		}},
+		{name: "response mapping", artifact: "manifest.json", mutate: func(root string) {
+			writeJSONFile(t, filepath.Join(root, "manifest.json"), manifestFile{
+				Entries: []manifestEntry{{Kind: "request", Method: "thread/start", Stability: "stable", SourceRef: map[string]string{"response_mapping": "stale mapping"}}},
+			})
+		}},
+		{name: "upstream source", artifact: "baseline_metadata.json", mutate: func(root string) {
+			writeJSONFile(t, filepath.Join(root, "baseline_metadata.json"), map[string]any{"source_commit": strings.Repeat("c", 40)})
+		}},
+		{name: "stable or complete schema", artifact: "schema mismatch", mutate: func(root string) {
+			if err := os.Remove(filepath.Join(root, "ClientRequest.json")); err != nil {
 				t.Fatal(err)
 			}
 		}},
-		{name: "method stability", artifact: "manifest.json", mutate: func(t *testing.T) {
-			var manifest manifestFile
-			if err := loadJSON(manifestPath, &manifest); err != nil {
-				t.Fatal(err)
-			}
-			if manifest.Entries[0].Stability == "stable" {
-				manifest.Entries[0].Stability = "experimental"
-			} else {
-				manifest.Entries[0].Stability = "stable"
-			}
-			if err := writeJSON(manifestPath, manifest); err != nil {
-				t.Fatal(err)
-			}
-		}},
-		{name: "response mapping", artifact: "manifest.json", mutate: func(t *testing.T) {
-			var manifest manifestFile
-			if err := loadJSON(manifestPath, &manifest); err != nil {
-				t.Fatal(err)
-			}
-			for index := range manifest.Entries {
-				if manifest.Entries[index].Kind == "request" {
-					manifest.Entries[index].SourceRef["response_mapping"] = "stale accepted mapping"
-					break
-				}
-			}
-			if err := writeJSON(manifestPath, manifest); err != nil {
+		{name: "generated Go", artifact: "method_registry.gen.go", mutate: func(root string) {
+			if err := os.WriteFile(filepath.Join(acceptedRoot, "protocolv2/method_registry.gen.go"), []byte("// stale generated Go\n"), 0o644); err != nil {
 				t.Fatal(err)
 			}
 		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			if err := os.WriteFile(coveragePath, coverageBytes, 0o644); err != nil {
+			root := filepath.Join(t.TempDir(), "schema")
+			if err := copyTree(rebuilt, root); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(manifestPath, manifestBytes, 0o644); err != nil {
-				t.Fatal(err)
-			}
-			test.mutate(t)
-			// VerifyExact reaches this comparison after isolated reconstruction.
-			// Metadata is checked independently of the generated Go files.
-			err := compareExactBaseline(baseline, rebuiltBaseline, root, rebuiltRoot)
+			test.mutate(root)
+			err := compareExactBaseline(root, rebuilt, acceptedRoot, rebuiltRoot)
 			if err == nil || !strings.Contains(err.Error(), test.artifact) {
 				t.Fatalf("got %v, want %s mismatch", err, test.artifact)
 			}
 		})
 	}
-	if err := os.WriteFile(coveragePath, coverageBytes, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(manifestPath, manifestBytes, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	for _, test := range []struct {
-		name   string
-		change func(*ApplyRequest)
-		want   string
-	}{
-		{name: "wrong source SHA", change: func(req *ApplyRequest) { req.CommonRSSourceSHA = strings.Repeat("c", 40) }, want: "does not match target"},
-		{name: "missing stable schema", change: func(req *ApplyRequest) { req.StableCandidate = filepath.Join(root, "missing-stable") }, want: "load stable"},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			broken := req
-			test.change(&broken)
-			_, err := VerifyExact(broken)
-			if err == nil || !strings.Contains(err.Error(), test.want) {
-				t.Fatalf("got %v, want %q", err, test.want)
-			}
-		})
+}
+
+func TestVerifyExactRejectsDisabledDerivation(t *testing.T) {
+	for _, req := range []ApplyRequest{{}, {ModuleRoot: t.TempDir(), SkipCodegen: true}} {
+		if _, err := VerifyExact(req); err == nil || !strings.Contains(err.Error(), "requires module root") {
+			t.Fatalf("got %v, want complete derivation requirement", err)
+		}
 	}
 }
