@@ -327,6 +327,31 @@ Before publication, require evidence appropriate to the candidate:
 - `go vet ./codexsdk/...` passes;
 - `go test ./codexsdk/...` passes.
 
+Ambient Rust/Cargo environment overrides are removed; owned cache locations
+are then set explicitly. Cargo configuration outside the selected checkout
+(including the Cargo home cache and ancestor directories) rejects generation.
+Selected source configuration remains authoritative. This bounds build inputs;
+it does not claim a hermetic operating system or compiler installation.
+
+Upstream release commits may update workspace versions in Cargo.toml while
+Cargo.lock retains development versions. Read `cargo metadata --no-deps` from
+the selected checkout without resolving dependencies. Prepare Cargo.lock by
+changing only local workspace package versions and their explicit internal
+version references to those declarations. Preserve all other lock fields,
+including third-party versions, sources, checksums and dependency edges. Missing
+or ambiguous workspace identities fail. An already consistent lockfile remains
+byte-identical. This preparation never runs an unlocked dependency update.
+
+Retain original and prepared Cargo.lock files in the candidate directory and log
+their SHA-256 digests. CI retains those two files as build-input artifacts,
+including on a failed build. The original remains the upstream fact; the prepared file
+is the actual build input. Schema generation and CLI version queries then use
+`cargo run --locked` in that checkout. Reject subsequent changes to the prepared
+lockfile or other tracked source. The selected source's toolchain declaration
+controls the build: ambient Rust/Cargo overrides, external Cargo configuration
+and cached rustup directory overrides cannot override it. Actual commands are
+logged; caches only accelerate the selected build.
+
 The checked-in generated check is a fast proof that current source inputs
 reproduce generated Go. Final validation is a separate read-only reconstruction:
 resolve the checked-in exact upstream ref/SHA, freshly generate complete and

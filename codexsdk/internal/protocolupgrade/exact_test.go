@@ -2,6 +2,7 @@ package protocolupgrade
 
 import (
 	"errors"
+	"github.com/ronhuafeng/llm-go/codexsdk/internal/generatedcheck"
 	"os"
 	"path/filepath"
 	"strings"
@@ -166,4 +167,70 @@ func writeCompleteApplyFixture(t *testing.T) applyFixture {
 		t.Fatal(err)
 	}
 	return fix
+}
+
+func TestVerifyExactRejectsSelfConsistentStaleProjections(t *testing.T) {
+	for _, kind := range []string{"requiredness", "stability", "response mapping"} {
+		t.Run(kind, func(t *testing.T) {
+			fix := writeCompleteApplyFixture(t)
+			req := ApplyRequest{Baseline: fix.baseline, Candidate: fix.candidate, StableCandidate: fix.stable, CommonRS: fix.commonRS, CommonRSSourceSHA: fix.sha, TargetRef: "rust-v1.2.3", TargetKind: "stable_rust_tag", TargetSHA: fix.sha, ModuleRoot: fix.module}
+			if _, err := Apply(req); err != nil {
+				t.Fatal(err)
+			}
+			switch kind {
+			case "requiredness":
+				path := filepath.Join(fix.baseline, "coverage_matrix.json")
+				var coverage coverageFile
+				if err := loadJSON(path, &coverage); err != nil {
+					t.Fatal(err)
+				}
+				for _, field := range coverage.Fields {
+					if field["schema"] == "ThreadStartParams.json" && field["field"] == "prompt" {
+						field["required"] = true
+					}
+				}
+				if err := writeJSON(path, coverage); err != nil {
+					t.Fatal(err)
+				}
+			case "stability", "response mapping":
+				path := filepath.Join(fix.baseline, "manifest.json")
+				var manifest manifestFile
+				if err := loadJSON(path, &manifest); err != nil {
+					t.Fatal(err)
+				}
+				if kind == "stability" {
+					manifest.Entries[0].Stability = "experimental"
+				} else {
+					manifest.Entries[0].ResponseSchema = "ThreadStartParams.json"
+					manifest.Entries[0].ResponseType = "ThreadStartParams"
+				}
+				if err := writeJSON(path, manifest); err != nil {
+					t.Fatal(err)
+				}
+			}
+			// The weaker reproducibility proof deliberately consumes the stale facts.
+			if err := generatedcheck.WriteArtifacts(fix.module); err != nil {
+				t.Fatal(err)
+			}
+			if err := generatedcheck.Check(generatedcheck.Request{ModuleRoot: fix.module}); err != nil {
+				t.Fatalf("stale facts do not reproduce their own Go: %v", err)
+			}
+			before, err := snapshotHashes(fix.module)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = VerifyExact(req)
+			var mismatch *VerificationError
+			if !errors.As(err, &mismatch) {
+				t.Fatalf("fresh exact accepted self-consistent stale %s: %v", kind, err)
+			}
+			after, err := snapshotHashes(fix.module)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := sameSnapshot(before, after, "accepted inputs after exact rejection"); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
 }

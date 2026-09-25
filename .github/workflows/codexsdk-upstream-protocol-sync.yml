@@ -154,7 +154,7 @@ jobs:
             echo "- Workflow run/attempt: ${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}"
             echo "- Upstream ref: ${TARGET_REF}"
             echo "- Upstream peeled commit: ${TARGET_SHA}"
-            echo '- Generation: cargo run -p codex-cli -- app-server generate-json-schema --experimental --out <complete-schema>; cargo run -p codex-cli -- app-server generate-json-schema --out <stable-schema> (both from that commit)'
+            echo '- Generation: cargo run --locked -p codex-cli -- app-server generate-json-schema --experimental --out <complete-schema>; cargo run --locked -p codex-cli -- app-server generate-json-schema --out <stable-schema> (both from that commit)'
             echo "- Plan outcome: ${OUTCOME:-unavailable}"
             echo "- Reason: ${REASON}"
             echo "- Stage: ${ISSUE_STAGE}"
@@ -246,6 +246,17 @@ jobs:
             echo "- Go checks outcome: ${CHECKS_OUTCOME}"
             echo '- Agent, accepted-worktree Apply, commit, push, and PR publication: not invoked'
           } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Retain selected build inputs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: protocol-sync-build-inputs-readonly
+          path: |
+            codexsdk/.cache/codexsdk-upstream-*/upstream.Cargo.lock
+            codexsdk/.cache/codexsdk-upstream-*/prepared.Cargo.lock
+          include-hidden-files: true
+          if-no-files-found: ignore
 
   sync:
     if: ${{ inputs.diagnostic_only != true && inputs.validation_only != true }}
@@ -558,6 +569,17 @@ jobs:
           name: protocol-sync-proposal
           path: ${{ runner.temp }}/protocol-sync-handoff/proposal.patch
           if-no-files-found: error
+
+      - name: Retain selected build inputs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: protocol-sync-build-inputs-sync
+          path: |
+            codexsdk/.cache/codexsdk-upstream-*/upstream.Cargo.lock
+            codexsdk/.cache/codexsdk-upstream-*/prepared.Cargo.lock
+          include-hidden-files: true
+          if-no-files-found: ignore
 
   publish:
     if: ${{ needs.sync.outputs.outcome == 'applied' || needs.sync.outputs.resume_outcome == 'applied' }}
