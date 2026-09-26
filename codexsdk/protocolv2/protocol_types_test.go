@@ -686,7 +686,7 @@ func TestGeneratedThreadCoreAdjacentPayloadsProtocolMarshalAndUnmarshal(t *testi
 		value any
 	}{
 		{name: "read", value: ThreadReadResponse{Thread: thread}},
-		{name: "rollback", value: ThreadRollbackResponse{Thread: thread}},
+		{name: "revert", value: ThreadRevertResponse{Thread: thread}},
 		{name: "metadata update", value: ThreadMetadataUpdateResponse{Thread: thread}},
 		{name: "unarchive", value: ThreadUnarchiveResponse{Thread: thread}},
 		{name: "started notification", value: ThreadStartedNotification{Thread: thread}},
@@ -8180,33 +8180,34 @@ func TestGeneratedOptionalNonNullableStillRejectsNull(t *testing.T) {
 }
 
 func TestGeneratedConstrainedUint32MarshalAndUnmarshal(t *testing.T) {
-	raw, err := json.Marshal(ThreadRollbackParams{
-		NumTurns: 2,
-		ThreadID: "thread-1",
+	raw, err := json.Marshal(ThreadRealtimeAudioChunk{
+		Data:        "audio",
+		NumChannels: 1,
+		SampleRate:  48000,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := string(raw), `{"numTurns":2,"threadId":"thread-1"}`; got != want {
-		t.Fatalf("ThreadRollbackParams JSON = %s, want %s", got, want)
+	if got, want := string(raw), `{"data":"audio","numChannels":1,"sampleRate":48000}`; got != want {
+		t.Fatalf("ThreadRealtimeAudioChunk JSON = %s, want %s", got, want)
 	}
 
-	var params ThreadRollbackParams
-	if err := json.Unmarshal([]byte(`{"numTurns":2,"threadId":"thread-1"}`), &params); err != nil {
+	var chunk ThreadRealtimeAudioChunk
+	if err := json.Unmarshal(raw, &chunk); err != nil {
 		t.Fatal(err)
 	}
-	if params.NumTurns != 2 || params.ThreadID != "thread-1" {
-		t.Fatalf("ThreadRollbackParams decoded as %#v", params)
+	if chunk.SampleRate != 48000 || chunk.NumChannels != 1 || chunk.Data != "audio" {
+		t.Fatalf("ThreadRealtimeAudioChunk decoded as %#v", chunk)
 	}
 }
 
 func TestGeneratedConstrainedUint32RejectsNegative(t *testing.T) {
-	var params ThreadRollbackParams
-	err := json.Unmarshal([]byte(`{"numTurns":-1,"threadId":"thread-1"}`), &params)
+	var chunk ThreadRealtimeAudioChunk
+	err := json.Unmarshal([]byte(`{"data":"audio","numChannels":1,"sampleRate":-1}`), &chunk)
 	if err == nil {
 		t.Fatal("expected negative uint32 to fail")
 	}
-	if !strings.Contains(err.Error(), "decode ThreadRollbackParams.numTurns") {
+	if !strings.Contains(err.Error(), "decode ThreadRealtimeAudioChunk.sampleRate") {
 		t.Fatalf("unexpected negative uint32 error: %v", err)
 	}
 }

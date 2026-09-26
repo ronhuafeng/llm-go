@@ -103,6 +103,10 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 	"ClientRequestMemoryReset": {
 		"id": {},
 	},
+	"ClientRequestMemoryStatus": {
+		"id":     {},
+		"params": {},
+	},
 	"ClientRequestMockExperimentalMethod": {
 		"id":     {},
 		"params": {},
@@ -180,6 +184,9 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"params": {},
 	},
 	"ClientRequestRemoteControlStatusRead": {
+		"id": {},
+	},
+	"ClientRequestRolloutCompress": {
 		"id": {},
 	},
 	"ClientRequestServerDiagnostics": {
@@ -278,6 +285,10 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"id":     {},
 		"params": {},
 	},
+	"ClientRequestUserVerificationCancel": {
+		"id":     {},
+		"params": {},
+	},
 	"ClientRequestUserVerificationDelete": {
 		"id":     {},
 		"params": {},
@@ -345,8 +356,7 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"audio_url": {},
 	},
 	"ContentItemInputImage": {
-		"detail":    {},
-		"image_url": {},
+		"detail": {},
 	},
 	"ContentItemInputText": {
 		"text": {},
@@ -411,6 +421,9 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"query":     {},
 		"sessionId": {},
 	},
+	"GetAccountResponse": {
+		"workspaceRouting": {},
+	},
 	"InternalChatMessageMetadataPassthrough": {
 		"turn_id": {},
 	},
@@ -438,6 +451,7 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"windowsManagedDir": {},
 	},
 	"McpServerElicitationRequestParamsOpenaiUserVerification": {
+		"_meta":       {},
 		"challenge":   {},
 		"description": {},
 		"title":       {},
@@ -452,6 +466,13 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 	},
 	"McpServerEventStreamStopParams": {
 		"subscriptionId": {},
+	},
+	"MemoryStatusParams": {
+		"minConsolidatedThreads": {},
+	},
+	"MemoryStatusResponse": {
+		"v2ConsolidatedThreads": {},
+		"v2Ready":               {},
 	},
 	"MockExperimentalMethodParams": {
 		"value": {},
@@ -965,6 +986,7 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"voices": {},
 	},
 	"ThreadRealtimeStartParams": {
+		"backendReasoningStatus":              {},
 		"clientManagedHandoffs":               {},
 		"codexResponseHandoffChannelPrefixes": {},
 		"codexResponseHandoffMode":            {},
@@ -1059,6 +1081,7 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"approvalsReviewer": {},
 		"collaborationMode": {},
 		"cwd":               {},
+		"disabledPluginIds": {},
 		"effort":            {},
 		"model":             {},
 		"multiAgentMode":    {},
@@ -1071,6 +1094,7 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 	},
 	"ThreadStartParams": {
 		"allowProviderModelFallback": {},
+		"daybreakEnabled":            {},
 		"dynamicTools":               {},
 		"environments":               {},
 		"experimentalRawEvents":      {},
@@ -1156,8 +1180,13 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"data":            {},
 		"nextCursor":      {},
 	},
+	"UserVerificationCancelParams": {
+		"requestId": {},
+	},
 	"UserVerificationEnrollResponse": {
+		"algorithm":    {},
 		"credentialId": {},
+		"publicKey":    {},
 	},
 	"UserVerificationErrorDetailsCancelled": {
 		"reason": {},
@@ -1193,9 +1222,19 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 	"UserVerificationVerifyResponse": {
 		"proof": {},
 	},
+	"WorkspaceRouting": {
+		"accountRoutingOverride": {},
+		"backendOrigin":          {},
+		"chatgptAccountId":       {},
+	},
 }
 
 var ExperimentalUnionValues = map[string]map[string]struct{}{
+	"AccountRoutingOverride": {
+		"NO_CONSTRAINT": {},
+		"us":            {},
+		"us_cr":         {},
+	},
 	"AdditionalContext": {
 		"application": {},
 		"untrusted":   {},
@@ -1234,6 +1273,7 @@ var ExperimentalUnionValues = map[string]map[string]struct{}{
 		"mcpServer/event/stream/start":         {},
 		"mcpServer/event/stream/stop":          {},
 		"memory/reset":                         {},
+		"memory/status":                        {},
 		"mock/experimentalMethod":              {},
 		"plugin/search":                        {},
 		"process/kill":                         {},
@@ -1254,6 +1294,7 @@ var ExperimentalUnionValues = map[string]map[string]struct{}{
 		"remoteControl/pairing/start":          {},
 		"remoteControl/pairing/status":         {},
 		"remoteControl/status/read":            {},
+		"rollout/compress":                     {},
 		"server/diagnostics":                   {},
 		"thread/backgroundTerminals/clean":     {},
 		"thread/backgroundTerminals/list":      {},
@@ -1278,6 +1319,7 @@ var ExperimentalUnionValues = map[string]map[string]struct{}{
 		"thread/settings/update":               {},
 		"thread/timeline/list":                 {},
 		"turn/settings/update":                 {},
+		"userVerification/cancel":              {},
 		"userVerification/delete":              {},
 		"userVerification/enroll":              {},
 		"userVerification/status":              {},
@@ -1304,11 +1346,6 @@ var ExperimentalUnionValues = map[string]map[string]struct{}{
 		"assistant": {},
 		"developer": {},
 		"user":      {},
-	},
-	"CyberAccessProgram": {
-		"daybreakBlue": {},
-		"daybreakRed":  {},
-		"standard":     {},
 	},
 	"DynamicToolNamespaceTool": {
 		"function": {},
@@ -1598,6 +1635,15 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"id":     "RequestId",
 		"params": "BedrockSetupParams",
 	},
+	"ClientRequestAccountGatewayOAuthCancel": {
+		"id": "RequestId",
+	},
+	"ClientRequestAccountGatewayOAuthLogin": {
+		"id": "RequestId",
+	},
+	"ClientRequestAccountGatewayOAuthRead": {
+		"id": "RequestId",
+	},
 	"ClientRequestAccountLoginCancel": {
 		"id":     "RequestId",
 		"params": "CancelLoginAccountParams",
@@ -1820,6 +1866,10 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"ClientRequestMemoryReset": {
 		"id": "RequestId",
 	},
+	"ClientRequestMemoryStatus": {
+		"id":     "RequestId",
+		"params": "MemoryStatusParams",
+	},
 	"ClientRequestMockExperimentalMethod": {
 		"id":     "RequestId",
 		"params": "MockExperimentalMethodParams",
@@ -1963,6 +2013,9 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"id":     "RequestId",
 		"params": "ReviewStartParams",
 	},
+	"ClientRequestRolloutCompress": {
+		"id": "RequestId",
+	},
 	"ClientRequestServerDiagnostics": {
 		"id":     "RequestId",
 		"params": "ServerDiagnosticsParams",
@@ -1986,6 +2039,18 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"ClientRequestThreadArchive": {
 		"id":     "RequestId",
 		"params": "ThreadArchiveParams",
+	},
+	"ClientRequestThreadAttachmentAdd": {
+		"id":     "RequestId",
+		"params": "ThreadAttachmentAddParams",
+	},
+	"ClientRequestThreadAttachmentList": {
+		"id":     "RequestId",
+		"params": "ThreadAttachmentListParams",
+	},
+	"ClientRequestThreadAttachmentRemove": {
+		"id":     "RequestId",
+		"params": "ThreadAttachmentRemoveParams",
 	},
 	"ClientRequestThreadBackgroundTerminalsClean": {
 		"id":     "RequestId",
@@ -2119,10 +2184,6 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"id":     "RequestId",
 		"params": "ThreadRevertParams",
 	},
-	"ClientRequestThreadRollback": {
-		"id":     "RequestId",
-		"params": "ThreadRollbackParams",
-	},
 	"ClientRequestThreadSearch": {
 		"id":     "RequestId",
 		"params": "ThreadSearchParams",
@@ -2194,6 +2255,10 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"ClientRequestTurnSteer": {
 		"id":     "RequestId",
 		"params": "TurnSteerParams",
+	},
+	"ClientRequestUserVerificationCancel": {
+		"id":     "RequestId",
+		"params": "UserVerificationCancelParams",
 	},
 	"ClientRequestUserVerificationDelete": {
 		"id":     "RequestId",
@@ -2327,9 +2392,10 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"ConfigRequirements": {
 		"allowedApprovalPolicies":              "AskForApproval",
 		"allowedApprovalsReviewers":            "ApprovalsReviewer",
+		"allowedLoginMethods":                  "ForcedLoginMethod",
 		"allowedSandboxModes":                  "SandboxMode",
 		"allowedWebSearchModes":                "WebSearchMode",
-		"allowedWindowsSandboxImplementations": "WindowsSandboxSetupMode",
+		"allowedWindowsSandboxImplementations": "WindowsSandboxImplementation",
 		"application":                          "ApplicationRequirements",
 		"autoReview":                           "AutoReviewRequirements",
 		"browserUse":                           "BrowserUseRequirements",
@@ -2482,13 +2548,20 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"FuzzyFileSearchSessionUpdatedNotification": {
 		"files": "FuzzyFileSearchResult",
 	},
+	"GatewayOAuthChangedNotification": {
+		"status": "GatewayOAuthStatus",
+	},
+	"GatewayOAuthReadResponse": {
+		"status": "GatewayOAuthStatus",
+	},
 	"GetAccountRateLimitsResponse": {
 		"rateLimitResetCredits": "RateLimitResetCreditsSummary",
 		"rateLimits":            "RateLimitSnapshot",
 		"rateLimitsByLimitId":   "RateLimitSnapshot",
 	},
 	"GetAccountResponse": {
-		"account": "Account",
+		"account":          "Account",
+		"workspaceRouting": "WorkspaceRouting",
 	},
 	"GetAccountTokenUsageResponse": {
 		"dailyUsageBuckets": "AccountTokenUsageDailyBucket",
@@ -2594,8 +2667,14 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"MarketplaceUpgradeResponse": {
 		"errors": "MarketplaceUpgradeErrorInfo",
 	},
+	"McpAppUi": {
+		"preferredModelDisplayMode": "McpAppDisplayMode",
+	},
 	"McpElicitationSchema": {
 		"type": "McpElicitationObjectType",
+	},
+	"McpResourceReadParams": {
+		"target": "McpResourceReadTarget",
 	},
 	"McpResourceReadResponse": {
 		"contents": "ResourceContent",
@@ -2641,12 +2720,16 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	},
 	"Model": {
 		"availabilityNux":           "ModelAvailabilityNux",
+		"availableAccessPrograms":   "ModelAccessPrograms",
 		"defaultReasoningEffort":    "ReasoningEffort",
 		"inputModalities":           "InputModality",
 		"multiAgentVersion":         "MultiAgentVersion",
 		"serviceTiers":              "ModelServiceTier",
 		"supportedReasoningEfforts": "ReasoningEffortOption",
 		"upgradeInfo":               "ModelUpgradeInfo",
+	},
+	"ModelAccessPrograms": {
+		"cyber": "CyberAccessProgram",
 	},
 	"ModelListResponse": {
 		"data": "Model",
@@ -2687,12 +2770,34 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"scope":       "PermissionGrantScope",
 	},
 	"PluginDetail": {
-		"appTemplates":   "AppTemplateSummary",
-		"apps":           "AppSummary",
-		"hooks":          "PluginHookSummary",
-		"scheduledTasks": "ScheduledTaskSummary",
-		"skills":         "SkillSummary",
-		"summary":        "PluginSummary",
+		"appTemplates":    "AppTemplateSummary",
+		"apps":            "AppSummary",
+		"hooks":           "PluginHookSummary",
+		"onboardingSkill": "SkillSummary",
+		"scheduledTasks":  "ScheduledTaskSummary",
+		"skills":          "SkillSummary",
+		"summary":         "PluginSummary",
+	},
+	"PluginEntrypointFile": {
+		"icons": "PluginIcon",
+	},
+	"PluginEntrypointGlobal": {
+		"icons":       "PluginIcon",
+		"quickAction": "PluginQuickAction",
+	},
+	"PluginEntrypointSettings": {
+		"icons": "PluginIcon",
+	},
+	"PluginEntrypointThread": {
+		"icons": "PluginIcon",
+	},
+	"PluginExtensions": {
+		"entrypoints":            "PluginEntrypoint",
+		"fileHandlers":           "PluginEntrypoint",
+		"searchMentionProviders": "PluginSearchProvider",
+		"settings":               "PluginSettings",
+		"settingsEntrypoints":    "PluginEntrypoint",
+		"threadEntrypoints":      "PluginEntrypoint",
 	},
 	"PluginHookSummary": {
 		"eventName": "HookEventName",
@@ -2716,6 +2821,10 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"interface": "MarketplaceInterface",
 		"plugins":   "PluginSummary",
 	},
+	"PluginQuickAction": {
+		"icons":  "PluginIcon",
+		"target": "PluginQuickActionTarget",
+	},
 	"PluginReadResponse": {
 		"plugin": "PluginDetail",
 	},
@@ -2724,6 +2833,9 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	},
 	"PluginSearchParams": {
 		"scope": "PluginSearchScope",
+	},
+	"PluginSearchProvider": {
+		"call": "PluginSearchProviderCall",
 	},
 	"PluginSearchResponse": {
 		"data": "PluginSearchResult",
@@ -2765,6 +2877,7 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"authPolicy":          "PluginAuthPolicy",
 		"availability":        "PluginAvailability",
 		"disabledReason":      "PluginDisabledReason",
+		"extensions":          "PluginExtensions",
 		"installPolicy":       "PluginInstallPolicy",
 		"installPolicySource": "PluginInstallPolicySource",
 		"interface":           "PluginInterface",
@@ -2953,6 +3066,9 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"gauges":  "ServerDiagnosticsGauge",
 		"process": "ServerDiagnosticsProcess",
 	},
+	"ServerNotificationAccountGatewayOAuthChanged": {
+		"params": "GatewayOAuthChangedNotification",
+	},
 	"ServerNotificationAccountLoginCompleted": {
 		"params": "AccountLoginCompletedNotification",
 	},
@@ -3090,6 +3206,9 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	},
 	"ServerNotificationThreadArchived": {
 		"params": "ThreadArchivedNotification",
+	},
+	"ServerNotificationThreadAttachmentUpdated": {
+		"params": "ThreadAttachmentUpdatedNotification",
 	},
 	"ServerNotificationThreadClosed": {
 		"params": "ThreadClosedNotification",
@@ -3286,6 +3405,16 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"threadSource":    "ThreadSource",
 		"turns":           "Turn",
 	},
+	"ThreadAttachmentAddResponse": {
+		"attachment": "ThreadAttachment",
+		"outcome":    "ThreadAttachmentAddOutcome",
+	},
+	"ThreadAttachmentListResponse": {
+		"data": "ThreadAttachment",
+	},
+	"ThreadAttachmentUpdatedNotification": {
+		"operation": "ThreadAttachmentOperation",
+	},
 	"ThreadBackgroundTerminalsListResponse": {
 		"data": "ThreadBackgroundTerminal",
 	},
@@ -3359,6 +3488,7 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"ThreadItemMCPToolCall": {
 		"appContext": "McpToolCallAppContext",
 		"error":      "McpToolCallError",
+		"mcpAppUi":   "McpAppUi",
 		"result":     "McpToolCallResult",
 		"status":     "McpToolCallStatus",
 	},
@@ -3467,6 +3597,7 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"activePermissionProfile": "ActivePermissionProfile",
 		"approvalPolicy":          "AskForApproval",
 		"approvalsReviewer":       "ApprovalsReviewer",
+		"collaborationMode":       "CollaborationMode",
 		"initialTurnsPage":        "TurnsPage",
 		"multiAgentMode":          "MultiAgentMode",
 		"reasoningEffort":         "ReasoningEffort",
@@ -3474,9 +3605,6 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"thread":                  "Thread",
 	},
 	"ThreadRevertResponse": {
-		"thread": "Thread",
-	},
-	"ThreadRollbackResponse": {
 		"thread": "Thread",
 	},
 	"ThreadSearchOccurrence": {
@@ -3685,6 +3813,9 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"UserInputText": {
 		"text_elements": "TextElement",
 	},
+	"UserVerificationCancelParams": {
+		"requestId": "RequestId",
+	},
 	"UserVerificationErrorDetailsCancelled": {
 		"reason": "UserVerificationCancellationReason",
 	},
@@ -3721,5 +3852,8 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	},
 	"WorkspaceMessage": {
 		"messageType": "WorkspaceMessageType",
+	},
+	"WorkspaceRouting": {
+		"accountRoutingOverride": "AccountRoutingOverride",
 	},
 }

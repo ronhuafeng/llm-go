@@ -45,6 +45,10 @@ const (
 	MethodAccountBedrockDiscover                  = "account/bedrock/discover"
 	MethodAccountBedrockSetup                     = "account/bedrock/setup"
 	MethodAccountChatGPTAuthTokensRefresh         = "account/chatgptAuthTokens/refresh"
+	MethodAccountGatewayOAuthCancel               = "account/gatewayOAuth/cancel"
+	MethodAccountGatewayOAuthChanged              = "account/gatewayOAuth/changed"
+	MethodAccountGatewayOAuthLogin                = "account/gatewayOAuth/login"
+	MethodAccountGatewayOAuthRead                 = "account/gatewayOAuth/read"
 	MethodAccountLoginCancel                      = "account/login/cancel"
 	MethodAccountLoginCompleted                   = "account/login/completed"
 	MethodAccountLoginStart                       = "account/login/start"
@@ -147,6 +151,7 @@ const (
 	MethodMCPServerToolCall                       = "mcpServer/tool/call"
 	MethodMCPServerStatusList                     = "mcpServerStatus/list"
 	MethodMemoryReset                             = "memory/reset"
+	MethodMemoryStatus                            = "memory/status"
 	MethodMockExperimentalMethod                  = "mock/experimentalMethod"
 	MethodModelList                               = "model/list"
 	MethodModelRerouted                           = "model/rerouted"
@@ -192,6 +197,7 @@ const (
 	MethodRemoteControlStatusChanged              = "remoteControl/status/changed"
 	MethodRemoteControlStatusRead                 = "remoteControl/status/read"
 	MethodReviewStart                             = "review/start"
+	MethodRolloutCompress                         = "rollout/compress"
 	MethodServerDiagnostics                       = "server/diagnostics"
 	MethodServerRequestResolved                   = "serverRequest/resolved"
 	MethodSkillsChanged                           = "skills/changed"
@@ -201,6 +207,10 @@ const (
 	MethodThreadApproveGuardianDeniedAction       = "thread/approveGuardianDeniedAction"
 	MethodThreadArchive                           = "thread/archive"
 	MethodThreadArchived                          = "thread/archived"
+	MethodThreadAttachmentAdd                     = "thread/attachment/add"
+	MethodThreadAttachmentList                    = "thread/attachment/list"
+	MethodThreadAttachmentRemove                  = "thread/attachment/remove"
+	MethodThreadAttachmentUpdated                 = "thread/attachment/updated"
 	MethodThreadBackgroundTerminalsClean          = "thread/backgroundTerminals/clean"
 	MethodThreadBackgroundTerminalsList           = "thread/backgroundTerminals/list"
 	MethodThreadBackgroundTerminalsTerminate      = "thread/backgroundTerminals/terminate"
@@ -256,7 +266,6 @@ const (
 	MethodThreadResume                            = "thread/resume"
 	MethodThreadRevert                            = "thread/revert"
 	MethodThreadReverted                          = "thread/reverted"
-	MethodThreadRollback                          = "thread/rollback"
 	MethodThreadSearch                            = "thread/search"
 	MethodThreadSearchOccurrences                 = "thread/searchOccurrences"
 	MethodThreadSectionMove                       = "thread/section/move"
@@ -285,6 +294,7 @@ const (
 	MethodTurnStart                               = "turn/start"
 	MethodTurnStarted                             = "turn/started"
 	MethodTurnSteer                               = "turn/steer"
+	MethodUserVerificationCancel                  = "userVerification/cancel"
 	MethodUserVerificationDelete                  = "userVerification/delete"
 	MethodUserVerificationEnroll                  = "userVerification/enroll"
 	MethodUserVerificationStatus                  = "userVerification/status"
@@ -328,6 +338,50 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchema:        "ChatgptAuthTokensRefreshResponse.json",
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "ServerRequests().ChatgptAuthTokensRefresh",
+		Stability:             MethodStabilityStable,
+	},
+	MethodAccountGatewayOAuthCancel: {
+		Method:                MethodAccountGatewayOAuthCancel,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "account",
+		ParamsOrPayloadSchema: "",
+		ResponseSchema:        "v2/GatewayOAuthCancelResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Accounts().GatewayOAuthCancel",
+		Stability:             MethodStabilityStable,
+	},
+	MethodAccountGatewayOAuthChanged: {
+		Method:                MethodAccountGatewayOAuthChanged,
+		Direction:             MethodDirectionServerToClient,
+		Kind:                  MethodKindNotification,
+		Family:                "account",
+		ParamsOrPayloadSchema: "GatewayOAuthChangedNotification",
+		ResponseSchema:        "",
+		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
+		FacadeTarget:          "ServerNotifications().AccountGatewayOAuthChanged",
+		Stability:             MethodStabilityStable,
+	},
+	MethodAccountGatewayOAuthLogin: {
+		Method:                MethodAccountGatewayOAuthLogin,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "account",
+		ParamsOrPayloadSchema: "",
+		ResponseSchema:        "v2/GatewayOAuthLoginResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Accounts().GatewayOAuthLogin",
+		Stability:             MethodStabilityStable,
+	},
+	MethodAccountGatewayOAuthRead: {
+		Method:                MethodAccountGatewayOAuthRead,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "account",
+		ParamsOrPayloadSchema: "",
+		ResponseSchema:        "v2/GatewayOAuthReadResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Accounts().GatewayOAuthRead",
 		Stability:             MethodStabilityStable,
 	},
 	MethodAccountLoginCancel: {
@@ -1452,6 +1506,17 @@ var methodRegistry = map[string]MethodInfo{
 		FacadeTarget:          "Memory().Reset",
 		Stability:             MethodStabilityExperimental,
 	},
+	MethodMemoryStatus: {
+		Method:                MethodMemoryStatus,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "memory",
+		ParamsOrPayloadSchema: "MemoryStatusParams",
+		ResponseSchema:        "v2/MemoryStatusResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Memory().Status",
+		Stability:             MethodStabilityExperimental,
+	},
 	MethodMockExperimentalMethod: {
 		Method:                MethodMockExperimentalMethod,
 		Direction:             MethodDirectionClientToServer,
@@ -1947,6 +2012,17 @@ var methodRegistry = map[string]MethodInfo{
 		FacadeTarget:          "Reviews().Start",
 		Stability:             MethodStabilityStable,
 	},
+	MethodRolloutCompress: {
+		Method:                MethodRolloutCompress,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "rollout",
+		ParamsOrPayloadSchema: "",
+		ResponseSchema:        "v2/RolloutCompressResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Rollout().Compress",
+		Stability:             MethodStabilityExperimental,
+	},
 	MethodServerDiagnostics: {
 		Method:                MethodServerDiagnostics,
 		Direction:             MethodDirectionClientToServer,
@@ -2044,6 +2120,50 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchema:        "",
 		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
 		FacadeTarget:          "ServerNotifications().ThreadArchived",
+		Stability:             MethodStabilityStable,
+	},
+	MethodThreadAttachmentAdd: {
+		Method:                MethodThreadAttachmentAdd,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadAttachmentAddParams",
+		ResponseSchema:        "v2/ThreadAttachmentAddResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Threads().AttachmentAdd",
+		Stability:             MethodStabilityStable,
+	},
+	MethodThreadAttachmentList: {
+		Method:                MethodThreadAttachmentList,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadAttachmentListParams",
+		ResponseSchema:        "v2/ThreadAttachmentListResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Threads().AttachmentList",
+		Stability:             MethodStabilityStable,
+	},
+	MethodThreadAttachmentRemove: {
+		Method:                MethodThreadAttachmentRemove,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadAttachmentRemoveParams",
+		ResponseSchema:        "v2/ThreadAttachmentRemoveResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Threads().AttachmentRemove",
+		Stability:             MethodStabilityStable,
+	},
+	MethodThreadAttachmentUpdated: {
+		Method:                MethodThreadAttachmentUpdated,
+		Direction:             MethodDirectionServerToClient,
+		Kind:                  MethodKindNotification,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadAttachmentUpdatedNotification",
+		ResponseSchema:        "",
+		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
+		FacadeTarget:          "ServerNotifications().ThreadAttachmentUpdated",
 		Stability:             MethodStabilityStable,
 	},
 	MethodThreadBackgroundTerminalsClean: {
@@ -2651,17 +2771,6 @@ var methodRegistry = map[string]MethodInfo{
 		FacadeTarget:          "ServerNotifications().ThreadReverted",
 		Stability:             MethodStabilityStable,
 	},
-	MethodThreadRollback: {
-		Method:                MethodThreadRollback,
-		Direction:             MethodDirectionClientToServer,
-		Kind:                  MethodKindRequest,
-		Family:                "thread",
-		ParamsOrPayloadSchema: "ThreadRollbackParams",
-		ResponseSchema:        "v2/ThreadRollbackResponse.json",
-		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
-		FacadeTarget:          "Threads().Rollback",
-		Stability:             MethodStabilityStable,
-	},
 	MethodThreadSearch: {
 		Method:                MethodThreadSearch,
 		Direction:             MethodDirectionClientToServer,
@@ -2969,6 +3078,17 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "Turns().Steer",
 		Stability:             MethodStabilityStable,
+	},
+	MethodUserVerificationCancel: {
+		Method:                MethodUserVerificationCancel,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "userVerification",
+		ParamsOrPayloadSchema: "UserVerificationCancelParams",
+		ResponseSchema:        "v2/UserVerificationCancelResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "UserVerification().Cancel",
+		Stability:             MethodStabilityExperimental,
 	},
 	MethodUserVerificationDelete: {
 		Method:                MethodUserVerificationDelete,
