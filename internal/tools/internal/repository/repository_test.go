@@ -52,6 +52,10 @@ func TestPRVerificationIsRootModuleAndGeneratedReproducibility(t *testing.T) {
 	for _, want := range []string{
 		"name: Root source verification",
 		"name: Codex generated reproducibility",
+		"name: Codex exact upstream verification",
+		"github.event.pull_request.head.sha",
+		"-validation-only",
+		"-force-compare",
 		"gofmt",
 		"git diff --check",
 		"actionlint",
@@ -124,7 +128,17 @@ func TestRequiredVerificationChecksOutTheMergeCandidate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range requiredVerificationWorkflows(t, root) {
+	pr := readWorkflow(t, root, "pr-verification.yml")
+	source, ok := workflowJobByID(pr, "source")
+	if !ok {
+		t.Fatal("required source job missing")
+	}
+	for _, ref := range checkoutRefs(source) {
+		if ref != "${{ github.sha }}" {
+			t.Fatalf("required source checkout ref %q is not GitHub's triggering merge candidate", ref)
+		}
+	}
+	for _, name := range reusableWorkflows(pr) {
 		text := readWorkflow(t, root, name)
 		refs := checkoutRefs(text)
 		if len(refs) == 0 {
@@ -134,6 +148,59 @@ func TestRequiredVerificationChecksOutTheMergeCandidate(t *testing.T) {
 			if ref != "${{ github.sha }}" {
 				t.Fatalf("%s checkout ref %q is not GitHub's triggering merge candidate", name, ref)
 			}
+		}
+	}
+}
+
+func TestPRExactProtocolValidationBindsHeadAndGatesRequiredSource(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := readWorkflow(t, root, "pr-verification.yml")
+	exact, ok := workflowJobByID(workflow, "exact-protocol")
+	if !ok {
+		t.Fatal("automatic exact protocol job missing")
+	}
+	for _, want := range []string{
+		"if: ${{ github.event_name == 'pull_request' }}",
+		"contents: read",
+		"repository: ${{ github.event.pull_request.head.repo.full_name }}",
+		"ref: ${{ github.event.pull_request.head.sha }}",
+		"-force-compare",
+		"-validation-only",
+		"go run ./internal/cmd/protocolupgrade check -module-root .",
+		"go vet ./...",
+		"go test ./...",
+		"HEAD_SHA: ${{ github.event.pull_request.head.sha }}",
+		"MERGE_SHA: ${{ github.sha }}",
+	} {
+		if !strings.Contains(exact, want) {
+			t.Fatalf("automatic exact validation missing %q", want)
+		}
+	}
+	for _, forbidden := range []string{"contents: write", "pull-requests: write", "secrets.", "codex-exec", "protocolupgrade publish", "protocolupgrade resume"} {
+		if strings.Contains(exact, forbidden) {
+			t.Fatalf("automatic exact validation has forbidden authority %q", forbidden)
+		}
+	}
+	refs := checkoutRefs(exact)
+	if len(refs) != 1 || refs[0] != "${{ github.event.pull_request.head.sha }}" {
+		t.Fatalf("automatic exact checkout refs = %v", refs)
+	}
+
+	source, ok := workflowJobByID(workflow, "source")
+	if !ok {
+		t.Fatal("required source job missing")
+	}
+	for _, want := range []string{
+		"needs: exact-protocol",
+		"if: ${{ always() && !cancelled() }}",
+		"EXACT_RESULT: ${{ needs.exact-protocol.result }}",
+		"if [[ \"${EXACT_RESULT}\" != success ]]; then",
+	} {
+		if !strings.Contains(source, want) {
+			t.Fatalf("required source gate missing %q", want)
 		}
 	}
 }
