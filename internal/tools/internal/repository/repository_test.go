@@ -43,6 +43,7 @@ func TestDependabotCoversRootModuleAndActions(t *testing.T) {
 	}
 }
 
+
 func TestPRVerificationIsRootModuleAndGeneratedReproducibility(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
 	if err != nil {
@@ -52,12 +53,10 @@ func TestPRVerificationIsRootModuleAndGeneratedReproducibility(t *testing.T) {
 	for _, want := range []string{
 		"name: Root source verification",
 		"name: Codex generated reproducibility",
-		"name: Codex exact upstream verification",
+		"name: Codex protocol provenance",
 		"github.event.pull_request.head.sha",
 		"-validation-only",
 		"-force-compare",
-		"gofmt",
-		"git diff --check",
 		"actionlint",
 		"go mod tidy -diff",
 		"go vet ./...",
@@ -67,6 +66,9 @@ func TestPRVerificationIsRootModuleAndGeneratedReproducibility(t *testing.T) {
 		if !strings.Contains(text, want) {
 			t.Fatalf("PR verification missing %q", want)
 		}
+	}
+	if strings.Contains(text, "gofmt") {
+		t.Fatal("required PR verification must verify committed source, not use formatting as an acceptance proof")
 	}
 }
 
@@ -123,7 +125,7 @@ func TestManualNativeVerificationWorkflowsAreReadOnlyOwnerProofs(t *testing.T) {
 	}
 }
 
-func TestRequiredVerificationChecksOutTheMergeCandidate(t *testing.T) {
+func TestRequiredVerificationChecksOutTheIntegrationCandidate(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
 	if err != nil {
 		t.Fatal(err)
@@ -135,7 +137,7 @@ func TestRequiredVerificationChecksOutTheMergeCandidate(t *testing.T) {
 	}
 	for _, ref := range checkoutRefs(source) {
 		if ref != "${{ github.sha }}" {
-			t.Fatalf("required source checkout ref %q is not GitHub's triggering merge candidate", ref)
+			t.Fatalf("required source checkout ref %q is not GitHub's triggering integration candidate", ref)
 		}
 	}
 	for _, name := range reusableWorkflows(pr) {
@@ -146,13 +148,14 @@ func TestRequiredVerificationChecksOutTheMergeCandidate(t *testing.T) {
 		}
 		for _, ref := range refs {
 			if ref != "${{ github.sha }}" {
-				t.Fatalf("%s checkout ref %q is not GitHub's triggering merge candidate", name, ref)
+				t.Fatalf("%s checkout ref %q is not GitHub's triggering integration candidate", name, ref)
 			}
 		}
 	}
 }
 
-func TestPRExactProtocolValidationBindsHeadAndGatesRequiredSource(t *testing.T) {
+
+func TestPRExactProtocolValidationIsIndependentReadOnlyProof(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
 	if err != nil {
 		t.Fatal(err)
@@ -160,47 +163,52 @@ func TestPRExactProtocolValidationBindsHeadAndGatesRequiredSource(t *testing.T) 
 	workflow := readWorkflow(t, root, "pr-verification.yml")
 	exact, ok := workflowJobByID(workflow, "exact-protocol")
 	if !ok {
-		t.Fatal("automatic exact protocol job missing")
+		t.Fatal("automatic protocol provenance job missing")
 	}
 	for _, want := range []string{
-		"if: ${{ github.event_name == 'pull_request' }}",
+		"name: Codex protocol provenance",
 		"contents: read",
 		"repository: ${{ github.event.pull_request.head.repo.full_name }}",
 		"ref: ${{ github.event.pull_request.head.sha }}",
+		"id: classify",
+		"codexsdk",
 		"-force-compare",
 		"-validation-only",
-		"go run ./internal/cmd/protocolupgrade check -module-root .",
-		"go vet ./...",
-		"go test ./...",
-		"HEAD_SHA: ${{ github.event.pull_request.head.sha }}",
-		"MERGE_SHA: ${{ github.sha }}",
+		"HEAD_SHA: ${{ github.event.pull_request.head.sha || '' }}",
+		"INTEGRATION_SHA: ${{ github.sha }}",
 	} {
 		if !strings.Contains(exact, want) {
-			t.Fatalf("automatic exact validation missing %q", want)
+			t.Fatalf("automatic protocol provenance missing %q", want)
 		}
 	}
-	for _, forbidden := range []string{"contents: write", "pull-requests: write", "secrets.", "codex-exec", "protocolupgrade publish", "protocolupgrade resume"} {
+	for _, forbidden := range []string{
+		"contents: write",
+		"pull-requests: write",
+		"secrets.",
+		"codex-exec",
+		"protocolupgrade publish",
+		"protocolupgrade resume",
+		"protocolupgrade check",
+		"gofmt",
+		"go vet ./...",
+		"go test ./...",
+	} {
 		if strings.Contains(exact, forbidden) {
-			t.Fatalf("automatic exact validation has forbidden authority %q", forbidden)
+			t.Fatalf("automatic protocol provenance has unrelated or forbidden responsibility %q", forbidden)
 		}
 	}
 	refs := checkoutRefs(exact)
 	if len(refs) != 1 || refs[0] != "${{ github.event.pull_request.head.sha }}" {
-		t.Fatalf("automatic exact checkout refs = %v", refs)
+		t.Fatalf("automatic provenance checkout refs = %v", refs)
 	}
 
 	source, ok := workflowJobByID(workflow, "source")
 	if !ok {
 		t.Fatal("required source job missing")
 	}
-	for _, want := range []string{
-		"needs: exact-protocol",
-		"if: ${{ always() && !cancelled() }}",
-		"EXACT_RESULT: ${{ needs.exact-protocol.result }}",
-		"if [[ \"${EXACT_RESULT}\" != success ]]; then",
-	} {
-		if !strings.Contains(source, want) {
-			t.Fatalf("required source gate missing %q", want)
+	for _, forbidden := range []string{"needs: exact-protocol", "EXACT_RESULT", "needs.exact-protocol.result"} {
+		if strings.Contains(source, forbidden) {
+			t.Fatalf("source proof must not aggregate provenance through %q", forbidden)
 		}
 	}
 }
@@ -292,13 +300,14 @@ func TestProtocolSyncPreservesAuthorityAndPublicationBoundaries(t *testing.T) {
 		t.Fatal("trusted proposal scope check must precede re-plan and apply")
 	}
 	checksAt := strings.Index(syncText, "id: checks")
+	normalizeAt := strings.Index(syncText, "id: normalize")
 	freezeAt := strings.Index(syncText, "id: freeze")
 	controlAt := strings.Index(syncText, "id: control")
 	agentAt := strings.Index(syncText, "id: codex")
 	finalScopeAt := strings.Index(syncText, "Recheck Agent proposal scope after tests")
 	publishAt := strings.Index(syncText, "id: publish")
-	if controlAt < 0 || controlAt >= agentAt || freezeAt < 0 || freezeAt >= checksAt || checksAt < 0 || finalScopeAt <= checksAt || publishAt <= finalScopeAt || !strings.Contains(syncText, "run: *agent_proposal_scope") {
-		t.Fatal("trusted proposal scope must be rechecked after tests and before publication")
+	if controlAt < 0 || controlAt >= agentAt || normalizeAt < 0 || normalizeAt >= freezeAt || freezeAt < 0 || freezeAt >= checksAt || checksAt < 0 || finalScopeAt <= checksAt || publishAt <= finalScopeAt || !strings.Contains(syncText, "run: *agent_proposal_scope") {
+		t.Fatal("proposal must be normalized before sealing, then rechecked after tests and before publication")
 	}
 
 	if !strings.Contains(syncText, "steps.final_scope.outcome == 'failure'") {
@@ -314,12 +323,19 @@ func TestProtocolSyncPreservesAuthorityAndPublicationBoundaries(t *testing.T) {
 		"check",
 		"go vet ./...",
 		"go test ./...",
-		"gofmt",
-		"diff --check",
 	} {
 		if !strings.Contains(checks, want) {
 			t.Fatalf("deterministic protocol proof missing %q", want)
 		}
+	}
+	for _, forbidden := range []string{"gofmt", "diff --check"} {
+		if strings.Contains(checks, forbidden) {
+			t.Fatalf("deterministic protocol proof must consume normalized source, not perform %q", forbidden)
+		}
+	}
+	normalize, ok := workflowStepByID(syncText, "normalize")
+	if !ok || !strings.Contains(normalize, "gofmt -w") || !strings.Contains(normalize, "ls-files --others") {
+		t.Fatal("protocol producer must normalize tracked and new Go proposal files before sealing")
 	}
 	if strings.Index(checks, "go test ./...") > strings.Index(checks, "go run ./internal/cmd/protocolupgrade") {
 		t.Fatal("final deterministic check must run after executable tests")
