@@ -63,6 +63,7 @@ func TestSyncForceCompareCurrentStillGenerates(t *testing.T) {
 		UpstreamRepo: "fake",
 		UpstreamRef:  "rust-v0.140.0",
 		ForceCompare: true,
+		Publication:  &PendingRequest{API: &fixturePublicationAPI{fail: true}},
 		Lookuper: fakeLookuper{byPattern: map[string]string{
 			"refs/tags/rust-v0.140.0":    oldSHA + "\trefs/tags/rust-v0.140.0",
 			"refs/tags/rust-v0.140.0^{}": oldSHA + "\trefs/tags/rust-v0.140.0^{}",

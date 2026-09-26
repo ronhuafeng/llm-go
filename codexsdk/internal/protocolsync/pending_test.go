@@ -181,18 +181,20 @@ func TestInspectPendingPreservesHumanDescription(t *testing.T) {
 }
 
 func TestInspectPendingClosedCandidateDoesNotRequireLiveBranch(t *testing.T) {
-	for _, newer := range []bool{false, true} {
-		t.Run(fmt.Sprint("newer=", newer), func(t *testing.T) {
+	for _, variant := range []string{"same", "newer", "alias"} {
+		t.Run(variant, func(t *testing.T) {
 			req, api := pendingFixture(t)
 			req.Remote = req.RepoRoot
 			api.prs[0].State = "closed"
 			api.pushActor = publicationUser{Login: "maintainer", Type: "User"} // branch deleted by maintainer
-			if newer {
+			if variant != "same" {
 				req.Target.RefName = "rust-v0.155.0"
-				req.Target.PeeledCommitSHA = strings.Repeat("3", 40)
+				if variant == "newer" {
+					req.Target.PeeledCommitSHA = strings.Repeat("3", 40)
+				}
 			}
 			observed, err := InspectPending(req)
-			if newer {
+			if variant != "same" {
 				if err != nil || observed.Head != "absent" {
 					t.Fatalf("old closed candidate blocked new version: %+v %v", observed, err)
 				}
@@ -229,25 +231,5 @@ func TestInspectPendingRejectsDescriptionEditedDuringRead(t *testing.T) {
 	api.editOnRead = true
 	if _, err := InspectPending(req); err == nil {
 		t.Fatal("concurrent description edit reused stale publication")
-	}
-}
-
-func TestSyncForceCompareRetainsPublicationSnapshot(t *testing.T) {
-	req, _ := pendingFixture(t)
-	gitMust(t, req.RepoRoot, "checkout", "--detach", req.BaseSHA)
-	generated := false
-	result, err := Sync(SyncRequest{
-		RepoRoot: req.RepoRoot, Publication: &req, UpstreamRef: req.Target.RefName, ForceCompare: true,
-		Lookuper: fakeLookuper{byPattern: map[string]string{
-			"refs/tags/rust-v0.154.0":    newSHA + "\trefs/tags/rust-v0.154.0",
-			"refs/tags/rust-v0.154.0^{}": newSHA + "\trefs/tags/rust-v0.154.0^{}",
-		}},
-		Generate: func(GenerateRequest) (Candidate, error) {
-			generated = true
-			return Candidate{}, fmt.Errorf("stop after snapshot")
-		},
-	})
-	if err == nil || !generated || result.Publication == nil || result.Publication.Number != 7 {
-		t.Fatalf("forced generation lost expected publication state: %+v generated=%v err=%v", result, generated, err)
 	}
 }

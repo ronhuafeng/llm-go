@@ -67,10 +67,10 @@ func InspectPending(req PendingRequest) (PendingPublication, error) {
 			if err != nil {
 				return PendingPublication{}, err
 			}
-			if identity.SourceRefName == req.Target.RefName && identity.SourceCommit != req.Target.PeeledCommitSHA {
+			if identity.SourceRefName == req.Target.RefName && identity.SourceRefKind == req.Target.RefKind && identity.SourceCommit != req.Target.PeeledCommitSHA {
 				return PendingPublication{}, &Failure{Category: FailureSource, Err: fmt.Errorf("upstream ref %s changed since closed PR #%d", req.Target.RefName, pr.Number)}
 			}
-			if identity.SourceCommit != req.Target.PeeledCommitSHA {
+			if identity.SourceCommit != req.Target.PeeledCommitSHA || identity.SourceRefName != req.Target.RefName || identity.SourceRefKind != req.Target.RefKind {
 				continue
 			}
 			return PendingPublication{}, publicationPolicy("sync PR #%d was closed; restore it explicitly before retrying this candidate", pr.Number)

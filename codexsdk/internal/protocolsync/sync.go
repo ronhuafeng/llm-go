@@ -138,7 +138,7 @@ func Sync(req SyncRequest) (result SyncResult, err error) {
 		return result, nil
 	}
 
-	if req.Publication != nil && !req.ValidationOnly && !req.Diagnostic {
+	if req.Publication != nil && !req.ValidationOnly && !req.Diagnostic && !req.ForceCompare {
 		stage = "pending_publication"
 		inspection := *req.Publication
 		inspection.RepoRoot = req.RepoRoot
@@ -154,7 +154,7 @@ func Sync(req SyncRequest) (result SyncResult, err error) {
 			return result, err
 		}
 		result.Publication = &pending
-		if pending.Reusable && !req.ForceCompare {
+		if pending.Reusable {
 			result.Outcome = OutcomePRPending
 			result.Reason = fmt.Sprintf("%s remains pending: %s; no generation, Agent pass, or fresh proof", pending.URL, pending.Checks)
 			return result, nil
