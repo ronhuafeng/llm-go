@@ -118,6 +118,8 @@ then update with an explicit expected-old-head Git lease. Recheck remote state
 after publishing; a concurrent base or PR change invalidates reuse of the old
 proof. Lost write responses are read back before another effect is attempted.
 An App-owned orphan branch is rebuilt and verified before completing its PR.
+The PR API's `base.sha` may lag a main push; the selected checkout and remote
+base ref, not that PR snapshot, determine the accepted base.
 
 A newly created branch is named from its selected upstream identity, independent
 of run number or commit timestamp. Existing pending branches retain their name

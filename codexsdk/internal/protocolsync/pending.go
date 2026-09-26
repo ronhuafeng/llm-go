@@ -111,7 +111,7 @@ func InspectPending(req PendingRequest) (PendingPublication, error) {
 	if err := api.Request("GET", fmt.Sprintf("repos/%s/pulls/%d", req.Repository, pending.Number), nil, &current); err != nil {
 		return PendingPublication{}, err
 	}
-	if current.State != "open" || current.Head.SHA != pending.Head || current.Head.Ref != pending.Branch || current.Base.Ref != req.BaseBranch || current.Base.SHA != req.BaseSHA || current.Body != pending.Description || current.Title != pending.Title {
+	if current.State != "open" || current.Head.SHA != pending.Head || current.Head.Ref != pending.Branch || current.Base.Ref != req.BaseBranch || current.Body != pending.Description || current.Title != pending.Title {
 		return PendingPublication{}, publicationPolicy("sync PR #%d changed while inspecting it", pending.Number)
 	}
 	if pending.Reusable && req.ReadChecks {

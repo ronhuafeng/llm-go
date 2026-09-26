@@ -108,7 +108,6 @@ func TestInspectPendingChangesAndOwnership(t *testing.T) {
 				writeFile(t, filepath.Join(req.RepoRoot, "README.md"), "new accepted base")
 				runGitInitCommit(t, req.RepoRoot, "advance accepted base")
 				req.BaseSHA = strings.TrimSpace(gitMust(t, req.RepoRoot, "rev-parse", "HEAD"))
-				api.prs[0].Base.SHA = req.BaseSHA
 				wantError = false
 			case "closed":
 				api.prs[0].State = "closed"
