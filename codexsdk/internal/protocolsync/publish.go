@@ -39,7 +39,7 @@ func normalizeBranchRef(ref, remote string) string {
 	return ref
 }
 
-func syncBranchName(prefix, targetRef, targetSHA string) string {
+func syncBranchName(targetRef, targetSHA string) string {
 	name := regexp.MustCompile(`^refs/(heads|tags)/`).ReplaceAllString(targetRef, "")
 	if name == "" {
 		name = targetSHA[:12]
@@ -52,7 +52,7 @@ func syncBranchName(prefix, targetRef, targetSHA string) string {
 	if len(name) > 64 {
 		name = name[:64]
 	}
-	return strings.TrimRight(prefix, "-/") + "-" + name + "-" + targetSHA[:12]
+	return "codex/sync-upstream-" + name + "-" + targetSHA[:12]
 }
 
 func parseSyncMetadata(body string) map[string]string {

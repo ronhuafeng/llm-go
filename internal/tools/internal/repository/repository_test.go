@@ -205,9 +205,6 @@ func TestProtocolSyncPreservesAuthorityAndPublicationBoundaries(t *testing.T) {
 	if !strings.Contains(agent, "GITHUB_TOKEN: \"\"") || !strings.Contains(agent, "GH_TOKEN: \"\"") {
 		t.Fatal("Agent must not inherit repository-write tokens")
 	}
-	if !strings.Contains(agent, "inputs.validation_only != true") {
-		t.Fatal("exact validation must not invoke the Agent")
-	}
 	exact, ok := workflowStepByID(syncText, "exact")
 	if !ok || !strings.Contains(exact, "-validation-only") || !strings.Contains(exact, "-force-compare") {
 		t.Fatal("workflow must pass exact validation and forced comparison to Go")
@@ -286,6 +283,15 @@ func TestProtocolSyncPreservesAuthorityAndPublicationBoundaries(t *testing.T) {
 	proofJob, ok := workflowJobByID(syncText, "sync")
 	if !ok || !strings.Contains(proofJob, "contents: read") || strings.Contains(proofJob, "contents: write") {
 		t.Fatal("Agent and executable proposal tests must run without repository-write authority")
+	}
+
+	if !strings.Contains(proofJob, "if: ${{ inputs.diagnostic_only != true && inputs.validation_only != true }}") {
+		t.Fatal("read-only modes must not enter the Agent/apply job")
+	}
+	for _, step := range []string{freeze, checks} {
+		if !strings.Contains(step, "steps.mechanical.outputs.outcome == 'applied' || steps.resume.outputs.outcome == 'applied'") {
+			t.Fatal("only applied candidate bytes need proposal verification")
+		}
 	}
 
 	mechanical, ok := workflowStepByID(proofJob, "mechanical")

@@ -231,3 +231,23 @@ func TestInspectPendingRejectsDescriptionEditedDuringRead(t *testing.T) {
 		t.Fatal("concurrent description edit reused stale publication")
 	}
 }
+
+func TestSyncForceCompareRetainsPublicationSnapshot(t *testing.T) {
+	req, _ := pendingFixture(t)
+	gitMust(t, req.RepoRoot, "checkout", "--detach", req.BaseSHA)
+	generated := false
+	result, err := Sync(SyncRequest{
+		RepoRoot: req.RepoRoot, Publication: &req, UpstreamRef: req.Target.RefName, ForceCompare: true,
+		Lookuper: fakeLookuper{byPattern: map[string]string{
+			"refs/tags/rust-v0.154.0":    newSHA + "\trefs/tags/rust-v0.154.0",
+			"refs/tags/rust-v0.154.0^{}": newSHA + "\trefs/tags/rust-v0.154.0^{}",
+		}},
+		Generate: func(GenerateRequest) (Candidate, error) {
+			generated = true
+			return Candidate{}, fmt.Errorf("stop after snapshot")
+		},
+	})
+	if err == nil || !generated || result.Publication == nil || result.Publication.Number != 7 {
+		t.Fatalf("forced generation lost expected publication state: %+v generated=%v err=%v", result, generated, err)
+	}
+}

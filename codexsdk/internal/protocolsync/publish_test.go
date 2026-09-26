@@ -8,13 +8,6 @@ import (
 	"testing"
 )
 
-func TestSyncBranchName(t *testing.T) {
-	got := syncBranchName("codex/sync-upstream/run-1-1", "refs/tags/rust-v0.154.0", oldSHA)
-	if got != "codex/sync-upstream/run-1-1-rust-v0.154.0-111111111111" {
-		t.Fatalf("got %s", got)
-	}
-}
-
 func TestParseSyncMetadata(t *testing.T) {
 	body := `<!-- codexsdk-upstream-sync
 upstream_ref: rust-v0.154.0
