@@ -9,16 +9,17 @@ import (
 
 // PublishRequest publishes the current HEAD as a protected protocol-sync PR.
 type PublishRequest struct {
-	Repository, AppClientID, ExpectedHead, ExpectedBranch string
-	API                                                   PublicationAPI
-	Lookuper                                              RemoteLookuper
-	RepoRoot                                              string
-	BaseBranch                                            string
-	TargetRef                                             string
-	TargetKind                                            string
-	TargetSHA                                             string
-	Remote                                                string
-	GitHubOutputPath                                      string
+	Repository, ExpectedHead, ExpectedBranch string
+	AppBotID                                 int64
+	API                                      PublicationAPI
+	Lookuper                                 RemoteLookuper
+	RepoRoot                                 string
+	BaseBranch                               string
+	TargetRef                                string
+	TargetKind                               string
+	TargetSHA                                string
+	Remote                                   string
+	GitHubOutputPath                         string
 }
 
 // Publish conditionally publishes the validated HEAD against the native state

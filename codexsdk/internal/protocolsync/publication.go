@@ -66,7 +66,7 @@ func publishCandidate(req PublishRequest) (string, error) {
 	if api == nil {
 		api = githubPublicationAPI{repoRoot: req.RepoRoot}
 	}
-	inspection := PendingRequest{RepoRoot: req.RepoRoot, Repository: req.Repository, AppClientID: req.AppClientID, BaseBranch: baseBranch, BaseSHA: parent, Target: target, API: api, Remote: remote}
+	inspection := PendingRequest{RepoRoot: req.RepoRoot, Repository: req.Repository, AppBotID: req.AppBotID, BaseBranch: baseBranch, BaseSHA: parent, Target: target, API: api, Remote: remote}
 	observed, err := InspectPending(inspection)
 	if err != nil {
 		return "", err
@@ -152,7 +152,7 @@ func publishCandidate(req PublishRequest) (string, error) {
 	if pr.State != "open" || pr.Head.SHA != publishHead || pr.Head.Ref != branch || pr.Head.Repo.FullName != req.Repository || pr.Base.Ref != baseBranch || pr.Base.SHA != parent || pr.Body != body || pr.Title != title {
 		return "", publicationPolicy("PR readback does not match the publication; it remains unconfirmed")
 	}
-	if err := verifyAppActor(api, pr.User, req.AppClientID); err != nil {
+	if err := verifyAppActor(pr.User, req.AppBotID); err != nil {
 		return "", err
 	}
 	latest, err := gitOutput(req.RepoRoot, "ls-remote", remote, "refs/heads/"+baseBranch)

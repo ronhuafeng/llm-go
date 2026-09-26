@@ -227,7 +227,7 @@ func runSync(args []string, stdout, stderr io.Writer, diagnostic bool) int {
 	validationOnly := fs.Bool("validation-only", false, "verify the exact accepted baseline without applying or publishing")
 	eventName := fs.String("event-name", "", "GitHub event name for scheduled vs manual policy")
 	repository := fs.String("github-repository", "", "repository for native pending PR discovery; empty disables remote publication")
-	appClientID := fs.String("app-client-id", "", "configured publishing GitHub App client ID")
+	appBotID := fs.Int64("app-bot-id", 0, "configured publishing GitHub App bot user ID")
 	baseBranch := fs.String("base-branch", "main", "protected publication base branch")
 
 	jsonOut := fs.Bool("json", false, "print a machine-readable result")
@@ -240,7 +240,7 @@ func runSync(args []string, stdout, stderr io.Writer, diagnostic bool) int {
 	}
 	var publication *protocolsync.PendingRequest
 	if *repository != "" {
-		publication = &protocolsync.PendingRequest{Repository: *repository, AppClientID: *appClientID, BaseBranch: *baseBranch}
+		publication = &protocolsync.PendingRequest{Repository: *repository, AppBotID: *appBotID, BaseBranch: *baseBranch}
 	}
 
 	result, err := protocolsync.Sync(protocolsync.SyncRequest{
@@ -360,7 +360,7 @@ func runPublish(args []string, stdout, stderr io.Writer) int {
 	baseBranch := fs.String("base-branch", "", "protected landing branch")
 
 	repository := fs.String("github-repository", "", "publication repository")
-	appClientID := fs.String("app-client-id", "", "publishing GitHub App client ID")
+	appBotID := fs.Int64("app-bot-id", 0, "publishing GitHub App bot user ID")
 	expectedHead := fs.String("expected-head", "", "head observed before generation, or absent")
 	expectedBranch := fs.String("expected-branch", "", "branch selected before generation")
 	targetRef := fs.String("target-ref", "", "selected upstream ref")
@@ -374,7 +374,7 @@ func runPublish(args []string, stdout, stderr io.Writer) int {
 		RepoRoot:   *repoRoot,
 		BaseBranch: *baseBranch,
 
-		Repository: *repository, AppClientID: *appClientID,
+		Repository: *repository, AppBotID: *appBotID,
 		ExpectedHead: *expectedHead, ExpectedBranch: *expectedBranch,
 		TargetRef:        *targetRef,
 		TargetKind:       *targetKind,

@@ -103,10 +103,11 @@ returned with its observed check state. This spends no new generation or Agent
 attempt and acquires no fresh proof. Accepted main metadata still owns whether
 the upstream version has actually been integrated.
 
-Ownership is checked against the configured App Client ID, PR creator, actual
-repository/base/head, source identity and allowed paths, plus GitHub's latest
-ref activity actor and after-SHA. Editable PR metadata and Git commit author
-names are not push authority. Human source changes or edited PR descriptions,
+Ownership is checked against the configured App bot user ID in the native PR
+creator and latest ref activity actor, plus actual repository/base/head, source
+identity, after-SHA, and allowed paths. The Client ID is used only to mint the
+publication token. Editable PR metadata and Git commit author names are not
+push authority. Human source changes or edited PR descriptions,
 ambiguous matches and unknown ownership require maintainer intervention. A
 manually closed candidate remains paused; a changed upstream tag is an integrity
 failure. A newer pending stable target is never replaced by an older attempt.
@@ -446,13 +447,20 @@ A repository administrator configures this once:
 3. Set repository Actions variable `PROTOCOL_SYNC_APP_CLIENT_ID` to the App's
    **Client ID** from its settings page. This is the public Client ID expected
    by create-github-app-token v3, not the numeric installation ID.
-4. Generate an App private key and store its PEM directly as repository Actions
+4. Set repository Actions variable `PROTOCOL_SYNC_APP_BOT_ID` to the numeric
+   user ID of that App's bot account. Its public login is `<app-slug>[bot]`;
+   `gh api 'users/<app-slug>%5Bbot%5D' --jq .id` returns the ID before the
+   first PR. The read-only sync job compares this stable ID with the PR creator
+   and latest ref activity actor. Its built-in token cannot call
+   `GET /apps/{slug}` to look up a Client ID.
+5. Generate an App private key and store its PEM directly as repository Actions
    secret `PROTOCOL_SYNC_APP_PRIVATE_KEY`. Do not put it in source, Issues,
    PR text, chat, run artifacts or diagnostic output. A local secure file can
    be uploaded without displaying it:
 
    ```sh
    gh variable set PROTOCOL_SYNC_APP_CLIENT_ID --repo ronhuafeng/llm-go --body '<client-id>'
+   gh variable set PROTOCOL_SYNC_APP_BOT_ID --repo ronhuafeng/llm-go --body '<bot-user-id>'
    gh secret set PROTOCOL_SYNC_APP_PRIVATE_KEY --repo ronhuafeng/llm-go < /secure/path/app-private-key.pem
    ```
 
@@ -464,7 +472,7 @@ it is not a job output. The action masks it and revokes it on job cleanup
 (default expiry also applies). Agent, proposal tests and read-only verifiers
 receive neither the App key nor token.
 
-Missing Client ID/key fails with configuration instructions and
+Missing Client ID/bot ID/key fails with configuration instructions and
 `policy_configuration` attribution. Invalid keys, installation scope or grants
 fail token creation and prevent publication; there is no fallback identity.
 Create/update event acceptance records the App actor, event, PR head, actual

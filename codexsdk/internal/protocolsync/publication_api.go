@@ -47,6 +47,7 @@ func (api githubPublicationAPI) Request(method, path string, body, result any) e
 }
 
 type publicationUser struct {
+	ID    int64  `json:"id"`
 	Login string `json:"login"`
 	Type  string `json:"type"`
 }

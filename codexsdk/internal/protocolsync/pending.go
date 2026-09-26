@@ -10,10 +10,11 @@ import (
 // PendingRequest inspects native PR state before spending another generation or
 // Agent attempt. BaseSHA is the immutable accepted checkout for this run.
 type PendingRequest struct {
-	ReadChecks                                                     bool
-	RepoRoot, Repository, AppClientID, BaseBranch, BaseSHA, Remote string
-	Target                                                         Target
-	API                                                            PublicationAPI
+	ReadChecks                                        bool
+	RepoRoot, Repository, BaseBranch, BaseSHA, Remote string
+	AppBotID                                          int64
+	Target                                            Target
+	API                                               PublicationAPI
 }
 
 // PendingPublication is an observation, not acceptance or a fresh proof.
@@ -32,8 +33,11 @@ func publicationPolicy(format string, args ...any) error {
 // InspectPending validates ownership and actual Git contents before reusing a
 // pending publication. Unknown reads and ambiguous matches fail explicitly.
 func InspectPending(req PendingRequest) (PendingPublication, error) {
-	if req.Repository == "" || req.AppClientID == "" || req.BaseBranch == "" || !shaRE.MatchString(req.BaseSHA) {
-		return PendingPublication{}, publicationPolicy("repository, App client ID, base branch and exact base SHA are required")
+	if req.AppBotID <= 0 {
+		return PendingPublication{}, publicationPolicy("configure PROTOCOL_SYNC_APP_BOT_ID to the publishing App bot user ID")
+	}
+	if req.Repository == "" || req.BaseBranch == "" || !shaRE.MatchString(req.BaseSHA) {
+		return PendingPublication{}, publicationPolicy("repository, base branch and exact base SHA are required")
 	}
 	api := req.API
 	if api == nil {
@@ -75,7 +79,7 @@ func InspectPending(req PendingRequest) (PendingPublication, error) {
 			}
 			return PendingPublication{}, publicationPolicy("sync PR #%d was closed; restore it explicitly before retrying this candidate", pr.Number)
 		}
-		if err := verifyAppActor(api, pr.User, req.AppClientID); err != nil {
+		if err := verifyAppActor(pr.User, req.AppBotID); err != nil {
 			return PendingPublication{}, fmt.Errorf("sync PR #%d ownership: %w", pr.Number, err)
 		}
 
@@ -144,19 +148,9 @@ func InspectPending(req PendingRequest) (PendingPublication, error) {
 	return pending, nil
 }
 
-func verifyAppActor(api PublicationAPI, user publicationUser, clientID string) error {
-	if user.Type != "Bot" || !strings.HasSuffix(user.Login, "[bot]") {
-		return publicationPolicy("publication is not owned by a GitHub App bot")
-	}
-	var app struct {
-		ClientID string `json:"client_id"`
-	}
-	slug := strings.TrimSuffix(user.Login, "[bot]")
-	if err := api.Request("GET", "apps/"+url.PathEscape(slug), nil, &app); err != nil {
-		return err
-	}
-	if app.ClientID != clientID {
-		return publicationPolicy("publication belongs to a different GitHub App")
+func verifyAppActor(user publicationUser, botID int64) error {
+	if user.Type != "Bot" || user.ID != botID {
+		return publicationPolicy("publication belongs to a different GitHub App bot")
 	}
 	return nil
 }
@@ -183,7 +177,7 @@ func inspectPublicationHead(req PendingRequest, api PublicationAPI, pr publicati
 	if err != nil {
 		return PendingPublication{}, err
 	}
-	if actor.Login != pr.User.Login || actor.Type != "Bot" {
+	if actor.ID != pr.User.ID || actor.Type != "Bot" {
 		return PendingPublication{}, publicationPolicy("sync branch head was changed outside its publishing App")
 	}
 
@@ -237,7 +231,7 @@ func inspectOrphanPublication(req PendingRequest, api PublicationAPI, prs []publ
 		if err != nil {
 			return PendingPublication{}, err
 		}
-		if err := verifyAppActor(api, actor, req.AppClientID); err != nil {
+		if err := verifyAppActor(actor, req.AppBotID); err != nil {
 			return PendingPublication{}, fmt.Errorf("orphan sync branch %s: %w", branch, err)
 		}
 		pr := publicationPR{User: actor}
