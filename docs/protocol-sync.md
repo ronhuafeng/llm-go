@@ -450,10 +450,9 @@ A repository administrator configures this once:
 4. Set repository Actions variable `PROTOCOL_SYNC_APP_BOT_ID` to the numeric
    user ID of that App's bot account. Its public login is `<app-slug>[bot]`;
    `gh api 'users/<app-slug>%5Bbot%5D' --jq .id` returns the ID before the
-   first PR. For the current installation, PR #350 confirms bot user ID
-   `334051089`. The read-only sync job compares this
-   stable ID with the PR creator and latest ref activity actor. Its built-in
-   token cannot call `GET /apps/{slug}` to look up a Client ID.
+   first PR. The read-only sync job compares this stable ID with the PR creator
+   and latest ref activity actor. Its built-in token cannot call
+   `GET /apps/{slug}` to look up a Client ID.
 5. Generate an App private key and store its PEM directly as repository Actions
    secret `PROTOCOL_SYNC_APP_PRIVATE_KEY`. Do not put it in source, Issues,
    PR text, chat, run artifacts or diagnostic output. A local secure file can
