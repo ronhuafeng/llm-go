@@ -14,6 +14,10 @@ source correctness; version publication is outside this control plane.
 - Keep the protected check names `Root source verification` and
   `Codex generated reproducibility / Generated reproducibility` stable unless
   branch protection is migrated in the same change.
+- On pull requests, `Root source verification` must fail closed unless the
+  isolated PR head H has completed fresh exact-upstream validation from H's own
+  checked-in upstream identity. Merge-candidate M checks and H proof are
+  separate evidence; do not substitute one for the other.
 - Workflow tests protect current authority, permissions, immutable identity, and
   publication/failure boundaries. Do not freeze job count or incidental step
   topology when it protects no independent invariant.
