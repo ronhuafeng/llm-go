@@ -79,16 +79,15 @@ func InspectPending(req PendingRequest) (PendingPublication, error) {
 			return PendingPublication{}, fmt.Errorf("sync PR #%d ownership: %w", pr.Number, err)
 		}
 
-		meta := parseSyncMetadata(pr.Body)
-		expectedBody := publicationBody(pr.Base.Ref, meta["upstream_ref"], meta["upstream_ref_kind"], meta["upstream_commit"], meta["sync_commit"])
-		if !shaRE.MatchString(meta["sync_commit"]) || (strings.TrimSpace(pr.Body) != strings.TrimSpace(expectedBody) || pr.Title != publicationTitle(meta["upstream_ref"])) {
-			return PendingPublication{}, publicationPolicy("PR #%d description was edited or its publication identity is incomplete", pr.Number)
+		description, err := parsePublicationDescription(pr)
+		if err != nil {
+			return PendingPublication{}, err
 		}
 		pending, err := inspectPublicationHead(req, api, pr)
 		if err != nil {
 			return PendingPublication{}, err
 		}
-		pending.Reusable = pending.Reusable && pr.Body == publicationBody(req.BaseBranch, req.Target.RefName, req.Target.RefKind, req.Target.PeeledCommitSHA, pending.Head) && pr.Title == publicationTitle(req.Target.RefName)
+		pending.Reusable = pending.Reusable && description.target == pending.Target && description.head == pending.Head && description.base == req.BaseBranch
 		found = append(found, pending)
 	}
 	if len(found) > 1 {

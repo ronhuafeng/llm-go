@@ -79,6 +79,26 @@ func parseSyncMetadata(body string) map[string]string {
 	return parsed
 }
 
+// A parsed description retains the publication identity after checking the
+// managed template once. Callers compare identities, not regenerated prose.
+type publicationDescription struct {
+	target     BaselineIdentity
+	head, base string
+}
+
+func parsePublicationDescription(pr publicationPR) (publicationDescription, error) {
+	meta := parseSyncMetadata(pr.Body)
+	description := publicationDescription{
+		target: BaselineIdentity{SourceRefName: meta["upstream_ref"], SourceRefKind: meta["upstream_ref_kind"], SourceCommit: meta["upstream_commit"]},
+		head:   meta["sync_commit"], base: meta["base_branch"],
+	}
+	expected := publicationBody(description.base, description.target.SourceRefName, description.target.SourceRefKind, description.target.SourceCommit, description.head)
+	if !shaRE.MatchString(description.head) || description.base != pr.Base.Ref || strings.TrimSpace(pr.Body) != strings.TrimSpace(expected) || pr.Title != publicationTitle(description.target.SourceRefName) {
+		return publicationDescription{}, publicationPolicy("PR #%d description was edited or its publication identity is incomplete", pr.Number)
+	}
+	return description, nil
+}
+
 func publicationTitle(ref string) string { return "Sync Codex protocol baseline to " + ref }
 
 func publicationBody(landRef, targetRef, targetKind, targetSHA, syncCommit string) string {

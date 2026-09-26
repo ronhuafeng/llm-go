@@ -129,9 +129,6 @@ func publishCandidate(req PublishRequest) (string, error) {
 			if err := api.Request("GET", path, nil, &pr); err != nil {
 				return "", fmt.Errorf("PR update result unknown (%v): %w", writeErr, err)
 			}
-			if pr.Body != body || pr.Title != title {
-				return "", fmt.Errorf("PR update was not confirmed: %v", writeErr)
-			}
 		}
 	} else {
 		createErr := api.Request("POST", "repos/"+req.Repository+"/pulls", map[string]string{"head": branch, "base": baseBranch, "title": title, "body": body}, &pr)
@@ -153,7 +150,7 @@ func publishCandidate(req PublishRequest) (string, error) {
 		}
 	}
 	if pr.State != "open" || pr.Head.SHA != publishHead || pr.Head.Ref != branch || pr.Head.Repo.FullName != req.Repository || pr.Base.Ref != baseBranch || pr.Base.SHA != parent || pr.Body != body || pr.Title != title {
-		return "", publicationPolicy("PR head or base changed during publication; no fresh acceptance is claimed")
+		return "", publicationPolicy("PR readback does not match the publication; it remains unconfirmed")
 	}
 	if err := verifyAppActor(api, pr.User, req.AppClientID); err != nil {
 		return "", err
