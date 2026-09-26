@@ -13,6 +13,9 @@ changes may occur in minor releases.
 
 #### Fixed
 
+- Keep protocol Agent execution logs and the final message in runner temporary
+  storage so a successful Agent proposal can pass the repository scope check.
+
 - Reuse unchanged pending protocol PRs without regenerating or repeating Agent
   work, and conditionally update owned PRs when the target or base advances.
 

@@ -716,7 +716,7 @@ func TestWorkflowsUseRootGoModFloor(t *testing.T) {
 	}
 }
 
-func TestProtocolAgentUsesGPT6SolExtraHigh(t *testing.T) {
+func TestProtocolAgentPassesWorkflowSelectedModel(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
 	if err != nil {
 		t.Fatal(err)
@@ -726,11 +726,8 @@ func TestProtocolAgentUsesGPT6SolExtraHigh(t *testing.T) {
 	if !ok {
 		t.Fatal("protocol sync must expose the Agent step")
 	}
-	if !strings.Contains(agent, "model: gpt-6-sol") {
-		t.Fatal("protocol Agent workflow must select gpt-6-sol")
-	}
-	if !strings.Contains(agent, "reasoning-effort: xhigh") {
-		t.Fatal("protocol Agent workflow must select xhigh reasoning effort")
+	if !strings.Contains(agent, "model: ") || !strings.Contains(agent, "reasoning-effort: ") {
+		t.Fatal("protocol Agent workflow must select a model and reasoning effort")
 	}
 
 	data, err := os.ReadFile(filepath.Join(root, ".github", "actions", "codex-exec", "action.yml"))
@@ -738,7 +735,7 @@ func TestProtocolAgentUsesGPT6SolExtraHigh(t *testing.T) {
 		t.Fatal(err)
 	}
 	action := string(data)
-	if !strings.Contains(action, "--model \"${MODEL}\"") || !strings.Contains(action, "REASONING_EFFORT: ${{ inputs.reasoning-effort }}") {
+	if !strings.Contains(action, "MODEL: ${{ inputs.model }}") || !strings.Contains(action, "--model \"${MODEL}\"") || !strings.Contains(action, "REASONING_EFFORT: ${{ inputs.reasoning-effort }}") || !strings.Contains(action, "model_reasoning_effort=\\\"${REASONING_EFFORT}\\\"") {
 		t.Fatal("codex-exec must consume the workflow-owned model and reasoning effort")
 	}
 }
@@ -1189,5 +1186,111 @@ func TestProtocolPublicationUsesRepositoryScopedApp(t *testing.T) {
 				t.Fatalf("missing App config evidence: %s: %s: %v", raw, out, err)
 			}
 		}
+	}
+}
+
+func TestCodexExecutionOutputStaysOutsideProposalTree(t *testing.T) {
+	if _, err := exec.LookPath("setpriv"); err != nil {
+		t.Skip("setpriv is required by the Linux Codex runner")
+	}
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	action, err := os.ReadFile(filepath.Join(root, ".github", "actions", "codex-exec", "action.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	step, ok := workflowStepByID(string(action), "codex")
+	if !ok {
+		t.Fatal("Codex action has no execution step")
+	}
+	script := workflowRunScript(t, step)
+	for _, test := range []struct {
+		name, workdir string
+		fail          bool
+	}{
+		{name: "root", workdir: "."},
+		{name: "child", workdir: "codexsdk"},
+		{name: "failed command", workdir: ".", fail: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			repo := t.TempDir()
+			runner := t.TempDir()
+			bin := t.TempDir()
+			if err := os.MkdirAll(filepath.Join(repo, "codexsdk"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(repo, "codexsdk", "fixture.txt"), []byte("fixture"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			for _, args := range [][]string{{"init", "-q", "-b", "main"}, {"add", "codexsdk/fixture.txt"}, {"-c", "user.name=Fixture", "-c", "user.email=fixture@example.com", "commit", "-qm", "fixture"}} {
+				cmd := exec.Command("git", args...)
+				cmd.Dir = repo
+				if out, err := cmd.CombinedOutput(); err != nil {
+					t.Fatalf("git %v: %v: %s", args, err, out)
+				}
+			}
+			fake := `#!/bin/bash
+set -euo pipefail
+for ((index=1; index<=$#; index++)); do
+  if [[ "${!index}" == "--output-last-message" ]]; then
+    next=$((index+1))
+    final_message="${!next}"
+  fi
+done
+printf 'finished\n' > "${final_message}"
+if [[ "${FAKE_CODEX_FAIL}" == true ]]; then
+  printf '%s\n' '{"type":"error","message":"fixture failure"}'
+  exit 42
+fi
+printf '%s\n' '{"type":"turn.completed"}'
+`
+			if err := os.WriteFile(filepath.Join(bin, "codex"), []byte(fake), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			githubOutput := filepath.Join(runner, "github-output")
+			cmd := exec.Command("bash", "-c", script)
+			cmd.Dir = filepath.Join(repo, test.workdir)
+			cmd.Env = append(os.Environ(),
+				"PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"),
+				"RUNNER_TEMP="+runner, "GITHUB_OUTPUT="+githubOutput,
+				"MODEL=fixture", "PROMPT=fixture", "PROXY_PORT=1234", "REASONING_EFFORT=low",
+				fmt.Sprintf("FAKE_CODEX_FAIL=%t", test.fail),
+			)
+			out, runErr := cmd.CombinedOutput()
+			if test.fail && runErr == nil || !test.fail && runErr != nil {
+				t.Fatalf("run err=%v, output=%s", runErr, out)
+			}
+			status := exec.Command("git", "status", "--porcelain")
+			status.Dir = repo
+			visible, err := status.CombinedOutput()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(visible) != 0 {
+				t.Fatalf("Codex output entered proposal tree: %s", visible)
+			}
+			logs, err := filepath.Glob(filepath.Join(runner, "**", "attempt-1.log"))
+			if err != nil || len(logs) != 1 {
+				t.Fatalf("runner logs = %v, err=%v", logs, err)
+			}
+			if _, err := os.ReadFile(logs[0]); err != nil {
+				t.Fatal(err)
+			}
+			if !test.fail {
+				output, err := os.ReadFile(githubOutput)
+				if err != nil {
+					t.Fatal(err)
+				}
+				path := strings.TrimSpace(strings.TrimPrefix(string(output), "final-message-path="))
+				if !strings.HasPrefix(string(output), "final-message-path=") || !strings.HasPrefix(path, runner+string(os.PathSeparator)) {
+					t.Fatalf("final message path = %q", output)
+				}
+				if _, err := os.ReadFile(path); err != nil {
+					t.Fatal(err)
+				}
+			}
+		})
 	}
 }

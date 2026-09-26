@@ -95,8 +95,8 @@ runs:
       run: |
         set -euo pipefail
         capacity_error='Selected model is at capacity. Please try a different model.'
-        final_message="${PWD}/.cache/codex-exec/final-message.md"
-        mkdir -p "$(dirname "${final_message}")"
+        execution_dir="$(mktemp -d "${RUNNER_TEMP}/codex-exec.XXXXXX")"
+        final_message="${execution_dir}/final-message.md"
 
         codex_args=(
           exec
@@ -112,7 +112,7 @@ runs:
         command_args=("${PROMPT}")
 
         for attempt in 1 2 3; do
-          attempt_log=".cache/codex-exec/attempt-${attempt}.log"
+          attempt_log="${execution_dir}/attempt-${attempt}.log"
           set +e
           setpriv --no-new-privs \
             codex "${codex_args[@]}" "${command_args[@]}" 2>&1 | tee "${attempt_log}"
