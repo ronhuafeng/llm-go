@@ -319,7 +319,7 @@ accepted baseline can carry the fact directly.
 Pending retry reports check runs attached to the PR head as observations only.
 GitHub can attach checks to that head while the jobs execute a synthetic merge
 candidate; same-named checks may also come from manual runs. The summary marks
-the merge candidate unverified and never infers integration readiness from these
+the integration candidate unverified and never infers integration readiness from these
 observations. Required PR verification and exact-upstream proof remain separate
 gates.
 
@@ -355,24 +355,26 @@ artifacts, and publication code. A needed change to those control paths takes
 the ordinary reviewed development path rather than expanding one automatic
 proposal's authority.
 
-After the proposal, Go re-plans and performs deterministic checks after the
-executable tests. The read-only job compares the complete Git proposal before
-and after tests, rechecks the candidate digest, and hands the proven patch to a
-separate publication runner. That runner verifies the patch digest and uses a
+After the proposal, Go re-plans the candidate. The trusted producer then
+normalizes changed Go source before proposal bytes are sealed, runs deterministic
+checks, compares the complete Git proposal before and after executable tests,
+rechecks the candidate digest, and hands the proven patch to a separate
+publication runner. That runner verifies the patch digest and uses a
 control binary built from the trusted checkout. Proposed Go code is never run
 with repository-write credentials. A model final message has no acceptance
 meaning.
 
 ## Deterministic proof
 
-Before publication, require evidence appropriate to the candidate:
+Before publication, the repository-owned producer normalizes every changed Go
+file with `gofmt` before proposal bytes are sealed. Formatting is construction,
+not an acceptance proof. Then require evidence appropriate to the candidate:
 
 - target ref/kind/commit identity is exact and consistent;
 - checked-in candidate schemas match a fresh generation for that target;
 - generated protocol Go and SDK surface reproduce exactly;
 - generated wire representations preserve schema requiredness/nullability;
 - focused tests cover any new handwritten semantic overlay;
-- `gofmt` and `git diff --check` pass;
 - `go vet ./codexsdk/...` passes;
 - `go test ./codexsdk/...` passes.
 
@@ -426,8 +428,8 @@ Repository-write credentials belong only to the separate publication job. Base m
 or any uncertainty about which commit was proven causes publication to fail and
 the run to restart from canonical input.
 
-Validation-only execution performs target resolution, fresh generation,
-planning/comparison, and deterministic checks but never commits, pushes, opens
+Validation-only execution performs target resolution and fresh exact
+reconstruction/comparison but never commits, pushes, opens
 or updates a PR, merges, tags, or releases.
 
 ## Publication App setup
@@ -478,33 +480,40 @@ Missing Client ID/bot ID/key fails with configuration instructions and
 `policy_configuration` attribution. Invalid keys, installation scope or grants
 fail token creation and prevent publication; there is no fallback identity.
 Create/update event acceptance records the App actor, event, PR head, actual
-merge candidate and both protected checks. This setup never authorizes
+integration candidate and the independent required checks. This setup never authorizes
 self-merge, tags or releases. If production evidence requires trusted main,
 merge the reviewed integration first and keep its implementation Issue open
 until the actual events are verified.
 
 ## Final acceptance
 
-For a protocol PR, acceptance requires two distinct proofs tied to the final
-proposal state:
+Use three independent GitHub proofs:
 
 ```text
-required PR verification(M) == success
+Root source verification(I) == success
 
 AND
 
-automatic exact upstream verification(H, U) == exact_verified
+Generated reproducibility(I) == success
+
+AND
+
+Codex protocol provenance(H, U) == success
 ```
 
-Here `M` is GitHub's merge candidate, `H` is the exact PR head, and `U`
-is the exact ref/kind/SHA declared by H's checked-in baseline metadata. The
-automatic read-only PR job regenerates from U and proves H without relying on
-artifacts from an earlier run. `Root source verification` fails closed when
-that H proof does not succeed, while the generated required check continues to
-prove deterministic generated-source reproducibility on M.
+Here `H` is the exact PR head, `I` is GitHub's current integration revision,
+and `U` is the exact ref/kind/SHA declared by H's checked-in baseline metadata.
+For protocol-relevant pull requests, the provenance job freshly reconstructs U
+and proves H without relying on an earlier run artifact. For unrelated pull
+requests it reports not applicable successfully. Integration events such as
+`merge_group` prove the new I through source and generated checks; they do not
+manufacture a new H provenance claim.
+
+These checks are separate merge authorities. GitHub branch protection should
+require all three directly. No source job acts as an aggregator for provenance.
 
 The manual `validation_only` protocol-sync entrypoint remains a diagnostic
-projection of the same verifier. With no explicit ref it binds to H's checked-in
+projection of the same verifier. With no explicit ref it binds to the checked-in
 baseline identity; an explicit ref must resolve to that same identity. Manual
 dispatch is not part of normal acceptance.
 
