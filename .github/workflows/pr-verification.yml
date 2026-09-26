@@ -16,11 +16,116 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  exact-protocol:
+    name: Codex exact upstream verification
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Provision Codex schema build dependencies
+        run: |
+          set -euo pipefail
+          rustup default stable
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang \
+            cmake \
+            libasound2-dev \
+            libssl-dev \
+            pkg-config \
+            protobuf-compiler
+      - name: Verify exact upstream protocol head
+        id: exact
+        working-directory: codexsdk
+        env:
+          GOTOOLCHAIN: local
+        run: |
+          set -euo pipefail
+          go run ./internal/cmd/protocolupgrade sync \
+            -repo-root "${GITHUB_WORKSPACE}" \
+            -module-root . \
+            -upstream-repo https://github.com/openai/codex.git \
+            -event-name "${GITHUB_EVENT_NAME}" \
+            -force-compare \
+            -validation-only
+          git -C "${GITHUB_WORKSPACE}" diff --exit-code
+          test -z "$(git -C "${GITHUB_WORKSPACE}" status --porcelain --untracked-files=normal)"
+      - name: Check exact baseline and Go source
+        id: exact_checks
+        working-directory: codexsdk
+        env:
+          GOTOOLCHAIN: local
+        run: |
+          set -euo pipefail
+          go run ./internal/cmd/protocolupgrade check -module-root .
+          git -C "${GITHUB_WORKSPACE}" diff --check
+          test -z "$(git -C "${GITHUB_WORKSPACE}" ls-files -z -- 'codexsdk/*.go' 'codexsdk/**/*.go' | xargs -0 -r -I{} gofmt -l "${GITHUB_WORKSPACE}/{}")"
+          go vet ./...
+          go test ./...
+      - name: Summarize exact PR head validation
+        if: ${{ always() && !cancelled() }}
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          MERGE_SHA: ${{ github.sha }}
+          TARGET_REF: ${{ steps.exact.outputs.target_ref }}
+          TARGET_SHA: ${{ steps.exact.outputs.target_sha }}
+          OUTCOME: ${{ steps.exact.outputs.outcome }}
+          REASON: ${{ steps.exact.outputs.reason }}
+          CHECKS_OUTCOME: ${{ steps.exact_checks.outcome }}
+        run: |
+          {
+            echo '## Automatic exact upstream PR-head validation'
+            echo
+            echo "- PR head H: ${HEAD_SHA}"
+            echo "- Merge candidate M (validated separately): ${MERGE_SHA}"
+            echo "- Exact upstream ref: ${TARGET_REF:-unavailable}"
+            echo "- Exact upstream commit: ${TARGET_SHA:-unavailable}"
+            echo "- Rebuild outcome: ${OUTCOME:-unavailable}"
+            echo "- Rebuild reason: ${REASON:-unavailable}"
+            echo "- Go checks outcome: ${CHECKS_OUTCOME:-unavailable}"
+            echo "- Workflow run/attempt: ${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}"
+            echo '- Agent, accepted-worktree Apply, commit, push, and PR publication: not invoked'
+          } >> "${GITHUB_STEP_SUMMARY}"
+      - name: Worktree remains clean
+        if: ${{ always() && !cancelled() }}
+        run: |
+          set -euo pipefail
+          git diff --check
+          if [[ -n "$(git status --porcelain --untracked-files=all)" ]]; then
+            git status --short >&2
+            echo "exact verification left a dirty worktree" >&2
+            exit 1
+          fi
+
   source:
     name: Root source verification
+    needs: exact-protocol
+    if: ${{ always() && !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
+      - name: Require exact PR head verification
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          EXACT_RESULT: ${{ needs.exact-protocol.result }}
+        run: |
+          set -euo pipefail
+          if [[ "${EXACT_RESULT}" != success ]]; then
+            echo "automatic exact PR-head verification did not succeed: ${EXACT_RESULT}" >&2
+            exit 1
+          fi
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
