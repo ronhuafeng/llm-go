@@ -154,7 +154,7 @@ func runApply(args []string, stdout, stderr io.Writer) int {
 		TargetSHA:         *targetSHA,
 		ModuleRoot:        *moduleRoot,
 	}
-	planned, err := protocolupgrade.Plan(req)
+	planned, err := protocolupgrade.PlanRepository(req)
 	if err != nil {
 		fmt.Fprintf(stderr, "protocolupgrade apply: plan: %v\n", err)
 		return 1

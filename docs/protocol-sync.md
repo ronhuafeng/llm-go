@@ -78,6 +78,16 @@ result after checking the accepted baseline has not changed; it does not reread
 upstream inputs or repeat generation. The direct apply command uses the same
 construction path. Partial generation and surface-skipping modes are unsupported.
 
+The repository plan also compiles the public SDK and protocol packages, including
+handwritten tests, using a temporary Go overlay of those prepared bytes. It runs
+`go test -c`, so package initializers and tests do not execute during planning.
+A candidate compilation failure with a compilable accepted baseline produces a
+`go_compatibility` unresolved result before Apply and can enter the existing
+single repair pass. If both builds fail, planning fails with both diagnostics;
+it cannot attribute the failure to the upstream change. Resume repeats the same
+check. The final deterministic tests and isolated generated-package build remain
+required after application.
+
 Protocol generation shares one package constructor across upgrade planning,
 reproducibility checks, and the protocol CLI. Stable and complete schema visibility
 are distinct construction inputs. Type selection and naming are reused within

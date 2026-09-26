@@ -61,6 +61,19 @@ func TestGeneratorRepairResumesSameCandidateWithTrustedScope(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(module, "protocolv2"), 0755); err != nil {
 		t.Fatal(err)
 	}
+	for _, name := range []string{"nullable.go", "json_value.go"} {
+		raw, err := os.ReadFile(filepath.Join(source, "codexsdk/protocolv2", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		put(filepath.Join(module, "protocolv2", name), raw)
+	}
+	put(filepath.Join(module, "client.go"), []byte(`package codexsdk
+import "context"
+type Client struct{}
+func (*Client) callProtocol(context.Context, string, any, any) error { return nil }
+func (*Client) callProtocolNoParams(context.Context, string, any) error { return nil }
+`))
 	cache := filepath.Join(module, ".cache")
 	upstream := filepath.Join(cache, "openai-codex")
 	raw, err := os.ReadFile(fix.commonRS)

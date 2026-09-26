@@ -13,6 +13,9 @@ changes may occur in minor releases.
 
 #### Fixed
 
+- Detect candidate incompatibility with handwritten SDK source and tests before
+  applying protocol upgrades, allowing the bounded repair pass to handle it.
+
 - Bind protocol Agent resume to a verified copy of the original complete
   upstream candidate, reject proposals that change sync acceptance or
   publication controls, and publish proven changes from a separate runner.
