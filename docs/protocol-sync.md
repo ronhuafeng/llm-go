@@ -511,6 +511,6 @@ The current Go owner implements the boundary above directly:
   that second plan is ready;
 - a second unresolved plan fails closed and publishes nothing.
 
-The protocol Agent in this workflow uses `gpt-6-sol` with
-`model_reasoning_effort="xhigh"`. Model choice is execution configuration, not
-correctness authority; deterministic Go proof remains mandatory.
+The calling workflow selects the protocol Agent's model and reasoning effort;
+the shared Action passes both to Codex. Model choice is execution configuration,
+not correctness authority; deterministic Go proof remains mandatory.
