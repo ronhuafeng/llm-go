@@ -13,6 +13,9 @@ changes may occur in minor releases.
 
 #### Fixed
 
+- Reuse unchanged pending protocol PRs without regenerating or repeating Agent
+  work, and conditionally update owned PRs when the target or base advances.
+
 - Detect candidate incompatibility with handwritten SDK source and tests before
   applying protocol upgrades, allowing the bounded repair pass to handle it.
 

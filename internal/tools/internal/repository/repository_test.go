@@ -284,8 +284,16 @@ func TestProtocolSyncPreservesAuthorityAndPublicationBoundaries(t *testing.T) {
 		t.Fatal("handoff must seal unchanged source and candidate bytes after proof")
 	}
 	proofJob, ok := workflowJobByID(syncText, "sync")
-	if !ok || !strings.Contains(proofJob, "contents: read") || strings.Contains(proofJob, "contents: write") || strings.Contains(proofJob, "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}") {
+	if !ok || !strings.Contains(proofJob, "contents: read") || strings.Contains(proofJob, "contents: write") {
 		t.Fatal("Agent and executable proposal tests must run without repository-write authority")
+	}
+
+	mechanical, ok := workflowStepByID(proofJob, "mechanical")
+	if !ok || !strings.Contains(mechanical, "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}") || !strings.Contains(proofJob, "checks: read") {
+		t.Fatal("trusted pending discovery needs only the built-in read token")
+	}
+	if strings.Contains(strings.Replace(proofJob, mechanical, "", 1), "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}") {
+		t.Fatal("the pending-discovery token must not escape its trusted step")
 	}
 	publishJob, ok := workflowJobByID(syncText, "publish")
 	if !ok || !strings.Contains(publishJob, "needs: sync") || !strings.Contains(publishJob, "needs.sync.outputs.outcome == 'applied'") || !strings.Contains(publishJob, "contents: read") || strings.Contains(publishJob, "      contents: write") || strings.Contains(publishJob, "codex-exec") || strings.Contains(publishJob, "go test ./...") {

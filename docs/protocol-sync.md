@@ -97,9 +97,31 @@ including handwritten declarations and receiver scopes. Diagnostics retain Go
 file locations without reconstructing upstream ownership from emitted names.
 The isolated compiler check remains the final generated-package proof.
 
-A failed run is retried from the selected upstream source and a fresh candidate.
-Do not create repair queues, cross-run state machines, or proof ledgers for
-state that can be regenerated.
+Before generation, the Go owner observes native GitHub PR/branch state. An
+unchanged App-owned pending PR on the same accepted base and upstream target is
+returned with its observed check state. This spends no new generation or Agent
+attempt and acquires no fresh proof. Accepted main metadata still owns whether
+the upstream version has actually been integrated.
+
+Ownership is checked against the configured App Client ID, PR creator, actual
+repository/base/head, source identity and allowed paths, plus GitHub's latest
+ref activity actor and after-SHA. Editable PR metadata and Git commit author
+names are not push authority. Human source changes or edited PR descriptions,
+ambiguous matches and unknown ownership require maintainer intervention. A
+manually closed candidate remains paused; a changed upstream tag is an integrity
+failure. A newer pending stable target is never replaced by an older attempt.
+
+When the target or accepted base changes, reconstruct and validate on that exact
+base. Carry the initially observed branch/head to the independent publisher,
+then update with an explicit expected-old-head Git lease. Recheck remote state
+after publishing; a concurrent base or PR change invalidates reuse of the old
+proof. Lost write responses are read back before another effect is attempted.
+An App-owned orphan branch is rebuilt and verified before completing its PR.
+
+A newly created branch is named from its selected upstream identity, independent
+of run number or commit timestamp. Existing pending branches retain their name
+when updated. GitHub PRs/branches and accepted main metadata remain the only
+cross-run state; there is no persistent repair queue or proof ledger.
 
 ## Protocol facts and semantic overlays
 
