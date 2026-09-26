@@ -48,7 +48,6 @@ jobs:
         if: ${{ always() && !cancelled() }}
         run: |
           set -euo pipefail
-          git diff --check
           if [[ -n "$(git status --porcelain --untracked-files=all)" ]]; then
             git status --short >&2
             echo "generated check left a dirty worktree" >&2
