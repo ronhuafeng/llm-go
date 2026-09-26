@@ -740,8 +740,8 @@ func TestCurrentDocsDescribeOneRootModule(t *testing.T) {
 	if !strings.Contains(string(verify), "go test -race ./...") {
 		t.Fatal("docs/verify.md must document root-module race tests")
 	}
-	if !strings.Contains(string(verify), "merge candidate") {
-		t.Fatal("docs/verify.md must say required PR checks validate the merge candidate")
+	if !strings.Contains(string(verify), "integration revision") {
+		t.Fatal("docs/verify.md must distinguish the GitHub integration revision")
 	}
 	for _, workflow := range []string{"Verify llmkit", "Verify codexsdk", "Verify Codex adapter"} {
 		if !strings.Contains(string(verify), workflow) {
