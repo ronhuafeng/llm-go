@@ -87,15 +87,31 @@ func Sync(req SyncRequest) (result SyncResult, err error) {
 	if moduleRoot == "" {
 		moduleRoot = filepath.Join(req.RepoRoot, "codexsdk")
 	}
+	stage = "baseline"
+	baseline, err := loadBaselineIdentity(filepath.Join(moduleRoot, filepath.FromSlash(defaultBaselineRel), "baseline_metadata.json"))
+	if err != nil {
+		return result, err
+	}
 	upstreamRepo := req.UpstreamRepo
 	if upstreamRepo == "" {
 		upstreamRepo = defaultRemote
 	}
+	selectedRef := strings.TrimSpace(req.UpstreamRef)
+	latestStable := req.LatestStable || selectedRef == ""
+	if req.ValidationOnly {
+		if !shaRE.MatchString(baseline.SourceCommit) || baseline.SourceRefName == "" || !validKinds[baseline.SourceRefKind] {
+			return result, &Failure{Category: FailureSource, Err: fmt.Errorf("validation-only requires a complete checked-in upstream identity")}
+		}
+		if selectedRef == "" {
+			selectedRef = baseline.SourceRefName
+			latestStable = false
+		}
+	}
 	stage = "resolve"
 	target, err := ResolveUpstream(ResolveRequest{
 		Remote:       upstreamRepo,
-		UpstreamRef:  req.UpstreamRef,
-		LatestStable: req.LatestStable || strings.TrimSpace(req.UpstreamRef) == "",
+		UpstreamRef:  selectedRef,
+		LatestStable: latestStable,
 		Lookuper:     req.Lookuper,
 	})
 	if err != nil {
@@ -104,16 +120,14 @@ func Sync(req SyncRequest) (result SyncResult, err error) {
 	if req.LatestStable && strings.TrimSpace(req.UpstreamRef) != "" {
 		return SyncResult{}, fmt.Errorf("latest-stable cannot be combined with an explicit upstream ref")
 	}
-	if strings.TrimSpace(req.UpstreamRef) != "" {
+	if selectedRef != "" {
 		target.TargetExplicit = true
+	}
+	if req.ValidationOnly && (target.RefName != baseline.SourceRefName || target.RefKind != baseline.SourceRefKind || target.PeeledCommitSHA != baseline.SourceCommit) {
+		return result, &Failure{Category: FailureSource, Err: fmt.Errorf("validation-only target does not match the checked-in upstream identity: baseline=%s/%s/%s resolved=%s/%s/%s", baseline.SourceRefName, baseline.SourceRefKind, baseline.SourceCommit, target.RefName, target.RefKind, target.PeeledCommitSHA)}
 	}
 
 	result.Target = target
-	stage = "baseline"
-	baseline, err := loadBaselineIdentity(filepath.Join(moduleRoot, filepath.FromSlash(defaultBaselineRel), "baseline_metadata.json"))
-	if err != nil {
-		return result, err
-	}
 	mode := "manual"
 	if req.EventName == "schedule" {
 		mode = "scheduled"
