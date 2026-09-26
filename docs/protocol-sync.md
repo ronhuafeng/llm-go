@@ -485,24 +485,28 @@ until the actual events are verified.
 
 ## Final acceptance
 
-On the same final protocol PR head `H`:
+For a protocol PR, acceptance requires two distinct proofs tied to the final
+proposal state:
 
 ```text
-PR verification(H) == success
+required PR verification(M) == success
 
 AND
 
-Codex Upstream Protocol Sync(
-  head=H,
-  upstream_ref=<checked-in exact baseline>,
-  force_compare=true,
-  validation_only=true
-) == success
+automatic exact upstream verification(H, U) == exact_verified
 ```
 
-The validation-only run must regenerate from the exact selected upstream source
-and prove the checked-in baseline without relying on artifacts from an earlier
-run.
+Here `M` is GitHub's merge candidate, `H` is the exact PR head, and `U`
+is the exact ref/kind/SHA declared by H's checked-in baseline metadata. The
+automatic read-only PR job regenerates from U and proves H without relying on
+artifacts from an earlier run. `Root source verification` fails closed when
+that H proof does not succeed, while the generated required check continues to
+prove deterministic generated-source reproducibility on M.
+
+The manual `validation_only` protocol-sync entrypoint remains a diagnostic
+projection of the same verifier. With no explicit ref it binds to H's checked-in
+baseline identity; an explicit ref must resolve to that same identity. Manual
+dispatch is not part of normal acceptance.
 
 ## Native control path
 
