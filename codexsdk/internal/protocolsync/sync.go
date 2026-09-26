@@ -153,6 +153,13 @@ func Sync(req SyncRequest) (result SyncResult, err error) {
 		if err != nil {
 			return result, err
 		}
+		currentBase, err := remotePublicationHead(req.RepoRoot, publicationRemote(inspection), inspection.BaseBranch)
+		if err != nil {
+			return result, fmt.Errorf("read current publication base: %w", err)
+		}
+		if currentBase != inspection.BaseSHA {
+			return result, &Failure{Category: FailurePublication, Err: fmt.Errorf("base branch %s moved from %s to %s; restart from the current base", inspection.BaseBranch, inspection.BaseSHA, currentBase)}
+		}
 		result.Publication = &pending
 		if pending.Reusable {
 			result.Outcome = OutcomePRPending

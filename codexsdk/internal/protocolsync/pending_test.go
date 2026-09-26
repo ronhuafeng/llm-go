@@ -49,6 +49,8 @@ func pendingFixture(t *testing.T) (PendingRequest, *fixturePublicationAPI) {
 	writeFile(t, metadata, fmt.Sprintf(`{"source_commit":%q,"source_ref_name":"rust-v0.154.0","source_ref_kind":"stable_rust_tag"}`, newSHA))
 	runGitInitCommit(t, repo, "bot candidate")
 	head := strings.TrimSpace(gitMust(t, repo, "rev-parse", "HEAD"))
+	gitMust(t, repo, "checkout", "--detach", head)
+	gitMust(t, repo, "branch", "-f", "main", base)
 	pr := publicationPR{Number: 7, URL: "https://github.com/owner/repo/pull/7", State: "open", User: publicationUser{ID: 42, Login: "sync[bot]", Type: "Bot"}, Title: publicationTitle("rust-v0.154.0"), Body: publicationBody("main", "rust-v0.154.0", KindStableTag, newSHA, head)}
 	pr.Head.Ref = "codex/sync-upstream-target"
 	pr.Head.SHA = head
@@ -56,7 +58,7 @@ func pendingFixture(t *testing.T) (PendingRequest, *fixturePublicationAPI) {
 	pr.Base.Ref = "main"
 	pr.Base.SHA = base
 	api := &fixturePublicationAPI{prs: []publicationPR{pr}, pushActor: pr.User}
-	req := PendingRequest{RepoRoot: repo, Repository: "owner/repo", AppBotID: 42, BaseBranch: "main", BaseSHA: base, Target: Target{RefName: "rust-v0.154.0", RefKind: KindStableTag, PeeledCommitSHA: newSHA}, API: api}
+	req := PendingRequest{RepoRoot: repo, Repository: "owner/repo", AppBotID: 42, BaseBranch: "main", BaseSHA: base, Remote: repo, Target: Target{RefName: "rust-v0.154.0", RefKind: KindStableTag, PeeledCommitSHA: newSHA}, API: api}
 	return req, api
 }
 
@@ -161,6 +163,30 @@ func TestSyncReusesPendingBeforeGeneration(t *testing.T) {
 	}
 	if !strings.Contains(result.Reason, "no generation, Agent pass, or fresh proof") {
 		t.Fatalf("reason=%s", result.Reason)
+	}
+}
+
+func TestSyncRejectsPendingAfterRemoteBaseAdvances(t *testing.T) {
+	req, _ := pendingFixture(t)
+	gitMust(t, req.RepoRoot, "checkout", "--detach", req.BaseSHA)
+	writeFile(t, filepath.Join(req.RepoRoot, "README.md"), "new main base")
+	runGitInitCommit(t, req.RepoRoot, "advance main")
+	newBase := strings.TrimSpace(gitMust(t, req.RepoRoot, "rev-parse", "HEAD"))
+	gitMust(t, req.RepoRoot, "branch", "-f", "main", newBase)
+	gitMust(t, req.RepoRoot, "checkout", "--detach", req.BaseSHA)
+	result, err := Sync(SyncRequest{
+		RepoRoot: req.RepoRoot, Publication: &req, UpstreamRef: req.Target.RefName,
+		Lookuper: fakeLookuper{byPattern: map[string]string{
+			"refs/tags/rust-v0.154.0":    newSHA + "\trefs/tags/rust-v0.154.0",
+			"refs/tags/rust-v0.154.0^{}": newSHA + "\trefs/tags/rust-v0.154.0^{}",
+		}},
+		Generate: func(GenerateRequest) (Candidate, error) {
+			t.Fatal("stale base generated again")
+			return Candidate{}, nil
+		},
+	})
+	if err == nil || failureCategory(err) != FailurePublication || result.Outcome != OutcomeFailed {
+		t.Fatalf("stale main was reported as reusable: result=%+v err=%v", result, err)
 	}
 }
 
