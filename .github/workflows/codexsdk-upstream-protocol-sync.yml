@@ -355,7 +355,7 @@ jobs:
             -upstream-repo https://github.com/openai/codex.git
             -event-name "${EVENT_NAME}"
             -github-repository "${GITHUB_REPOSITORY}"
-            -app-bot-id "${APP_BOT_ID}"
+            -app-bot-id "${APP_BOT_ID:-0}"
             -base-branch "${DEFAULT_BRANCH}"
           )
           if [[ -n "${REQUESTED_REF}" ]]; then

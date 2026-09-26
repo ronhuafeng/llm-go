@@ -84,6 +84,15 @@ func TestInspectPendingUsesNativeHeadAndRejectsHumanChange(t *testing.T) {
 	}
 }
 
+func TestInspectPendingRequiresConfiguredBotID(t *testing.T) {
+	req, _ := pendingFixture(t)
+	req.AppBotID = 0
+	_, err := InspectPending(req)
+	if err == nil || failureCategory(err) != FailurePolicy || !strings.Contains(err.Error(), "PROTOCOL_SYNC_APP_BOT_ID") {
+		t.Fatalf("missing bot ID = %v", err)
+	}
+}
+
 func TestInspectPendingChangesAndOwnership(t *testing.T) {
 	for _, kind := range []string{"new target", "new base", "closed", "multiple", "wrong app", "retargeted tag", "recover metadata", "human replacement", "other bot push"} {
 		t.Run(kind, func(t *testing.T) {

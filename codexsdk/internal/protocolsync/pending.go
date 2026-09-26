@@ -33,8 +33,11 @@ func publicationPolicy(format string, args ...any) error {
 // InspectPending validates ownership and actual Git contents before reusing a
 // pending publication. Unknown reads and ambiguous matches fail explicitly.
 func InspectPending(req PendingRequest) (PendingPublication, error) {
-	if req.Repository == "" || req.AppBotID <= 0 || req.BaseBranch == "" || !shaRE.MatchString(req.BaseSHA) {
-		return PendingPublication{}, publicationPolicy("repository, App bot ID, base branch and exact base SHA are required")
+	if req.AppBotID <= 0 {
+		return PendingPublication{}, publicationPolicy("configure PROTOCOL_SYNC_APP_BOT_ID to the publishing App bot user ID")
+	}
+	if req.Repository == "" || req.BaseBranch == "" || !shaRE.MatchString(req.BaseSHA) {
+		return PendingPublication{}, publicationPolicy("repository, base branch and exact base SHA are required")
 	}
 	api := req.API
 	if api == nil {
