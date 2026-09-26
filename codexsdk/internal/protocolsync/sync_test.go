@@ -173,11 +173,11 @@ func TestSyncValidationOnlyDefaultsToCheckedInIdentity(t *testing.T) {
 
 func TestSyncValidationOnlyRejectsIdentityDriftBeforeGeneration(t *testing.T) {
 	for _, test := range []struct {
-		name        string
-		requested   string
-		lookupRef   string
-		lookupSHA   string
-		want        string
+		name      string
+		requested string
+		lookupRef string
+		lookupSHA string
+		want      string
 	}{
 		{name: "checked-in stable tag moved", lookupRef: "rust-v0.140.0", lookupSHA: newSHA, want: "does not match the checked-in upstream identity"},
 		{name: "explicit different target", requested: "rust-v0.141.0", lookupRef: "rust-v0.141.0", lookupSHA: newSHA, want: "does not match the checked-in upstream identity"},
