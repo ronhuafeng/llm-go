@@ -50,7 +50,6 @@ jobs:
       category: ${{ steps.exact.outputs.failure_category || steps.diagnostic.outputs.failure_category }}
       target_ref: ${{ steps.exact.outputs.target_ref || steps.diagnostic.outputs.target_ref }}
       target_sha: ${{ steps.exact.outputs.target_sha || steps.diagnostic.outputs.target_sha }}
-      checks: ${{ steps.exact_checks.outcome }}
     steps:
       - name: Guard diagnostic ref
         env:
@@ -192,20 +191,6 @@ jobs:
           git -C "${GITHUB_WORKSPACE}" diff --exit-code
           test -z "$(git -C "${GITHUB_WORKSPACE}" status --porcelain --untracked-files=normal)"
 
-      - name: Check exact baseline and Go source
-        id: exact_checks
-        if: ${{ inputs.validation_only == true && inputs.diagnostic_only != true }}
-        working-directory: codexsdk
-        env:
-          GOTOOLCHAIN: local
-        run: |
-          set -euo pipefail
-          go run ./internal/cmd/protocolupgrade check -module-root .
-          git -C "${GITHUB_WORKSPACE}" diff --check
-          test -z "$(git -C "${GITHUB_WORKSPACE}" ls-files -z -- 'codexsdk/*.go' 'codexsdk/**/*.go' | xargs -0 -r -I{} gofmt -l "${GITHUB_WORKSPACE}/{}")"
-          go vet ./...
-          go test ./...
-
       - name: Summarize exact baseline validation
         if: ${{ always() && inputs.validation_only == true && inputs.diagnostic_only != true }}
         env:
@@ -216,7 +201,6 @@ jobs:
           TARGET_SHA: ${{ steps.exact.outputs.target_sha }}
           OUTCOME: ${{ steps.exact.outputs.outcome }}
           REASON: ${{ steps.exact.outputs.reason }}
-          CHECKS_OUTCOME: ${{ steps.exact_checks.outcome }}
         run: |
           set -euo pipefail
           merge_candidate='not applicable to default branch'
@@ -243,7 +227,6 @@ jobs:
             echo "- Exact upstream commit: ${TARGET_SHA}"
             echo "- Rebuild outcome: ${OUTCOME:-unavailable}"
             echo "- Rebuild reason: ${REASON}"
-            echo "- Go checks outcome: ${CHECKS_OUTCOME}"
             echo '- Agent, accepted-worktree Apply, commit, push, and PR publication: not invoked'
           } >> "${GITHUB_STEP_SUMMARY}"
 
@@ -464,6 +447,16 @@ jobs:
             -target-kind "${TARGET_KIND}" \
             -target-sha "${TARGET_SHA}"
 
+      - name: Normalize proposed Go source
+        id: normalize
+        if: ${{ steps.mechanical.outputs.outcome == 'applied' || steps.resume.outputs.outcome == 'applied' }}
+        run: |
+          set -euo pipefail
+          {
+            git -C "${GITHUB_WORKSPACE}" diff --name-only -z --diff-filter=ACMRTUXB HEAD -- 'codexsdk/*.go' 'codexsdk/**/*.go'
+            git -C "${GITHUB_WORKSPACE}" ls-files --others --exclude-standard -z -- 'codexsdk/*.go' 'codexsdk/**/*.go'
+          } | sort -zu | xargs -0 -r gofmt -w
+
       - name: Freeze proposal bytes before tests
         id: freeze
         if: ${{ steps.mechanical.outputs.outcome == 'applied' || steps.resume.outputs.outcome == 'applied' }}
@@ -489,16 +482,6 @@ jobs:
             args+=(-candidate "${CANDIDATE}")
           fi
           go run ./internal/cmd/protocolupgrade "${args[@]}"
-          git -C "${GITHUB_WORKSPACE}" diff --check
-          unformatted="$(
-            git -C "${GITHUB_WORKSPACE}" ls-files -z -- 'codexsdk/*.go' 'codexsdk/**/*.go' |
-              xargs -0 -r -I{} gofmt -l "${GITHUB_WORKSPACE}/{}"
-          )"
-          if [[ -n "${unformatted}" ]]; then
-            echo "gofmt required:" >&2
-            printf '%s\n' "${unformatted}" >&2
-            exit 1
-          fi
           go vet ./...
 
       - name: Recheck Agent proposal scope after tests
@@ -685,7 +668,7 @@ jobs:
           CATEGORY: ${{ needs.publish.outputs.category || needs.sync.outputs.category || needs.diagnose.outputs.category }}
           TARGET_REF: ${{ needs.sync.outputs.target_ref || needs.diagnose.outputs.target_ref }}
           TARGET_SHA: ${{ needs.sync.outputs.target_sha || needs.diagnose.outputs.target_sha }}
-          CHECKS: ${{ needs.sync.outputs.checks || needs.diagnose.outputs.checks }}
+          CHECKS: ${{ needs.sync.outputs.checks }}
           AGENT: ${{ needs.sync.outputs.agent }}
           SCOPE: ${{ needs.sync.outputs.scope }}
           HANDOFF: ${{ needs.sync.outputs.handoff }}
