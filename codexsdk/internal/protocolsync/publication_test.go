@@ -292,3 +292,14 @@ func TestPublishCompletesMetadataAfterUpdateDidNotTakeEffect(t *testing.T) {
 		t.Fatalf("publication not completed: %+v creates=%d updates=%d", observed, f.creates, f.updates)
 	}
 }
+
+func TestPublishReportsDescriptionChangedDuringCreation(t *testing.T) {
+	f, req, _ := newPublicationFixture(t)
+	f.afterWrite = func() { f.prs[0].Body += "\nMaintainer investigation." }
+	if _, err := Publish(req); err == nil {
+		t.Fatal("creation readback accepted concurrently changed description")
+	}
+	if f.creates != 1 || !strings.Contains(f.prs[0].Body, "Maintainer investigation.") {
+		t.Fatal("maintainer note was lost")
+	}
+}

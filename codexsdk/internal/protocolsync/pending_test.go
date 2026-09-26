@@ -9,11 +9,12 @@ import (
 )
 
 type fixturePublicationAPI struct {
-	prs       []publicationPR
-	fail      bool
-	clientID  string
-	pushActor publicationUser
-	checks    []map[string]string
+	prs        []publicationPR
+	fail       bool
+	clientID   string
+	pushActor  publicationUser
+	checks     []map[string]string
+	editOnRead bool
 }
 
 func (api *fixturePublicationAPI) Request(method, path string, body, result any) error {
@@ -27,7 +28,11 @@ func (api *fixturePublicationAPI) Request(method, path string, body, result any)
 	case strings.Contains(path, "pulls?"):
 		value = api.prs
 	case strings.Contains(path, "/pulls/"):
-		value = api.prs[0]
+		pr := api.prs[0]
+		if api.editOnRead {
+			pr.Body += "\nMaintainer note."
+		}
+		value = pr
 	case strings.Contains(path, "/activity?"):
 		value = []any{map[string]any{"ref": "refs/heads/" + api.prs[0].Head.Ref, "after": api.prs[0].Head.SHA, "actor": api.pushActor}}
 	case strings.Contains(path, "/check-runs"):
@@ -216,5 +221,13 @@ func TestInspectPendingHeadChecksDoNotCertifyMergeCandidate(t *testing.T) {
 				t.Fatalf("head checks overstated proof: %s", observed.Checks)
 			}
 		})
+	}
+}
+
+func TestInspectPendingRejectsDescriptionEditedDuringRead(t *testing.T) {
+	req, api := pendingFixture(t)
+	api.editOnRead = true
+	if _, err := InspectPending(req); err == nil {
+		t.Fatal("concurrent description edit reused stale publication")
 	}
 }

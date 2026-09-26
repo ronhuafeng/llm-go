@@ -152,7 +152,7 @@ func publishCandidate(req PublishRequest) (string, error) {
 			return "", fmt.Errorf("PR creation has %d confirmed matches: %v", matches, createErr)
 		}
 	}
-	if pr.State != "open" || pr.Head.SHA != publishHead || pr.Head.Ref != branch || pr.Head.Repo.FullName != req.Repository || pr.Base.Ref != baseBranch || pr.Base.SHA != parent {
+	if pr.State != "open" || pr.Head.SHA != publishHead || pr.Head.Ref != branch || pr.Head.Repo.FullName != req.Repository || pr.Base.Ref != baseBranch || pr.Base.SHA != parent || pr.Body != body || pr.Title != title {
 		return "", publicationPolicy("PR head or base changed during publication; no fresh acceptance is claimed")
 	}
 	if err := verifyAppActor(api, pr.User, req.AppClientID); err != nil {
