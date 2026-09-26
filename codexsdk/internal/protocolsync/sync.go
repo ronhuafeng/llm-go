@@ -17,11 +17,13 @@ const (
 	OutcomeFailed             = "failed"
 	OutcomeApplied            = "applied"
 	OutcomePlanReady          = "plan_ready"
+	OutcomePRPending          = "pr_pending"
 	OutcomeSemanticUnresolved = "semantic_unresolved"
 )
 
 // SyncRequest is the protocol-sync path owned by Go.
 type SyncRequest struct {
+	Publication    *PendingRequest
 	RepoRoot       string
 	ModuleRoot     string
 	UpstreamRepo   string
@@ -55,6 +57,7 @@ type ResumeRequest struct {
 
 // SyncResult is the minimal outcome the workflow needs.
 type SyncResult struct {
+	Publication     *PendingPublication
 	Stage           string
 	FailureCategory string
 	Outcome         string
@@ -133,6 +136,29 @@ func Sync(req SyncRequest) (result SyncResult, err error) {
 	if afterPolicy == "current" {
 		result.Outcome = OutcomeBaselineMatches
 		return result, nil
+	}
+
+	if req.Publication != nil && !req.ValidationOnly && !req.Diagnostic && !req.ForceCompare {
+		stage = "pending_publication"
+		inspection := *req.Publication
+		inspection.RepoRoot = req.RepoRoot
+		inspection.Target = target
+		inspection.ReadChecks = true
+		base, err := gitOutput(req.RepoRoot, "rev-parse", "HEAD")
+		if err != nil {
+			return result, err
+		}
+		inspection.BaseSHA = strings.TrimSpace(base)
+		pending, err := InspectPending(inspection)
+		if err != nil {
+			return result, err
+		}
+		result.Publication = &pending
+		if pending.Reusable {
+			result.Outcome = OutcomePRPending
+			result.Reason = fmt.Sprintf("%s remains pending: %s; no generation, Agent pass, or fresh proof", pending.URL, pending.Checks)
+			return result, nil
+		}
 	}
 
 	generate := req.Generate
@@ -405,6 +431,10 @@ func loadBaselineIdentity(path string) (BaselineIdentity, error) {
 	if err != nil {
 		return BaselineIdentity{}, err
 	}
+	return decodeBaselineIdentity(raw)
+}
+
+func decodeBaselineIdentity(raw []byte) (BaselineIdentity, error) {
 	var metadata struct {
 		SourceCommit  string `json:"source_commit"`
 		SourceRefName string `json:"source_ref_name"`
@@ -435,8 +465,22 @@ func WriteGitHubOutput(path string, result SyncResult) error {
 		issuePath = result.Issue.Path
 		issueReason = result.Issue.Reason
 	}
+
+	publicationHead, publicationBranch, publicationNumber, prURL, publicationChecks := "", "", "", "", ""
+	if result.Publication != nil {
+		publicationHead = result.Publication.Head
+		publicationBranch = result.Publication.Branch
+		publicationNumber = fmt.Sprint(result.Publication.Number)
+		prURL = result.Publication.URL
+		publicationChecks = result.Publication.Checks
+	}
 	lines := []string{
 		"outcome=" + githubOutputValue(result.Outcome),
+		"publication_head=" + githubOutputValue(publicationHead),
+		"publication_branch=" + githubOutputValue(publicationBranch),
+		"publication_number=" + githubOutputValue(publicationNumber),
+		"pr_url=" + githubOutputValue(prURL),
+		"publication_checks=" + githubOutputValue(publicationChecks),
 		"stage=" + githubOutputValue(result.Stage),
 		"failure_category=" + githubOutputValue(result.FailureCategory),
 		"applied=" + applied,

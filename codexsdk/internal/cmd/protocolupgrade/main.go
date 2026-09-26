@@ -226,6 +226,10 @@ func runSync(args []string, stdout, stderr io.Writer, diagnostic bool) int {
 	forceCompare := fs.Bool("force-compare", false, "generate and compare even when the baseline already matches")
 	validationOnly := fs.Bool("validation-only", false, "verify the exact accepted baseline without applying or publishing")
 	eventName := fs.String("event-name", "", "GitHub event name for scheduled vs manual policy")
+	repository := fs.String("github-repository", "", "repository for native pending PR discovery; empty disables remote publication")
+	appClientID := fs.String("app-client-id", "", "configured publishing GitHub App client ID")
+	baseBranch := fs.String("base-branch", "main", "protected publication base branch")
+
 	jsonOut := fs.Bool("json", false, "print a machine-readable result")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -234,7 +238,13 @@ func runSync(args []string, stdout, stderr io.Writer, diagnostic bool) int {
 		fmt.Fprintf(stderr, "protocolupgrade %s: -repo-root is required\n", command)
 		return 2
 	}
+	var publication *protocolsync.PendingRequest
+	if *repository != "" {
+		publication = &protocolsync.PendingRequest{Repository: *repository, AppClientID: *appClientID, BaseBranch: *baseBranch}
+	}
+
 	result, err := protocolsync.Sync(protocolsync.SyncRequest{
+		Publication:    publication,
 		RepoRoot:       *repoRoot,
 		ModuleRoot:     *moduleRoot,
 		UpstreamRepo:   *upstreamRepo,
@@ -348,7 +358,11 @@ func runPublish(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	repoRoot := fs.String("repo-root", "", "repository root")
 	baseBranch := fs.String("base-branch", "", "protected landing branch")
-	branchPrefix := fs.String("branch-prefix", "codex/sync-upstream", "sync branch prefix")
+
+	repository := fs.String("github-repository", "", "publication repository")
+	appClientID := fs.String("app-client-id", "", "publishing GitHub App client ID")
+	expectedHead := fs.String("expected-head", "", "head observed before generation, or absent")
+	expectedBranch := fs.String("expected-branch", "", "branch selected before generation")
 	targetRef := fs.String("target-ref", "", "selected upstream ref")
 	targetKind := fs.String("target-kind", "", "selected upstream kind")
 	targetSHA := fs.String("target-sha", "", "selected upstream commit")
@@ -357,9 +371,11 @@ func runPublish(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	prURL, err := protocolsync.Publish(protocolsync.PublishRequest{
-		RepoRoot:         *repoRoot,
-		BaseBranch:       *baseBranch,
-		BranchPrefix:     *branchPrefix,
+		RepoRoot:   *repoRoot,
+		BaseBranch: *baseBranch,
+
+		Repository: *repository, AppClientID: *appClientID,
+		ExpectedHead: *expectedHead, ExpectedBranch: *expectedBranch,
 		TargetRef:        *targetRef,
 		TargetKind:       *targetKind,
 		TargetSHA:        *targetSHA,

@@ -266,12 +266,17 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+      checks: read
     outputs:
       outcome: ${{ steps.mechanical.outputs.outcome }}
       resume_outcome: ${{ steps.resume.outputs.outcome }}
       target_ref: ${{ steps.mechanical.outputs.target_ref }}
       target_kind: ${{ steps.mechanical.outputs.target_kind }}
       target_sha: ${{ steps.mechanical.outputs.target_sha }}
+      publication_head: ${{ steps.mechanical.outputs.publication_head }}
+      publication_branch: ${{ steps.mechanical.outputs.publication_branch }}
+      publication_checks: ${{ steps.mechanical.outputs.publication_checks }}
+      pr_url: ${{ steps.mechanical.outputs.pr_url }}
       patch_sha256: ${{ steps.handoff.outputs.patch_sha256 }}
       stage: ${{ steps.resume.outputs.stage || steps.mechanical.outputs.stage }}
       category: ${{ steps.resume.outputs.failure_category || steps.mechanical.outputs.failure_category }}
@@ -338,6 +343,9 @@ jobs:
           FORCE_COMPARE: ${{ inputs.force_compare || false }}
           REQUESTED_REF: ${{ inputs.upstream_ref || '' }}
           EVENT_NAME: ${{ github.event_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APP_CLIENT_ID: ${{ vars.PROTOCOL_SYNC_APP_CLIENT_ID }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
           args=(
@@ -346,6 +354,9 @@ jobs:
             -module-root .
             -upstream-repo https://github.com/openai/codex.git
             -event-name "${EVENT_NAME}"
+            -github-repository "${GITHUB_REPOSITORY}"
+            -app-client-id "${APP_CLIENT_ID}"
+            -base-branch "${DEFAULT_BRANCH}"
           )
           if [[ -n "${REQUESTED_REF}" ]]; then
             args+=(-upstream-ref "${REQUESTED_REF}")
@@ -359,7 +370,7 @@ jobs:
           go run ./internal/cmd/protocolupgrade "${args[@]}"
 
       - name: Write Agent drift input
-        if: ${{ success() && inputs.validation_only != true && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
+        if: ${{ success() && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
         working-directory: codexsdk
         env:
           TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
@@ -396,7 +407,7 @@ jobs:
 
       - name: Apply one Agent pass for unresolved semantic drift
         id: codex
-        if: ${{ success() && inputs.validation_only != true && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
+        if: ${{ success() && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
         uses: ./.github/actions/codex-exec
         env:
           GITHUB_TOKEN: ""
@@ -422,7 +433,7 @@ jobs:
 
       - name: Check Agent proposal scope
         id: proposal_scope
-        if: ${{ success() && inputs.validation_only != true && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
+        if: ${{ success() && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
         env:
           CONTROL_SHA256: ${{ steps.control.outputs.sha256 }}
         run: &agent_proposal_scope |
@@ -433,7 +444,7 @@ jobs:
 
       - name: Re-plan and apply candidate
         id: resume
-        if: ${{ success() && inputs.validation_only != true && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
+        if: ${{ success() && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
         working-directory: codexsdk
         env:
           GOTOOLCHAIN: local
@@ -455,6 +466,7 @@ jobs:
 
       - name: Freeze proposal bytes before tests
         id: freeze
+        if: ${{ steps.mechanical.outputs.outcome == 'applied' || steps.resume.outputs.outcome == 'applied' }}
         run: |
           set -euo pipefail
           git ls-files --others --exclude-standard -z |
@@ -464,6 +476,7 @@ jobs:
 
       - name: Run deterministic protocol checks
         id: checks
+        if: ${{ steps.mechanical.outputs.outcome == 'applied' || steps.resume.outputs.outcome == 'applied' }}
         working-directory: codexsdk
         env:
           GOTOOLCHAIN: local
@@ -498,7 +511,7 @@ jobs:
 
       - name: Seal verified proposal
         id: handoff
-        if: ${{ success() && (steps.mechanical.outputs.outcome == 'applied' || steps.resume.outputs.outcome == 'applied') && inputs.validation_only != true }}
+        if: ${{ success() && (steps.mechanical.outputs.outcome == 'applied' || steps.resume.outputs.outcome == 'applied') }}
         working-directory: codexsdk
         env:
           CANDIDATE_DIR: ${{ steps.mechanical.outputs.candidate_dir }}
@@ -617,6 +630,9 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ steps.app_token.outputs.token }}
           PATCH_SHA256: ${{ needs.sync.outputs.patch_sha256 }}
+          APP_CLIENT_ID: ${{ vars.PROTOCOL_SYNC_APP_CLIENT_ID }}
+          EXPECTED_HEAD: ${{ needs.sync.outputs.publication_head }}
+          EXPECTED_BRANCH: ${{ needs.sync.outputs.publication_branch }}
           TARGET_KIND: ${{ needs.sync.outputs.target_kind }}
           TARGET_REF: ${{ needs.sync.outputs.target_ref }}
           TARGET_SHA: ${{ needs.sync.outputs.target_sha }}
@@ -643,7 +659,10 @@ jobs:
           "${control}" publish \
             -repo-root "${GITHUB_WORKSPACE}" \
             -base-branch "${DEFAULT_BRANCH}" \
-            -branch-prefix "codex/sync-upstream/run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            -github-repository "${GITHUB_REPOSITORY}" \
+            -app-client-id "${APP_CLIENT_ID}" \
+            -expected-head "${EXPECTED_HEAD}" \
+            -expected-branch "${EXPECTED_BRANCH}" \
             -target-ref "${TARGET_REF}" \
             -target-kind "${TARGET_KIND}" \
             -target-sha "${TARGET_SHA}"
@@ -670,7 +689,8 @@ jobs:
           AGENT: ${{ needs.sync.outputs.agent }}
           SCOPE: ${{ needs.sync.outputs.scope }}
           HANDOFF: ${{ needs.sync.outputs.handoff }}
-          PR_URL: ${{ needs.publish.outputs.pr_url }}
+          PR_URL: ${{ needs.publish.outputs.pr_url || needs.sync.outputs.pr_url }}
+          PUBLICATION_CHECKS: ${{ needs.sync.outputs.publication_checks }}
         run: |
           set -euo pipefail
           next='Inspect the failing job logs; attribution is unknown until evidence identifies the cause.'
@@ -714,6 +734,7 @@ jobs:
             echo "- Upstream: ${TARGET_REF:-unavailable} / ${TARGET_SHA:-unavailable}"
             echo "- Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID} (attempt ${GITHUB_RUN_ATTEMPT})"
             echo "- PR: ${PR_URL:-not_published}"
+            echo "- Observed pending checks: ${PUBLICATION_CHECKS:-not_observed}"
             echo "- Next: ${next}"
             echo '- This summary reports observations and never certifies or integrates a candidate.'
           } >> "${GITHUB_STEP_SUMMARY}"
