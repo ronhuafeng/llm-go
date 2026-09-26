@@ -92,15 +92,19 @@ Keep those names stable unless branch protection is deliberately migrated in
 the same change.
 
 `PR verification` runs on pull requests, merge queue candidates, pushes to
-`main`, and manual dispatch. On `pull_request`, required jobs validate
-GitHub's synthetic merge candidate (`github.sha`), not the isolated PR branch
-head. `merge_group`, `main` push, and manual runs verify their triggering
-revision.
+`main`, and manual dispatch. On `pull_request`, the two protected repository
+checks validate GitHub's synthetic merge candidate M (`github.sha`). A separate
+read-only job checks out the exact PR head H
+(`github.event.pull_request.head.sha`) and performs fresh exact-upstream
+reconstruction from H's checked-in baseline identity. `Root source verification`
+depends on that job and fails if the exact H proof does not succeed.
+`merge_group`, `main` push, and manual runs verify their triggering revision
+and do not manufacture a new H proof.
 
-Required source verification covers workflow syntax, Go formatting/whitespace,
-`go mod tidy -diff`, `go vet ./...`, and `go test -race ./...`.
-Generated reproducibility is a separate required outcome and uses the native
-generated checker.
+Required source verification covers the automatic exact-H gate on pull
+requests, workflow syntax, Go formatting/whitespace, `go mod tidy -diff`,
+`go vet ./...`, and `go test -race ./...`. Generated reproducibility is a
+separate required outcome and uses the native generated checker.
 
 GitHub Actions orchestrates these checks; Go and the checked-in source/schema
 own their meaning.
@@ -130,16 +134,22 @@ topology when those details protect no independent correctness boundary.
 
 Use [`protocol-sync.md`](protocol-sync.md).
 
-A protocol PR needs both the normal required repository checks and a fresh
-validation-only protocol-sync proof on the same final head. Invoke that workflow
-with `upstream_ref` set to the checked-in exact baseline, `force_compare=true`,
-and `validation_only=true`. This path regenerates complete/stable schemas and
-the exact `common.rs` mapping, reconstructs manifest/coverage and generated Go
-in isolation, then compares all semantic artifacts. It excludes only
-`baseline_metadata.generated_at` as observation time. Candidate generation or
-an Agent completion message cannot replace either deterministic proof. Report
-the PR checks' merge candidate separately from the validation workflow's PR
-head and exact upstream commit.
+A protocol PR needs both the normal required repository checks on merge
+candidate M and a fresh exact-upstream proof on the same final PR head H. On
+`pull_request`, `PR verification` acquires that H proof automatically: the
+read-only exact job derives the exact ref/kind/SHA from H's checked-in baseline,
+regenerates complete/stable schemas and the exact `common.rs` mapping,
+reconstructs manifest/coverage and generated Go in isolation, then compares all
+semantic artifacts. It excludes only `baseline_metadata.generated_at` as
+observation time. Missing, failed, cancelled, mismatched, or unexpectedly
+skipped H proof prevents `Root source verification` from succeeding.
+
+The protocol-sync `validation_only` dispatch remains available as a diagnostic
+projection of the same Go verifier. With no explicit upstream ref it binds to
+the checked-in baseline identity; an explicit ref must resolve to that same
+identity. It is no longer a manual acceptance step. Candidate generation or an
+Agent completion message cannot replace either deterministic proof. Report M,
+H, and the exact upstream commit separately.
 
 ## Non-gating evidence
 
