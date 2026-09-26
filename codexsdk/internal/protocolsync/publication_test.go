@@ -20,6 +20,7 @@ type publicationFixture struct {
 	beforePush             func()
 	afterWrite             func()
 	actor                  publicationUser
+	staleBaseSHA           string
 }
 
 func (f *publicationFixture) ref(name string) string {
@@ -34,7 +35,11 @@ func (f *publicationFixture) snapshot() []publicationPR {
 	prs := append([]publicationPR(nil), f.prs...)
 	for i := range prs {
 		prs[i].Head.SHA = f.ref(prs[i].Head.Ref)
-		prs[i].Base.SHA = f.ref("main")
+		baseSHA := f.staleBaseSHA
+		if baseSHA == "" {
+			baseSHA = f.ref("main")
+		}
+		prs[i].Base.SHA = baseSHA
 	}
 	return prs
 }
@@ -162,6 +167,7 @@ func TestPublishUpdatesAfterBaseAdvance(t *testing.T) {
 	runGitInitCommit(t, f.repo, "advance main")
 	newBase := strings.TrimSpace(gitMust(t, f.repo, "rev-parse", "HEAD"))
 	gitMust(t, f.repo, "push", "origin", newBase+":refs/heads/main")
+	f.staleBaseSHA = base
 	newHead := f.candidate(newBase, req.TargetRef, req.TargetSHA)
 	req.ExpectedHead = oldHead
 	f.loseUpdate = true
