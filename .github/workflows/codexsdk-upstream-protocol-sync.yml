@@ -21,7 +21,7 @@ on:
         type: boolean
         default: false
       validation_only:
-        description: "Rebuild and verify the exact accepted baseline from an open PR without Agent, Apply, commit, or publication. Requires force_compare."
+        description: "Rebuild and verify this revision's exact checked-in baseline without Agent, Apply, commit, or publication. An explicit upstream_ref must resolve to that same identity. Requires force_compare."
         required: false
         type: boolean
         default: false
