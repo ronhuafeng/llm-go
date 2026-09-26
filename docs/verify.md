@@ -1,36 +1,66 @@
 # Verification
 
-This document is the current authority for repository verification entrypoints.
+This document defines the repository verification contract.
 
-Verification is layered. A narrow owner-local proof should be available before a
-broad repository or external composition proof. GitHub workflows project these
-same checks into a remote environment; they do not become a second behavioral
+Verification is layered. Native Go code owns behavioral correctness. GitHub
+Actions projects those proofs onto immutable Git identities and combines the
+results through required checks. A workflow must not invent a second behavioral
 authority.
 
 The supported Go floor is the root [`go.mod`](../go.mod); see
 [`SUPPORT.md`](../SUPPORT.md).
 
+## Proof identities
+
+For pull requests, keep these identities distinct:
+
+- **H (head)** is the exact current PR head commit.
+- **I (integration revision)** is the GitHub revision used to test the PR with
+  its current base. On `pull_request`, this is `github.sha`; on
+  `merge_group`, it is the queue candidate.
+- **U (upstream)** is the exact ref/kind/commit recorded by H's checked-in Codex
+  baseline metadata.
+
+A protocol PR is acceptable only when the repository is correct at I, generated
+source reproduces at I, and H's protocol provenance is freshly reproducible from
+U. None of these proofs substitutes for another.
+
 ## Proof levels
 
-Use the smallest proof that covers the changed owner:
+Use the smallest native proof that covers the changed owner:
 
 | Scope | Local proof | GitHub proof | Meaning |
 | --- | --- | --- | --- |
 | `llmkit` | `go vet ./llmkit/...` and `go test -race ./llmkit/...` | `Verify llmkit` | provider-neutral typed inference |
 | `codexsdk` | `go vet ./codexsdk/...`, `go test -race ./codexsdk/...`, generated check | `Verify codexsdk` | SDK/runtime plus generated protocol ownership |
 | `llmcaller/codex` | `go vet ./llmcaller/codex/...` and `go test -race ./llmcaller/codex/...` | `Verify Codex adapter` | adapter/schema translation |
-| generated protocol | generated check and isolated package build | `Verify generated protocol artifacts` | deterministic generated-source reproducibility and compilability |
-| repository | root commands below | `PR verification` | required source acceptance |
-| upstream Codex target | protocol sync validation | `Codex Upstream Protocol Sync` | exact upstream generation/comparison |
+| generated protocol | generated check and isolated package build | `Verify generated protocol artifacts` | deterministic generated-source reproducibility |
+| repository | root commands below | `Root source verification` | source correctness at I |
+| protocol provenance | exact upstream reconstruction | `Codex protocol provenance` | H is reproducible from U |
 | portability | platform vet/tests | `Advisory OS portability` | advisory OS evidence |
 | fuzzing | bounded fuzz targets | `Fuzz` | advisory parser/schema robustness |
 | vulnerabilities | `govulncheck` | `Go vulnerability scan` | advisory dependency evidence |
-| real provider | live integration test | `Live Codex smoke` | external Codex/provider composition |
+| real provider | live integration test | `Live Codex smoke` | external provider composition |
 
-Owner-local workflows are read-only development proofs. They are intentionally
-not additional merge authorities.
+Owner-local workflows are development proofs. They are not extra merge
+authorities.
 
-## Root local proof
+## Normalize before verification
+
+Formatting is construction, not an acceptance proof. Any repository-owned
+producer that writes Go source must run `gofmt` before it seals or commits the
+candidate. Generators should prefer `go/format` when they own the source bytes.
+
+For manual development, normalize before commit:
+
+```sh
+gofmt -w <changed-go-files>
+```
+
+CI verifies the committed candidate. It does not repair formatting and then
+claim that the original commit passed.
+
+## Root source proof
 
 From the repository root:
 
@@ -40,14 +70,14 @@ go vet ./...
 go test -race ./...
 ```
 
-Also require formatting and workflow syntax when repository/workflow files may
-have changed:
+When workflow files change, also validate workflow semantics with:
 
 ```sh
-test -z "$(git ls-files -z -- '*.go' | xargs -0 gofmt -l)"
-git diff --check
 go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
 ```
+
+`go mod tidy -diff` remains a proof because dependency closure is committed
+state. CI must not silently rewrite it.
 
 Generated protocol reproducibility is separate:
 
@@ -55,108 +85,89 @@ Generated protocol reproducibility is separate:
 go run ./codexsdk/internal/cmd/generatedcheck -module-root ./codexsdk
 ```
 
-The generated check regenerates owned protocol/SDK files, compares them with the
-checked-in outputs, validates baseline identity/path safety, and exits non-zero
-on mismatch. It uses the checked-in schema and classification as inputs; it is
-a fast source reproducibility check, not independent upstream reconstruction.
-The GitHub verifier also regenerates into a temporary module containing the
-handwritten protocol package and builds the generated package there.
+The generated check proves that checked-in source inputs reproduce checked-in
+generated outputs and that the regenerated protocol package builds in isolation.
+It does not prove that those checked-in inputs came from the declared upstream
+revision.
+
+## Required PR checks
+
+The intended branch protection contract has three independent required
+contexts:
+
+- `Root source verification`;
+- `Codex generated reproducibility / Generated reproducibility`;
+- `Codex protocol provenance`.
+
+The first two prove GitHub integration revision I. The provenance check proves
+H against U when protocol provenance can be affected.
+
+`Codex protocol provenance` always reports a check result. On a pull request it
+runs fresh exact reconstruction when the change touches `codexsdk`, the root
+Go module identity, or the workflows that define protocol verification. For an
+unrelated pull request it completes successfully as not applicable. On
+`merge_group`, `push`, and manual PR-verification runs it also reports not
+applicable because those events do not define a new PR-head provenance claim.
+
+This shape lets GitHub perform the final logical AND directly. Do not hide one
+proof inside another required job.
+
+## Retry and invalidation
+
+Use GitHub's native job retry boundary:
+
+- a transient failure on an unchanged H/I reruns only the failed independent
+  job and its native dependants;
+- a new PR head creates a new H and therefore a new provenance obligation;
+- a base change creates a new I and therefore invalidates integration source and
+  generated proofs;
+- build/dependency caches may accelerate a proof but never replace its result.
+
+Do not create a proof database or carry a successful verdict across identities.
 
 ## Remote proof without a local environment
 
 Push the exact commit to a repository branch and dispatch the smallest matching
 native workflow on that branch. Manual native workflows check out
-`${{ github.sha }}`, so the selected workflow run proves the event's exact
-revision rather than re-resolving a moving branch during execution.
-
-Use:
-
-- `Verify llmkit` for `llmkit`-only work;
-- `Verify codexsdk` for SDK/protocol/runtime work;
-- `Verify Codex adapter` for `llmcaller/codex` work;
-- `Verify generated protocol artifacts` when only deterministic generated
-  reproducibility is needed;
-- `PR verification` for the complete repository proof.
+`${{ github.sha }}`, so they prove the selected event revision rather than
+re-resolving a moving branch.
 
 A green narrow workflow is development evidence, not permission to skip the
 required merge checks.
 
-## Required PR verification
-
-Branch protection currently requires these check contexts:
-
-- `Root source verification`;
-- `Codex generated reproducibility / Generated reproducibility`.
-
-Keep those names stable unless branch protection is deliberately migrated in
-the same change.
-
-`PR verification` runs on pull requests, merge queue candidates, pushes to
-`main`, and manual dispatch. On `pull_request`, the two protected repository
-checks validate GitHub's synthetic merge candidate M (`github.sha`). A separate
-read-only job checks out the exact PR head H
-(`github.event.pull_request.head.sha`) and performs fresh exact-upstream
-reconstruction from H's checked-in baseline identity. `Root source verification`
-depends on that job and fails if the exact H proof does not succeed.
-`merge_group`, `main` push, and manual runs verify their triggering revision
-and do not manufacture a new H proof.
-
-Required source verification covers the automatic exact-H gate on pull
-requests, workflow syntax, Go formatting/whitespace, `go mod tidy -diff`,
-`go vet ./...`, and `go test -race ./...`. Generated reproducibility is a
-separate required outcome and uses the native generated checker.
-
-GitHub Actions orchestrates these checks; Go and the checked-in source/schema
-own their meaning.
-
 ## Workflow specification boundary
 
-Treat workflow structure as executable evidence only where structure protects a
-current invariant.
+Repository workflow tests protect invariants, not incidental topology. Protect:
 
-Repository workflow tests should protect properties such as:
-
-- required verification checks out the triggering `github.sha`;
-- read-only native verifiers have only `contents: read` permission and consume
-  the root `go.mod`;
-- generated verification invokes the native generated checker;
-- secret/write workflows pin reviewed third-party Actions as required;
-- the protocol Agent receives no repository-write token and is invoked at most
-  once per run;
-- protocol publication requires prior deterministic success and is impossible
-  in validation-only mode;
+- integration checks use the triggering `github.sha`;
+- provenance checkout is the exact `github.event.pull_request.head.sha`;
+- provenance is read-only and invokes the same native validation-only verifier;
+- source, generated, and provenance proofs remain independent;
+- repository-owned protocol publication normalizes changed Go before sealing;
+- secret/write workflows pin reviewed third-party Actions;
+- Agent execution has no repository-write token;
+- publication requires deterministic read-only proof and cannot occur from
+  validation-only mode;
 - failures do not publish.
 
-Do not freeze job count, incidental step names/order, or retired workflow
-topology when those details protect no independent correctness boundary.
+Do not freeze job count or incidental step order unless the order protects a
+real authority or identity boundary.
 
 ## Protocol upgrades
 
 Use [`protocol-sync.md`](protocol-sync.md).
 
-A protocol PR needs both the normal required repository checks on merge
-candidate M and a fresh exact-upstream proof on the same final PR head H. On
-`pull_request`, `PR verification` acquires that H proof automatically: the
-read-only exact job derives the exact ref/kind/SHA from H's checked-in baseline,
-regenerates complete/stable schemas and the exact `common.rs` mapping,
-reconstructs manifest/coverage and generated Go in isolation, then compares all
-semantic artifacts. It excludes only `baseline_metadata.generated_at` as
-observation time. Missing, failed, cancelled, mismatched, or unexpectedly
-skipped H proof prevents `Root source verification` from succeeding.
+The automatic provenance check derives U from H's checked-in baseline, freshly
+generates complete/stable schemas and the exact upstream mapping, reconstructs
+accepted semantic artifacts in isolation, and compares them with H. Only
+`baseline_metadata.generated_at` is excluded as observation time.
 
-The protocol-sync `validation_only` dispatch remains available as a diagnostic
-projection of the same Go verifier. With no explicit upstream ref it binds to
-the checked-in baseline identity; an explicit ref must resolve to that same
-identity. It is no longer a manual acceptance step. Candidate generation or an
-Agent completion message cannot replace either deterministic proof. Report M,
-H, and the exact upstream commit separately.
+The manual `validation_only` protocol-sync entrypoint remains a diagnostic
+projection of the same native verifier. It performs the same exact reconstruction
+for the selected repository revision but is not a merge authority.
 
 ## Non-gating evidence
 
-Advisory portability, fuzzing, vulnerability scans, and real Codex smoke provide
-additional signals but are not required merge gates unless repository policy is
-explicitly changed.
-
-The live Codex smoke proves a small real-provider composition on Linux. It does
-not define supported OS scope and does not prove compatibility with every App
-Server version.
+Advisory portability, fuzzing, vulnerability scans, and live provider smoke add
+evidence but are not required merge gates unless repository policy explicitly
+changes.
