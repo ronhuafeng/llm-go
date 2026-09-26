@@ -41,8 +41,6 @@ func (f *publicationFixture) snapshot() []publicationPR {
 func (f *publicationFixture) Request(method, path string, body, result any) error {
 	var value any
 	switch {
-	case strings.HasPrefix(path, "apps/"):
-		value = map[string]string{"client_id": "app-client"}
 	case strings.Contains(path, "/activity?"):
 		parsed, err := url.Parse(path)
 		if err != nil {
@@ -67,7 +65,7 @@ func (f *publicationFixture) Request(method, path string, body, result any) erro
 	case method == "POST" && strings.HasSuffix(path, "/pulls"):
 		args := body.(map[string]string)
 		f.creates++
-		pr := publicationPR{Number: 7, URL: "https://github.com/owner/repo/pull/7", State: "open", User: publicationUser{Login: "sync[bot]", Type: "Bot"}, Title: args["title"], Body: args["body"]}
+		pr := publicationPR{Number: 7, URL: "https://github.com/owner/repo/pull/7", State: "open", User: publicationUser{ID: 42, Login: "sync[bot]", Type: "Bot"}, Title: args["title"], Body: args["body"]}
 		pr.Head.Ref = args["head"]
 		pr.Head.Repo.FullName = "owner/repo"
 		pr.Base.Ref = args["base"]
@@ -119,9 +117,9 @@ func newPublicationFixture(t *testing.T) (*publicationFixture, PublishRequest, s
 	}
 	gitMust(t, repo, "remote", "add", "origin", remote)
 	branch := syncBranchName("rust-v0.154.0", newSHA)
-	f := &publicationFixture{t: t, repo: repo, remote: remote, branch: branch, actor: publicationUser{Login: "sync[bot]", Type: "Bot"}}
+	f := &publicationFixture{t: t, repo: repo, remote: remote, branch: branch, actor: publicationUser{ID: 42, Login: "sync[bot]", Type: "Bot"}}
 	f.candidate(base, "rust-v0.154.0", newSHA)
-	req := PublishRequest{RepoRoot: repo, BaseBranch: "main", Repository: "owner/repo", AppClientID: "app-client", ExpectedHead: "absent", ExpectedBranch: branch, TargetRef: "rust-v0.154.0", TargetKind: KindStableTag, TargetSHA: newSHA, API: f, Lookuper: fakeLookuper{byPattern: map[string]string{"refs/tags/rust-v0.154.0": newSHA + "\trefs/tags/rust-v0.154.0", "refs/tags/rust-v0.154.0^{}": newSHA + "\trefs/tags/rust-v0.154.0^{}"}}}
+	req := PublishRequest{RepoRoot: repo, BaseBranch: "main", Repository: "owner/repo", AppBotID: 42, ExpectedHead: "absent", ExpectedBranch: branch, TargetRef: "rust-v0.154.0", TargetKind: KindStableTag, TargetSHA: newSHA, API: f, Lookuper: fakeLookuper{byPattern: map[string]string{"refs/tags/rust-v0.154.0": newSHA + "\trefs/tags/rust-v0.154.0", "refs/tags/rust-v0.154.0^{}": newSHA + "\trefs/tags/rust-v0.154.0^{}"}}}
 	return f, req, base
 }
 func (f *publicationFixture) candidate(base, ref, sha string) string {
@@ -271,7 +269,7 @@ func TestPublishCompletesMetadataAfterUpdateDidNotTakeEffect(t *testing.T) {
 	if _, err := Publish(req); err == nil {
 		t.Fatal("failed metadata update was accepted")
 	}
-	pendingRequest := PendingRequest{RepoRoot: f.repo, Repository: req.Repository, AppClientID: req.AppClientID, BaseBranch: "main", BaseSHA: base, Target: Target{RefName: req.TargetRef, RefKind: req.TargetKind, PeeledCommitSHA: req.TargetSHA}, API: f}
+	pendingRequest := PendingRequest{RepoRoot: f.repo, Repository: req.Repository, AppBotID: req.AppBotID, BaseBranch: "main", BaseSHA: base, Target: Target{RefName: req.TargetRef, RefKind: req.TargetKind, PeeledCommitSHA: req.TargetSHA}, API: f}
 	observed, err := InspectPending(pendingRequest)
 	if err != nil {
 		t.Fatal(err)

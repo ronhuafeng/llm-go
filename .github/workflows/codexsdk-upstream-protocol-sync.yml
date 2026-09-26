@@ -344,7 +344,7 @@ jobs:
           REQUESTED_REF: ${{ inputs.upstream_ref || '' }}
           EVENT_NAME: ${{ github.event_name }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          APP_CLIENT_ID: ${{ vars.PROTOCOL_SYNC_APP_CLIENT_ID }}
+          APP_BOT_ID: ${{ vars.PROTOCOL_SYNC_APP_BOT_ID }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
@@ -355,7 +355,7 @@ jobs:
             -upstream-repo https://github.com/openai/codex.git
             -event-name "${EVENT_NAME}"
             -github-repository "${GITHUB_REPOSITORY}"
-            -app-client-id "${APP_CLIENT_ID}"
+            -app-bot-id "${APP_BOT_ID}"
             -base-branch "${DEFAULT_BRANCH}"
           )
           if [[ -n "${REQUESTED_REF}" ]]; then
@@ -578,11 +578,11 @@ jobs:
       - name: Check publication App configuration
         id: app_config
         env:
-          APP_CONFIGURED: ${{ vars.PROTOCOL_SYNC_APP_CLIENT_ID != '' && secrets.PROTOCOL_SYNC_APP_PRIVATE_KEY != '' }}
+          APP_CONFIGURED: ${{ vars.PROTOCOL_SYNC_APP_CLIENT_ID != '' && vars.PROTOCOL_SYNC_APP_BOT_ID != '' && secrets.PROTOCOL_SYNC_APP_PRIVATE_KEY != '' }}
         run: |
           set -euo pipefail
           if [[ "${APP_CONFIGURED}" != true ]]; then
-            echo '::error::Configure PROTOCOL_SYNC_APP_CLIENT_ID and PROTOCOL_SYNC_APP_PRIVATE_KEY for an App installed on this repository with Contents and Pull requests write access. See docs/protocol-sync.md.' >&2
+            echo '::error::Configure PROTOCOL_SYNC_APP_CLIENT_ID, PROTOCOL_SYNC_APP_BOT_ID and PROTOCOL_SYNC_APP_PRIVATE_KEY for an App installed on this repository with Contents and Pull requests write access. See docs/protocol-sync.md.' >&2
             echo 'failure_category=policy_configuration' >> "${GITHUB_OUTPUT}"
             exit 1
           fi
@@ -630,7 +630,7 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ steps.app_token.outputs.token }}
           PATCH_SHA256: ${{ needs.sync.outputs.patch_sha256 }}
-          APP_CLIENT_ID: ${{ vars.PROTOCOL_SYNC_APP_CLIENT_ID }}
+          APP_BOT_ID: ${{ vars.PROTOCOL_SYNC_APP_BOT_ID }}
           EXPECTED_HEAD: ${{ needs.sync.outputs.publication_head }}
           EXPECTED_BRANCH: ${{ needs.sync.outputs.publication_branch }}
           TARGET_KIND: ${{ needs.sync.outputs.target_kind }}
@@ -660,7 +660,7 @@ jobs:
             -repo-root "${GITHUB_WORKSPACE}" \
             -base-branch "${DEFAULT_BRANCH}" \
             -github-repository "${GITHUB_REPOSITORY}" \
-            -app-client-id "${APP_CLIENT_ID}" \
+            -app-bot-id "${APP_BOT_ID}" \
             -expected-head "${EXPECTED_HEAD}" \
             -expected-branch "${EXPECTED_BRANCH}" \
             -target-ref "${TARGET_REF}" \

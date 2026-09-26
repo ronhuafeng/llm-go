@@ -11,7 +11,6 @@ import (
 type fixturePublicationAPI struct {
 	prs        []publicationPR
 	fail       bool
-	clientID   string
 	pushActor  publicationUser
 	checks     []map[string]string
 	editOnRead bool
@@ -23,8 +22,6 @@ func (api *fixturePublicationAPI) Request(method, path string, body, result any)
 	}
 	var value any
 	switch {
-	case strings.HasPrefix(path, "apps/"):
-		value = map[string]string{"client_id": api.clientID}
 	case strings.Contains(path, "pulls?"):
 		value = api.prs
 	case strings.Contains(path, "/pulls/"):
@@ -52,14 +49,14 @@ func pendingFixture(t *testing.T) (PendingRequest, *fixturePublicationAPI) {
 	writeFile(t, metadata, fmt.Sprintf(`{"source_commit":%q,"source_ref_name":"rust-v0.154.0","source_ref_kind":"stable_rust_tag"}`, newSHA))
 	runGitInitCommit(t, repo, "bot candidate")
 	head := strings.TrimSpace(gitMust(t, repo, "rev-parse", "HEAD"))
-	pr := publicationPR{Number: 7, URL: "https://github.com/owner/repo/pull/7", State: "open", User: publicationUser{Login: "sync[bot]", Type: "Bot"}, Title: publicationTitle("rust-v0.154.0"), Body: publicationBody("main", "rust-v0.154.0", KindStableTag, newSHA, head)}
+	pr := publicationPR{Number: 7, URL: "https://github.com/owner/repo/pull/7", State: "open", User: publicationUser{ID: 42, Login: "sync[bot]", Type: "Bot"}, Title: publicationTitle("rust-v0.154.0"), Body: publicationBody("main", "rust-v0.154.0", KindStableTag, newSHA, head)}
 	pr.Head.Ref = "codex/sync-upstream-target"
 	pr.Head.SHA = head
 	pr.Head.Repo.FullName = "owner/repo"
 	pr.Base.Ref = "main"
 	pr.Base.SHA = base
-	api := &fixturePublicationAPI{prs: []publicationPR{pr}, clientID: "app-client", pushActor: pr.User}
-	req := PendingRequest{RepoRoot: repo, Repository: "owner/repo", AppClientID: "app-client", BaseBranch: "main", BaseSHA: base, Target: Target{RefName: "rust-v0.154.0", RefKind: KindStableTag, PeeledCommitSHA: newSHA}, API: api}
+	api := &fixturePublicationAPI{prs: []publicationPR{pr}, pushActor: pr.User}
+	req := PendingRequest{RepoRoot: repo, Repository: "owner/repo", AppBotID: 42, BaseBranch: "main", BaseSHA: base, Target: Target{RefName: "rust-v0.154.0", RefKind: KindStableTag, PeeledCommitSHA: newSHA}, API: api}
 	return req, api
 }
 
@@ -88,7 +85,7 @@ func TestInspectPendingUsesNativeHeadAndRejectsHumanChange(t *testing.T) {
 }
 
 func TestInspectPendingChangesAndOwnership(t *testing.T) {
-	for _, kind := range []string{"new target", "new base", "closed", "multiple", "wrong app", "retargeted tag", "recover metadata", "human replacement"} {
+	for _, kind := range []string{"new target", "new base", "closed", "multiple", "wrong app", "retargeted tag", "recover metadata", "human replacement", "other bot push"} {
 		t.Run(kind, func(t *testing.T) {
 			req, api := pendingFixture(t)
 			wantError := true
@@ -110,7 +107,7 @@ func TestInspectPendingChangesAndOwnership(t *testing.T) {
 				api.prs = append(api.prs, api.prs[0])
 				api.prs[1].Number = 8
 			case "wrong app":
-				api.clientID = "another-app"
+				req.AppBotID = 43
 			case "retargeted tag":
 				req.Target.PeeledCommitSHA = strings.Repeat("3", 40)
 			case "recover metadata":
@@ -120,6 +117,8 @@ func TestInspectPendingChangesAndOwnership(t *testing.T) {
 			case "human replacement":
 				api.prs[0].Body = publicationBody("main", "rust-v0.154.0", KindStableTag, newSHA, oldSHA)
 				api.pushActor = publicationUser{Login: "maintainer", Type: "User"}
+			case "other bot push":
+				api.pushActor = publicationUser{ID: 43, Login: "other[bot]", Type: "Bot"}
 			}
 			observed, err := InspectPending(req)
 			if (err != nil) != wantError {
