@@ -62,6 +62,7 @@ type publicationPR struct {
 	URL      string          `json:"html_url"`
 	State    string          `json:"state"`
 	Body     string          `json:"body"`
+	Title    string          `json:"title"`
 	MergedAt *string         `json:"merged_at"`
 	User     publicationUser `json:"user"`
 	Head     publicationRef  `json:"head"`

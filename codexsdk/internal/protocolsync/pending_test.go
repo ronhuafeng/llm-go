@@ -13,6 +13,7 @@ type fixturePublicationAPI struct {
 	fail      bool
 	clientID  string
 	pushActor publicationUser
+	checks    []map[string]string
 }
 
 func (api *fixturePublicationAPI) Request(method, path string, body, result any) error {
@@ -30,7 +31,7 @@ func (api *fixturePublicationAPI) Request(method, path string, body, result any)
 	case strings.Contains(path, "/activity?"):
 		value = []any{map[string]any{"ref": "refs/heads/" + api.prs[0].Head.Ref, "after": api.prs[0].Head.SHA, "actor": api.pushActor}}
 	case strings.Contains(path, "/check-runs"):
-		value = map[string]any{"check_runs": []any{}}
+		value = map[string]any{"check_runs": api.checks}
 	default:
 		return fmt.Errorf("unexpected API request %s %s", method, path)
 	}
@@ -46,7 +47,7 @@ func pendingFixture(t *testing.T) (PendingRequest, *fixturePublicationAPI) {
 	writeFile(t, metadata, fmt.Sprintf(`{"source_commit":%q,"source_ref_name":"rust-v0.154.0","source_ref_kind":"stable_rust_tag"}`, newSHA))
 	runGitInitCommit(t, repo, "bot candidate")
 	head := strings.TrimSpace(gitMust(t, repo, "rev-parse", "HEAD"))
-	pr := publicationPR{Number: 7, URL: "https://github.com/owner/repo/pull/7", State: "open", User: publicationUser{Login: "sync[bot]", Type: "Bot"}, Body: publicationBody("main", "rust-v0.154.0", KindStableTag, newSHA, head)}
+	pr := publicationPR{Number: 7, URL: "https://github.com/owner/repo/pull/7", State: "open", User: publicationUser{Login: "sync[bot]", Type: "Bot"}, Title: publicationTitle("rust-v0.154.0"), Body: publicationBody("main", "rust-v0.154.0", KindStableTag, newSHA, head)}
 	pr.Head.Ref = "codex/sync-upstream-target"
 	pr.Head.SHA = head
 	pr.Head.Repo.FullName = "owner/repo"
@@ -119,7 +120,7 @@ func TestInspectPendingChangesAndOwnership(t *testing.T) {
 			if (err != nil) != wantError {
 				t.Fatalf("observed=%+v err=%v", observed, err)
 			}
-			if !wantError && kind != "recover metadata" && observed.Reusable {
+			if !wantError && observed.Reusable {
 				t.Fatal("changed input inherited old proof")
 			}
 		})
@@ -171,5 +172,49 @@ func TestInspectPendingPreservesHumanDescription(t *testing.T) {
 	api.prs[0].Body += "\nMaintainer investigation notes.\n"
 	if _, err := InspectPending(req); err == nil {
 		t.Fatal("human description would be overwritten by automatic update")
+	}
+}
+
+func TestInspectPendingClosedCandidateDoesNotRequireLiveBranch(t *testing.T) {
+	for _, newer := range []bool{false, true} {
+		t.Run(fmt.Sprint("newer=", newer), func(t *testing.T) {
+			req, api := pendingFixture(t)
+			req.Remote = req.RepoRoot
+			api.prs[0].State = "closed"
+			api.pushActor = publicationUser{Login: "maintainer", Type: "User"} // branch deleted by maintainer
+			if newer {
+				req.Target.RefName = "rust-v0.155.0"
+				req.Target.PeeledCommitSHA = strings.Repeat("3", 40)
+			}
+			observed, err := InspectPending(req)
+			if newer {
+				if err != nil || observed.Head != "absent" {
+					t.Fatalf("old closed candidate blocked new version: %+v %v", observed, err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), "was closed") {
+				t.Fatalf("same closed candidate was not paused: %+v %v", observed, err)
+			}
+		})
+	}
+}
+
+func TestInspectPendingHeadChecksDoNotCertifyMergeCandidate(t *testing.T) {
+	for _, conclusion := range []string{"success", "failure", ""} {
+		t.Run(conclusion, func(t *testing.T) {
+			req, api := pendingFixture(t)
+			req.ReadChecks = true
+			api.prs[0].MergeSHA = strings.Repeat("4", 40)
+			api.checks = []map[string]string{
+				{"name": "Root source verification", "status": "completed", "conclusion": conclusion},
+				{"name": "Codex generated reproducibility / Generated reproducibility", "status": "completed", "conclusion": conclusion},
+			}
+			observed, err := InspectPending(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(observed.Checks, "PR head") || !strings.Contains(observed.Checks, "merge candidate unverified") || strings.Contains(observed.Checks, "awaiting review") {
+				t.Fatalf("head checks overstated proof: %s", observed.Checks)
+			}
+		})
 	}
 }

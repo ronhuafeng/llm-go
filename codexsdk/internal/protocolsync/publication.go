@@ -91,9 +91,6 @@ func publishCandidate(req PublishRequest) (string, error) {
 			// its response. Keep the actual published revision, not this new timestamp.
 			publishHead = observed.Head
 			alreadyPublished = true
-			if observed.Number != 0 {
-				return publicationResult(req, observed.URL, observed.Number, observed.Branch, publishHead)
-			}
 		}
 	}
 	if observed.Branch != branch || (!alreadyPublished && observed.Head != req.ExpectedHead) {
@@ -114,7 +111,7 @@ func publishCandidate(req PublishRequest) (string, error) {
 		}
 	}
 	body := publicationBody(baseBranch, req.TargetRef, req.TargetKind, req.TargetSHA, publishHead)
-	title := "Sync Codex protocol baseline to " + req.TargetRef
+	title := publicationTitle(req.TargetRef)
 	var pr publicationPR
 	if observed.Number != 0 {
 		path := fmt.Sprintf("repos/%s/pulls/%d", req.Repository, observed.Number)
@@ -122,15 +119,19 @@ func publishCandidate(req PublishRequest) (string, error) {
 		if err := api.Request("GET", path, nil, &before); err != nil {
 			return "", err
 		}
-		if before.State != "open" || before.Head.SHA != publishHead || before.Body != observed.Description {
+		if before.State != "open" || before.Head.SHA != publishHead || before.Body != observed.Description || before.Title != observed.Title {
 			return "", publicationPolicy("PR changed after push; retain the remote state for inspection")
 		}
-		writeErr := api.Request("PATCH", path, map[string]string{"title": title, "body": body}, nil)
-		if err := api.Request("GET", path, nil, &pr); err != nil {
-			return "", fmt.Errorf("PR update result unknown (%v): %w", writeErr, err)
-		}
-		if pr.Body != body {
-			return "", fmt.Errorf("PR update was not confirmed: %v", writeErr)
+		if alreadyPublished && observed.Reusable {
+			pr = before
+		} else {
+			writeErr := api.Request("PATCH", path, map[string]string{"title": title, "body": body}, nil)
+			if err := api.Request("GET", path, nil, &pr); err != nil {
+				return "", fmt.Errorf("PR update result unknown (%v): %w", writeErr, err)
+			}
+			if pr.Body != body || pr.Title != title {
+				return "", fmt.Errorf("PR update was not confirmed: %v", writeErr)
+			}
 		}
 	} else {
 		createErr := api.Request("POST", "repos/"+req.Repository+"/pulls", map[string]string{"head": branch, "base": baseBranch, "title": title, "body": body}, &pr)

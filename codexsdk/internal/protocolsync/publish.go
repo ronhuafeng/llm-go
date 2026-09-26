@@ -79,6 +79,8 @@ func parseSyncMetadata(body string) map[string]string {
 	return parsed
 }
 
+func publicationTitle(ref string) string { return "Sync Codex protocol baseline to " + ref }
+
 func publicationBody(landRef, targetRef, targetKind, targetSHA, syncCommit string) string {
 	return fmt.Sprintf(`<!-- codexsdk-upstream-sync
 upstream_ref: %s

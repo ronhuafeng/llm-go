@@ -16,6 +16,7 @@ type publicationFixture struct {
 	prs                    []publicationPR
 	creates, updates       int
 	loseCreate, loseUpdate bool
+	rejectUpdate           bool
 	beforePush             func()
 	afterWrite             func()
 	actor                  publicationUser
@@ -66,7 +67,7 @@ func (f *publicationFixture) Request(method, path string, body, result any) erro
 	case method == "POST" && strings.HasSuffix(path, "/pulls"):
 		args := body.(map[string]string)
 		f.creates++
-		pr := publicationPR{Number: 7, URL: "https://github.com/owner/repo/pull/7", State: "open", User: publicationUser{Login: "sync[bot]", Type: "Bot"}, Body: args["body"]}
+		pr := publicationPR{Number: 7, URL: "https://github.com/owner/repo/pull/7", State: "open", User: publicationUser{Login: "sync[bot]", Type: "Bot"}, Title: args["title"], Body: args["body"]}
 		pr.Head.Ref = args["head"]
 		pr.Head.Repo.FullName = "owner/repo"
 		pr.Base.Ref = args["base"]
@@ -81,7 +82,11 @@ func (f *publicationFixture) Request(method, path string, body, result any) erro
 		}
 	case method == "PATCH" && strings.Contains(path, "/pulls/"):
 		f.updates++
+		if f.rejectUpdate {
+			return fmt.Errorf("fixture update did not take effect")
+		}
 		f.prs[0].Body = body.(map[string]string)["body"]
+		f.prs[0].Title = body.(map[string]string)["title"]
 		value = f.snapshot()[0]
 		if f.afterWrite != nil {
 			f.afterWrite()
@@ -246,5 +251,44 @@ func TestPublishReportsPostWriteBaseMovement(t *testing.T) {
 	}
 	if f.creates != 1 || f.ref(f.branch) != candidate {
 		t.Fatal("residual publication was destructively rolled back")
+	}
+}
+
+func TestPublishCompletesMetadataAfterUpdateDidNotTakeEffect(t *testing.T) {
+	f, req, base := newPublicationFixture(t)
+	if _, err := Publish(req); err != nil {
+		t.Fatal(err)
+	}
+	req.ExpectedHead = f.ref(f.branch)
+	req.TargetRef = "rust-v0.155.0"
+	req.TargetSHA = strings.Repeat("3", 40)
+	req.Lookuper = fakeLookuper{byPattern: map[string]string{
+		"refs/tags/rust-v0.155.0":    req.TargetSHA + "\trefs/tags/rust-v0.155.0",
+		"refs/tags/rust-v0.155.0^{}": req.TargetSHA + "\trefs/tags/rust-v0.155.0^{}",
+	}}
+	head := f.candidate(base, req.TargetRef, req.TargetSHA)
+	f.rejectUpdate = true
+	if _, err := Publish(req); err == nil {
+		t.Fatal("failed metadata update was accepted")
+	}
+	pendingRequest := PendingRequest{RepoRoot: f.repo, Repository: req.Repository, AppClientID: req.AppClientID, BaseBranch: "main", BaseSHA: base, Target: Target{RefName: req.TargetRef, RefKind: req.TargetKind, PeeledCommitSHA: req.TargetSHA}, API: f}
+	observed, err := InspectPending(pendingRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if observed.Reusable {
+		t.Fatal("partial publication skipped metadata recovery")
+	}
+	f.rejectUpdate = false
+	req.ExpectedHead = observed.Head
+	if _, err := Publish(req); err != nil {
+		t.Fatal(err)
+	}
+	observed, err = InspectPending(pendingRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !observed.Reusable || observed.Head != head || f.creates != 1 || f.updates != 2 {
+		t.Fatalf("publication not completed: %+v creates=%d updates=%d", observed, f.creates, f.updates)
 	}
 }

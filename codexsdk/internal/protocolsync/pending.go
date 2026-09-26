@@ -19,10 +19,10 @@ type PendingRequest struct {
 // PendingPublication is an observation, not acceptance or a fresh proof.
 // Head is carried to publication as the expected old revision.
 type PendingPublication struct {
-	Number                                          int
-	URL, Branch, Head, BaseSHA, Checks, Description string
-	Target                                          BaselineIdentity
-	Reusable                                        bool
+	Number                                                 int
+	URL, Branch, Head, BaseSHA, Checks, Description, Title string
+	Target                                                 BaselineIdentity
+	Reusable                                               bool
 }
 
 func publicationPolicy(format string, args ...any) error {
@@ -57,25 +57,38 @@ func InspectPending(req PendingRequest) (PendingPublication, error) {
 		if pr.Head.Repo.FullName != req.Repository || pr.Base.Ref != req.BaseBranch {
 			return PendingPublication{}, publicationPolicy("sync PR #%d has another repository or base", pr.Number)
 		}
+		if pr.State != "open" {
+			// Closed PRs retain their exact head even after branch deletion. Read
+			// its Git identity; a mutable description or live ref is unnecessary.
+			if err := fetchPublicationCommit(req, pr.Head.SHA); err != nil {
+				return PendingPublication{}, err
+			}
+			identity, err := gitBaselineIdentity(req.RepoRoot, pr.Head.SHA)
+			if err != nil {
+				return PendingPublication{}, err
+			}
+			if identity.SourceRefName == req.Target.RefName && identity.SourceCommit != req.Target.PeeledCommitSHA {
+				return PendingPublication{}, &Failure{Category: FailureSource, Err: fmt.Errorf("upstream ref %s changed since closed PR #%d", req.Target.RefName, pr.Number)}
+			}
+			if identity.SourceCommit != req.Target.PeeledCommitSHA {
+				continue
+			}
+			return PendingPublication{}, publicationPolicy("sync PR #%d was closed; restore it explicitly before retrying this candidate", pr.Number)
+		}
 		if err := verifyAppActor(api, pr.User, req.AppClientID); err != nil {
 			return PendingPublication{}, fmt.Errorf("sync PR #%d ownership: %w", pr.Number, err)
 		}
 
 		meta := parseSyncMetadata(pr.Body)
 		expectedBody := publicationBody(pr.Base.Ref, meta["upstream_ref"], meta["upstream_ref_kind"], meta["upstream_commit"], meta["sync_commit"])
-		if !shaRE.MatchString(meta["sync_commit"]) || strings.TrimSpace(pr.Body) != strings.TrimSpace(expectedBody) {
+		if !shaRE.MatchString(meta["sync_commit"]) || (strings.TrimSpace(pr.Body) != strings.TrimSpace(expectedBody) || pr.Title != publicationTitle(meta["upstream_ref"])) {
 			return PendingPublication{}, publicationPolicy("PR #%d description was edited or its publication identity is incomplete", pr.Number)
 		}
 		pending, err := inspectPublicationHead(req, api, pr)
 		if err != nil {
 			return PendingPublication{}, err
 		}
-		if pr.State != "open" {
-			if pending.Target.SourceCommit != req.Target.PeeledCommitSHA {
-				continue
-			}
-			return PendingPublication{}, publicationPolicy("sync PR #%d was closed; restore it explicitly before retrying this candidate", pr.Number)
-		}
+		pending.Reusable = pending.Reusable && pr.Body == publicationBody(req.BaseBranch, req.Target.RefName, req.Target.RefKind, req.Target.PeeledCommitSHA, pending.Head) && pr.Title == publicationTitle(req.Target.RefName)
 		found = append(found, pending)
 	}
 	if len(found) > 1 {
@@ -99,7 +112,9 @@ func InspectPending(req PendingRequest) (PendingPublication, error) {
 		return PendingPublication{}, publicationPolicy("sync PR #%d changed while inspecting it", pending.Number)
 	}
 	if pending.Reusable && req.ReadChecks {
-		pending.Checks = "pending"
+		// GitHub attaches PR check runs to H even when jobs check out M.
+		// Same-named checks alone cannot prove that current M was tested.
+		pending.Checks = "PR head checks pending or missing; merge candidate unverified"
 		if current.MergeSHA != "" {
 			var checks struct {
 				Runs []struct {
@@ -116,14 +131,14 @@ func InspectPending(req PendingRequest) (PendingPublication, error) {
 				if c.Name != "Root source verification" && c.Name != "Codex generated reproducibility / Generated reproducibility" {
 					continue
 				}
-				if c.Status == "completed" && c.Conclusion != "success" {
-					pending.Checks = "failed"
+				if c.Status == "completed" && c.Conclusion != "" && c.Conclusion != "success" {
+					pending.Checks = "PR head checks failed; merge candidate unverified"
 					break
 				}
 				passed[c.Name] = c.Status == "completed" && c.Conclusion == "success"
 			}
-			if pending.Checks != "failed" && passed["Root source verification"] && passed["Codex generated reproducibility / Generated reproducibility"] {
-				pending.Checks = "observed checks passed; no fresh proof acquired; awaiting review/integration"
+			if pending.Checks != "PR head checks failed; merge candidate unverified" && passed["Root source verification"] && passed["Codex generated reproducibility / Generated reproducibility"] {
+				pending.Checks = "PR head checks succeeded; merge candidate unverified; no fresh proof acquired"
 			}
 		}
 	}
@@ -149,13 +164,8 @@ func verifyAppActor(api PublicationAPI, user publicationUser, clientID string) e
 
 func inspectPublicationHead(req PendingRequest, api PublicationAPI, pr publicationPR) (PendingPublication, error) {
 	head := pr.Head.SHA
-	if !shaRE.MatchString(head) {
-		return PendingPublication{}, publicationPolicy("PR #%d has no exact head", pr.Number)
-	}
-	if _, err := gitOutput(req.RepoRoot, "cat-file", "-e", head+"^{commit}"); err != nil {
-		if err := runGit(req.RepoRoot, "fetch", "--no-tags", publicationRemote(req), head); err != nil {
-			return PendingPublication{}, err
-		}
+	if err := fetchPublicationCommit(req, head); err != nil {
+		return PendingPublication{}, err
 	}
 	parents, err := gitOutput(req.RepoRoot, "rev-list", "--parents", "-n", "1", head)
 	if err != nil {
@@ -196,7 +206,7 @@ func inspectPublicationHead(req PendingRequest, api PublicationAPI, pr publicati
 	if metadata.SourceRefName == req.Target.RefName && metadata.SourceRefKind == req.Target.RefKind && metadata.SourceCommit != req.Target.PeeledCommitSHA {
 		return PendingPublication{}, &Failure{Category: FailureSource, Err: fmt.Errorf("upstream ref %s changed from pending commit %s to %s", metadata.SourceRefName, metadata.SourceCommit, req.Target.PeeledCommitSHA)}
 	}
-	return PendingPublication{Number: pr.Number, URL: pr.URL, Description: pr.Body, Branch: pr.Head.Ref, Head: head, BaseSHA: base, Target: BaselineIdentity{SourceCommit: metadata.SourceCommit, SourceRefName: metadata.SourceRefName, SourceRefKind: metadata.SourceRefKind}, Reusable: base == req.BaseSHA && metadata.SourceCommit == req.Target.PeeledCommitSHA && metadata.SourceRefName == req.Target.RefName && metadata.SourceRefKind == req.Target.RefKind}, nil
+	return PendingPublication{Number: pr.Number, URL: pr.URL, Description: pr.Body, Title: pr.Title, Branch: pr.Head.Ref, Head: head, BaseSHA: base, Target: BaselineIdentity{SourceCommit: metadata.SourceCommit, SourceRefName: metadata.SourceRefName, SourceRefKind: metadata.SourceRefKind}, Reusable: base == req.BaseSHA && metadata.SourceCommit == req.Target.PeeledCommitSHA && metadata.SourceRefName == req.Target.RefName && metadata.SourceRefKind == req.Target.RefKind}, nil
 }
 
 // An owned branch can survive a lost push/create response. Rebuild and validate
@@ -282,4 +292,14 @@ func gitBaselineIdentity(repoRoot, head string) (BaselineIdentity, error) {
 		return BaselineIdentity{}, err
 	}
 	return decodeBaselineIdentity([]byte(raw))
+}
+
+func fetchPublicationCommit(req PendingRequest, head string) error {
+	if !shaRE.MatchString(head) {
+		return publicationPolicy("publication has no exact head")
+	}
+	if _, err := gitOutput(req.RepoRoot, "cat-file", "-e", head+"^{commit}"); err != nil {
+		return runGit(req.RepoRoot, "fetch", "--no-tags", publicationRemote(req), head)
+	}
+	return nil
 }
