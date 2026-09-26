@@ -1,5 +1,9 @@
 {
   "description": "Current local representation rules used with each exact upstream candidate to derive the classified manifest.",
+  "facade_status_rule": {
+    "deferred_missing_generated_types": "The facade target is intentionally omitted only while one or more method constant, params type, or response type prerequisites are absent; generation fails once all prerequisites exist.",
+    "generated": "The facade target must have a method constant and every referenced protocol type; missing prerequisites fail generation."
+  },
   "facade_target_rule": {
     "client_notification": "root_internal_overrides and established public names in protocolupgrade.publicFacadeNames first; otherwise ClientNotifications().<current schema variant name>",
     "client_request": "root_internal_overrides and established public names in protocolupgrade.publicFacadeNames first; otherwise <family accessor>.<PascalCase method suffix>; root methods use root_operation_overrides",
@@ -7,12 +11,14 @@
       "account": "Accounts()",
       "app": "Apps()",
       "applyPatchApproval": "ServerRequests()",
+      "attestation": "ServerRequests()",
       "collaborationMode": "CollaborationModes()",
       "command": "Commands()",
       "config": "Config()",
       "configRequirements": "ConfigRequirements()",
       "configWarning": "ServerNotifications()",
       "deprecationNotice": "ServerNotifications()",
+      "environment": "Environments()",
       "error": "ServerNotifications()",
       "execCommandApproval": "ServerRequests()",
       "experimentalFeature": "ExperimentalFeatures()",
@@ -32,6 +38,7 @@
       "mock": "Mock()",
       "model": "Models()",
       "modelProvider": "ModelProviders()",
+      "permissionProfile": "PermissionProfiles()",
       "plugin": "Plugins()",
       "process": "Processes()",
       "remoteControl": "RemoteControl()",
@@ -42,10 +49,7 @@
       "turn": "Turns()",
       "warning": "ServerNotifications()",
       "windows": "Windows()",
-      "windowsSandbox": "WindowsSandbox()",
-      "attestation": "ServerRequests()",
-      "environment": "Environments()",
-      "permissionProfile": "PermissionProfiles()"
+      "windowsSandbox": "WindowsSandbox()"
     },
     "root_internal_overrides": {
       "initialize": "internal.InitializeHandshake.Request",
@@ -57,19 +61,15 @@
     "server_notification": "established public names in protocolupgrade.publicFacadeNames first; otherwise ServerNotifications().<current schema variant name>",
     "server_request": "established public names in protocolupgrade.publicFacadeNames first; otherwise ServerRequests().<current schema variant name>"
   },
-  "facade_status_rule": {
-    "deferred_missing_generated_types": "The facade target is intentionally omitted only while one or more method constant, params type, or response type prerequisites are absent; generation fails once all prerequisites exist.",
-    "generated": "The facade target must have a method constant and every referenced protocol type; missing prerequisites fail generation."
-  },
   "inputs": {
     "experimental_baseline": "internal/protocolschema/appserver/v2",
     "experimental_schema_command": "codex app-server generate-json-schema --experimental --out <tmpdir>",
     "response_mapping_source": "codex-rs/app-server-protocol/src/protocol/common.rs",
+    "source_commit": "00c972ed5d6ff6499317fd41b7f23605b8e6850d",
+    "source_ref_kind": "stable_rust_tag",
+    "source_ref_name": "rust-v0.157.0",
     "source_repo": "https://github.com/openai/codex",
-    "source_commit": "6b9826e3aa83b1a5947db50f4332cb9c65f1b340",
-    "stable_schema_command": "codex app-server generate-json-schema --out <tmpdir>",
-    "source_ref_name": "rust-v0.154.0",
-    "source_ref_kind": "stable_rust_tag"
+    "stable_schema_command": "codex app-server generate-json-schema --out <tmpdir>"
   },
   "non_goals": [
     "This file does not generate protocolv2 Go code.",
