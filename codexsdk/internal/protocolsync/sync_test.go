@@ -139,6 +139,75 @@ func TestSyncValidationOnlyVerifiesFreshExactCandidateWithoutEffects(t *testing.
 	}
 }
 
+func TestSyncValidationOnlyDefaultsToCheckedInIdentity(t *testing.T) {
+	repo := initSyncRepo(t, oldSHA, "rust-v0.140.0", KindStableTag)
+	generated := false
+	result, err := Sync(SyncRequest{
+		RepoRoot: repo, ModuleRoot: filepath.Join(repo, "codexsdk"),
+		UpstreamRepo: "fake", ForceCompare: true, ValidationOnly: true,
+		Lookuper: fakeLookuper{byPattern: map[string]string{
+			"refs/tags/rust-v0.140.0":    oldSHA + "\trefs/tags/rust-v0.140.0",
+			"refs/tags/rust-v0.140.0^{}": oldSHA + "\trefs/tags/rust-v0.140.0^{}",
+		}},
+		Generate: func(req GenerateRequest) (Candidate, error) {
+			generated = true
+			if req.Target.RefName != "rust-v0.140.0" || req.Target.RefKind != KindStableTag || req.Target.PeeledCommitSHA != oldSHA {
+				t.Fatalf("validation target = %+v", req.Target)
+			}
+			return Candidate{SchemaDir: "/tmp/schema", SourceCommit: oldSHA, DriftStatus: "clean"}, nil
+		},
+		VerifyExact: func(req protocolupgrade.ApplyRequest) (protocolupgrade.PlanResult, error) {
+			if req.TargetRef != "rust-v0.140.0" || req.TargetKind != KindStableTag || req.TargetSHA != oldSHA {
+				t.Fatalf("exact request = %+v", req)
+			}
+			return protocolupgrade.PlanResult{Status: protocolupgrade.PlanReady}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !generated || result.Outcome != OutcomeExactVerified || result.Target.RefName != "rust-v0.140.0" || result.Target.PeeledCommitSHA != oldSHA {
+		t.Fatalf("generated=%v result=%+v", generated, result)
+	}
+}
+
+func TestSyncValidationOnlyRejectsIdentityDriftBeforeGeneration(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		requested   string
+		lookupRef   string
+		lookupSHA   string
+		want        string
+	}{
+		{name: "checked-in stable tag moved", lookupRef: "rust-v0.140.0", lookupSHA: newSHA, want: "does not match the checked-in upstream identity"},
+		{name: "explicit different target", requested: "rust-v0.141.0", lookupRef: "rust-v0.141.0", lookupSHA: newSHA, want: "does not match the checked-in upstream identity"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			repo := initSyncRepo(t, oldSHA, "rust-v0.140.0", KindStableTag)
+			generated := false
+			result, err := Sync(SyncRequest{
+				RepoRoot: repo, ModuleRoot: filepath.Join(repo, "codexsdk"),
+				UpstreamRepo: "fake", UpstreamRef: test.requested,
+				ForceCompare: true, ValidationOnly: true,
+				Lookuper: fakeLookuper{byPattern: map[string]string{
+					"refs/tags/" + test.lookupRef:       test.lookupSHA + "\trefs/tags/" + test.lookupRef,
+					"refs/tags/" + test.lookupRef + "^{}": test.lookupSHA + "\trefs/tags/" + test.lookupRef + "^{}",
+				}},
+				Generate: func(GenerateRequest) (Candidate, error) {
+					generated = true
+					return Candidate{}, nil
+				},
+			})
+			if err == nil || result.FailureCategory != FailureSource || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("result=%+v err=%v", result, err)
+			}
+			if generated {
+				t.Fatal("identity drift must fail before candidate generation")
+			}
+		})
+	}
+}
+
 func TestSyncValidationOnlyRequiresExactComparisonMode(t *testing.T) {
 	for _, req := range []SyncRequest{
 		{ValidationOnly: true},
