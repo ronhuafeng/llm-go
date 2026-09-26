@@ -197,7 +197,7 @@ func Sync(req SyncRequest) (result SyncResult, err error) {
 	applyReq := candidateApplyRequest(moduleRoot, candidate, target)
 	plan := req.Plan
 	if plan == nil {
-		plan = protocolupgrade.Plan
+		plan = protocolupgrade.PlanRepository
 	}
 	stage = "plan"
 	planned, err := plan(applyReq)
@@ -315,7 +315,7 @@ func Resume(req ResumeRequest) (result SyncResult, err error) {
 	applyReq := candidateApplyRequest(moduleRoot, candidate, target)
 	plan := req.Plan
 	if plan == nil {
-		plan = protocolupgrade.Plan
+		plan = protocolupgrade.PlanRepository
 	}
 	stage = "replan"
 	planned, err := plan(applyReq)
