@@ -40,7 +40,7 @@ func normalizeBranchRef(ref, remote string) string {
 	return ref
 }
 
-func syncBranchName(targetRef, targetSHA string) string {
+func syncBranchName(targetRef, targetSHA, baseSHA string) string {
 	name := regexp.MustCompile(`^refs/(heads|tags)/`).ReplaceAllString(targetRef, "")
 	if name == "" {
 		name = targetSHA[:12]
@@ -53,7 +53,11 @@ func syncBranchName(targetRef, targetSHA string) string {
 	if len(name) > 64 {
 		name = name[:64]
 	}
-	return "codex/sync-upstream-" + name + "-" + targetSHA[:12]
+	// A publication branch is stable for the same accepted base/upstream pair,
+	// but a later proposal for the same upstream target after that target has
+	// already been integrated must not collide with the historical merged PR
+	// branch. The accepted base therefore defines the publication epoch.
+	return "codex/sync-upstream-" + name + "-" + targetSHA[:12] + "-base-" + baseSHA[:12]
 }
 
 func parseSyncMetadata(body string) map[string]string {
