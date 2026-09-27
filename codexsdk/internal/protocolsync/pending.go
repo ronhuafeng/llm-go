@@ -50,9 +50,6 @@ func InspectPending(req PendingRequest) (PendingPublication, error) {
 	var found []PendingPublication
 	for _, pr := range prs {
 		if !strings.HasPrefix(pr.Head.Ref, "codex/sync-upstream") {
-			if len(parseSyncMetadata(pr.Body)) > 0 {
-				return PendingPublication{}, publicationPolicy("sync PR #%d branch was renamed outside its publishing namespace", pr.Number)
-			}
 			continue
 		}
 		if pr.MergedAt != nil {
@@ -83,15 +80,10 @@ func InspectPending(req PendingRequest) (PendingPublication, error) {
 			return PendingPublication{}, fmt.Errorf("sync PR #%d ownership: %w", pr.Number, err)
 		}
 
-		description, err := parsePublicationDescription(pr)
-		if err != nil {
-			return PendingPublication{}, err
-		}
 		pending, err := inspectPublicationHead(req, api, pr)
 		if err != nil {
 			return PendingPublication{}, err
 		}
-		pending.Reusable = pending.Reusable && description.target == pending.Target && description.head == pending.Head && description.base == req.BaseBranch
 		found = append(found, pending)
 	}
 	if len(found) > 1 {
@@ -111,8 +103,8 @@ func InspectPending(req PendingRequest) (PendingPublication, error) {
 	if err := api.Request("GET", fmt.Sprintf("repos/%s/pulls/%d", req.Repository, pending.Number), nil, &current); err != nil {
 		return PendingPublication{}, err
 	}
-	if current.State != "open" || current.Head.Ref != pending.Branch || current.Head.Repo.FullName != req.Repository || current.Base.Ref != req.BaseBranch || current.Body != pending.Description || current.Title != pending.Title {
-		return PendingPublication{}, publicationPolicy("sync PR #%d changed while inspecting it", pending.Number)
+	if current.State != "open" || current.Head.Ref != pending.Branch || current.Head.Repo.FullName != req.Repository || current.Base.Ref != req.BaseBranch {
+		return PendingPublication{}, publicationPolicy("sync PR #%d identity changed while inspecting it", pending.Number)
 	}
 	if pending.Reusable && req.ReadChecks {
 		pending.Checks = "current-head required checks pending or missing"
