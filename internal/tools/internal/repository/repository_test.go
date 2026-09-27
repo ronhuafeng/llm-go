@@ -72,6 +72,7 @@ func TestPRVerificationIsRootModuleAndGeneratedReproducibility(t *testing.T) {
 	}
 }
 
+
 func TestManualNativeVerificationWorkflowsAreReadOnlyOwnerProofs(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
 	if err != nil {
@@ -110,11 +111,11 @@ func TestManualNativeVerificationWorkflowsAreReadOnlyOwnerProofs(t *testing.T) {
 		}
 		refs := checkoutRefs(text)
 		if len(refs) == 0 {
-			t.Errorf("%s must check out the triggering revision", name)
+			t.Errorf("%s must check out a triggering or explicit immutable revision", name)
 		}
 		for _, ref := range refs {
-			if ref != "${{ github.sha }}" {
-				t.Errorf("%s checkout ref %q is not the triggering revision", name, ref)
+			if ref != "${{ github.sha }}" && ref != "${{ inputs.ref || github.sha }}" {
+				t.Errorf("%s checkout ref %q is not the triggering/explicit revision", name, ref)
 			}
 		}
 		for _, want := range wants {
@@ -125,31 +126,47 @@ func TestManualNativeVerificationWorkflowsAreReadOnlyOwnerProofs(t *testing.T) {
 	}
 }
 
-func TestRequiredVerificationChecksOutTheIntegrationCandidate(t *testing.T) {
+
+func TestRequiredVerificationChecksOutExactPRHead(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
 	if err != nil {
 		t.Fatal(err)
 	}
 	pr := readWorkflow(t, root, "pr-verification.yml")
+	if strings.Contains(pr, "merge_group:") {
+		t.Fatal("auto-forward verification must not manufacture a merge-group acceptance identity")
+	}
 	source, ok := workflowJobByID(pr, "source")
 	if !ok {
 		t.Fatal("required source job missing")
 	}
-	for _, ref := range checkoutRefs(source) {
-		if ref != "${{ github.sha }}" {
-			t.Fatalf("required source checkout ref %q is not GitHub's triggering integration candidate", ref)
+	refs := checkoutRefs(source)
+	if len(refs) != 1 || refs[0] != "${{ github.event.pull_request.head.sha || github.sha }}" {
+		t.Fatalf("required source checkout refs = %v, want exact PR H with non-PR fallback", refs)
+	}
+	if !strings.Contains(source, "repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}") {
+		t.Fatal("source proof must bind the repository that owns exact PR H")
+	}
+
+	generated, ok := workflowJobByID(pr, "generated-reproducibility")
+	if !ok {
+		t.Fatal("generated required job missing")
+	}
+	for _, want := range []string{
+		"repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}",
+		"ref: ${{ github.event.pull_request.head.sha || github.sha }}",
+	} {
+		if !strings.Contains(generated, want) {
+			t.Fatalf("generated proof missing exact-H binding %q", want)
 		}
 	}
-	for _, name := range reusableWorkflows(pr) {
-		text := readWorkflow(t, root, name)
-		refs := checkoutRefs(text)
-		if len(refs) == 0 {
-			t.Fatalf("%s must check out the triggering revision", name)
-		}
-		for _, ref := range refs {
-			if ref != "${{ github.sha }}" {
-				t.Fatalf("%s checkout ref %q is not GitHub's triggering integration candidate", name, ref)
-			}
+	called := readWorkflow(t, root, "verify-generated.yml")
+	for _, want := range []string{
+		"repository: ${{ inputs.repository || github.repository }}",
+		"ref: ${{ inputs.ref || github.sha }}",
+	} {
+		if !strings.Contains(called, want) {
+			t.Fatalf("generated reusable proof missing %q", want)
 		}
 	}
 }
@@ -174,8 +191,7 @@ func TestPRExactProtocolValidationIsIndependentReadOnlyProof(t *testing.T) {
 		"codexsdk",
 		"-force-compare",
 		"-validation-only",
-		"HEAD_SHA: ${{ github.event.pull_request.head.sha || '' }}",
-		"INTEGRATION_SHA: ${{ github.sha }}",
+		"HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}",
 	} {
 		if !strings.Contains(exact, want) {
 			t.Fatalf("automatic protocol provenance missing %q", want)
@@ -192,6 +208,7 @@ func TestPRExactProtocolValidationIsIndependentReadOnlyProof(t *testing.T) {
 		"gofmt",
 		"go vet ./...",
 		"go test ./...",
+		"INTEGRATION_SHA",
 	} {
 		if strings.Contains(exact, forbidden) {
 			t.Fatalf("automatic protocol provenance has unrelated or forbidden responsibility %q", forbidden)
@@ -201,15 +218,49 @@ func TestPRExactProtocolValidationIsIndependentReadOnlyProof(t *testing.T) {
 	if len(refs) != 1 || refs[0] != "${{ github.event.pull_request.head.sha }}" {
 		t.Fatalf("automatic provenance checkout refs = %v", refs)
 	}
+}
 
-	source, ok := workflowJobByID(workflow, "source")
-	if !ok {
-		t.Fatal("required source job missing")
+func TestAutoForwardWorkflowOnlyFastForwardsVerifiedHead(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, forbidden := range []string{"needs: exact-protocol", "EXACT_RESULT", "needs.exact-protocol.result"} {
-		if strings.Contains(source, forbidden) {
-			t.Fatalf("source proof must not aggregate provenance through %q", forbidden)
+	workflow := readWorkflow(t, root, "auto-forward.yml")
+	for _, want := range []string{
+		"workflow_dispatch:",
+		"group: auto-forward-main",
+		"name: Verify auto-forwardable head",
+		"git merge-base --is-ancestor",
+		"Root source verification",
+		"Codex generated reproducibility / Generated reproducibility",
+		"Codex protocol provenance",
+		"name: Fast-forward verified head",
+		"AUTO_FORWARD_APP_CLIENT_ID",
+		"AUTO_FORWARD_APP_PRIVATE_KEY",
+		"permission-contents: write",
+		"git push origin",
+		"refs/heads/",
+		"main readback",
+	} {
+		if !strings.Contains(workflow, want) {
+			t.Fatalf("auto-forward workflow missing %q", want)
 		}
+	}
+	for _, forbidden := range []string{
+		"git merge ",
+		"git rebase ",
+		"git cherry-pick ",
+		"git commit ",
+		"git push --force",
+		"git push -f",
+		"merge_pull_request",
+	} {
+		if strings.Contains(workflow, forbidden) {
+			t.Fatalf("auto-forward workflow contains forbidden integration mechanism %q", forbidden)
+		}
+	}
+	if !strings.Contains(workflow, "Require current-head checks and review policy") || !strings.Contains(workflow, "Reconfirm current-head checks and review policy") {
+		t.Fatal("auto-forward must check acceptance before and immediately before the write effect")
 	}
 }
 
