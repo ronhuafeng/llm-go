@@ -84,9 +84,11 @@ jobs:
             exit 1
           fi
 
-          echo "head=${head}" >> "${GITHUB_OUTPUT}"
-          echo "base=${base}" >> "${GITHUB_OUTPUT}"
-          echo "head_ref=${head_ref}" >> "${GITHUB_OUTPUT}"
+          {
+            echo "head=${head}"
+            echo "base=${base}"
+            echo "head_ref=${head_ref}"
+          } >> "${GITHUB_OUTPUT}"
 
       - name: Require current-head checks and review policy
         env:
