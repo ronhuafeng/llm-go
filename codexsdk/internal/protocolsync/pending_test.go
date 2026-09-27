@@ -105,10 +105,11 @@ func TestInspectPendingRequiresConfiguredBotID(t *testing.T) {
 }
 
 func TestInspectPendingChangesAndOwnership(t *testing.T) {
-	for _, kind := range []string{"new target", "new base", "closed", "multiple", "wrong app", "retargeted tag", "recover metadata", "human replacement", "other bot push"} {
+	for _, kind := range []string{"new target", "new base", "closed", "multiple", "wrong app", "retargeted tag", "presentation edit", "human replacement", "other bot push"} {
 		t.Run(kind, func(t *testing.T) {
 			req, api := pendingFixture(t)
 			wantError := true
+			wantReusable := false
 			switch kind {
 			case "new target":
 				req.Target.RefName = "rust-v0.155.0"
@@ -129,10 +130,11 @@ func TestInspectPendingChangesAndOwnership(t *testing.T) {
 				req.AppBotID = 43
 			case "retargeted tag":
 				req.Target.PeeledCommitSHA = strings.Repeat("3", 40)
-			case "recover metadata":
-				api.prs[0].Body = publicationBody("main", "rust-v0.154.0", KindStableTag, newSHA, oldSHA)
-				api.pushActor = api.prs[0].User
+			case "presentation edit":
+				api.prs[0].Title = "Maintainer display title"
+				api.prs[0].Body += "\nMaintainer note.\n"
 				wantError = false
+				wantReusable = true
 			case "human replacement":
 				api.prs[0].Body = publicationBody("main", "rust-v0.154.0", KindStableTag, newSHA, oldSHA)
 				api.pushActor = publicationUser{Login: "maintainer", Type: "User"}
@@ -143,8 +145,8 @@ func TestInspectPendingChangesAndOwnership(t *testing.T) {
 			if (err != nil) != wantError {
 				t.Fatalf("observed=%+v err=%v", observed, err)
 			}
-			if !wantError && observed.Reusable {
-				t.Fatal("changed input inherited old proof")
+			if !wantError && observed.Reusable != wantReusable {
+				t.Fatalf("reusable=%v want %v for %s", observed.Reusable, wantReusable, kind)
 			}
 		})
 	}
@@ -214,11 +216,16 @@ func TestSyncMergedAcceptedTargetSkipsPublication(t *testing.T) {
 	}
 }
 
-func TestInspectPendingPreservesHumanDescription(t *testing.T) {
+func TestInspectPendingIgnoresHumanDescriptionForCorrectness(t *testing.T) {
 	req, api := pendingFixture(t)
+	api.prs[0].Title = "Maintainer display title"
 	api.prs[0].Body += "\nMaintainer investigation notes.\n"
-	if _, err := InspectPending(req); err == nil {
-		t.Fatal("human description would be overwritten by automatic update")
+	observed, err := InspectPending(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !observed.Reusable {
+		t.Fatal("presentation-only edit invalidated Git candidate")
 	}
 }
 
@@ -279,10 +286,14 @@ func TestInspectPendingObservesCurrentHeadRequiredChecks(t *testing.T) {
 	}
 }
 
-func TestInspectPendingRejectsDescriptionEditedDuringRead(t *testing.T) {
+func TestInspectPendingIgnoresDescriptionEditDuringRead(t *testing.T) {
 	req, api := pendingFixture(t)
 	api.editOnRead = true
-	if _, err := InspectPending(req); err == nil {
-		t.Fatal("concurrent description edit reused stale publication")
+	observed, err := InspectPending(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !observed.Reusable {
+		t.Fatal("concurrent presentation edit invalidated Git candidate")
 	}
 }
