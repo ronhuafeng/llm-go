@@ -791,8 +791,11 @@ func TestCurrentDocsDescribeOneRootModule(t *testing.T) {
 	if !strings.Contains(string(verify), "go test -race ./...") {
 		t.Fatal("docs/verify.md must document root-module race tests")
 	}
-	if !strings.Contains(string(verify), "integration revision") {
-		t.Fatal("docs/verify.md must distinguish the GitHub integration revision")
+	if !strings.Contains(string(verify), "Auto-forwardable PR") || !strings.Contains(string(verify), "tested commit") || !strings.Contains(string(verify), "new main commit") {
+		t.Fatal("docs/verify.md must define the exact-head auto-forward invariant")
+	}
+	if strings.Contains(string(verify), "integration revision") {
+		t.Fatal("docs/verify.md must not retain the synthetic integration-revision acceptance model")
 	}
 	for _, workflow := range []string{"Verify llmkit", "Verify codexsdk", "Verify Codex adapter"} {
 		if !strings.Contains(string(verify), workflow) {
