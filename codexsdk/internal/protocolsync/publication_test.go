@@ -125,7 +125,7 @@ func newPublicationFixture(t *testing.T) (*publicationFixture, PublishRequest, s
 		t.Fatalf("clone: %v %s", err, out)
 	}
 	gitMust(t, repo, "remote", "add", "origin", remote)
-	branch := syncBranchName("rust-v0.154.0", newSHA)
+	branch := syncBranchName("rust-v0.154.0", newSHA, base)
 	f := &publicationFixture{t: t, repo: repo, remote: remote, branch: branch, actor: publicationUser{ID: 42, Login: "sync[bot]", Type: "Bot"}}
 	f.candidate(base, "rust-v0.154.0", newSHA)
 	req := PublishRequest{RepoRoot: repo, BaseBranch: "main", Repository: "owner/repo", AppBotID: 42, ExpectedHead: "absent", ExpectedBranch: branch, TargetRef: "rust-v0.154.0", TargetKind: KindStableTag, TargetSHA: newSHA, API: f, Lookuper: fakeLookuper{byPattern: map[string]string{"refs/tags/rust-v0.154.0": newSHA + "\trefs/tags/rust-v0.154.0", "refs/tags/rust-v0.154.0^{}": newSHA + "\trefs/tags/rust-v0.154.0^{}"}}}
