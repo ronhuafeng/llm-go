@@ -165,6 +165,7 @@ func TestPublishUpdatesAfterBaseAdvance(t *testing.T) {
 	if _, err := Publish(req); err != nil {
 		t.Fatal(err)
 	}
+	f.prs[0].Body += "\n## Operator progress\n\nKeep this scratchboard.\n"
 	oldHead := f.ref(f.branch)
 	gitMust(t, f.repo, "checkout", "--detach", base)
 	writeFile(t, filepath.Join(f.repo, "README.md"), "new main base")
@@ -180,6 +181,47 @@ func TestPublishUpdatesAfterBaseAdvance(t *testing.T) {
 	}
 	if f.creates != 1 || f.updates != 1 || f.ref(f.branch) != newHead {
 		t.Fatalf("incorrect update: creates=%d updates=%d head=%s", f.creates, f.updates, f.ref(f.branch))
+	}
+	if !strings.Contains(f.prs[0].Body, "Keep this scratchboard.") {
+		t.Fatal("existing operator body was overwritten")
+	}
+	if !strings.Contains(f.prs[0].Body, "sync_commit: "+newHead) {
+		t.Fatal("metadata projection did not advance with the Git head")
+	}
+}
+
+func TestPublishMigratesLegacyBodyWithoutUsingItAsIdentity(t *testing.T) {
+	f, req, base := newPublicationFixture(t)
+	if _, err := Publish(req); err != nil {
+		t.Fatal(err)
+	}
+	oldHead := f.ref(f.branch)
+	f.prs[0].Body = strings.Replace(
+		f.prs[0].Body,
+		"Integration must use the trusted Auto-forward PR path",
+		"Merge should happen only after branch protection",
+		1,
+	)
+
+	gitMust(t, f.repo, "checkout", "--detach", base)
+	writeFile(t, filepath.Join(f.repo, "README.md"), "new main base")
+	runGitInitCommit(t, f.repo, "advance main")
+	newBase := strings.TrimSpace(gitMust(t, f.repo, "rev-parse", "HEAD"))
+	gitMust(t, f.repo, "push", "origin", newBase+":refs/heads/main")
+	newHead := f.candidate(newBase, req.TargetRef, req.TargetSHA)
+	req.ExpectedHead = oldHead
+
+	if _, err := Publish(req); err != nil {
+		t.Fatal(err)
+	}
+	if f.ref(f.branch) != newHead {
+		t.Fatalf("remote head = %s, want %s", f.ref(f.branch), newHead)
+	}
+	if !strings.Contains(f.prs[0].Body, "Merge should happen only after branch protection") {
+		t.Fatal("legacy/operator prose was overwritten during metadata migration")
+	}
+	if !strings.Contains(f.prs[0].Body, "sync_commit: "+newHead) {
+		t.Fatal("legacy body metadata projection did not advance")
 	}
 }
 
@@ -368,11 +410,11 @@ func TestPublishCompletesMetadataAfterUpdateDidNotTakeEffect(t *testing.T) {
 	}
 }
 
-func TestPublishReportsDescriptionChangedDuringCreation(t *testing.T) {
+func TestPublishAcceptsOperatorNoteAddedDuringCreation(t *testing.T) {
 	f, req, _ := newPublicationFixture(t)
 	f.afterWrite = func() { f.prs[0].Body += "\nMaintainer investigation." }
-	if _, err := Publish(req); err == nil {
-		t.Fatal("creation readback accepted concurrently changed description")
+	if _, err := Publish(req); err != nil {
+		t.Fatal(err)
 	}
 	if f.creates != 1 || !strings.Contains(f.prs[0].Body, "Maintainer investigation.") {
 		t.Fatal("maintainer note was lost")
