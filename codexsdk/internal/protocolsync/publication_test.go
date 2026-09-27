@@ -183,7 +183,7 @@ func TestPublishUpdatesAfterBaseAdvance(t *testing.T) {
 	}
 }
 
-func TestPublishAcceptsLaggingPRHeadAfterSuccessfulLeaseUpdate(t *testing.T) {
+func TestPublishUsesRemoteRefWhenPRHeadProjectionLags(t *testing.T) {
 	f, req, base := newPublicationFixture(t)
 	if _, err := Publish(req); err != nil {
 		t.Fatal(err)
@@ -204,10 +204,47 @@ func TestPublishAcceptsLaggingPRHeadAfterSuccessfulLeaseUpdate(t *testing.T) {
 		t.Fatal(err)
 	}
 	if f.ref(f.branch) != newHead || f.updates != 1 {
-		t.Fatalf("lagging API head blocked confirmed update: updates=%d remote=%s want=%s", f.updates, f.ref(f.branch), newHead)
+		t.Fatalf("lagging PR projection blocked confirmed ref update: updates=%d remote=%s want=%s", f.updates, f.ref(f.branch), newHead)
 	}
 	if !strings.Contains(f.prs[0].Body, "sync_commit: "+newHead) {
 		t.Fatal("publication metadata did not advance to the confirmed remote head")
+	}
+}
+
+func TestInspectPendingUsesRemoteRefAsOpenPRHeadAuthority(t *testing.T) {
+	f, req, base := newPublicationFixture(t)
+	if _, err := Publish(req); err != nil {
+		t.Fatal(err)
+	}
+	oldHead := f.ref(f.branch)
+
+	// Advance the owned branch directly while the simulated PR API continues
+	// reporting the old derived head.sha. The remote ref must define H.
+	newHead := f.candidate(base, req.TargetRef, req.TargetSHA)
+	writeFile(t, filepath.Join(f.repo, "codexsdk", "projection.go"), "package codexsdk\n")
+	runGitInitCommit(t, f.repo, "new owned head")
+	newHead = strings.TrimSpace(gitMust(t, f.repo, "rev-parse", "HEAD"))
+	gitMust(t, f.repo, "push", "--force", "origin", newHead+":refs/heads/"+f.branch)
+	f.staleHeadSHA = oldHead
+
+	pending, err := InspectPending(PendingRequest{
+		RepoRoot:   f.repo,
+		Repository: req.Repository,
+		AppBotID:   req.AppBotID,
+		BaseBranch: req.BaseBranch,
+		BaseSHA:    base,
+		Target:     Target{RefName: req.TargetRef, RefKind: req.TargetKind, PeeledCommitSHA: req.TargetSHA},
+		API:        f,
+		Remote:     "origin",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pending.Head != newHead {
+		t.Fatalf("pending head = %s, want remote ref %s", pending.Head, newHead)
+	}
+	if pending.Reusable {
+		t.Fatal("stale PR metadata projection must not be treated as reusable")
 	}
 }
 
