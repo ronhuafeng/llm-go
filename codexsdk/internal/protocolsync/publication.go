@@ -115,21 +115,14 @@ func publishCandidate(req PublishRequest) (string, error) {
 	var pr publicationPR
 	if observed.Number != 0 {
 		path := fmt.Sprintf("repos/%s/pulls/%d", req.Repository, observed.Number)
-		var before publicationPR
-		if err := api.Request("GET", path, nil, &before); err != nil {
+		if err := api.Request("GET", path, nil, &pr); err != nil {
 			return "", err
 		}
-		if before.State != "open" || before.Head.Ref != branch || before.Head.Repo.FullName != req.Repository || before.Base.Ref != baseBranch || before.Body != observed.Description || before.Title != observed.Title {
-			return "", publicationPolicy("PR changed after push; retain the remote state for inspection")
+		if pr.State != "open" || pr.Head.Ref != branch || pr.Head.Repo.FullName != req.Repository || pr.Base.Ref != baseBranch {
+			return "", publicationPolicy("PR identity changed after push; retain the remote state for inspection")
 		}
-		if alreadyPublished && observed.Reusable {
-			pr = before
-		} else {
-			writeErr := api.Request("PATCH", path, map[string]string{"title": title, "body": body}, nil)
-			if err := api.Request("GET", path, nil, &pr); err != nil {
-				return "", fmt.Errorf("PR update result unknown (%v): %w", writeErr, err)
-			}
-		}
+		// Existing PR title/body are presentation only. Do not rewrite them as part
+		// of publication correctness; H and U are derived from Git state.
 	} else {
 		createErr := api.Request("POST", "repos/"+req.Repository+"/pulls", map[string]string{"head": branch, "base": baseBranch, "title": title, "body": body}, &pr)
 		// Even a successful response is followed by discovery. A lost response must
@@ -149,11 +142,10 @@ func publishCandidate(req PublishRequest) (string, error) {
 			return "", fmt.Errorf("PR creation has %d confirmed matches: %v", matches, createErr)
 		}
 	}
-	// The PR API confirms PR object identity and managed metadata. The mutable
-	// branch head is confirmed through the Git ref below; head.sha is only a
-	// derived API projection and is intentionally not an acceptance input.
-	if pr.State != "open" || pr.Head.Ref != branch || pr.Head.Repo.FullName != req.Repository || pr.Base.Ref != baseBranch || pr.Body != body || pr.Title != title {
-		return "", publicationPolicy("PR readback does not match the publication; it remains unconfirmed")
+	// The PR API confirms PR object identity only. Mutable branch identity comes
+	// from the Git ref; title/body are presentation and are not correctness inputs.
+	if pr.State != "open" || pr.Head.Ref != branch || pr.Head.Repo.FullName != req.Repository || pr.Base.Ref != baseBranch {
+		return "", publicationPolicy("PR readback does not match the publication identity; it remains unconfirmed")
 	}
 	if err := verifyAppActor(pr.User, req.AppBotID); err != nil {
 		return "", err
