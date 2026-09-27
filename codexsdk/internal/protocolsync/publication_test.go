@@ -178,7 +178,7 @@ func TestPublishUpdatesAfterBaseAdvance(t *testing.T) {
 	if _, err := Publish(req); err != nil {
 		t.Fatal(err)
 	}
-	if f.creates != 1 || f.updates != 1 || f.ref(f.branch) != newHead {
+	if f.creates != 1 || f.updates != 0 || f.ref(f.branch) != newHead {
 		t.Fatalf("incorrect update: creates=%d updates=%d head=%s", f.creates, f.updates, f.ref(f.branch))
 	}
 }
@@ -203,11 +203,11 @@ func TestPublishUsesRemoteRefWhenPRHeadProjectionLags(t *testing.T) {
 	if _, err := Publish(req); err != nil {
 		t.Fatal(err)
 	}
-	if f.ref(f.branch) != newHead || f.updates != 1 {
+	if f.ref(f.branch) != newHead || f.updates != 0 {
 		t.Fatalf("lagging PR projection blocked confirmed ref update: updates=%d remote=%s want=%s", f.updates, f.ref(f.branch), newHead)
 	}
-	if !strings.Contains(f.prs[0].Body, "sync_commit: "+newHead) {
-		t.Fatal("publication metadata did not advance to the confirmed remote head")
+	if !strings.Contains(f.prs[0].Body, "sync_commit: "+oldHead) {
+		t.Fatal("existing PR presentation was unexpectedly rewritten")
 	}
 }
 
@@ -307,7 +307,7 @@ func TestPublishRebuildsForNewTarget(t *testing.T) {
 	if _, err := Publish(req); err != nil {
 		t.Fatal(err)
 	}
-	if f.creates != 1 || f.updates != 1 || f.ref(f.branch) != head {
+	if f.creates != 1 || f.updates != 0 || f.ref(f.branch) != head {
 		t.Fatal("new target was not updated in the existing PR")
 	}
 }
@@ -329,12 +329,14 @@ func TestPublishReportsPostWriteBaseMovement(t *testing.T) {
 	}
 }
 
-func TestPublishCompletesMetadataAfterUpdateDidNotTakeEffect(t *testing.T) {
+func TestPublishDoesNotDependOnExistingPRPresentation(t *testing.T) {
 	f, req, base := newPublicationFixture(t)
 	if _, err := Publish(req); err != nil {
 		t.Fatal(err)
 	}
 	req.ExpectedHead = f.ref(f.branch)
+	f.prs[0].Title = "Maintainer-owned display title"
+	f.prs[0].Body += "\nMaintainer investigation notes.\n"
 	req.TargetRef = "rust-v0.155.0"
 	req.TargetSHA = strings.Repeat("3", 40)
 	req.Lookuper = fakeLookuper{byPattern: map[string]string{
@@ -342,37 +344,34 @@ func TestPublishCompletesMetadataAfterUpdateDidNotTakeEffect(t *testing.T) {
 		"refs/tags/rust-v0.155.0^{}": req.TargetSHA + "\trefs/tags/rust-v0.155.0^{}",
 	}}
 	head := f.candidate(base, req.TargetRef, req.TargetSHA)
-	f.rejectUpdate = true
-	if _, err := Publish(req); err == nil {
-		t.Fatal("failed metadata update was accepted")
-	}
-	pendingRequest := PendingRequest{RepoRoot: f.repo, Repository: req.Repository, AppBotID: req.AppBotID, BaseBranch: "main", BaseSHA: base, Target: Target{RefName: req.TargetRef, RefKind: req.TargetKind, PeeledCommitSHA: req.TargetSHA}, API: f}
-	observed, err := InspectPending(pendingRequest)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if observed.Reusable {
-		t.Fatal("partial publication skipped metadata recovery")
-	}
-	f.rejectUpdate = false
-	req.ExpectedHead = observed.Head
 	if _, err := Publish(req); err != nil {
 		t.Fatal(err)
 	}
-	observed, err = InspectPending(pendingRequest)
+	if f.ref(f.branch) != head || f.updates != 0 {
+		t.Fatalf("presentation affected publication: head=%s updates=%d", f.ref(f.branch), f.updates)
+	}
+	if f.prs[0].Title != "Maintainer-owned display title" || !strings.Contains(f.prs[0].Body, "Maintainer investigation notes.") {
+		t.Fatal("existing PR presentation was overwritten")
+	}
+	pending, err := InspectPending(PendingRequest{
+		RepoRoot: f.repo, Repository: req.Repository, AppBotID: req.AppBotID,
+		BaseBranch: "main", BaseSHA: base, Remote: "origin",
+		Target: Target{RefName: req.TargetRef, RefKind: req.TargetKind, PeeledCommitSHA: req.TargetSHA},
+		API: f,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !observed.Reusable || observed.Head != head || f.creates != 1 || f.updates != 2 {
-		t.Fatalf("publication not completed: %+v creates=%d updates=%d", observed, f.creates, f.updates)
+	if !pending.Reusable || pending.Head != head {
+		t.Fatalf("Git candidate not reusable after presentation drift: %+v", pending)
 	}
 }
 
-func TestPublishReportsDescriptionChangedDuringCreation(t *testing.T) {
+func TestPublishPreservesDescriptionChangeDuringCreation(t *testing.T) {
 	f, req, _ := newPublicationFixture(t)
 	f.afterWrite = func() { f.prs[0].Body += "\nMaintainer investigation." }
-	if _, err := Publish(req); err == nil {
-		t.Fatal("creation readback accepted concurrently changed description")
+	if _, err := Publish(req); err != nil {
+		t.Fatal(err)
 	}
 	if f.creates != 1 || !strings.Contains(f.prs[0].Body, "Maintainer investigation.") {
 		t.Fatal("maintainer note was lost")
