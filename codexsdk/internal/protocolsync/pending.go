@@ -115,34 +115,40 @@ func InspectPending(req PendingRequest) (PendingPublication, error) {
 		return PendingPublication{}, publicationPolicy("sync PR #%d changed while inspecting it", pending.Number)
 	}
 	if pending.Reusable && req.ReadChecks {
-		// GitHub attaches PR check runs to H even when jobs check out M.
-		// Same-named checks alone cannot prove that current M was tested.
-		pending.Checks = "PR head checks pending or missing; merge candidate unverified"
-		if current.MergeSHA != "" {
-			var checks struct {
-				Runs []struct {
-					Name       string `json:"name"`
-					Status     string `json:"status"`
-					Conclusion string `json:"conclusion"`
-				} `json:"check_runs"`
-			}
-			if err := api.Request("GET", fmt.Sprintf("repos/%s/commits/%s/check-runs?per_page=100", req.Repository, pending.Head), nil, &checks); err != nil {
-				return PendingPublication{}, err
-			}
-			passed := map[string]bool{}
-			for _, c := range checks.Runs {
-				if c.Name != "Root source verification" && c.Name != "Codex generated reproducibility / Generated reproducibility" {
+		pending.Checks = "current-head required checks pending or missing"
+		var checks struct {
+			Runs []struct {
+				Name       string `json:"name"`
+				Status     string `json:"status"`
+				Conclusion string `json:"conclusion"`
+			} `json:"check_runs"`
+		}
+		if err := api.Request("GET", fmt.Sprintf("repos/%s/commits/%s/check-runs?filter=latest&per_page=100", req.Repository, pending.Head), nil, &checks); err != nil {
+			return PendingPublication{}, err
+		}
+		required := []string{
+			"Root source verification",
+			"Codex generated reproducibility / Generated reproducibility",
+			"Codex protocol provenance",
+		}
+		passed := map[string]bool{}
+		for _, run := range checks.Runs {
+			for _, name := range required {
+				if run.Name != name {
 					continue
 				}
-				if c.Status == "completed" && c.Conclusion != "" && c.Conclusion != "success" {
-					pending.Checks = "PR head checks failed; merge candidate unverified"
+				if run.Status == "completed" && run.Conclusion != "" && run.Conclusion != "success" {
+					pending.Checks = "current-head required checks failed"
 					break
 				}
-				passed[c.Name] = c.Status == "completed" && c.Conclusion == "success"
+				passed[name] = run.Status == "completed" && run.Conclusion == "success"
 			}
-			if pending.Checks != "PR head checks failed; merge candidate unverified" && passed["Root source verification"] && passed["Codex generated reproducibility / Generated reproducibility"] {
-				pending.Checks = "PR head checks succeeded; merge candidate unverified; no fresh proof acquired"
+			if pending.Checks == "current-head required checks failed" {
+				break
 			}
+		}
+		if pending.Checks != "current-head required checks failed" && passed[required[0]] && passed[required[1]] && passed[required[2]] {
+			pending.Checks = "current-head required checks succeeded; no fresh proof acquired"
 		}
 	}
 	return pending, nil
