@@ -12,6 +12,7 @@ type fixturePublicationAPI struct {
 	prs        []publicationPR
 	fail       bool
 	pushActor  publicationUser
+	pushAfter  string
 	checks     []map[string]string
 	editOnRead bool
 }
@@ -31,7 +32,11 @@ func (api *fixturePublicationAPI) Request(method, path string, body, result any)
 		}
 		value = pr
 	case strings.Contains(path, "/activity?"):
-		value = []any{map[string]any{"ref": "refs/heads/" + api.prs[0].Head.Ref, "after": api.prs[0].Head.SHA, "actor": api.pushActor}}
+		after := api.pushAfter
+		if after == "" {
+			after = api.prs[0].Head.SHA
+		}
+		value = []any{map[string]any{"ref": "refs/heads/" + api.prs[0].Head.Ref, "after": after, "actor": api.pushActor}}
 	case strings.Contains(path, "/check-runs"):
 		value = map[string]any{"check_runs": api.checks}
 	default:
@@ -57,7 +62,8 @@ func pendingFixture(t *testing.T) (PendingRequest, *fixturePublicationAPI) {
 	pr.Head.Repo.FullName = "owner/repo"
 	pr.Base.Ref = "main"
 	pr.Base.SHA = base
-	api := &fixturePublicationAPI{prs: []publicationPR{pr}, pushActor: pr.User}
+	gitMust(t, repo, "branch", "-f", pr.Head.Ref, head)
+	api := &fixturePublicationAPI{prs: []publicationPR{pr}, pushActor: pr.User, pushAfter: head}
 	req := PendingRequest{RepoRoot: repo, Repository: "owner/repo", AppBotID: 42, BaseBranch: "main", BaseSHA: base, Remote: repo, Target: Target{RefName: "rust-v0.154.0", RefKind: KindStableTag, PeeledCommitSHA: newSHA}, API: api}
 	return req, api
 }
@@ -76,7 +82,10 @@ func TestInspectPendingUsesNativeHeadAndRejectsHumanChange(t *testing.T) {
 	}
 	writeFile(t, filepath.Join(repo, "codexsdk", "manual.go"), "package codexsdk\n")
 	runGitInitCommit(t, repo, "human change")
-	api.prs[0].Head.SHA = strings.TrimSpace(gitMust(t, repo, "rev-parse", "HEAD"))
+	humanHead := strings.TrimSpace(gitMust(t, repo, "rev-parse", "HEAD"))
+	gitMust(t, repo, "branch", "-f", api.prs[0].Head.Ref, humanHead)
+	api.pushAfter = humanHead
+	api.pushActor = publicationUser{Login: "maintainer", Type: "User"}
 	if _, err := InspectPending(req); err == nil {
 		t.Fatal("human head change was adopted")
 	}
