@@ -2,8 +2,6 @@ name: PR verification
 
 on:
   pull_request:
-  merge_group:
-    types: [checks_requested]
   push:
     branches: [main]
   workflow_dispatch:
@@ -47,7 +45,8 @@ jobs:
             go.sum \
             .github/workflows/pr-verification.yml \
             .github/workflows/verify-generated.yml \
-            .github/workflows/codexsdk-upstream-protocol-sync.yml
+            .github/workflows/codexsdk-upstream-protocol-sync.yml \
+            .github/workflows/auto-forward.yml
           then
             echo "required=false" >> "${GITHUB_OUTPUT}"
           else
@@ -101,8 +100,7 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           REQUIRED: ${{ steps.classify.outputs.required || 'false' }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha || '' }}
-          INTEGRATION_SHA: ${{ github.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           TARGET_REF: ${{ steps.exact.outputs.target_ref }}
           TARGET_SHA: ${{ steps.exact.outputs.target_sha }}
           OUTCOME: ${{ steps.exact.outputs.outcome }}
@@ -112,8 +110,7 @@ jobs:
             echo '## Codex protocol provenance'
             echo
             echo "- Event: ${EVENT_NAME}"
-            echo "- PR head H: ${HEAD_SHA:-not applicable}"
-            echo "- GitHub integration revision I: ${INTEGRATION_SHA}"
+            echo "- Verified revision H: ${HEAD_SHA}"
             echo "- Provenance required: ${REQUIRED}"
             echo "- Exact upstream ref U: ${TARGET_REF:-not applicable}"
             echo "- Exact upstream commit U: ${TARGET_SHA:-not applicable}"
@@ -130,8 +127,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-          ref: ${{ github.sha }}
           persist-credentials: false
 
       - uses: actions/setup-go@v7
@@ -166,3 +164,6 @@ jobs:
   generated-reproducibility:
     name: Codex generated reproducibility
     uses: ./.github/workflows/verify-generated.yml
+    with:
+      repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+      ref: ${{ github.event.pull_request.head.sha || github.sha }}
