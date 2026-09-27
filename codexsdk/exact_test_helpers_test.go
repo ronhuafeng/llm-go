@@ -1037,11 +1037,11 @@ func runFakeAppServer(mode string, extra []string) {
 				continue
 			}
 			send(map[string]any{"id": id, "result": map[string]any{"thread": map[string]any{"id": "thread-1"}}})
-		case "thread/rollback":
+		case "thread/revert":
 			if mode == "facade" {
 				params, _ := message["params"].(map[string]any)
 				threadID, _ := params["threadId"].(string)
-				sendProtocolResult(id, protocolv2.ThreadRollbackResponse{Thread: facadeThread(defaultString(threadID, "thread-1"), nil)})
+				sendProtocolResult(id, protocolv2.ThreadRevertResponse{Thread: facadeThread(defaultString(threadID, "thread-1"), nil)})
 				continue
 			}
 			send(map[string]any{"id": id, "result": map[string]any{"thread": map[string]any{"id": "thread-1"}}})

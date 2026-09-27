@@ -489,11 +489,6 @@ func TestBuildProtocolTypePlanSupportsConstrainedIntegerScalars(t *testing.T) {
 		goType string
 	}{
 		{
-			path:   "v2/ThreadRollbackParams.json#/properties/numTurns",
-			kind:   FieldPlanScalar,
-			goType: "uint32",
-		},
-		{
 			path:   "v2/AppsListParams.json#/properties/limit",
 			kind:   FieldPlanNullableScalar,
 			goType: "*protocolv2.Nullable[uint32]",

@@ -242,6 +242,15 @@ func (c *Client) Reviews() Reviews {
 	return Reviews{client: c}
 }
 
+// Rollout is an opaque generated facade for exact Codex operations.
+type Rollout struct {
+	client *Client
+}
+
+func (c *Client) Rollout() Rollout {
+	return Rollout{client: c}
+}
+
 // Server is an opaque generated facade for exact Codex operations.
 type Server struct {
 	client *Client
@@ -317,6 +326,30 @@ func (f Accounts) BedrockSetup(ctx context.Context, params protocolv2.BedrockSet
 	var response protocolv2.BedrockSetupResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodAccountBedrockSetup, params, &response); err != nil {
 		return protocolv2.BedrockSetupResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Accounts) GatewayOAuthCancel(ctx context.Context) (protocolv2.GatewayOAuthCancelResponse, error) {
+	var response protocolv2.GatewayOAuthCancelResponse
+	if err := f.client.callProtocolNoParams(ctx, protocolv2.MethodAccountGatewayOAuthCancel, &response); err != nil {
+		return protocolv2.GatewayOAuthCancelResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Accounts) GatewayOAuthLogin(ctx context.Context) (protocolv2.GatewayOAuthLoginResponse, error) {
+	var response protocolv2.GatewayOAuthLoginResponse
+	if err := f.client.callProtocolNoParams(ctx, protocolv2.MethodAccountGatewayOAuthLogin, &response); err != nil {
+		return protocolv2.GatewayOAuthLoginResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Accounts) GatewayOAuthRead(ctx context.Context) (protocolv2.GatewayOAuthReadResponse, error) {
+	var response protocolv2.GatewayOAuthReadResponse
+	if err := f.client.callProtocolNoParams(ctx, protocolv2.MethodAccountGatewayOAuthRead, &response); err != nil {
+		return protocolv2.GatewayOAuthReadResponse{}, err
 	}
 	return response, nil
 }
@@ -769,6 +802,14 @@ func (f Memory) Reset(ctx context.Context) (protocolv2.MemoryResetResponse, erro
 	return response, nil
 }
 
+func (f Memory) Status(ctx context.Context, params protocolv2.MemoryStatusParams) (protocolv2.MemoryStatusResponse, error) {
+	var response protocolv2.MemoryStatusResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodMemoryStatus, params, &response); err != nil {
+		return protocolv2.MemoryStatusResponse{}, err
+	}
+	return response, nil
+}
+
 func (f Mock) ExperimentalMethod(ctx context.Context, params protocolv2.MockExperimentalMethodParams) (protocolv2.MockExperimentalMethodResponse, error) {
 	var response protocolv2.MockExperimentalMethodResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodMockExperimentalMethod, params, &response); err != nil {
@@ -1057,6 +1098,14 @@ func (f Reviews) Start(ctx context.Context, params protocolv2.ReviewStartParams)
 	return response, nil
 }
 
+func (f Rollout) Compress(ctx context.Context) (protocolv2.RolloutCompressResponse, error) {
+	var response protocolv2.RolloutCompressResponse
+	if err := f.client.callProtocolNoParams(ctx, protocolv2.MethodRolloutCompress, &response); err != nil {
+		return protocolv2.RolloutCompressResponse{}, err
+	}
+	return response, nil
+}
+
 func (f Server) Diagnostics(ctx context.Context, params protocolv2.ServerDiagnosticsParams) (protocolv2.ServerDiagnosticsResponse, error) {
 	var response protocolv2.ServerDiagnosticsResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodServerDiagnostics, params, &response); err != nil {
@@ -1133,6 +1182,30 @@ func (f Threads) Archive(ctx context.Context, params protocolv2.ThreadArchivePar
 	var response protocolv2.ThreadArchiveResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadArchive, params, &response); err != nil {
 		return protocolv2.ThreadArchiveResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Threads) AttachmentAdd(ctx context.Context, params protocolv2.ThreadAttachmentAddParams) (protocolv2.ThreadAttachmentAddResponse, error) {
+	var response protocolv2.ThreadAttachmentAddResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadAttachmentAdd, params, &response); err != nil {
+		return protocolv2.ThreadAttachmentAddResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Threads) AttachmentList(ctx context.Context, params protocolv2.ThreadAttachmentListParams) (protocolv2.ThreadAttachmentListResponse, error) {
+	var response protocolv2.ThreadAttachmentListResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadAttachmentList, params, &response); err != nil {
+		return protocolv2.ThreadAttachmentListResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Threads) AttachmentRemove(ctx context.Context, params protocolv2.ThreadAttachmentRemoveParams) (protocolv2.ThreadAttachmentRemoveResponse, error) {
+	var response protocolv2.ThreadAttachmentRemoveResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadAttachmentRemove, params, &response); err != nil {
+		return protocolv2.ThreadAttachmentRemoveResponse{}, err
 	}
 	return response, nil
 }
@@ -1401,14 +1474,6 @@ func (f Threads) Revert(ctx context.Context, params protocolv2.ThreadRevertParam
 	return response, nil
 }
 
-func (f Threads) Rollback(ctx context.Context, params protocolv2.ThreadRollbackParams) (protocolv2.ThreadRollbackResponse, error) {
-	var response protocolv2.ThreadRollbackResponse
-	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadRollback, params, &response); err != nil {
-		return protocolv2.ThreadRollbackResponse{}, err
-	}
-	return response, nil
-}
-
 func (f Threads) Search(ctx context.Context, params protocolv2.ThreadSearchParams) (protocolv2.ThreadSearchResponse, error) {
 	var response protocolv2.ThreadSearchResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadSearch, params, &response); err != nil {
@@ -1517,6 +1582,14 @@ func (f Turns) Steer(ctx context.Context, params protocolv2.TurnSteerParams) (pr
 	var response protocolv2.TurnSteerResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodTurnSteer, params, &response); err != nil {
 		return protocolv2.TurnSteerResponse{}, err
+	}
+	return response, nil
+}
+
+func (f UserVerification) Cancel(ctx context.Context, params protocolv2.UserVerificationCancelParams) (protocolv2.UserVerificationCancelResponse, error) {
+	var response protocolv2.UserVerificationCancelResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodUserVerificationCancel, params, &response); err != nil {
+		return protocolv2.UserVerificationCancelResponse{}, err
 	}
 	return response, nil
 }

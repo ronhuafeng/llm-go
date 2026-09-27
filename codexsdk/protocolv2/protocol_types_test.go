@@ -686,7 +686,7 @@ func TestGeneratedThreadCoreAdjacentPayloadsProtocolMarshalAndUnmarshal(t *testi
 		value any
 	}{
 		{name: "read", value: ThreadReadResponse{Thread: thread}},
-		{name: "rollback", value: ThreadRollbackResponse{Thread: thread}},
+		{name: "revert", value: ThreadRevertResponse{Thread: thread}},
 		{name: "metadata update", value: ThreadMetadataUpdateResponse{Thread: thread}},
 		{name: "unarchive", value: ThreadUnarchiveResponse{Thread: thread}},
 		{name: "started notification", value: ThreadStartedNotification{Thread: thread}},
@@ -8176,38 +8176,6 @@ func TestGeneratedOptionalNonNullableStillRejectsNull(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "decode ExternalAgentConfigDetectParams.includeHome: null is not allowed") {
 		t.Fatalf("unexpected optional non-nullable null error: %v", err)
-	}
-}
-
-func TestGeneratedConstrainedUint32MarshalAndUnmarshal(t *testing.T) {
-	raw, err := json.Marshal(ThreadRollbackParams{
-		NumTurns: 2,
-		ThreadID: "thread-1",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got, want := string(raw), `{"numTurns":2,"threadId":"thread-1"}`; got != want {
-		t.Fatalf("ThreadRollbackParams JSON = %s, want %s", got, want)
-	}
-
-	var params ThreadRollbackParams
-	if err := json.Unmarshal([]byte(`{"numTurns":2,"threadId":"thread-1"}`), &params); err != nil {
-		t.Fatal(err)
-	}
-	if params.NumTurns != 2 || params.ThreadID != "thread-1" {
-		t.Fatalf("ThreadRollbackParams decoded as %#v", params)
-	}
-}
-
-func TestGeneratedConstrainedUint32RejectsNegative(t *testing.T) {
-	var params ThreadRollbackParams
-	err := json.Unmarshal([]byte(`{"numTurns":-1,"threadId":"thread-1"}`), &params)
-	if err == nil {
-		t.Fatal("expected negative uint32 to fail")
-	}
-	if !strings.Contains(err.Error(), "decode ThreadRollbackParams.numTurns") {
-		t.Fatalf("unexpected negative uint32 error: %v", err)
 	}
 }
 
