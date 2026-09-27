@@ -121,8 +121,12 @@ An App-owned orphan branch is rebuilt and verified before completing its PR.
 The PR API's `base.sha` may lag a main push; the selected checkout and remote
 base ref, not that PR snapshot, determine the accepted base.
 
-A newly created branch is named from its selected upstream identity, independent
-of run number or commit timestamp. Existing pending branches retain their name
+A newly created branch is named from its selected upstream identity and the
+accepted base SHA, independent of run number or commit timestamp. The base SHA
+defines a publication epoch: retries for the same B/U reuse the same branch,
+while a later proposal for the same upstream target after an earlier PR was
+already merged gets a distinct branch and cannot collide with the historical
+merged publication. Existing open pending branches retain their current name
 when updated. GitHub PRs/branches and accepted main metadata remain the only
 cross-run state; there is no persistent repair queue or proof ledger.
 
