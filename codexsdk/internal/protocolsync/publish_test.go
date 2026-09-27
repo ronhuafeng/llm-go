@@ -61,6 +61,23 @@ func TestUpdateSyncMetadataAddsProjectionWithoutOverwritingBody(t *testing.T) {
 	}
 }
 
+func TestSyncBranchNameScopesPublicationEpochByBase(t *testing.T) {
+	baseA := strings.Repeat("a", 40)
+	baseB := strings.Repeat("b", 40)
+	first := syncBranchName("rust-v0.157.1", newSHA, baseA)
+	retry := syncBranchName("rust-v0.157.1", newSHA, baseA)
+	later := syncBranchName("rust-v0.157.1", newSHA, baseB)
+	if first != retry {
+		t.Fatalf("same B/U changed branch: %q != %q", first, retry)
+	}
+	if first == later {
+		t.Fatalf("different accepted bases collided: %q", first)
+	}
+	if !strings.Contains(first, "-base-"+baseA[:12]) {
+		t.Fatalf("branch does not carry base epoch: %q", first)
+	}
+}
+
 func TestNormalizeBranchRef(t *testing.T) {
 	if got := normalizeBranchRef("refs/heads/main", "origin"); got != "main" {
 		t.Fatalf("got %s", got)
