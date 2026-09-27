@@ -423,6 +423,14 @@ Publication is allowed only after deterministic proof. It creates or updates a
 protected protocol-sync PR from the proven worktree. It does not self-merge,
 publish the module, or create a release.
 
+For an open protocol PR, the live Git branch ref and the checked-in baseline in
+that exact commit own publication identity. The PR title/body are presentation,
+not correctness authority. A hidden `codexsdk-upstream-sync` block is maintained
+as a recoverable projection for diagnostics and migration, while visible PR
+prose is operator-owned scratchboard text and is preserved across updates.
+Template wording changes or operator notes therefore cannot invalidate an
+otherwise valid Git publication.
+
 Repository-write credentials belong only to the separate publication job. Base movement
 or any uncertainty about which commit was proven causes publication to fail and
 the run to restart from canonical input.
