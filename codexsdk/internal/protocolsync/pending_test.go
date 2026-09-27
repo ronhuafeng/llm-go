@@ -150,6 +150,29 @@ func TestInspectPendingChangesAndOwnership(t *testing.T) {
 	}
 }
 
+func TestInspectPendingUsesNewBaseScopedBranchAfterMergedPublication(t *testing.T) {
+	req, api := pendingFixture(t)
+	merged := "2026-09-27T00:00:00Z"
+	api.prs[0].MergedAt = &merged
+	oldBranch := api.prs[0].Head.Ref
+
+	req.BaseSHA = strings.Repeat("3", 40)
+	observed, err := InspectPending(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := syncBranchName(req.Target.RefName, req.Target.PeeledCommitSHA, req.BaseSHA)
+	if observed.Head != "absent" {
+		t.Fatalf("head = %s, want absent", observed.Head)
+	}
+	if observed.Branch != want {
+		t.Fatalf("branch = %q, want %q", observed.Branch, want)
+	}
+	if observed.Branch == oldBranch {
+		t.Fatalf("new publication epoch reused merged PR branch %q", oldBranch)
+	}
+}
+
 func TestSyncReusesPendingBeforeGeneration(t *testing.T) {
 	req, _ := pendingFixture(t)
 	gitMust(t, req.RepoRoot, "checkout", "--detach", req.BaseSHA)
