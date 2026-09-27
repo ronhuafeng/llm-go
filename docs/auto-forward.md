@@ -132,6 +132,34 @@ The intended final repository policy is:
 Repository settings are part of this contract. Workflow code alone cannot make
 a second merge path disappear.
 
+## Production acceptance
+
+A repository-policy change is not complete until the installed Auto-forward App
+has performed a real integration through the trusted workflow.
+
+Use a small same-repository PR based on current main and require this sequence:
+
+1. the PR's exact H completes all three required checks successfully;
+2. dispatch `Auto-forward PR` for that PR number from trusted main;
+3. the read-only phase resolves current H and current main B and confirms
+   `B ∈ ancestors(H)`;
+4. the effect phase rechecks PR identity, H, B, required checks, and review
+   policy before minting the App token;
+5. the App performs one normal non-force `git push H:refs/heads/main`;
+6. workflow readback proves `main == H`;
+7. GitHub recognizes the PR as merged at that same H;
+8. the resulting main push verification succeeds on that same commit.
+
+Acceptance fails closed if the App configuration is missing, H changes, main is
+no longer an ancestor of H, a required check is not successful, review policy
+is unsatisfied, or the push is not fast-forward. The workflow must not repair
+any of those states.
+
+This production acceptance is also the proof that repository ruleset bypass
+scope and the Actions App credentials are wired correctly. Configuration should
+not be considered complete merely because the App is installed or the ruleset
+looks correct in the UI.
+
 ## Scope
 
 The first implementation supports same-repository PR heads. This covers the
