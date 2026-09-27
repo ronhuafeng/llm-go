@@ -238,22 +238,33 @@ func TestInspectPendingClosedCandidateDoesNotRequireLiveBranch(t *testing.T) {
 	}
 }
 
-func TestInspectPendingHeadChecksDoNotCertifyMergeCandidate(t *testing.T) {
+func TestInspectPendingObservesCurrentHeadRequiredChecks(t *testing.T) {
 	for _, conclusion := range []string{"success", "failure", ""} {
 		t.Run(conclusion, func(t *testing.T) {
 			req, api := pendingFixture(t)
 			req.ReadChecks = true
-			api.prs[0].MergeSHA = strings.Repeat("4", 40)
 			api.checks = []map[string]string{
 				{"name": "Root source verification", "status": "completed", "conclusion": conclusion},
 				{"name": "Codex generated reproducibility / Generated reproducibility", "status": "completed", "conclusion": conclusion},
+				{"name": "Codex protocol provenance", "status": "completed", "conclusion": conclusion},
 			}
 			observed, err := InspectPending(req)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !strings.Contains(observed.Checks, "PR head") || !strings.Contains(observed.Checks, "merge candidate unverified") || strings.Contains(observed.Checks, "awaiting review") {
-				t.Fatalf("head checks overstated proof: %s", observed.Checks)
+			switch conclusion {
+			case "success":
+				if observed.Checks != "current-head required checks succeeded; no fresh proof acquired" {
+					t.Fatalf("checks = %q", observed.Checks)
+				}
+			case "failure":
+				if observed.Checks != "current-head required checks failed" {
+					t.Fatalf("checks = %q", observed.Checks)
+				}
+			default:
+				if observed.Checks != "current-head required checks pending or missing" {
+					t.Fatalf("checks = %q", observed.Checks)
+				}
 			}
 		})
 	}
