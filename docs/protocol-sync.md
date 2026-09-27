@@ -106,16 +106,18 @@ the upstream version has actually been integrated.
 Ownership is checked against the configured App bot user ID in the native PR
 creator and latest ref activity actor, plus actual repository/base/head, source
 identity, after-SHA, and allowed paths. The Client ID is used only to mint the
-publication token. Editable PR metadata and Git commit author names are not
-push authority. Human source changes or edited PR descriptions,
-ambiguous matches and unknown ownership require maintainer intervention. A
-manually closed candidate remains paused; a changed upstream tag is an integrity
-failure. A newer pending stable target is never replaced by an older attempt.
+publication token. Editable PR title/body and Git commit author names are
+presentation, not candidate identity or push authority. Human Git/source
+changes, ambiguous managed refs, and unknown ownership require maintainer
+intervention. A manually closed candidate remains paused; a changed upstream
+tag is an integrity failure. A newer pending stable target is never replaced by
+an older attempt.
 
 When the target or accepted base changes, reconstruct and validate on that exact
 base. Carry the initially observed branch/head to the independent publisher,
 then update with an explicit expected-old-head Git lease. Recheck remote state
-after publishing; a concurrent base or PR change invalidates reuse of the old
+after publishing; a concurrent base, head ref, repository, or PR lifecycle
+change invalidates reuse of the old
 proof. Lost write responses are read back before another effect is attempted.
 An App-owned orphan branch is rebuilt and verified before completing its PR.
 The PR API's `base.sha` may lag a main push; the selected checkout and remote
