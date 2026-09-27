@@ -23,6 +23,44 @@ base_branch: main
 	}
 }
 
+func TestUpdateSyncMetadataPreservesOperatorBody(t *testing.T) {
+	body := `<!-- codexsdk-upstream-sync
+upstream_ref: rust-v0.154.0
+upstream_ref_kind: stable_rust_tag
+upstream_commit: ` + oldSHA + `
+sync_commit: ` + oldSHA + `
+base_branch: main
+-->
+
+Operator scratchboard.
+
+## Progress
+
+Keep this note.
+`
+	got := updateSyncMetadata(body, "main", "rust-v0.155.0", KindStableTag, newSHA, newSHA)
+	if !strings.Contains(got, "upstream_ref: rust-v0.155.0") || !strings.Contains(got, "sync_commit: "+newSHA) {
+		t.Fatalf("metadata not updated:\n%s", got)
+	}
+	if !strings.Contains(got, "Operator scratchboard.") || !strings.Contains(got, "Keep this note.") {
+		t.Fatalf("operator body was overwritten:\n%s", got)
+	}
+	if strings.Count(got, "<!-- codexsdk-upstream-sync") != 1 {
+		t.Fatalf("metadata block count = %d", strings.Count(got, "<!-- codexsdk-upstream-sync"))
+	}
+}
+
+func TestUpdateSyncMetadataAddsProjectionWithoutOverwritingBody(t *testing.T) {
+	body := "Maintainer-owned notes.\n"
+	got := updateSyncMetadata(body, "main", "rust-v0.154.0", KindStableTag, newSHA, newSHA)
+	if !strings.HasPrefix(got, "<!-- codexsdk-upstream-sync") {
+		t.Fatalf("projection was not prepended:\n%s", got)
+	}
+	if !strings.Contains(got, body) {
+		t.Fatalf("body was not preserved:\n%s", got)
+	}
+}
+
 func TestNormalizeBranchRef(t *testing.T) {
 	if got := normalizeBranchRef("refs/heads/main", "origin"); got != "main" {
 		t.Fatalf("got %s", got)
