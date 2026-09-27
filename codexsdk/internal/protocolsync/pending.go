@@ -111,7 +111,7 @@ func InspectPending(req PendingRequest) (PendingPublication, error) {
 	if err := api.Request("GET", fmt.Sprintf("repos/%s/pulls/%d", req.Repository, pending.Number), nil, &current); err != nil {
 		return PendingPublication{}, err
 	}
-	if current.State != "open" || current.Head.SHA != pending.Head || current.Head.Ref != pending.Branch || current.Base.Ref != req.BaseBranch || current.Body != pending.Description || current.Title != pending.Title {
+	if current.State != "open" || current.Head.Ref != pending.Branch || current.Head.Repo.FullName != req.Repository || current.Base.Ref != req.BaseBranch || current.Body != pending.Description || current.Title != pending.Title {
 		return PendingPublication{}, publicationPolicy("sync PR #%d changed while inspecting it", pending.Number)
 	}
 	if pending.Reusable && req.ReadChecks {
@@ -156,7 +156,15 @@ func verifyAppActor(user publicationUser, botID int64) error {
 }
 
 func inspectPublicationHead(req PendingRequest, api PublicationAPI, pr publicationPR) (PendingPublication, error) {
-	head := pr.Head.SHA
+	// For an open PR, the Git ref is the authority for the mutable head.
+	// GitHub's PR head.sha is a derived API view and can briefly lag ref updates.
+	head, err := remotePublicationHead(req.RepoRoot, publicationRemote(req), pr.Head.Ref)
+	if err != nil {
+		return PendingPublication{}, fmt.Errorf("read open PR #%d remote head: %w", pr.Number, err)
+	}
+	if !shaRE.MatchString(head) {
+		return PendingPublication{}, publicationPolicy("open sync PR #%d branch %s has no exact remote head", pr.Number, pr.Head.Ref)
+	}
 	if err := fetchPublicationCommit(req, head); err != nil {
 		return PendingPublication{}, err
 	}
