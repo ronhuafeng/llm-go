@@ -218,12 +218,14 @@ func TestInspectPendingUsesRemoteRefAsOpenPRHeadAuthority(t *testing.T) {
 	}
 	oldHead := f.ref(f.branch)
 
-	// Advance the owned branch directly while the simulated PR API continues
-	// reporting the old derived head.sha. The remote ref must define H.
-	newHead := f.candidate(base, req.TargetRef, req.TargetSHA)
+	// Advance the owned branch with a new single candidate commit while the
+	// simulated PR API continues reporting the old derived head.sha. The live
+	// remote ref must define H.
+	gitMust(t, f.repo, "checkout", "--detach", base)
+	writeFile(t, filepath.Join(f.repo, "codexsdk", filepath.FromSlash(defaultBaselineRel), "baseline_metadata.json"), fmt.Sprintf(`{"source_commit":%q,"source_ref_name":%q,"source_ref_kind":"stable_rust_tag"}`, req.TargetSHA, req.TargetRef))
 	writeFile(t, filepath.Join(f.repo, "codexsdk", "projection.go"), "package codexsdk\n")
 	runGitInitCommit(t, f.repo, "new owned head")
-	newHead = strings.TrimSpace(gitMust(t, f.repo, "rev-parse", "HEAD"))
+	newHead := strings.TrimSpace(gitMust(t, f.repo, "rev-parse", "HEAD"))
 	gitMust(t, f.repo, "push", "--force", "origin", newHead+":refs/heads/"+f.branch)
 	f.staleHeadSHA = oldHead
 
