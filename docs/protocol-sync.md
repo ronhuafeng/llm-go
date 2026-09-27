@@ -316,12 +316,11 @@ A provenance-only advance records the newer exact source identity as the
 accepted baseline. Do not persist a second "verified upstream" state when the
 accepted baseline can carry the fact directly.
 
-Pending retry reports check runs attached to the PR head as observations only.
-GitHub can attach checks to that head while the jobs execute a synthetic merge
-candidate; same-named checks may also come from manual runs. The summary marks
-the integration candidate unverified and never infers integration readiness from these
-observations. Required PR verification and exact-upstream proof remain separate
-gates.
+Pending retry reports current-head required checks as observations only.
+Source, generated reproducibility, and protocol provenance all bind to the exact
+open PR head H. A prior successful observation can justify skipping duplicate
+generation for the same B/U/H state, but it does not integrate the PR or replace
+the trusted auto-forward ancestry/review revalidation.
 
 ## Agent boundary
 
