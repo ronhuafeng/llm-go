@@ -119,7 +119,7 @@ func publishCandidate(req PublishRequest) (string, error) {
 		if err := api.Request("GET", path, nil, &before); err != nil {
 			return "", err
 		}
-		if before.State != "open" || before.Head.SHA != publishHead || before.Body != observed.Description || before.Title != observed.Title {
+		if before.State != "open" || before.Head.Ref != branch || before.Head.Repo.FullName != req.Repository || before.Base.Ref != baseBranch || before.Body != observed.Description || before.Title != observed.Title {
 			return "", publicationPolicy("PR changed after push; retain the remote state for inspection")
 		}
 		if alreadyPublished && observed.Reusable {
@@ -149,7 +149,14 @@ func publishCandidate(req PublishRequest) (string, error) {
 			return "", fmt.Errorf("PR creation has %d confirmed matches: %v", matches, createErr)
 		}
 	}
-	if pr.State != "open" || pr.Head.SHA != publishHead || pr.Head.Ref != branch || pr.Head.Repo.FullName != req.Repository || pr.Base.Ref != baseBranch || pr.Body != body || pr.Title != title {
+	headSHAConfirmed := pr.Head.SHA == publishHead
+	if observed.Number != 0 && pr.Head.SHA == observed.Head {
+		// GitHub's pull-request API can briefly lag the branch ref after a
+		// successful force-with-lease update. The remote ref is verified below
+		// before publication is accepted.
+		headSHAConfirmed = true
+	}
+	if pr.State != "open" || !headSHAConfirmed || pr.Head.Ref != branch || pr.Head.Repo.FullName != req.Repository || pr.Base.Ref != baseBranch || pr.Body != body || pr.Title != title {
 		return "", publicationPolicy("PR readback does not match the publication; it remains unconfirmed")
 	}
 	if err := verifyAppActor(pr.User, req.AppBotID); err != nil {
