@@ -479,43 +479,47 @@ receive neither the App key nor token.
 Missing Client ID/bot ID/key fails with configuration instructions and
 `policy_configuration` attribution. Invalid keys, installation scope or grants
 fail token creation and prevent publication; there is no fallback identity.
-Create/update event acceptance records the App actor, event, PR head, actual
-integration candidate and the independent required checks. This setup never authorizes
-self-merge, tags or releases. If production evidence requires trusted main,
-merge the reviewed integration first and keep its implementation Issue open
-until the actual events are verified.
+Create/update event acceptance records the App actor, event, and exact PR head.
+This setup never authorizes integration, tags, or releases. Protocol publication
+stops at the proposal boundary; repository integration is owned separately by
+the Auto-forward PR path after current-H checks and review policy are satisfied.
 
 ## Final acceptance
 
-Use three independent GitHub proofs:
+A protocol PR has one acceptance candidate: its exact current head `H`.
 
 ```text
-Root source verification(I) == success
+Root source verification(H) == success
 
 AND
 
-Generated reproducibility(I) == success
+Generated reproducibility(H) == success
 
 AND
 
-Codex protocol provenance(H, U) == success
+Codex protocol provenance(H, U) == exact_verified
 ```
 
-Here `H` is the exact PR head, `I` is GitHub's current integration revision,
-and `U` is the exact ref/kind/SHA declared by H's checked-in baseline metadata.
-For protocol-relevant pull requests, the provenance job freshly reconstructs U
-and proves H without relying on an earlier run artifact. For unrelated pull
-requests it reports not applicable successfully. Integration events such as
-`merge_group` prove the new I through source and generated checks; they do not
-manufacture a new H provenance claim.
+`U` is the exact ref/kind/SHA declared by H's checked-in baseline metadata.
+For protocol-relevant PRs, provenance freshly reconstructs U and proves H.
+Source and generated checks verify the same H.
 
-These checks are separate merge authorities. GitHub branch protection should
-require all three directly. No source job acts as an aggregator for provenance.
+The PR is integration-ready only while current main `B` remains an ancestor of
+H and repository review policy for H is satisfied. Integration is not a GitHub
+merge/rebase/squash operation. The trusted Auto-forward PR workflow may only
+advance main by a normal non-force fast-forward to that already verified H.
+
+If main advances first, the protocol PR becomes stale. Protocol-sync must rebuild
+or update the pending proposal from current main, producing a new H that obtains
+new proofs. The integrator never rebases or repairs a stale candidate.
 
 The manual `validation_only` protocol-sync entrypoint remains a diagnostic
-projection of the same verifier. With no explicit ref it binds to the checked-in
+projection of the same verifier. With no explicit ref it binds to H's checked-in
 baseline identity; an explicit ref must resolve to that same identity. Manual
 dispatch is not part of normal acceptance.
+
+See [`auto-forward.md`](auto-forward.md) for the repository integration
+contract.
 
 ## Native control path
 
