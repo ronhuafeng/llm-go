@@ -110,7 +110,6 @@ func publishCandidate(req PublishRequest) (string, error) {
 			return "", &Failure{Category: FailurePublication, Err: fmt.Errorf("publication push did not establish expected head %s (observed %s): %v", head, actual, pushErr)}
 		}
 	}
-	body := publicationBody(baseBranch, req.TargetRef, req.TargetKind, req.TargetSHA, publishHead)
 	title := publicationTitle(req.TargetRef)
 	var pr publicationPR
 	if observed.Number != 0 {
@@ -122,7 +121,8 @@ func publishCandidate(req PublishRequest) (string, error) {
 		if before.State != "open" || before.Head.Ref != branch || before.Head.Repo.FullName != req.Repository || before.Base.Ref != baseBranch || before.Body != observed.Description || before.Title != observed.Title {
 			return "", publicationPolicy("PR changed after push; retain the remote state for inspection")
 		}
-		if alreadyPublished && observed.Reusable {
+		body := updateSyncMetadata(before.Body, baseBranch, req.TargetRef, req.TargetKind, req.TargetSHA, publishHead)
+		if alreadyPublished && observed.Reusable && publicationProjectionMatches(before.Body, baseBranch, req.TargetRef, req.TargetKind, req.TargetSHA, publishHead) {
 			pr = before
 		} else {
 			writeErr := api.Request("PATCH", path, map[string]string{"title": title, "body": body}, nil)
@@ -131,6 +131,7 @@ func publishCandidate(req PublishRequest) (string, error) {
 			}
 		}
 	} else {
+		body := publicationBody(baseBranch, req.TargetRef, req.TargetKind, req.TargetSHA, publishHead)
 		createErr := api.Request("POST", "repos/"+req.Repository+"/pulls", map[string]string{"head": branch, "base": baseBranch, "title": title, "body": body}, &pr)
 		// Even a successful response is followed by discovery. A lost response must
 		// not create a second PR on retry.
@@ -149,11 +150,14 @@ func publishCandidate(req PublishRequest) (string, error) {
 			return "", fmt.Errorf("PR creation has %d confirmed matches: %v", matches, createErr)
 		}
 	}
-	// The PR API confirms PR object identity and managed metadata. The mutable
-	// branch head is confirmed through the Git ref below; head.sha is only a
-	// derived API projection and is intentionally not an acceptance input.
-	if pr.State != "open" || pr.Head.Ref != branch || pr.Head.Repo.FullName != req.Repository || pr.Base.Ref != baseBranch || pr.Body != body || pr.Title != title {
-		return "", publicationPolicy("PR readback does not match the publication; it remains unconfirmed")
+	// The PR API confirms PR object identity. The mutable branch head and exact
+	// protocol identity are owned by Git. The hidden body block is only a
+	// recoverable projection and the visible body/title remain operator-editable.
+	if pr.State != "open" || pr.Head.Ref != branch || pr.Head.Repo.FullName != req.Repository || pr.Base.Ref != baseBranch {
+		return "", publicationPolicy("PR readback does not match the publication object; it remains unconfirmed")
+	}
+	if !publicationProjectionMatches(pr.Body, baseBranch, req.TargetRef, req.TargetKind, req.TargetSHA, publishHead) {
+		return "", publicationPolicy("PR metadata projection did not converge to the published Git identity")
 	}
 	if err := verifyAppActor(pr.User, req.AppBotID); err != nil {
 		return "", err
