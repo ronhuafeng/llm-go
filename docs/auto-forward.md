@@ -1,0 +1,142 @@
+# Auto-forwardable pull requests
+
+An auto-forwardable pull request uses one immutable candidate identity from
+verification through integration.
+
+## Contract
+
+Let:
+
+- `H` be the current PR head;
+- `B` be the current main head at integration time;
+- `U` be H's exact upstream protocol identity when relevant.
+
+The PR is auto-forwardable when:
+
+```text
+B ∈ ancestors(H)
+AND
+all required checks for H succeeded
+AND
+repository review policy for H is satisfied
+```
+
+The integration effect is only:
+
+```text
+main: B ──fast-forward──> H
+```
+
+No merge commit, squash commit, merge-time rebase, cherry-pick, force push, or
+other commit creation is part of integration.
+
+## Why
+
+The repository wants this invariant:
+
+```text
+tested H == reviewed H == integrated H == new main
+```
+
+GitHub's default synthetic merge revision is useful for conventional merge
+workflows, but it creates a second candidate identity. Rebase and squash merge
+also create new commit identities after CI. Auto-forward removes that split.
+
+## Stale PRs
+
+If main moves after H is verified, Git decides whether H can still be
+integrated.
+
+A normal push:
+
+```sh
+git push origin H:refs/heads/main
+```
+
+succeeds only if it is fast-forward. A non-fast-forward rejection means the PR
+is stale. The integration workflow stops.
+
+Recovery is:
+
+```text
+rebase PR onto current main
+→ new H
+→ rerun current-H checks
+→ reevaluate review policy
+→ try fast-forward again
+```
+
+The integration workflow never performs that recovery itself.
+
+## Current-head proofs
+
+Required PR checks are:
+
+- `Root source verification`
+- `Codex generated reproducibility / Generated reproducibility`
+- `Codex protocol provenance`
+
+All verify current H. Provenance performs exact H/U reconstruction when
+relevant, otherwise it completes as not applicable.
+
+## Integration workflow
+
+The trusted `Auto-forward PR` workflow is manually dispatched with a PR
+number.
+
+The read-only phase:
+
+1. verifies it was dispatched from trusted main;
+2. reads PR object identity;
+3. resolves H from the same-repository PR branch Git ref;
+4. resolves current main B from its Git ref;
+5. proves B is an ancestor of H;
+6. verifies the three required current-H check contexts;
+7. verifies GitHub does not report an unsatisfied review state.
+
+The effect phase repeats the identity/ancestry/check/review observations before
+minting write credentials.
+
+A dedicated repository-scoped GitHub App then receives only Contents: write for
+the final push. The effect is a normal non-force push of H to main, followed by
+an exact main-ref readback.
+
+## Configuration
+
+Configure:
+
+- repository Actions variable `AUTO_FORWARD_APP_CLIENT_ID`;
+- repository Actions secret `AUTO_FORWARD_APP_PRIVATE_KEY`.
+
+The App should be installed only on this repository with the minimum permission
+needed to advance protected main. Repository protection must explicitly allow
+this App's trusted fast-forward path while keeping ordinary direct pushes and
+force pushes blocked.
+
+Do not reuse a broader publication/release credential merely for convenience.
+
+## Repository policy
+
+The intended final repository policy is:
+
+- main is protected;
+- force pushes are disabled;
+- linear history is required;
+- current-H source/generated/provenance checks are required;
+- stale approvals are dismissed or otherwise cannot authorize a new H;
+- ordinary users and automation cannot directly advance main outside the trusted
+  auto-forward path;
+- GitHub merge/rebase/squash buttons are not an alternative integration
+  authority.
+
+Repository settings are part of this contract. Workflow code alone cannot make
+a second merge path disappear.
+
+## Scope
+
+The first implementation supports same-repository PR heads. This covers the
+repository's controlled development and protocol-sync branches and keeps one
+Git-ref namespace authoritative.
+
+Supporting fork PRs later would require an explicit trust and fetch model; it is
+not implicit in this workflow.
