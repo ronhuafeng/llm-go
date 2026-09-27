@@ -2,6 +2,15 @@ name: Verify generated protocol artifacts
 
 on:
   workflow_call:
+    inputs:
+      repository:
+        description: Repository containing the exact revision to verify.
+        required: false
+        type: string
+      ref:
+        description: Exact commit SHA to verify.
+        required: false
+        type: string
   workflow_dispatch:
 
 permissions:
@@ -15,7 +24,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.sha }}
+          repository: ${{ inputs.repository || github.repository }}
+          ref: ${{ inputs.ref || github.sha }}
           persist-credentials: false
 
       - uses: actions/setup-go@v7
