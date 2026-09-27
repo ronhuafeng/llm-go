@@ -83,15 +83,19 @@ func InspectPending(req PendingRequest) (PendingPublication, error) {
 			return PendingPublication{}, fmt.Errorf("sync PR #%d ownership: %w", pr.Number, err)
 		}
 
-		description, err := parsePublicationDescription(pr)
-		if err != nil {
-			return PendingPublication{}, err
-		}
+		projection := publicationProjection(pr.Body)
 		pending, err := inspectPublicationHead(req, api, pr)
 		if err != nil {
 			return PendingPublication{}, err
 		}
-		pending.Reusable = pending.Reusable && description.target == pending.Target && description.head == pending.Head && description.base == req.BaseBranch
+		// PR prose and the hidden metadata block are projections, not source
+		// authority. A stale or missing projection makes the publication
+		// non-reusable so publication can repair it, but it never invalidates
+		// the Git ref/commit identity already proven above.
+		pending.Reusable = pending.Reusable &&
+			projection.target == pending.Target &&
+			projection.head == pending.Head &&
+			projection.base == req.BaseBranch
 		found = append(found, pending)
 	}
 	if len(found) > 1 {
