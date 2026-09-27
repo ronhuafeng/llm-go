@@ -269,7 +269,7 @@ func inspectOrphanPublication(req PendingRequest, api PublicationAPI, prs []publ
 	if len(found) == 1 {
 		return found[0], nil
 	}
-	return PendingPublication{Head: "absent", Branch: syncBranchName(req.Target.RefName, req.Target.PeeledCommitSHA)}, nil
+	return PendingPublication{Head: "absent", Branch: syncBranchName(req.Target.RefName, req.Target.PeeledCommitSHA, req.BaseSHA)}, nil
 }
 
 // GitHub's activity actor records who changed the ref. Commit author fields and
