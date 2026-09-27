@@ -214,11 +214,18 @@ func TestSyncMergedAcceptedTargetSkipsPublication(t *testing.T) {
 	}
 }
 
-func TestInspectPendingPreservesHumanDescription(t *testing.T) {
+func TestInspectPendingAllowsOperatorScratchboard(t *testing.T) {
 	req, api := pendingFixture(t)
 	api.prs[0].Body += "\nMaintainer investigation notes.\n"
-	if _, err := InspectPending(req); err == nil {
-		t.Fatal("human description would be overwritten by automatic update")
+	observed, err := InspectPending(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !observed.Reusable {
+		t.Fatalf("operator notes changed Git publication identity: %+v", observed)
+	}
+	if !strings.Contains(observed.Description, "Maintainer investigation notes.") {
+		t.Fatal("operator notes were not preserved in the observation")
 	}
 }
 
