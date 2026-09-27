@@ -45,10 +45,6 @@ const (
 	MethodAccountBedrockDiscover                  = "account/bedrock/discover"
 	MethodAccountBedrockSetup                     = "account/bedrock/setup"
 	MethodAccountChatGPTAuthTokensRefresh         = "account/chatgptAuthTokens/refresh"
-	MethodAccountGatewayOAuthCancel               = "account/gatewayOAuth/cancel"
-	MethodAccountGatewayOAuthChanged              = "account/gatewayOAuth/changed"
-	MethodAccountGatewayOAuthLogin                = "account/gatewayOAuth/login"
-	MethodAccountGatewayOAuthRead                 = "account/gatewayOAuth/read"
 	MethodAccountLoginCancel                      = "account/login/cancel"
 	MethodAccountLoginCompleted                   = "account/login/completed"
 	MethodAccountLoginStart                       = "account/login/start"
@@ -338,50 +334,6 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchema:        "ChatgptAuthTokensRefreshResponse.json",
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "ServerRequests().ChatgptAuthTokensRefresh",
-		Stability:             MethodStabilityStable,
-	},
-	MethodAccountGatewayOAuthCancel: {
-		Method:                MethodAccountGatewayOAuthCancel,
-		Direction:             MethodDirectionClientToServer,
-		Kind:                  MethodKindRequest,
-		Family:                "account",
-		ParamsOrPayloadSchema: "",
-		ResponseSchema:        "v2/GatewayOAuthCancelResponse.json",
-		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
-		FacadeTarget:          "Accounts().GatewayOAuthCancel",
-		Stability:             MethodStabilityStable,
-	},
-	MethodAccountGatewayOAuthChanged: {
-		Method:                MethodAccountGatewayOAuthChanged,
-		Direction:             MethodDirectionServerToClient,
-		Kind:                  MethodKindNotification,
-		Family:                "account",
-		ParamsOrPayloadSchema: "GatewayOAuthChangedNotification",
-		ResponseSchema:        "",
-		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
-		FacadeTarget:          "ServerNotifications().AccountGatewayOAuthChanged",
-		Stability:             MethodStabilityStable,
-	},
-	MethodAccountGatewayOAuthLogin: {
-		Method:                MethodAccountGatewayOAuthLogin,
-		Direction:             MethodDirectionClientToServer,
-		Kind:                  MethodKindRequest,
-		Family:                "account",
-		ParamsOrPayloadSchema: "",
-		ResponseSchema:        "v2/GatewayOAuthLoginResponse.json",
-		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
-		FacadeTarget:          "Accounts().GatewayOAuthLogin",
-		Stability:             MethodStabilityStable,
-	},
-	MethodAccountGatewayOAuthRead: {
-		Method:                MethodAccountGatewayOAuthRead,
-		Direction:             MethodDirectionClientToServer,
-		Kind:                  MethodKindRequest,
-		Family:                "account",
-		ParamsOrPayloadSchema: "",
-		ResponseSchema:        "v2/GatewayOAuthReadResponse.json",
-		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
-		FacadeTarget:          "Accounts().GatewayOAuthRead",
 		Stability:             MethodStabilityStable,
 	},
 	MethodAccountLoginCancel: {

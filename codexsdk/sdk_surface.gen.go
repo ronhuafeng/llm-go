@@ -330,30 +330,6 @@ func (f Accounts) BedrockSetup(ctx context.Context, params protocolv2.BedrockSet
 	return response, nil
 }
 
-func (f Accounts) GatewayOAuthCancel(ctx context.Context) (protocolv2.GatewayOAuthCancelResponse, error) {
-	var response protocolv2.GatewayOAuthCancelResponse
-	if err := f.client.callProtocolNoParams(ctx, protocolv2.MethodAccountGatewayOAuthCancel, &response); err != nil {
-		return protocolv2.GatewayOAuthCancelResponse{}, err
-	}
-	return response, nil
-}
-
-func (f Accounts) GatewayOAuthLogin(ctx context.Context) (protocolv2.GatewayOAuthLoginResponse, error) {
-	var response protocolv2.GatewayOAuthLoginResponse
-	if err := f.client.callProtocolNoParams(ctx, protocolv2.MethodAccountGatewayOAuthLogin, &response); err != nil {
-		return protocolv2.GatewayOAuthLoginResponse{}, err
-	}
-	return response, nil
-}
-
-func (f Accounts) GatewayOAuthRead(ctx context.Context) (protocolv2.GatewayOAuthReadResponse, error) {
-	var response protocolv2.GatewayOAuthReadResponse
-	if err := f.client.callProtocolNoParams(ctx, protocolv2.MethodAccountGatewayOAuthRead, &response); err != nil {
-		return protocolv2.GatewayOAuthReadResponse{}, err
-	}
-	return response, nil
-}
-
 func (f Accounts) LoginCancel(ctx context.Context, params protocolv2.CancelLoginAccountParams) (protocolv2.CancelLoginAccountResponse, error) {
 	var response protocolv2.CancelLoginAccountResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodAccountLoginCancel, params, &response); err != nil {
