@@ -3,8 +3,7 @@ run-name: "Protocol sync ${{ inputs.upstream_ref || 'latest stable' }}"
 
 on:
   schedule:
-    # Temporary #336 acceptance window; restore the weekday 10:00 UTC cadence after the first accepted scheduled recovery run.
-    - cron: "7,22,37,52 * * * *"
+    - cron: "0 10 * * 1-5"
   workflow_dispatch:
     inputs:
       upstream_ref:
