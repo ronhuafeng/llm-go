@@ -21,6 +21,7 @@ type publicationFixture struct {
 	afterWrite             func()
 	actor                  publicationUser
 	staleBaseSHA           string
+	staleHeadSHA           string
 }
 
 func (f *publicationFixture) ref(name string) string {
@@ -35,6 +36,9 @@ func (f *publicationFixture) snapshot() []publicationPR {
 	prs := append([]publicationPR(nil), f.prs...)
 	for i := range prs {
 		prs[i].Head.SHA = f.ref(prs[i].Head.Ref)
+		if f.staleHeadSHA != "" {
+			prs[i].Head.SHA = f.staleHeadSHA
+		}
 		baseSHA := f.staleBaseSHA
 		if baseSHA == "" {
 			baseSHA = f.ref("main")
@@ -176,6 +180,34 @@ func TestPublishUpdatesAfterBaseAdvance(t *testing.T) {
 	}
 	if f.creates != 1 || f.updates != 1 || f.ref(f.branch) != newHead {
 		t.Fatalf("incorrect update: creates=%d updates=%d head=%s", f.creates, f.updates, f.ref(f.branch))
+	}
+}
+
+func TestPublishAcceptsLaggingPRHeadAfterSuccessfulLeaseUpdate(t *testing.T) {
+	f, req, base := newPublicationFixture(t)
+	if _, err := Publish(req); err != nil {
+		t.Fatal(err)
+	}
+	oldHead := f.ref(f.branch)
+
+	gitMust(t, f.repo, "checkout", "--detach", base)
+	writeFile(t, filepath.Join(f.repo, "README.md"), "new main base")
+	runGitInitCommit(t, f.repo, "advance main")
+	newBase := strings.TrimSpace(gitMust(t, f.repo, "rev-parse", "HEAD"))
+	gitMust(t, f.repo, "push", "origin", newBase+":refs/heads/main")
+
+	newHead := f.candidate(newBase, req.TargetRef, req.TargetSHA)
+	req.ExpectedHead = oldHead
+	f.staleHeadSHA = oldHead
+
+	if _, err := Publish(req); err != nil {
+		t.Fatal(err)
+	}
+	if f.ref(f.branch) != newHead || f.updates != 1 {
+		t.Fatalf("lagging API head blocked confirmed update: updates=%d remote=%s want=%s", f.updates, f.ref(f.branch), newHead)
+	}
+	if !strings.Contains(f.prs[0].Body, "sync_commit: "+newHead) {
+		t.Fatal("publication metadata did not advance to the confirmed remote head")
 	}
 }
 
