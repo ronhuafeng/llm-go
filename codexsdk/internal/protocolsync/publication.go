@@ -2,6 +2,7 @@ package protocolsync
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
 )
 
@@ -208,9 +209,8 @@ func publicationResult(req PublishRequest, url string, number int, branch, head 
 	return url, nil
 }
 
-// materializeRepairCommit replaces the local checkout with one commit.
-// The commit parent is current main. The tree is the open PR head's tree.
-// Protocol files are not regenerated.
+// materializeRepairCommit replays the non-single head's valid diff onto current main.
+// It keeps later main commits and does not regenerate protocol files.
 func materializeRepairCommit(req PublishRequest) error {
 	if req.ExpectedHead == "absent" || !shaRE.MatchString(req.ExpectedHead) {
 		return publicationPolicy("repair requires the observed non-single head")
@@ -259,19 +259,61 @@ func materializeRepairCommit(req PublishRequest) error {
 	if !observed.Repair || observed.Head != req.ExpectedHead || observed.Branch != req.ExpectedBranch {
 		return publicationPolicy("repair state changed since planning; expected %s at %s, observed repair=%t %s at %s", req.ExpectedBranch, req.ExpectedHead, observed.Repair, observed.Branch, observed.Head)
 	}
-	tree, err := gitOutput(req.RepoRoot, "rev-parse", observed.Head+"^{tree}")
+	base, err := containedRepairParent(req.RepoRoot, observed.Head, head)
 	if err != nil {
 		return err
 	}
-	tree = strings.TrimSpace(tree)
-	commit, err := gitOutput(req.RepoRoot, "commit-tree", tree, "-p", head,
+	changed, err := gitNUL(req.RepoRoot, "diff", "--name-only", "--no-renames", "-z", base, observed.Head, "--")
+	if err != nil {
+		return err
+	}
+	if len(changed) == 0 {
+		return publicationPolicy("repair diff from %s to %s is empty", base, observed.Head)
+	}
+	if err := validatePaths(changed, "final"); err != nil {
+		return err
+	}
+	patch, err := gitOutput(req.RepoRoot, "diff", "--binary", "--full-index", base, observed.Head)
+	if err != nil {
+		return err
+	}
+	if err := applyRepairPatch(req.RepoRoot, patch); err != nil {
+		return err
+	}
+	return runGit(req.RepoRoot, "commit",
 		"-m", "Sync Codex protocol baseline to "+req.TargetRef,
 		"-m", "Upstream-ref: "+req.TargetRef,
 		"-m", "Upstream-ref-kind: "+req.TargetKind,
 		"-m", "Upstream-commit: "+req.TargetSHA)
+}
+
+func containedRepairParent(repo, head, main string) (string, error) {
+	raw, err := gitOutput(repo, "rev-list", "--parents", "-n", "1", head)
 	if err != nil {
-		return err
+		return "", err
 	}
-	commit = strings.TrimSpace(commit)
-	return runGit(req.RepoRoot, "checkout", "--detach", commit)
+	fields := strings.Fields(strings.TrimSpace(raw))
+	if len(fields) < 3 || fields[0] != head {
+		return "", publicationPolicy("repair head %s is not a multi-parent commit", head)
+	}
+	var contained []string
+	for _, parent := range fields[1:] {
+		if err := runGit(repo, "merge-base", "--is-ancestor", parent, main); err == nil {
+			contained = append(contained, parent)
+		}
+	}
+	if len(contained) != 1 {
+		return "", publicationPolicy("repair requires exactly one parent contained by current main, found %d", len(contained))
+	}
+	return contained[0], nil
+}
+
+func applyRepairPatch(repo, patch string) error {
+	cmd := exec.Command("git", "-C", repo, "apply", "--index", "--binary")
+	cmd.Stdin = strings.NewReader(patch)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("git apply repair patch: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
 }

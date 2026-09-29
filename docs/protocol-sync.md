@@ -115,8 +115,9 @@ failure. A newer pending stable target is never replaced by an older attempt.
 
 `repair_pending` is the explicit maintainer recovery for an open App-owned sync
 PR whose current head is not a single candidate commit. It does not regenerate
-protocol files. The App creates one new commit whose parent is current main and
-whose tree equals that head, then updates the existing branch with
+protocol files. The App replays that head's valid protocol diff from the one parent
+already contained by current main. The new commit's parent is current main, so
+later main commits remain. It then updates the existing branch with
 force-with-lease. A head that is already a single commit, a closed candidate,
 and a tree whose baseline identity does not match the selected target are not
 repaired.

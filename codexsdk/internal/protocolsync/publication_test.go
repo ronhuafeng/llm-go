@@ -438,6 +438,11 @@ func TestPublishRepairPreservesNonSingleTree(t *testing.T) {
 	gitMust(t, f.repo, "push", "origin", merge+":refs/heads/"+f.branch)
 	f.actor = publicationUser{Login: "maintainer", Type: "User"}
 	gitMust(t, f.repo, "checkout", "--detach", newBase)
+	writeFile(t, filepath.Join(f.repo, "MAINTAINER.txt"), "later main commit")
+	runGitInitCommit(t, f.repo, "advance main after the contaminated merge")
+	laterBase := strings.TrimSpace(gitMust(t, f.repo, "rev-parse", "HEAD"))
+	gitMust(t, f.repo, "push", "origin", laterBase+":refs/heads/main")
+	gitMust(t, f.repo, "checkout", "--detach", laterBase)
 
 	req.ExpectedHead = merge
 	req.ExpectedBranch = f.branch
@@ -452,12 +457,19 @@ func TestPublishRepairPreservesNonSingleTree(t *testing.T) {
 	if actual == "" || actual == merge {
 		t.Fatalf("branch head = %s, merge = %s", actual, merge)
 	}
-	if gitMust(t, f.repo, "rev-parse", merge+"^{tree}") != gitMust(t, f.repo, "rev-parse", actual+"^{tree}") {
-		t.Fatal("repair changed the protocol tree")
+	if gitMust(t, f.repo, "rev-parse", merge+"^{tree}") == gitMust(t, f.repo, "rev-parse", actual+"^{tree}") {
+		t.Fatal("repair discarded the later main commit")
+	}
+	protocolPath := "codexsdk/" + filepath.ToSlash(defaultBaselineRel) + "/baseline_metadata.json"
+	if gitMust(t, f.repo, "rev-parse", merge+":"+protocolPath) != gitMust(t, f.repo, "rev-parse", actual+":"+protocolPath) {
+		t.Fatal("repair changed the protocol baseline")
+	}
+	if gitMust(t, f.repo, "show", actual+":MAINTAINER.txt") != "later main commit" {
+		t.Fatal("repair lost the later main file")
 	}
 	parents := strings.Fields(gitMust(t, f.repo, "rev-list", "--parents", "-n", "1", actual))
-	if len(parents) != 2 || parents[1] != newBase {
-		t.Fatalf("repaired parents = %v, want parent %s", parents, newBase)
+	if len(parents) != 2 || parents[1] != laterBase {
+		t.Fatalf("repaired parents = %v, want parent %s", parents, laterBase)
 	}
 	if !strings.Contains(f.prs[0].Body, "sync_commit: "+actual) {
 		t.Fatalf("body missing repaired head:\n%s", f.prs[0].Body)
