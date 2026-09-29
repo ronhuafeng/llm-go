@@ -112,28 +112,17 @@ Configure:
 - repository Actions secret `AUTO_FORWARD_APP_PRIVATE_KEY`.
 
 The App should be installed only on this repository with the minimum permission
-needed to advance protected main. Repository protection must explicitly allow
-this App's trusted fast-forward path while keeping ordinary direct pushes and
-force pushes blocked.
+needed to advance protected main. The main ruleset blocks updates and deletion
+for everyone except this App. The App bypasses that ruleset so it can
+fast-forward main directly.
 
 Do not reuse a broader publication/release credential merely for convenience.
 
 ## Repository policy
 
-The intended final repository policy is:
-
-- main is protected;
-- force pushes are disabled;
-- linear history is required;
-- current-H source/generated/provenance checks are required;
-- stale approvals are dismissed or otherwise cannot authorize a new H;
-- ordinary users and automation cannot directly advance main outside the trusted
-  auto-forward path;
-- GitHub merge/rebase/squash buttons are not an alternative integration
-  authority.
-
-Repository settings are part of this contract. Workflow code alone cannot make
-a second merge path disappear.
+The main ruleset has two rules: only the Auto-forward App can update `main`, and
+only that App can delete `main`. Checks, review policy, and the non-force
+fast-forward are workflow gates, not ruleset rules.
 
 ## Production acceptance
 
