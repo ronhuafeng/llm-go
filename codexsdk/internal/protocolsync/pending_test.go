@@ -316,3 +316,79 @@ func TestInspectPendingRejectsDescriptionEditedDuringRead(t *testing.T) {
 		t.Fatal("concurrent description edit reused stale publication")
 	}
 }
+
+func TestInspectPendingRepairPreservesNonSingleTree(t *testing.T) {
+	req, api := pendingFixture(t)
+	gitMust(t, req.RepoRoot, "checkout", "--detach", req.BaseSHA)
+	writeFile(t, filepath.Join(req.RepoRoot, "README.md"), "new accepted base")
+	runGitInitCommit(t, req.RepoRoot, "advance accepted base")
+	newBase := strings.TrimSpace(gitMust(t, req.RepoRoot, "rev-parse", "HEAD"))
+	gitMust(t, req.RepoRoot, "checkout", "--detach", api.prs[0].Head.SHA)
+	gitMust(t, req.RepoRoot, "merge", "--no-ff", newBase, "-m", "merge main")
+	merge := strings.TrimSpace(gitMust(t, req.RepoRoot, "rev-parse", "HEAD"))
+	parents := strings.Fields(gitMust(t, req.RepoRoot, "rev-list", "--parents", "-n", "1", merge))
+	if len(parents) != 3 {
+		t.Fatalf("parents = %v", parents)
+	}
+	gitMust(t, req.RepoRoot, "branch", "-f", api.prs[0].Head.Ref, merge)
+	gitMust(t, req.RepoRoot, "branch", "-f", "main", newBase)
+	api.pushAfter = merge
+	api.pushActor = publicationUser{Login: "maintainer", Type: "User"}
+	gitMust(t, req.RepoRoot, "checkout", "--detach", newBase)
+	req.BaseSHA = newBase
+
+	if _, err := InspectPending(req); err == nil || !strings.Contains(err.Error(), "not a single candidate commit") {
+		t.Fatalf("unrequested repair accepted merge head: %v", err)
+	}
+	req.RepairPending = true
+	observed, err := InspectPending(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !observed.Repair || observed.Reusable || observed.Head != merge || observed.BaseSHA != "" || observed.Branch != api.prs[0].Head.Ref {
+		t.Fatalf("repair observation = %+v", observed)
+	}
+
+	req.Target.PeeledCommitSHA = strings.Repeat("3", 40)
+	if _, err := InspectPending(req); err == nil || !strings.Contains(err.Error(), "repair requires the current tree") {
+		t.Fatalf("mismatched tree was repairable: %v", err)
+	}
+}
+
+func TestSyncRepairDoesNotRegenerate(t *testing.T) {
+	req, api := pendingFixture(t)
+	gitMust(t, req.RepoRoot, "checkout", "--detach", req.BaseSHA)
+	writeFile(t, filepath.Join(req.RepoRoot, "README.md"), "new accepted base")
+	runGitInitCommit(t, req.RepoRoot, "advance accepted base")
+	newBase := strings.TrimSpace(gitMust(t, req.RepoRoot, "rev-parse", "HEAD"))
+	gitMust(t, req.RepoRoot, "checkout", "--detach", api.prs[0].Head.SHA)
+	gitMust(t, req.RepoRoot, "merge", "--no-ff", newBase, "-m", "merge main")
+	merge := strings.TrimSpace(gitMust(t, req.RepoRoot, "rev-parse", "HEAD"))
+	gitMust(t, req.RepoRoot, "branch", "-f", api.prs[0].Head.Ref, merge)
+	gitMust(t, req.RepoRoot, "branch", "-f", "main", newBase)
+	api.pushAfter = merge
+	api.pushActor = publicationUser{Login: "maintainer", Type: "User"}
+	gitMust(t, req.RepoRoot, "checkout", "--detach", newBase)
+	req.BaseSHA = newBase
+
+	result, err := Sync(SyncRequest{
+		RepoRoot: req.RepoRoot, Publication: &req, UpstreamRef: req.Target.RefName, RepairPending: true,
+		Lookuper: fakeLookuper{byPattern: map[string]string{
+			"refs/tags/rust-v0.154.0":    newSHA + "\trefs/tags/rust-v0.154.0",
+			"refs/tags/rust-v0.154.0^{}": newSHA + "\trefs/tags/rust-v0.154.0^{}",
+		}},
+		Generate: func(GenerateRequest) (Candidate, error) {
+			t.Fatal("repair regenerated protocol files")
+			return Candidate{}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Outcome != OutcomeRepairReady || result.Publication == nil || result.Publication.Head != merge || !result.Publication.Repair {
+		t.Fatalf("result=%+v publication=%+v", result, result.Publication)
+	}
+	if !strings.Contains(result.Reason, "no regeneration") {
+		t.Fatalf("reason=%s", result.Reason)
+	}
+}

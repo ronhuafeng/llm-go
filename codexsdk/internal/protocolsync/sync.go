@@ -18,6 +18,7 @@ const (
 	OutcomeApplied            = "applied"
 	OutcomePlanReady          = "plan_ready"
 	OutcomePRPending          = "pr_pending"
+	OutcomeRepairReady        = "repair_ready"
 	OutcomeSemanticUnresolved = "semantic_unresolved"
 )
 
@@ -31,6 +32,7 @@ type SyncRequest struct {
 	LatestStable   bool
 	AllowDowngrade bool
 	ForceCompare   bool
+	RepairPending  bool
 	ValidationOnly bool
 	Diagnostic     bool
 	EventName      string
@@ -76,6 +78,9 @@ func Sync(req SyncRequest) (result SyncResult, err error) {
 	defer func() { finishSync(&result, err, stage) }()
 	if req.ValidationOnly && req.Diagnostic {
 		return result, &Failure{Category: FailurePolicy, Err: fmt.Errorf("validation-only cannot be combined with diagnostic mode")}
+	}
+	if req.RepairPending && (req.ForceCompare || req.ValidationOnly || req.Diagnostic) {
+		return result, &Failure{Category: FailurePolicy, Err: fmt.Errorf("repair-pending cannot be combined with force-compare, validation-only, or diagnostic mode")}
 	}
 	if req.ValidationOnly && !req.ForceCompare {
 		return result, &Failure{Category: FailurePolicy, Err: fmt.Errorf("validation-only requires force-compare")}
@@ -158,6 +163,7 @@ func Sync(req SyncRequest) (result SyncResult, err error) {
 		inspection.RepoRoot = req.RepoRoot
 		inspection.Target = target
 		inspection.ReadChecks = true
+		inspection.RepairPending = req.RepairPending
 		base, err := gitOutput(req.RepoRoot, "rev-parse", "HEAD")
 		if err != nil {
 			return result, err
@@ -175,6 +181,17 @@ func Sync(req SyncRequest) (result SyncResult, err error) {
 			return result, &Failure{Category: FailurePublication, Err: fmt.Errorf("base branch %s moved from %s to %s; restart from the current base", inspection.BaseBranch, inspection.BaseSHA, currentBase)}
 		}
 		result.Publication = &pending
+		if req.RepairPending {
+			if !pending.Repair {
+				if pending.Number == 0 {
+					return result, publicationPolicy("repair requested but no open non-single sync PR matches this candidate")
+				}
+				return result, publicationPolicy("repair requested but PR #%d is already a single candidate commit", pending.Number)
+			}
+			result.Outcome = OutcomeRepairReady
+			result.Reason = fmt.Sprintf("repair preserves the tree of PR #%d at %s; no regeneration", pending.Number, pending.Head)
+			return result, nil
+		}
 		if pending.Reusable {
 			result.Outcome = OutcomePRPending
 			result.Reason = fmt.Sprintf("%s remains pending: %s; no generation, Agent pass, or fresh proof", pending.URL, pending.Checks)

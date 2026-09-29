@@ -224,6 +224,7 @@ func runSync(args []string, stdout, stderr io.Writer, diagnostic bool) int {
 	upstreamRef := fs.String("upstream-ref", "", "optional tag, ref, or full SHA; empty selects the latest stable rust-vX.Y.Z tag")
 	allowDowngrade := fs.Bool("allow-downgrade", false, "allow an explicit older stable tag")
 	forceCompare := fs.Bool("force-compare", false, "generate and compare even when the baseline already matches")
+	repairPending := fs.Bool("repair-pending", false, "preserve an open non-single sync PR tree and replace that head with one commit")
 	validationOnly := fs.Bool("validation-only", false, "verify the exact accepted baseline without applying or publishing")
 	eventName := fs.String("event-name", "", "GitHub event name for scheduled vs manual policy")
 	repository := fs.String("github-repository", "", "repository for native pending PR discovery; empty disables remote publication")
@@ -251,6 +252,7 @@ func runSync(args []string, stdout, stderr io.Writer, diagnostic bool) int {
 		UpstreamRef:    *upstreamRef,
 		AllowDowngrade: *allowDowngrade,
 		ForceCompare:   *forceCompare,
+		RepairPending:  *repairPending,
 		ValidationOnly: *validationOnly,
 		Diagnostic:     diagnostic,
 		EventName:      *eventName,
@@ -363,6 +365,7 @@ func runPublish(args []string, stdout, stderr io.Writer) int {
 	appBotID := fs.Int64("app-bot-id", 0, "publishing GitHub App bot user ID")
 	expectedHead := fs.String("expected-head", "", "head observed before generation, or absent")
 	expectedBranch := fs.String("expected-branch", "", "branch selected before generation")
+	repairPending := fs.Bool("repair-pending", false, "replace the observed non-single head with one commit that keeps its tree")
 	targetRef := fs.String("target-ref", "", "selected upstream ref")
 	targetKind := fs.String("target-kind", "", "selected upstream kind")
 	targetSHA := fs.String("target-sha", "", "selected upstream commit")
@@ -376,6 +379,7 @@ func runPublish(args []string, stdout, stderr io.Writer) int {
 
 		Repository: *repository, AppBotID: *appBotID,
 		ExpectedHead: *expectedHead, ExpectedBranch: *expectedBranch,
+		RepairPending:    *repairPending,
 		TargetRef:        *targetRef,
 		TargetKind:       *targetKind,
 		TargetSHA:        *targetSHA,

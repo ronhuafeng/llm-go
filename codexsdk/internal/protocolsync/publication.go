@@ -9,6 +9,11 @@ func publishCandidate(req PublishRequest) (string, error) {
 	if req.RepoRoot == "" || req.BaseBranch == "" || req.TargetRef == "" || req.TargetKind == "" || !shaRE.MatchString(req.TargetSHA) {
 		return "", fmt.Errorf("repo-root, base-branch, and exact target identity are required")
 	}
+	if req.RepairPending {
+		if err := materializeRepairCommit(req); err != nil {
+			return "", err
+		}
+	}
 	remote := req.Remote
 	if remote == "" {
 		remote = "origin"
@@ -66,7 +71,7 @@ func publishCandidate(req PublishRequest) (string, error) {
 	if api == nil {
 		api = githubPublicationAPI{repoRoot: req.RepoRoot}
 	}
-	inspection := PendingRequest{RepoRoot: req.RepoRoot, Repository: req.Repository, AppBotID: req.AppBotID, BaseBranch: baseBranch, BaseSHA: parent, Target: target, API: api, Remote: remote}
+	inspection := PendingRequest{RepoRoot: req.RepoRoot, Repository: req.Repository, AppBotID: req.AppBotID, BaseBranch: baseBranch, BaseSHA: parent, Target: target, API: api, Remote: remote, RepairPending: req.RepairPending}
 	observed, err := InspectPending(inspection)
 	if err != nil {
 		return "", err
@@ -201,4 +206,72 @@ func publicationResult(req PublishRequest, url string, number int, branch, head 
 		return "", err
 	}
 	return url, nil
+}
+
+// materializeRepairCommit replaces the local checkout with one commit.
+// The commit parent is current main. The tree is the open PR head's tree.
+// Protocol files are not regenerated.
+func materializeRepairCommit(req PublishRequest) error {
+	if req.ExpectedHead == "absent" || !shaRE.MatchString(req.ExpectedHead) {
+		return publicationPolicy("repair requires the observed non-single head")
+	}
+	if req.ExpectedBranch == "" || !strings.HasPrefix(req.ExpectedBranch, "codex/sync-upstream") {
+		return publicationPolicy("repair requires its original sync branch")
+	}
+	if err := AssertClean(req.RepoRoot); err != nil {
+		return err
+	}
+	head, err := gitOutput(req.RepoRoot, "rev-parse", "HEAD")
+	if err != nil {
+		return err
+	}
+	head = strings.TrimSpace(head)
+	remote := req.Remote
+	if remote == "" {
+		remote = "origin"
+	}
+	baseBranch := normalizeBranchRef(req.BaseBranch, remote)
+	if err := runGit(req.RepoRoot, "fetch", remote, "refs/heads/"+baseBranch+":refs/remotes/"+remote+"/"+baseBranch); err != nil {
+		return err
+	}
+	landing, err := gitOutput(req.RepoRoot, "rev-parse", remote+"/"+baseBranch)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(landing) != head {
+		return &Failure{Category: FailurePublication, Err: fmt.Errorf("repair must start from current %s", baseBranch)}
+	}
+	api := req.API
+	if api == nil {
+		api = githubPublicationAPI{repoRoot: req.RepoRoot}
+	}
+	target, err := ResolveUpstream(ResolveRequest{UpstreamRef: req.TargetRef, Lookuper: req.Lookuper})
+	if err != nil {
+		return err
+	}
+	if target.PeeledCommitSHA != req.TargetSHA || target.RefName != req.TargetRef || target.RefKind != req.TargetKind {
+		return &Failure{Category: FailureSource, Err: fmt.Errorf("upstream target moved from %s to %s", req.TargetSHA, target.PeeledCommitSHA)}
+	}
+	observed, err := InspectPending(PendingRequest{RepoRoot: req.RepoRoot, Repository: req.Repository, AppBotID: req.AppBotID, BaseBranch: baseBranch, BaseSHA: head, Target: target, API: api, Remote: remote, RepairPending: true})
+	if err != nil {
+		return err
+	}
+	if !observed.Repair || observed.Head != req.ExpectedHead || observed.Branch != req.ExpectedBranch {
+		return publicationPolicy("repair state changed since planning; expected %s at %s, observed repair=%t %s at %s", req.ExpectedBranch, req.ExpectedHead, observed.Repair, observed.Branch, observed.Head)
+	}
+	tree, err := gitOutput(req.RepoRoot, "rev-parse", observed.Head+"^{tree}")
+	if err != nil {
+		return err
+	}
+	tree = strings.TrimSpace(tree)
+	commit, err := gitOutput(req.RepoRoot, "commit-tree", tree, "-p", head,
+		"-m", "Sync Codex protocol baseline to "+req.TargetRef,
+		"-m", "Upstream-ref: "+req.TargetRef,
+		"-m", "Upstream-ref-kind: "+req.TargetKind,
+		"-m", "Upstream-commit: "+req.TargetSHA)
+	if err != nil {
+		return err
+	}
+	commit = strings.TrimSpace(commit)
+	return runGit(req.RepoRoot, "checkout", "--detach", commit)
 }

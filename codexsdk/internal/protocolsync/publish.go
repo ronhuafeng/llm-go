@@ -20,6 +20,7 @@ type PublishRequest struct {
 	TargetSHA                                string
 	Remote                                   string
 	GitHubOutputPath                         string
+	RepairPending                            bool
 }
 
 // Publish conditionally publishes the validated HEAD against the native state

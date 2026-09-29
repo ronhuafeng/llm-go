@@ -112,6 +112,15 @@ ambiguous matches and unknown ownership require maintainer intervention. A
 manually closed candidate remains paused; a changed upstream tag is an integrity
 failure. A newer pending stable target is never replaced by an older attempt.
 
+
+`repair_pending` is the explicit maintainer recovery for an open App-owned sync
+PR whose current head is not a single candidate commit. It does not regenerate
+protocol files. The App creates one new commit whose parent is current main and
+whose tree equals that head, then updates the existing branch with
+force-with-lease. A head that is already a single commit, a closed candidate,
+and a tree whose baseline identity does not match the selected target are not
+repaired.
+
 When the target or accepted base changes, reconstruct and validate on that exact
 base. Carry the initially observed branch/head to the independent publisher,
 then update with an explicit expected-old-head Git lease. Recheck remote state

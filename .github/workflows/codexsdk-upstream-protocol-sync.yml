@@ -20,6 +20,11 @@ on:
         required: false
         type: boolean
         default: false
+      repair_pending:
+        description: "Preserve the tree of an open App-owned sync PR whose head is not one commit. The App replaces that head with one commit based on current main. Do not combine with force_compare, validation_only, or diagnostic_only."
+        required: false
+        type: boolean
+        default: false
       validation_only:
         description: "Rebuild and verify this revision's exact checked-in baseline without Agent, Apply, commit, or publication. An explicit upstream_ref must resolve to that same identity. Requires force_compare."
         required: false
@@ -324,6 +329,7 @@ jobs:
           GOTOOLCHAIN: local
           ALLOW_DOWNGRADE: ${{ inputs.allow_downgrade || false }}
           FORCE_COMPARE: ${{ inputs.force_compare || false }}
+          REPAIR_PENDING: ${{ inputs.repair_pending || false }}
           REQUESTED_REF: ${{ inputs.upstream_ref || '' }}
           EVENT_NAME: ${{ github.event_name }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -349,6 +355,13 @@ jobs:
           fi
           if [[ "${FORCE_COMPARE}" == "true" ]]; then
             args+=(-force-compare)
+          fi
+          if [[ "${REPAIR_PENDING}" == "true" ]]; then
+            if [[ "${FORCE_COMPARE}" == "true" ]]; then
+              echo 'repair_pending cannot be combined with force_compare.' >&2
+              exit 1
+            fi
+            args+=(-repair-pending)
           fi
           go run ./internal/cmd/protocolupgrade "${args[@]}"
 
@@ -546,7 +559,7 @@ jobs:
           if-no-files-found: ignore
 
   publish:
-    if: ${{ needs.sync.outputs.outcome == 'applied' || needs.sync.outputs.resume_outcome == 'applied' }}
+    if: ${{ needs.sync.outputs.outcome == 'applied' || needs.sync.outputs.resume_outcome == 'applied' || needs.sync.outputs.outcome == 'repair_ready' }}
     needs: sync
     outputs:
       outcome: ${{ steps.publish.outputs.outcome }}
@@ -590,6 +603,7 @@ jobs:
         run: go build -o "${RUNNER_TEMP}/protocolupgrade-control" ./internal/cmd/protocolupgrade
 
       - name: Download verified proposal
+        if: ${{ needs.sync.outputs.outcome != 'repair_ready' }}
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: protocol-sync-proposal
@@ -619,26 +633,36 @@ jobs:
           TARGET_KIND: ${{ needs.sync.outputs.target_kind }}
           TARGET_REF: ${{ needs.sync.outputs.target_ref }}
           TARGET_SHA: ${{ needs.sync.outputs.target_sha }}
+          REPAIR_PENDING: ${{ needs.sync.outputs.outcome == 'repair_ready' }}
         run: |
           set -euo pipefail
-          patch="${RUNNER_TEMP}/protocol-sync-handoff/proposal.patch"
-          echo "${PATCH_SHA256}  ${patch}" | sha256sum -c -
-          git -C "${GITHUB_WORKSPACE}" apply --check "${patch}"
-          git -C "${GITHUB_WORKSPACE}" apply "${patch}"
           control="${RUNNER_TEMP}/protocolupgrade-control"
-          "${control}" stage \
-            -repo-root "${GITHUB_WORKSPACE}" \
-            -phase final
-          git diff --cached --check
-          git -c user.name="ronhuafeng-llm-go-sync[bot]" \
-            -c user.email="${APP_BOT_ID}+ronhuafeng-llm-go-sync[bot]@users.noreply.github.com" \
-            commit \
-            -m "Sync Codex protocol baseline to ${TARGET_REF}" \
-            -m "Upstream-ref: ${TARGET_REF}" \
-            -m "Upstream-ref-kind: ${TARGET_KIND}" \
-            -m "Upstream-commit: ${TARGET_SHA}"
+          if [[ "${REPAIR_PENDING}" == "true" ]]; then
+            git config user.name "ronhuafeng-llm-go-sync[bot]"
+            git config user.email "${APP_BOT_ID}+ronhuafeng-llm-go-sync[bot]@users.noreply.github.com"
+          else
+            patch="${RUNNER_TEMP}/protocol-sync-handoff/proposal.patch"
+            echo "${PATCH_SHA256}  ${patch}" | sha256sum -c -
+            git -C "${GITHUB_WORKSPACE}" apply --check "${patch}"
+            git -C "${GITHUB_WORKSPACE}" apply "${patch}"
+            "${control}" stage \
+              -repo-root "${GITHUB_WORKSPACE}" \
+              -phase final
+            git diff --cached --check
+            git -c user.name="ronhuafeng-llm-go-sync[bot]" \
+              -c user.email="${APP_BOT_ID}+ronhuafeng-llm-go-sync[bot]@users.noreply.github.com" \
+              commit \
+              -m "Sync Codex protocol baseline to ${TARGET_REF}" \
+              -m "Upstream-ref: ${TARGET_REF}" \
+              -m "Upstream-ref-kind: ${TARGET_KIND}" \
+              -m "Upstream-commit: ${TARGET_SHA}"
+          fi
           gh auth status
           gh auth setup-git
+          repair_args=()
+          if [[ "${REPAIR_PENDING}" == "true" ]]; then
+            repair_args+=(-repair-pending)
+          fi
           "${control}" publish \
             -repo-root "${GITHUB_WORKSPACE}" \
             -base-branch "${DEFAULT_BRANCH}" \
@@ -648,7 +672,8 @@ jobs:
             -expected-branch "${EXPECTED_BRANCH}" \
             -target-ref "${TARGET_REF}" \
             -target-kind "${TARGET_KIND}" \
-            -target-sha "${TARGET_SHA}"
+            -target-sha "${TARGET_SHA}" \
+            "${repair_args[@]}"
 
   summary:
     if: ${{ always() }}
@@ -705,6 +730,7 @@ jobs:
               semantic_unresolved) next='Review the reported unsupported representation; only the trusted sync workflow may attempt one constrained repair.' ;;
               pr_pending) next='PR is pending required checks and repository review/integration; publication is not integration.' ;;
               applied) next='Candidate was applied locally; inspect publication status before claiming delivery.' ;;
+              repair_ready) next='The open sync tree was preserved. Publication replaces the non-single head with one commit on current main.' ;;
             esac
           fi
           {

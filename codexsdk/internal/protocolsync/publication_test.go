@@ -420,3 +420,46 @@ func TestPublishAcceptsOperatorNoteAddedDuringCreation(t *testing.T) {
 		t.Fatal("maintainer note was lost")
 	}
 }
+
+func TestPublishRepairPreservesNonSingleTree(t *testing.T) {
+	f, req, base := newPublicationFixture(t)
+	if _, err := Publish(req); err != nil {
+		t.Fatal(err)
+	}
+	oldHead := f.ref(f.branch)
+	gitMust(t, f.repo, "checkout", "--detach", base)
+	writeFile(t, filepath.Join(f.repo, "README.md"), "new main base")
+	runGitInitCommit(t, f.repo, "advance main")
+	newBase := strings.TrimSpace(gitMust(t, f.repo, "rev-parse", "HEAD"))
+	gitMust(t, f.repo, "push", "origin", newBase+":refs/heads/main")
+	gitMust(t, f.repo, "checkout", "--detach", oldHead)
+	gitMust(t, f.repo, "merge", "--no-ff", newBase, "-m", "merge main")
+	merge := strings.TrimSpace(gitMust(t, f.repo, "rev-parse", "HEAD"))
+	gitMust(t, f.repo, "push", "origin", merge+":refs/heads/"+f.branch)
+	f.actor = publicationUser{Login: "maintainer", Type: "User"}
+	gitMust(t, f.repo, "checkout", "--detach", newBase)
+
+	req.ExpectedHead = merge
+	req.ExpectedBranch = f.branch
+	if _, err := Publish(req); err == nil {
+		t.Fatal("publish without repair replaced the merge commit")
+	}
+	req.RepairPending = true
+	if _, err := Publish(req); err != nil {
+		t.Fatal(err)
+	}
+	actual := f.ref(f.branch)
+	if actual == "" || actual == merge {
+		t.Fatalf("branch head = %s, merge = %s", actual, merge)
+	}
+	if gitMust(t, f.repo, "rev-parse", merge+"^{tree}") != gitMust(t, f.repo, "rev-parse", actual+"^{tree}") {
+		t.Fatal("repair changed the protocol tree")
+	}
+	parents := strings.Fields(gitMust(t, f.repo, "rev-list", "--parents", "-n", "1", actual))
+	if len(parents) != 2 || parents[1] != newBase {
+		t.Fatalf("repaired parents = %v, want parent %s", parents, newBase)
+	}
+	if !strings.Contains(f.prs[0].Body, "sync_commit: "+actual) {
+		t.Fatalf("body missing repaired head:\n%s", f.prs[0].Body)
+	}
+}

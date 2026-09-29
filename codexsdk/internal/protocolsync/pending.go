@@ -11,6 +11,7 @@ import (
 // Agent attempt. BaseSHA is the immutable accepted checkout for this run.
 type PendingRequest struct {
 	ReadChecks                                        bool
+	RepairPending                                     bool
 	RepoRoot, Repository, BaseBranch, BaseSHA, Remote string
 	AppBotID                                          int64
 	Target                                            Target
@@ -24,6 +25,9 @@ type PendingPublication struct {
 	URL, Branch, Head, BaseSHA, Checks, Description, Title string
 	Target                                                 BaselineIdentity
 	Reusable                                               bool
+	// Repair is true only when an explicit repair observed a non-single head.
+	// BaseSHA is empty so publication cannot treat that head as already published.
+	Repair bool
 }
 
 func publicationPolicy(format string, args ...any) error {
@@ -184,7 +188,10 @@ func inspectPublicationHead(req PendingRequest, api PublicationAPI, pr publicati
 	}
 	fields := strings.Fields(parents)
 	if len(fields) != 2 {
-		return PendingPublication{}, publicationPolicy("PR #%d is not a single candidate commit", pr.Number)
+		if !req.RepairPending {
+			return PendingPublication{}, publicationPolicy("PR #%d is not a single candidate commit", pr.Number)
+		}
+		return repairNonSingleHead(req, pr, head)
 	}
 	base := fields[1]
 	if err := runGit(req.RepoRoot, "merge-base", "--is-ancestor", base, req.BaseSHA); err != nil {
@@ -313,4 +320,21 @@ func fetchPublicationCommit(req PendingRequest, head string) error {
 		return runGit(req.RepoRoot, "fetch", "--no-tags", publicationRemote(req), head)
 	}
 	return nil
+}
+
+// repairNonSingleHead preserves the current tree of an App-owned open PR.
+// It does not regenerate protocol files and does not accept the contaminated head as the candidate commit.
+func repairNonSingleHead(req PendingRequest, pr publicationPR, head string) (PendingPublication, error) {
+	metadata, err := gitBaselineIdentity(req.RepoRoot, head)
+	if err != nil {
+		return PendingPublication{}, err
+	}
+	if metadata.SourceCommit != req.Target.PeeledCommitSHA || metadata.SourceRefName != req.Target.RefName || metadata.SourceRefKind != req.Target.RefKind {
+		return PendingPublication{}, publicationPolicy("PR #%d repair requires the current tree to contain upstream %s/%s/%s", pr.Number, req.Target.RefKind, req.Target.RefName, req.Target.PeeledCommitSHA)
+	}
+	return PendingPublication{
+		Number: pr.Number, URL: pr.URL, Description: pr.Body, Title: pr.Title,
+		Branch: pr.Head.Ref, Head: head, Target: BaselineIdentity{SourceCommit: metadata.SourceCommit, SourceRefName: metadata.SourceRefName, SourceRefKind: metadata.SourceRefKind},
+		Repair: true,
+	}, nil
 }
