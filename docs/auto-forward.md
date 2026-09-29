@@ -81,8 +81,11 @@ relevant, otherwise it completes as not applicable.
 
 ## Integration workflow
 
-The trusted `Auto-forward PR` workflow is manually dispatched with a PR
-number.
+The trusted `Auto-forward PR` workflow remains manually dispatchable with a PR
+number. Successful `PR verification` runs for the repository's protocol-sync
+bot are also routed through `Dispatch auto-forward`, which validates the PR
+identity, exact verified head, controlled branch namespace, and publication
+marker before dispatching `Auto-forward PR` from trusted main.
 
 The read-only phase:
 
@@ -140,7 +143,9 @@ has performed a real integration through the trusted workflow.
 Use a small same-repository PR based on current main and require this sequence:
 
 1. the PR's exact H completes all three required checks successfully;
-2. dispatch `Auto-forward PR` for that PR number from trusted main;
+2. for a trusted protocol-sync PR, confirm `Dispatch auto-forward` dispatches
+   `Auto-forward PR` from trusted main; for other acceptance tests, dispatch it
+   manually;
 3. the read-only phase resolves current H and current main B and confirms
    `B ∈ ancestors(H)`;
 4. the effect phase rechecks PR identity, H, B, required checks, and review
