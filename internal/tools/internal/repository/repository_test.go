@@ -43,7 +43,6 @@ func TestDependabotCoversRootModuleAndActions(t *testing.T) {
 	}
 }
 
-
 func TestPRVerificationIsRootModuleAndGeneratedReproducibility(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
 	if err != nil {
@@ -71,7 +70,6 @@ func TestPRVerificationIsRootModuleAndGeneratedReproducibility(t *testing.T) {
 		t.Fatal("required PR verification must verify committed source, not use formatting as an acceptance proof")
 	}
 }
-
 
 func TestManualNativeVerificationWorkflowsAreReadOnlyOwnerProofs(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
@@ -126,7 +124,6 @@ func TestManualNativeVerificationWorkflowsAreReadOnlyOwnerProofs(t *testing.T) {
 	}
 }
 
-
 func TestRequiredVerificationChecksOutExactPRHead(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
 	if err != nil {
@@ -170,7 +167,6 @@ func TestRequiredVerificationChecksOutExactPRHead(t *testing.T) {
 		}
 	}
 }
-
 
 func TestPRExactProtocolValidationIsIndependentReadOnlyProof(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
@@ -241,10 +237,18 @@ func TestAutoForwardWorkflowOnlyFastForwardsVerifiedHead(t *testing.T) {
 		"git push origin",
 		"refs/heads/",
 		"main readback",
+		"Delete integrated head branch",
+		"refusing to delete ref",
+		"another open PR still uses",
+		"git push origin --delete",
 	} {
 		if !strings.Contains(workflow, want) {
 			t.Fatalf("auto-forward workflow missing %q", want)
 		}
+	}
+	if strings.Index(workflow, "main readback") > strings.Index(workflow, "Delete integrated head branch") ||
+		strings.Index(workflow, "Delete integrated head branch") > strings.Index(workflow, "git push origin --delete") {
+		t.Fatal("head deletion must follow a successful main readback")
 	}
 	for _, forbidden := range []string{
 		"git merge ",

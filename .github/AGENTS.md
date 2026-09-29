@@ -23,7 +23,9 @@ repository candidates; it must not become a second implementation authority.
   protected `main` only by a normal non-force fast-forward to the exact H that
   already has current required checks and review policy satisfied.
 - The auto-forward integrator must not merge, rebase, squash, cherry-pick,
-  create a commit, force-push, modify the PR branch, or repair a stale PR.
+  create a commit, force-push, rewrite the PR branch, or repair a stale PR.
+  After readback proves the fast-forward, it may delete the head ref only when
+  GitHub reports that same PR merged and the ref still points at integrated H.
 - Correctness must not depend on workflow ordering or concurrency. If main moves
   before integration, Git's non-fast-forward rejection is authoritative and the
   PR must be rebased to a new H and reverified.

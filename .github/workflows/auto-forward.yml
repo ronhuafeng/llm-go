@@ -220,3 +220,72 @@ jobs:
             echo "- Integration: non-force fast-forward"
             echo "- New commit created during integration: no"
           } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Delete integrated head branch
+        env:
+          APP_TOKEN: ${{ steps.app_token.outputs.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          HEAD_SHA: ${{ needs.verify.outputs.head }}
+          HEAD_REF: ${{ needs.verify.outputs.head_ref }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${HEAD_REF}" || "${HEAD_REF}" == "${DEFAULT_BRANCH}" || "${HEAD_REF}" == -* || "${HEAD_REF}" == *..* || "${HEAD_REF}" == *" "* || "${HEAD_REF}" == *"@"* ]]; then
+            echo "refusing to delete ref ${HEAD_REF}" >&2
+            exit 1
+          fi
+
+          merged=no
+          for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            read -r state merged_at ref_name < <(gh pr view "${PR_NUMBER}" --repo "${REPOSITORY}" --json state,mergedAt,headRefName --jq '[.state, (.mergedAt // "-"), .headRefName] | @tsv')
+            if [[ "${state}" == "MERGED" && "${merged_at}" != "-" && "${ref_name}" == "${HEAD_REF}" ]]; then
+              merged=yes
+              break
+            fi
+            sleep 5
+          done
+          if [[ "${merged}" != yes ]]; then
+            echo "PR #${PR_NUMBER} is not merged at ${HEAD_REF}; not deleting the branch" >&2
+            exit 1
+          fi
+
+          open_count="$(gh pr list --repo "${REPOSITORY}" --head "${HEAD_REF}" --state open --json number --jq 'length')"
+          if [[ "${open_count}" != 0 ]]; then
+            echo "another open PR still uses ${HEAD_REF}; not deleting it" >&2
+            exit 1
+          fi
+
+          main_now="$(git ls-remote "https://github.com/${REPOSITORY}.git" "refs/heads/${DEFAULT_BRANCH}" | awk '{print $1}')"
+          if [[ "${main_now}" != "${HEAD_SHA}" ]]; then
+            git fetch --no-tags origin "${main_now}"
+            if ! git merge-base --is-ancestor "${HEAD_SHA}" "${main_now}"; then
+              echo "integrated H ${HEAD_SHA} is not contained in current ${DEFAULT_BRANCH} ${main_now}; not deleting ${HEAD_REF}" >&2
+              exit 1
+            fi
+          fi
+
+          current="$(git ls-remote "https://github.com/${REPOSITORY}.git" "refs/heads/${HEAD_REF}" | awk '{print $1}')"
+          if [[ -z "${current}" ]]; then
+            echo "head ref ${HEAD_REF} is already absent"
+            exit 0
+          fi
+          if [[ "${current}" != "${HEAD_SHA}" ]]; then
+            echo "head ref ${HEAD_REF} is ${current}, not integrated H ${HEAD_SHA}; not deleting" >&2
+            exit 1
+          fi
+
+          GH_TOKEN="${APP_TOKEN}" gh auth setup-git
+          git push origin --delete "refs/heads/${HEAD_REF}"
+          left="$(git ls-remote "https://github.com/${REPOSITORY}.git" "refs/heads/${HEAD_REF}")"
+          if [[ -n "${left}" ]]; then
+            echo "head ref ${HEAD_REF} still exists after delete: ${left}" >&2
+            exit 1
+          fi
+          {
+            echo '## Integrated head branch'
+            echo
+            echo "- Deleted ref: refs/heads/${HEAD_REF}"
+            echo "- Ref still pointed at integrated H: ${HEAD_SHA}"
+          } >> "${GITHUB_STEP_SUMMARY}"

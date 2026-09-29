@@ -160,8 +160,9 @@ The trusted `Auto-forward PR` workflow accepts a PR number and:
 5. requires repository review policy to have no unsatisfied review state;
 6. revalidates H/B/checks immediately before the effect;
 7. uses a separate repository-scoped integration App;
-8. runs only `git push H:refs/heads/main` without force;
-9. reads back `main == H`.
+8. advances main only by `git push H:refs/heads/main` without force;
+9. reads back `main == H`;
+10. after GitHub reports the PR merged, deletes the head ref if it still points at H.
 
 The integration job must not run PR code with write credentials.
 

@@ -104,6 +104,13 @@ A dedicated repository-scoped GitHub App then receives only Contents: write for
 the final push. The effect is a normal non-force push of H to main, followed by
 an exact main-ref readback.
 
+GitHub's "Automatically delete head branches" setting does not cover this
+path. That setting runs only for GitHub's own merge action. After readback,
+the workflow deletes the head ref itself. Deletion is allowed only when GitHub
+reports this PR merged, the ref still points at H, H is still contained in
+main, and no other open PR uses the ref. Deletion creates no commit and is not
+another integration path.
+
 ## Configuration
 
 Configure:
@@ -141,7 +148,8 @@ Use a small same-repository PR based on current main and require this sequence:
    policy before minting the App token;
 5. the App performs one normal non-force `git push H:refs/heads/main`;
 6. workflow readback proves `main == H`;
-7. GitHub recognizes the PR as merged at that same H;
+7. GitHub recognizes the PR as merged at that same H, and the workflow then
+   deletes the head ref because it still points at H;
 8. the resulting main push verification succeeds on that same commit.
 
 Acceptance fails closed if the App configuration is missing, H changes, main is
