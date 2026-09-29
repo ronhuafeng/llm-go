@@ -27,6 +27,91 @@ func TestGenerateProtocolTypesClassifiesSelectedUnsupportedDefinition(t *testing
 	}
 }
 
+func TestGenerateProtocolTypesSupportsStringOrReferencedObjectCursor(t *testing.T) {
+	const path = "v2/ThreadItemsListParams.json"
+	schema := mustParseSchema(t, `{
+		"type": "object",
+		"properties": {"cursor": {"anyOf": [
+			{"$ref": "#/definitions/ThreadItemsListCursor"}, {"type": "null"}
+		]}},
+		"definitions": {
+			"ThreadItemsListAnchor": {"oneOf": [{
+				"title": "ItemThreadItemsListAnchor", "type": "object",
+				"properties": {
+					"itemId": {"type": "string"},
+					"type": {"type": "string", "enum": ["item"]}
+				},
+				"required": ["itemId", "type"]
+			}]},
+			"ThreadItemsListCursor": {"anyOf": [
+				{"type": "string"},
+				{"$ref": "#/definitions/ThreadItemsListAnchor"}
+			]}
+		}
+	}`)
+	plan := ProtocolTypePlan{Types: []TypePlan{{
+		Kind: TypePlanObjectStructCandidate, SchemaPath: path, TypeName: "ThreadItemsListParams",
+		GeneratedDefinitions: map[string]bool{"ThreadItemsListAnchor": true, "ThreadItemsListCursor": true},
+		Schema:               schema,
+	}}}
+	unions, err := SelectGeneratedScalarUnions(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(unions) != 1 || unions[0].TypeName != "ThreadItemsListCursor" || len(unions[0].Variants) != 2 {
+		t.Fatalf("cursor unions = %#v", unions)
+	}
+	if object := unions[0].Variants[0]; object.JSONKind != "object" || object.GoType != "ThreadItemsListAnchor" {
+		t.Fatalf("cursor object variant = %#v", object)
+	}
+	generated, err := GenerateProtocolTypes(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"type ThreadItemsListAnchor struct {",
+		"type ThreadItemsListCursor struct {",
+		"func NewThreadItemsListCursorObject(value ThreadItemsListAnchor) ThreadItemsListCursor",
+		"func (value ThreadItemsListCursor) AsObject() (ThreadItemsListAnchor, bool)",
+		"case JSONKindObject:",
+		"var parsed ThreadItemsListAnchor",
+		"if err := json.Unmarshal(data, &parsed); err != nil {",
+	} {
+		if !strings.Contains(string(generated), want) {
+			t.Fatalf("generated cursor lacks %q", want)
+		}
+	}
+}
+
+func TestGenerateProtocolTypesRejectsNonObjectCursorReference(t *testing.T) {
+	const path = "v2/ThreadItemsListParams.json"
+	for _, referenced := range []string{`{"type":"string"}`, `{"type":"array","items":{"type":"string"}}`} {
+		schema := mustParseSchema(t, `{"type":"object","definitions":{
+			"ThreadItemsListAnchor":`+referenced+`,
+			"ThreadItemsListCursor":{"anyOf":[{"type":"string"},{"$ref":"#/definitions/ThreadItemsListAnchor"}]}
+		}}`)
+		plan := ProtocolTypePlan{Types: []TypePlan{{
+			Kind: TypePlanObjectStructCandidate, SchemaPath: path, TypeName: "ThreadItemsListParams",
+			GeneratedDefinitions: map[string]bool{"ThreadItemsListCursor": true}, Schema: schema,
+		}}}
+		_, err := GenerateProtocolTypes(plan)
+		var unsupported *UnsupportedSchemaError
+		if !errors.As(err, &unsupported) || unsupported.Path != path+"#/definitions/ThreadItemsListCursor" {
+			t.Fatalf("reference %s: error = %v, want cursor definition incompatibility", referenced, err)
+		}
+	}
+}
+
+func TestScalarUnionRejectsConstrainedObjectReference(t *testing.T) {
+	schema := mustParseSchema(t, `{"anyOf":[
+		{"type":"string"},
+		{"$ref":"#/definitions/ThreadItemsListAnchor","minLength":1}
+	]}`)
+	if isSupportedScalarUnion(schema.AnyOf) {
+		t.Fatal("constrained object reference was accepted as a bare variant")
+	}
+}
+
 func TestGeneratedPackageReportsSourceForHandwrittenName(t *testing.T) {
 	plan := ProtocolTypePlan{Types: []TypePlan{{
 		Kind: TypePlanObjectStructCandidate, SchemaPath: "Clashing.json", TypeName: "JSONValue",

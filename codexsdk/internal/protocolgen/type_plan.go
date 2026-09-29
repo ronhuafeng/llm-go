@@ -967,11 +967,27 @@ func isSupportedScalarUnion(variants []*Schema) bool {
 				return false
 			}
 			seen["array"] = true
+		case isBareLocalDefinitionRef(variant):
+			seen["object"] = true
 		default:
 			return false
 		}
 	}
 	return len(seen) == len(variants) && len(seen) >= 2
+}
+
+func isBareLocalDefinitionRef(schema *Schema) bool {
+	if schema == nil || schema.Bool != nil || schema.Ref == "#/definitions/" ||
+		!strings.HasPrefix(schema.Ref, "#/definitions/") ||
+		strings.Contains(strings.TrimPrefix(schema.Ref, "#/definitions/"), "/") {
+		return false
+	}
+	return len(schema.Type.Values) == 0 && len(schema.Properties) == 0 &&
+		len(schema.OneOf) == 0 && len(schema.AnyOf) == 0 && len(schema.AllOf) == 0 &&
+		len(schema.Enum) == 0 && len(schema.Required) == 0 && len(schema.Definitions) == 0 &&
+		schema.Items == nil && !schema.AdditionalProperties.Present && !schema.Default.Present &&
+		schema.Format == "" && schema.Minimum == nil && schema.MinItems == nil &&
+		len(unmodeledKeywords(schema)) == 0
 }
 
 func planField(coverage CoverageField, schema *Schema) (FieldPlan, error) {

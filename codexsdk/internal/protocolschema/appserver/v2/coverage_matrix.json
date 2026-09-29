@@ -4604,6 +4604,19 @@
       "type": "ListMcpServerStatusParams"
     },
     {
+      "exit_condition": "Regenerate if upstream schema drift changes ListMcpServerStatusParams.serverName semantics.",
+      "field": "serverName",
+      "owner": "codex-go-sdk",
+      "path": "v2/ListMcpServerStatusParams.json#/properties/serverName",
+      "reason": "Generated as a strict typed ListMcpServerStatusParams field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ListMcpServerStatusParams.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "ListMcpServerStatusParams"
+    },
+    {
       "exit_condition": "Regenerate if upstream schema drift changes this field shape, requiredness, enum values, or omit/null/value semantics.",
       "field": "threadId",
       "owner": "codex-go-sdk",

@@ -1304,9 +1304,15 @@ func (c *typeSelection) SelectGeneratedScalarUnions() (result []ScalarUnionPlan,
 	if err != nil {
 		return nil, err
 	}
+	definitionsByDocument := map[string]map[string]*Schema{}
+	for _, typ := range plan.Types {
+		if typ.Schema != nil {
+			definitionsByDocument[schemaDocumentPath(typ.SchemaPath)] = typ.Schema.Definitions
+		}
+	}
 	var selected []ScalarUnionPlan
 	for _, typ := range candidates {
-		union, err := buildScalarUnionPlan(typ)
+		union, err := buildScalarUnionPlan(typ, definitionsByDocument[schemaDocumentPath(typ.SchemaPath)], resolver)
 		if err != nil {
 			return nil, classifyGeneratedSchemaError(typ.SchemaPath, err)
 		}
@@ -1351,7 +1357,7 @@ func generatedDefinitionScalarUnionCandidates(parent TypePlan, resolver generate
 	return candidates, nil
 }
 
-func buildScalarUnionPlan(typ TypePlan) (ScalarUnionPlan, error) {
+func buildScalarUnionPlan(typ TypePlan, definitions map[string]*Schema, resolver generatedDefinitionNameResolver) (ScalarUnionPlan, error) {
 	if typ.Schema == nil || len(typ.Schema.AnyOf) == 0 {
 		return ScalarUnionPlan{}, fmt.Errorf("scalar union %s has no anyOf variants", typ.SchemaPath)
 	}
@@ -1361,7 +1367,7 @@ func buildScalarUnionPlan(typ TypePlan) (ScalarUnionPlan, error) {
 	}
 	seenJSONKind := map[string]bool{}
 	for index, variant := range typ.Schema.AnyOf {
-		planned, err := scalarUnionVariantPlan(typ, variant)
+		planned, err := scalarUnionVariantPlan(typ, variant, definitions, resolver)
 		if err != nil {
 			return ScalarUnionPlan{}, fmt.Errorf("scalar union %s variant %d: %w", typ.SchemaPath, index, err)
 		}
@@ -1377,11 +1383,33 @@ func buildScalarUnionPlan(typ TypePlan) (ScalarUnionPlan, error) {
 	return union, nil
 }
 
-func scalarUnionVariantPlan(typ TypePlan, schema *Schema) (ScalarUnionVariantPlan, error) {
+func scalarUnionVariantPlan(typ TypePlan, schema *Schema, definitions map[string]*Schema, resolver generatedDefinitionNameResolver) (ScalarUnionVariantPlan, error) {
 	if schema == nil {
 		return ScalarUnionVariantPlan{}, fmt.Errorf("variant has unsupported scalar union shape")
 	}
 	switch {
+	case isBareLocalDefinitionRef(schema):
+		name := strings.TrimPrefix(schema.Ref, "#/definitions/")
+		definition := definitions[name]
+		switch classifyGeneratedDefinition(definition) {
+		case generatedDefinitionStruct, generatedDefinitionTaggedUnion, generatedDefinitionUntaggedObjectUnion:
+		default:
+			return ScalarUnionVariantPlan{}, fmt.Errorf("object variant reference %s does not resolve to a supported object definition", schema.Ref)
+		}
+		typeName, ok := resolver.NameForPath(absoluteRefPath(typ.SchemaPath, schema.Ref))
+		if !ok {
+			return ScalarUnionVariantPlan{}, fmt.Errorf("object variant reference %s has no generated type", schema.Ref)
+		}
+		goName := "Object"
+		return ScalarUnionVariantPlan{
+			AccessorName:       "As" + goName,
+			ConstructorName:    "New" + typ.TypeName + goName,
+			DiscriminatorValue: "object",
+			GoName:             goName,
+			GoType:             typeName,
+			JSONKind:           "object",
+			PrivateFieldName:   unexportedIdentifier(goName),
+		}, nil
 	case schema.Type.Only("string"):
 		if hasNonTypeShape(schema) {
 			return ScalarUnionVariantPlan{}, fmt.Errorf("string variant has unsupported shape")
@@ -2474,6 +2502,14 @@ func writeScalarUnionType(out *bytes.Buffer, union ScalarUnionPlan) {
 				fmt.Fprintf(out, "\t\t\treturn fmt.Errorf(\"decode %s: expected array: %%w\", err)\n", union.TypeName)
 				out.WriteString("\t\t}\n")
 			}
+			fmt.Fprintf(out, "\t\t*value = %s(parsed)\n", variant.ConstructorName)
+			out.WriteString("\t\treturn nil\n")
+		case "object":
+			out.WriteString("\tcase JSONKindObject:\n")
+			fmt.Fprintf(out, "\t\tvar parsed %s\n", variant.GoType)
+			out.WriteString("\t\tif err := json.Unmarshal(data, &parsed); err != nil {\n")
+			fmt.Fprintf(out, "\t\t\treturn fmt.Errorf(\"decode %s: expected object: %%w\", err)\n", union.TypeName)
+			out.WriteString("\t\t}\n")
 			fmt.Fprintf(out, "\t\t*value = %s(parsed)\n", variant.ConstructorName)
 			out.WriteString("\t\treturn nil\n")
 		}

@@ -15664,10 +15664,11 @@ func (value *ItemStartedNotification) unmarshalJSON(data []byte, mode wireDecode
 }
 
 type ListMcpServerStatusParams struct {
-	Cursor   *Nullable[string]                `json:"cursor,omitempty"`
-	Detail   *Nullable[McpServerStatusDetail] `json:"detail,omitempty"`
-	Limit    *Nullable[uint32]                `json:"limit,omitempty"`
-	ThreadID *Nullable[string]                `json:"threadId,omitempty"`
+	Cursor     *Nullable[string]                `json:"cursor,omitempty"`
+	Detail     *Nullable[McpServerStatusDetail] `json:"detail,omitempty"`
+	Limit      *Nullable[uint32]                `json:"limit,omitempty"`
+	ServerName *Nullable[string]                `json:"serverName,omitempty"`
+	ThreadID   *Nullable[string]                `json:"threadId,omitempty"`
 }
 
 func (value *ListMcpServerStatusParams) UnmarshalJSON(data []byte) error {
@@ -15689,6 +15690,10 @@ func (value *ListMcpServerStatusParams) unmarshalJSON(data []byte, mode wireDeco
 		return err
 	}
 	_, err = decodeNullableJSONField[uint32](fields, "limit", "ListMcpServerStatusParams.limit", mode, decodeWireValue[uint32], &decoded.Limit)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[string](fields, "serverName", "ListMcpServerStatusParams.serverName", mode, decodeWireValue[string], &decoded.ServerName)
 	if err != nil {
 		return err
 	}
@@ -26421,11 +26426,11 @@ func (value *ThreadItemEntry) unmarshalJSON(data []byte, mode wireDecodeMode) er
 }
 
 type ThreadItemsListParams struct {
-	Cursor        *Nullable[string]        `json:"cursor,omitempty"`
-	Limit         *Nullable[uint32]        `json:"limit,omitempty"`
-	SortDirection *Nullable[SortDirection] `json:"sortDirection,omitempty"`
-	ThreadID      string                   `json:"threadId"`
-	TurnID        *Nullable[string]        `json:"turnId,omitempty"`
+	Cursor        *Nullable[ThreadItemsListCursor] `json:"cursor,omitempty"`
+	Limit         *Nullable[uint32]                `json:"limit,omitempty"`
+	SortDirection *Nullable[SortDirection]         `json:"sortDirection,omitempty"`
+	ThreadID      string                           `json:"threadId"`
+	TurnID        *Nullable[string]                `json:"turnId,omitempty"`
 }
 
 func (value *ThreadItemsListParams) UnmarshalJSON(data []byte) error {
@@ -26438,7 +26443,7 @@ func (value *ThreadItemsListParams) unmarshalJSON(data []byte, mode wireDecodeMo
 		return err
 	}
 	var decoded ThreadItemsListParams
-	_, err = decodeNullableJSONField[string](fields, "cursor", "ThreadItemsListParams.cursor", mode, decodeWireValue[string], &decoded.Cursor)
+	_, err = decodeNullableJSONField[ThreadItemsListCursor](fields, "cursor", "ThreadItemsListParams.cursor", mode, decodeWireValue[ThreadItemsListCursor], &decoded.Cursor)
 	if err != nil {
 		return err
 	}
@@ -33039,6 +33044,89 @@ func (value *RequestId) UnmarshalJSON(data []byte) error {
 	}
 }
 
+type ThreadItemsListCursorKind string
+
+const (
+	ThreadItemsListCursorKindObject ThreadItemsListCursorKind = "object"
+	ThreadItemsListCursorKindString ThreadItemsListCursorKind = "string"
+)
+
+type ThreadItemsListCursor struct {
+	kind          ThreadItemsListCursorKind
+	variantObject ThreadItemsListAnchor
+	variantString string
+}
+
+func NewThreadItemsListCursorObject(value ThreadItemsListAnchor) ThreadItemsListCursor {
+	return ThreadItemsListCursor{kind: ThreadItemsListCursorKindObject, variantObject: value}
+}
+
+func NewThreadItemsListCursorString(value string) ThreadItemsListCursor {
+	return ThreadItemsListCursor{kind: ThreadItemsListCursorKindString, variantString: value}
+}
+
+func (value ThreadItemsListCursor) Kind() ThreadItemsListCursorKind {
+	return value.kind
+}
+
+func (value ThreadItemsListCursor) IsValid() bool {
+	switch value.kind {
+	case ThreadItemsListCursorKindObject:
+		return true
+	case ThreadItemsListCursorKindString:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value ThreadItemsListCursor) AsObject() (ThreadItemsListAnchor, bool) {
+	if value.kind != ThreadItemsListCursorKindObject {
+		return ThreadItemsListAnchor{}, false
+	}
+	return value.variantObject, true
+}
+
+func (value ThreadItemsListCursor) AsString() (string, bool) {
+	if value.kind != ThreadItemsListCursorKindString {
+		return "", false
+	}
+	return value.variantString, true
+}
+
+func (value ThreadItemsListCursor) MarshalJSON() ([]byte, error) {
+	switch value.kind {
+	case ThreadItemsListCursorKindObject:
+		return json.Marshal(value.variantObject)
+	case ThreadItemsListCursorKindString:
+		return json.Marshal(value.variantString)
+	default:
+		return nil, invalidUnionValue("ThreadItemsListCursor")
+	}
+}
+
+func (value *ThreadItemsListCursor) UnmarshalJSON(data []byte) error {
+	decoded, err := ParseJSONValue(data)
+	if err != nil {
+		return fmt.Errorf("decode ThreadItemsListCursor: %w", err)
+	}
+	switch decoded.Kind() {
+	case JSONKindObject:
+		var parsed ThreadItemsListAnchor
+		if err := json.Unmarshal(data, &parsed); err != nil {
+			return fmt.Errorf("decode ThreadItemsListCursor: expected object: %w", err)
+		}
+		*value = NewThreadItemsListCursorObject(parsed)
+		return nil
+	case JSONKindString:
+		parsed, _ := decoded.AsString()
+		*value = NewThreadItemsListCursorString(parsed)
+		return nil
+	default:
+		return fmt.Errorf("decode ThreadItemsListCursor: expected string or object")
+	}
+}
+
 type ThreadListCwdFilterKind string
 
 const (
@@ -33353,6 +33441,7 @@ const (
 	CodexErrorInfoKindServerOverloaded               CodexErrorInfoKind = "serverOverloaded"
 	CodexErrorInfoKindCyberPolicy                    CodexErrorInfoKind = "cyberPolicy"
 	CodexErrorInfoKindMisalignmentPolicyViolation    CodexErrorInfoKind = "misalignmentPolicyViolation"
+	CodexErrorInfoKindTooManyDenials                 CodexErrorInfoKind = "tooManyDenials"
 	CodexErrorInfoKindInternalServerError            CodexErrorInfoKind = "internalServerError"
 	CodexErrorInfoKindUnauthorized                   CodexErrorInfoKind = "unauthorized"
 	CodexErrorInfoKindBadRequest                     CodexErrorInfoKind = "badRequest"
@@ -33376,6 +33465,7 @@ type CodexErrorInfo struct {
 	variantServerOverloaded               *CodexErrorInfoServerOverloaded
 	variantCyberPolicy                    *CodexErrorInfoCyberPolicy
 	variantMisalignmentPolicyViolation    *CodexErrorInfoMisalignmentPolicyViolation
+	variantTooManyDenials                 *CodexErrorInfoTooManyDenials
 	variantInternalServerError            *CodexErrorInfoInternalServerError
 	variantUnauthorized                   *CodexErrorInfoUnauthorized
 	variantBadRequest                     *CodexErrorInfoBadRequest
@@ -33404,6 +33494,8 @@ type CodexErrorInfoServerOverloaded struct{}
 type CodexErrorInfoCyberPolicy struct{}
 
 type CodexErrorInfoMisalignmentPolicyViolation struct{}
+
+type CodexErrorInfoTooManyDenials struct{}
 
 type CodexErrorInfoInternalServerError struct{}
 
@@ -33475,6 +33567,11 @@ func NewCodexErrorInfoCyberPolicy() CodexErrorInfo {
 func NewCodexErrorInfoMisalignmentPolicyViolation() CodexErrorInfo {
 	payload := CodexErrorInfoMisalignmentPolicyViolation{}
 	return CodexErrorInfo{kind: CodexErrorInfoKindMisalignmentPolicyViolation, variantMisalignmentPolicyViolation: &payload}
+}
+
+func NewCodexErrorInfoTooManyDenials() CodexErrorInfo {
+	payload := CodexErrorInfoTooManyDenials{}
+	return CodexErrorInfo{kind: CodexErrorInfoKindTooManyDenials, variantTooManyDenials: &payload}
 }
 
 func NewCodexErrorInfoInternalServerError() CodexErrorInfo {
@@ -33549,6 +33646,8 @@ func (value CodexErrorInfo) IsValid() bool {
 		return value.variantCyberPolicy != nil
 	case CodexErrorInfoKindMisalignmentPolicyViolation:
 		return value.variantMisalignmentPolicyViolation != nil
+	case CodexErrorInfoKindTooManyDenials:
+		return value.variantTooManyDenials != nil
 	case CodexErrorInfoKindInternalServerError:
 		return value.variantInternalServerError != nil
 	case CodexErrorInfoKindUnauthorized:
@@ -33630,6 +33729,13 @@ func (value CodexErrorInfo) AsMisalignmentPolicyViolation() (CodexErrorInfoMisal
 		return CodexErrorInfoMisalignmentPolicyViolation{}, false
 	}
 	return *value.variantMisalignmentPolicyViolation, true
+}
+
+func (value CodexErrorInfo) AsTooManyDenials() (CodexErrorInfoTooManyDenials, bool) {
+	if value.kind != CodexErrorInfoKindTooManyDenials || value.variantTooManyDenials == nil {
+		return CodexErrorInfoTooManyDenials{}, false
+	}
+	return *value.variantTooManyDenials, true
 }
 
 func (value CodexErrorInfo) AsInternalServerError() (CodexErrorInfoInternalServerError, bool) {
@@ -33751,6 +33857,11 @@ func (value CodexErrorInfo) MarshalJSON() ([]byte, error) {
 			return nil, invalidUnionVariant("CodexErrorInfo", "misalignmentPolicyViolation")
 		}
 		return json.Marshal("misalignmentPolicyViolation")
+	case CodexErrorInfoKindTooManyDenials:
+		if value.variantTooManyDenials == nil {
+			return nil, invalidUnionVariant("CodexErrorInfo", "tooManyDenials")
+		}
+		return json.Marshal("tooManyDenials")
 	case CodexErrorInfoKindInternalServerError:
 		if value.variantInternalServerError == nil {
 			return nil, invalidUnionVariant("CodexErrorInfo", "internalServerError")
@@ -33875,6 +33986,10 @@ func (value *CodexErrorInfo) unmarshalJSON(data []byte, mode wireDecodeMode) err
 		case "misalignmentPolicyViolation":
 			payload := CodexErrorInfoMisalignmentPolicyViolation{}
 			*value = CodexErrorInfo{kind: CodexErrorInfoKindMisalignmentPolicyViolation, variantMisalignmentPolicyViolation: &payload}
+			return nil
+		case "tooManyDenials":
+			payload := CodexErrorInfoTooManyDenials{}
+			*value = CodexErrorInfo{kind: CodexErrorInfoKindTooManyDenials, variantTooManyDenials: &payload}
 			return nil
 		case "internalServerError":
 			payload := CodexErrorInfoInternalServerError{}
@@ -58926,6 +59041,96 @@ func (value *ThreadItem) unmarshalJSON(data []byte, mode wireDecodeMode) error {
 		return nil
 	default:
 		return unknownUnionVariant("ThreadItem", "type", variant)
+	}
+}
+
+type ThreadItemsListAnchorKind string
+
+const (
+	ThreadItemsListAnchorKindItem ThreadItemsListAnchorKind = "item"
+)
+
+type ThreadItemsListAnchor struct {
+	kind        ThreadItemsListAnchorKind
+	variantItem *ThreadItemsListAnchorItem
+}
+
+type ThreadItemsListAnchorItem struct {
+	ItemID string `json:"itemId"`
+}
+
+func NewThreadItemsListAnchorItem(payload ThreadItemsListAnchorItem) ThreadItemsListAnchor {
+	return ThreadItemsListAnchor{kind: ThreadItemsListAnchorKindItem, variantItem: &payload}
+}
+
+func (value ThreadItemsListAnchor) Kind() ThreadItemsListAnchorKind {
+	return value.kind
+}
+
+func (value ThreadItemsListAnchor) IsValid() bool {
+	switch value.kind {
+	case ThreadItemsListAnchorKindItem:
+		return value.variantItem != nil
+	default:
+		return false
+	}
+}
+
+func (value ThreadItemsListAnchor) AsItem() (ThreadItemsListAnchorItem, bool) {
+	if value.kind != ThreadItemsListAnchorKindItem || value.variantItem == nil {
+		return ThreadItemsListAnchorItem{}, false
+	}
+	return *value.variantItem, true
+}
+
+func (value ThreadItemsListAnchor) MarshalJSON() ([]byte, error) {
+	switch value.kind {
+	case ThreadItemsListAnchorKindItem:
+		if value.variantItem == nil {
+			return nil, invalidUnionVariant("ThreadItemsListAnchor", "item")
+		}
+		return json.Marshal(struct {
+			ItemID string `json:"itemId"`
+			Type   string `json:"type"`
+		}{
+			ItemID: value.variantItem.ItemID,
+			Type:   "item",
+		})
+	default:
+		return nil, invalidUnionValue("ThreadItemsListAnchor")
+	}
+}
+
+func (value *ThreadItemsListAnchor) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ThreadItemsListAnchor) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ThreadItemsListAnchor")
+	if err != nil {
+		return err
+	}
+	variant, err := decodeTaggedUnionDiscriminator(fields, "type", "ThreadItemsListAnchor")
+	if err != nil {
+		return err
+	}
+	switch variant {
+	case "item":
+		var decoded ThreadItemsListAnchorItem
+		seenItemID, err := decodeJSONField(fields, "itemId", "ThreadItemsListAnchor.itemId", false, mode, decodeWireValue[string], &decoded.ItemID)
+		if err != nil {
+			return err
+		}
+		if !seenItemID {
+			return missingRequiredField("ThreadItemsListAnchor.itemId")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ThreadItemsListAnchor.item", mode); err != nil {
+			return err
+		}
+		*value = ThreadItemsListAnchor{kind: ThreadItemsListAnchorKindItem, variantItem: &decoded}
+		return nil
+	default:
+		return unknownUnionVariant("ThreadItemsListAnchor", "type", variant)
 	}
 }
 

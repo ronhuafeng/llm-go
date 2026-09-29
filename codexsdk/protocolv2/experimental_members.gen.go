@@ -3474,6 +3474,7 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"action": "WebSearchAction",
 	},
 	"ThreadItemsListParams": {
+		"cursor":        "ThreadItemsListCursor",
 		"sortDirection": "SortDirection",
 	},
 	"ThreadItemsListResponse": {
