@@ -324,7 +324,7 @@ func TestInspectPendingRepairPreservesNonSingleTree(t *testing.T) {
 	runGitInitCommit(t, req.RepoRoot, "advance accepted base")
 	newBase := strings.TrimSpace(gitMust(t, req.RepoRoot, "rev-parse", "HEAD"))
 	gitMust(t, req.RepoRoot, "checkout", "--detach", api.prs[0].Head.SHA)
-	gitMust(t, req.RepoRoot, "merge", "--no-ff", newBase, "-m", "merge main")
+	gitMust(t, req.RepoRoot, "-c", "user.name=protocolsync-test", "-c", "user.email=protocolsync-test@example.com", "merge", "--no-ff", newBase, "-m", "merge main")
 	merge := strings.TrimSpace(gitMust(t, req.RepoRoot, "rev-parse", "HEAD"))
 	parents := strings.Fields(gitMust(t, req.RepoRoot, "rev-list", "--parents", "-n", "1", merge))
 	if len(parents) != 3 {
@@ -362,7 +362,7 @@ func TestSyncRepairDoesNotRegenerate(t *testing.T) {
 	runGitInitCommit(t, req.RepoRoot, "advance accepted base")
 	newBase := strings.TrimSpace(gitMust(t, req.RepoRoot, "rev-parse", "HEAD"))
 	gitMust(t, req.RepoRoot, "checkout", "--detach", api.prs[0].Head.SHA)
-	gitMust(t, req.RepoRoot, "merge", "--no-ff", newBase, "-m", "merge main")
+	gitMust(t, req.RepoRoot, "-c", "user.name=protocolsync-test", "-c", "user.email=protocolsync-test@example.com", "merge", "--no-ff", newBase, "-m", "merge main")
 	merge := strings.TrimSpace(gitMust(t, req.RepoRoot, "rev-parse", "HEAD"))
 	gitMust(t, req.RepoRoot, "branch", "-f", api.prs[0].Head.Ref, merge)
 	gitMust(t, req.RepoRoot, "branch", "-f", "main", newBase)
