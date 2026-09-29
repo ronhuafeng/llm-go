@@ -630,8 +630,8 @@ jobs:
             -repo-root "${GITHUB_WORKSPACE}" \
             -phase final
           git diff --cached --check
-          git -c user.name="codexsdk-sync-bot" \
-            -c user.email="codexsdk-sync-bot@users.noreply.github.com" \
+          git -c user.name="ronhuafeng-llm-go-sync[bot]" \
+            -c user.email="${APP_BOT_ID}+ronhuafeng-llm-go-sync[bot]@users.noreply.github.com" \
             commit \
             -m "Sync Codex protocol baseline to ${TARGET_REF}" \
             -m "Upstream-ref: ${TARGET_REF}" \
