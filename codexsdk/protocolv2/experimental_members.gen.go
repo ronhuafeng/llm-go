@@ -388,6 +388,7 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"tools":       {},
 	},
 	"EnvironmentAddParams": {
+		"authBearerToken":  {},
 		"connectTimeoutMs": {},
 		"environmentId":    {},
 		"execServerUrl":    {},
@@ -2778,27 +2779,6 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"skills":          "SkillSummary",
 		"summary":         "PluginSummary",
 	},
-	"PluginEntrypointFile": {
-		"icons": "PluginIcon",
-	},
-	"PluginEntrypointGlobal": {
-		"icons":       "PluginIcon",
-		"quickAction": "PluginQuickAction",
-	},
-	"PluginEntrypointSettings": {
-		"icons": "PluginIcon",
-	},
-	"PluginEntrypointThread": {
-		"icons": "PluginIcon",
-	},
-	"PluginExtensions": {
-		"entrypoints":            "PluginEntrypoint",
-		"fileHandlers":           "PluginEntrypoint",
-		"searchMentionProviders": "PluginSearchProvider",
-		"settings":               "PluginSettings",
-		"settingsEntrypoints":    "PluginEntrypoint",
-		"threadEntrypoints":      "PluginEntrypoint",
-	},
 	"PluginHookSummary": {
 		"eventName": "HookEventName",
 	},
@@ -2821,10 +2801,6 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"interface": "MarketplaceInterface",
 		"plugins":   "PluginSummary",
 	},
-	"PluginQuickAction": {
-		"icons":  "PluginIcon",
-		"target": "PluginQuickActionTarget",
-	},
 	"PluginReadResponse": {
 		"plugin": "PluginDetail",
 	},
@@ -2833,9 +2809,6 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	},
 	"PluginSearchParams": {
 		"scope": "PluginSearchScope",
-	},
-	"PluginSearchProvider": {
-		"call": "PluginSearchProviderCall",
 	},
 	"PluginSearchResponse": {
 		"data": "PluginSearchResult",
@@ -2877,7 +2850,6 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"authPolicy":          "PluginAuthPolicy",
 		"availability":        "PluginAvailability",
 		"disabledReason":      "PluginDisabledReason",
-		"extensions":          "PluginExtensions",
 		"installPolicy":       "PluginInstallPolicy",
 		"installPolicySource": "PluginInstallPolicySource",
 		"interface":           "PluginInterface",

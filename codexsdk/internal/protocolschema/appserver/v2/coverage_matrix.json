@@ -2680,6 +2680,19 @@
       "type": "DeprecationNoticeNotification"
     },
     {
+      "exit_condition": "Regenerate if upstream schema drift changes EnvironmentAddParams.authBearerToken semantics.",
+      "field": "authBearerToken",
+      "owner": "codex-go-sdk",
+      "path": "v2/EnvironmentAddParams.json#/properties/authBearerToken",
+      "reason": "Generated as a strict typed EnvironmentAddParams field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/EnvironmentAddParams.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "EnvironmentAddParams"
+    },
+    {
       "exit_condition": "Regenerate if upstream schema drift changes EnvironmentAddParams.connectTimeoutMs semantics.",
       "field": "connectTimeoutMs",
       "owner": "codex-go-sdk",

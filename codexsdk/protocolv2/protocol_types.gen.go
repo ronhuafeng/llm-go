@@ -4072,6 +4072,7 @@ const (
 	PlanTypePlus                        PlanType = "plus"
 	PlanTypePro                         PlanType = "pro"
 	PlanTypeProlite                     PlanType = "prolite"
+	PlanTypePromax                      PlanType = "promax"
 	PlanTypeTeam                        PlanType = "team"
 	PlanTypeSelfServeBusinessProlite    PlanType = "self_serve_business_prolite"
 	PlanTypeSelfServeBusinessUsageBased PlanType = "self_serve_business_usage_based"
@@ -4097,6 +4098,8 @@ func (value PlanType) IsValid() bool {
 	case PlanTypePro:
 		return true
 	case PlanTypeProlite:
+		return true
+	case PlanTypePromax:
 		return true
 	case PlanTypeTeam:
 		return true
@@ -11261,6 +11264,7 @@ func (value *DynamicToolCallResponse) unmarshalJSON(data []byte, mode wireDecode
 }
 
 type EnvironmentAddParams struct {
+	AuthBearerToken  *Nullable[string] `json:"authBearerToken,omitempty"`
 	ConnectTimeoutMS *Nullable[uint64] `json:"connectTimeoutMs,omitempty"`
 	EnvironmentID    string            `json:"environmentId"`
 	ExecServerURL    string            `json:"execServerUrl"`
@@ -11276,6 +11280,10 @@ func (value *EnvironmentAddParams) unmarshalJSON(data []byte, mode wireDecodeMod
 		return err
 	}
 	var decoded EnvironmentAddParams
+	_, err = decodeNullableJSONField[string](fields, "authBearerToken", "EnvironmentAddParams.authBearerToken", mode, decodeWireValue[string], &decoded.AuthBearerToken)
+	if err != nil {
+		return err
+	}
 	_, err = decodeNullableJSONField[uint64](fields, "connectTimeoutMs", "EnvironmentAddParams.connectTimeoutMs", mode, decodeWireValue[uint64], &decoded.ConnectTimeoutMS)
 	if err != nil {
 		return err
@@ -19007,56 +19015,6 @@ func (value *PluginDetail) unmarshalJSON(data []byte, mode wireDecodeMode) error
 	return nil
 }
 
-type PluginExtensions struct {
-	Entrypoints            *Nullable[[]PluginEntrypoint] `json:"entrypoints,omitempty"`
-	FileHandlers           *[]PluginEntrypoint           `json:"fileHandlers,omitempty"`
-	SearchMentionProviders *[]PluginSearchProvider       `json:"searchMentionProviders,omitempty"`
-	Settings               *[]PluginSettings             `json:"settings,omitempty"`
-	SettingsEntrypoints    *[]PluginEntrypoint           `json:"settingsEntrypoints,omitempty"`
-	ThreadEntrypoints      *[]PluginEntrypoint           `json:"threadEntrypoints,omitempty"`
-}
-
-func (value *PluginExtensions) UnmarshalJSON(data []byte) error {
-	return value.unmarshalJSON(data, wireDecodeClosed)
-}
-
-func (value *PluginExtensions) unmarshalJSON(data []byte, mode wireDecodeMode) error {
-	fields, err := decodeObjectFields(data, "PluginExtensions")
-	if err != nil {
-		return err
-	}
-	var decoded PluginExtensions
-	_, err = decodeNullableJSONField[[]PluginEntrypoint](fields, "entrypoints", "PluginExtensions.entrypoints", mode, wireSliceDecoder(decodeWireValue[PluginEntrypoint]), &decoded.Entrypoints)
-	if err != nil {
-		return err
-	}
-	_, err = decodeJSONField(fields, "fileHandlers", "PluginExtensions.fileHandlers", false, mode, wirePointerDecoder(wireSliceDecoder(decodeWireValue[PluginEntrypoint])), &decoded.FileHandlers)
-	if err != nil {
-		return err
-	}
-	_, err = decodeJSONField(fields, "searchMentionProviders", "PluginExtensions.searchMentionProviders", false, mode, wirePointerDecoder(wireSliceDecoder(decodeWireValue[PluginSearchProvider])), &decoded.SearchMentionProviders)
-	if err != nil {
-		return err
-	}
-	_, err = decodeJSONField(fields, "settings", "PluginExtensions.settings", false, mode, wirePointerDecoder(wireSliceDecoder(decodeWireValue[PluginSettings])), &decoded.Settings)
-	if err != nil {
-		return err
-	}
-	_, err = decodeJSONField(fields, "settingsEntrypoints", "PluginExtensions.settingsEntrypoints", false, mode, wirePointerDecoder(wireSliceDecoder(decodeWireValue[PluginEntrypoint])), &decoded.SettingsEntrypoints)
-	if err != nil {
-		return err
-	}
-	_, err = decodeJSONField(fields, "threadEntrypoints", "PluginExtensions.threadEntrypoints", false, mode, wirePointerDecoder(wireSliceDecoder(decodeWireValue[PluginEntrypoint])), &decoded.ThreadEntrypoints)
-	if err != nil {
-		return err
-	}
-	if err := rejectUnexpectedFieldsForMode(fields, "PluginExtensions", mode); err != nil {
-		return err
-	}
-	*value = decoded
-	return nil
-}
-
 type PluginHookSummary struct {
 	EventName HookEventName `json:"eventName"`
 	Key       string        `json:"key"`
@@ -19087,49 +19045,6 @@ func (value *PluginHookSummary) unmarshalJSON(data []byte, mode wireDecodeMode) 
 		return missingRequiredField("PluginHookSummary.key")
 	}
 	if err := rejectUnexpectedFieldsForMode(fields, "PluginHookSummary", mode); err != nil {
-		return err
-	}
-	*value = decoded
-	return nil
-}
-
-type PluginIcon struct {
-	MimeType *Nullable[string]   `json:"mimeType,omitempty"`
-	Sizes    *Nullable[[]string] `json:"sizes,omitempty"`
-	Src      string              `json:"src"`
-	Theme    *Nullable[string]   `json:"theme,omitempty"`
-}
-
-func (value *PluginIcon) UnmarshalJSON(data []byte) error {
-	return value.unmarshalJSON(data, wireDecodeClosed)
-}
-
-func (value *PluginIcon) unmarshalJSON(data []byte, mode wireDecodeMode) error {
-	fields, err := decodeObjectFields(data, "PluginIcon")
-	if err != nil {
-		return err
-	}
-	var decoded PluginIcon
-	_, err = decodeNullableJSONField[string](fields, "mimeType", "PluginIcon.mimeType", mode, decodeWireValue[string], &decoded.MimeType)
-	if err != nil {
-		return err
-	}
-	_, err = decodeNullableJSONField[[]string](fields, "sizes", "PluginIcon.sizes", mode, wireSliceDecoder(decodeWireValue[string]), &decoded.Sizes)
-	if err != nil {
-		return err
-	}
-	seenSrc, err := decodeJSONField(fields, "src", "PluginIcon.src", false, mode, decodeWireValue[string], &decoded.Src)
-	if err != nil {
-		return err
-	}
-	if !seenSrc {
-		return missingRequiredField("PluginIcon.src")
-	}
-	_, err = decodeNullableJSONField[string](fields, "theme", "PluginIcon.theme", mode, decodeWireValue[string], &decoded.Theme)
-	if err != nil {
-		return err
-	}
-	if err := rejectUnexpectedFieldsForMode(fields, "PluginIcon", mode); err != nil {
 		return err
 	}
 	*value = decoded
@@ -19567,58 +19482,6 @@ func (value *PluginMarketplaceEntry) unmarshalJSON(data []byte, mode wireDecodeM
 	return nil
 }
 
-type PluginQuickAction struct {
-	Icons  []PluginIcon            `json:"icons"`
-	Target PluginQuickActionTarget `json:"target"`
-	Title  string                  `json:"title"`
-}
-
-func (value PluginQuickAction) MarshalJSON() ([]byte, error) {
-	if value.Icons == nil {
-		return nil, fmt.Errorf("encode PluginQuickAction.icons: nil is not allowed")
-	}
-	type wire PluginQuickAction
-	return json.Marshal(wire(value))
-}
-
-func (value *PluginQuickAction) UnmarshalJSON(data []byte) error {
-	return value.unmarshalJSON(data, wireDecodeClosed)
-}
-
-func (value *PluginQuickAction) unmarshalJSON(data []byte, mode wireDecodeMode) error {
-	fields, err := decodeObjectFields(data, "PluginQuickAction")
-	if err != nil {
-		return err
-	}
-	var decoded PluginQuickAction
-	seenIcons, err := decodeJSONField(fields, "icons", "PluginQuickAction.icons", false, mode, wireSliceDecoder(decodeWireValue[PluginIcon]), &decoded.Icons)
-	if err != nil {
-		return err
-	}
-	if !seenIcons {
-		return missingRequiredField("PluginQuickAction.icons")
-	}
-	seenTarget, err := decodeJSONField(fields, "target", "PluginQuickAction.target", false, mode, decodeWireValue[PluginQuickActionTarget], &decoded.Target)
-	if err != nil {
-		return err
-	}
-	if !seenTarget {
-		return missingRequiredField("PluginQuickAction.target")
-	}
-	seenTitle, err := decodeJSONField(fields, "title", "PluginQuickAction.title", false, mode, decodeWireValue[string], &decoded.Title)
-	if err != nil {
-		return err
-	}
-	if !seenTitle {
-		return missingRequiredField("PluginQuickAction.title")
-	}
-	if err := rejectUnexpectedFieldsForMode(fields, "PluginQuickAction", mode); err != nil {
-		return err
-	}
-	*value = decoded
-	return nil
-}
-
 type PluginReadParams struct {
 	MarketplacePath       *Nullable[string] `json:"marketplacePath,omitempty"`
 	PluginName            string            `json:"pluginName"`
@@ -19876,107 +19739,6 @@ func (value *PluginSearchParams) unmarshalJSON(data []byte, mode wireDecodeMode)
 	return nil
 }
 
-type PluginSearchProvider struct {
-	AppID    string                              `json:"appId"`
-	Call     *Nullable[PluginSearchProviderCall] `json:"call,omitempty"`
-	LinkID   string                              `json:"linkId"`
-	Title    string                              `json:"title"`
-	ToolName string                              `json:"toolName"`
-}
-
-func (value *PluginSearchProvider) UnmarshalJSON(data []byte) error {
-	return value.unmarshalJSON(data, wireDecodeClosed)
-}
-
-func (value *PluginSearchProvider) unmarshalJSON(data []byte, mode wireDecodeMode) error {
-	fields, err := decodeObjectFields(data, "PluginSearchProvider")
-	if err != nil {
-		return err
-	}
-	var decoded PluginSearchProvider
-	seenAppID, err := decodeJSONField(fields, "appId", "PluginSearchProvider.appId", false, mode, decodeWireValue[string], &decoded.AppID)
-	if err != nil {
-		return err
-	}
-	if !seenAppID {
-		return missingRequiredField("PluginSearchProvider.appId")
-	}
-	_, err = decodeNullableJSONField[PluginSearchProviderCall](fields, "call", "PluginSearchProvider.call", mode, decodeWireValue[PluginSearchProviderCall], &decoded.Call)
-	if err != nil {
-		return err
-	}
-	seenLinkID, err := decodeJSONField(fields, "linkId", "PluginSearchProvider.linkId", false, mode, decodeWireValue[string], &decoded.LinkID)
-	if err != nil {
-		return err
-	}
-	if !seenLinkID {
-		return missingRequiredField("PluginSearchProvider.linkId")
-	}
-	seenTitle, err := decodeJSONField(fields, "title", "PluginSearchProvider.title", false, mode, decodeWireValue[string], &decoded.Title)
-	if err != nil {
-		return err
-	}
-	if !seenTitle {
-		return missingRequiredField("PluginSearchProvider.title")
-	}
-	seenToolName, err := decodeJSONField(fields, "toolName", "PluginSearchProvider.toolName", false, mode, decodeWireValue[string], &decoded.ToolName)
-	if err != nil {
-		return err
-	}
-	if !seenToolName {
-		return missingRequiredField("PluginSearchProvider.toolName")
-	}
-	if err := rejectUnexpectedFieldsForMode(fields, "PluginSearchProvider", mode); err != nil {
-		return err
-	}
-	*value = decoded
-	return nil
-}
-
-type PluginSearchProviderCall struct {
-	Meta      JSONValue `json:"_meta"`
-	Arguments JSONValue `json:"arguments"`
-	Name      string    `json:"name"`
-}
-
-func (value *PluginSearchProviderCall) UnmarshalJSON(data []byte) error {
-	return value.unmarshalJSON(data, wireDecodeClosed)
-}
-
-func (value *PluginSearchProviderCall) unmarshalJSON(data []byte, mode wireDecodeMode) error {
-	fields, err := decodeObjectFields(data, "PluginSearchProviderCall")
-	if err != nil {
-		return err
-	}
-	var decoded PluginSearchProviderCall
-	seenMeta, err := decodeJSONValueField(fields, "_meta", "PluginSearchProviderCall._meta", &decoded.Meta)
-	if err != nil {
-		return err
-	}
-	if !seenMeta {
-		return missingRequiredField("PluginSearchProviderCall._meta")
-	}
-	seenArguments, err := decodeJSONValueField(fields, "arguments", "PluginSearchProviderCall.arguments", &decoded.Arguments)
-	if err != nil {
-		return err
-	}
-	if !seenArguments {
-		return missingRequiredField("PluginSearchProviderCall.arguments")
-	}
-	seenName, err := decodeJSONField(fields, "name", "PluginSearchProviderCall.name", false, mode, decodeWireValue[string], &decoded.Name)
-	if err != nil {
-		return err
-	}
-	if !seenName {
-		return missingRequiredField("PluginSearchProviderCall.name")
-	}
-	if err := rejectUnexpectedFieldsForMode(fields, "PluginSearchProviderCall", mode); err != nil {
-		return err
-	}
-	*value = decoded
-	return nil
-}
-
 type PluginSearchResponse struct {
 	Data       []PluginSearchResult `json:"data"`
 	NextCursor *Nullable[string]    `json:"nextCursor,omitempty"`
@@ -20053,50 +19815,6 @@ func (value *PluginSearchResult) unmarshalJSON(data []byte, mode wireDecodeMode)
 		return missingRequiredField("PluginSearchResult.plugin")
 	}
 	if err := rejectUnexpectedFieldsForMode(fields, "PluginSearchResult", mode); err != nil {
-		return err
-	}
-	*value = decoded
-	return nil
-}
-
-type PluginSettings struct {
-	AppID          string `json:"appId"`
-	ReadToolName   string `json:"readToolName"`
-	UpdateToolName string `json:"updateToolName"`
-}
-
-func (value *PluginSettings) UnmarshalJSON(data []byte) error {
-	return value.unmarshalJSON(data, wireDecodeClosed)
-}
-
-func (value *PluginSettings) unmarshalJSON(data []byte, mode wireDecodeMode) error {
-	fields, err := decodeObjectFields(data, "PluginSettings")
-	if err != nil {
-		return err
-	}
-	var decoded PluginSettings
-	seenAppID, err := decodeJSONField(fields, "appId", "PluginSettings.appId", false, mode, decodeWireValue[string], &decoded.AppID)
-	if err != nil {
-		return err
-	}
-	if !seenAppID {
-		return missingRequiredField("PluginSettings.appId")
-	}
-	seenReadToolName, err := decodeJSONField(fields, "readToolName", "PluginSettings.readToolName", false, mode, decodeWireValue[string], &decoded.ReadToolName)
-	if err != nil {
-		return err
-	}
-	if !seenReadToolName {
-		return missingRequiredField("PluginSettings.readToolName")
-	}
-	seenUpdateToolName, err := decodeJSONField(fields, "updateToolName", "PluginSettings.updateToolName", false, mode, decodeWireValue[string], &decoded.UpdateToolName)
-	if err != nil {
-		return err
-	}
-	if !seenUpdateToolName {
-		return missingRequiredField("PluginSettings.updateToolName")
-	}
-	if err := rejectUnexpectedFieldsForMode(fields, "PluginSettings", mode); err != nil {
 		return err
 	}
 	*value = decoded
@@ -20751,7 +20469,6 @@ type PluginSummary struct {
 	DisabledReason                   *Nullable[PluginDisabledReason]      `json:"disabledReason,omitempty"`
 	EligiblePlanTypes                *Nullable[[]string]                  `json:"eligiblePlanTypes,omitempty"`
 	Enabled                          bool                                 `json:"enabled"`
-	Extensions                       *Nullable[PluginExtensions]          `json:"extensions,omitempty"`
 	ID                               string                               `json:"id"`
 	InstallPolicy                    PluginInstallPolicy                  `json:"installPolicy"`
 	InstallPolicySource              *Nullable[PluginInstallPolicySource] `json:"installPolicySource,omitempty"`
@@ -20803,10 +20520,6 @@ func (value *PluginSummary) unmarshalJSON(data []byte, mode wireDecodeMode) erro
 	}
 	if !seenEnabled {
 		return missingRequiredField("PluginSummary.enabled")
-	}
-	_, err = decodeNullableJSONField[PluginExtensions](fields, "extensions", "PluginSummary.extensions", mode, decodeWireValue[PluginExtensions], &decoded.Extensions)
-	if err != nil {
-		return err
 	}
 	seenID, err := decodeJSONField(fields, "id", "PluginSummary.id", false, mode, decodeWireValue[string], &decoded.ID)
 	if err != nil {
@@ -33636,6 +33349,7 @@ const (
 	CodexErrorInfoKindSessionBudgetExceeded          CodexErrorInfoKind = "sessionBudgetExceeded"
 	CodexErrorInfoKindUsageLimitExceeded             CodexErrorInfoKind = "usageLimitExceeded"
 	CodexErrorInfoKindRateLimitExceeded              CodexErrorInfoKind = "rateLimitExceeded"
+	CodexErrorInfoKindFlexUnavailable                CodexErrorInfoKind = "flexUnavailable"
 	CodexErrorInfoKindServerOverloaded               CodexErrorInfoKind = "serverOverloaded"
 	CodexErrorInfoKindCyberPolicy                    CodexErrorInfoKind = "cyberPolicy"
 	CodexErrorInfoKindMisalignmentPolicyViolation    CodexErrorInfoKind = "misalignmentPolicyViolation"
@@ -33658,6 +33372,7 @@ type CodexErrorInfo struct {
 	variantSessionBudgetExceeded          *CodexErrorInfoSessionBudgetExceeded
 	variantUsageLimitExceeded             *CodexErrorInfoUsageLimitExceeded
 	variantRateLimitExceeded              *CodexErrorInfoRateLimitExceeded
+	variantFlexUnavailable                *CodexErrorInfoFlexUnavailable
 	variantServerOverloaded               *CodexErrorInfoServerOverloaded
 	variantCyberPolicy                    *CodexErrorInfoCyberPolicy
 	variantMisalignmentPolicyViolation    *CodexErrorInfoMisalignmentPolicyViolation
@@ -33681,6 +33396,8 @@ type CodexErrorInfoSessionBudgetExceeded struct{}
 type CodexErrorInfoUsageLimitExceeded struct{}
 
 type CodexErrorInfoRateLimitExceeded struct{}
+
+type CodexErrorInfoFlexUnavailable struct{}
 
 type CodexErrorInfoServerOverloaded struct{}
 
@@ -33738,6 +33455,11 @@ func NewCodexErrorInfoUsageLimitExceeded() CodexErrorInfo {
 func NewCodexErrorInfoRateLimitExceeded() CodexErrorInfo {
 	payload := CodexErrorInfoRateLimitExceeded{}
 	return CodexErrorInfo{kind: CodexErrorInfoKindRateLimitExceeded, variantRateLimitExceeded: &payload}
+}
+
+func NewCodexErrorInfoFlexUnavailable() CodexErrorInfo {
+	payload := CodexErrorInfoFlexUnavailable{}
+	return CodexErrorInfo{kind: CodexErrorInfoKindFlexUnavailable, variantFlexUnavailable: &payload}
 }
 
 func NewCodexErrorInfoServerOverloaded() CodexErrorInfo {
@@ -33819,6 +33541,8 @@ func (value CodexErrorInfo) IsValid() bool {
 		return value.variantUsageLimitExceeded != nil
 	case CodexErrorInfoKindRateLimitExceeded:
 		return value.variantRateLimitExceeded != nil
+	case CodexErrorInfoKindFlexUnavailable:
+		return value.variantFlexUnavailable != nil
 	case CodexErrorInfoKindServerOverloaded:
 		return value.variantServerOverloaded != nil
 	case CodexErrorInfoKindCyberPolicy:
@@ -33878,6 +33602,13 @@ func (value CodexErrorInfo) AsRateLimitExceeded() (CodexErrorInfoRateLimitExceed
 		return CodexErrorInfoRateLimitExceeded{}, false
 	}
 	return *value.variantRateLimitExceeded, true
+}
+
+func (value CodexErrorInfo) AsFlexUnavailable() (CodexErrorInfoFlexUnavailable, bool) {
+	if value.kind != CodexErrorInfoKindFlexUnavailable || value.variantFlexUnavailable == nil {
+		return CodexErrorInfoFlexUnavailable{}, false
+	}
+	return *value.variantFlexUnavailable, true
 }
 
 func (value CodexErrorInfo) AsServerOverloaded() (CodexErrorInfoServerOverloaded, bool) {
@@ -34000,6 +33731,11 @@ func (value CodexErrorInfo) MarshalJSON() ([]byte, error) {
 			return nil, invalidUnionVariant("CodexErrorInfo", "rateLimitExceeded")
 		}
 		return json.Marshal("rateLimitExceeded")
+	case CodexErrorInfoKindFlexUnavailable:
+		if value.variantFlexUnavailable == nil {
+			return nil, invalidUnionVariant("CodexErrorInfo", "flexUnavailable")
+		}
+		return json.Marshal("flexUnavailable")
 	case CodexErrorInfoKindServerOverloaded:
 		if value.variantServerOverloaded == nil {
 			return nil, invalidUnionVariant("CodexErrorInfo", "serverOverloaded")
@@ -34123,6 +33859,10 @@ func (value *CodexErrorInfo) unmarshalJSON(data []byte, mode wireDecodeMode) err
 		case "rateLimitExceeded":
 			payload := CodexErrorInfoRateLimitExceeded{}
 			*value = CodexErrorInfo{kind: CodexErrorInfoKindRateLimitExceeded, variantRateLimitExceeded: &payload}
+			return nil
+		case "flexUnavailable":
+			payload := CodexErrorInfoFlexUnavailable{}
+			*value = CodexErrorInfo{kind: CodexErrorInfoKindFlexUnavailable, variantFlexUnavailable: &payload}
 			return nil
 		case "serverOverloaded":
 			payload := CodexErrorInfoServerOverloaded{}
@@ -50586,524 +50326,6 @@ func (value *PatchChangeKind) unmarshalJSON(data []byte, mode wireDecodeMode) er
 		return nil
 	default:
 		return unknownUnionVariant("PatchChangeKind", "type", variant)
-	}
-}
-
-type PluginEntrypointKind string
-
-const (
-	PluginEntrypointKindGlobal   PluginEntrypointKind = "global"
-	PluginEntrypointKindSettings PluginEntrypointKind = "settings"
-	PluginEntrypointKindThread   PluginEntrypointKind = "thread"
-	PluginEntrypointKindFile     PluginEntrypointKind = "file"
-)
-
-type PluginEntrypoint struct {
-	kind            PluginEntrypointKind
-	variantGlobal   *PluginEntrypointGlobal
-	variantSettings *PluginEntrypointSettings
-	variantThread   *PluginEntrypointThread
-	variantFile     *PluginEntrypointFile
-}
-
-type PluginEntrypointGlobal struct {
-	AppID       string                       `json:"appId"`
-	Icons       []PluginIcon                 `json:"icons"`
-	QuickAction *Nullable[PluginQuickAction] `json:"quickAction,omitempty"`
-	ResourceURI string                       `json:"resourceUri"`
-	Title       string                       `json:"title"`
-	ToolName    string                       `json:"toolName"`
-}
-
-type PluginEntrypointSettings struct {
-	AppID       string       `json:"appId"`
-	Icons       []PluginIcon `json:"icons"`
-	ResourceURI string       `json:"resourceUri"`
-	SearchTerms *[]string    `json:"searchTerms,omitempty"`
-	Title       string       `json:"title"`
-	ToolName    string       `json:"toolName"`
-}
-
-type PluginEntrypointThread struct {
-	AppID       string       `json:"appId"`
-	Icons       []PluginIcon `json:"icons"`
-	ResourceURI string       `json:"resourceUri"`
-	Title       string       `json:"title"`
-	ToolName    string       `json:"toolName"`
-}
-
-type PluginEntrypointFile struct {
-	AppID       string       `json:"appId"`
-	Extensions  []string     `json:"extensions"`
-	Icons       []PluginIcon `json:"icons"`
-	ResourceURI string       `json:"resourceUri"`
-	Title       string       `json:"title"`
-	ToolName    string       `json:"toolName"`
-}
-
-func NewPluginEntrypointGlobal(payload PluginEntrypointGlobal) PluginEntrypoint {
-	return PluginEntrypoint{kind: PluginEntrypointKindGlobal, variantGlobal: &payload}
-}
-
-func NewPluginEntrypointSettings(payload PluginEntrypointSettings) PluginEntrypoint {
-	return PluginEntrypoint{kind: PluginEntrypointKindSettings, variantSettings: &payload}
-}
-
-func NewPluginEntrypointThread(payload PluginEntrypointThread) PluginEntrypoint {
-	return PluginEntrypoint{kind: PluginEntrypointKindThread, variantThread: &payload}
-}
-
-func NewPluginEntrypointFile(payload PluginEntrypointFile) PluginEntrypoint {
-	return PluginEntrypoint{kind: PluginEntrypointKindFile, variantFile: &payload}
-}
-
-func (value PluginEntrypoint) Kind() PluginEntrypointKind {
-	return value.kind
-}
-
-func (value PluginEntrypoint) IsValid() bool {
-	switch value.kind {
-	case PluginEntrypointKindGlobal:
-		return value.variantGlobal != nil
-	case PluginEntrypointKindSettings:
-		return value.variantSettings != nil
-	case PluginEntrypointKindThread:
-		return value.variantThread != nil
-	case PluginEntrypointKindFile:
-		return value.variantFile != nil
-	default:
-		return false
-	}
-}
-
-func (value PluginEntrypoint) AsGlobal() (PluginEntrypointGlobal, bool) {
-	if value.kind != PluginEntrypointKindGlobal || value.variantGlobal == nil {
-		return PluginEntrypointGlobal{}, false
-	}
-	return *value.variantGlobal, true
-}
-
-func (value PluginEntrypoint) AsSettings() (PluginEntrypointSettings, bool) {
-	if value.kind != PluginEntrypointKindSettings || value.variantSettings == nil {
-		return PluginEntrypointSettings{}, false
-	}
-	return *value.variantSettings, true
-}
-
-func (value PluginEntrypoint) AsThread() (PluginEntrypointThread, bool) {
-	if value.kind != PluginEntrypointKindThread || value.variantThread == nil {
-		return PluginEntrypointThread{}, false
-	}
-	return *value.variantThread, true
-}
-
-func (value PluginEntrypoint) AsFile() (PluginEntrypointFile, bool) {
-	if value.kind != PluginEntrypointKindFile || value.variantFile == nil {
-		return PluginEntrypointFile{}, false
-	}
-	return *value.variantFile, true
-}
-
-func (value PluginEntrypoint) MarshalJSON() ([]byte, error) {
-	switch value.kind {
-	case PluginEntrypointKindGlobal:
-		if value.variantGlobal == nil {
-			return nil, invalidUnionVariant("PluginEntrypoint", "global")
-		}
-		if value.variantGlobal.Icons == nil {
-			return nil, fmt.Errorf("encode PluginEntrypoint.global.icons: nil is not allowed")
-		}
-		return json.Marshal(struct {
-			AppID       string                       `json:"appId"`
-			Icons       []PluginIcon                 `json:"icons"`
-			QuickAction *Nullable[PluginQuickAction] `json:"quickAction,omitempty"`
-			ResourceURI string                       `json:"resourceUri"`
-			Title       string                       `json:"title"`
-			ToolName    string                       `json:"toolName"`
-			Type        string                       `json:"type"`
-		}{
-			AppID:       value.variantGlobal.AppID,
-			Icons:       value.variantGlobal.Icons,
-			QuickAction: value.variantGlobal.QuickAction,
-			ResourceURI: value.variantGlobal.ResourceURI,
-			Title:       value.variantGlobal.Title,
-			ToolName:    value.variantGlobal.ToolName,
-			Type:        "global",
-		})
-	case PluginEntrypointKindSettings:
-		if value.variantSettings == nil {
-			return nil, invalidUnionVariant("PluginEntrypoint", "settings")
-		}
-		if value.variantSettings.Icons == nil {
-			return nil, fmt.Errorf("encode PluginEntrypoint.settings.icons: nil is not allowed")
-		}
-		return json.Marshal(struct {
-			AppID       string       `json:"appId"`
-			Icons       []PluginIcon `json:"icons"`
-			ResourceURI string       `json:"resourceUri"`
-			SearchTerms *[]string    `json:"searchTerms,omitempty"`
-			Title       string       `json:"title"`
-			ToolName    string       `json:"toolName"`
-			Type        string       `json:"type"`
-		}{
-			AppID:       value.variantSettings.AppID,
-			Icons:       value.variantSettings.Icons,
-			ResourceURI: value.variantSettings.ResourceURI,
-			SearchTerms: value.variantSettings.SearchTerms,
-			Title:       value.variantSettings.Title,
-			ToolName:    value.variantSettings.ToolName,
-			Type:        "settings",
-		})
-	case PluginEntrypointKindThread:
-		if value.variantThread == nil {
-			return nil, invalidUnionVariant("PluginEntrypoint", "thread")
-		}
-		if value.variantThread.Icons == nil {
-			return nil, fmt.Errorf("encode PluginEntrypoint.thread.icons: nil is not allowed")
-		}
-		return json.Marshal(struct {
-			AppID       string       `json:"appId"`
-			Icons       []PluginIcon `json:"icons"`
-			ResourceURI string       `json:"resourceUri"`
-			Title       string       `json:"title"`
-			ToolName    string       `json:"toolName"`
-			Type        string       `json:"type"`
-		}{
-			AppID:       value.variantThread.AppID,
-			Icons:       value.variantThread.Icons,
-			ResourceURI: value.variantThread.ResourceURI,
-			Title:       value.variantThread.Title,
-			ToolName:    value.variantThread.ToolName,
-			Type:        "thread",
-		})
-	case PluginEntrypointKindFile:
-		if value.variantFile == nil {
-			return nil, invalidUnionVariant("PluginEntrypoint", "file")
-		}
-		if value.variantFile.Extensions == nil {
-			return nil, fmt.Errorf("encode PluginEntrypoint.file.extensions: nil is not allowed")
-		}
-		if value.variantFile.Icons == nil {
-			return nil, fmt.Errorf("encode PluginEntrypoint.file.icons: nil is not allowed")
-		}
-		return json.Marshal(struct {
-			AppID       string       `json:"appId"`
-			Extensions  []string     `json:"extensions"`
-			Icons       []PluginIcon `json:"icons"`
-			ResourceURI string       `json:"resourceUri"`
-			Title       string       `json:"title"`
-			ToolName    string       `json:"toolName"`
-			Type        string       `json:"type"`
-		}{
-			AppID:       value.variantFile.AppID,
-			Extensions:  value.variantFile.Extensions,
-			Icons:       value.variantFile.Icons,
-			ResourceURI: value.variantFile.ResourceURI,
-			Title:       value.variantFile.Title,
-			ToolName:    value.variantFile.ToolName,
-			Type:        "file",
-		})
-	default:
-		return nil, invalidUnionValue("PluginEntrypoint")
-	}
-}
-
-func (value *PluginEntrypoint) UnmarshalJSON(data []byte) error {
-	return value.unmarshalJSON(data, wireDecodeClosed)
-}
-
-func (value *PluginEntrypoint) unmarshalJSON(data []byte, mode wireDecodeMode) error {
-	fields, err := decodeObjectFields(data, "PluginEntrypoint")
-	if err != nil {
-		return err
-	}
-	variant, err := decodeTaggedUnionDiscriminator(fields, "type", "PluginEntrypoint")
-	if err != nil {
-		return err
-	}
-	switch variant {
-	case "global":
-		var decoded PluginEntrypointGlobal
-		seenAppID, err := decodeJSONField(fields, "appId", "PluginEntrypoint.appId", false, mode, decodeWireValue[string], &decoded.AppID)
-		if err != nil {
-			return err
-		}
-		if !seenAppID {
-			return missingRequiredField("PluginEntrypoint.appId")
-		}
-		seenIcons, err := decodeJSONField(fields, "icons", "PluginEntrypoint.icons", false, mode, wireSliceDecoder(decodeWireValue[PluginIcon]), &decoded.Icons)
-		if err != nil {
-			return err
-		}
-		if !seenIcons {
-			return missingRequiredField("PluginEntrypoint.icons")
-		}
-		_, err = decodeNullableJSONField[PluginQuickAction](fields, "quickAction", "PluginEntrypoint.quickAction", mode, decodeWireValue[PluginQuickAction], &decoded.QuickAction)
-		if err != nil {
-			return err
-		}
-		seenResourceURI, err := decodeJSONField(fields, "resourceUri", "PluginEntrypoint.resourceUri", false, mode, decodeWireValue[string], &decoded.ResourceURI)
-		if err != nil {
-			return err
-		}
-		if !seenResourceURI {
-			return missingRequiredField("PluginEntrypoint.resourceUri")
-		}
-		seenTitle, err := decodeJSONField(fields, "title", "PluginEntrypoint.title", false, mode, decodeWireValue[string], &decoded.Title)
-		if err != nil {
-			return err
-		}
-		if !seenTitle {
-			return missingRequiredField("PluginEntrypoint.title")
-		}
-		seenToolName, err := decodeJSONField(fields, "toolName", "PluginEntrypoint.toolName", false, mode, decodeWireValue[string], &decoded.ToolName)
-		if err != nil {
-			return err
-		}
-		if !seenToolName {
-			return missingRequiredField("PluginEntrypoint.toolName")
-		}
-		if err := rejectUnexpectedFieldsForMode(fields, "PluginEntrypoint.global", mode); err != nil {
-			return err
-		}
-		*value = PluginEntrypoint{kind: PluginEntrypointKindGlobal, variantGlobal: &decoded}
-		return nil
-	case "settings":
-		var decoded PluginEntrypointSettings
-		seenAppID, err := decodeJSONField(fields, "appId", "PluginEntrypoint.appId", false, mode, decodeWireValue[string], &decoded.AppID)
-		if err != nil {
-			return err
-		}
-		if !seenAppID {
-			return missingRequiredField("PluginEntrypoint.appId")
-		}
-		seenIcons, err := decodeJSONField(fields, "icons", "PluginEntrypoint.icons", false, mode, wireSliceDecoder(decodeWireValue[PluginIcon]), &decoded.Icons)
-		if err != nil {
-			return err
-		}
-		if !seenIcons {
-			return missingRequiredField("PluginEntrypoint.icons")
-		}
-		seenResourceURI, err := decodeJSONField(fields, "resourceUri", "PluginEntrypoint.resourceUri", false, mode, decodeWireValue[string], &decoded.ResourceURI)
-		if err != nil {
-			return err
-		}
-		if !seenResourceURI {
-			return missingRequiredField("PluginEntrypoint.resourceUri")
-		}
-		_, err = decodeJSONField(fields, "searchTerms", "PluginEntrypoint.searchTerms", false, mode, wirePointerDecoder(wireSliceDecoder(decodeWireValue[string])), &decoded.SearchTerms)
-		if err != nil {
-			return err
-		}
-		seenTitle, err := decodeJSONField(fields, "title", "PluginEntrypoint.title", false, mode, decodeWireValue[string], &decoded.Title)
-		if err != nil {
-			return err
-		}
-		if !seenTitle {
-			return missingRequiredField("PluginEntrypoint.title")
-		}
-		seenToolName, err := decodeJSONField(fields, "toolName", "PluginEntrypoint.toolName", false, mode, decodeWireValue[string], &decoded.ToolName)
-		if err != nil {
-			return err
-		}
-		if !seenToolName {
-			return missingRequiredField("PluginEntrypoint.toolName")
-		}
-		if err := rejectUnexpectedFieldsForMode(fields, "PluginEntrypoint.settings", mode); err != nil {
-			return err
-		}
-		*value = PluginEntrypoint{kind: PluginEntrypointKindSettings, variantSettings: &decoded}
-		return nil
-	case "thread":
-		var decoded PluginEntrypointThread
-		seenAppID, err := decodeJSONField(fields, "appId", "PluginEntrypoint.appId", false, mode, decodeWireValue[string], &decoded.AppID)
-		if err != nil {
-			return err
-		}
-		if !seenAppID {
-			return missingRequiredField("PluginEntrypoint.appId")
-		}
-		seenIcons, err := decodeJSONField(fields, "icons", "PluginEntrypoint.icons", false, mode, wireSliceDecoder(decodeWireValue[PluginIcon]), &decoded.Icons)
-		if err != nil {
-			return err
-		}
-		if !seenIcons {
-			return missingRequiredField("PluginEntrypoint.icons")
-		}
-		seenResourceURI, err := decodeJSONField(fields, "resourceUri", "PluginEntrypoint.resourceUri", false, mode, decodeWireValue[string], &decoded.ResourceURI)
-		if err != nil {
-			return err
-		}
-		if !seenResourceURI {
-			return missingRequiredField("PluginEntrypoint.resourceUri")
-		}
-		seenTitle, err := decodeJSONField(fields, "title", "PluginEntrypoint.title", false, mode, decodeWireValue[string], &decoded.Title)
-		if err != nil {
-			return err
-		}
-		if !seenTitle {
-			return missingRequiredField("PluginEntrypoint.title")
-		}
-		seenToolName, err := decodeJSONField(fields, "toolName", "PluginEntrypoint.toolName", false, mode, decodeWireValue[string], &decoded.ToolName)
-		if err != nil {
-			return err
-		}
-		if !seenToolName {
-			return missingRequiredField("PluginEntrypoint.toolName")
-		}
-		if err := rejectUnexpectedFieldsForMode(fields, "PluginEntrypoint.thread", mode); err != nil {
-			return err
-		}
-		*value = PluginEntrypoint{kind: PluginEntrypointKindThread, variantThread: &decoded}
-		return nil
-	case "file":
-		var decoded PluginEntrypointFile
-		seenAppID, err := decodeJSONField(fields, "appId", "PluginEntrypoint.appId", false, mode, decodeWireValue[string], &decoded.AppID)
-		if err != nil {
-			return err
-		}
-		if !seenAppID {
-			return missingRequiredField("PluginEntrypoint.appId")
-		}
-		seenExtensions, err := decodeJSONField(fields, "extensions", "PluginEntrypoint.extensions", false, mode, wireSliceDecoder(decodeWireValue[string]), &decoded.Extensions)
-		if err != nil {
-			return err
-		}
-		if !seenExtensions {
-			return missingRequiredField("PluginEntrypoint.extensions")
-		}
-		seenIcons, err := decodeJSONField(fields, "icons", "PluginEntrypoint.icons", false, mode, wireSliceDecoder(decodeWireValue[PluginIcon]), &decoded.Icons)
-		if err != nil {
-			return err
-		}
-		if !seenIcons {
-			return missingRequiredField("PluginEntrypoint.icons")
-		}
-		seenResourceURI, err := decodeJSONField(fields, "resourceUri", "PluginEntrypoint.resourceUri", false, mode, decodeWireValue[string], &decoded.ResourceURI)
-		if err != nil {
-			return err
-		}
-		if !seenResourceURI {
-			return missingRequiredField("PluginEntrypoint.resourceUri")
-		}
-		seenTitle, err := decodeJSONField(fields, "title", "PluginEntrypoint.title", false, mode, decodeWireValue[string], &decoded.Title)
-		if err != nil {
-			return err
-		}
-		if !seenTitle {
-			return missingRequiredField("PluginEntrypoint.title")
-		}
-		seenToolName, err := decodeJSONField(fields, "toolName", "PluginEntrypoint.toolName", false, mode, decodeWireValue[string], &decoded.ToolName)
-		if err != nil {
-			return err
-		}
-		if !seenToolName {
-			return missingRequiredField("PluginEntrypoint.toolName")
-		}
-		if err := rejectUnexpectedFieldsForMode(fields, "PluginEntrypoint.file", mode); err != nil {
-			return err
-		}
-		*value = PluginEntrypoint{kind: PluginEntrypointKindFile, variantFile: &decoded}
-		return nil
-	default:
-		return unknownUnionVariant("PluginEntrypoint", "type", variant)
-	}
-}
-
-type PluginQuickActionTargetKind string
-
-const (
-	PluginQuickActionTargetKindTool PluginQuickActionTargetKind = "tool"
-)
-
-type PluginQuickActionTarget struct {
-	kind        PluginQuickActionTargetKind
-	variantTool *PluginQuickActionTargetTool
-}
-
-type PluginQuickActionTargetTool struct {
-	Arguments *JSONValue `json:"arguments,omitempty"`
-	Name      string     `json:"name"`
-}
-
-func NewPluginQuickActionTargetTool(payload PluginQuickActionTargetTool) PluginQuickActionTarget {
-	return PluginQuickActionTarget{kind: PluginQuickActionTargetKindTool, variantTool: &payload}
-}
-
-func (value PluginQuickActionTarget) Kind() PluginQuickActionTargetKind {
-	return value.kind
-}
-
-func (value PluginQuickActionTarget) IsValid() bool {
-	switch value.kind {
-	case PluginQuickActionTargetKindTool:
-		return value.variantTool != nil
-	default:
-		return false
-	}
-}
-
-func (value PluginQuickActionTarget) AsTool() (PluginQuickActionTargetTool, bool) {
-	if value.kind != PluginQuickActionTargetKindTool || value.variantTool == nil {
-		return PluginQuickActionTargetTool{}, false
-	}
-	return *value.variantTool, true
-}
-
-func (value PluginQuickActionTarget) MarshalJSON() ([]byte, error) {
-	switch value.kind {
-	case PluginQuickActionTargetKindTool:
-		if value.variantTool == nil {
-			return nil, invalidUnionVariant("PluginQuickActionTarget", "tool")
-		}
-		return json.Marshal(struct {
-			Arguments *JSONValue `json:"arguments,omitempty"`
-			Name      string     `json:"name"`
-			Type      string     `json:"type"`
-		}{
-			Arguments: value.variantTool.Arguments,
-			Name:      value.variantTool.Name,
-			Type:      "tool",
-		})
-	default:
-		return nil, invalidUnionValue("PluginQuickActionTarget")
-	}
-}
-
-func (value *PluginQuickActionTarget) UnmarshalJSON(data []byte) error {
-	return value.unmarshalJSON(data, wireDecodeClosed)
-}
-
-func (value *PluginQuickActionTarget) unmarshalJSON(data []byte, mode wireDecodeMode) error {
-	fields, err := decodeObjectFields(data, "PluginQuickActionTarget")
-	if err != nil {
-		return err
-	}
-	variant, err := decodeTaggedUnionDiscriminator(fields, "type", "PluginQuickActionTarget")
-	if err != nil {
-		return err
-	}
-	switch variant {
-	case "tool":
-		var decoded PluginQuickActionTargetTool
-		_, err = decodeOptionalJSONValueField(fields, "arguments", "PluginQuickActionTarget.arguments", &decoded.Arguments)
-		if err != nil {
-			return err
-		}
-		seenName, err := decodeJSONField(fields, "name", "PluginQuickActionTarget.name", false, mode, decodeWireValue[string], &decoded.Name)
-		if err != nil {
-			return err
-		}
-		if !seenName {
-			return missingRequiredField("PluginQuickActionTarget.name")
-		}
-		if err := rejectUnexpectedFieldsForMode(fields, "PluginQuickActionTarget.tool", mode); err != nil {
-			return err
-		}
-		*value = PluginQuickActionTarget{kind: PluginQuickActionTargetKindTool, variantTool: &decoded}
-		return nil
-	default:
-		return unknownUnionVariant("PluginQuickActionTarget", "type", variant)
 	}
 }
 
