@@ -46,7 +46,8 @@ jobs:
             .github/workflows/pr-verification.yml \
             .github/workflows/verify-generated.yml \
             .github/workflows/codexsdk-upstream-protocol-sync.yml \
-            .github/workflows/auto-forward.yml
+            .github/workflows/auto-forward.yml \
+            .github/workflows/auto-forward-dispatch.yml
           then
             echo "required=false" >> "${GITHUB_OUTPUT}"
           else
