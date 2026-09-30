@@ -46,7 +46,6 @@ jobs:
           head_sha="$(jq -r '.head.sha' <<<"${pr}")"
           head_repo="$(jq -r '.head.repo.full_name // empty' <<<"${pr}")"
           author="$(jq -r '.user.login // empty' <<<"${pr}")"
-          body="$(jq -r '.body // ""' <<<"${pr}")"
 
           if [[ "${state}" != open ||
                 "${draft}" != false ||
@@ -64,16 +63,6 @@ jobs:
 
           if [[ "${head_ref}" != codex/sync-upstream-* ]]; then
             echo "Unexpected protocol-sync branch: ${head_ref}"
-            exit 0
-          fi
-
-          if ! grep -Fq '<!-- codexsdk-upstream-sync' <<<"${body}"; then
-            echo "Missing protocol-sync marker; ignoring."
-            exit 0
-          fi
-
-          if ! grep -Fq "sync_commit: ${head_sha}" <<<"${body}"; then
-            echo "Protocol-sync marker does not identify current H; ignoring."
             exit 0
           fi
 

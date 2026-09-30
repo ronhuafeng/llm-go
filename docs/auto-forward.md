@@ -84,8 +84,8 @@ relevant, otherwise it completes as not applicable.
 The trusted `Auto-forward PR` workflow remains manually dispatchable with a PR
 number. Successful `PR verification` runs for the repository's protocol-sync
 bot are also routed through `Dispatch auto-forward`, which validates the PR
-identity, exact verified head, controlled branch namespace, and publication
-marker before dispatching `Auto-forward PR` from trusted main.
+identity, exact verified head, and controlled branch namespace before
+dispatching `Auto-forward PR` from trusted main.
 
 The read-only phase:
 
