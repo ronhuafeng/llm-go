@@ -1,564 +1,318 @@
 # Codex protocol synchronization
 
-This document is the current authority for how `codexsdk` evolves from one
-selected Codex App Server protocol source to another.
-
-The goal is not to preserve the implementation shape used for the previous
-upgrade. The goal is to preserve protocol meaning on the exact selected upstream
-source with the smallest current downstream semantics.
-
-## Authorities
-
-Three states are sufficient:
-
-- **Accepted baseline:** the checked-in schema baseline, generated Go surface,
-  and exact upstream source identity that have passed repository proof.
-- **Target:** one exact `openai/codex` tag, ref, or commit selected for the next
-  comparison. The peeled commit SHA is immutable identity; the selected Codex
-  source owns wire facts.
-- **Candidate:** freshly generated temporary state for the target. It is
-  comparison/reconstruction input, not an accepted baseline and not durable
-  cross-run state.
-
-GitHub Actions owns triggers, permissions, secret isolation, and publication
-authorization. Go owns target policy, schema/generation semantics, comparison,
-planning, application, and deterministic checks. A model may propose a targeted
-semantic change but never certifies correctness or performs repository effects.
-
-## Evolution contract
-
-Normal evolution is:
-
-```text
-accepted baseline
-        +
-   exact target
-        |
-        v
-generate fresh candidate
-        |
-        v
-PLAN (read-only)
-        |
-        +---- exact/current --------------------------> deterministic proof
-        |
-        +---- newer target, no schema drift ----------> provenance-only plan
-        |
-        +---- mechanically representable drift ------> deterministic plan
-        |
-        +---- unresolved semantic/generator drift
-                         |
-                         v
-                 one Agent proposal
-                         |
-                         v
-                      re-plan
-                         |
-                  unresolved? -- yes --> fail closed
-                         |
-                         no
-                         v
-                       APPLY
-                         |
-                         v
-                deterministic proof
-                         |
-                         v
-                 protected sync PR
-```
-
-Planning must not partially mutate the accepted worktree. Candidate schemas,
-manifests, generated Go, and compatibility results should be produced or
-validated in temporary state first. Application begins only after the selected
-target has a complete deterministic plan, including any narrowly reviewed
-semantic change.
-
-A successful Plan retains the complete candidate bytes. Apply materializes that
-result after checking the accepted baseline has not changed; it does not reread
-upstream inputs or repeat generation. The direct apply command uses the same
-construction path. Partial generation and surface-skipping modes are unsupported.
-
-The repository plan also compiles the public SDK and protocol packages, including
-handwritten tests, using a temporary Go overlay of those prepared bytes. It runs
-`go test -c`, so package initializers and tests do not execute during planning.
-A candidate compilation failure with a compilable accepted baseline produces a
-`go_compatibility` unresolved result before Apply and can enter the existing
-single repair pass. If both builds fail, planning fails with both diagnostics;
-it cannot attribute the failure to the upstream change. Resume repeats the same
-check. The final deterministic tests and isolated generated-package build remain
-required after application.
-
-Protocol generation shares one package constructor across upgrade planning,
-reproducibility checks, and the protocol CLI. Stable and complete schema visibility
-are distinct construction inputs. Type selection and naming are reused within
-each construction, and the facade consumes those generated facts directly.
-Package collisions are checked from Go declarations in each actual package,
-including handwritten declarations and receiver scopes. Diagnostics retain Go
-file locations without reconstructing upstream ownership from emitted names.
-The isolated compiler check remains the final generated-package proof.
-
-Before generation, the Go owner observes native GitHub PR/branch state. An
-unchanged App-owned pending PR on the same accepted base and upstream target is
-returned with its observed check state. This spends no new generation or Agent
-attempt and acquires no fresh proof. Accepted main metadata still owns whether
-the upstream version has actually been integrated.
-
-Ownership is checked against the configured App bot user ID in the native PR
-creator and latest ref activity actor, plus actual repository/base/head, source
-identity, after-SHA, and allowed paths. The Client ID is used only to mint the
-publication token. Editable PR metadata and Git commit author names are not
-push authority. Human source changes or edited PR descriptions,
-ambiguous matches and unknown ownership require maintainer intervention. A
-manually closed candidate remains paused; a changed upstream tag is an integrity
-failure. A newer pending stable target is never replaced by an older attempt.
-
-
-`repair_pending` is the explicit maintainer recovery for an open App-owned sync
-PR whose current head is not a single candidate commit. It does not regenerate
-protocol files. The App replays that head's valid protocol diff from the one parent
-already contained by current main. The new commit's parent is current main, so
-later main commits remain. It then updates the existing branch with
-force-with-lease. A head that is already a single commit, a closed candidate,
-and a tree whose baseline identity does not match the selected target are not
-repaired.
-
-When the target or accepted base changes, reconstruct and validate on that exact
-base. Carry the initially observed branch/head to the independent publisher,
-then update with an explicit expected-old-head Git lease. Recheck remote state
-after publishing; a concurrent base or PR change invalidates reuse of the old
-proof. Lost write responses are read back before another effect is attempted.
-An App-owned orphan branch is rebuilt and verified before completing its PR.
-The PR API's `base.sha` may lag a main push; the selected checkout and remote
-base ref, not that PR snapshot, determine the accepted base.
-
-A newly created branch is named from its selected upstream identity and the
-accepted base SHA, independent of run number or commit timestamp. The base SHA
-defines a publication epoch: retries for the same B/U reuse the same branch,
-while a later proposal for the same upstream target after an earlier PR was
-already merged gets a distinct branch and cannot collide with the historical
-merged publication. Existing open pending branches retain their current name
-when updated. GitHub PRs/branches and accepted main metadata remain the only
-cross-run state; there is no persistent repair queue or proof ledger.
-
-## Protocol facts and semantic overlays
-
-Fresh construction keeps the current method and field/type facts in memory.
-Generation consumes those facts with the exact complete/stable schema inputs;
-it does not write manifest/coverage and then reload them as generation authority.
-Persisted annotations are attached to the metadata projection after the current
-wire facts are selected. Editing that projection cannot alter the constructed
-requiredness, visibility, field set, or response mapping.
-
-The checked-in reproducibility path may load manifest/coverage as derived inputs.
-That proves reproducibility only; fresh exact reconstruction separately proves
-agreement with the immutable upstream source tuple. `generated_at` remains an
-observation time and the only excluded metadata field in exact comparison.
-
-The selected Codex schema is the authority for wire facts. The generator should
-derive lossless mappings from stable schema properties rather than from lists of
-today's field paths or type names.
-
-Examples of mechanically owned facts include:
-
-```text
-JSON Schema true / {} / annotations -> protocolv2.JSONValue
-array items: true                 -> []protocolv2.JSONValue
-additionalProperties: true        -> map[string]protocolv2.JSONValue
-string/integer/boolean scalars    -> matching Go scalar
-number with format: double         -> float64
-nullable/required/optional shape  -> matching wire-preserving Go representation
-$ref / definition reachability    -> generated dependency closure
-string enums / supported unions   -> generated named types
-```
-
-A new protocol instance is not, by itself, a reason for a handwritten
-checkpoint. If the generic mapping preserves the entire wire value and its
-presence/nullability semantics, generation should accept it.
-
-For each candidate, the complete schema supplies methods, types, fields,
-requiredness, and nullability. Method and type stability come from presence in
-the stable schema generated from the same upstream commit. Request response
-types come from that commit's `common.rs`; a missing mapping fails instead of
-falling back to the accepted manifest. The accepted manifest and coverage are
-comparison input and may retain local explanatory annotations, but their old
-wire facts do not decide the candidate. `generated_at` records observation time:
-it may be retained for the same exact source commit and is excluded from
-protocol-semantic comparisons. Method coverage status and classification source
-descriptions are regenerated from the current input; an old classification
-cannot suppress a current method. Ambiguous schema type names fail closed.
-
-Facade target names are local public Go API representation. A small handwritten
-name map keeps established acronyms and notification names where the wire method
-and schema title cannot derive them. It has no authority over method presence,
-stability, parameters, responses, or type generation; revisit entries when a
-deliberate public API rename is accepted.
-
-Keep an explicit semantic overlay only when schema facts are insufficient to
-derive the required local meaning. Examples include application-owned authority,
-lifecycle or correlation semantics, and a deliberately narrower public behavior
-that is separately justified. An overlay must identify its owner, invariant,
-exit/revisit condition when useful, and focused tests.
-
-Unknown or unrepresentable schema meaning fails closed. Do not replace an
-unsupported shape with `any`, `interface{}`, silent field dropping, or another
-lossy passthrough merely to advance the baseline.
-
-
-Unconstrained fields, array items and map values share the same shape rule:
-`true`, empty objects and annotation-only schemas accept every JSON value.
-Unknown keywords, empty enum/union alternatives and real constraints cannot
-enter that mapping. Optional JSONValue fields distinguish absence from JSON null.
-The OutputSchema overlay intentionally remains narrower and rejects null.
-
-Generic JSONValue mapping no longer has separate guardian-event, rate-limit-upsell
-or MCP-response path cases. Remaining opaque overlays retain existing public Go
-contracts: MCP elicitation form properties carry nested schema documents, and
-realtime item notifications expose opaque lifecycle data. Their shape guards and
-owner-local wire tests remain; changing those public representations requires an
-explicit migration, since external consumers cannot be established by repository
-search. Command argv and service-tier overlays preserve their documented
-nonempty and omit/null/value behavior. This change preserves checked-in generated
-Go and public API bytes for the accepted baseline.
-
-## Dependency generation
-
-Production construction requires current method facts; missing manifest input
-cannot make every coverage type a wire root. Small generator fixtures supply
-explicit payload roots. The JSON-RPC request identity and closed error payloads
-remain independent roots because generated aggregate messages and error decoding
-consume them. Unrelated scalar unions are admitted only through reachability.
-
-Protocol type generation starts from the manifest's wire roots, independently
-of whether a convenience SDK facade method is currently exposed. Request,
-response, notification, server-request, and aggregate message roots own the
-reachable wire graph. A facade policy may hide a convenience method, but it
-cannot make an upstream wire type cease to exist.
-
-JSON-RPC envelope schemas are traversed for typed dependencies but remain
-outside the public generated protocol surface. Their six upstream envelope roles (`JSONRPCRequest`, `JSONRPCResponse`,
-`JSONRPCNotification`, `JSONRPCMessage`, `JSONRPCError`, `JSONRPCErrorError`)
-stay with handwritten validation. A different payload with a `JSONRPC` prefix is
-not excluded by its name. Closed RPC error payloads with a required
-typed data field are independent wire roots, so their reachable definitions are
-generated even when they have no manifest method entry.
-
-The planner follows only references accepted by the current schema mapping. A
-field overlay that intentionally represents an upstream subtree as
-`JSONValue`, for example, terminates typed dependency traversal at that
-boundary. This keeps dependency closure aligned with the representation the
-generator actually promises rather than blindly walking every raw `$ref` in a
-schema document.
-
-A definition is eligible for generated Go if and only if it is reachable from a
-generated wire root and its schema shape has a lossless supported
-representation. There is no path/name admission catalogue and no
-"previously reviewed definition" fallback.
-
-Before Plan reports `ready`, each real Go package is checked for conflicts
-between generated and handwritten declarations, including receiver members.
-Diagnostics contain Go file locations and any source paths already available
-from selected type or method facts. Generated helpers without a direct schema
-owner retain their Go location; naming is never replayed to infer an owner.
-Handwritten-only conflicts are source errors, not schema incompatibilities.
-
-Two structurally identical reachable definitions may share one generated type
-when the generator can prove their schema identity. A local definition that is
-wire-identical to an already generated top-level type reuses that top-level
-identity. Same-name definitions with different shapes receive deterministic
-scoped identities or fail if the distinction cannot be represented safely.
-
-Representation overlays are separate from admission. For example, selected
-upstream string aliases that are intentionally exposed as plain Go strings may
-remain inline, while `additionalProperties: true` is handled generically as an
-open JSON-value object. Handwritten semantic overlays remain justified only
-when schema facts are insufficient to preserve the required API meaning.
-
-SDK facade availability is derived from the current generated protocol surface,
-not inherited from historical `facade_status`. For each client-to-server request
-with a public facade target, the current method constant plus params/response
-types are the complete prerequisites. If they all exist, the facade is generated;
-if any are missing, generation fails closed. Old
-`deferred_missing_generated_types` values remain readable metadata during
-migration but have no admission authority and are normalized away on the next
-manifest regeneration.
-
-This keeps product policy explicit: `internal.*` targets are intentionally not
-public facades, while public facade targets follow current mechanically proven
-capability rather than a remembered inability from an older generator.
-
-## Outcomes
-
-A target comparison has one of these meanings:
-
-- **baseline_matches:** accepted baseline identity already points at the target;
-  no fresh upstream reconstruction was performed;
-- **schemas_match:** read-only schema comparison found no drift; this does not
-  advance provenance or prove all derived artifacts;
-- **exact_verified:** fresh exact upstream reconstruction matches the accepted
-  semantic artifacts; repository tests and required PR checks remain separate;
-- **plan_ready:** read-only candidate construction succeeded without applying it;
-- **applied:** candidate bytes were materialized locally, awaiting checks and
-  publication; this does not mean integrated;
-- **pr_pending:** publication found or created a PR; required checks, review and
-  integration remain pending;
-- **provenance-only:** a newer accepted target regenerates to the same protocol
-  bytes/surface, so only exact upstream provenance needs to advance;
-- **mechanical drift:** schema/surface changed and the generic generator can
-  produce a complete lossless candidate without handwritten semantics;
-- **semantic drift:** the candidate exposes a concrete meaning the generic
-  generator cannot decide; at most one targeted Agent pass may propose the
-  owner-local source/test change before re-planning;
-- **blocked/failure:** target policy, generation, planning, semantic work, or
-  deterministic proof failed. Nothing is published.
-
-Failures report the last native stage, known target identity and an explicit
-owner-assigned category where known: unsupported representation, source
-integrity, execution environment, repository validation, publication conflict,
-or policy/configuration. Unknown attribution stays `unknown`; error causes
-remain unwrap-able. File locations are diagnostic data, never repair authority.
-The always-running read-only workflow summary reports failed/cancelled jobs as
-failed even when an earlier Plan/Apply succeeded. Its own green status does not
-certify synchronization. A published PR remains pending; an accepted baseline
-containing the target is observed separately on a subsequent main run.
-
-Only an owner-identified unsupported schema representation or missing protocol
-mapping/prerequisite yields `semantic_unresolved`. File I/O, temporary storage,
-source identity, and malformed source errors keep their original causes and
-fail normally; their message text is never parsed to authorize an Agent pass.
-
-A provenance-only advance records the newer exact source identity as the
-accepted baseline. Do not persist a second "verified upstream" state when the
-accepted baseline can carry the fact directly.
-
-Pending retry reports current-head required checks as observations only.
-Source, generated reproducibility, and protocol provenance all bind to the exact
-open PR head H. A prior successful observation can justify skipping duplicate
-generation for the same B/U/H state, but it does not integrate the PR or replace
-the trusted auto-forward ancestry/review revalidation.
-
-## Agent boundary
-
-The Agent is exceptional, not part of routine regeneration.
-
-It receives the already selected exact target plus concrete drift/failure
-evidence. It may change only the owner-local handwritten code and tests required
-by that evidence. It must not choose a different target, stage, commit, push,
-publish, merge, tag, or inherit repository-write credentials.
-
-The initial unresolved Plan records a digest of the complete per-run candidate:
-complete and stable schemas, reports, `common.rs`, and its exact source marker.
-The digest is held in the workflow step output outside the Agent proposal. Before
-re-planning, the trusted workflow checks every Git-visible Agent path against
-the proposal scope, and Go copies the ignored candidate into an isolated
-directory only if its entire content still matches that digest and target SHA.
-Missing, added, redirected, or changed candidate inputs fail closed. The
-isolated copy is used for both the second Plan and Apply.
-
-Agent proposal scope contains handwritten SDK/runtime or protocol generator
-Go and focused tests. `protocolsync/changes.go` is the single path-policy
-owner. Before proposed code runs and again after tests, the workflow verifies
-the prebuilt control binary digest and invokes its `scope` command. Publication
-uses the same policy through trusted `stage -phase final`; final scope is only
-the union of permitted handwritten proposals and mechanical outputs (baseline
-JSON and the four owned generated Go files). Handwritten baseline validators
-and unknown generated filenames remain protected. Unknown
-phases or control changes fail with `needs-maintainer` evidence. It rejects changes to sync policy,
-candidate identity, Plan/Apply acceptance, generated checks, schema/generated
-artifacts, and publication code. A needed change to those control paths takes
-the ordinary reviewed development path rather than expanding one automatic
-proposal's authority.
-
-After the proposal, Go re-plans the candidate. The trusted producer then
-normalizes changed Go source before proposal bytes are sealed, runs deterministic
-checks, compares the complete Git proposal before and after executable tests,
-rechecks the candidate digest, and hands the proven patch to a separate
-publication runner. That runner verifies the patch digest and uses a
-control binary built from the trusted checkout. Proposed Go code is never run
-with repository-write credentials. A model final message has no acceptance
-meaning.
-
-## Deterministic proof
-
-Before publication, the repository-owned producer normalizes every changed Go
-file with `gofmt` before proposal bytes are sealed. Formatting is construction,
-not an acceptance proof. Then require evidence appropriate to the candidate:
-
-- target ref/kind/commit identity is exact and consistent;
-- checked-in candidate schemas match a fresh generation for that target;
-- generated protocol Go and SDK surface reproduce exactly;
-- generated wire representations preserve schema requiredness/nullability;
-- focused tests cover any new handwritten semantic overlay;
-- `go vet ./codexsdk/...` passes;
-- `go test ./codexsdk/...` passes.
-
-Ambient Rust/Cargo environment overrides are removed; owned cache locations
-are then set explicitly. Cargo configuration outside the selected checkout
-(including the Cargo home cache and ancestor directories) rejects generation.
-Selected source configuration remains authoritative. This bounds build inputs;
-it does not claim a hermetic operating system or compiler installation.
-
-Upstream release commits may update workspace versions in Cargo.toml while
-Cargo.lock retains development versions. Read `cargo metadata --no-deps` from
-the selected checkout without resolving dependencies. Prepare Cargo.lock by
-changing only local workspace package versions and their explicit internal
-version references to those declarations. Preserve all other lock fields,
-including third-party versions, sources, checksums and dependency edges. Missing
-or ambiguous workspace identities fail. An already consistent lockfile remains
-byte-identical. This preparation never runs an unlocked dependency update.
-
-Retain original and prepared Cargo.lock files in the candidate directory and log
-their SHA-256 digests. CI retains those two files as build-input artifacts,
-including on a failed build. The original remains the upstream fact; the prepared file
-is the actual build input. Schema generation and CLI version queries then use
-`cargo run --locked` in that checkout. Reject subsequent changes to the prepared
-lockfile or other tracked source. The selected source's toolchain declaration
-controls the build: ambient Rust/Cargo overrides, external Cargo configuration
-and cached rustup directory overrides cannot override it. Actual commands are
-logged; caches only accelerate the selected build.
-
-The checked-in generated check is a fast proof that current source inputs
-reproduce generated Go. Final validation is a separate read-only reconstruction:
-resolve the checked-in exact upstream ref/SHA, freshly generate complete and
-stable schemas plus that commit's `common.rs`, and run the same Plan/Apply
-derivation in an isolated module root. Compare schema files, baseline metadata,
-manifest generation rules, manifest, coverage, and all four generated Go files
-against the accepted head. Only `baseline_metadata.generated_at` is excluded
-from semantic comparison. A stale requiredness, stability, response mapping,
-source identity, or generated artifact fails validation even if checked-in Go
-agrees with stale checked-in metadata. Validation-only invokes neither Agent
-nor accepted-worktree Apply or publication.
-
-Repository-wide required verification remains separate; see
+This document owns how `codexsdk` moves between selected Codex App Server
+protocol sources. The selected source owns wire meaning. Runtime integration
+acceptance is separate and is defined in [`live-codex.md`](live-codex.md) and
 [`verify.md`](verify.md).
 
-## Publication and effects
+## Source and runtime are different proofs
 
-Publication is allowed only after deterministic proof. It creates or updates a
-protected protocol-sync PR from the proven worktree. It does not self-merge,
-publish the module, or create a release.
+An accepted protocol baseline records exact upstream source identity together
+with schema and generated Go. A target is one selected upstream ref and peeled
+commit. A candidate is fresh temporary construction for that target, not an
+accepted baseline or durable repair queue.
 
-For an open protocol PR, the live Git branch ref and the checked-in baseline in
-that exact commit own publication identity. The PR title/body are presentation,
-not correctness authority. A hidden `codexsdk-upstream-sync` block is maintained
-as a recoverable projection for diagnostics and migration, while visible PR
-prose is operator-owned scratchboard text and is preserved across updates.
-Template wording changes or operator notes therefore cannot invalidate an
-otherwise valid Git publication.
+Protocol provenance may build the selected Rust source to reconstruct schema.
+The real integration suite instead uses the corresponding official installed
+Codex release as an external black-box runtime. Do not confuse the schema-build
+executable with the production/runtime fixture, or import the upstream Rust
+test suite as a downstream conformance obligation.
 
-Repository-write credentials belong only to the separate publication job. Base movement
-or any uncertainty about which commit was proven causes publication to fail and
-the run to restart from canonical input.
+The accepted live policy uses the runtime from the candidate PR's checked-in
+baseline, not `latest` and not main's prior baseline. Even provenance-only
+runtime advances require the applicable live check. This does not narrow
+protocol generation to live-covered methods: full reachable wire representation
+and scenario-based runtime evidence have distinct jobs.
 
-Validation-only execution performs target resolution and fresh exact
-reconstruction/comparison but never commits, pushes, opens
-or updates a PR, merges, tags, or releases.
+**Transition:** the accepted real-runtime gate and first two scenarios are
+tracked in [#376](https://github.com/ronhuafeng/llm-go/issues/376) and
+[#377](https://github.com/ronhuafeng/llm-go/issues/377). The inspected implementation
+`5e6b45fc4ad17e7ec090eeed19ba1d1cd4b53d36` still has three native acceptance
+contexts and separate non-gating live smoke. Documentation is not deployed
+enforcement.
 
-## Publication App setup
+## Ownership
 
-Publication uses a short-lived GitHub App installation token so PR creation and
-updates have their own installation identity. Required checks must be observed
-on the actual bot-created and bot-updated PR events; a manual branch push or
-workflow dispatch does not prove that event chain.
+Go owns target policy, fresh construction, comparison, planning, application,
+and deterministic checks. GitHub Actions owns triggers, permissions, and
+publication authorization. An Agent may propose one narrowly scoped handwritten
+repair for a typed unresolved representation; it does not select the target,
+certify correctness, publish, or integrate.
 
-A repository administrator configures this once:
+The checked-in baseline metadata is the source authority. PR titles, visible
+prose, hidden publication markers, manifests, and coverage annotations are
+projections or explanatory data, not substitutes for that identity and fresh
+upstream facts. Observation timestamps are not protocol meaning.
 
-1. Create or select a GitHub App with repository **Contents: read and write**
-   and **Pull requests: read and write**. Metadata read is implicit. This
-   publication path needs no organization, administration, workflow-write or
-   checks-write grant, user OAuth authorization, or webhook receiver.
-2. Install the App on **only `ronhuafeng/llm-go`**. For an existing broader
-   installation, the workflow still requests a token for this repository only;
-   prefer a dedicated installation with the minimal permissions above.
-3. Set repository Actions variable `PROTOCOL_SYNC_APP_CLIENT_ID` to the App's
-   **Client ID** from its settings page. This is the public Client ID expected
-   by create-github-app-token v3, not the numeric installation ID.
-4. Set repository Actions variable `PROTOCOL_SYNC_APP_BOT_ID` to the numeric
-   user ID of that App's bot account. Its public login is `<app-slug>[bot]`;
-   `gh api 'users/<app-slug>%5Bbot%5D' --jq .id` returns the ID before the
-   first PR. The read-only sync job compares this stable ID with the PR creator
-   and latest ref activity actor. Its built-in token cannot call
-   `GET /apps/{slug}` to look up a Client ID.
-5. Generate an App private key and store its PEM directly as repository Actions
-   secret `PROTOCOL_SYNC_APP_PRIVATE_KEY`. Do not put it in source, Issues,
-   PR text, chat, run artifacts or diagnostic output. A local secure file can
-   be uploaded without displaying it:
-
-   ```sh
-   gh variable set PROTOCOL_SYNC_APP_CLIENT_ID --repo ronhuafeng/llm-go --body '<client-id>'
-   gh variable set PROTOCOL_SYNC_APP_BOT_ID --repo ronhuafeng/llm-go --body '<bot-user-id>'
-   gh secret set PROTOCOL_SYNC_APP_PRIVATE_KEY --repo ronhuafeng/llm-go < /secure/path/app-private-key.pem
-   ```
-
-The independent publication job has only read permission for its built-in
-GITHUB_TOKEN. After building trusted control and downloading the verified
-patch, the pinned App action requests exactly this repository and the two write
-grants. Only the publication step receives that installation token as GH_TOKEN;
-it is not a job output. The action masks it and revokes it on job cleanup
-(default expiry also applies). Agent, proposal tests and read-only verifiers
-receive neither the App key nor token.
-
-Missing Client ID/bot ID/key fails with configuration instructions and
-`policy_configuration` attribution. Invalid keys, installation scope or grants
-fail token creation and prevent publication; there is no fallback identity.
-Create/update event acceptance records the App actor, event, and exact PR head.
-This setup never authorizes integration, tags, or releases. Protocol publication
-stops at the proposal boundary; repository integration is owned separately by
-the Auto-forward PR path after current-H checks and review policy are satisfied.
-
-## Final acceptance
-
-A protocol PR has one acceptance candidate: its exact current head `H`.
+## Construction sequence
 
 ```text
-Root source verification(H) == success
-
-AND
-
-Generated reproducibility(H) == success
-
-AND
-
-Codex protocol provenance(H, U) == exact_verified
+accepted baseline + exact target
+  -> fresh complete/stable candidate
+  -> read-only Plan
+  -> optional single handwritten repair for typed semantic_unresolved
+  -> re-plan the same retained candidate
+  -> Apply only a complete ready plan
+  -> deterministic checks
+  -> publish protected sync PR
+  -> required PR proofs, including the accepted live runtime gate
+  -> trusted auto-forward integration
 ```
 
-`U` is the exact ref/kind/SHA declared by H's checked-in baseline metadata.
-For protocol-relevant PRs, provenance freshly reconstructs U and proves H.
-Source and generated checks verify the same H.
+Plan must not partially mutate the accepted worktree. It constructs and retains
+complete candidate bytes in temporary state. Apply checks that the accepted
+baseline has not changed and materializes the prepared result; it does not
+reread upstream inputs or repeat generation. Partial generation and
+surface-skipping modes are unsupported.
 
-The PR is integration-ready only while current main `B` remains an ancestor of
-H and repository review policy for H is satisfied. Integration is not a GitHub
-merge/rebase/squash operation. The trusted Auto-forward PR workflow may only
-advance main by a normal non-force fast-forward to that already verified H.
+Planning also compiles the public SDK/protocol packages and handwritten tests
+using a temporary Go overlay and `go test -c`; initializers and tests do not
+execute. If the accepted baseline compiles and the candidate does not, report
+typed `go_compatibility` unresolved evidence before Apply. If both fail, retain
+both diagnostics without blaming upstream. Resume repeats that check; final
+executable tests and the isolated generated build remain separate proofs.
 
-If main advances first, the protocol PR becomes stale. Protocol-sync must rebuild
-or update the pending proposal from current main, producing a new H that obtains
-new proofs. The integrator never rebases or repairs a stale candidate.
+One package constructor is shared by planning, reproducibility, and protocol
+CLI operations. Complete and stable schema visibility are distinct inputs.
+Reuse selected types/names inside a construction, derive the facade from those
+facts, and check generated/handwritten declaration and receiver collisions in
+each real Go package. Diagnostics retain available source and Go locations;
+never infer upstream ownership by reversing emitted names.
 
-The manual `validation_only` protocol-sync entrypoint remains a diagnostic
-projection of the same verifier. With no explicit ref it binds to H's checked-in
-baseline identity; an explicit ref must resolve to that same identity. Manual
-dispatch is not part of normal acceptance.
+## Fresh wire facts
 
-See [`auto-forward.md`](auto-forward.md) for the repository integration
-contract.
+Construct method/field/type facts in memory from the current candidate. Do not
+write manifest/coverage projections and reload them as fresh authority.
+Complete schema supplies presence, requiredness, nullability, and types. Stable
+schema from the same commit supplies stability. That commit's `common.rs`
+supplies request/response mapping; missing or ambiguous mapping fails instead
+of falling back to the accepted manifest.
 
-## Native control path
+Old manifest/coverage annotations may remain explanatory comparison input.
+They cannot suppress a method, preserve stale stability, select stale fields,
+or alter requiredness. Checked-in regeneration may use derived metadata as
+inputs for reproducibility; fresh reconstruction independently checks agreement
+with exact upstream. Only `baseline_metadata.generated_at` is excluded from
+exact semantic comparison.
 
-The current Go owner implements the boundary above directly:
+Derive lossless representations from shape rather than today's field names:
+scalars, enums, supported unions, required/optional/nullable values, reachable
+references, and unconstrained JSON all retain their wire meaning. `true`, empty,
+and annotation-only JSON schemas accept every JSON value and may map to
+`protocolv2.JSONValue`, including array items and map values. Real constraints,
+unknown keywords, empty enum/union alternatives, and false schemas must not be
+silently treated as unconstrained. Optional JSONValue preserves absence versus
+null; the OutputSchema overlay intentionally rejects null.
 
-- `protocolupgrade sync` resolves/generates the exact candidate and runs a
-  read-only plan in an isolated temporary module root;
-- a ready mechanical or provenance-only plan is applied immediately;
-- `semantic_unresolved` returns structured stage/path/reason evidence while the
-  accepted worktree remains unchanged;
-- the workflow invokes exactly one tokenless Agent pass only for that outcome;
-- `protocolupgrade scope` checks tracked and new paths without staging or
-  executing proposed code;
-- `protocolupgrade resume` validates that the Agent touched only handwritten
-  `codexsdk` paths, re-plans the same candidate/target, and applies only when
-  that second plan is ready;
-- a second unresolved plan fails closed and publishes nothing.
+Use explicit overlays only where schema cannot express a required local/public
+meaning. Application authority, lifecycle correlation, command argv, service-tier
+presence, nested elicitation schema documents, and opaque realtime lifecycle
+representations retain their focused owner tests and existing public contracts.
+A new protocol instance is not itself a reason for a handwritten checkpoint.
+Changing an established public representation requires an explicit migration;
+repository search cannot establish every external consumer.
 
-The calling workflow selects the protocol Agent's model and reasoning effort;
-the shared Action passes both to Codex. Model choice is execution configuration,
-not correctness authority; deterministic Go proof remains mandatory.
+A small facade-name map may preserve public acronyms/names. It has no authority
+over method presence, stability, parameters, responses, or type generation.
+Unrepresentable meaning fails closed; do not drop fields or introduce lossy
+`any`/`interface{}` passthrough just to advance the baseline.
+
+## Reachability and generated surface
+
+Current manifest wire roots, not convenience facade usage, own the reachable
+type graph. Request, response, notification, server-request, and aggregate
+payload roots remain relevant even when no convenience method is exposed.
+Closed RPC error payloads and JSON-RPC request identity are independent roots
+when their consumers need them. Missing production method facts cannot promote
+every coverage type to a root; small fixtures declare their roots explicitly.
+
+Handwritten transport validation owns the six JSON-RPC envelope roles, not the
+public generated surface. Other payloads are not excluded merely because their
+names begin with `JSONRPC`. Traversal follows only references represented by the
+accepted mapping; an intentional JSONValue overlay terminates typed traversal.
+
+A definition is generated when reachable from a wire root and losslessly
+representable. There is no path/name admission catalogue or previously-reviewed
+fallback. Proven identical definitions may share a generated type; wire-identical
+local/top-level definitions may reuse an identity. Different same-name shapes
+receive deterministic scoped identities or fail safely. Preserve explicit
+representation overlays separately from admission.
+
+Public facades derive from current method constants and generated params/response
+types. Missing prerequisites fail rather than silently deferring a public
+method. Historical `facade_status` cannot overrule current construction;
+`internal.*` targets remain intentionally non-public. Protocol manifests and
+coverage remain generator machinery, not a second live capability registry.
+
+## Pending PRs and recovery
+
+Before spending new generation or Agent work, observe native GitHub PR/branch
+state. An unchanged App-owned pending PR for the same base/target can be returned
+with current check observations; that acquires no new proof and does not mean
+main has integrated it. Main's checked-in baseline owns accepted state.
+
+Check ownership using the configured App bot ID, native PR creator/latest ref
+activity actor, actual repository/base/head, source identity, after-SHA, and
+allowed paths. Client ID only mints a token; commit author text and editable
+metadata do not establish push authority. Ambiguous ownership or human source
+interference requires maintainer intervention. Manually closed candidates stay
+paused, a changed upstream tag is an integrity failure, and an older attempt
+must not replace a newer pending stable target.
+
+When the target or base changes, reconstruct and validate against that exact
+base. Carry the observed old head to publication and use an explicit Git lease
+for an existing branch. Recheck native state after writing. The PR API's
+`base.sha` may lag main; selected checkout and remote base ref own the base.
+Read back lost write responses before repeating effects. An orphan App-owned
+branch must be rebuilt and verified before its PR is completed.
+
+New branch names derive from target identity and accepted base SHA, not run
+number or timestamp. B/U retries reuse the same publication epoch; a later
+proposal after an earlier merge gets a distinct base-derived branch. Open
+pending branches retain their name on update. Native refs/PRs and accepted
+metadata are sufficient cross-run state.
+
+`repair_pending` is explicit maintainer recovery for an open App-owned sync head
+that is not a single candidate commit. It does not regenerate protocol files.
+Replay its valid protocol diff from the parent already contained in main onto
+current main, then update with force-with-lease so later main changes remain.
+Do not repair a single-commit head, a closed candidate, or mismatched baseline
+identity. Recovery is not the integrator's responsibility.
+
+## Agent scope
+
+Only owner-identified unsupported representation or missing mapping/prerequisite
+produces `semantic_unresolved`. I/O, malformed source, identity, storage,
+environment, and other ordinary failures retain their cause and fail normally.
+Never parse error prose to authorize an Agent.
+
+The one Agent pass receives the already selected target and concrete
+stage/path/reason. Read `codexsdk/internal/protocolsync/changes.go`; its policy
+owns allowed handwritten Go/test paths. Changes to sync policy, acceptance,
+identity, publication, validators, or unknown generated paths are outside that
+repair. Report `needs-maintainer` rather than enlarging scope.
+
+The trusted workflow holds a digest of the complete per-run candidate outside
+the proposal. Before re-planning, check Git-visible scope and copy candidate
+inputs into an isolated directory only if every byte/path and target matches.
+Missing, added, redirected, or altered inputs fail. Use the same copy for the
+second Plan and Apply.
+
+Before proposed code executes and after tests, verify the prebuilt control
+binary and run its scope check. Normalize changed Go before sealing the patch,
+compare proposal bytes before/after executable checks, and recheck candidate
+identity. A separate publication runner verifies the patch and uses control
+built from trusted checkout. Proposed code never receives repository-write
+credentials. A second unresolved plan fails without publication.
+
+The protocol Agent's model/effort is owned by its workflow, independently of the
+live-suite model. Do not change live scenarios, runtime selection, or acceptance
+rules to make an automatic protocol repair pass green.
+
+## Deterministic proof and build inputs
+
+Before publication, require exact target identity, matching fresh schema,
+reproducible generated types/facades, preserved wire presence/nullability,
+focused tests for handwritten semantics, `go vet ./codexsdk/...`, and
+`go test ./codexsdk/...`. Repository-wide acceptance remains separate.
+
+Remove ambient Rust/Cargo overrides and set owned cache locations explicitly.
+Reject external Cargo configuration in Cargo home or ancestor directories;
+selected source configuration and its toolchain declaration remain authoritative.
+Cached rustup directory overrides cannot change the selected toolchain. This
+bounds build inputs without claiming a hermetic OS/compiler installation.
+
+Where release Cargo.toml versions differ from the workspace entries in
+Cargo.lock, inspect `cargo metadata --no-deps` without dependency resolution.
+Prepare the lockfile by changing only local workspace versions and explicit
+internal version references. Preserve third-party versions, sources, checksums,
+and dependency edges. Missing/ambiguous identities fail; already consistent
+locks remain byte-identical. Never run an unlocked dependency update.
+
+Retain original and prepared lockfiles and their SHA-256 digests, including on
+failure. The original is upstream evidence; the prepared file is the actual
+build input. Schema generation and version queries use `cargo run --locked`;
+reject later changes to the prepared lock or tracked source. Log commands;
+caches only accelerate that selected build.
+
+Final validation reconstructs complete/stable schemas and `common.rs` from the
+checked-in exact source, uses the same derivation in an isolated module root,
+and compares schema, baseline metadata, manifest generation rules, manifest,
+coverage, and all four generated Go files. Only `generated_at` is excluded.
+Stale requiredness, stability, mappings, identity, or generated artifacts fail
+even when checked-in Go agrees with stale metadata. Validation-only invokes no
+Agent, accepted-worktree Apply, or publication.
+
+## Results and effects
+
+Keep native results distinct:
+
+| Result | Meaning |
+| --- | --- |
+| `baseline_matches` | Baseline identity already matches; no fresh upstream proof. |
+| `schemas_match` | Read-only schema comparison only; no provenance advance or full derived proof. |
+| `exact_verified` | Fresh reconstruction matches semantic artifacts; other PR proofs remain separate. |
+| `plan_ready` | Read-only construction succeeded; not applied. |
+| `applied` | Candidate materialized locally; not published or integrated. |
+| `pr_pending` | An observed/published PR awaits current acceptance and integration. |
+
+A provenance-only plan advances the exact source identity when a newer target
+produces unchanged protocol bytes. Mechanical drift needs no handwritten
+semantic repair; semantic drift may use the one bounded pass. Neither permits
+bypassing runtime acceptance.
+
+Failures report the last native stage, known target, and an owner-assigned
+category only when established. Unknown attribution stays unknown. File
+locations are diagnostics, not repair authority. A green summary step cannot
+certify failed/cancelled work, and an earlier Apply does not override a later
+failure.
+
+Publication creates or updates a protected proposal only after deterministic
+proof. It does not merge, tag, release, or distribute the module. Open Git refs
+and the checked-in baseline own identity; the hidden `codexsdk-upstream-sync`
+block is recoverable metadata. Preserve operator-owned visible PR prose rather
+than making its wording correctness authority.
+
+## Existing publication App setup
+
+Use a repository-scoped GitHub App with Contents and Pull requests read/write,
+installed only on `ronhuafeng/llm-go` where possible. Configure:
+
+- Actions variable `PROTOCOL_SYNC_APP_CLIENT_ID`: the App Client ID used to mint
+  tokens, not its installation ID;
+- Actions variable `PROTOCOL_SYNC_APP_BOT_ID`: numeric bot user ID used for
+  ownership checks;
+- Actions secret `PROTOCOL_SYNC_APP_PRIVATE_KEY`: the private PEM, never source
+  or diagnostic content.
+
+The separate publisher uses a read-only built-in token, then requests only the
+repository/write grants needed for publication. Only the publication effect
+receives the short-lived token; it is not a job output. Agent/proposal tests
+and read-only verifiers receive neither App key nor token. Missing or invalid
+configuration fails with no fallback identity.
+
+Observe required checks on actual bot-created/updated PR events; a manual
+workflow dispatch alone does not prove that event chain. Publication authority
+is separate from the Auto-forward integration App and from Mini credentials.
+
+## Final acceptance and native commands
+
+The current PR head H is the sole candidate. Required source, generated, fresh
+H/U provenance, and the accepted live-runtime proof must satisfy
+[`verify.md`](verify.md). The live test uses H's synced official runtime and the
+active scenarios; a passing schema build is not runtime evidence.
+
+Current main must remain an ancestor of H. The existing trusted integration
+route may only fast-forward to that verified H. A stale proposal needs new
+construction/rebase and new results; the integrator does not repair it.
+
+The Go owner exposes `protocolupgrade sync`, `scope`, `resume`, `check`, and
+publication/staging control. Ready plans apply; unresolved plans leave the
+accepted worktree untouched; resume re-plans the same candidate after the
+bounded handwritten proposal. `validation_only` requires `force_compare` and
+binds to the checked-in source; an explicit ref must resolve to that identity.
+It is diagnostic and performs no commit, push, PR mutation, tag, or release.
+
+Read the current command/workflow inputs rather than inventing another control
+path. Keep the accepted live integration migration separate from deterministic
+schema validation. See [`auto-forward.md`](auto-forward.md) for integration.

@@ -36,6 +36,15 @@ changes may occur in minor releases.
 
 ### Repository
 
+- Document the accepted scenario-based live Codex contract: official runtime
+  selected by the synced baseline, direct Mini configuration, Linux,
+  `gpt-6-sol/high`, and a relevant-change hard gate. Define the initial
+  structured-call and thread-continuation stories and explicit scenario
+  retirement disclosure. This entry records design/documentation work;
+  runtime/gate implementation remains in #376 and scenario implementation in
+  #377.
+- Correct the unreleased verification description below to match the existing
+  exact-PR-head source and workflow contract, not a synthetic merge candidate.
 - Verify protocol PR baselines by rebuilding schema, classification, and
   generated Go from the exact upstream commit in an isolated validation run.
 - Make a failed Live Codex smoke report native, secret-safe turn-failure
@@ -51,8 +60,8 @@ changes may occur in minor releases.
   policy, generate, compare, apply, and check.
 - Replace generated protocol proof artifacts with a native regenerate-and-compare
   check.
-- Required PR verification checks GitHub's synthetic merge candidate instead of
-  the isolated PR head.
+- Required PR verification checks the exact current PR head instead of
+  GitHub's synthetic merge candidate.
 - Raise the root Go floor to 1.26.8 and require `golang.org/x/mod v0.41.0`.
 - Align GitHub repository description, tag-creation authority, and security
   reporting with the one root-module `vX.Y.Z` release.
@@ -123,7 +132,7 @@ changes may occur in minor releases.
 - **Breaking (pre-v1):** `AdmitTurn` now receives the exact decoded
   `ThreadStartResponse` and the exact pending `TurnStartParams`, including the
   composition-owned thread ID that will be sent. The SDK still does not merge
-  requested turn overrides into observed thread facts.
+  requested overrides into observed thread facts.
 - **Breaking (pre-v1):** resumed Exact Runs expose the same two-input admission
   seam after `thread/resume` and before `turn/start`. Missing observed resume
   thread identity still fails closed before admission.

@@ -5,19 +5,36 @@ Security reports are accepted for the latest supported releases of
 
 ## Report privately
 
-Do not open a public issue with exploit details, credentials, transcripts,
-private paths, or other sensitive data. Use
-[GitHub private vulnerability reporting](https://github.com/ronhuafeng/llm-go/security/advisories/new).
+Use [GitHub private vulnerability reporting](https://github.com/ronhuafeng/llm-go/security/advisories/new).
+Do not publish exploit details, credentials, transcripts, auth files, or private
+paths in issues. Include the affected package family, module version, impact,
+minimal reproduction, and safely shareable mitigation.
 
-Include the affected package family, module version, impact, a minimal
-reproduction, and any mitigation that can be shared safely.
+## Responsibility
 
-## Scope
+In scope are defects caused by this repository, including process/stdio and
+JSON-RPC handling, protocol encoding/decoding, generated representations,
+application-decision handling, and credential or sensitive-data exposure by
+repository automation.
 
-In scope are vulnerabilities caused by this repository's code, including
-transport/JSON-RPC handling, protocol encode/decode, generated protocol handling,
-and accidental credential or sensitive-data exposure by repository automation.
+The official Codex runtime, model quality, provider services, and Mini's
+account/credit administration have their own owners. Their internal correctness
+is not established by an llm-go live scenario. Report uncertain ownership
+privately rather than publishing sensitive details.
 
-OpenAI services, the official Codex CLI, and model quality unrelated to this
-repository's handling are out of scope. If ownership is unclear, report the issue
-privately rather than publishing exploit details.
+## Live-test credentials
+
+The accepted [live design](docs/live-codex.md) deliberately configures official
+Codex directly with a Mini URL and credential. Native Codex may read that key
+from its configured environment variable. No extra local credential proxy or
+fork-contributor approval system is part of this single-author setup.
+
+This is a scoped credential decision, not permission to disclose secrets. Use
+isolated test state; do not log keys, authorization headers, full environment
+dumps, auth/config files containing secrets, or raw private transcripts. Never
+upload an entire test `CODEX_HOME` as a diagnostic artifact.
+
+Mini controls its grants and credit policy. Model-test credentials do not grant
+repository writes. Keep publication/integration App credentials separate from
+code under test, and retain existing authority boundaries in unrelated Agent
+and protocol-sync workflows.

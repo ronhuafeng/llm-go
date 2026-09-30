@@ -1,30 +1,47 @@
 # Support
 
-Bugs and feature requests belong in this repository's
-[issue tracker](https://github.com/ronhuafeng/llm-go/issues). Include the
-`github.com/ronhuafeng/llm-go` version, owning package family, minimal
-reproduction, expected behavior, and actual behavior.
+Bugs and feature requests belong in
+[GitHub Issues](https://github.com/ronhuafeng/llm-go/issues).
+Include the module revision, package family, minimal reproduction, expected
+behavior, and observed result. Sensitive reports use [`SECURITY.md`](SECURITY.md).
 
-Choose the owning package family first:
+`llmkit` owns provider-neutral schemas, calls, validation, and retry mechanisms.
+`codexsdk` owns Go integration with local Codex. `llmcaller/codex` owns translation
+between those families. Application prompts and business policy remain consumer
+responsibilities.
 
-- provider-neutral schemas, typed calls, validation, or retries: `llmkit`;
-- Codex transport, generated protocol, or thread/turn lifecycle: `codexsdk`;
-- Codex-to-`llmkit` translation or Codex schema conversion: `llmcaller/codex`.
+## Codex runtime support
 
-Application prompts and business rules are consumer concerns. Sensitive reports
-must use [`SECURITY.md`](SECURITY.md), not a public issue.
+The SDK expects an already installed official Codex. The live compatibility
+target is the exact Codex release selected by that SDK revision's
+[checked-in baseline](codexsdk/internal/protocolschema/appserver/v2/baseline_metadata.json).
+There is no independent latest-runtime promise or model/version matrix.
 
-## Go versions
+Runtime coverage is scenario-based. Active passing live scenarios establish the
+behaviors checked under the documented environment; an exposed generated method
+does not imply exhaustive runtime coverage. Adding or retiring scenarios changes
+that coverage, with retirements disclosed in the PR and changelog/release notes.
+Tests do not guarantee model determinism or correctness of Codex Core internals.
 
-The root [`go.mod`](go.mod) is the authoritative Go floor.
+The accepted two-scenario suite and its migration status are described in
+[`docs/live-codex.md`](docs/live-codex.md). Until the implementation tickets are
+completed, do not read the design as evidence that the new hard gate has run.
 
-## Operating systems
+For Codex reports, include the observed `codex --version`, selected SDK baseline,
+failing scenario/stage, and non-sensitive error facts. Distinguish requested
+model/provider settings from observed server facts. Never attach credentials or
+an entire `CODEX_HOME`.
 
-| Tier | Platforms | Meaning |
+## Go and operating systems
+
+The root [`go.mod`](go.mod) is the Go-version authority.
+
+| Tier | Platform | Verification scope |
 | --- | --- | --- |
-| Required | Linux (`ubuntu-latest`) | Required PR verification and default support contract. |
-| Advisory | macOS, Windows | Scheduled/manual portability checks; not a merge gate. |
-| Best effort | Other `GOOS`/`GOARCH` | Not continuously tested. |
+| Required | Linux (`ubuntu-latest`) | Native PR verification and the accepted live Codex gate. |
+| Advisory | macOS, Windows | Existing scheduled/manual portability checks, not a live-model matrix. |
+| Best effort | Other `GOOS`/`GOARCH` | No continuously tested guarantee. |
 
-`codexsdk` process and stdio lifecycle are continuously tested on Linux. Live
-Codex/provider smoke is Linux-only and is not the OS support contract.
+Linux is the only required live environment. Go portability and Codex's own
+platform support do not constitute evidence that llm-go's live suite ran on
+another platform; expanding that evidence is outside the current plan.

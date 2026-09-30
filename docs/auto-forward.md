@@ -1,172 +1,97 @@
-# Auto-forwardable pull requests
+# Auto-forward integration
 
-An auto-forwardable pull request uses one immutable candidate identity from
-verification through integration.
+Auto-forward advances main to a candidate that has already been verified. It
+does not create, rewrite, or repair a candidate.
 
-## Contract
+## Acceptance contract
 
-Let:
-
-- `H` be the current PR head;
-- `B` be the current main head at integration time;
-- `U` be H's exact upstream protocol identity when relevant.
-
-The PR is auto-forwardable when:
-
-```text
-B ∈ ancestors(H)
-AND
-all required checks for H succeeded
-AND
-repository review policy for H is satisfied
-```
-
-The integration effect is only:
-
-```text
-main: B ──fast-forward──> H
-```
-
-No merge commit, squash commit, merge-time rebase, cherry-pick, force push, or
-other commit creation is part of integration.
-
-## Why
-
-The repository wants this invariant:
+Let H be the current same-repository PR head and B be current main. The
+integration is permitted only when B is an ancestor of H, all applicable checks
+for H have succeeded, and existing repository review policy is satisfied.
 
 ```text
 tested H == reviewed H == integrated H == new main
 ```
 
-GitHub's default synthetic merge revision is useful for conventional merge
-workflows, but it creates a second candidate identity. Rebase and squash merge
-also create new commit identities after CI. Auto-forward removes that split.
+[`verify.md`](verify.md) owns the required proofs. The accepted policy includes
+real Codex integration for relevant changes, with explicit successful
+not-applicable classification for unrelated changes. A successful source or
+protocol workflow does not stand in for a missing live result.
 
-## Stale PRs
+**Implementation transition:** at
+`5e6b45fc4ad17e7ec090eeed19ba1d1cd4b53d36`, the installed workflow explicitly
+checks three contexts: root source, generated reproducibility, and protocol
+provenance. [#376](https://github.com/ronhuafeng/llm-go/issues/376) must update
+that consumer and its tests for the accepted live gate. This document does not
+itself change the deployed gate.
 
-If main moves after H is verified, Git decides whether H can still be
-integrated.
+## Trusted workflow
 
-A normal push:
+`Auto-forward PR` is dispatched from trusted main with a PR number. The existing
+`Dispatch auto-forward` route also dispatches eligible protocol-sync bot PRs
+following verification. Its notification/dispatch is not independent
+acceptance authority.
+
+The read-only phase resolves the PR identity, H from its Git ref, and current B.
+It checks ancestry, the required current-head results, and review state. The
+effect phase rechecks these conditions before minting the dedicated integration
+App token. If an independently completed live job is part of verification,
+ordering must not allow an earlier source success to bypass it or leave its
+completion disconnected from the existing dispatch path.
+
+The only integration write is:
 
 ```sh
 git push origin H:refs/heads/main
 ```
 
-succeeds only if it is fast-forward. A non-fast-forward rejection means the PR
-is stale. The integration workflow stops.
+It must be a normal non-force fast-forward. Do not merge, rebase, squash,
+cherry-pick, create a commit, force-push, or retarget a stale PR during this step.
+Read back main after the effect. Lost/ambiguous outcomes require observation
+before repeating an effect.
 
-Recovery is:
+After readback, head deletion is allowed only when GitHub reports this PR merged,
+the ref still points at integrated H, main contains H, and no other open PR uses
+that ref. GitHub's automatic branch deletion does not perform this external
+fast-forward cleanup.
 
-```text
-rebase PR onto current main
-→ new H
-→ rerun current-H checks
-→ reevaluate review policy
-→ try fast-forward again
-```
+## Stale or incomplete candidates
 
-The integration workflow never performs that recovery itself.
+A changed H, missing/failed/cancelled required result, unsatisfied review state,
+or non-fast-forward update stops integration. A provider outage remains a failed
+live gate, not a reason to bypass it. A skipped workflow is not the explicit
+not-applicable result required for unrelated changes.
 
-## Current-head proofs
+If main advances past H's base, development must rebase/reconstruct the proposal
+and obtain results for the new H. The integrator never does that repair itself.
+Workflow concurrency is an optimization; Git ancestry and the non-force push
+remain authoritative.
 
-Required PR checks are:
+## Existing authority setup
 
-- `Root source verification`
-- `Codex generated reproducibility / Generated reproducibility`
-- `Codex protocol provenance`
+The integration App uses repository variable `AUTO_FORWARD_APP_CLIENT_ID` and
+secret `AUTO_FORWARD_APP_PRIVATE_KEY`, scoped to this repository with Contents
+write for the final effect. Keep this separate from the protocol-publication
+App and from Mini model-test credentials.
 
-All verify current H. Provenance performs exact H/U reconstruction when
-relevant, otherwise it completes as not applicable.
+The documented main ruleset restricts main updates/deletion to this App; required
+check evaluation and non-force behavior belong to the trusted workflow. Do not
+assume adding a named live job automatically changes either enforcement point.
+Inspect actual repository policy when changing enforcement.
 
-## Integration workflow
+This remains the controlled same-repository model used by the single author and
+protocol-sync bot. Live-test work does not add fork trust negotiation, another
+approval service, or an attestation ledger.
 
-The trusted `Auto-forward PR` workflow remains manually dispatchable with a PR
-number. Successful `PR verification` runs for the repository's protocol-sync
-bot are also routed through `Dispatch auto-forward`, which validates the PR
-identity, exact verified head, and controlled branch namespace before
-dispatching `Auto-forward PR` from trusted main.
+## Acceptance of enforcement changes
 
-The read-only phase:
+Changes to the required-check consumer need tests that show a relevant live
+failure, missing result, or cancellation prevents eligibility, while genuine
+not-applicable completion does not block an unrelated PR. Confirm a real
+relevant live success using the exact installed runtime and canonical fixture.
 
-1. verifies it was dispatched from trusted main;
-2. reads PR object identity;
-3. resolves H from the same-repository PR branch Git ref;
-4. resolves current main B from its Git ref;
-5. proves B is an ancestor of H;
-6. verifies the three required current-H check contexts;
-7. verifies GitHub does not report an unsatisfied review state.
-
-The effect phase repeats the identity/ancestry/check/review observations before
-minting write credentials.
-
-A dedicated repository-scoped GitHub App then receives only Contents: write for
-the final push. The effect is a normal non-force push of H to main, followed by
-an exact main-ref readback.
-
-GitHub's "Automatically delete head branches" setting does not cover this
-path. That setting runs only for GitHub's own merge action. After readback,
-the workflow deletes the head ref itself. Deletion is allowed only when GitHub
-reports this PR merged, the ref still points at H, H is still contained in
-main, and no other open PR uses the ref. Deletion creates no commit and is not
-another integration path.
-
-## Configuration
-
-Configure:
-
-- repository Actions variable `AUTO_FORWARD_APP_CLIENT_ID`;
-- repository Actions secret `AUTO_FORWARD_APP_PRIVATE_KEY`.
-
-The App should be installed only on this repository with the minimum permission
-needed to advance protected main. The main ruleset blocks updates and deletion
-for everyone except this App. The App bypasses that ruleset so it can
-fast-forward main directly.
-
-Do not reuse a broader publication/release credential merely for convenience.
-
-## Repository policy
-
-The main ruleset has two rules: only the Auto-forward App can update `main`, and
-only that App can delete `main`. Checks, review policy, and the non-force
-fast-forward are workflow gates, not ruleset rules.
-
-## Production acceptance
-
-A repository-policy change is not complete until the installed Auto-forward App
-has performed a real integration through the trusted workflow.
-
-Use a small same-repository PR based on current main and require this sequence:
-
-1. the PR's exact H completes all three required checks successfully;
-2. for a trusted protocol-sync PR, confirm `Dispatch auto-forward` dispatches
-   `Auto-forward PR` from trusted main; for other acceptance tests, dispatch it
-   manually;
-3. the read-only phase resolves current H and current main B and confirms
-   `B ∈ ancestors(H)`;
-4. the effect phase rechecks PR identity, H, B, required checks, and review
-   policy before minting the App token;
-5. the App performs one normal non-force `git push H:refs/heads/main`;
-6. workflow readback proves `main == H`;
-7. GitHub recognizes the PR as merged at that same H, and the workflow then
-   deletes the head ref because it still points at H;
-8. the resulting main push verification succeeds on that same commit.
-
-Acceptance fails closed if the App configuration is missing, H changes, main is
-no longer an ancestor of H, a required check is not successful, review policy
-is unsatisfied, or the push is not fast-forward. The workflow must not repair
-any of those states.
-
-This production acceptance is also the proof that repository ruleset bypass
-scope and the Actions App credentials are wired correctly. Configuration should
-not be considered complete merely because the App is installed or the ruleset
-looks correct in the UI.
-
-## Scope
-
-The first implementation supports same-repository PR heads. This covers the
-repository's controlled development and protocol-sync branches and keeps one
-Git-ref namespace authoritative.
-
-Supporting fork PRs later would require an explicit trust and fetch model; it is
-not implicit in this workflow.
+A repository-policy deployment is not proven by YAML or documentation alone.
+Use the existing authorized integration route for production acceptance when
+that deployment is performed, observe the final main ref and GitHub PR state,
+and do not claim an integration that has not been read back. No policy change
+implicitly authorizes bypassing checks for its own installation.
