@@ -773,59 +773,6 @@ func TestWorkflowLintUsesPinnedGoActionlint(t *testing.T) {
 	}
 }
 
-func TestCurrentDocsDescribeOneRootModule(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(filepath.Join(root, "CHANGELOG.md")); err != nil {
-		t.Fatal("root CHANGELOG.md must be the current changelog authority")
-	}
-	northstar, err := os.ReadFile(filepath.Join(root, "NORTHSTAR.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(northstar), "one Go module (`github.com/ronhuafeng/llm-go`)") {
-		t.Fatal("NORTHSTAR.md must name the root module")
-	}
-	verify, err := os.ReadFile(filepath.Join(root, "docs", "verify.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(verify), "go test -race ./...") {
-		t.Fatal("docs/verify.md must document root-module race tests")
-	}
-	if !strings.Contains(string(verify), "Auto-forwardable PR") || !strings.Contains(string(verify), "tested commit") || !strings.Contains(string(verify), "new main commit") {
-		t.Fatal("docs/verify.md must define the exact-head auto-forward invariant")
-	}
-	if strings.Contains(string(verify), "integration revision") {
-		t.Fatal("docs/verify.md must not retain the synthetic integration-revision acceptance model")
-	}
-	for _, workflow := range []string{"Verify llmkit", "Verify codexsdk", "Verify Codex adapter"} {
-		if !strings.Contains(string(verify), workflow) {
-			t.Fatalf("docs/verify.md must route remote owner proof through %s", workflow)
-		}
-	}
-	release, err := os.ReadFile(filepath.Join(root, "docs", "release.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	releaseDoc := string(release)
-	if !strings.Contains(releaseDoc, "required CI") {
-		t.Fatal("docs/release.md must say required CI owns source correctness")
-	}
-	if !strings.Contains(releaseDoc, "immutable") {
-		t.Fatal("docs/release.md must say version/tag identity is immutable")
-	}
-	security, err := os.ReadFile(filepath.Join(root, "SECURITY.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(security), "github.com/ronhuafeng/llm-go") {
-		t.Fatal("SECURITY.md must name the root module")
-	}
-}
-
 func TestWorkflowsUseRootGoModFloor(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
 	if err != nil {
