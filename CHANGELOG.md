@@ -132,7 +132,7 @@ changes may occur in minor releases.
 - **Breaking (pre-v1):** `AdmitTurn` now receives the exact decoded
   `ThreadStartResponse` and the exact pending `TurnStartParams`, including the
   composition-owned thread ID that will be sent. The SDK still does not merge
-  requested overrides into observed thread facts.
+  requested turn overrides into observed thread facts.
 - **Breaking (pre-v1):** resumed Exact Runs expose the same two-input admission
   seam after `thread/resume` and before `turn/start`. Missing observed resume
   thread identity still fails closed before admission.
