@@ -24,11 +24,17 @@ func TestLLMReadinessHTTPResults(t *testing.T) {
 	const privateBody = "private-response-fixture"
 	const key = "readiness-fixture-key"
 	for _, test := range []struct {
-		name, body, suffix, message string
-		status                      int
-		failure, disconnected       bool
+		name, body, suffix, message, inputKey string
+		status                                int
+		failure, disconnected, rejectedKey    bool
 	}{
 		{name: "base URL", status: 200, body: completed, message: "ready"},
+		{name: "key padded with LF", status: 200, body: completed, inputKey: "\n" + key + "\n", message: "ready"},
+		{name: "key padded with CRLF", status: 200, body: completed, inputKey: "\r\n" + key + "\r\n", message: "ready"},
+		{name: "key padded with spaces", status: 200, body: completed, inputKey: " \t" + key + "\t ", message: "ready"},
+		{name: "key contains newline", inputKey: key + "\nsuffix", failure: true, rejectedKey: true, message: "API key contains whitespace"},
+		{name: "key contains space", inputKey: key + " suffix", failure: true, rejectedKey: true, message: "API key contains whitespace"},
+		{name: "blank key", inputKey: " \t\r\n", failure: true, rejectedKey: true, message: "missing AZURE_OPENAI_API_KEY"},
 		{name: "full endpoint", status: 200, body: completed, suffix: "/responses", message: "ready"},
 		{name: "CRLF events and trailing slash", status: 200, body: strings.ReplaceAll(completed, "\n", "\r\n"), suffix: "/responses/", message: "ready"},
 		{name: "unauthorized", status: 401, body: privateBody, failure: true, message: "HTTP 401"},
@@ -65,24 +71,28 @@ func TestLLMReadinessHTTPResults(t *testing.T) {
 			}
 			temporary := t.TempDir()
 			baseURL := server.URL + "/v1" + test.suffix
+			inputKey := test.inputKey
+			if inputKey == "" {
+				inputKey = key
+			}
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			cmd := exec.CommandContext(ctx, "bash", "-c", script)
 			cmd.Env = []string{
 				"PATH=" + os.Getenv("PATH"), "TMPDIR=" + temporary,
-				"LLM_API_KEY=" + key, "LLM_MODEL=gpt-6-sol", "LLM_BASE_URL= \t" + baseURL + " \t",
+				"LLM_API_KEY=" + inputKey, "LLM_MODEL=gpt-6-sol", "LLM_BASE_URL= \t" + baseURL + " \t",
 			}
 			output, err := cmd.CombinedOutput()
 			if ctx.Err() != nil || (err != nil) != test.failure || !strings.Contains(string(output), test.message) {
 				t.Fatalf("failure=%v, err=%v, output=%s", test.failure, err, output)
 			}
-			for _, sensitive := range []string{key, baseURL, privateBody} {
+			for _, sensitive := range []string{key, inputKey, baseURL, privateBody} {
 				if strings.Contains(string(output), sensitive) {
 					t.Error("probe logged sensitive fixture data")
 				}
 			}
 			wantRequests := int32(1)
-			if test.disconnected {
+			if test.disconnected || test.rejectedKey {
 				wantRequests = 0
 			}
 			if requests.Load() != wantRequests {

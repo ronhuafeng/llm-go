@@ -1,126 +1,100 @@
-name: Live Codex smoke
+name: Live Codex integration
 
 on:
-  push:
-    branches:
-      - main
+  workflow_call:
+    inputs:
+      repository:
+        type: string
+        required: false
+      ref:
+        type: string
+        required: false
+      base_sha:
+        type: string
+        required: false
+    secrets:
+      CODEX_RESPONSES_API_ENDPOINT:
+        required: false
+      AZURE_OPENAI_API_KEY:
+        required: false
   workflow_dispatch:
-  workflow_run:
-    workflows:
-      - PR verification
-    types:
-      - completed
-
-concurrency:
-  group: live-codex-smoke-${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}
-  cancel-in-progress: true
+    inputs:
+      base_sha:
+        description: "Compare this base to the dispatched revision; empty runs the live suite."
+        type: string
+        required: false
 
 permissions:
   contents: read
 
 jobs:
-  smoke:
-    name: Real app-server composition
-    if: >-
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event == 'pull_request' &&
-       github.event.workflow_run.head_repository.full_name == github.repository &&
-       github.event.workflow_run.actor.login == github.repository_owner)
+  integration:
+    name: Live scenarios
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    env:
-      LLMGO_LIVE_CODEX_MODEL: gpt-5.6-luna
-      LLMGO_LIVE_CODEX_REASONING_EFFORT: medium
-      LLMGO_LIVE_CODEX_PROVIDER: llm-go-smoke
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          repository: ${{ inputs.repository || github.repository }}
+          ref: ${{ inputs.ref || github.sha }}
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
           cache: false
+      - name: Classify live requirement
+        id: classify
+        env:
+          BASE_SHA: ${{ inputs.base_sha }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${BASE_SHA}" ]]; then
+            git fetch --no-tags origin "${BASE_SHA}"
+            head="$(git rev-parse HEAD)"
+            required="$(go run ./internal/tools/cmd/livecodex classify -base "${BASE_SHA}" -head "${head}")"
+          else
+            required=true
+          fi
+          echo "required=${required}" >> "${GITHUB_OUTPUT}"
+          if [[ "${required}" == false ]]; then
+            echo 'Live Codex integration: not applicable (no runtime-affecting changes).' >> "${GITHUB_STEP_SUMMARY}"
+          fi
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: steps.classify.outputs.required == 'true'
         with:
           node-version: "24"
-      - name: Install Codex CLI and Responses proxy
+      - name: Select exact official runtime
+        id: runtime
+        if: steps.classify.outputs.required == 'true'
         run: |
-          npm install --global \
-            @openai/codex@latest \
-            @openai/codex-responses-api-proxy@0.153.4
+          set -euo pipefail
+          version="$(go run ./internal/tools/cmd/livecodex version)"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+      - name: Install selected official Codex
+        if: steps.classify.outputs.required == 'true'
+        env:
+          CODEX_RELEASE: ${{ steps.runtime.outputs.version }}
+        run: |
+          set -euo pipefail
+          npm install --global "@openai/codex@${CODEX_RELEASE}"
           codex --version
-      - name: Start Codex Responses API proxy
-        id: proxy
+      - name: Run real Codex suite once
+        if: steps.classify.outputs.required == 'true'
         env:
-          PROXY_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
-          SERVER_INFO_FILE: ${{ runner.temp }}/live-codex-responses-proxy.json
-          UPSTREAM_URL: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
+          MINI_CODEX_BASE_URL: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
+          MINI_CODEX_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
         run: |
           set -euo pipefail
-          : "${PROXY_API_KEY:?AZURE_OPENAI_API_KEY is required}"
-          : "${UPSTREAM_URL:?CODEX_RESPONSES_API_ENDPOINT is required}"
-
-          (
-            printenv PROXY_API_KEY |
-              env -u PROXY_API_KEY -u UPSTREAM_URL \
-                codex-responses-api-proxy \
-                --server-info "${SERVER_INFO_FILE}" \
-                --upstream-url "${UPSTREAM_URL}"
-          ) &
-          proxy_pid=$!
-
-          for _ in {1..100}; do
-            if jq -e '.port | numbers' "${SERVER_INFO_FILE}" >/dev/null 2>&1; then
-              break
-            fi
-            sleep 0.1
-          done
-          proxy_port="$(jq -er '.port | numbers' "${SERVER_INFO_FILE}")"
-          {
-            echo "pid=${proxy_pid}"
-            echo "port=${proxy_port}"
-          } >> "${GITHUB_OUTPUT}"
-      - name: Configure isolated app-server provider
-        env:
-          CODEX_HOME: ${{ runner.temp }}/llm-go-live-codex-home
-          PROXY_PORT: ${{ steps.proxy.outputs.port }}
+          # Existing endpoint secrets may include /responses; canonical input is a base URL.
+          base_url="${MINI_CODEX_BASE_URL%/}"
+          export MINI_CODEX_BASE_URL="${base_url%/responses}"
+          go run ./internal/tools/cmd/livecodex run
+      - name: Worktree remains clean
+        if: ${{ always() && !cancelled() }}
         run: |
           set -euo pipefail
-          mkdir -p "${CODEX_HOME}"
-          cat > "${CODEX_HOME}/config.toml" <<EOF
-          model = "${LLMGO_LIVE_CODEX_MODEL}"
-          model_provider = "${LLMGO_LIVE_CODEX_PROVIDER}"
-          model_reasoning_effort = "${LLMGO_LIVE_CODEX_REASONING_EFFORT}"
-
-          [model_providers.${LLMGO_LIVE_CODEX_PROVIDER}]
-          name = "llm-go smoke proxy"
-          base_url = "http://127.0.0.1:${PROXY_PORT}/v1"
-          wire_api = "responses"
-          request_max_retries = 0
-          stream_max_retries = 0
-          supports_websockets = false
-          requires_openai_auth = false
-          EOF
-      - name: Run real Codex smoke
-        env:
-          CODEX_HOME: ${{ runner.temp }}/llm-go-live-codex-home
-          LLMGO_LIVE_CODEX: "1"
-        run: |
-          set -euo pipefail
-          env -u AZURE_OPENAI_API_KEY -u CODEX_RESPONSES_API_ENDPOINT \
-            go test ./internal/tools/integration \
-              -run '^TestLiveCodexSmoke$' \
-              -count=1 \
-              -v
-      - name: Stop Codex Responses API proxy
-        if: ${{ always() }}
-        env:
-          PROXY_PID: ${{ steps.proxy.outputs.pid }}
-        run: |
-          if [[ -n "${PROXY_PID}" ]] && kill -0 "${PROXY_PID}" 2>/dev/null; then
-            kill "${PROXY_PID}"
+          if [[ -n "$(git status --porcelain --untracked-files=all)" ]]; then
+            echo 'Live verification modified the tested worktree.' >&2
+            exit 1
           fi

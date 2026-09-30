@@ -281,7 +281,11 @@ func TestGeneratedVerificationIsADeterministicCheck(t *testing.T) {
 	if strings.Contains(pr, command) {
 		return
 	}
-	called := reusableWorkflows(pr)
+	generated, ok := workflowJobByID(pr, "generated-reproducibility")
+	if !ok {
+		t.Fatal("generated proof job missing")
+	}
+	called := reusableWorkflows(generated)
 	if len(called) == 0 {
 		t.Fatal("generated reproducibility must run the native generated check")
 	}
@@ -834,7 +838,6 @@ func TestSecretBearingCodexProxyIsPinned(t *testing.T) {
 		t.Fatal(err)
 	}
 	files := []string{
-		filepath.Join(".github", "workflows", "live-codex-smoke.yml"),
 		filepath.Join(".github", "actions", "codex-exec", "action.yml"),
 	}
 	for _, rel := range files {
@@ -849,36 +852,7 @@ func TestSecretBearingCodexProxyIsPinned(t *testing.T) {
 		if !strings.Contains(text, "@openai/codex-responses-api-proxy@") {
 			t.Fatalf("%s must install an explicit credential-handling proxy version", rel)
 		}
-		if strings.Contains(rel, "live-codex-smoke.yml") && !strings.Contains(text, "@openai/codex@latest") {
-			t.Fatalf("%s must keep the live Codex CLI as @latest", rel)
-		}
-	}
-}
 
-func TestLiveCodexSmokeProviderHasSingleAuthority(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	data, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "live-codex-smoke.yml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := string(data)
-	if !strings.Contains(text, "LLMGO_LIVE_CODEX_PROVIDER: llm-go-smoke") {
-		t.Fatal("live Codex smoke must declare LLMGO_LIVE_CODEX_PROVIDER once")
-	}
-	if !strings.Contains(text, `model_provider = "${LLMGO_LIVE_CODEX_PROVIDER}"`) {
-		t.Fatal("isolated config.toml must consume LLMGO_LIVE_CODEX_PROVIDER")
-	}
-	if !strings.Contains(text, "[model_providers.${LLMGO_LIVE_CODEX_PROVIDER}]") {
-		t.Fatal("isolated provider table must consume LLMGO_LIVE_CODEX_PROVIDER")
-	}
-	if strings.Count(text, "llm-go-smoke") != 1 {
-		t.Fatalf("live provider id copies = %d, want 1", strings.Count(text, "llm-go-smoke"))
-	}
-	if strings.Contains(text, "LLMGO_LIVE_CODEX_PROXY_VERSION") {
-		t.Fatal("proxy version must come from the installed package, not a diagnostic env copy")
 	}
 }
 

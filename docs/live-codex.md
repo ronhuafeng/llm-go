@@ -5,23 +5,52 @@ we test against installed Codex, not a test suite for Codex Core itself.
 
 ## Implementation transition
 
-The design is accepted; its implementation remains tracked by
-[#376](https://github.com/ronhuafeng/llm-go/issues/376) and
-[#377](https://github.com/ronhuafeng/llm-go/issues/377).
+The runtime fixture and required-check consumer are implemented for
+[#376](https://github.com/ronhuafeng/llm-go/issues/376):
+[PR verification](../.github/workflows/pr-verification.yml) calls the
+[live workflow](../.github/workflows/live-codex-smoke.yml), and
+[Auto-forward](../.github/workflows/auto-forward.yml) requires
+`Live Codex integration / Live scenarios` alongside the three native contexts.
+Actual current-head workflow results and integration readback belong to the
+implementation PR; this source description alone is not deployment evidence.
 
-At the inspected `main` revision
-`5e6b45fc4ad17e7ec090eeed19ba1d1cd4b53d36`, the
-[legacy live workflow](../.github/workflows/live-codex-smoke.yml) installs latest
-Codex, uses a local Responses proxy and `gpt-5.6-luna/medium`, and runs only the
-[composed smoke](../internal/tools/integration/live_codex_smoke_test.go).
-The [direct smoke](../codexsdk/real_appserver_smoke_test.go) is separately opt-in
-and stops after Fork returns an ID. The
-[auto-forward workflow](../.github/workflows/auto-forward.yml) checks only the
-three existing native proof contexts.
+The active entry point still executes the composed migration smoke. The two
+complete stories below remain
+[#377](https://github.com/ronhuafeng/llm-go/issues/377). Until that implementation
+is accepted, the smoke does not establish `number == 7` or work on a fork.
+The separate opt-in direct smoke is not part of this required suite yet.
 
-That is a dated implementation observation, not the desired policy below.
-Documentation does not activate a gate or prove credentials work. Update this
-transition when the implementation and real acceptance evidence exist.
+## Run the current suite
+
+From the repository root, supply `MINI_CODEX_BASE_URL` (API base URL) and
+`MINI_CODEX_API_KEY` in the environment, then:
+
+```sh
+npm install --global "@openai/codex@$(go run ./internal/tools/cmd/livecodex version)"
+go run ./internal/tools/cmd/livecodex run
+```
+
+The command selects the baseline release, runs Go tests once without caching,
+and rejects zero selected tests, skips, failure, or incomplete execution. Tests
+verify the installed version and create temporary Codex home/workspace state.
+Normal deterministic tests remain credential-free and do not enable live work.
+
+CI reuses the existing repository secrets `AZURE_OPENAI_API_KEY` and
+`CODEX_RESPONSES_API_ENDPOINT`, mapped to the canonical Mini environment inputs.
+These are retained secret names, not an Azure provider or a proxy. CI removes
+only a terminal `/responses` from an existing endpoint value before passing the
+API base URL. Local setup takes the base URL directly. Neither path prints the
+key or endpoint. Configuration never persists the key.
+
+The shared runner trims surrounding whitespace from the Mini key before passing
+it to the test process. A blank key or whitespace inside the token fails setup;
+the fixture accepts only the normalized credential. The readiness probe applies
+the same policy before transport. This handles accidental paste padding without
+changing the credential itself or persisting it.
+
+A manual not-applicable classifier check may dispatch `live-codex-smoke.yml`
+with `base_sha` equal to the dispatched revision. This proves classification
+without executing the model; it does not prove either live story.
 
 ## Runtime and ownership
 
@@ -146,14 +175,18 @@ name = "Mini"
 base_url = "<Mini API base URL, including its API prefix>"
 env_key = "MINI_CODEX_API_KEY"
 wire_api = "responses"
+requires_openai_auth = false
+supports_websockets = false
 ```
 
 `MINI_CODEX_API_KEY` names an environment variable, not a literal secret in this
-file. The planned setup accepts `MINI_CODEX_BASE_URL` and
+file. The shared fixture accepts `MINI_CODEX_BASE_URL` and
 `MINI_CODEX_API_KEY` and produces this configuration in an isolated `CODEX_HOME`.
-The implementation must keep CI and local scenario setup aligned without
-creating a general configuration framework. These names do not assert that
-corresponding repository secrets already exist.
+CI and local scenario setup use the same Go fixture. CI maps the existing repository secret names as documented above.
+
+Mini uses its own Bearer API key and HTTP/SSE Responses transport. The fixture
+explicitly disables OpenAI/ChatGPT login authentication and Responses WebSocket
+transport for this provider.
 
 Do not install a standalone Responses proxy, inject imitation Codex headers, or
 silently fall back to ambient user authentication or a different provider.
@@ -219,6 +252,5 @@ replace them, and an Agent's success message does not replace assertions.
 
 The first live suite does not add approval/tool execution, MCP, interrupt,
 WebSocket transports, a platform/model/version matrix, or upstream Rust-test
-mirroring. New real use can justify new stories later. The implementation must
-publish a single explicit local/CI command for the active suite rather than
-leaving overlapping opt-in smoke entry points as competing authorities.
+mirroring. New real use can justify new stories later. The shared command above owns required execution. #377 removes the superseded
+smoke entry points when its complete stories replace them.

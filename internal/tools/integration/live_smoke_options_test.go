@@ -3,21 +3,11 @@ package integration
 import (
 	"errors"
 	"fmt"
-	"os"
-	"strings"
 	"testing"
 
 	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
 	codexcaller "github.com/ronhuafeng/llm-go/llmcaller/codex"
 )
-
-func liveSmokeProvider() (string, error) {
-	provider := strings.TrimSpace(os.Getenv("LLMGO_LIVE_CODEX_PROVIDER"))
-	if provider == "" {
-		return "", errors.New("LLMGO_LIVE_CODEX_PROVIDER is required")
-	}
-	return provider, nil
-}
 
 func liveSmokeApplicationOptions(runner codexcaller.ThreadRunner, provider string) codexcaller.Options {
 	options := readOnlyApplicationOptions(runner)
@@ -39,21 +29,6 @@ func admitLiveSmokeProvider(start protocolv2.ThreadStartResponse, provider strin
 	return nil
 }
 
-func TestLiveSmokeProviderReadsEnv(t *testing.T) {
-	t.Setenv("LLMGO_LIVE_CODEX_PROVIDER", "from-env")
-	got, err := liveSmokeProvider()
-	if err != nil || got != "from-env" {
-		t.Fatalf("liveSmokeProvider() = %q, %v, want from-env", got, err)
-	}
-}
-
-func TestLiveSmokeProviderRequired(t *testing.T) {
-	t.Setenv("LLMGO_LIVE_CODEX_PROVIDER", "")
-	if _, err := liveSmokeProvider(); err == nil {
-		t.Fatal("liveSmokeProvider() error = nil, want required")
-	}
-}
-
 func TestLiveSmokeApplicationOptionsPinIsolatedProvider(t *testing.T) {
 	const provider = "isolated-provider"
 	options := liveSmokeApplicationOptions(nil, provider)
@@ -69,7 +44,7 @@ func TestAdmitLiveSmokeProviderRejectsDefaultChatGPTProvider(t *testing.T) {
 	}
 }
 
-func TestAdmitLiveSmokeProviderAcceptsIsolatedProxy(t *testing.T) {
+func TestAdmitLiveSmokeProviderAcceptsConfiguredProvider(t *testing.T) {
 	if err := admitLiveSmokeProvider(protocolv2.ThreadStartResponse{ModelProvider: "isolated-provider"}, "isolated-provider"); err != nil {
 		t.Fatal(err)
 	}

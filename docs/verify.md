@@ -6,17 +6,16 @@ the result for the candidate being integrated.
 
 ## Accepted policy and implementation transition
 
-The accepted policy adds a real-Codex live gate to the existing native proofs.
-[`Live Codex integration`](live-codex.md) defines the environment and scenarios.
-Implementation is tracked in [#376](https://github.com/ronhuafeng/llm-go/issues/376)
-and [#377](https://github.com/ronhuafeng/llm-go/issues/377).
+`PR verification` executes the source/generated/provenance proofs and calls the
+required `Live Codex integration / Live scenarios` context. Auto-forward checks
+all four contexts for the current H, then rechecks before the write. It uses the
+latest GitHub Actions result for each required name; an earlier success cannot
+hide a later failure or cancellation.
 
-At the inspected implementation `5e6b45fc4ad17e7ec090eeed19ba1d1cd4b53d36`,
-`PR verification` and the trusted Auto-forward workflow use the three existing
-source/generated/provenance contexts. Live smoke is separate and non-gating.
-The new policy below is not a claim that deployed workflow enforcement has
-already changed. Completing #376 requires updating the real acceptance path,
-not merely this document or a workflow name.
+[`Live Codex integration`](live-codex.md) owns environment setup and the common
+command. #376 implements the runtime/gate migration; #377 replaces the migration
+smoke with the two complete stories. Actual execution/deployment evidence is
+recorded in the implementation PRs, not inferred from this document.
 
 ## One acceptance candidate
 
@@ -119,8 +118,7 @@ go test -race ./llmcaller/codex/...
 
 For `llmkit`, run its affected package tests and `go test -race ./llmkit/...`.
 The generated checker is owned by `codexsdk/internal/cmd/generatedcheck`.
-Live setup and the transition from legacy commands are owned by `live-codex.md`;
-an implementation must document the actual common command for both stories.
+Live setup and the active suite command are owned by `live-codex.md`.
 
 Producers run `gofmt` before committing or sealing changed Go. Formatting is
 construction, not an acceptance proof. `go mod tidy -diff` stays a proof because
@@ -161,10 +159,12 @@ requires HTTP success and a streamed `response.completed` event without an
 error, failed, or incomplete event. Logs contain only bounded status facts;
 the response body is temporary. This is provider readiness evidence. Installed
 Codex scenarios own the SDK integration guarantee.
+Both this probe and the live-suite runner remove surrounding key whitespace and
+reject whitespace inside the token before making a request.
 
 Existing portability, fuzzing, and vulnerability checks remain useful additional
 evidence unless separately promoted. The accepted live gate is no longer
-optional evidence for Codex-affecting changes once #376 is implemented.
+optional evidence for Codex-affecting changes.
 
 Source acceptance is not a tag or package release. Follow
 [`release.md`](release.md), including disclosure of intentional live-scenario

@@ -24,12 +24,10 @@ runtime advances require the applicable live check. This does not narrow
 protocol generation to live-covered methods: full reachable wire representation
 and scenario-based runtime evidence have distinct jobs.
 
-**Transition:** the accepted real-runtime gate and first two scenarios are
-tracked in [#376](https://github.com/ronhuafeng/llm-go/issues/376) and
-[#377](https://github.com/ronhuafeng/llm-go/issues/377). The inspected implementation
-`5e6b45fc4ad17e7ec090eeed19ba1d1cd4b53d36` still has three native acceptance
-contexts and separate non-gating live smoke. Documentation is not deployed
-enforcement.
+**Live implementation:** #376 supplies the baseline-selected native Mini
+fixture and fourth required result. #377 owns the complete initial stories;
+the migration smoke alone does not establish their outcomes. Runtime proof and
+wire reconstruction remain separate.
 
 ## Ownership
 

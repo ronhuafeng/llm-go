@@ -9,6 +9,7 @@ import (
 
 	"github.com/ronhuafeng/llm-go/codexsdk"
 	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
+	"github.com/ronhuafeng/llm-go/internal/tools/internal/livecodex"
 	"github.com/ronhuafeng/llm-go/llmkit/llmadapter"
 )
 
@@ -18,7 +19,7 @@ func reportLiveFailure(t testingTB, client *codexsdk.Client, start protocolv2.Th
 	if client != nil {
 		provenance = client.Provenance()
 	}
-	for _, fact := range liveFailureFacts(provenance, liveCLIVersion(), liveProxyVersion(), err, start) {
+	for _, fact := range liveFailureFacts(provenance, liveCLIVersion(), err, start) {
 		t.Log(fact)
 	}
 }
@@ -28,15 +29,12 @@ type testingTB interface {
 	Log(args ...any)
 }
 
-func liveFailureFacts(provenance codexsdk.ConnectionProvenance, cliVersion, proxyVersion string, err error, start protocolv2.ThreadStartResponse) []string {
+func liveFailureFacts(provenance codexsdk.ConnectionProvenance, cliVersion string, err error, start protocolv2.ThreadStartResponse) []string {
 	facts := []string{
 		"live_failure.stage=" + liveFailureStage(err),
 	}
 	if cliVersion != "" {
 		facts = append(facts, "live_failure.codex_cli_version="+cliVersion)
-	}
-	if proxyVersion != "" {
-		facts = append(facts, "live_failure.responses_proxy_version="+proxyVersion)
 	}
 	baseline := provenance.GeneratedBaseline
 	if baseline.SourceRefName != "" || baseline.SourceCommit != "" {
@@ -45,11 +43,7 @@ func liveFailureFacts(provenance codexsdk.ConnectionProvenance, cliVersion, prox
 			"live_failure.generated_baseline.commit="+baseline.SourceCommit,
 		)
 	}
-	if provenance.RuntimeAppServer.Observed {
-		facts = append(facts, "live_failure.runtime_app_server.user_agent="+provenance.RuntimeAppServer.UserAgent)
-	} else {
-		facts = append(facts, "live_failure.runtime_app_server.observed=false")
-	}
+	facts = append(facts, fmt.Sprintf("live_failure.runtime_app_server.observed=%t", provenance.RuntimeAppServer.Observed))
 	kind := provenance.Compatibility.Kind
 	if kind == "" {
 		kind = codexsdk.RuntimeCompatibilityUnknown
@@ -67,8 +61,8 @@ func liveFailureFacts(provenance codexsdk.ConnectionProvenance, cliVersion, prox
 	var turnErr *codexsdk.TurnError
 	if errors.As(err, &turnErr) {
 		facts = append(facts,
-			"live_failure.thread_id="+turnErr.ThreadID,
-			"live_failure.turn_id="+turnErr.Turn.ID,
+			fmt.Sprintf("live_failure.thread_id_present=%t", turnErr.ThreadID != ""),
+			fmt.Sprintf("live_failure.turn_id_present=%t", turnErr.Turn.ID != ""),
 			"live_failure.turn_status="+string(turnErr.Turn.Status),
 		)
 		facts = append(facts, nativeTurnErrorFacts(turnErr.Turn)...)
@@ -109,16 +103,10 @@ func liveFailureStage(err error) string {
 }
 
 func observedThreadStartFacts(start protocolv2.ThreadStartResponse) []string {
-	var facts []string
-	if start.Model != "" {
-		facts = append(facts, "live_failure.thread.model="+start.Model)
+	return []string{
+		fmt.Sprintf("live_failure.thread.model_matches_fixture=%t", start.Model == livecodex.Model),
+		fmt.Sprintf("live_failure.thread.provider_matches_fixture=%t", start.ModelProvider == livecodex.Provider),
 	}
-	if start.ModelProvider != "" {
-		facts = append(facts, "live_failure.thread.model_provider="+start.ModelProvider)
-	} else if start.Thread.ID != "" {
-		facts = append(facts, "live_failure.thread.model_provider=absent")
-	}
-	return facts
 }
 
 func nativeTurnErrorFacts(turn protocolv2.Turn) []string {
@@ -166,27 +154,4 @@ func liveCLIVersion() string {
 		return ""
 	}
 	return strings.TrimSpace(string(out))
-}
-
-func liveProxyVersion() string {
-	if out, err := exec.Command("codex-responses-api-proxy", "--version").Output(); err == nil {
-		if version := strings.TrimSpace(string(out)); version != "" {
-			return version
-		}
-	}
-	out, err := exec.Command("npm", "list", "-g", "--depth=0", "@openai/codex-responses-api-proxy").CombinedOutput()
-	if len(out) == 0 && err != nil {
-		return ""
-	}
-	const prefix = "@openai/codex-responses-api-proxy@"
-	text := string(out)
-	idx := strings.LastIndex(text, prefix)
-	if idx < 0 {
-		return ""
-	}
-	rest := text[idx+len(prefix):]
-	if end := strings.IndexAny(rest, " \t\n\r"); end >= 0 {
-		rest = rest[:end]
-	}
-	return strings.TrimSpace(rest)
 }

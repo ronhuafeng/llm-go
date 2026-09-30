@@ -35,18 +35,15 @@ func TestLiveFailureFactsReportNativeTurnError(t *testing.T) {
 			UserAgent: "codex-cli 0.154.0",
 		},
 		Compatibility: codexsdk.RuntimeCompatibility{Kind: codexsdk.RuntimeCompatibilityUnknown},
-	}, "codex-cli 0.154.0", "0.153.4", err, protocolv2.ThreadStartResponse{})
+	}, "codex-cli 0.154.0", err, protocolv2.ThreadStartResponse{})
 
 	want := []string{
 		"live_failure.stage=terminal-turn",
 		"live_failure.codex_cli_version=codex-cli 0.154.0",
-		"live_failure.responses_proxy_version=0.153.4",
 		"live_failure.generated_baseline.ref=rust-v0.154.0",
 		"live_failure.generated_baseline.commit=" + strings.Repeat("a", 40),
-		"live_failure.runtime_app_server.user_agent=codex-cli 0.154.0",
+		"live_failure.runtime_app_server.observed=true",
 		"live_failure.runtime_compatibility=unknown",
-		"live_failure.thread_id=thread-1",
-		"live_failure.turn_id=turn-1",
 		"live_failure.turn_status=failed",
 		"live_failure.native_turn_error.codex_error_info=httpConnectionFailed",
 		"live_failure.native_turn_error.http_status=502",
@@ -57,7 +54,7 @@ func TestLiveFailureFactsReportNativeTurnError(t *testing.T) {
 			t.Fatalf("missing %q in:\n%s", fact, got)
 		}
 	}
-	if strings.Contains(got, "additionalDetails") {
+	if strings.Contains(got, "thread-1") || strings.Contains(got, "turn-1") || strings.Contains(got, "additionalDetails") {
 		t.Fatal("unsafe additionalDetails leaked into live facts")
 	}
 	if strings.Contains(got, "native_turn_error.message=") || strings.Contains(got, "upstream rejected the responses request") {
@@ -67,7 +64,7 @@ func TestLiveFailureFactsReportNativeTurnError(t *testing.T) {
 
 func TestLiveFailureFactsReportTurnStartProtocolError(t *testing.T) {
 	err := &codexsdk.ProtocolError{Method: protocolv2.MethodTurnStart, Code: -32602, Err: errors.New("invalid params")}
-	facts := liveFailureFacts(codexsdk.ConnectionProvenance{}, "", "", err, protocolv2.ThreadStartResponse{})
+	facts := liveFailureFacts(codexsdk.ConnectionProvenance{}, "", err, protocolv2.ThreadStartResponse{})
 	got := strings.Join(facts, "\n")
 	for _, fact := range []string{
 		"live_failure.stage=turn-start",
@@ -93,7 +90,7 @@ func TestLiveFailureFactsReportObservedThreadProvider(t *testing.T) {
 		},
 		Err: codexsdk.ErrTurnFailed,
 	}
-	facts := liveFailureFacts(codexsdk.ConnectionProvenance{}, "", "", err, protocolv2.ThreadStartResponse{
+	facts := liveFailureFacts(codexsdk.ConnectionProvenance{}, "", err, protocolv2.ThreadStartResponse{
 		Model:         "gpt-5.6-luna",
 		ModelProvider: "openai",
 		Thread:        protocolv2.Thread{ID: "thread-1"},
@@ -102,8 +99,8 @@ func TestLiveFailureFactsReportObservedThreadProvider(t *testing.T) {
 	for _, fact := range []string{
 		"live_failure.stage=terminal-turn",
 		"live_failure.native_turn_error.codex_error_info=usageLimitExceeded",
-		"live_failure.thread.model=gpt-5.6-luna",
-		"live_failure.thread.model_provider=openai",
+		"live_failure.thread.model_matches_fixture=false",
+		"live_failure.thread.provider_matches_fixture=false",
 	} {
 		if !strings.Contains(got, fact) {
 			t.Fatalf("missing %q in:\n%s", fact, got)
@@ -116,14 +113,14 @@ func TestLiveFailureFactsReportObservedThreadProvider(t *testing.T) {
 
 func TestLiveFailureFactsReportAdmissionStage(t *testing.T) {
 	err := &codexsdk.TurnAdmissionError{Err: errApplicationAdmission}
-	facts := liveFailureFacts(codexsdk.ConnectionProvenance{}, "", "", err, protocolv2.ThreadStartResponse{
+	facts := liveFailureFacts(codexsdk.ConnectionProvenance{}, "", err, protocolv2.ThreadStartResponse{
 		ModelProvider: "openai",
 		Thread:        protocolv2.Thread{ID: "thread-1"},
 	})
 	got := strings.Join(facts, "\n")
 	for _, fact := range []string{
 		"live_failure.stage=admission",
-		"live_failure.thread.model_provider=openai",
+		"live_failure.thread.provider_matches_fixture=false",
 	} {
 		if !strings.Contains(got, fact) {
 			t.Fatalf("missing %q in:\n%s", fact, got)
@@ -137,7 +134,7 @@ func TestLiveFailureFactsOmitAbsentNativeTurnError(t *testing.T) {
 		Turn:     protocolv2.Turn{ID: "turn-1", Status: protocolv2.TurnStatusFailed},
 		Err:      codexsdk.ErrTurnFailed,
 	}
-	facts := liveFailureFacts(codexsdk.ConnectionProvenance{}, "", "", err, protocolv2.ThreadStartResponse{})
+	facts := liveFailureFacts(codexsdk.ConnectionProvenance{}, "", err, protocolv2.ThreadStartResponse{})
 	got := strings.Join(facts, "\n")
 	if !strings.Contains(got, "live_failure.native_turn_error=absent") {
 		t.Fatalf("missing absent native error in:\n%s", got)

@@ -91,6 +91,7 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
 
       - name: Require current-head checks and review policy
+        id: acceptance
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ inputs.pr_number }}
@@ -102,10 +103,11 @@ jobs:
             "Root source verification"
             "Codex generated reproducibility / Generated reproducibility"
             "Codex protocol provenance"
+            "Live Codex integration / Live scenarios"
           )
           checks="$(gh api "repos/${REPOSITORY}/commits/${HEAD_SHA}/check-runs?filter=latest&per_page=100")"
           for name in "${required[@]}"; do
-            ok="$(jq --arg name "${name}" '[.check_runs[] | select(.name == $name and .status == "completed" and .conclusion == "success")] | length' <<<"${checks}")"
+            ok="$(jq --arg name "${name}" '[.check_runs[] | select(.name == $name and .app.slug == "github-actions")] | max_by(.id) | if .status == "completed" and .conclusion == "success" then 1 else 0 end' <<<"${checks}")"
             if [[ "${ok}" -lt 1 ]]; then
               echo "required check is not successful on H ${HEAD_SHA}: ${name}" >&2
               exit 1

@@ -18,12 +18,11 @@ real Codex integration for relevant changes, with explicit successful
 not-applicable classification for unrelated changes. A successful source or
 protocol workflow does not stand in for a missing live result.
 
-**Implementation transition:** at
-`5e6b45fc4ad17e7ec090eeed19ba1d1cd4b53d36`, the installed workflow explicitly
-checks three contexts: root source, generated reproducibility, and protocol
-provenance. [#376](https://github.com/ronhuafeng/llm-go/issues/376) must update
-that consumer and its tests for the accepted live gate. This document does not
-itself change the deployed gate.
+The required consumer includes `Live Codex integration / Live scenarios`.
+PR verification calls the live workflow directly, so its successful completion
+cannot dispatch auto-forward before the required live child has succeeded.
+Current-head results and production integration readback remain the evidence of
+actual deployment; source text alone is insufficient.
 
 ## Trusted workflow
 

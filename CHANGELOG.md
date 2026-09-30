@@ -38,6 +38,15 @@ changes may occur in minor releases.
 
 - Add manual and weekly `LLM readiness` probes for the direct Mini Responses
   API using the existing repository secrets and `gpt-6-sol/high`.
+- Require the real Codex migration suite alongside source/generated/provenance
+  checks. Select the official runtime from the tested baseline, configure native
+  Mini directly using isolated state, and share one uncached local/CI command.
+  Reuse existing provider secrets and reject missing, skipped, cancelled, or
+  failed live results; the complete two-story suite remains #377.
+- Normalize surrounding Mini credential whitespace for the live suite and
+  readiness probe, reject embedded whitespace before transport, and explicitly
+  configure Mini Bearer authentication with HTTP/SSE transport.
+
 - Document the accepted scenario-based live Codex contract: official runtime
   selected by the synced baseline, direct Mini configuration, Linux,
   `gpt-6-sol/high`, and a relevant-change hard gate. Define the initial

@@ -22,9 +22,15 @@ jobs:
         run: |
           set -euo pipefail
           LLM_BASE_URL="$(printf '%s' "$LLM_BASE_URL" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+          LLM_API_KEY="${LLM_API_KEY#"${LLM_API_KEY%%[![:space:]]*}"}"
+          LLM_API_KEY="${LLM_API_KEY%"${LLM_API_KEY##*[![:space:]]}"}"
           : "${LLM_API_KEY:?missing AZURE_OPENAI_API_KEY}"
           : "${LLM_BASE_URL:?missing CODEX_RESPONSES_API_ENDPOINT}"
           : "${LLM_MODEL:?missing LLM_MODEL}"
+          if [[ "$LLM_API_KEY" == *[[:space:]]* ]]; then
+            echo 'LLM Responses API: API key contains whitespace'
+            exit 1
+          fi
           base_url="${LLM_BASE_URL%/}"
           base_url="${base_url%/responses}"
           response="$(mktemp)"
