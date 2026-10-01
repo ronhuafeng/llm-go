@@ -44,8 +44,8 @@ The accepted first suite has two stories: a structured composed call, and a
 persistent thread continued through Resume and Fork. Both use an official
 installed Codex, a direct Mini connection, and one real model. Read
 [`Live Codex integration`](docs/live-codex.md) for the design, assertions,
-configuration, and the explicit implementation transition. The runtime/gate implementation and the remaining scenario transition are
-recorded there; actual workflow results own execution evidence.
+configuration, and implementation status. The shared suite implements both
+stories; actual workflow results own execution evidence.
 
 Deterministic Go, race, and generated-protocol tests remain necessary; live
 integration does not replace them.

@@ -3,10 +3,11 @@
 This document owns the accepted real-runtime testing design. It describes what
 we test against installed Codex, not a test suite for Codex Core itself.
 
-## Implementation transition
+## Current implementation
 
-The runtime fixture and required-check consumer are implemented for
-[#376](https://github.com/ronhuafeng/llm-go/issues/376):
+The runtime fixture and required-check consumer from
+[#376](https://github.com/ronhuafeng/llm-go/issues/376) were integrated through
+[PR #381](https://github.com/ronhuafeng/llm-go/pull/381):
 [PR verification](../.github/workflows/pr-verification.yml) calls the
 [live workflow](../.github/workflows/live-codex-smoke.yml), and
 [Auto-forward](../.github/workflows/auto-forward.yml) requires
@@ -14,11 +15,14 @@ The runtime fixture and required-check consumer are implemented for
 Actual current-head workflow results and integration readback belong to the
 implementation PR; this source description alone is not deployment evidence.
 
-The active entry point still executes the composed migration smoke. The two
-complete stories below remain
-[#377](https://github.com/ronhuafeng/llm-go/issues/377). Until that implementation
-is accepted, the smoke does not establish `number == 7` or work on a fork.
-The separate opt-in direct smoke is not part of this required suite yet.
+The active [scenario suite](../internal/tools/integration/live_codex_test.go)
+implements both stories below for
+[#377](https://github.com/ronhuafeng/llm-go/issues/377). It validates the composed
+integer result and completes work after persistent Start, Resume, and Fork.
+The old composed migration smoke and independently configured direct smoke are
+consolidated into this suite, preserving their identity and usable-response
+assertions. Actual execution and integration evidence belongs to the
+implementation PR; this source description alone does not prove a live result.
 
 ## Run the current suite
 
@@ -34,6 +38,12 @@ The command selects the baseline release, runs Go tests once without caching,
 and rejects zero selected tests, skips, failure, or incomplete execution. Tests
 verify the installed version and create temporary Codex home/workspace state.
 Normal deterministic tests remain credential-free and do not enable live work.
+The enabled suite runs one structured call and three turns in the continuous
+thread story. It uses separate temporary fixture state for each story and
+archives owned persistent threads before closing their client, including
+failure paths. Forked work uses the public Resume composition with the returned
+fork identity; the fork is persistent so that this continuation and cleanup
+are supported. No separate opt-in runtime/model configuration remains.
 
 CI reuses the existing repository secrets `AZURE_OPENAI_API_KEY` and
 `CODEX_RESPONSES_API_ENDPOINT`, mapped to the canonical Mini environment inputs.
@@ -252,5 +262,5 @@ replace them, and an Agent's success message does not replace assertions.
 
 The first live suite does not add approval/tool execution, MCP, interrupt,
 WebSocket transports, a platform/model/version matrix, or upstream Rust-test
-mirroring. New real use can justify new stories later. The shared command above owns required execution. #377 removes the superseded
-smoke entry points when its complete stories replace them.
+mirroring. New real use can justify new stories later. The shared command above
+owns required execution of both stories.

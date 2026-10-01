@@ -30,20 +30,27 @@ func readOnlyApplicationOptions(runner codexcaller.ThreadRunner) codexcaller.Opt
 }
 
 func admitReadOnlyEphemeral(start protocolv2.ThreadStartResponse, pending protocolv2.TurnStartParams) error {
-	if !start.ApprovalPolicy.IsValid() {
-		return fmt.Errorf("%w: approval policy is unknown", errApplicationAdmission)
-	}
-	if start.ApprovalPolicy.Kind() != protocolv2.AskForApprovalKindNever {
-		return fmt.Errorf("%w: approval policy is not never", errApplicationAdmission)
-	}
-	if !start.Sandbox.IsValid() {
-		return fmt.Errorf("%w: sandbox is unknown", errApplicationAdmission)
-	}
-	if start.Sandbox.Kind() != protocolv2.SandboxPolicyKindReadOnly {
-		return fmt.Errorf("%w: sandbox is not read-only", errApplicationAdmission)
+	if err := admitReadOnlyPolicies(start.ApprovalPolicy, start.Sandbox, pending); err != nil {
+		return err
 	}
 	if !start.Thread.Ephemeral {
 		return fmt.Errorf("%w: thread is not ephemeral", errApplicationAdmission)
+	}
+	return nil
+}
+
+func admitReadOnlyPolicies(approval protocolv2.AskForApproval, sandbox protocolv2.SandboxPolicy, pending protocolv2.TurnStartParams) error {
+	if !approval.IsValid() {
+		return fmt.Errorf("%w: approval policy is unknown", errApplicationAdmission)
+	}
+	if approval.Kind() != protocolv2.AskForApprovalKindNever {
+		return fmt.Errorf("%w: approval policy is not never", errApplicationAdmission)
+	}
+	if !sandbox.IsValid() {
+		return fmt.Errorf("%w: sandbox is unknown", errApplicationAdmission)
+	}
+	if sandbox.Kind() != protocolv2.SandboxPolicyKindReadOnly {
+		return fmt.Errorf("%w: sandbox is not read-only", errApplicationAdmission)
 	}
 	if pending.ApprovalPolicy != nil && (pending.ApprovalPolicy.Value == nil || pending.ApprovalPolicy.Value.Kind() != protocolv2.AskForApprovalKindNever) {
 		return fmt.Errorf("%w: pending approval policy is not never", errApplicationAdmission)

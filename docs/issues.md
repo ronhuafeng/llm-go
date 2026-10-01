@@ -23,7 +23,7 @@ an unrelated parent while implementing a child.
 
 ## Live integration work
 
-[`live-codex.md`](live-codex.md) is the accepted design. Its remaining work is
+[`live-codex.md`](live-codex.md) is the accepted design. Its implementation is
 owned by #376 (runtime configuration and required-gate enforcement) and #377
 (the two initial integration stories). Do not duplicate their outcomes as
 separate model, proxy, per-RPC, or documentation tickets.

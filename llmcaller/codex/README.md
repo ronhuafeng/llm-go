@@ -45,7 +45,7 @@ live test. The separate direct-SDK story covers Resume/Fork continuation.
 
 The live scenarios are the runtime guarantee's source of truth, not a catalogue
 of every generated method. See [`Live Codex integration`](../../docs/live-codex.md)
-for the accepted design and the outstanding implementation transition.
+for the accepted design, executable suite, and current implementation status.
 
 ## Examples and checks
 

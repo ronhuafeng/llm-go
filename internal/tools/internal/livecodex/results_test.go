@@ -53,3 +53,21 @@ func TestResultsDoNotForwardPrivateTranscript(t *testing.T) {
 		t.Fatal("scenario result was lost")
 	}
 }
+
+func TestResultsRetainStoryStagesWithoutPrivateContent(t *testing.T) {
+	var out bytes.Buffer
+	events := `{"Action":"run","Test":"TestLiveCodexThreadContinuation"}
+{"Action":"output","Test":"TestLiveCodexThreadContinuation","Output":"    live_codex_test.go:128: live_story.stage=fork outcome=completed\n    live_codex_test.go:132: live_story.stage=fork-turn outcome=started\n    live_codex_test.go:133: live_story.stage=private-content outcome=completed\n    live_codex_test.go:190: live_failure.stage=cleanup\n    live_private_response_test.go:1: private-response"}
+{"Action":"pass","Test":"TestLiveCodexThreadContinuation"}`
+	if err := CheckResults(strings.NewReader(events), &out); err != nil {
+		t.Fatal(err)
+	}
+	for _, fact := range []string{"live_story.stage=fork outcome=completed", "live_story.stage=fork-turn outcome=started", "live_failure.stage=cleanup"} {
+		if !strings.Contains(out.String(), fact) {
+			t.Errorf("missing bounded stage: %s", fact)
+		}
+	}
+	if strings.Contains(out.String(), "private") {
+		t.Fatal("private content was forwarded as a story stage")
+	}
+}

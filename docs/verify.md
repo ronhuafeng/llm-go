@@ -13,9 +13,10 @@ latest GitHub Actions result for each required name; an earlier success cannot
 hide a later failure or cancellation.
 
 [`Live Codex integration`](live-codex.md) owns environment setup and the common
-command. #376 implements the runtime/gate migration; #377 replaces the migration
-smoke with the two complete stories. Actual execution/deployment evidence is
-recorded in the implementation PRs, not inferred from this document.
+command. #376 supplies the runtime/gate; #377 supplies the structured composed
+call and continuous persistent Start/Resume/Fork story. Actual execution and
+deployment evidence is recorded in the implementation PRs, not inferred from
+this document.
 
 ## One acceptance candidate
 

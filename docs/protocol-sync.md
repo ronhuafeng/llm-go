@@ -25,9 +25,10 @@ protocol generation to live-covered methods: full reachable wire representation
 and scenario-based runtime evidence have distinct jobs.
 
 **Live implementation:** #376 supplies the baseline-selected native Mini
-fixture and fourth required result. #377 owns the complete initial stories;
-the migration smoke alone does not establish their outcomes. Runtime proof and
-wire reconstruction remain separate.
+fixture and fourth required result. #377 supplies the structured composed call
+and continuous persistent Start/Resume/Fork stories through the same suite.
+Their actual workflow results own execution evidence. Runtime proof and wire
+reconstruction remain separate.
 
 ## Ownership
 

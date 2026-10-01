@@ -9,7 +9,9 @@ import (
 	"strings"
 )
 
-var safeFact = regexp.MustCompile(`^live_failure\.(stage=(startup|fixture|thread-start|turn-start|protocol-request|admission|terminal-turn|timeout|unknown|assertion)|codex_cli_version=codex-cli [0-9]+\.[0-9]+\.[0-9]+|generated_baseline\.(ref=rust-v[0-9]+\.[0-9]+\.[0-9]+|commit=[0-9a-f]{40})|runtime_app_server\.observed=(true|false)|runtime_compatibility=unknown|protocol\.(method=(thread|turn)/[a-zA-Z]+|code=-?[0-9]+)|(thread_id_present|turn_id_present)=(true|false)|turn_status=(completed|failed|interrupted|inProgress)|native_turn_error=(absent)|native_turn_error\.(codex_error_info=[a-zA-Z]+|http_status=[0-9]+)|thread\.(model_matches_fixture|provider_matches_fixture)=(true|false))$`)
+var safeFact = regexp.MustCompile(`^live_failure\.(stage=(startup|fixture|thread-start|turn-start|protocol-request|admission|terminal-turn|timeout|unknown|assertion|cleanup)|codex_cli_version=codex-cli [0-9]+\.[0-9]+\.[0-9]+|generated_baseline\.(ref=rust-v[0-9]+\.[0-9]+\.[0-9]+|commit=[0-9a-f]{40})|runtime_app_server\.observed=(true|false)|runtime_compatibility=unknown|protocol\.(method=(thread|turn)/[a-zA-Z]+|code=-?[0-9]+)|(thread_id_present|turn_id_present)=(true|false)|turn_status=(completed|failed|interrupted|inProgress)|native_turn_error=(absent)|native_turn_error\.(codex_error_info=[a-zA-Z]+|http_status=[0-9]+)|thread\.(model_matches_fixture|provider_matches_fixture)=(true|false))$`)
+
+var safeStoryFact = regexp.MustCompile(`^live_story\.stage=(structured-call|persistent-start|resume|fork|fork-turn) outcome=(started|completed)$`)
 
 var safeScenario = regexp.MustCompile(`^TestLiveCodex[a-zA-Z0-9_./-]*$`)
 
@@ -45,9 +47,10 @@ func CheckResults(input io.Reader, output io.Writer) error {
 			failed = true
 		case "output":
 			for _, line := range strings.Split(event.Output, "\n") {
-				if index := strings.Index(line, "live_failure."); index >= 0 {
+				// t.Log's file/line prefix may itself contain "live_".
+				if index := strings.LastIndex(line, "live_"); index >= 0 {
 					fact := line[index:]
-					if len(fact) <= 256 && safeFact.MatchString(fact) {
+					if len(fact) <= 256 && (safeFact.MatchString(fact) || safeStoryFact.MatchString(fact)) {
 						fmt.Fprintln(output, fact)
 					}
 				}

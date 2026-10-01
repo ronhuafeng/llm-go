@@ -47,7 +47,7 @@ func TestRelevanceIncludesSharedCodeAndUnknownPaths(t *testing.T) {
 		{"codexsdk/internal/protocolschema/appserver/v2/baseline_metadata.json", true},
 		{"llmcaller/codex/caller.go", true},
 		{"llmkit/llmschema/validate.go", true},
-		{"internal/tools/integration/live_codex_smoke_test.go", true},
+		{"internal/tools/integration/live_codex_test.go", true},
 		{"go.sum", true},
 		{".github/workflows/auto-forward.yml", true},
 		{".github/workflows/pr-verification.yml", true},
