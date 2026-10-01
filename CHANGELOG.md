@@ -36,6 +36,8 @@ changes may occur in minor releases.
 
 ### Repository
 
+- Add manual and weekly `LLM readiness` probes for the direct Mini Responses
+  API using the existing repository secrets and `gpt-6-sol/high`.
 - Document the accepted scenario-based live Codex contract: official runtime
   selected by the synced baseline, direct Mini configuration, Linux,
   `gpt-6-sol/high`, and a relevant-change hard gate. Define the initial

@@ -1,0 +1,48 @@
+name: LLM readiness
+
+on:
+  workflow_dispatch:
+  # Weekly: catch provider/API/credential drift without probing every PR.
+  schedule:
+    - cron: "41 3 * * 3"
+
+permissions: {}
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Probe Responses API
+        env:
+          LLM_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          LLM_BASE_URL: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
+          LLM_MODEL: gpt-6-sol
+        shell: bash
+        run: |
+          set -euo pipefail
+          LLM_BASE_URL="$(printf '%s' "$LLM_BASE_URL" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+          : "${LLM_API_KEY:?missing AZURE_OPENAI_API_KEY}"
+          : "${LLM_BASE_URL:?missing CODEX_RESPONSES_API_ENDPOINT}"
+          : "${LLM_MODEL:?missing LLM_MODEL}"
+          base_url="${LLM_BASE_URL%/}"
+          base_url="${base_url%/responses}"
+          response="$(mktemp)"
+          events="$(mktemp)"
+          trap 'rm -f "$response" "$events"' EXIT
+          payload="$(jq -nc --arg model "$LLM_MODEL" '{model:$model,reasoning:{effort:"high"},store:false,stream:true,input:[{role:"user",content:[{type:"input_text",text:"Reply with exactly LLM_READY."}]}]}')"
+          if http_status="$(curl --disable --silent --connect-timeout 10 --max-time 60 --output "$response" --write-out '%{http_code}' -H "Authorization: Bearer $LLM_API_KEY" -H "Content-Type: application/json" -H "Accept: text/event-stream" --url "${base_url}/responses" -d "$payload")"; then
+            :
+          else
+            curl_status=$?
+            echo "LLM Responses API: transport failure (curl exit $curl_status)"
+            exit 1
+          fi
+          [[ "$http_status" =~ ^2[0-9][0-9]$ ]] || { echo "LLM Responses API: HTTP $http_status"; exit 1; }
+          sed -n 's/^data:[[:space:]]*//p' "$response" | jq -Rr 'fromjson? | .type? // empty' > "$events"
+          if grep -Eq '^(error|response\.failed|response\.incomplete)$' "$events"; then
+            echo "LLM Responses API: failed response event"
+            exit 1
+          fi
+          grep -qx 'response.completed' "$events" || { echo "LLM Responses API: completion event missing"; exit 1; }
+          echo "LLM Responses API: ready"

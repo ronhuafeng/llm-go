@@ -153,6 +153,15 @@ scenario functions.
 
 ## Other evidence and releases
 
+[`LLM readiness`](../.github/workflows/llm-readiness.yml) probes the direct Mini
+Responses API on manual dispatch and every Wednesday at 03:41 UTC. It reuses
+`AZURE_OPENAI_API_KEY` and `CODEX_RESPONSES_API_ENDPOINT`, accepting either an API
+base URL or an endpoint ending in `/responses`, with `gpt-6-sol/high`. Readiness
+requires HTTP success and a streamed `response.completed` event without an
+error, failed, or incomplete event. Logs contain only bounded status facts;
+the response body is temporary. This is provider readiness evidence. Installed
+Codex scenarios own the SDK integration guarantee.
+
 Existing portability, fuzzing, and vulnerability checks remain useful additional
 evidence unless separately promoted. The accepted live gate is no longer
 optional evidence for Codex-affecting changes once #376 is implemented.
