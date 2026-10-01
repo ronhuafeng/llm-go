@@ -42,7 +42,7 @@ matrix. Scenarios may be added or explicitly retired as the project evolves.
 
 The accepted first suite has two stories: a structured composed call, and a
 persistent thread continued through Resume and Fork. Both use an official
-installed Codex, a direct Mini connection, and one real model. Read
+installed Codex, a direct Responses-compatible endpoint, and one real model. Read
 [`Live Codex integration`](docs/live-codex.md) for the design, assertions,
 configuration, and implementation status. The shared suite implements both
 stories; actual workflow results own execution evidence.

@@ -24,7 +24,7 @@ runtime advances require the applicable live check. This does not narrow
 protocol generation to live-covered methods: full reachable wire representation
 and scenario-based runtime evidence have distinct jobs.
 
-**Live implementation:** #376 supplies the baseline-selected native Mini
+**Live implementation:** #376 supplies the baseline-selected native provider
 fixture and fourth required result. #377 supplies the structured composed call
 and continuous persistent Start/Resume/Fork stories through the same suite.
 Their actual workflow results own execution evidence. Runtime proof and wire
@@ -292,7 +292,8 @@ configuration fails with no fallback identity.
 
 Observe required checks on actual bot-created/updated PR events; a manual
 workflow dispatch alone does not prove that event chain. Publication authority
-is separate from the Auto-forward integration App and from Mini credentials.
+is separate from the Auto-forward integration App and from model-provider
+credentials.
 
 ## Final acceptance and native commands
 

@@ -17,7 +17,7 @@ import (
 const (
 	Model     = "gpt-6-sol"
 	Reasoning = "high"
-	Provider  = "mini"
+	Provider  = "llm-go-live"
 )
 
 type Fixture struct{ Home, Workspace string }
@@ -27,30 +27,30 @@ type Fixture struct{ Home, Workspace string }
 func NormalizeKey(key string) (string, error) {
 	key = strings.TrimSpace(key)
 	if key == "" {
-		return "", errors.New("MINI_CODEX_API_KEY is required")
+		return "", errors.New("AZURE_OPENAI_API_KEY is required")
 	}
 	if strings.ContainsFunc(key, unicode.IsSpace) {
-		return "", errors.New("MINI_CODEX_API_KEY contains whitespace")
+		return "", errors.New("AZURE_OPENAI_API_KEY contains whitespace")
 	}
 	return key, nil
 }
 
-// Prepare uses caller-owned temporary state and never persists the Mini key.
+// Prepare validates the native API base, uses
+// caller-owned temporary state, and never persists the provider key.
 func Prepare(root, directory, baseURL, key string) (Fixture, error) {
 	canonicalKey, err := NormalizeKey(key)
 	if err != nil {
 		return Fixture{}, err
 	}
 	if canonicalKey != key {
-		return Fixture{}, errors.New("MINI_CODEX_API_KEY must be normalized before fixture setup; use livecodex run")
+		return Fixture{}, errors.New("AZURE_OPENAI_API_KEY must be normalized before fixture setup; use livecodex run")
 	}
+	baseURL = strings.TrimSpace(baseURL)
 	u, err := url.Parse(baseURL)
-	if err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
-		return Fixture{}, errors.New("MINI_CODEX_BASE_URL must be an API base URL without credentials or query parameters")
+	if err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") || u.User != nil || u.RawQuery != "" || u.ForceQuery || strings.Contains(baseURL, "#") {
+		return Fixture{}, errors.New("CODEX_RESPONSES_API_ENDPOINT must be an HTTP(S) URL without credentials, query parameters, or a fragment")
 	}
-	if strings.HasSuffix(strings.TrimRight(u.Path, "/"), "/responses") {
-		return Fixture{}, errors.New("MINI_CODEX_BASE_URL must be an API base URL, not a Responses request endpoint")
-	}
+	baseURL = strings.TrimRight(baseURL, "/")
 	version, err := Version(root)
 	if err != nil {
 		return Fixture{}, err
@@ -73,7 +73,7 @@ func Prepare(root, directory, baseURL, key string) (Fixture, error) {
 	config := map[string]any{
 		"model": Model, "model_reasoning_effort": Reasoning, "model_provider": Provider,
 		"model_providers": map[string]any{Provider: map[string]any{
-			"name": "Mini", "base_url": strings.TrimRight(baseURL, "/"), "env_key": "MINI_CODEX_API_KEY", "wire_api": "responses",
+			"name": "llm-go live provider", "base_url": baseURL, "env_key": "AZURE_OPENAI_API_KEY", "wire_api": "responses",
 			"requires_openai_auth": false, "supports_websockets": false,
 		}},
 	}

@@ -26,8 +26,8 @@ implementation PR; this source description alone does not prove a live result.
 
 ## Run the current suite
 
-From the repository root, supply `MINI_CODEX_BASE_URL` (API base URL) and
-`MINI_CODEX_API_KEY` in the environment, then:
+From the repository root, supply `AZURE_OPENAI_API_KEY` and
+`CODEX_RESPONSES_API_ENDPOINT` in the environment, then:
 
 ```sh
 npm install --global "@openai/codex@$(go run ./internal/tools/cmd/livecodex version)"
@@ -45,14 +45,15 @@ failure paths. Forked work uses the public Resume composition with the returned
 fork identity; the fork is persistent so that this continuation and cleanup
 are supported. No separate opt-in runtime/model configuration remains.
 
-CI reuses the existing repository secrets `AZURE_OPENAI_API_KEY` and
-`CODEX_RESPONSES_API_ENDPOINT`, mapped to the canonical Mini environment inputs.
-These are retained secret names, not an Azure provider or a proxy. CI removes
-only a terminal `/responses` from an existing endpoint value before passing the
-API base URL. Local setup takes the base URL directly. Neither path prints the
-key or endpoint. Configuration never persists the key.
+CI consumes the existing repository secrets with those same names directly.
+Local and CI setup use the shared fixture with the same inputs. The endpoint
+must be an HTTP(S) API base URL including its API prefix, without `/responses`.
+The fixture uses that supplied base directly, trimming surrounding whitespace
+and trailing base slashes. URLs with credentials, query parameters, or fragments
+fail setup. Neither path prints the key or endpoint. Configuration never persists
+the key.
 
-The shared runner trims surrounding whitespace from the Mini key before passing
+The shared runner trims surrounding whitespace from the API key before passing
 it to the test process. A blank key or whitespace inside the token fails setup;
 the fixture accepts only the normalized credential. The readiness probe applies
 the same policy before transport. This handles accidental paste padding without
@@ -68,7 +69,8 @@ The production boundary is:
 
 ```text
 application -> llm-go -> installed official codex
-            -> App Server / Codex Core -> Mini -> real model
+            -> App Server / Codex Core -> configured Responses-compatible endpoint
+            -> real model
 ```
 
 The SDK assumes Codex is installed. A CI job may install an official release to
@@ -77,9 +79,9 @@ embeds, or modifies Codex Core. Source builds used by protocol-provenance
 verification remain a separate concern.
 
 Go tests own the integration assertions. Codex owns its session internals,
-model interaction, and native request headers. Mini owns ingress authorization,
-credential binding, and credit policy. This suite does not independently
-certify Mini or every official OpenAI endpoint.
+model interaction, and native request headers. The configured provider owns
+authorization, credential binding, and billing policy. This suite proves only
+the active integration scenarios in their configured environment.
 
 ## Scenario-based guarantee
 
@@ -104,7 +106,8 @@ restriction against adding future scenarios.
 Exercise the recommended public path:
 
 ```text
-llmadapter -> llmcaller/codex -> codexsdk -> installed Codex -> Mini -> real model
+llmadapter -> llmcaller/codex -> codexsdk -> installed Codex
+           -> configured Responses-compatible endpoint -> real model
 ```
 
 Ask a simple closed task such as `What is 3 + 4? Return the result according to
@@ -171,42 +174,42 @@ Use Linux and the single configured model `gpt-6-sol` with reasoning effort
 justify it; there is no automatic latest-model selection or model matrix.
 Configured identity is not proof of the model that served every operation.
 
-Configure native Codex directly to Mini. The inputs are a Mini API **base URL**
-and a Mini key; the base URL is not a full `/responses` request endpoint. The
-configuration shape is:
+Configure native Codex directly to the Responses-compatible endpoint. The only
+provider inputs are `CODEX_RESPONSES_API_ENDPOINT` and `AZURE_OPENAI_API_KEY`.
+The shared fixture writes the supplied API **base URL**, including its API
+prefix, into native configuration. Its provider label belongs to the fixture:
 
 ```toml
 model = "gpt-6-sol"
 model_reasoning_effort = "high"
-model_provider = "mini"
+model_provider = "llm-go-live"
 
-[model_providers.mini]
-name = "Mini"
-base_url = "<Mini API base URL, including its API prefix>"
-env_key = "MINI_CODEX_API_KEY"
+[model_providers.llm-go-live]
+name = "llm-go live provider"
+base_url = "<API base URL, including its API prefix, without /responses>"
+env_key = "AZURE_OPENAI_API_KEY"
 wire_api = "responses"
 requires_openai_auth = false
 supports_websockets = false
 ```
 
-`MINI_CODEX_API_KEY` names an environment variable, not a literal secret in this
-file. The shared fixture accepts `MINI_CODEX_BASE_URL` and
-`MINI_CODEX_API_KEY` and produces this configuration in an isolated `CODEX_HOME`.
-CI and local scenario setup use the same Go fixture. CI maps the existing repository secret names as documented above.
+`env_key` references `AZURE_OPENAI_API_KEY`; the credential stays in the child
+environment. The shared Go fixture produces this configuration in an isolated
+`CODEX_HOME` for both CI and local scenario setup.
 
-Mini uses its own Bearer API key and HTTP/SSE Responses transport. The fixture
-explicitly disables OpenAI/ChatGPT login authentication and Responses WebSocket
-transport for this provider.
+The provider configuration uses a Bearer API key and HTTP/SSE Responses
+transport. The fixture explicitly disables OpenAI/ChatGPT login authentication
+and Responses WebSocket transport for this provider.
 
 Do not install a standalone Responses proxy, inject imitation Codex headers, or
 silently fall back to ambient user authentication or a different provider.
-Codex supplies its own version-dependent headers. Mini integration needs a valid
-Mini credential, not a separately provisioned OpenAI API key in the test process.
+Codex supplies its own version-dependent headers and reads the configured
+credential environment key.
 
 The Go suite runs once with uncached test execution and no automatic retry or
 repeat-until-green wrapper. Do not build an llm-go provider retry controller;
-Mini/Codex retain their own provider-side behavior. Do not equate one test
-attempt with a guarantee about every downstream HTTP attempt.
+Codex and the configured provider retain their own transport behavior. Do not
+equate one test attempt with a guarantee about every downstream HTTP attempt.
 
 ## Required gate
 
@@ -252,7 +255,7 @@ a passing scenario does not certify every method or model combination.
 Never print keys, authorization headers, auth files, full environment dumps, or
 raw private transcripts. Do not upload an entire `CODEX_HOME`. Basic hygiene
 and repository-write credential isolation remain necessary even though the
-Mini credential is intentionally available to native Codex.
+provider credential is intentionally available to native Codex.
 
 ## What remains outside the first suite
 

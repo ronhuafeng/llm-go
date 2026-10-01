@@ -86,8 +86,8 @@ closed result, such as an integer arithmetic answer.
 
 [`Live Codex integration`](docs/live-codex.md) owns the accepted suite and its
 implementation transition. Its fixed runtime is derived from the synced
-baseline. Its live fixture is Linux, direct Mini configuration, and one selected
-model, not a platform/model/latest-version matrix.
+baseline. Its live fixture is Linux, a direct Responses-compatible endpoint,
+and one selected model, not a platform/model/latest-version matrix.
 
 Adding a live scenario expands the evidenced behavior. Retiring or materially
 weakening one reduces it and requires an explicit PR explanation and changelog /
@@ -102,9 +102,10 @@ native proofs. Unrelated changes should not spend a model call. Neither a live
 PASS nor schema regeneration replaces the other proof.
 
 The accepted live design uses native Codex URL/key configuration directly to
-Mini. Do not add an llm-go credential proxy, impersonation headers, provider
-retry controller, approval service, or proof ledger around that path. Basic
-secret hygiene and existing separation of repository-write authority still
+the configured Responses-compatible endpoint. Do not add an llm-go credential
+proxy, impersonation headers, provider retry controller, approval service, or
+proof ledger around that path. Basic secret hygiene and existing separation of
+repository-write authority still
 apply. The live runner does not retry failed scenarios automatically.
 
 Preserve the existing exact-head acceptance and non-force auto-forward model;

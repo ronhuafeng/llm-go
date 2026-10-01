@@ -15,29 +15,26 @@ jobs:
     steps:
       - name: Probe Responses API
         env:
-          LLM_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
-          LLM_BASE_URL: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
-          LLM_MODEL: gpt-6-sol
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          CODEX_RESPONSES_API_ENDPOINT: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
         shell: bash
         run: |
           set -euo pipefail
-          LLM_BASE_URL="$(printf '%s' "$LLM_BASE_URL" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
-          LLM_API_KEY="${LLM_API_KEY#"${LLM_API_KEY%%[![:space:]]*}"}"
-          LLM_API_KEY="${LLM_API_KEY%"${LLM_API_KEY##*[![:space:]]}"}"
-          : "${LLM_API_KEY:?missing AZURE_OPENAI_API_KEY}"
-          : "${LLM_BASE_URL:?missing CODEX_RESPONSES_API_ENDPOINT}"
-          : "${LLM_MODEL:?missing LLM_MODEL}"
-          if [[ "$LLM_API_KEY" == *[[:space:]]* ]]; then
+          CODEX_RESPONSES_API_ENDPOINT="$(printf '%s' "$CODEX_RESPONSES_API_ENDPOINT" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+          AZURE_OPENAI_API_KEY="${AZURE_OPENAI_API_KEY#"${AZURE_OPENAI_API_KEY%%[![:space:]]*}"}"
+          AZURE_OPENAI_API_KEY="${AZURE_OPENAI_API_KEY%"${AZURE_OPENAI_API_KEY##*[![:space:]]}"}"
+          : "${AZURE_OPENAI_API_KEY:?missing AZURE_OPENAI_API_KEY}"
+          : "${CODEX_RESPONSES_API_ENDPOINT:?missing CODEX_RESPONSES_API_ENDPOINT}"
+          if [[ "$AZURE_OPENAI_API_KEY" == *[[:space:]]* ]]; then
             echo 'LLM Responses API: API key contains whitespace'
             exit 1
           fi
-          base_url="${LLM_BASE_URL%/}"
-          base_url="${base_url%/responses}"
+          base_url="${CODEX_RESPONSES_API_ENDPOINT%/}"
           response="$(mktemp)"
           events="$(mktemp)"
           trap 'rm -f "$response" "$events"' EXIT
-          payload="$(jq -nc --arg model "$LLM_MODEL" '{model:$model,reasoning:{effort:"high"},store:false,stream:true,input:[{role:"user",content:[{type:"input_text",text:"Reply with exactly LLM_READY."}]}]}')"
-          if http_status="$(curl --disable --silent --connect-timeout 10 --max-time 60 --output "$response" --write-out '%{http_code}' -H "Authorization: Bearer $LLM_API_KEY" -H "Content-Type: application/json" -H "Accept: text/event-stream" --url "${base_url}/responses" -d "$payload")"; then
+          payload="$(jq -nc --arg model 'gpt-6-sol' '{model:$model,reasoning:{effort:"high"},store:false,stream:true,input:[{role:"user",content:[{type:"input_text",text:"Reply with exactly LLM_READY."}]}]}')"
+          if http_status="$(curl --disable --silent --connect-timeout 10 --max-time 60 --output "$response" --write-out '%{http_code}' -H "Authorization: Bearer $AZURE_OPENAI_API_KEY" -H "Content-Type: application/json" -H "Accept: text/event-stream" --url "${base_url}/responses" -d "$payload")"; then
             :
           else
             curl_status=$?

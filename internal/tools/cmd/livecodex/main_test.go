@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestRunNormalizesMiniCredentialBeforeLaunchingTests(t *testing.T) {
+func TestRunNormalizesCanonicalCredentialBeforeLaunchingTests(t *testing.T) {
 	const key = "private-runner-fixture-key"
 	root := t.TempDir()
 	metadata := filepath.Join(root, "codexsdk/internal/protocolschema/appserver/v2/baseline_metadata.json")
@@ -24,7 +24,8 @@ func TestRunNormalizesMiniCredentialBeforeLaunchingTests(t *testing.T) {
 	for name, script := range map[string]string{
 		"git": "#!/bin/sh\nprintf '%040d\\n' 1\n",
 		"go": `#!/bin/sh
-[ "$MINI_CODEX_API_KEY" = 'private-runner-fixture-key' ] || exit 42
+[ "$AZURE_OPENAI_API_KEY" = 'private-runner-fixture-key' ] || exit 42
+[ "$CODEX_RESPONSES_API_ENDPOINT" = 'https://provider.example/v1/responses' ] || exit 45
 [ -z "$GH_TOKEN$GITHUB_TOKEN$AUTO_FORWARD_APP_PRIVATE_KEY$PROTOCOL_SYNC_APP_PRIVATE_KEY" ] || exit 43
 [ "$LLMGO_LIVE_CODEX" = 1 ] || exit 44
 : > child-started
@@ -37,6 +38,7 @@ printf '%s\n' '{"Action":"run","Test":"TestLiveCodexFixture"}' '{"Action":"pass"
 	}
 	t.Chdir(root)
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("CODEX_RESPONSES_API_ENDPOINT", "https://provider.example/v1/responses")
 	for _, name := range []string{"GH_TOKEN", "GITHUB_TOKEN", "AUTO_FORWARD_APP_PRIVATE_KEY", "PROTOCOL_SYNC_APP_PRIVATE_KEY"} {
 		t.Setenv(name, "write-authority-fixture")
 	}
@@ -52,7 +54,7 @@ printf '%s\n' '{"Action":"run","Test":"TestLiveCodexFixture"}' '{"Action":"pass"
 		{name: "blank", input: " \t\r\n", failure: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			t.Setenv("MINI_CODEX_API_KEY", test.input)
+			t.Setenv("AZURE_OPENAI_API_KEY", test.input)
 			err := run([]string{"run"})
 			if (err != nil) != test.failure {
 				t.Fatalf("failure=%v, err=%v", test.failure, err)

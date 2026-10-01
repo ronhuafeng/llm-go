@@ -36,10 +36,11 @@ required check.
   scenario. An unrelated PR gets successful not-applicable, not a model call.
 - Install the official Codex release derived from H's checked-in baseline.
   Do not select `latest` or keep a second runtime-version authority.
-- Configure Codex directly to Mini with native URL/key/provider settings.
-  The live Codex process may receive its Mini credential through the configured
-  environment key. This deliberately replaces the old blanket requirement
-  that live Codex receive credentials only through a local proxy.
+- Configure Codex directly to the Responses-compatible endpoint with native
+  URL/key/provider settings. Use `AZURE_OPENAI_API_KEY` and
+  `CODEX_RESPONSES_API_ENDPOINT` directly, with a fixture-owned provider label.
+  Native Codex reads the provider credential through its configured environment
+  key; local and CI setup supply the API base directly.
 - Do not install `codex-responses-api-proxy` for this live path or synthesize
   Codex identity headers. Codex owns the headers for its installed version.
 - Use the single model/reasoning configuration in the live-test design.
@@ -51,9 +52,9 @@ required check.
   including its protocol-sync bot. Do not add fork-contributor approval
   infrastructure as part of this work.
 
-Mini owns its credential binding and credit controls. The live suite does not
-implement provider retry policy. Keep the fixture's `CODEX_HOME` and workspace
-isolated, and never print or upload credentials, auth files, or raw private
+The configured provider owns credential binding and billing controls. The live
+suite does not implement provider retry policy. Keep the fixture's `CODEX_HOME`
+and workspace isolated, and never print or upload credentials, auth files, or raw private
 transcripts.
 
 ## Authority and proof hygiene

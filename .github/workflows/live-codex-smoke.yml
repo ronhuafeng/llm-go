@@ -82,13 +82,10 @@ jobs:
       - name: Run real Codex suite once
         if: steps.classify.outputs.required == 'true'
         env:
-          MINI_CODEX_BASE_URL: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
-          MINI_CODEX_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          CODEX_RESPONSES_API_ENDPOINT: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
         run: |
           set -euo pipefail
-          # Existing endpoint secrets may include /responses; canonical input is a base URL.
-          base_url="${MINI_CODEX_BASE_URL%/}"
-          export MINI_CODEX_BASE_URL="${base_url%/responses}"
           go run ./internal/tools/cmd/livecodex run
       - name: Worktree remains clean
         if: ${{ always() && !cancelled() }}

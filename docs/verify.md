@@ -84,8 +84,8 @@ used by the live suite.
 ### Live Codex integration
 
 The required live context executes the active scenario suite against an official
-installed release derived from H's baseline, using the canonical Linux/Mini/real
-model configuration in [`live-codex.md`](live-codex.md).
+installed release derived from H's baseline, using the canonical Linux/native
+provider/real model configuration in [`live-codex.md`](live-codex.md).
 
 The relevance classifier covers code and shared dependencies that can affect the
 composed or direct Codex path, live-test selection/configuration, and relevant
@@ -134,7 +134,7 @@ obtains new proofs. Integration does not repair the branch.
 Concurrency settings may reduce redundant runs but do not establish correctness.
 Git rejects non-fast-forward updates. Repository-write credentials remain with
 the trusted publication/integration effect, never with proposed code or live
-model tests. The live Codex process may receive its scoped Mini provider key as
+model tests. The live Codex process may receive its scoped provider key as
 specified in `.github/AGENTS.md`; that is not repository-write authority.
 
 Keep verification evidence in native test output and workflow results. Distinguish
@@ -144,18 +144,19 @@ unknown compatibility; do not build a second durable compatibility registry.
 ## Workflow specification tests
 
 Protect the meaningful invariants: same-candidate verification, exact runtime
-selection, direct Mini configuration, relevance classification, real scenario
-execution, failure/not-applicable handling, required live-result consumption,
-read-only verification, and existing non-force integration/credential boundaries.
+selection, direct native provider configuration, relevance classification,
+real scenario execution, failure/not-applicable handling, required live-result
+consumption, read-only verification, and existing non-force integration/credential boundaries.
 Do not freeze incidental job topology, step wording, or the permanent number of
 scenario functions.
 
 ## Other evidence and releases
 
-[`LLM readiness`](../.github/workflows/llm-readiness.yml) probes the direct Mini
-Responses API on manual dispatch and every Wednesday at 03:41 UTC. It reuses
-`AZURE_OPENAI_API_KEY` and `CODEX_RESPONSES_API_ENDPOINT`, accepting either an API
-base URL or an endpoint ending in `/responses`, with `gpt-6-sol/high`. Readiness
+[`LLM readiness`](../.github/workflows/llm-readiness.yml) probes the configured
+Responses API on manual dispatch and every Wednesday at 03:41 UTC. It directly
+uses `AZURE_OPENAI_API_KEY` and `CODEX_RESPONSES_API_ENDPOINT`, requiring an
+HTTP(S) API base URL including its API prefix, without `/responses`, with
+`gpt-6-sol/high`. Readiness
 requires HTTP success and a streamed `response.completed` event without an
 error, failed, or incomplete event. Logs contain only bounded status facts;
 the response body is temporary. This is provider readiness evidence. Installed

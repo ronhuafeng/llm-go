@@ -57,7 +57,7 @@ func run(args []string) error {
 		fmt.Println(livecodex.Required(paths))
 		return nil
 	case "run":
-		key, err := livecodex.NormalizeKey(os.Getenv("MINI_CODEX_API_KEY"))
+		key, err := livecodex.NormalizeKey(os.Getenv("AZURE_OPENAI_API_KEY"))
 		if err != nil {
 			fmt.Println("live_failure.stage=fixture")
 			return err
@@ -77,12 +77,12 @@ func run(args []string) error {
 		for _, entry := range os.Environ() {
 			name, _, _ := strings.Cut(entry, "=")
 			switch name {
-			case "GH_TOKEN", "GITHUB_TOKEN", "AUTO_FORWARD_APP_PRIVATE_KEY", "PROTOCOL_SYNC_APP_PRIVATE_KEY", "LLMGO_LIVE_CODEX", "MINI_CODEX_API_KEY":
+			case "GH_TOKEN", "GITHUB_TOKEN", "AUTO_FORWARD_APP_PRIVATE_KEY", "PROTOCOL_SYNC_APP_PRIVATE_KEY", "LLMGO_LIVE_CODEX", "AZURE_OPENAI_API_KEY":
 				continue
 			}
 			command.Env = append(command.Env, entry)
 		}
-		command.Env = append(command.Env, "LLMGO_LIVE_CODEX=1", "MINI_CODEX_API_KEY="+key)
+		command.Env = append(command.Env, "LLMGO_LIVE_CODEX=1", "AZURE_OPENAI_API_KEY="+key)
 		command.Stderr = io.Discard
 		pipe, err := command.StdoutPipe()
 		if err != nil {

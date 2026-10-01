@@ -155,7 +155,7 @@ func newLiveCodexClient(t *testing.T) (*codexsdk.Client, livecodex.Fixture) {
 		t.Fatal("cannot find the live fixture source")
 	}
 	root := filepath.Clean(filepath.Join(wd, "..", "..", ".."))
-	fixture, err := livecodex.Prepare(root, t.TempDir(), os.Getenv("MINI_CODEX_BASE_URL"), os.Getenv("MINI_CODEX_API_KEY"))
+	fixture, err := livecodex.Prepare(root, t.TempDir(), os.Getenv("CODEX_RESPONSES_API_ENDPOINT"), os.Getenv("AZURE_OPENAI_API_KEY"))
 	if err != nil {
 		t.Log("live_failure.stage=fixture")
 		t.Fatal(err)

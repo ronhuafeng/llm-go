@@ -24,9 +24,9 @@ func TestLLMReadinessHTTPResults(t *testing.T) {
 	const privateBody = "private-response-fixture"
 	const key = "readiness-fixture-key"
 	for _, test := range []struct {
-		name, body, suffix, message, inputKey string
-		status                                int
-		failure, disconnected, rejectedKey    bool
+		name, body, message, inputKey      string
+		status                             int
+		failure, disconnected, rejectedKey bool
 	}{
 		{name: "base URL", status: 200, body: completed, message: "ready"},
 		{name: "key padded with LF", status: 200, body: completed, inputKey: "\n" + key + "\n", message: "ready"},
@@ -35,8 +35,7 @@ func TestLLMReadinessHTTPResults(t *testing.T) {
 		{name: "key contains newline", inputKey: key + "\nsuffix", failure: true, rejectedKey: true, message: "API key contains whitespace"},
 		{name: "key contains space", inputKey: key + " suffix", failure: true, rejectedKey: true, message: "API key contains whitespace"},
 		{name: "blank key", inputKey: " \t\r\n", failure: true, rejectedKey: true, message: "missing AZURE_OPENAI_API_KEY"},
-		{name: "full endpoint", status: 200, body: completed, suffix: "/responses", message: "ready"},
-		{name: "CRLF events and trailing slash", status: 200, body: strings.ReplaceAll(completed, "\n", "\r\n"), suffix: "/responses/", message: "ready"},
+		{name: "CRLF events", status: 200, body: strings.ReplaceAll(completed, "\n", "\r\n"), message: "ready"},
 		{name: "unauthorized", status: 401, body: privateBody, failure: true, message: "HTTP 401"},
 		{name: "missing completion", status: 200, body: "data: {\"type\":\"response.created\"}\n\n", failure: true, message: "completion event missing"},
 		{name: "failed", status: 200, body: "data: {\"type\":\"response.failed\"}\n\n" + completed, failure: true, message: "failed response event"},
@@ -70,7 +69,7 @@ func TestLLMReadinessHTTPResults(t *testing.T) {
 				server.Close()
 			}
 			temporary := t.TempDir()
-			baseURL := server.URL + "/v1" + test.suffix
+			baseURL := server.URL + "/v1"
 			inputKey := test.inputKey
 			if inputKey == "" {
 				inputKey = key
@@ -80,7 +79,7 @@ func TestLLMReadinessHTTPResults(t *testing.T) {
 			cmd := exec.CommandContext(ctx, "bash", "-c", script)
 			cmd.Env = []string{
 				"PATH=" + os.Getenv("PATH"), "TMPDIR=" + temporary,
-				"LLM_API_KEY=" + inputKey, "LLM_MODEL=gpt-6-sol", "LLM_BASE_URL= \t" + baseURL + " \t",
+				"AZURE_OPENAI_API_KEY=" + inputKey, "CODEX_RESPONSES_API_ENDPOINT= \t" + baseURL + " \t",
 			}
 			output, err := cmd.CombinedOutput()
 			if ctx.Err() != nil || (err != nil) != test.failure || !strings.Contains(string(output), test.message) {

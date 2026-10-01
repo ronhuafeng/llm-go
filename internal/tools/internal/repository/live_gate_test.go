@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -85,7 +86,7 @@ func TestLiveVerificationUsesExactCandidateAndNativeSecretMapping(t *testing.T) 
 		}
 	}
 	called := readWorkflow(t, root, "live-codex-smoke.yml")
-	for _, want := range []string{"ref: ${{ inputs.ref || github.sha }}", "go run ./internal/tools/cmd/livecodex version", "go run ./internal/tools/cmd/livecodex run", "not applicable", "MINI_CODEX_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}"} {
+	for _, want := range []string{"ref: ${{ inputs.ref || github.sha }}", "go run ./internal/tools/cmd/livecodex version", "go run ./internal/tools/cmd/livecodex run", "not applicable"} {
 		if !strings.Contains(called, want) {
 			t.Fatalf("live workflow missing %q", want)
 		}
@@ -94,5 +95,30 @@ func TestLiveVerificationUsesExactCandidateAndNativeSecretMapping(t *testing.T) 
 		if strings.Contains(called, forbidden) {
 			t.Fatalf("live verification contains %q", forbidden)
 		}
+	}
+}
+
+func TestLiveProviderWorkflowsUseExistingInputNamesDirectly(t *testing.T) {
+	root, err := filepath.Abs("../../../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	bindings := regexp.MustCompile(`(?m)^\s+([A-Z_][A-Z0-9_]*):\s*\$\{\{\s*secrets\.([A-Z_][A-Z0-9_]*)\s*\}\}\s*$`)
+	for _, name := range []string{"live-codex-smoke.yml", "llm-readiness.yml"} {
+		t.Run(name, func(t *testing.T) {
+			bound := map[string]bool{"AZURE_OPENAI_API_KEY": false, "CODEX_RESPONSES_API_ENDPOINT": false}
+			matches := bindings.FindAllStringSubmatch(readWorkflow(t, root, name), -1)
+			for _, binding := range matches {
+				if _, canonical := bound[binding[2]]; binding[1] != binding[2] || !canonical {
+					t.Fatal("provider workflow renamed or added a credential input")
+				}
+				bound[binding[2]] = true
+			}
+			for name, present := range bound {
+				if !present {
+					t.Errorf("provider workflow did not bind canonical input %s", name)
+				}
+			}
+		})
 	}
 }

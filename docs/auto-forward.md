@@ -71,7 +71,7 @@ remain authoritative.
 The integration App uses repository variable `AUTO_FORWARD_APP_CLIENT_ID` and
 secret `AUTO_FORWARD_APP_PRIVATE_KEY`, scoped to this repository with Contents
 write for the final effect. Keep this separate from the protocol-publication
-App and from Mini model-test credentials.
+App and from model-test provider credentials.
 
 The documented main ruleset restricts main updates/deletion to this App; required
 check evaluation and non-force behavior belong to the trusted workflow. Do not

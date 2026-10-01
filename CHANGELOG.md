@@ -36,16 +36,21 @@ changes may occur in minor releases.
 
 ### Repository
 
-- Add manual and weekly `LLM readiness` probes for the direct Mini Responses
+- Use `AZURE_OPENAI_API_KEY` and `CODEX_RESPONSES_API_ENDPOINT` directly for live
+  tests and readiness, with a fixture-owned provider label and shared local/CI
+  direct API base configuration. Preserve the existing secrets, model, transport,
+  integration stories, and required checks.
+- Add manual and weekly `LLM readiness` probes for the configured Responses
   API using the existing repository secrets and `gpt-6-sol/high`.
 - Require the real Codex migration suite alongside source/generated/provenance
-  checks. Select the official runtime from the tested baseline, configure native
-  Mini directly using isolated state, and share one uncached local/CI command.
+  checks. Select the official runtime from the tested baseline, configure a
+  direct native provider connection using isolated state, and share one
+  uncached local/CI command.
   Reuse existing provider secrets and reject missing, skipped, cancelled, or
   failed live results.
-- Normalize surrounding Mini credential whitespace for the live suite and
+- Normalize surrounding provider credential whitespace for the live suite and
   readiness probe, reject embedded whitespace before transport, and explicitly
-  configure Mini Bearer authentication with HTTP/SSE transport.
+  configure Bearer authentication with HTTP/SSE transport.
 - Replace the composed migration smoke and separately configured direct smoke
   with one canonical live suite: validate schema-constrained integer `number=7`,
   then prove persistent Start, a new completed Resume turn, a distinct Fork,
@@ -54,7 +59,7 @@ changes may occur in minor releases.
   semantics; archive owned persistent threads on success and failure.
 
 - Document the accepted scenario-based live Codex contract: official runtime
-  selected by the synced baseline, direct Mini configuration, Linux,
+  selected by the synced baseline, direct native provider configuration, Linux,
   `gpt-6-sol/high`, and a relevant-change hard gate. Define the initial
   structured-call and thread-continuation stories and explicit scenario
   retirement disclosure. This entry records design/documentation work;

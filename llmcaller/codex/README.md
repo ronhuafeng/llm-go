@@ -35,7 +35,8 @@ constraint.
 The accepted live structured scenario exercises:
 
 ```text
-llmadapter -> llmcaller/codex -> codexsdk -> installed Codex -> Mini -> real model
+llmadapter -> llmcaller/codex -> codexsdk -> installed Codex
+           -> configured Responses-compatible endpoint -> real model
 ```
 
 It asks a small arithmetic question under an integer `number` output schema,

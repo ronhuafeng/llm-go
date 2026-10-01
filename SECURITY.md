@@ -17,24 +17,25 @@ JSON-RPC handling, protocol encoding/decoding, generated representations,
 application-decision handling, and credential or sensitive-data exposure by
 repository automation.
 
-The official Codex runtime, model quality, provider services, and Mini's
-account/credit administration have their own owners. Their internal correctness
+The official Codex runtime, model quality, provider services, and provider
+account/billing administration have their own owners. Their internal correctness
 is not established by an llm-go live scenario. Report uncertain ownership
 privately rather than publishing sensitive details.
 
 ## Live-test credentials
 
 The accepted [live design](docs/live-codex.md) deliberately configures official
-Codex directly with a Mini URL and credential. Native Codex may read that key
-from its configured environment variable. No extra local credential proxy or
-fork-contributor approval system is part of this single-author setup.
+Codex directly with the configured Responses-compatible endpoint and credential.
+Native Codex may read that key from its configured environment variable. No extra
+local credential proxy or fork-contributor approval system is part of this
+single-author setup.
 
 This is a scoped credential decision, not permission to disclose secrets. Use
 isolated test state; do not log keys, authorization headers, full environment
 dumps, auth/config files containing secrets, or raw private transcripts. Never
 upload an entire test `CODEX_HOME` as a diagnostic artifact.
 
-Mini controls its grants and credit policy. Model-test credentials do not grant
-repository writes. Keep publication/integration App credentials separate from
-code under test, and retain existing authority boundaries in unrelated Agent
+The configured provider controls credential grants and billing policy.
+Model-test credentials do not grant repository writes. Keep publication/integration
+App credentials separate from code under test, and retain existing authority boundaries in unrelated Agent
 and protocol-sync workflows.
