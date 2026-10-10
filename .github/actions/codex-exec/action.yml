@@ -1,30 +1,78 @@
-name: Run Codex task
-description: Run a sandboxed Codex task through a Responses API proxy with capacity-only session recovery.
+name: Run Codex repair
+description: Run a trusted bounded repair controller using the baseline-pinned official CLI and direct Responses provider.
 
 inputs:
   api-key:
-    description: API key passed only to the Responses API proxy.
+    description: Native provider API key, supplied only to the repair process.
     required: true
   responses-api-endpoint:
-    description: Upstream Responses API endpoint used by the proxy.
+    description: Responses-compatible API base URL, without /responses.
     required: true
   working-directory:
-    description: Repository-relative directory where Codex runs.
+    description: Repository-relative repair workspace.
     required: true
   prompt:
-    description: Task prompt passed to Codex.
-    required: true
+    description: Repair task context consumed by the trusted controller.
+    required: false
   model:
-    description: Codex model selected by the calling workflow.
+    description: Selected Codex model.
     required: true
   reasoning-effort:
-    description: Reasoning effort selected by the calling workflow.
+    description: Selected reasoning effort.
+    required: true
+  controller-path:
+    description: Absolute path to the prebuilt trusted protocolupgrade controller.
+    required: true
+  control-sha256:
+    description: Expected SHA-256 of the trusted controller.
+    required: true
+  candidate-dir:
+    description: Prepared candidate artifact directory.
+    required: true
+  candidate-sha256:
+    description: Verified prepared-candidate digest.
+    required: true
+  target-ref:
+    description: Selected upstream reference.
+    required: true
+  target-kind:
+    description: Selected upstream reference kind.
+    required: true
+  target-sha:
+    description: Exact selected upstream commit.
+    required: true
+  checkpoint-dir:
+    description: Private checkpoint directory outside the repair workspace.
     required: true
 
 outputs:
-  final-message-path:
-    description: Absolute path to the final Codex message.
-    value: ${{ steps.codex.outputs.final-message-path }}
+  outcome:
+    description: Deterministic repair outcome.
+    value: ${{ steps.codex.outputs.outcome }}
+  applied:
+    description: Whether the controller accepted and applied the candidate.
+    value: ${{ steps.codex.outputs.applied }}
+  stage:
+    description: Last deterministic controller stage.
+    value: ${{ steps.codex.outputs.stage }}
+  failure_category:
+    description: Bounded failure category.
+    value: ${{ steps.codex.outputs.failure_category }}
+  target_ref:
+    description: Exact selected upstream reference.
+    value: ${{ steps.codex.outputs.target_ref }}
+  target_kind:
+    description: Selected upstream reference kind.
+    value: ${{ steps.codex.outputs.target_kind }}
+  target_sha:
+    description: Exact selected upstream commit.
+    value: ${{ steps.codex.outputs.target_sha }}
+  candidate_dir:
+    description: Retained candidate directory.
+    value: ${{ steps.codex.outputs.candidate_dir }}
+  candidate_sha256:
+    description: Retained candidate digest.
+    value: ${{ steps.codex.outputs.candidate_sha256 }}
 
 runs:
   using: composite
@@ -34,121 +82,39 @@ runs:
       with:
         node-version: "24"
 
-    - name: Install Codex CLI and pinned Responses proxy
+    - name: Install baseline-selected official Codex
       shell: bash
       run: |
         set -euo pipefail
-        npm install --global \
-          @openai/codex@latest \
-          @openai/codex-responses-api-proxy@0.153.4
-        codex --version
+        version="$(go run ./internal/tools/cmd/livecodex version)"
+        npm install --global "@openai/codex@${version}"
+        test "$(codex --version)" = "codex-cli ${version}"
 
-    - name: Enable Codex sandbox
-      shell: bash
-      run: |
-        set -euo pipefail
-        sudo sysctl -w kernel.unprivileged_userns_clone=1
-        sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-
-    - name: Start Codex Responses API proxy
-      id: proxy
-      shell: bash
-      env:
-        PROXY_API_KEY: ${{ inputs.api-key }}
-        SERVER_INFO_FILE: ${{ runner.temp }}/codex-responses-proxy-${{ github.run_id }}-${{ github.run_attempt }}.json
-        UPSTREAM_URL: ${{ inputs.responses-api-endpoint }}
-      run: |
-        set -euo pipefail
-        : "${PROXY_API_KEY:?api-key is required}"
-        : "${UPSTREAM_URL:?responses-api-endpoint is required}"
-
-        (
-          printenv PROXY_API_KEY |
-            env -u PROXY_API_KEY -u UPSTREAM_URL \
-              codex-responses-api-proxy \
-              --server-info "${SERVER_INFO_FILE}" \
-              --upstream-url "${UPSTREAM_URL}"
-        ) &
-        proxy_pid=$!
-
-        for _ in {1..100}; do
-          if jq -e '.port | numbers' "${SERVER_INFO_FILE}" >/dev/null 2>&1; then
-            break
-          fi
-          sleep 0.1
-        done
-        proxy_port="$(jq -er '.port | numbers' "${SERVER_INFO_FILE}")"
-        {
-          echo "pid=${proxy_pid}"
-          echo "port=${proxy_port}"
-        } >> "${GITHUB_OUTPUT}"
-
-    - name: Run Codex
+    - name: Run trusted repair controller
       id: codex
       shell: bash
-      working-directory: ${{ inputs.working-directory }}
       env:
-        MODEL: ${{ inputs.model }}
-        PROMPT: ${{ inputs.prompt }}
-        PROXY_PORT: ${{ steps.proxy.outputs.port }}
-        REASONING_EFFORT: ${{ inputs.reasoning-effort }}
+        AZURE_OPENAI_API_KEY: ${{ inputs.api-key }}
+        CODEX_RESPONSES_API_ENDPOINT: ${{ inputs.responses-api-endpoint }}
+        CODEX_MODEL: ${{ inputs.model }}
+        CODEX_REASONING_EFFORT: ${{ inputs.reasoning-effort }}
+        CONTROL: ${{ inputs.controller-path }}
+        CONTROL_SHA256: ${{ inputs.control-sha256 }}
+        CANDIDATE_DIR: ${{ inputs.candidate-dir }}
+        CANDIDATE_SHA256: ${{ inputs.candidate-sha256 }}
+        TARGET_REF: ${{ inputs.target-ref }}
+        TARGET_KIND: ${{ inputs.target-kind }}
+        TARGET_SHA: ${{ inputs.target-sha }}
+        CHECKPOINT_DIR: ${{ inputs.checkpoint-dir }}
       run: |
         set -euo pipefail
-        capacity_error='Selected model is at capacity. Please try a different model.'
-        execution_dir="$(mktemp -d "${RUNNER_TEMP}/codex-exec.XXXXXX")"
-        final_message="${execution_dir}/final-message.md"
-
-        codex_args=(
-          exec
-          --output-last-message "${final_message}"
-          --model "${MODEL}"
-          --config "model_reasoning_effort=\"${REASONING_EFFORT}\""
-          --config 'model_provider="codex-responses-proxy"'
-          --config "model_providers.codex-responses-proxy={ name = 'Codex Responses Proxy', base_url = 'http://127.0.0.1:${PROXY_PORT}/v1', wire_api = 'responses' }"
-          --config 'sandbox_workspace_write.network_access=true'
-          --sandbox workspace-write
-          --json
-        )
-        command_args=("${PROMPT}")
-
-        for attempt in 1 2 3; do
-          attempt_log="${execution_dir}/attempt-${attempt}.log"
-          set +e
-          setpriv --no-new-privs \
-            codex "${codex_args[@]}" "${command_args[@]}" 2>&1 | tee "${attempt_log}"
-          codex_status="${PIPESTATUS[0]}"
-          set -e
-
-          if (( codex_status == 0 )); then
-            echo "final-message-path=${final_message}" >> "${GITHUB_OUTPUT}"
-            exit 0
-          fi
-          terminal_error="$(
-            jq -Rr '
-              fromjson?
-              | select(.type == "error" or .type == "turn.failed")
-              | .message // .error.message // empty
-            ' "${attempt_log}" | tail -n 1
-          )"
-          if [[ "${terminal_error}" != "${capacity_error}" || "${attempt}" == "3" ]]; then
-            exit "${codex_status}"
-          fi
-
-          delay=$((attempt == 1 ? 60 : 180))
-          echo "Codex is at capacity; resuming the same session in ${delay}s." >&2
-          sleep "${delay}"
-          command_args=(
-            resume --last
-            "Continue the previous task from where it stopped. ${PROMPT}"
-          )
-        done
-
-    - name: Stop Codex Responses API proxy
-      if: ${{ always() }}
-      shell: bash
-      env:
-        PROXY_PID: ${{ steps.proxy.outputs.pid }}
-      run: |
-        if [[ -n "${PROXY_PID}" ]] && kill -0 "${PROXY_PID}" 2>/dev/null; then
-          kill "${PROXY_PID}"
-        fi
+        test "$(sha256sum "${CONTROL}" | cut -d ' ' -f 1)" = "${CONTROL_SHA256}"
+        "${CONTROL}" repair \
+          -repo-root "${GITHUB_WORKSPACE}" \
+          -module-root "${GITHUB_WORKSPACE}/codexsdk" \
+          -candidate-dir "${CANDIDATE_DIR}" \
+          -candidate-sha256 "${CANDIDATE_SHA256}" \
+          -target-ref "${TARGET_REF}" \
+          -target-kind "${TARGET_KIND}" \
+          -target-sha "${TARGET_SHA}" \
+          -checkpoint-dir "${CHECKPOINT_DIR}"

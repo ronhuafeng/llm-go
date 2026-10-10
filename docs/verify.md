@@ -10,7 +10,22 @@ the result for the candidate being integrated.
 required `Live Codex integration / Live scenarios` context. Auto-forward checks
 all four contexts for the current H, then rechecks before the write. It uses the
 latest GitHub Actions result for each required name; an earlier success cannot
-hide a later failure or cancellation.
+hide a later failure or cancellation. The native
+`codexsdk/internal/checkacceptance` policy is shared by pending-sync observation
+and both auto-forward checks. It reads every check page, requires exact H and
+GitHub Actions origin, and records each required result as missing, pending,
+failed, cancelled, or succeeded. The latest `pr-verification.yml` run/attempt
+must also have succeeded; a queued attempt with no new check jobs cannot inherit
+older successes. Any still-active attempt on H blocks acceptance. Incomplete,
+changing, or failed API reads are unknown and stop the operation. A transient
+read can be retried once; write responses are never blindly retried.
+
+Cancellation recovery is separate from acceptance. The trusted sync recovery
+job may request only one `rerun-failed-jobs` after attempt 1, rechecking the open
+same-repository PR, its actual Git ref, and the workflow run/attempt. Failed
+proofs require investigation. A cancelled live job that started is never
+replayed automatically; successful live jobs are not rerun. Fresh results must
+still satisfy the same four-check policy before integration.
 
 [`Live Codex integration`](live-codex.md) owns environment setup and the common
 command. #376 supplies the runtime/gate; #377 supplies the structured composed

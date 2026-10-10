@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/ronhuafeng/llm-go/codexsdk/internal/checkacceptance"
 )
 
 type fixturePublicationAPI struct {
@@ -13,7 +15,7 @@ type fixturePublicationAPI struct {
 	fail       bool
 	pushActor  publicationUser
 	pushAfter  string
-	checks     []map[string]string
+	checks     []checkacceptance.Run
 	editOnRead bool
 }
 
@@ -38,7 +40,9 @@ func (api *fixturePublicationAPI) Request(method, path string, body, result any)
 		}
 		value = []any{map[string]any{"ref": "refs/heads/" + api.prs[0].Head.Ref, "after": after, "actor": api.pushActor}}
 	case strings.Contains(path, "/check-runs"):
-		value = map[string]any{"check_runs": api.checks}
+		value = map[string]any{"check_runs": api.checks, "total_count": len(api.checks)}
+	case strings.Contains(path, "/actions/workflows/"):
+		value = map[string]any{"total_count": 1, "workflow_runs": []any{map[string]any{"id": 10, "head_sha": api.pushAfter, "run_attempt": 1, "status": "completed", "conclusion": "success"}}}
 	default:
 		return fmt.Errorf("unexpected API request %s %s", method, path)
 	}
@@ -282,10 +286,10 @@ func TestInspectPendingObservesCurrentHeadRequiredChecks(t *testing.T) {
 		t.Run(conclusion, func(t *testing.T) {
 			req, api := pendingFixture(t)
 			req.ReadChecks = true
-			api.checks = []map[string]string{
-				{"name": "Root source verification", "status": "completed", "conclusion": conclusion},
-				{"name": "Codex generated reproducibility / Generated reproducibility", "status": "completed", "conclusion": conclusion},
-				{"name": "Codex protocol provenance", "status": "completed", "conclusion": conclusion},
+			for i, name := range checkacceptance.RequiredNames() {
+				run := checkacceptance.Run{ID: int64(i + 1), Name: name, HeadSHA: api.pushAfter, Status: "completed", Conclusion: conclusion}
+				run.App.Slug = "github-actions"
+				api.checks = append(api.checks, run)
 			}
 			observed, err := InspectPending(req)
 			if err != nil {
@@ -301,7 +305,7 @@ func TestInspectPendingObservesCurrentHeadRequiredChecks(t *testing.T) {
 					t.Fatalf("checks = %q", observed.Checks)
 				}
 			default:
-				if observed.Checks != "current-head required checks pending or missing" {
+				if observed.Checks != "current-head required checks pending" {
 					t.Fatalf("checks = %q", observed.Checks)
 				}
 			}

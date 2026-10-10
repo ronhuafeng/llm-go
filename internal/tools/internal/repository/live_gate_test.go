@@ -41,15 +41,15 @@ func TestLiveResultIsRequiredBeforeEachIntegrationEffect(t *testing.T) {
 			dir := t.TempDir()
 			checks := []map[string]any{}
 			for _, name := range []string{"Root source verification", "Codex generated reproducibility / Generated reproducibility", "Codex protocol provenance"} {
-				checks = append(checks, map[string]any{"id": 1, "name": name, "status": "completed", "conclusion": "success", "app": map[string]string{"slug": "github-actions"}})
+				checks = append(checks, map[string]any{"id": len(checks) + 10, "name": name, "status": "completed", "conclusion": "success", "head_sha": strings.Repeat("a", 40), "app": map[string]string{"slug": "github-actions"}})
 			}
 			if test.oldSuccess {
-				checks = append(checks, map[string]any{"id": 2, "name": "Live Codex integration / Live scenarios", "status": "completed", "conclusion": "success", "app": map[string]string{"slug": "github-actions"}})
+				checks = append(checks, map[string]any{"id": 2, "name": "Live Codex integration / Live scenarios", "status": "completed", "conclusion": "success", "head_sha": strings.Repeat("a", 40), "app": map[string]string{"slug": "github-actions"}})
 			}
 			if !test.missing {
-				checks = append(checks, map[string]any{"id": 3, "name": "Live Codex integration / Live scenarios", "status": test.status, "conclusion": test.conclusion, "app": map[string]string{"slug": "github-actions"}})
+				checks = append(checks, map[string]any{"id": 3, "name": "Live Codex integration / Live scenarios", "status": test.status, "conclusion": test.conclusion, "head_sha": strings.Repeat("a", 40), "app": map[string]string{"slug": "github-actions"}})
 			}
-			data, err := json.Marshal(map[string]any{"check_runs": checks})
+			data, err := json.Marshal(map[string]any{"check_runs": checks, "total_count": len(checks)})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -57,10 +57,17 @@ func TestLiveResultIsRequiredBeforeEachIntegrationEffect(t *testing.T) {
 			if err := os.WriteFile(fixture, data, 0600); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(filepath.Join(dir, "gh"), []byte("#!/bin/sh\nif [ \"$1\" = api ]; then cat \"$CHECK_FIXTURE\"; fi\n"), 0700); err != nil {
+			gh := `#!/bin/sh
+case "$*" in
+ *actions/workflows*) printf '%s' '{"total_count":1,"workflow_runs":[{"id":99,"head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","run_attempt":1,"status":"completed","conclusion":"success"}]}' ;;
+ *check-runs*) cat "$CHECK_FIXTURE" ;;
+esac
+`
+			if err := os.WriteFile(filepath.Join(dir, "gh"), []byte(gh), 0700); err != nil {
 				t.Fatal(err)
 			}
 			command := exec.Command("bash", "-c", script)
+			command.Dir = root
 			command.Env = append(os.Environ(), "PATH="+dir+string(os.PathListSeparator)+os.Getenv("PATH"), "CHECK_FIXTURE="+fixture, "REPOSITORY=fixture/repo", "HEAD_SHA="+strings.Repeat("a", 40), "PR_NUMBER=1")
 			out, err := command.CombinedOutput()
 			if (err == nil) != test.pass {
@@ -120,5 +127,34 @@ func TestLiveProviderWorkflowsUseExistingInputNamesDirectly(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestCancellationRecoveryHasSeparateTrustedAuthority(t *testing.T) {
+	root, err := filepath.Abs("../../../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := readWorkflow(t, root, "codexsdk-upstream-protocol-sync.yml")
+	recovery, ok := workflowJobByID(workflow, "recover-checks")
+	if !ok {
+		t.Fatal("missing native cancellation recovery route")
+	}
+	for _, want := range []string{"needs: sync", "check_state == 'cancelled'", "actions: write", "ref: ${{ github.sha }}", "--recover-cancelled", "--head", "--pr", "--run", "--attempt"} {
+		if !strings.Contains(recovery, want) {
+			t.Errorf("recovery missing %q", want)
+		}
+	}
+	for _, forbidden := range []string{"AZURE_OPENAI_API_KEY", "APP_PRIVATE_KEY", "contents: write", "codex-exec", "rerun-failed-jobs"} {
+		if strings.Contains(recovery, forbidden) {
+			t.Errorf("recovery workflow embeds model/publication authority or native policy: %q", forbidden)
+		}
+	}
+	syncJob, ok := workflowJobByID(workflow, "sync")
+	if !ok {
+		t.Fatal("missing sync")
+	}
+	if strings.Contains(syncJob, "actions: write") {
+		t.Fatal("proposal job received recovery write authority")
 	}
 }

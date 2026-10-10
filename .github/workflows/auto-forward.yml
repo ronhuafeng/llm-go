@@ -13,6 +13,7 @@ permissions:
   contents: read
   pull-requests: read
   checks: read
+  actions: read
 
 concurrency:
   group: auto-forward-main
@@ -43,6 +44,11 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
 
       - name: Resolve exact candidate
         id: candidate
@@ -99,20 +105,7 @@ jobs:
           HEAD_SHA: ${{ steps.candidate.outputs.head }}
         run: &require_acceptance |
           set -euo pipefail
-          required=(
-            "Root source verification"
-            "Codex generated reproducibility / Generated reproducibility"
-            "Codex protocol provenance"
-            "Live Codex integration / Live scenarios"
-          )
-          checks="$(gh api "repos/${REPOSITORY}/commits/${HEAD_SHA}/check-runs?filter=latest&per_page=100")"
-          for name in "${required[@]}"; do
-            ok="$(jq --arg name "${name}" '[.check_runs[] | select(.name == $name and .app.slug == "github-actions")] | max_by(.id) | if .status == "completed" and .conclusion == "success" then 1 else 0 end' <<<"${checks}")"
-            if [[ "${ok}" -lt 1 ]]; then
-              echo "required check is not successful on H ${HEAD_SHA}: ${name}" >&2
-              exit 1
-            fi
-          done
+          go run ./codexsdk/internal/cmd/checkacceptance --repository "${REPOSITORY}" --head "${HEAD_SHA}"
 
           decision="$(gh pr view "${PR_NUMBER}" --repo "${REPOSITORY}" --json reviewDecision --jq '.reviewDecision // ""')"
           case "${decision}" in
@@ -131,6 +124,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: read
+      actions: read
     steps:
       - name: Check integration App configuration
         env:
@@ -147,6 +141,11 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
 
       - name: Revalidate current candidate
         env:

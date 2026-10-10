@@ -512,7 +512,15 @@ func WriteGitHubOutput(path string, result SyncResult) error {
 		prURL = result.Publication.URL
 		publicationChecks = result.Publication.Checks
 	}
+	checkRun, checkAttempt, checkState := "", "", ""
+	if result.Publication != nil && result.Publication.CheckObservation != nil {
+		o := result.Publication.CheckObservation
+		checkRun = fmt.Sprint(o.WorkflowRunID)
+		checkAttempt = fmt.Sprint(o.WorkflowAttempt)
+		checkState = string(o.WorkflowState)
+	}
 	lines := []string{
+		"check_run_id=" + checkRun, "check_run_attempt=" + checkAttempt, "check_state=" + checkState,
 		"outcome=" + githubOutputValue(result.Outcome),
 		"publication_head=" + githubOutputValue(publicationHead),
 		"publication_branch=" + githubOutputValue(publicationBranch),

@@ -30,6 +30,10 @@ on:
         required: false
         type: boolean
         default: false
+      recovery_run_id:
+        description: "Restore an interrupted repair checkpoint from a trusted run on this exact main/base and upstream target. Does not reuse acceptance proofs."
+        required: false
+        type: string
       diagnostic_only:
         description: "Generate the latest stable candidate and run a read-only Plan; never invoke Agent, Apply, checks, or publication."
         required: false
@@ -255,21 +259,26 @@ jobs:
       contents: read
       pull-requests: read
       checks: read
+      actions: read
     outputs:
-      outcome: ${{ steps.mechanical.outputs.outcome }}
+      outcome: ${{ steps.mechanical.outputs.outcome || steps.recovered.outputs.outcome }}
       resume_outcome: ${{ steps.resume.outputs.outcome }}
-      target_ref: ${{ steps.mechanical.outputs.target_ref }}
-      target_kind: ${{ steps.mechanical.outputs.target_kind }}
-      target_sha: ${{ steps.mechanical.outputs.target_sha }}
-      publication_head: ${{ steps.mechanical.outputs.publication_head }}
-      publication_branch: ${{ steps.mechanical.outputs.publication_branch }}
-      publication_checks: ${{ steps.mechanical.outputs.publication_checks }}
-      pr_url: ${{ steps.mechanical.outputs.pr_url }}
+      target_ref: ${{ steps.mechanical.outputs.target_ref || steps.recovered.outputs.target_ref }}
+      target_kind: ${{ steps.mechanical.outputs.target_kind || steps.recovered.outputs.target_kind }}
+      target_sha: ${{ steps.mechanical.outputs.target_sha || steps.recovered.outputs.target_sha }}
+      check_state: ${{ steps.mechanical.outputs.check_state || steps.recovered.outputs.check_state }}
+      check_run_id: ${{ steps.mechanical.outputs.check_run_id || steps.recovered.outputs.check_run_id }}
+      check_run_attempt: ${{ steps.mechanical.outputs.check_run_attempt || steps.recovered.outputs.check_run_attempt }}
+      publication_number: ${{ steps.mechanical.outputs.publication_number || steps.recovered.outputs.publication_number }}
+      publication_head: ${{ steps.mechanical.outputs.publication_head || steps.recovered.outputs.publication_head }}
+      publication_branch: ${{ steps.mechanical.outputs.publication_branch || steps.recovered.outputs.publication_branch }}
+      publication_checks: ${{ steps.mechanical.outputs.publication_checks || steps.recovered.outputs.publication_checks }}
+      pr_url: ${{ steps.mechanical.outputs.pr_url || steps.recovered.outputs.pr_url }}
       patch_sha256: ${{ steps.handoff.outputs.patch_sha256 }}
       stage: ${{ steps.resume.outputs.stage || steps.mechanical.outputs.stage }}
       category: ${{ steps.resume.outputs.failure_category || steps.mechanical.outputs.failure_category }}
       checks: ${{ steps.checks.outcome }}
-      agent: ${{ steps.codex.outcome }}
+      agent: ${{ steps.resume.outcome }}
       scope: ${{ steps.final_scope.outcome == 'failure' && 'failure' || steps.proposal_scope.outcome }}
       handoff: ${{ steps.handoff.outcome }}
     steps:
@@ -322,8 +331,37 @@ jobs:
           digest="$(sha256sum "${control}" | cut -d ' ' -f1)"
           echo "sha256=${digest}" >> "${GITHUB_OUTPUT}"
 
+      - name: Restore validated repair checkpoint
+        id: recovered
+        if: ${{ inputs.recovery_run_id != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RECOVERY_RUN: ${{ inputs.recovery_run_id }}
+          APP_BOT_ID: ${{ vars.PROTOCOL_SYNC_APP_BOT_ID }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          [[ "${RECOVERY_RUN}" =~ ^[0-9]+$ ]]
+          test "${RECOVERY_RUN}" != "${GITHUB_RUN_ID}"
+          run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RECOVERY_RUN}")"
+          jq -e --arg head "${GITHUB_SHA}" --arg branch "${DEFAULT_BRANCH}" '
+            .head_sha == $head and .head_branch == $branch and
+            .path == ".github/workflows/codexsdk-upstream-protocol-sync.yml" and
+            (.event == "workflow_dispatch" or .event == "schedule") and
+            (.conclusion == "failure" or .conclusion == "cancelled")
+          ' <<<"${run}" >/dev/null
+          attempt="$(jq -er '.run_attempt' <<<"${run}")"
+          checkpoint="${RUNNER_TEMP}/recovered-repair"
+          gh run download "${RECOVERY_RUN}" --repo "${GITHUB_REPOSITORY}" \
+            --name "protocol-sync-repair-checkpoint-${attempt}" --dir "${checkpoint}"
+          "${RUNNER_TEMP}/protocolupgrade-control" recover \
+            -repo-root "${GITHUB_WORKSPACE}" -checkpoint-dir "${checkpoint}" \
+            -base-branch "${DEFAULT_BRANCH}" -github-repository "${GITHUB_REPOSITORY}" \
+            -app-bot-id "${APP_BOT_ID}"
+
       - name: Plan/apply native protocol sync
         id: mechanical
+        if: ${{ inputs.recovery_run_id == '' }}
         working-directory: codexsdk
         env:
           GOTOOLCHAIN: local
@@ -366,18 +404,18 @@ jobs:
           go run ./internal/cmd/protocolupgrade "${args[@]}"
 
       - name: Write Agent drift input
-        if: ${{ success() && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
+        if: ${{ success() && (steps.mechanical.outputs.outcome == 'semantic_unresolved' || steps.recovered.outputs.outcome == 'semantic_unresolved') }}
         working-directory: codexsdk
         env:
-          TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
-          TARGET_KIND: ${{ steps.mechanical.outputs.target_kind }}
-          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
-          CANDIDATE: ${{ steps.mechanical.outputs.candidate }}
-          CANDIDATE_DIR: ${{ steps.mechanical.outputs.candidate_dir }}
+          TARGET_REF: ${{ steps.mechanical.outputs.target_ref || steps.recovered.outputs.target_ref }}
+          TARGET_KIND: ${{ steps.mechanical.outputs.target_kind || steps.recovered.outputs.target_kind }}
+          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha || steps.recovered.outputs.target_sha }}
+          CANDIDATE: ${{ steps.mechanical.outputs.candidate || steps.recovered.outputs.candidate }}
+          CANDIDATE_DIR: ${{ steps.mechanical.outputs.candidate_dir || steps.recovered.outputs.candidate_dir }}
           CANDIDATE_SHA256: ${{ steps.mechanical.outputs.candidate_sha256 }}
-          ISSUE_STAGE: ${{ steps.mechanical.outputs.issue_stage }}
-          ISSUE_PATH: ${{ steps.mechanical.outputs.issue_path }}
-          ISSUE_REASON: ${{ steps.mechanical.outputs.issue_reason }}
+          ISSUE_STAGE: ${{ steps.mechanical.outputs.issue_stage || steps.recovered.outputs.issue_stage }}
+          ISSUE_PATH: ${{ steps.mechanical.outputs.issue_path || steps.recovered.outputs.issue_path }}
+          ISSUE_REASON: ${{ steps.mechanical.outputs.issue_reason || steps.recovered.outputs.issue_reason }}
         run: |
           set -euo pipefail
           mkdir -p .cache/codexsdk-sync
@@ -401,9 +439,9 @@ jobs:
             echo "Make only the handwritten source and focused test changes required to make this exact candidate plan successfully."
           } > .cache/codexsdk-sync/agent-input.md
 
-      - name: Apply one Agent pass for unresolved semantic drift
-        id: codex
-        if: ${{ success() && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
+      - name: Repair with independent verification feedback
+        id: resume
+        if: ${{ success() && (steps.mechanical.outputs.outcome == 'semantic_unresolved' || steps.recovered.outputs.outcome == 'semantic_unresolved') }}
         uses: ./.github/actions/codex-exec
         env:
           GITHUB_TOKEN: ""
@@ -414,51 +452,34 @@ jobs:
           model: gpt-6-sol
           reasoning-effort: xhigh
           working-directory: .
-          prompt: >-
-            Read .agents/skills/codexsdk-sync-upstream/SKILL.md.
-            Read codexsdk/.cache/codexsdk-sync/agent-input.md.
-            The selected upstream target has been generated and compared, but
-            read-only planning found a concrete unresolved incompatibility. No
-            mechanical protocol/generated changes have been applied. Make only
-            the targeted handwritten generator/semantic source and focused test
-            changes required for that exact candidate to plan successfully. Do
-            not resolve a different target or hand-edit generated outputs. Do not
-            stage, commit, push, create or update a pull request, or treat a
-            final model message as proof that the implementation is correct.
-            Leave changes unstaged.
+          controller-path: ${{ runner.temp }}/protocolupgrade-control
+          control-sha256: ${{ steps.control.outputs.sha256 }}
+          candidate-dir: ${{ steps.mechanical.outputs.candidate_dir || steps.recovered.outputs.candidate_dir }}
+          candidate-sha256: ${{ steps.mechanical.outputs.candidate_sha256 || steps.recovered.outputs.candidate_sha256 }}
+          target-ref: ${{ steps.mechanical.outputs.target_ref || steps.recovered.outputs.target_ref }}
+          target-kind: ${{ steps.mechanical.outputs.target_kind || steps.recovered.outputs.target_kind }}
+          target-sha: ${{ steps.mechanical.outputs.target_sha || steps.recovered.outputs.target_sha }}
+          checkpoint-dir: ${{ runner.temp }}/protocol-repair-checkpoint
+
+      - name: Retain bounded repair checkpoint
+        if: ${{ always() && steps.resume.outcome != 'skipped' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: protocol-sync-repair-checkpoint-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/protocol-repair-checkpoint
+          include-hidden-files: true
+          if-no-files-found: ignore
 
       - name: Check Agent proposal scope
         id: proposal_scope
-        if: ${{ success() && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
+        if: ${{ success() && (steps.mechanical.outputs.outcome == 'semantic_unresolved' || steps.recovered.outputs.outcome == 'semantic_unresolved') }}
         env:
           CONTROL_SHA256: ${{ steps.control.outputs.sha256 }}
         run: &agent_proposal_scope |
           set -euo pipefail
           control="${RUNNER_TEMP}/protocolupgrade-control"
           echo "${CONTROL_SHA256}  ${control}" | sha256sum -c -
-          "${control}" scope -repo-root "${GITHUB_WORKSPACE}" -phase "${SCOPE_PHASE:-agent}"
-
-      - name: Re-plan and apply candidate
-        id: resume
-        if: ${{ success() && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
-        working-directory: codexsdk
-        env:
-          GOTOOLCHAIN: local
-          CANDIDATE_DIR: ${{ steps.mechanical.outputs.candidate_dir }}
-          CANDIDATE_SHA256: ${{ steps.mechanical.outputs.candidate_sha256 }}
-          TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
-          TARGET_KIND: ${{ steps.mechanical.outputs.target_kind }}
-          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
-        run: |
-          set -euo pipefail
-          go run ./internal/cmd/protocolupgrade resume \
-            -repo-root "${GITHUB_WORKSPACE}" \
-            -module-root . \
-            -candidate-dir "${CANDIDATE_DIR}" \
-            -candidate-sha256 "${CANDIDATE_SHA256}" \
-            -target-ref "${TARGET_REF}" \
-            -target-kind "${TARGET_KIND}" \
-            -target-sha "${TARGET_SHA}"
+          "${control}" scope -repo-root "${GITHUB_WORKSPACE}" -phase "${SCOPE_PHASE:-final}"
 
       - name: Normalize proposed Go source
         id: normalize
@@ -486,7 +507,7 @@ jobs:
         working-directory: codexsdk
         env:
           GOTOOLCHAIN: local
-          CANDIDATE: ${{ steps.mechanical.outputs.candidate }}
+          CANDIDATE: ${{ steps.mechanical.outputs.candidate || steps.recovered.outputs.candidate }}
         run: |
           set -euo pipefail
           go test ./...
@@ -499,7 +520,7 @@ jobs:
 
       - name: Recheck Agent proposal scope after tests
         id: final_scope
-        if: ${{ success() && steps.mechanical.outputs.outcome == 'semantic_unresolved' }}
+        if: ${{ success() && (steps.mechanical.outputs.outcome == 'semantic_unresolved' || steps.recovered.outputs.outcome == 'semantic_unresolved') }}
         env:
           CONTROL_SHA256: ${{ steps.control.outputs.sha256 }}
           SCOPE_PHASE: final
@@ -510,11 +531,11 @@ jobs:
         if: ${{ success() && (steps.mechanical.outputs.outcome == 'applied' || steps.resume.outputs.outcome == 'applied') }}
         working-directory: codexsdk
         env:
-          CANDIDATE_DIR: ${{ steps.mechanical.outputs.candidate_dir }}
+          CANDIDATE_DIR: ${{ steps.mechanical.outputs.candidate_dir || steps.recovered.outputs.candidate_dir }}
           CANDIDATE_SHA256: ${{ steps.mechanical.outputs.candidate_sha256 }}
-          TARGET_KIND: ${{ steps.mechanical.outputs.target_kind }}
-          TARGET_REF: ${{ steps.mechanical.outputs.target_ref }}
-          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha }}
+          TARGET_KIND: ${{ steps.mechanical.outputs.target_kind || steps.recovered.outputs.target_kind }}
+          TARGET_REF: ${{ steps.mechanical.outputs.target_ref || steps.recovered.outputs.target_ref }}
+          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha || steps.recovered.outputs.target_sha }}
           CONTROL_SHA256: ${{ steps.control.outputs.sha256 }}
           PROPOSAL_SHA256: ${{ steps.freeze.outputs.patch_sha256 }}
         run: |
@@ -747,3 +768,46 @@ jobs:
             echo "- Next: ${next}"
             echo '- This summary reports observations and never certifies or integrates a candidate.'
           } >> "${GITHUB_STEP_SUMMARY}"
+
+  recover-checks:
+    name: Recover unstarted cancelled verification
+    needs: sync
+    if: ${{ needs.sync.outputs.outcome == 'pr_pending' && needs.sync.outputs.check_state == 'cancelled' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: read
+      actions: write
+    steps:
+      - name: Require trusted recovery control
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF_NAME}" = "${DEFAULT_BRANCH}"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Request bounded cancellation recovery
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          HEAD_SHA: ${{ needs.sync.outputs.publication_head }}
+          PR_NUMBER: ${{ needs.sync.outputs.publication_number }}
+          RUN_ID: ${{ needs.sync.outputs.check_run_id }}
+          RUN_ATTEMPT: ${{ needs.sync.outputs.check_run_attempt }}
+        run: |
+          set -euo pipefail
+          go run ./codexsdk/internal/cmd/checkacceptance \
+            --recover-cancelled --repository "${REPOSITORY}" --head "${HEAD_SHA}" \
+            --pr "${PR_NUMBER}" --run "${RUN_ID}" --attempt "${RUN_ATTEMPT}"
