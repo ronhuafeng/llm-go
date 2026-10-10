@@ -140,3 +140,24 @@ func TestInvalidInput(t *testing.T) {
 		t.Fatal("accepted non UUID")
 	}
 }
+
+func TestDiagnosticHTTPStatusRequiresStatusContext(t *testing.T) {
+	for _, message := range []string{"thread 00404abc failed", "write /tmp/process503/file: denied"} {
+		if classify(message) != "execution_failed" {
+			t.Fatal("invented HTTP attribution", message)
+		}
+	}
+}
+func TestPreflightToolDiagnosticDoesNotRejectRecoveredTurn(t *testing.T) {
+	input := `{"type":"thread.started","thread_id":"` + testSession + `"}
+{"type":"item.completed","item":{"type":"command_execution","exit_code":1,"aggregated_output":"bwrap: operation not permitted PRIVATE"}}
+{"type":"turn.completed"}
+`
+	result, err := parseEvents(strings.NewReader(input), "")
+	if err != nil || result.Status != "completed" || result.ToolDiagnostic != "sandbox_unavailable" {
+		t.Fatalf("%+v %v", result, err)
+	}
+	if strings.Contains(result.ToolDiagnostic, "PRIVATE") {
+		t.Fatal("raw output leaked")
+	}
+}

@@ -13,7 +13,7 @@ var safeFact = regexp.MustCompile(`^live_failure\.(stage=(startup|fixture|thread
 
 var safeStoryFact = regexp.MustCompile(`^live_story\.stage=(structured-call|persistent-start|resume|fork|fork-turn) outcome=(started|completed)$`)
 
-var safeExecutorFact = regexp.MustCompile(`^live_executor\.stage=(configure|preflight|start|resume) outcome=(started|completed|failed) diagnostic=(none|completed|configuration_failed|file_assertion|sandbox_write_unverified|sandbox_unavailable|endpoint_not_found|authentication_failed|provider_failed|execution_failed|missing_session|session_mismatch|invalid_event_stream|cancelled)$`)
+var safeExecutorFact = regexp.MustCompile(`^live_executor\.stage=(configure|preflight|start|resume) outcome=(started|completed|failed) diagnostic=(none|completed|configuration_failed|file_assertion|sandbox_write_unverified|sandbox_unavailable|command_failed|command_succeeded_write_unverified|endpoint_not_found|authentication_failed|provider_failed|execution_failed|missing_session|session_mismatch|invalid_event_stream|cancelled)$`)
 
 var safeScenario = regexp.MustCompile(`^TestLiveCodex[a-zA-Z0-9_./-]*$`)
 

@@ -30,11 +30,14 @@ type Config struct {
 }
 type Result struct {
 	SessionID, Status, Diagnostic, FinalMessagePath string
+	ToolDiagnostic                                  string
 }
 type Executor struct {
 	config Config
 	home   string
 }
+
+var httpStatusPattern = regexp.MustCompile(`(?i)(?:^|status(?: code)?[ :]+|http[ /a-z0-9.]*[ :]+)([45][0-9]{2})\b`)
 
 var sessionPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
@@ -138,10 +141,16 @@ func (e *Executor) Preflight(ctx context.Context) error {
 	}
 	info, err := os.Lstat(path)
 	if err != nil || !info.Mode().IsRegular() || info.Size() != int64(len(token)) {
+		if result.ToolDiagnostic != "" {
+			return errors.New("preflight: " + result.ToolDiagnostic)
+		}
 		return errors.New("preflight: sandbox_write_unverified")
 	}
 	data, err := os.ReadFile(path)
 	if err != nil || string(data) != token {
+		if result.ToolDiagnostic != "" {
+			return errors.New("preflight: " + result.ToolDiagnostic)
+		}
 		return errors.New("preflight: sandbox_write_unverified")
 	}
 	return nil
@@ -201,6 +210,7 @@ func (e *Executor) Run(ctx context.Context, prompt, sessionID string) (Result, e
 	parsedResult := <-done
 	_ = reader.Close()
 	result.SessionID = parsedResult.result.SessionID
+	result.ToolDiagnostic = parsedResult.result.ToolDiagnostic
 	if ctx.Err() != nil {
 		result.Status = "cancelled"
 		result.Diagnostic = "cancelled"
@@ -235,17 +245,22 @@ func (b *boundedBuffer) Write(p []byte) (int, error) {
 }
 func classify(s string) string {
 	s = strings.ToLower(s)
+	status := ""
+	if match := httpStatusPattern.FindStringSubmatch(s); len(match) == 2 {
+		status = match[1]
+	}
 	switch {
-	case strings.Contains(s, "404"):
+	case status == "404":
 		return "endpoint_not_found"
-	case strings.Contains(s, "401"), strings.Contains(s, "403"), strings.Contains(s, "unauthorized"), strings.Contains(s, "authentication"):
+	case status == "401" || status == "403" || strings.Contains(s, "unauthorized") || strings.Contains(s, "authentication"):
 		return "authentication_failed"
-	case strings.Contains(s, "429"), strings.Contains(s, "capacity"), strings.Contains(s, "500"), strings.Contains(s, "502"), strings.Contains(s, "503"), strings.Contains(s, "connection"), strings.Contains(s, "stream disconnected"):
+	case status == "429" || strings.HasPrefix(status, "5") || strings.Contains(s, "capacity") || strings.Contains(s, "connection") || strings.Contains(s, "stream disconnected"):
 		return "provider_failed"
 	default:
 		return "execution_failed"
 	}
 }
+
 func parseEvents(r io.Reader, expected string) (Result, error) {
 	result := Result{Status: "failed", Diagnostic: "execution_failed"}
 	scanner := bufio.NewScanner(r)
@@ -256,7 +271,12 @@ func parseEvents(r io.Reader, expected string) (Result, error) {
 			Type     string `json:"type"`
 			ThreadID string `json:"thread_id"`
 			Message  string `json:"message"`
-			Error    struct {
+			Item     struct {
+				Type     string `json:"type"`
+				ExitCode *int   `json:"exit_code"`
+				Output   string `json:"aggregated_output"`
+			} `json:"item"`
+			Error struct {
 				Message string `json:"message"`
 			} `json:"error"`
 		}
@@ -273,6 +293,18 @@ func parseEvents(r io.Reader, expected string) (Result, error) {
 			} else {
 				started = true
 				result.SessionID = event.ThreadID
+			}
+		case "item.completed":
+			if event.Item.Type == "command_execution" && event.Item.ExitCode != nil {
+				if *event.Item.ExitCode != 0 {
+					result.ToolDiagnostic = "command_failed"
+					lower := strings.ToLower(event.Item.Output)
+					if strings.Contains(lower, "bwrap") || strings.Contains(lower, "sandbox") || strings.Contains(lower, "operation not permitted") {
+						result.ToolDiagnostic = "sandbox_unavailable"
+					}
+				} else if result.ToolDiagnostic == "" {
+					result.ToolDiagnostic = "command_succeeded_write_unverified"
+				}
 			}
 		case "turn.completed":
 			if (!started || completed) && !failed {
