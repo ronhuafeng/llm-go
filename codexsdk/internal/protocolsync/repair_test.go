@@ -88,7 +88,7 @@ func TestRepairSequentialUnknownShapesAndValidationFeedback(t *testing.T) {
 	}
 }
 func TestRepairBlocksAndRetainsCheckpoint(t *testing.T) {
-	for _, mode := range []string{"404", "cancel", "no-progress", "scope", "oracle-mutation", "budget"} {
+	for _, mode := range []string{"404", "cancel", "no-progress", "scope", "oracle-mutation", "oracle-contract", "budget"} {
 		t.Run(mode, func(t *testing.T) {
 			req := repairFixture(t)
 			calls := 0
@@ -114,6 +114,9 @@ func TestRepairBlocksAndRetainsCheckpoint(t *testing.T) {
 			}
 			req.Executor = fixture
 			req.Oracle = func(_ context.Context, _ ResumeRequest) (SyncResult, []byte, error) {
+				if mode == "oracle-contract" {
+					return SyncResult{Stage: "oracle_contract", FailureCategory: FailureUnsupported}, nil, errors.New("uncovered source /properties/newShape")
+				}
 				if mode == "oracle-mutation" {
 					writeFile(t, filepath.Join(req.RepoRoot, "codexsdk/internal/protocolgen/fixture.go"), "mutated by test")
 				}
@@ -123,9 +126,12 @@ func TestRepairBlocksAndRetainsCheckpoint(t *testing.T) {
 				t.Fatal("accepted failure")
 			}
 			cp := readRepairCheckpoint(t, req.CheckpointDir)
-			want := map[string]string{"404": "blocked", "cancel": "cancelled", "no-progress": "no_progress", "scope": "blocked", "oracle-mutation": "blocked", "budget": "exhausted"}[mode]
+			want := map[string]string{"404": "blocked", "cancel": "cancelled", "no-progress": "no_progress", "scope": "blocked", "oracle-mutation": "blocked", "oracle-contract": "blocked", "budget": "exhausted"}[mode]
 			if cp.Status != want {
 				t.Fatalf("status=%s want %s", cp.Status, want)
+			}
+			if mode == "oracle-contract" && (calls != 1 || cp.Stage != "oracle_contract" || !strings.Contains(cp.Diagnostic, "/properties/newShape")) {
+				t.Fatalf("trusted capability failure lost or retried: calls=%d checkpoint=%+v", calls, cp)
 			}
 			if mode == "404" && calls != 0 {
 				t.Fatal("provider block invoked agent")

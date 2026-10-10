@@ -210,6 +210,8 @@ func Repair(ctx context.Context, req RepairRequest) (result SyncResult, err erro
 		recoverable := (result.Stage == "replan" && result.FailureCategory == FailureUnsupported && result.Issue != nil) || result.Stage == "verification"
 		if !recoverable {
 			cp.Status = "blocked"
+			cp.Stage = result.Stage
+			cp.Diagnostic = boundedRepairDiagnostic(fmt.Sprint(verifyErr))
 			return result, fmt.Errorf("independent oracle blocked repair at %s: %w", result.Stage, verifyErr)
 		}
 		cp.Diagnostic = boundedRepairDiagnostic(fmt.Sprint(verifyErr))
@@ -281,8 +283,8 @@ func applyProposalPatchBytes(root string, patch []byte) error {
 }
 
 // repairOracle executes proposed generator code only in a disposable tree.
-// The original accepted tests are restored there: edits to tests may add local
-// evidence but cannot remove the independent acceptance assertions.
+// Expected target behavior comes from independently retained schema facts;
+// baseline assertions remain paired with their baseline fixtures.
 func repairOracle(ctx context.Context, req ResumeRequest) (SyncResult, []byte, error) {
 	result := SyncResult{Stage: "configuration"}
 	dir, err := os.MkdirTemp("", "protocol-repair-oracle-")
@@ -431,37 +433,42 @@ func repairOracle(ctx context.Context, req ResumeRequest) (SyncResult, []byte, e
 			return SyncResult{Stage: "verification", FailureCategory: FailureValidation}, nil, fmt.Errorf("go %s: %w\n%s", strings.Join(args, " "), e, boundedRepairDiagnostic(string(out)))
 		}
 	}
-	// A second pass restores accepted tests, independently of the model's test
-	// edits. The proposal remains unchanged outside this disposable tree.
-	tracked, e := gitNUL(root, "ls-files", "-z", "--", "*_test.go")
-	if e != nil {
-		return result, nil, e
-	}
-	if len(tracked) > 0 {
-		if e = runGit(root, append([]string{"restore", "--source=HEAD", "--worktree", "--"}, tracked...)...); e != nil {
-			return result, nil, e
+	// Target assertions evolve from independently selected schema facts. Stable
+	// regression assertions run with their matching baseline, never pasted onto
+	// incompatible target types.
+	if e := runTargetOracle(ctx, req, root, sandbox); e != nil {
+		var integrity *oracleIntegrityError
+		if errors.As(e, &integrity) {
+			return SyncResult{Stage: "oracle_integrity"}, nil, e
 		}
+		var contract *oracleContractError
+		if errors.As(e, &contract) {
+			return SyncResult{Stage: "oracle_contract", FailureCategory: FailureUnsupported}, nil, e
+		}
+		return SyncResult{Stage: "verification", FailureCategory: FailureValidation}, nil, fmt.Errorf("target schema oracle: %w", e)
 	}
-	trustedBefore, e := repairPatch(root)
+	if e := runBaselineOracle(ctx, req, sandbox); e != nil {
+		var integrity *oracleIntegrityError
+		if errors.As(e, &integrity) {
+			return SyncResult{Stage: "oracle_integrity"}, nil, e
+		}
+		var contract *oracleContractError
+		if errors.As(e, &contract) {
+			return SyncResult{Stage: "oracle_contract", FailureCategory: FailureUnsupported}, nil, e
+		}
+		return SyncResult{Stage: "verification", FailureCategory: FailureValidation}, nil, fmt.Errorf("baseline oracle: %w", e)
+	}
+	if e := verifyIdentity(); e != nil {
+		return SyncResult{Stage: "oracle_integrity"}, nil, e
+	}
+	afterOracle, e := repairNonMechanicalPatch(root)
 	if e != nil {
 		return result, nil, e
 	}
-	cmd = sandbox.command(ctx, filepath.Join(sandbox.goroot, "bin", "go"), "test", "./...")
-	cmd.Dir = filepath.Join(root, "codexsdk")
-	out, e := boundedCommandOutput(cmd)
-	if identityErr := verifyIdentity(); identityErr != nil {
-		return SyncResult{Stage: "oracle_integrity"}, nil, identityErr
+	if repairDigest(beforeSource) != repairDigest(afterOracle) {
+		return SyncResult{Stage: "oracle_integrity"}, nil, errors.New("independent verification changed handwritten source")
 	}
-	trustedAfter, pe := repairPatch(root)
-	if pe != nil {
-		return result, nil, pe
-	}
-	if repairDigest(trustedBefore) != repairDigest(trustedAfter) {
-		return SyncResult{Stage: "oracle_integrity"}, nil, errors.New("trusted test execution changed proposal bytes")
-	}
-	if e != nil {
-		return SyncResult{Stage: "verification", FailureCategory: FailureValidation}, nil, fmt.Errorf("accepted test assertions: %w\n%s", e, boundedRepairDiagnostic(string(out)))
-	}
+
 	return result, generated, nil
 }
 func repairEnvironment() []string {

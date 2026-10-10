@@ -211,11 +211,43 @@ proves an actual selected-model sandbox write before repair.
 
 Every oracle round clones the accepted base, applies only the handwritten proposal,
 and executes proposed Go in a no-network Linux namespace with private temp/home,
-read-only Git identity and candidate inputs. Proposed assertions run first; the
-accepted base's original tests then run independently. Tests cannot modify the
-control plane, the accepted tests, or the publication workspace. Frozen patch and
-candidate bytes are rechecked after execution. Only verified generated output is
-applied back; failed generated trees are discarded.
+read-only Git identity and candidate inputs. Proposed target tests, generation checks,
+and vet run first. They supplement independent evidence; they do not choose it.
+
+Verifier implementation and version-specific assertions may evolve. Their authority
+is the selected upstream contract plus explicit local wire guarantees, not the old
+verifier's source code. A verifier change must show a legitimate change rejected by
+the old rule and an actual defect still rejected by the replacement, with separate
+review of its expectations. Merely copying the candidate's reflection-based expected
+values or removing the failing gate is not independent evidence.
+
+The existing controller owns two verification paths:
+
+- Target contract: `internal/schemaoracle` reads the retained exact schema bytes,
+  selects changed/new named contracts and their transitive users, and computes
+  valid/invalid witnesses with an independent JSON Schema validator. Required
+  bindings and exact declared fields come from source, never from whichever Go
+  types the proposal happened to generate. A separate read-only Go test package
+  checks field/tag coverage, rejection and lossless JSON round trips. Candidate
+  tests and `TestMain` cannot replace its run/pass event. The explicit local overlay
+  preserves strict decoding of property-bearing objects unless the source declares
+  them open; open union alternatives are evaluated against the whole schema.
+- Baseline regressions: the proposed generator runs through its stable CLI against
+  the accepted baseline schema in another disposable tree. Accepted SDK/runtime
+  assertions exercise proposed handwritten implementation with matching baseline
+  generated types. The accepted test set is selected before applying proposal code;
+  every selected test must freshly run and pass, so an initializer or `TestMain`
+  exiting early cannot supply success. This does not freeze private generator helper signatures or put
+  old version-specific literals onto incompatible target types.
+
+Traversal, witness and output limits are bounded and fail with an uncovered source
+path rather than silently reducing proof. New schema constructs can require a
+reviewed checker extension with positive and negative cases. The checker is not a
+claim of exhaustive program equivalence. Source identity, authorization, scope,
+immutable input and publication controls remain mandatory across verifier revisions.
+Tests cannot modify the control plane, probe source or publication workspace.
+Frozen patch and candidate bytes are rechecked after execution. Only verified
+output is applied back; failed generated trees are discarded.
 
 On failure or interruption, a bounded checkpoint artifact retains the complete
 candidate, handwritten patch, base/target/digests, consumed round count and sanitized

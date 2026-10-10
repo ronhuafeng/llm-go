@@ -28,8 +28,15 @@ checks may help, but a final Agent message does not certify success.
 ## Verification feedback
 
 The controller may resume this exact session with a typed unresolved shape or
-independent test failure. Continue the same permitted handwritten repair; do not
-create another target or weaken existing assertions. Generated construction is
+independent test failure. Continue the same permitted handwritten repair. You may
+propose changes to version-dependent test assertions when the exact candidate
+schema supplies their expected field sets or wire behavior; include the source
+path and both legitimate-evolution and real-defect examples. Do not derive
+expected values from the candidate implementation, erase runtime guarantees, or
+create another target. The trusted source-derived verifier and matching-baseline
+regression tests remain independent of your proposed tests. Changes to that
+verifier require a separately reviewed repository PR and are outside this repair
+session’s authority. Generated construction is
 isolated and discarded on failure. No-progress and finite execution limits retain
 a recoverable checkpoint; only independent successful verification permits Apply.
 

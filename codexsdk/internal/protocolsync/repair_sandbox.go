@@ -15,7 +15,10 @@ import (
 // Untrusted generator/tests see only the writable validation clone and private
 // build/temp state; the Git identity, retained candidate and module inputs are
 // read-only. A host without this boundary is blocked, never silently degraded.
-type oracleSandbox struct{ root, candidate, work, goroot, modules string }
+type oracleSandbox struct {
+	root, candidate, work, goroot, modules string
+	readonly                               []string
+}
 
 func newOracleSandbox(ctx context.Context, root, candidate string) (oracleSandbox, error) {
 	if runtime.GOOS != "linux" {
@@ -50,7 +53,11 @@ func (s oracleSandbox) command(ctx context.Context, program string, args ...stri
 			flags = append(flags, "--tmpfs", p)
 		}
 	}
-	flags = append(flags, "--bind", s.root, s.root, "--ro-bind", filepath.Join(s.root, ".git"), filepath.Join(s.root, ".git"), "--bind", s.work, s.work, "--ro-bind", filepath.Join(s.root, "codexsdk/.cache/openai-codex"), filepath.Join(s.root, "codexsdk/.cache/openai-codex"), "--ro-bind", s.candidate, s.candidate, "--ro-bind", s.goroot, s.goroot, "--ro-bind", s.modules, s.modules, "--chdir", filepath.Join(s.root, "codexsdk"), "--", program)
+	flags = append(flags, "--bind", s.root, s.root, "--ro-bind", filepath.Join(s.root, ".git"), filepath.Join(s.root, ".git"), "--bind", s.work, s.work, "--ro-bind", filepath.Join(s.root, "codexsdk/.cache/openai-codex"), filepath.Join(s.root, "codexsdk/.cache/openai-codex"), "--ro-bind", s.candidate, s.candidate, "--ro-bind", s.goroot, s.goroot, "--ro-bind", s.modules, s.modules)
+	for _, p := range s.readonly {
+		flags = append(flags, "--ro-bind", p, p)
+	}
+	flags = append(flags, "--chdir", filepath.Join(s.root, "codexsdk"), "--", program)
 	flags = append(flags, args...)
 	cmd := exec.CommandContext(ctx, "bwrap", flags...)
 	cmd.Env = []string{"PATH=" + filepath.Join(s.goroot, "bin") + ":/usr/bin:/bin", "HOME=" + filepath.Join(s.work, "home"), "GOCACHE=" + filepath.Join(s.work, "cache"), "GOMODCACHE=" + s.modules, "GOTOOLCHAIN=local", "GOPROXY=off", "GOSUMDB=off", "TMPDIR=/tmp", "CI=true"}

@@ -34,7 +34,7 @@ func TestGeneratorRepairResumesSameCandidateWithTrustedScope(t *testing.T) {
 		}
 		put(filepath.Join(repo, rel), raw)
 	}
-	for _, pkg := range []string{"checkacceptance", "codexexec", "protocolsync", "protocolupgrade", "protocolgen", "generatedcheck", "wirejson", "cmd/protocolupgrade"} {
+	for _, pkg := range []string{"checkacceptance", "codexexec", "schemaoracle", "protocolsync", "protocolupgrade", "protocolgen", "generatedcheck", "wirejson", "cmd/protocolupgrade"} {
 		dir := filepath.Join(source, "codexsdk/internal", pkg)
 		entries, err := os.ReadDir(dir)
 		if err != nil {
