@@ -3,8 +3,10 @@ package protocolsync
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -52,6 +54,18 @@ func CheckScope(repoRoot, phase string) error {
 	paths, err := ChangedPaths(repoRoot)
 	if err != nil {
 		return err
+	}
+	for _, name := range paths {
+		info, e := os.Lstat(filepath.Join(repoRoot, filepath.FromSlash(name)))
+		if e != nil {
+			if os.IsNotExist(e) {
+				continue
+			}
+			return e
+		}
+		if !info.Mode().IsRegular() {
+			return &Failure{Category: FailurePolicy, Err: fmt.Errorf("proposal path %s is not a regular file", name)}
+		}
 	}
 	return validatePaths(paths, phase)
 }

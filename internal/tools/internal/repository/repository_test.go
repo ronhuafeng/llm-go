@@ -327,7 +327,7 @@ func TestProtocolSyncPreservesAuthorityAndPublicationBoundaries(t *testing.T) {
 	if strings.Count(syncText, "uses: ./.github/actions/codex-exec") != 1 {
 		t.Fatal("protocol sync must expose exactly one optional Agent invocation")
 	}
-	agent, ok := workflowStepByID(syncText, "codex")
+	agent, ok := workflowStepByID(syncText, "resume")
 	if !ok {
 		t.Fatal("protocol sync must expose the Agent effect boundary")
 	}
@@ -350,17 +350,22 @@ func TestProtocolSyncPreservesAuthorityAndPublicationBoundaries(t *testing.T) {
 	if !ok || !strings.Contains(scope, `"${control}" scope`) || !strings.Contains(scope, "steps.control.outputs.sha256") || !strings.Contains(scope, "sha256sum -c -") {
 		t.Fatal("trusted workflow must inspect all Git-visible Agent changes before running proposed code")
 	}
-	if !strings.Contains(resume, "-candidate-sha256") || !strings.Contains(resume, "steps.mechanical.outputs.candidate_sha256") || !strings.Contains(resume, "protocolupgrade resume") {
+	if !strings.Contains(resume, "candidate-sha256:") || !strings.Contains(resume, "steps.mechanical.outputs.candidate_sha256") || !strings.Contains(resume, "controller-path:") {
 		t.Fatal("resume must receive the initial candidate digest through immutable workflow outputs")
 	}
-	if strings.Index(syncText, "id: proposal_scope") > strings.Index(syncText, "id: resume") {
-		t.Fatal("trusted proposal scope check must precede re-plan and apply")
+	controller, err := os.ReadFile(filepath.Join(root, "codexsdk/internal/protocolsync/repair.go"))
+	if err != nil {
+		t.Fatal(err)
 	}
+	if !strings.Contains(string(controller), "repairIntegrity(req.ResumeRequest, base)") {
+		t.Fatal("trusted controller must validate scope/candidate before proposed execution")
+	}
+
 	checksAt := strings.Index(syncText, "id: checks")
 	normalizeAt := strings.Index(syncText, "id: normalize")
 	freezeAt := strings.Index(syncText, "id: freeze")
 	controlAt := strings.Index(syncText, "id: control")
-	agentAt := strings.Index(syncText, "id: codex")
+	agentAt := strings.Index(syncText, "id: resume")
 	finalScopeAt := strings.Index(syncText, "Recheck Agent proposal scope after tests")
 	publishAt := strings.Index(syncText, "id: publish")
 	if controlAt < 0 || controlAt >= agentAt || normalizeAt < 0 || normalizeAt >= freezeAt || freezeAt < 0 || freezeAt >= checksAt || checksAt < 0 || finalScopeAt <= checksAt || publishAt <= finalScopeAt || !strings.Contains(syncText, "run: *agent_proposal_scope") {
@@ -438,7 +443,8 @@ func TestProtocolSyncPreservesAuthorityAndPublicationBoundaries(t *testing.T) {
 	if !ok || !strings.Contains(mechanical, "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}") || !strings.Contains(proofJob, "checks: read") {
 		t.Fatal("trusted pending discovery needs only the built-in read token")
 	}
-	if strings.Contains(strings.Replace(proofJob, mechanical, "", 1), "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}") {
+	recovered, _ := workflowStepByID(proofJob, "recovered")
+	if strings.Contains(strings.Replace(strings.Replace(proofJob, mechanical, "", 1), recovered, "", 1), "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}") {
 		t.Fatal("the pending-discovery token must not escape its trusted step")
 	}
 	publishJob, ok := workflowJobByID(syncText, "publish")
@@ -812,7 +818,7 @@ func TestProtocolAgentPassesWorkflowSelectedModel(t *testing.T) {
 		t.Fatal(err)
 	}
 	workflow := readWorkflow(t, root, "codexsdk-upstream-protocol-sync.yml")
-	agent, ok := workflowStepByID(workflow, "codex")
+	agent, ok := workflowStepByID(workflow, "resume")
 	if !ok {
 		t.Fatal("protocol sync must expose the Agent step")
 	}
@@ -825,32 +831,28 @@ func TestProtocolAgentPassesWorkflowSelectedModel(t *testing.T) {
 		t.Fatal(err)
 	}
 	action := string(data)
-	if !strings.Contains(action, "MODEL: ${{ inputs.model }}") || !strings.Contains(action, "--model \"${MODEL}\"") || !strings.Contains(action, "REASONING_EFFORT: ${{ inputs.reasoning-effort }}") || !strings.Contains(action, "model_reasoning_effort=\\\"${REASONING_EFFORT}\\\"") {
-		t.Fatal("codex-exec must consume the workflow-owned model and reasoning effort")
+	if !strings.Contains(action, "CODEX_MODEL: ${{ inputs.model }}") || !strings.Contains(action, "CODEX_REASONING_EFFORT: ${{ inputs.reasoning-effort }}") || !strings.Contains(action, `"${CONTROL}" repair`) {
+		t.Fatal("workflow-owned model/effort must reach the trusted controller")
 	}
+
 }
 
-func TestSecretBearingCodexProxyIsPinned(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+func TestRepairUsesBaselinePinnedNativeCodex(t *testing.T) {
+	root, _ := filepath.Abs("../../../..")
+	data, err := os.ReadFile(filepath.Join(root, ".github/actions/codex-exec/action.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	files := []string{
-		filepath.Join(".github", "actions", "codex-exec", "action.yml"),
+	action := string(data)
+	for _, bad := range []string{"codex-responses-api-proxy", "@latest", "--last", "sysctl", "danger-full-access"} {
+		if strings.Contains(action, bad) {
+			t.Fatalf("unexpected repair execution path: %s", bad)
+		}
 	}
-	for _, rel := range files {
-		data, err := os.ReadFile(filepath.Join(root, rel))
-		if err != nil {
-			t.Fatal(err)
+	for _, want := range []string{"go run ./internal/tools/cmd/livecodex version", `@openai/codex@${version}`, "CONTROL_SHA256", "checkpoint-dir:"} {
+		if !strings.Contains(action, want) {
+			t.Fatalf("missing executor invariant: %s", want)
 		}
-		text := string(data)
-		if strings.Contains(text, "@openai/codex-responses-api-proxy@latest") {
-			t.Fatalf("%s must not install a floating credential-handling proxy", rel)
-		}
-		if !strings.Contains(text, "@openai/codex-responses-api-proxy@") {
-			t.Fatalf("%s must install an explicit credential-handling proxy version", rel)
-		}
-
 	}
 }
 
@@ -1249,107 +1251,35 @@ func TestProtocolPublicationUsesRepositoryScopedApp(t *testing.T) {
 	}
 }
 
-func TestCodexExecutionOutputStaysOutsideProposalTree(t *testing.T) {
-	if _, err := exec.LookPath("setpriv"); err != nil {
-		t.Skip("setpriv is required by the Linux Codex runner")
-	}
-	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	action, err := os.ReadFile(filepath.Join(root, ".github", "actions", "codex-exec", "action.yml"))
+func TestCodexRepairActionBindsTrustedControlAndCheckpoint(t *testing.T) {
+	root, _ := filepath.Abs("../../../..")
+	action, err := os.ReadFile(filepath.Join(root, ".github/actions/codex-exec/action.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	step, ok := workflowStepByID(string(action), "codex")
 	if !ok {
-		t.Fatal("Codex action has no execution step")
+		t.Fatal("missing execution step")
 	}
 	script := workflowRunScript(t, step)
-	for _, test := range []struct {
-		name, workdir string
-		fail          bool
-	}{
-		{name: "root", workdir: "."},
-		{name: "child", workdir: "codexsdk"},
-		{name: "failed command", workdir: ".", fail: true},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			repo := t.TempDir()
+	for _, tampered := range []bool{false, true} {
+		t.Run(fmt.Sprint(tampered), func(t *testing.T) {
 			runner := t.TempDir()
-			bin := t.TempDir()
-			if err := os.MkdirAll(filepath.Join(repo, "codexsdk"), 0o755); err != nil {
+			control := filepath.Join(runner, "control")
+			code := []byte("#!/bin/sh\nprintf 'outcome=applied\\n' >> \"$GITHUB_OUTPUT\"\n")
+			if err := os.WriteFile(control, code, 0700); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(filepath.Join(repo, "codexsdk", "fixture.txt"), []byte("fixture"), 0o644); err != nil {
-				t.Fatal(err)
+			hash := sha256.Sum256(code)
+			digest := fmt.Sprintf("%x", hash)
+			if tampered {
+				digest = strings.Repeat("0", 64)
 			}
-			for _, args := range [][]string{{"init", "-q", "-b", "main"}, {"add", "codexsdk/fixture.txt"}, {"-c", "user.name=Fixture", "-c", "user.email=fixture@example.com", "commit", "-qm", "fixture"}} {
-				cmd := exec.Command("git", args...)
-				cmd.Dir = repo
-				if out, err := cmd.CombinedOutput(); err != nil {
-					t.Fatalf("git %v: %v: %s", args, err, out)
-				}
-			}
-			fake := `#!/bin/bash
-set -euo pipefail
-for ((index=1; index<=$#; index++)); do
-  if [[ "${!index}" == "--output-last-message" ]]; then
-    next=$((index+1))
-    final_message="${!next}"
-  fi
-done
-printf 'finished\n' > "${final_message}"
-if [[ "${FAKE_CODEX_FAIL}" == true ]]; then
-  printf '%s\n' '{"type":"error","message":"fixture failure"}'
-  exit 42
-fi
-printf '%s\n' '{"type":"turn.completed"}'
-`
-			if err := os.WriteFile(filepath.Join(bin, "codex"), []byte(fake), 0o755); err != nil {
-				t.Fatal(err)
-			}
-			githubOutput := filepath.Join(runner, "github-output")
 			cmd := exec.Command("bash", "-c", script)
-			cmd.Dir = filepath.Join(repo, test.workdir)
-			cmd.Env = append(os.Environ(),
-				"PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"),
-				"RUNNER_TEMP="+runner, "GITHUB_OUTPUT="+githubOutput,
-				"MODEL=fixture", "PROMPT=fixture", "PROXY_PORT=1234", "REASONING_EFFORT=low",
-				fmt.Sprintf("FAKE_CODEX_FAIL=%t", test.fail),
-			)
-			out, runErr := cmd.CombinedOutput()
-			if test.fail && runErr == nil || !test.fail && runErr != nil {
-				t.Fatalf("run err=%v, output=%s", runErr, out)
-			}
-			status := exec.Command("git", "status", "--porcelain")
-			status.Dir = repo
-			visible, err := status.CombinedOutput()
-			if err != nil {
-				t.Fatal(err)
-			}
-			if len(visible) != 0 {
-				t.Fatalf("Codex output entered proposal tree: %s", visible)
-			}
-			logs, err := filepath.Glob(filepath.Join(runner, "**", "attempt-1.log"))
-			if err != nil || len(logs) != 1 {
-				t.Fatalf("runner logs = %v, err=%v", logs, err)
-			}
-			if _, err := os.ReadFile(logs[0]); err != nil {
-				t.Fatal(err)
-			}
-			if !test.fail {
-				output, err := os.ReadFile(githubOutput)
-				if err != nil {
-					t.Fatal(err)
-				}
-				path := strings.TrimSpace(strings.TrimPrefix(string(output), "final-message-path="))
-				if !strings.HasPrefix(string(output), "final-message-path=") || !strings.HasPrefix(path, runner+string(os.PathSeparator)) {
-					t.Fatalf("final message path = %q", output)
-				}
-				if _, err := os.ReadFile(path); err != nil {
-					t.Fatal(err)
-				}
+			cmd.Env = append(os.Environ(), "CONTROL="+control, "CONTROL_SHA256="+digest, "GITHUB_OUTPUT="+filepath.Join(runner, "output"), "GITHUB_WORKSPACE="+runner, "CANDIDATE_DIR="+runner, "CANDIDATE_SHA256=fixture", "TARGET_REF=fixture", "TARGET_KIND=fixture", "TARGET_SHA=fixture", "CHECKPOINT_DIR="+filepath.Join(runner, "checkpoint"))
+			out, err := cmd.CombinedOutput()
+			if (err != nil) != tampered {
+				t.Fatalf("tamper=%v error=%v %s", tampered, err, out)
 			}
 		})
 	}

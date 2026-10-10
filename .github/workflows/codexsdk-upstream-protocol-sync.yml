@@ -110,6 +110,7 @@ jobs:
           rustup default stable
           sudo apt-get update
           sudo apt-get install -y \
+            bubblewrap \
             clang \
             cmake \
             libasound2-dev \
@@ -312,6 +313,7 @@ jobs:
           rustup default stable
           sudo apt-get update
           sudo apt-get install -y \
+            bubblewrap \
             clang \
             cmake \
             libasound2-dev \
@@ -327,6 +329,7 @@ jobs:
         run: |
           set -euo pipefail
           control="${RUNNER_TEMP}/protocolupgrade-control"
+          go mod download
           go build -o "${control}" ./internal/cmd/protocolupgrade
           digest="$(sha256sum "${control}" | cut -d ' ' -f1)"
           echo "sha256=${digest}" >> "${GITHUB_OUTPUT}"
@@ -412,7 +415,7 @@ jobs:
           TARGET_SHA: ${{ steps.mechanical.outputs.target_sha || steps.recovered.outputs.target_sha }}
           CANDIDATE: ${{ steps.mechanical.outputs.candidate || steps.recovered.outputs.candidate }}
           CANDIDATE_DIR: ${{ steps.mechanical.outputs.candidate_dir || steps.recovered.outputs.candidate_dir }}
-          CANDIDATE_SHA256: ${{ steps.mechanical.outputs.candidate_sha256 }}
+          CANDIDATE_SHA256: ${{ steps.mechanical.outputs.candidate_sha256 || steps.recovered.outputs.candidate_sha256 }}
           ISSUE_STAGE: ${{ steps.mechanical.outputs.issue_stage || steps.recovered.outputs.issue_stage }}
           ISSUE_PATH: ${{ steps.mechanical.outputs.issue_path || steps.recovered.outputs.issue_path }}
           ISSUE_REASON: ${{ steps.mechanical.outputs.issue_reason || steps.recovered.outputs.issue_reason }}
@@ -507,9 +510,14 @@ jobs:
         working-directory: codexsdk
         env:
           GOTOOLCHAIN: local
+          REPAIR_VERIFIED: ${{ steps.resume.outputs.applied }}
           CANDIDATE: ${{ steps.mechanical.outputs.candidate || steps.recovered.outputs.candidate }}
         run: |
           set -euo pipefail
+          if [[ "${REPAIR_VERIFIED}" == true ]]; then
+            echo 'Independent isolated repair oracle already ran proposed and accepted assertions, generation checks and vet.'
+            exit 0
+          fi
           go test ./...
           args=(check -module-root .)
           if [[ -n "${CANDIDATE}" ]]; then
@@ -532,7 +540,7 @@ jobs:
         working-directory: codexsdk
         env:
           CANDIDATE_DIR: ${{ steps.mechanical.outputs.candidate_dir || steps.recovered.outputs.candidate_dir }}
-          CANDIDATE_SHA256: ${{ steps.mechanical.outputs.candidate_sha256 }}
+          CANDIDATE_SHA256: ${{ steps.mechanical.outputs.candidate_sha256 || steps.recovered.outputs.candidate_sha256 }}
           TARGET_KIND: ${{ steps.mechanical.outputs.target_kind || steps.recovered.outputs.target_kind }}
           TARGET_REF: ${{ steps.mechanical.outputs.target_ref || steps.recovered.outputs.target_ref }}
           TARGET_SHA: ${{ steps.mechanical.outputs.target_sha || steps.recovered.outputs.target_sha }}

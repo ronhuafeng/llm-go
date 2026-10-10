@@ -143,9 +143,13 @@ jobs:
           GOTOOLCHAIN: local
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
 
+      - name: Install repair oracle sandbox
+        run: sudo apt-get update && sudo apt-get install -y bubblewrap
+
       - name: Root module proof
         env:
           GOTOOLCHAIN: local
+          LLMGO_REPAIR_SANDBOX_TEST: "1"
         run: |
           set -euo pipefail
           go mod tidy -diff

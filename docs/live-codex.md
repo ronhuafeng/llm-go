@@ -267,3 +267,17 @@ The first live suite does not add approval/tool execution, MCP, interrupt,
 WebSocket transports, a platform/model/version matrix, or upstream Rust-test
 mirroring. New real use can justify new stories later. The shared command above
 owns required execution of both stories.
+
+## Protocol repair executor scenario
+
+The same required live command also runs
+`codexsdk/internal/codexexec.TestLiveCodexRepairPreflightAndFeedback`. It verifies
+the internal workflow executor separately from the public SDK stories: official
+baseline-selected CLI, native Responses configuration, actual sandbox nonce-file
+preflight, an identified initial session, and exact-session continuation with
+independent file-validation feedback. The fixture uses the shared suite's selected
+model/reasoning and has no publication token. Repair workflow model selection
+remains its own policy; its own preflight runs before any real repair.
+
+This adds a scenario; it does not replace or relax either existing SDK story.
+No real upstream synchronization is triggered by this test.

@@ -34,7 +34,7 @@ reconstruction remain separate.
 
 Go owns target policy, fresh construction, comparison, planning, application,
 and deterministic checks. GitHub Actions owns triggers, permissions, and
-publication authorization. An Agent may propose one narrowly scoped handwritten
+publication authorization. An Agent may propose narrowly scoped handwritten
 repair for a typed unresolved representation; it does not select the target,
 certify correctness, publish, or integrate.
 
@@ -49,8 +49,8 @@ upstream facts. Observation timestamps are not protocol meaning.
 accepted baseline + exact target
   -> fresh complete/stable candidate
   -> read-only Plan
-  -> optional single handwritten repair for typed semantic_unresolved
-  -> re-plan the same retained candidate
+  -> bounded exact-session handwritten repair for typed semantic_unresolved
+  -> independent re-plan/check in a disposable sandbox; feed repairable failures back
   -> Apply only a complete ready plan
   -> deterministic checks
   -> publish protected sync PR
@@ -185,7 +185,7 @@ produces `semantic_unresolved`. I/O, malformed source, identity, storage,
 environment, and other ordinary failures retain their cause and fail normally.
 Never parse error prose to authorize an Agent.
 
-The one Agent pass receives the already selected target and concrete
+Each bounded Agent repair receives the already selected target and concrete
 stage/path/reason. Read `codexsdk/internal/protocolsync/changes.go`; its policy
 owns allowed handwritten Go/test paths. Changes to sync policy, acceptance,
 identity, publication, validators, or unknown generated paths are outside that
@@ -202,7 +202,31 @@ binary and run its scope check. Normalize changed Go before sealing the patch,
 compare proposal bytes before/after executable checks, and recheck candidate
 identity. A separate publication runner verifies the patch and uses control
 built from trusted checkout. Proposed code never receives repository-write
-credentials. A second unresolved plan fails without publication.
+credentials. A second typed unresolved plan or deterministic validation failure is feedback to
+that exact identified session, not acceptance or immediate abandonment. The trusted
+controller stops on no proposal progress, six rounds (maximum configurable twelve),
+90 minutes, cancellation, or a source/scope/environment block. An executor 404 is
+reported as endpoint-not-found without guessing another URL. Native preflight
+proves an actual selected-model sandbox write before repair.
+
+Every oracle round clones the accepted base, applies only the handwritten proposal,
+and executes proposed Go in a no-network Linux namespace with private temp/home,
+read-only Git identity and candidate inputs. Proposed assertions run first; the
+accepted base's original tests then run independently. Tests cannot modify the
+control plane, the accepted tests, or the publication workspace. Frozen patch and
+candidate bytes are rechecked after execution. Only verified generated output is
+applied back; failed generated trees are discarded.
+
+On failure or interruption, a bounded checkpoint artifact retains the complete
+candidate, handwritten patch, base/target/digests, consumed round count and sanitized
+stage diagnostics. It contains no Codex home, credential, or raw model transcript.
+An explicit `recovery_run_id` workflow dispatch may restore the latest attempt's
+artifact from this trusted workflow on the exact current main commit. Native run
+origin, fresh upstream ref, candidate bytes, proposal scope, and current main are
+checked before replay. Stale base/target or tampering requires reconstruction.
+Recovery starts a new finite invocation and new session with the retained task;
+no prior verification is reused. The artifact is a cache; main and native Git refs
+remain authoritative. Recovery is never scheduled automatically to reset a budget.
 
 The protocol Agent's model/effort is owned by its workflow, independently of the
 live-suite model. Do not change live scenarios, runtime selection, or acceptance

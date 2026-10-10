@@ -7,6 +7,7 @@ vars == <<s>>
 Init == s = [phase |-> "construct", base |-> "B1", target |-> "U1",
   head |-> "H1", candidateBase |-> "B1", candidateTarget |-> "U1",
   candidateHead |-> "H1", round |-> 0, feedback |-> 0,
+  invocation |-> 1, savedRound |-> 0, recoveryAuthorized |-> FALSE,
   modelDone |-> FALSE, verified |-> FALSE, attempt |-> 1,
   checkHead |-> "H1", trustedApp |-> TRUE, latest |-> "missing",
   oldGreen |-> FALSE, liveStarted |-> FALSE, recoveryUsed |-> FALSE,
@@ -34,10 +35,19 @@ VerifyBad == /\ s.phase = "verify"
                   ELSE [s EXCEPT !.phase = "rejected"]
 CancelRepair == /\ s.phase = "model"
                 /\ s' = [s EXCEPT !.phase = "cancelled"]
+\* An explicit user dispatch grants a new bounded invocation, not a background retry.
+AuthorizeRecovery == /\ s.phase = "cancelled"
+                     /\ s.invocation = 1
+                     /\ ~s.recoveryAuthorized
+                     /\ s' = [s EXCEPT !.recoveryAuthorized = TRUE]
 ResumeRepair == /\ s.phase = "cancelled"
                 /\ SameCandidate
-                /\ s.round < MaxRounds
-                /\ s' = [s EXCEPT !.phase = "model", !.round = @ + 1]
+                /\ s.recoveryAuthorized
+                /\ s.invocation = 1
+                /\ s' = [s EXCEPT !.phase = "model", !.round = 1,
+                                  !.savedRound = s.round, !.feedback = 0,
+                                  !.invocation = 2, !.modelDone = FALSE,
+                                  !.recoveryAuthorized = FALSE]
 RejectExhausted == /\ s.phase = "cancelled"
                    /\ s.round = MaxRounds
                    /\ s' = [s EXCEPT !.phase = "rejected"]
@@ -91,7 +101,7 @@ Accept == /\ s.phase = "published"
           /\ s' = [s EXCEPT !.phase = "accepted", !.acceptedAttempt = s.attempt]
 
 Next == Construct \/ ModelReply \/ VerifyGood \/ VerifyBad \/ CancelRepair
-        \/ ResumeRepair \/ RejectExhausted \/ Publish \/ MoveBase \/ MoveTarget
+        \/ AuthorizeRecovery \/ ResumeRepair \/ RejectExhausted \/ Publish \/ MoveBase \/ MoveTarget
         \/ MoveHead \/ RejectStale \/ StartChecks \/ LiveStart \/ NewAttempt
         \/ RecoverChecks \/ Accept
         \/ (\E h \in {"H1", "H2"}, app \in BOOLEAN,
@@ -102,6 +112,8 @@ Next == Construct \/ ModelReply \/ VerifyGood \/ VerifyBad \/ CancelRepair
 Spec == Init /\ [][Next]_vars
 TypeOK == /\ s.phase \in {"construct", "model", "verify", "ready",
                           "published", "cancelled", "accepted", "rejected"}
+          /\ s.invocation \in 1..2
+          /\ s.savedRound \in 0..MaxRounds
           /\ s.round \in 0..MaxRounds
           /\ s.feedback \in 0..MaxRounds
           /\ s.attempt \in 1..2
@@ -110,7 +122,8 @@ CandidateBound == s.phase = "accepted" => SameCandidate
 ProgramOwnsAcceptance == s.phase \in {"ready", "published", "accepted"} => s.verified
 LatestExactProof == s.phase = "accepted" =>
                      (FreshProof /\ s.acceptedAttempt = s.attempt)
-RepairBudget == s.round <= MaxRounds
+RepairBudget == /\ s.round <= MaxRounds
+                /\ s.savedRound + s.round <= 2 * MaxRounds
 FeedbackPrecedesNextRound == s.feedback > 0 => s.feedback < s.round
 RecoveryBound == s.recoveryUsed => s.attempt = 2
 =============================================================================

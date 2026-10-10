@@ -189,3 +189,32 @@ func TestRepairEnvironmentAndDiagnosticsExcludeCredentials(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestConstructionCanChangeOnlyMechanicalBytes(t *testing.T) {
+	req := repairFixture(t)
+	writeFile(t, filepath.Join(req.RepoRoot, "codexsdk/internal/protocolgen/fixture.go"), "package protocolgen\n")
+	before, err := repairNonMechanicalPatch(req.RepoRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(req.RepoRoot, "codexsdk/internal/protocolschema/appserver/v2/NewShape.json"), "{}")
+	after, err := repairNonMechanicalPatch(req.RepoRoot)
+	if err != nil || repairDigest(before) != repairDigest(after) {
+		t.Fatal("mechanical construction changed proposal")
+	}
+	writeFile(t, filepath.Join(req.RepoRoot, "codexsdk/internal/protocolupgrade/check.go"), "tamper")
+	after, err = repairNonMechanicalPatch(req.RepoRoot)
+	if err != nil || repairDigest(before) == repairDigest(after) {
+		t.Fatal("control mutation escaped construction guard")
+	}
+}
+func TestProposalScopeRejectsRedirectedGoFiles(t *testing.T) {
+	req := repairFixture(t)
+	path := filepath.Join(req.RepoRoot, "codexsdk/redirect.go")
+	if err := os.Symlink(filepath.Join(req.CheckpointDir, "checkpoint.json"), path); err != nil {
+		t.Fatal(err)
+	}
+	if err := CheckScope(req.RepoRoot, "agent"); err == nil {
+		t.Fatal("symlink accepted")
+	}
+}

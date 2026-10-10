@@ -73,7 +73,7 @@ func run(args []string) error {
 		fmt.Printf("live_revision=%s live_codex_release=%s live_configured_model=%s live_configured_reasoning=%s\n", strings.TrimSpace(string(head)), version, livecodex.Model, livecodex.Reasoning)
 		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
 		defer cancel()
-		command := exec.CommandContext(ctx, "go", "test", "./internal/tools/integration", "-run", "^TestLiveCodex", "-count=1", "-timeout=7m", "-json")
+		command := exec.CommandContext(ctx, "go", "test", "./internal/tools/integration", "./codexsdk/internal/codexexec", "-run", "^TestLiveCodex", "-count=1", "-timeout=7m", "-json")
 		for _, entry := range os.Environ() {
 			name, _, _ := strings.Cut(entry, "=")
 			switch name {
@@ -82,7 +82,7 @@ func run(args []string) error {
 			}
 			command.Env = append(command.Env, entry)
 		}
-		command.Env = append(command.Env, "LLMGO_LIVE_CODEX=1", "AZURE_OPENAI_API_KEY="+key)
+		command.Env = append(command.Env, "LLMGO_LIVE_CODEX=1", "LLMGO_LIVE_CODEX_VERSION="+version, "LLMGO_LIVE_CODEX_MODEL="+livecodex.Model, "LLMGO_LIVE_CODEX_REASONING="+livecodex.Reasoning, "AZURE_OPENAI_API_KEY="+key)
 		command.Stderr = io.Discard
 		pipe, err := command.StdoutPipe()
 		if err != nil {

@@ -82,9 +82,19 @@ func Repair(ctx context.Context, req RepairRequest) (result SyncResult, err erro
 			cp.Status = "cancelled"
 			cp.Diagnostic = "execution interrupted; recover this candidate on the same base and target"
 		}
-		if err != nil && cp.Status == "ready" {
+		if err != nil && (cp.Status == "ready" || cp.Status == "repairable") {
 			cp.Status = "blocked"
 			cp.Diagnostic = boundedRepairDiagnostic(err.Error())
+		}
+		if err != nil {
+			result.Outcome = OutcomeFailed
+			if result.Stage == "" {
+				result.Stage = cp.Stage
+			}
+			if result.FailureCategory == "" {
+				result.FailureCategory = failureCategory(err)
+			}
+			result.Reason = boundedRepairDiagnostic(err.Error())
 		}
 		if saveErr := saveRepairCheckpoint(req.CheckpointDir, req.ResumeRequest, cp, proposal); saveErr != nil {
 			err = errors.Join(err, saveErr)
@@ -123,6 +133,27 @@ func Repair(ctx context.Context, req RepairRequest) (result SyncResult, err erro
 		// Keep partial in-scope work even after interruption; never store transcripts.
 		if scopeErr := repairIntegrity(req.ResumeRequest, base); scopeErr != nil {
 			return result, scopeErr
+		}
+		if runErr == nil {
+			paths, e := ChangedPaths(req.RepoRoot)
+			if e != nil {
+				return result, e
+			}
+			var source []string
+			for _, p := range paths {
+				if strings.HasSuffix(p, ".go") {
+					if _, e := os.Stat(filepath.Join(req.RepoRoot, p)); e == nil {
+						source = append(source, filepath.Join(req.RepoRoot, p))
+					}
+				}
+			}
+			if len(source) > 0 {
+				command := exec.CommandContext(ctx, "gofmt", append([]string{"-w"}, source...)...)
+				command.Env = repairEnvironment()
+				if out, e := command.CombinedOutput(); e != nil {
+					return result, fmt.Errorf("normalize handwritten proposal: %w: %s", e, boundedRepairDiagnostic(string(out)))
+				}
+			}
 		}
 		proposal, err = repairPatch(req.RepoRoot)
 		if err != nil {
@@ -270,7 +301,7 @@ func repairOracle(ctx context.Context, req ResumeRequest) (SyncResult, []byte, e
 	}
 	existing := filepath.Join(req.ModuleRoot, ".cache", "openai-codex")
 	if _, e := os.Stat(filepath.Join(existing, ".git")); e == nil {
-		if err = runGit(root, "clone", "--quiet", "--shared", existing, source); err != nil {
+		if err = runGit(root, "clone", "--quiet", "--no-hardlinks", existing, source); err != nil {
 			return result, nil, err
 		}
 	} else {
@@ -282,14 +313,48 @@ func repairOracle(ctx context.Context, req ResumeRequest) (SyncResult, []byte, e
 			return result, nil, fmt.Errorf("reconstruct exact source: %w: %s", e, out)
 		}
 	}
+	beforeSource, e := repairNonMechanicalPatch(root)
+	if e != nil {
+		return result, nil, e
+	}
+	sandbox, e := newOracleSandbox(ctx, root, req.CandidateDir)
+	if e != nil {
+		return SyncResult{Stage: "oracle_sandbox", FailureCategory: FailureExecution}, nil, e
+	}
+	base, e := gitOutput(root, "rev-parse", "HEAD")
+	if e != nil {
+		return result, nil, e
+	}
+	verifyIdentity := func() error {
+		head, e := gitOutput(root, "rev-parse", "HEAD")
+		if e != nil {
+			return e
+		}
+		if head != base {
+			return errors.New("oracle Git identity changed")
+		}
+		return VerifyCandidate(req.CandidateDir, req.CandidateSHA256, req.TargetRef, req.TargetKind, req.TargetSHA)
+	}
 	args := []string{"run", "./internal/cmd/protocolupgrade", "resume", "-json", "-repo-root", root, "-module-root", filepath.Join(root, "codexsdk"), "-candidate-dir", req.CandidateDir, "-candidate-sha256", req.CandidateSHA256, "-target-ref", req.TargetRef, "-target-kind", req.TargetKind, "-target-sha", req.TargetSHA}
-	cmd = exec.CommandContext(ctx, "go", args...)
+	cmd = sandbox.command(ctx, filepath.Join(sandbox.goroot, "bin", "go"), args...)
 	cmd.Dir = filepath.Join(root, "codexsdk")
-	cmd.Env = repairEnvironment()
 	var stdout, stderr strings.Builder
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	runErr := cmd.Run()
+	if e := verifyIdentity(); e != nil {
+		return SyncResult{Stage: "oracle_integrity"}, nil, e
+	}
+	if e := CheckScope(root, "final"); e != nil {
+		return SyncResult{Stage: "oracle_integrity"}, nil, e
+	}
+	afterSource, e := repairNonMechanicalPatch(root)
+	if e != nil {
+		return result, nil, e
+	}
+	if repairDigest(beforeSource) != repairDigest(afterSource) {
+		return SyncResult{Stage: "oracle_integrity"}, nil, errors.New("proposed generator changed handwritten/control source during construction")
+	}
 	if e := json.Unmarshal([]byte(stdout.String()), &result); e != nil {
 		return SyncResult{Stage: "oracle_launch"}, nil, fmt.Errorf("oracle did not return structured result: %w: %s", e, boundedRepairDiagnostic(stderr.String()))
 	}
@@ -324,10 +389,12 @@ func repairOracle(ctx context.Context, req ResumeRequest) (SyncResult, []byte, e
 		return result, nil, err
 	}
 	for _, args := range [][]string{{"test", "./..."}, {"run", "./internal/cmd/protocolupgrade", "check", "-module-root", ".", "-candidate", filepath.Join(req.CandidateDir, "schema")}, {"vet", "./..."}} {
-		cmd = exec.CommandContext(ctx, "go", args...)
+		cmd = sandbox.command(ctx, filepath.Join(sandbox.goroot, "bin", "go"), args...)
 		cmd.Dir = filepath.Join(root, "codexsdk")
-		cmd.Env = repairEnvironment()
 		out, e := cmd.CombinedOutput()
+		if identityErr := verifyIdentity(); identityErr != nil {
+			return SyncResult{Stage: "oracle_integrity"}, nil, identityErr
+		}
 		after, pe := repairPatch(root)
 		if pe != nil {
 			return result, nil, pe
@@ -354,10 +421,12 @@ func repairOracle(ctx context.Context, req ResumeRequest) (SyncResult, []byte, e
 	if e != nil {
 		return result, nil, e
 	}
-	cmd = exec.CommandContext(ctx, "go", "test", "./...")
+	cmd = sandbox.command(ctx, filepath.Join(sandbox.goroot, "bin", "go"), "test", "./...")
 	cmd.Dir = filepath.Join(root, "codexsdk")
-	cmd.Env = repairEnvironment()
 	out, e := cmd.CombinedOutput()
+	if identityErr := verifyIdentity(); identityErr != nil {
+		return SyncResult{Stage: "oracle_integrity"}, nil, identityErr
+	}
 	trustedAfter, pe := repairPatch(root)
 	if pe != nil {
 		return result, nil, pe
@@ -378,4 +447,26 @@ func repairEnvironment() []string {
 		}
 	}
 	return env
+}
+
+// Construction may emit only mechanical files; it cannot rewrite the source
+// that the subsequent independent checks execute.
+func repairNonMechanicalPatch(root string) ([]byte, error) {
+	if _, err := repairPatch(root); err != nil {
+		return nil, err
+	}
+	paths, err := ChangedPaths(root)
+	if err != nil {
+		return nil, err
+	}
+	var source []string
+	for _, p := range paths {
+		if !isMechanicalPath(p) {
+			source = append(source, p)
+		}
+	}
+	if len(source) == 0 {
+		return nil, nil
+	}
+	return exec.Command("git", append([]string{"-C", root, "diff", "--binary", "--no-ext-diff", "HEAD", "--"}, source...)...).Output()
 }

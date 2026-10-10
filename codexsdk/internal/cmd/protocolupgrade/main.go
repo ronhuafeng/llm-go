@@ -454,12 +454,16 @@ func runRepair(args []string, stdout, stderr io.Writer) int {
 	}
 	defer os.RemoveAll(state)
 	executor, err := codexexec.New(ctx, codexexec.Config{Workspace: *root, StateDir: state, Version: strings.TrimPrefix(baseline.Version, "codex-cli "), BaseURL: os.Getenv("CODEX_RESPONSES_API_ENDPOINT"), APIKey: os.Getenv("AZURE_OPENAI_API_KEY"), Model: os.Getenv("CODEX_MODEL"), Reasoning: os.Getenv("CODEX_REASONING_EFFORT")})
+	var repairExecutor interface {
+		Preflight(context.Context) error
+		Run(context.Context, string, string) (codexexec.Result, error)
+	} = executor
 	if err != nil {
-		fmt.Fprintln(stderr, err)
-		return 1
+		repairExecutor = unavailableRepairExecutor{err: err}
+	} else {
+		defer executor.Close()
 	}
-	defer executor.Close()
-	result, err := protocolsync.Repair(ctx, protocolsync.RepairRequest{ResumeRequest: protocolsync.ResumeRequest{RepoRoot: *root, ModuleRoot: *module, CandidateDir: *candidate, CandidateSHA256: *digest, TargetRef: *ref, TargetKind: *kind, TargetSHA: *sha}, CheckpointDir: *checkpoint, MaxRounds: *rounds, Executor: executor})
+	result, err := protocolsync.Repair(ctx, protocolsync.RepairRequest{ResumeRequest: protocolsync.ResumeRequest{RepoRoot: *root, ModuleRoot: *module, CandidateDir: *candidate, CandidateSHA256: *digest, TargetRef: *ref, TargetKind: *kind, TargetSHA: *sha}, CheckpointDir: *checkpoint, MaxRounds: *rounds, Executor: repairExecutor})
 	if e := protocolsync.WriteGitHubOutput(os.Getenv("GITHUB_OUTPUT"), result); e != nil {
 		err = e
 	}
@@ -490,4 +494,11 @@ func runRecover(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	return 0
+}
+
+type unavailableRepairExecutor struct{ err error }
+
+func (e unavailableRepairExecutor) Preflight(context.Context) error { return e.err }
+func (e unavailableRepairExecutor) Run(context.Context, string, string) (codexexec.Result, error) {
+	return codexexec.Result{Status: "blocked"}, e.err
 }
