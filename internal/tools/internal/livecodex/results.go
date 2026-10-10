@@ -13,6 +13,8 @@ var safeFact = regexp.MustCompile(`^live_failure\.(stage=(startup|fixture|thread
 
 var safeStoryFact = regexp.MustCompile(`^live_story\.stage=(structured-call|persistent-start|resume|fork|fork-turn) outcome=(started|completed)$`)
 
+var safeExecutorFact = regexp.MustCompile(`^live_executor\.stage=(configure|preflight|start|resume) outcome=(started|completed|failed) diagnostic=(none|completed|configuration_failed|file_assertion|sandbox_write_unverified|sandbox_unavailable|endpoint_not_found|authentication_failed|provider_failed|execution_failed|missing_session|session_mismatch|invalid_event_stream|cancelled)$`)
+
 var safeScenario = regexp.MustCompile(`^TestLiveCodex[a-zA-Z0-9_./-]*$`)
 
 // CheckResults rejects successful process exits that did not prove live execution.
@@ -50,7 +52,7 @@ func CheckResults(input io.Reader, output io.Writer) error {
 				// t.Log's file/line prefix may itself contain "live_".
 				if index := strings.LastIndex(line, "live_"); index >= 0 {
 					fact := line[index:]
-					if len(fact) <= 256 && (safeFact.MatchString(fact) || safeStoryFact.MatchString(fact)) {
+					if len(fact) <= 256 && (safeFact.MatchString(fact) || safeStoryFact.MatchString(fact) || safeExecutorFact.MatchString(fact)) {
 						fmt.Fprintln(output, fact)
 					}
 				}

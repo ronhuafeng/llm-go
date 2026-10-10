@@ -134,6 +134,7 @@ func Repair(ctx context.Context, req RepairRequest) (result SyncResult, err erro
 		if scopeErr := repairIntegrity(req.ResumeRequest, base); scopeErr != nil {
 			return result, scopeErr
 		}
+		var normalizeErr error
 		if runErr == nil {
 			paths, e := ChangedPaths(req.RepoRoot)
 			if e != nil {
@@ -151,7 +152,7 @@ func Repair(ctx context.Context, req RepairRequest) (result SyncResult, err erro
 				command := exec.CommandContext(ctx, "gofmt", append([]string{"-w"}, source...)...)
 				command.Env = repairEnvironment()
 				if out, e := command.CombinedOutput(); e != nil {
-					return result, fmt.Errorf("normalize handwritten proposal: %w: %s", e, boundedRepairDiagnostic(string(out)))
+					normalizeErr = fmt.Errorf("normalize handwritten proposal: %w: %s", e, boundedRepairDiagnostic(string(out)))
 				}
 			}
 		}
@@ -174,7 +175,14 @@ func Repair(ctx context.Context, req RepairRequest) (result SyncResult, err erro
 		}
 		lastDigest = digest
 		cp.Stage = "oracle"
-		result, generated, verifyErr := oracle(ctx, req.ResumeRequest)
+		var generated []byte
+		var verifyErr error
+		if normalizeErr != nil {
+			result = SyncResult{Stage: "verification", FailureCategory: FailureValidation}
+			verifyErr = normalizeErr
+		} else {
+			result, generated, verifyErr = oracle(ctx, req.ResumeRequest)
+		}
 		if integrityErr := repairIntegrity(req.ResumeRequest, base); integrityErr != nil {
 			return result, integrityErr
 		}
@@ -284,7 +292,7 @@ func repairOracle(ctx context.Context, req ResumeRequest) (SyncResult, []byte, e
 	defer os.RemoveAll(dir)
 	root := filepath.Join(dir, "repo")
 	cmd := exec.CommandContext(ctx, "git", "clone", "--quiet", "--no-hardlinks", req.RepoRoot, root)
-	if out, e := cmd.CombinedOutput(); e != nil {
+	if out, e := boundedCommandOutput(cmd); e != nil {
 		return result, nil, fmt.Errorf("clone oracle: %w: %s", e, out)
 	}
 	patch, err := repairPatch(req.RepoRoot)
@@ -335,10 +343,27 @@ func repairOracle(ctx context.Context, req ResumeRequest) (SyncResult, []byte, e
 		}
 		return VerifyCandidate(req.CandidateDir, req.CandidateSHA256, req.TargetRef, req.TargetKind, req.TargetSHA)
 	}
-	args := []string{"run", "./internal/cmd/protocolupgrade", "resume", "-json", "-repo-root", root, "-module-root", filepath.Join(root, "codexsdk"), "-candidate-dir", req.CandidateDir, "-candidate-sha256", req.CandidateSHA256, "-target-ref", req.TargetRef, "-target-kind", req.TargetKind, "-target-sha", req.TargetSHA}
-	cmd = sandbox.command(ctx, filepath.Join(sandbox.goroot, "bin", "go"), args...)
+	binary := filepath.Join(sandbox.work, "protocolupgrade")
+	cmd = sandbox.command(ctx, filepath.Join(sandbox.goroot, "bin", "go"), "build", "-o", binary, "./internal/cmd/protocolupgrade")
+	buildOutput, buildErr := boundedCommandOutput(cmd)
+	if e := verifyIdentity(); e != nil {
+		return SyncResult{Stage: "oracle_integrity"}, nil, e
+	}
+	builtSource, e := repairNonMechanicalPatch(root)
+	if e != nil {
+		return result, nil, e
+	}
+	if repairDigest(beforeSource) != repairDigest(builtSource) {
+		return SyncResult{Stage: "oracle_integrity"}, nil, errors.New("candidate build changed source")
+	}
+	if buildErr != nil {
+		return SyncResult{Stage: "verification", FailureCategory: FailureValidation}, nil, fmt.Errorf("candidate build: %w\n%s", buildErr, boundedRepairDiagnostic(string(buildOutput)))
+	}
+	args := []string{"resume", "-json", "-repo-root", root, "-module-root", filepath.Join(root, "codexsdk"), "-candidate-dir", req.CandidateDir, "-candidate-sha256", req.CandidateSHA256, "-target-ref", req.TargetRef, "-target-kind", req.TargetKind, "-target-sha", req.TargetSHA}
+	cmd = sandbox.command(ctx, binary, args...)
+
 	cmd.Dir = filepath.Join(root, "codexsdk")
-	var stdout, stderr strings.Builder
+	var stdout, stderr repairOutput
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	runErr := cmd.Run()
@@ -391,7 +416,7 @@ func repairOracle(ctx context.Context, req ResumeRequest) (SyncResult, []byte, e
 	for _, args := range [][]string{{"test", "./..."}, {"run", "./internal/cmd/protocolupgrade", "check", "-module-root", ".", "-candidate", filepath.Join(req.CandidateDir, "schema")}, {"vet", "./..."}} {
 		cmd = sandbox.command(ctx, filepath.Join(sandbox.goroot, "bin", "go"), args...)
 		cmd.Dir = filepath.Join(root, "codexsdk")
-		out, e := cmd.CombinedOutput()
+		out, e := boundedCommandOutput(cmd)
 		if identityErr := verifyIdentity(); identityErr != nil {
 			return SyncResult{Stage: "oracle_integrity"}, nil, identityErr
 		}
@@ -423,7 +448,7 @@ func repairOracle(ctx context.Context, req ResumeRequest) (SyncResult, []byte, e
 	}
 	cmd = sandbox.command(ctx, filepath.Join(sandbox.goroot, "bin", "go"), "test", "./...")
 	cmd.Dir = filepath.Join(root, "codexsdk")
-	out, e := cmd.CombinedOutput()
+	out, e := boundedCommandOutput(cmd)
 	if identityErr := verifyIdentity(); identityErr != nil {
 		return SyncResult{Stage: "oracle_integrity"}, nil, identityErr
 	}
@@ -469,4 +494,22 @@ func repairNonMechanicalPatch(root string) ([]byte, error) {
 		return nil, nil
 	}
 	return exec.Command("git", append([]string{"-C", root, "diff", "--binary", "--no-ext-diff", "HEAD", "--"}, source...)...).Output()
+}
+
+// Discard excess command text in memory as well as in retained diagnostics.
+type repairOutput struct{ strings.Builder }
+
+func (w *repairOutput) Write(p []byte) (int, error) {
+	n := len(p)
+	if remaining := 65536 - w.Len(); remaining > 0 {
+		_, _ = w.Builder.Write(p[:min(remaining, n)])
+	}
+	return n, nil
+}
+func boundedCommandOutput(cmd *exec.Cmd) ([]byte, error) {
+	var output repairOutput
+	cmd.Stdout = &output
+	cmd.Stderr = &output
+	err := cmd.Run()
+	return []byte(output.String()), err
 }
