@@ -273,6 +273,8 @@ func parseEvents(r io.Reader, expected string) (Result, error) {
 			Message  string `json:"message"`
 			Item     struct {
 				Type     string `json:"type"`
+				Status   string `json:"status"`
+				Message  string `json:"message"`
 				ExitCode *int   `json:"exit_code"`
 				Output   string `json:"aggregated_output"`
 			} `json:"item"`
@@ -295,15 +297,22 @@ func parseEvents(r io.Reader, expected string) (Result, error) {
 				result.SessionID = event.ThreadID
 			}
 		case "item.completed":
-			if event.Item.Type == "command_execution" && event.Item.ExitCode != nil {
-				if *event.Item.ExitCode != 0 {
+			if event.Item.Type == "command_execution" {
+				if event.Item.Status == "failed" || event.Item.Status == "declined" || (event.Item.ExitCode != nil && *event.Item.ExitCode != 0) {
 					result.ToolDiagnostic = "command_failed"
 					lower := strings.ToLower(event.Item.Output)
 					if strings.Contains(lower, "bwrap") || strings.Contains(lower, "sandbox") || strings.Contains(lower, "operation not permitted") {
 						result.ToolDiagnostic = "sandbox_unavailable"
 					}
-				} else if result.ToolDiagnostic == "" {
+				} else if event.Item.ExitCode != nil && *event.Item.ExitCode == 0 && result.ToolDiagnostic == "" {
 					result.ToolDiagnostic = "command_succeeded_write_unverified"
+				}
+			}
+			if event.Item.Type == "error" {
+				result.ToolDiagnostic = "runtime_warning"
+				lower := strings.ToLower(event.Item.Message)
+				if strings.Contains(lower, "bwrap") || strings.Contains(lower, "sandbox") || strings.Contains(lower, "operation not permitted") {
+					result.ToolDiagnostic = "sandbox_unavailable"
 				}
 			}
 		case "turn.completed":

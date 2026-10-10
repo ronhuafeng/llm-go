@@ -158,3 +158,26 @@ func TestCancellationRecoveryHasSeparateTrustedAuthority(t *testing.T) {
 		t.Fatal("proposal job received recovery write authority")
 	}
 }
+
+func TestSandboxHostSetupIsBoundedToEphemeralHostedVM(t *testing.T) {
+	root, err := filepath.Abs("../../../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"pr-verification.yml", "live-codex-smoke.yml", "codexsdk-upstream-protocol-sync.yml"} {
+		workflow := readWorkflow(t, root, name)
+		step, ok := workflowStepByID(workflow, "sandbox_host")
+		if !ok {
+			t.Fatal(name, "missing explicit sandbox host prerequisite")
+		}
+		script := workflowRunScript(t, step)
+		guard := strings.Index(script, `test "${HOSTED_ENVIRONMENT}" = github-hosted`)
+		setting := strings.Index(script, "sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0")
+		if guard < 0 || setting < guard || !strings.Contains(step, "HOSTED_ENVIRONMENT: ${{ runner.environment }}") {
+			t.Fatal(name, "unbounded host setting")
+		}
+		if strings.Contains(script, "|| true") || strings.Contains(script, "--share-net") {
+			t.Fatal(name, "sandbox prerequisite must fail closed")
+		}
+	}
+}

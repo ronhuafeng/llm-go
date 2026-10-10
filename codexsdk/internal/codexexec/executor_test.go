@@ -161,3 +161,18 @@ func TestPreflightToolDiagnosticDoesNotRejectRecoveredTurn(t *testing.T) {
 		t.Fatal("raw output leaked")
 	}
 }
+
+func TestTerminalToolFailureWithoutExitCodeIsDiagnosed(t *testing.T) {
+	for _, tc := range []struct{ item, want string }{
+		{`{"type":"command_execution","status":"failed","exit_code":null,"aggregated_output":"bwrap: Operation not permitted PRIVATE"}`, "sandbox_unavailable"},
+		{`{"type":"command_execution","status":"declined","exit_code":null}`, "command_failed"},
+		{`{"type":"error","message":"sandbox failed PRIVATE"}`, "sandbox_unavailable"},
+		{`{"type":"error","message":"generic PRIVATE"}`, "runtime_warning"},
+	} {
+		events := `{"type":"thread.started","thread_id":"12345678-1234-1234-1234-123456789abc"}` + "\n" + `{"type":"item.completed","item":` + tc.item + `}` + "\n" + `{"type":"turn.completed"}`
+		result, err := parseEvents(strings.NewReader(events), "")
+		if err != nil || result.Status != "completed" || result.ToolDiagnostic != tc.want {
+			t.Fatalf("result=%+v error=%v want=%s", result, err, tc.want)
+		}
+	}
+}

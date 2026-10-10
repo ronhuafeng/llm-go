@@ -281,3 +281,11 @@ remains its own policy; its own preflight runs before any real repair.
 
 This adds a scenario; it does not replace or relax either existing SDK story.
 No real upstream synchronization is triggered by this test.
+
+The required hosted CI jobs enable user namespaces on their disposable Ubuntu
+24 VM with `kernel.apparmor_restrict_unprivileged_userns=0`. A hard
+`runner.environment == github-hosted` guard bounds this administrative setup;
+it is not a local-machine or self-hosted-runner recipe. Codex remains
+`workspace-write` with network access disabled, and the oracle retains its
+separate read-only inputs, private process namespace, and network isolation.
+The actual executor and oracle isolation assertions remain mandatory.

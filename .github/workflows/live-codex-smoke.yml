@@ -79,6 +79,18 @@ jobs:
           set -euo pipefail
           npm install --global "@openai/codex@${CODEX_RELEASE}"
           codex --version
+      - name: Enable sandbox namespaces on ephemeral hosted VM
+        id: sandbox_host
+        if: steps.classify.outputs.required == 'true'
+        env:
+          HOSTED_ENVIRONMENT: ${{ runner.environment }}
+        run: |
+          set -euo pipefail
+          test "${HOSTED_ENVIRONMENT}" = github-hosted
+          # Ubuntu 24 AppArmor otherwise denies namespace-local loopback setup.
+          # This VM-only prerequisite does not change the child sandbox policy.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
       - name: Run real Codex suite once
         if: steps.classify.outputs.required == 'true'
         env:
