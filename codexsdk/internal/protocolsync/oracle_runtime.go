@@ -22,6 +22,9 @@ import (
 type oracleContractError struct{ error }
 type oracleIntegrityError struct{ error }
 
+func (e *oracleContractError) Unwrap() error  { return e.error }
+func (e *oracleIntegrityError) Unwrap() error { return e.error }
+
 // runTargetOracle keeps expectations out of the candidate's test package. The
 // controller derives source coverage and compiles a separate immutable probe;
 // candidate TestMain functions cannot skip it or supply its expected values.
@@ -34,6 +37,7 @@ func runTargetOracle(ctx context.Context, req ResumeRequest, root string, sandbo
 	if len(specification.Bindings) == 0 {
 		return nil
 	} // no changed wire contracts; baseline regression still runs
+	specification.Context = ctx
 	source, err := schemaoracle.Generate(specification)
 	if err != nil {
 		return &oracleContractError{err}

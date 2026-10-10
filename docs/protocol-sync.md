@@ -240,6 +240,11 @@ The existing controller owns two verification paths:
   exiting early cannot supply success. This does not freeze private generator helper signatures or put
   old version-specific literals onto incompatible target types.
 
+Witnesses vary one member at a time; they do not enumerate Cartesian combinations.
+Repeated path/branch obligations are deduplicated before constructing JSON. Each
+contract has one test with indexed failures, rather than one emitted test event per
+probe. Construction honors the existing repair cancellation and deadline.
+
 Traversal, witness and output limits are bounded and fail with an uncovered source
 path rather than silently reducing proof. New schema constructs can require a
 reviewed checker extension with positive and negative cases. The checker is not a

@@ -3,9 +3,12 @@ package schemaoracle
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -45,9 +48,7 @@ func(p *Payload) UnmarshalJSON(b []byte)error {var m map[string]json.RawMessage;
 			cmd := exec.Command("go", "test", "-count=1", ".")
 			cmd.Dir = dir
 			out, e := cmd.CombinedOutput()
-			if (e == nil) != tt.wantPass {
-				t.Fatalf("wantPass=%v error=%v\n%s", tt.wantPass, e, out)
-			}
+			requireOracleOutcome(t, out, e, tt.wantPass)
 		})
 	}
 }
@@ -157,9 +158,7 @@ func(p *Payload) UnmarshalJSON(b []byte)error {var m map[string]json.RawMessage;
 			cmd := exec.Command("go", "test", "-count=1", ".")
 			cmd.Dir = dir
 			out, e := cmd.CombinedOutput()
-			if (e == nil) != tt.pass {
-				t.Fatalf("pass=%v error=%v\n%s", tt.pass, e, out)
-			}
+			requireOracleOutcome(t, out, e, tt.pass)
 		})
 	}
 }
@@ -309,9 +308,7 @@ func runOracleFixture(t *testing.T, r Request, implementation string, wantPass b
 	cmd := exec.Command("go", "test", "-count=1", ".")
 	cmd.Dir = dir
 	output, err := cmd.CombinedOutput()
-	if (err == nil) != wantPass {
-		t.Fatalf("wantPass=%v err=%v\n%s", wantPass, err, output)
-	}
+	requireOracleOutcome(t, output, err, wantPass)
 }
 
 func TestDeepRequiredAndTypeMutationsExecuteAgainstWeakDecoder(t *testing.T) {
@@ -410,5 +407,89 @@ func TestAggregateUnionKeepsEveryBoundedBranch(t *testing.T) {
 	}
 	if count != 2100 {
 		t.Fatalf("union branches truncated: %d", count)
+	}
+}
+
+type cancelAfterChecks struct {
+	context.Context
+	cancel context.CancelFunc
+	checks int
+}
+
+func (c *cancelAfterChecks) Err() error {
+	c.checks++
+	if c.checks == 4 {
+		c.cancel()
+	}
+	return c.Context.Err()
+}
+func TestConstructionHonorsExistingRepairCancellation(t *testing.T) {
+	for _, during := range []bool{false, true} {
+		ctx, cancel := context.WithCancel(context.Background())
+		req := request(`{"type":"object","properties":{"value":{"type":"string"}},"required":["value"]}`)
+		if during {
+			req.Context = &cancelAfterChecks{Context: ctx, cancel: cancel}
+		} else {
+			cancel()
+			req.Context = ctx
+		}
+		_, err := Generate(req)
+		cancel()
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("during=%t: cancelled construction returned %v", during, err)
+		}
+	}
+}
+
+func TestGeneratedCasesStayInsideOneContractTest(t *testing.T) {
+	req := request(`{"type":"object","properties":{"one":{"type":"string"},"two":{"type":"boolean"}},"required":["one"]}`)
+	targets, err := Build(req)
+	if err != nil || len(targets[0].Probes) < 10 {
+		t.Fatalf("corpus %v", err)
+	}
+	source, err := Generate(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(string(source), "t.Run(") != len(targets) || !bytes.Contains(source, []byte("probe %d:")) {
+		t.Fatal("probe count inflated test events or lost indexed diagnostics")
+	}
+}
+
+func TestStreamingCorpusMatchesOriginalBytes(t *testing.T) {
+	targets := []Target{{Probes: []Probe{{JSON: `{"text":"<quoted>\\\""}`, Valid: true}, {JSON: `null`, Valid: false}}}, {Probes: nil}, {Probes: []Probe{}}}
+	compressed, err := compressCorpus(context.Background(), targets)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader, err := gzip.NewReader(bytes.NewReader(compressed))
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader.Close()
+	original := make([][]Probe, len(targets))
+	for i, target := range targets {
+		original[i] = target.Probes
+	}
+	want, err := json.Marshal(original)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(raw, want) {
+		t.Fatalf("stream changed corpus: %s != %s", raw, want)
+	}
+}
+
+func requireOracleOutcome(t *testing.T, output []byte, err error, wantPass bool) {
+	t.Helper()
+	if (err == nil) != wantPass {
+		t.Fatalf("wantPass=%t err=%v\n%s", wantPass, err, output)
+	}
+	if !wantPass && !bytes.Contains(output, []byte("--- FAIL: TestTrustedSchemaOracle")) {
+		t.Fatalf("negative fixture did not reach a contract assertion: %v\n%s", err, output)
 	}
 }

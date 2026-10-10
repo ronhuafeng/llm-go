@@ -5,6 +5,7 @@ package schemaoracle
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -26,6 +27,8 @@ import (
 // properties and no additionalProperties reject unknown fields. Unconstrained
 // objects and explicitly open maps remain open.
 type Request struct {
+	// Context carries the existing repair deadline through bounded construction.
+	Context      context.Context
 	Schemas      map[string][]byte
 	Bindings     map[string]string
 	Package      string
@@ -53,6 +56,13 @@ type Target struct {
 // Bounds are deliberate: unsupported schema drift is a concrete controller
 // error, never silently reduced coverage or candidate self-certification.
 func Build(req Request) ([]Target, error) {
+	ctx := req.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if len(req.Bindings) == 0 {
 		return nil, fmt.Errorf("schema oracle: no target schemas")
 	}
@@ -63,6 +73,9 @@ func Build(req Request) ([]Target, error) {
 	totalJSONBytes, totalProbes := 0, 0
 	var budgetErr error
 	for _, name := range keys(req.Bindings) {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		binding := req.Bindings[name]
 		if !token.IsIdentifier(binding) || token.Lookup(binding).IsKeyword() {
 			return nil, fmt.Errorf("schema oracle %s: missing or invalid Go binding %q", name, binding)
@@ -113,7 +126,11 @@ func Build(req Request) ([]Target, error) {
 			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
 		}
 		seen := map[string]bool{}
-		add := func(v any) {
+		add := func(v any, knownValid bool) {
+			if err := ctx.Err(); err != nil {
+				budgetErr = err
+				return
+			}
 			if budgetErr != nil {
 				return
 			}
@@ -127,7 +144,7 @@ func Build(req Request) ([]Target, error) {
 					return
 				}
 				seen[s] = true
-				target.Probes = append(target.Probes, Probe{s, compiled.Validate(v) == nil})
+				target.Probes = append(target.Probes, Probe{s, knownValid || compiled.Validate(v) == nil})
 			}
 		}
 		valid := 0
@@ -135,11 +152,14 @@ func Build(req Request) ([]Target, error) {
 		discriminators := unionDiscriminators(doc, root, 0)
 		nestedDiscriminators := allDiscriminators(doc, root, map[string]bool{}, 0)
 		for _, v := range values {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
 			if compiled.Validate(v) != nil {
 				return nil, fmt.Errorf("schema oracle %s: cannot construct valid witness at root: %v", name, compiled.Validate(v))
 			}
 			valid++
-			add(v)
+			add(v, true)
 			context := mutationShape(v, 0)
 			if len(discriminators) > 0 {
 				context = fmt.Sprintf("%T", v)
@@ -158,7 +178,7 @@ func Build(req Request) ([]Target, error) {
 				return nil, fmt.Errorf("schema oracle %s: %w", name, err)
 			}
 			for _, mutation := range mutations {
-				add(mutation)
+				add(mutation, false)
 			}
 			if budgetErr != nil {
 				return nil, budgetErr
@@ -179,6 +199,9 @@ func Build(req Request) ([]Target, error) {
 // or decide which mutations are valid. Decode success also requires lossless
 // JSON roundtrip, including optional absence, null, and distinct field values.
 func Generate(req Request) ([]byte, error) {
+	if req.Context == nil {
+		req.Context = context.Background()
+	}
 	targets, err := Build(req)
 	if err != nil {
 		return nil, err
@@ -190,36 +213,18 @@ func Generate(req Request) ([]byte, error) {
 	if !token.IsIdentifier(pkg) {
 		return nil, fmt.Errorf("schema oracle: invalid package")
 	}
-	corpus := make([][]Probe, len(targets))
-	for i, t := range targets {
-		corpus[i] = t.Probes
-	}
-	raw, err := json.Marshal(corpus)
+	compressed, err := compressCorpus(req.Context, targets)
 	if err != nil {
 		return nil, err
 	}
-	if len(raw) > maxCorpusBytes {
-		return nil, fmt.Errorf("schema oracle: corpus exceeds %d decompressed bytes", maxCorpusBytes)
-	}
-	var compressed bytes.Buffer
-	zip := gzip.NewWriter(&compressed)
-	if _, err := zip.Write(raw); err != nil {
-		return nil, err
-	}
-	if err := zip.Close(); err != nil {
-		return nil, err
-	}
-	if compressed.Len() > maxCompressedBytes {
-		return nil, fmt.Errorf("schema oracle: corpus exceeds %d compressed bytes", maxCompressedBytes)
-	}
 	var b strings.Builder
 	typePrefix := ""
-	fmt.Fprintf(&b, "package %s\nimport (\"encoding/json\";\"bytes\";\"reflect\";\"testing\";\"sort\";\"strings\";\"strconv\";\"compress/gzip\";\"encoding/base64\";\"io\";\"math/big\")\n", pkg)
+	fmt.Fprintf(&b, "package %s\nimport (\"encoding/json\";\"bytes\";\"reflect\";\"testing\";\"sort\";\"strings\";\"compress/gzip\";\"encoding/base64\";\"io\";\"math/big\")\n", pkg)
 	if req.ImportPath != "" {
 		fmt.Fprintf(&b, "import subject %s\n", strconv.Quote(req.ImportPath))
 		typePrefix = "subject."
 	}
-	fmt.Fprintf(&b, "const frozenCorpus = %s\nconst maxFrozenCorpusBytes = %d\nconst maxFrozenCompressedBytes = %d\nconst frozenTargetCount = %d\n", strconv.Quote(base64.StdEncoding.EncodeToString(compressed.Bytes())), maxCorpusBytes, maxCompressedBytes, len(targets))
+	fmt.Fprintf(&b, "const frozenCorpus = %s\nconst maxFrozenCorpusBytes = %d\nconst maxFrozenCompressedBytes = %d\nconst frozenTargetCount = %d\n", strconv.Quote(base64.StdEncoding.EncodeToString(compressed)), maxCorpusBytes, maxCompressedBytes, len(targets))
 	b.WriteString(`func TestTrustedSchemaOracle(t *testing.T) {
  type probe struct { JSON string; Valid bool }
  if len(frozenCorpus)>((maxFrozenCompressedBytes+2)/3)*4{t.Fatal("compressed corpus bound exceeded")}
@@ -233,14 +238,14 @@ func Generate(req Request) ([]byte, error) {
  check := func(t *testing.T, factory func() any, fields []string, checkFields bool, probes []probe) {
   if checkFields { typ:=reflect.TypeOf(factory()).Elem();if typ.Kind()!=reflect.Struct{t.Fatalf("schema object must bind struct, got %s",typ)};actual:=[]string{};for i:=0;i<typ.NumField();i++ {f:=typ.Field(i);if f.PkgPath!=""{continue};tag:=strings.Split(f.Tag.Get("json"),",")[0];if tag=="-"{continue};if tag==""{tag=f.Name};actual=append(actual,tag)};sort.Strings(actual);if !reflect.DeepEqual(actual,fields){t.Fatalf("schema fields=%v Go JSON fields=%v",fields,actual)} }
 
-  for i, p := range probes { t.Run(strconv.Itoa(i), func(t *testing.T) {
+  for i, p := range probes {
    target := factory(); err := json.Unmarshal([]byte(p.JSON),target)
-   if !p.Valid { if err == nil { t.Fatalf("schema-invalid input accepted: %s",preview(p.JSON)) }; return }
-   if err != nil { t.Fatalf("schema-valid input rejected: %s: %v",preview(p.JSON),err) }
+   if !p.Valid { if err == nil { t.Fatalf("probe %d: schema-invalid input accepted: %s",i,preview(p.JSON)) }; continue }
+   if err != nil { t.Fatalf("probe %d: schema-valid input rejected: %s: %v",i,preview(p.JSON),err) }
    actual,err:=json.Marshal(target);if err!=nil{t.Fatal(err)}
    decode:=func(raw []byte) any { var v any; d:=json.NewDecoder(bytes.NewReader(raw));d.UseNumber();if err:=d.Decode(&v);err!=nil{t.Fatal(err)};return v }
-   if !equal(decode([]byte(p.JSON)),decode(actual)){t.Fatalf("wire value lost: input=%s output=%s",preview(p.JSON),preview(string(actual)))}
-  }) }
+   if !equal(decode([]byte(p.JSON)),decode(actual)){t.Fatalf("probe %d: wire value lost: input=%s output=%s",i,preview(p.JSON),preview(string(actual)))}
+  }
  }
 `)
 	for i, t := range targets {
@@ -255,6 +260,68 @@ func Generate(req Request) ([]byte, error) {
 		return nil, fmt.Errorf("schema oracle: generated source exceeds 12 MiB")
 	}
 	return format.Source([]byte(b.String()))
+}
+
+// Stream the exact frozen JSON representation into gzip. Holding a second
+// complete escaped corpus would unnecessarily duplicate hundreds of MiB.
+func compressCorpus(ctx context.Context, targets []Target) ([]byte, error) {
+	var compressed bytes.Buffer
+	zip := gzip.NewWriter(&compressed)
+	total := 0
+	var writeErr error
+	write := func(data []byte) {
+		if writeErr != nil {
+			return
+		}
+		if writeErr = ctx.Err(); writeErr != nil {
+			return
+		}
+		total += len(data)
+		if total > maxCorpusBytes {
+			writeErr = fmt.Errorf("schema oracle: corpus exceeds %d decompressed bytes", maxCorpusBytes)
+			return
+		}
+		_, writeErr = zip.Write(data)
+		if compressed.Len() > maxCompressedBytes {
+			writeErr = fmt.Errorf("schema oracle: corpus exceeds %d compressed bytes", maxCompressedBytes)
+		}
+	}
+	write([]byte("["))
+	for i, target := range targets {
+		if i > 0 {
+			write([]byte(","))
+		}
+		if target.Probes == nil {
+			write([]byte("null"))
+			continue
+		}
+		write([]byte("["))
+		for j, probe := range target.Probes {
+			if writeErr != nil {
+				return nil, writeErr
+			}
+			if j > 0 {
+				write([]byte(","))
+			}
+			data, err := json.Marshal(probe)
+			if err != nil {
+				return nil, err
+			}
+			write(data)
+		}
+		write([]byte("]"))
+	}
+	write([]byte("]"))
+	if writeErr != nil {
+		return nil, writeErr
+	}
+	if err := zip.Close(); err != nil {
+		return nil, err
+	}
+	if compressed.Len() > maxCompressedBytes {
+		return nil, fmt.Errorf("schema oracle: corpus exceeds %d compressed bytes", maxCompressedBytes)
+	}
+	return compressed.Bytes(), nil
 }
 
 func keys[V any](m map[string]V) []string {
