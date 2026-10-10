@@ -224,10 +224,17 @@ values or removing the failing gate is not independent evidence.
 The existing controller owns two verification paths:
 
 - Target contract: `internal/schemaoracle` reads the retained exact schema bytes,
-  selects changed/new named contracts and their transitive users, and computes
+  selects changed/new public-reachable contracts and their transitive users, and computes
   valid/invalid witnesses with an independent JSON Schema validator. Required
   bindings and exact declared fields come from source, never from whichever Go
-  types the proposal happened to generate. A separate read-only Go test package
+  types the proposal happened to generate. Public roots come from upstream
+  request/notification aggregates and their exact `common.rs` response mappings;
+  exporting an internal-only standalone schema does not make it a public root.
+  Old public reachability is computed separately from the accepted raw aggregates
+  and their frozen, provenance-checked baseline manifest response mappings. Those
+  mappings must match the accepted aggregate requests and source identity. Target
+  manifest projections never choose either version's coverage.
+  Missing reachable Go bindings still fail compilation. A separate read-only Go test package
   checks field/tag coverage, rejection and lossless JSON round trips. Candidate
   tests and `TestMain` cannot replace its run/pass event. The explicit local overlay
   preserves strict decoding of property-bearing objects unless the source declares
@@ -256,7 +263,9 @@ output is applied back; failed generated trees are discarded.
 
 On failure or interruption, a bounded checkpoint artifact retains the complete
 candidate, handwritten patch, base/target/digests, consumed round count and sanitized
-stage diagnostics. It contains no Codex home, credential, or raw model transcript.
+stage diagnostics. Structured Go build output is retained as compiler feedback;
+a build failure never counts as an executed contract test. It contains no Codex
+home, credential, or raw model transcript.
 An explicit `recovery_run_id` workflow dispatch may restore the latest attempt's
 artifact from this trusted workflow on the exact current main commit. Native run
 origin, fresh upstream ref, candidate bytes, proposal scope, and current main are

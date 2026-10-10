@@ -83,7 +83,11 @@ import("bytes";"encoding/json";"fmt")
 type Payload struct { Current bool ` + "`json:\"current\"`" + ` }
 func(p *Payload) UnmarshalJSON(b []byte) error { var m map[string]json.RawMessage;if e:=json.Unmarshal(b,&m);e!=nil{return e};if len(m)!=1||m["current"]==nil||bytes.Equal(m["current"],[]byte("null")){return fmt.Errorf("invalid")};type plain Payload;return json.Unmarshal(b,(*plain)(p)) }
 `
-	writeFile(t, subject, good)
+	notification := `
+type ServerNotification struct { Method string ` + "`json:\"method\"`" + `; Params Payload ` + "`json:\"params\"`" + ` }
+func(p *ServerNotification) UnmarshalJSON(b []byte) error { var m map[string]json.RawMessage;if e:=json.Unmarshal(b,&m);e!=nil{return e};if len(m)!=2||m["method"]==nil||m["params"]==nil||bytes.Equal(m["params"],[]byte("null")){return fmt.Errorf("invalid")};type plain ServerNotification;if e:=json.Unmarshal(b,(*plain)(p));e!=nil{return e};if p.Method!="notice"{return fmt.Errorf("invalid")};return nil }
+`
+	writeFile(t, subject, good+notification)
 	writeFile(t, filepath.Join(module, "protocolv2/fixture_test.go"), "package protocolv2\nimport(\"os\";\"testing\")\nfunc TestMain(m *testing.M){os.Exit(0)}\n")
 	runGitInit(t, root)
 	if e := os.MkdirAll(filepath.Join(module, ".cache/openai-codex"), 0700); e != nil {
@@ -91,6 +95,19 @@ func(p *Payload) UnmarshalJSON(b []byte) error { var m map[string]json.RawMessag
 	}
 	candidate := t.TempDir()
 	writeFile(t, filepath.Join(candidate, "schema/v2/Payload.json"), `{"title":"Payload","type":"object","properties":{"current":{"type":"boolean"}},"required":["current"]}`)
+	for _, schemaRoot := range []string{filepath.Join(module, "internal/protocolschema/appserver/v2"), filepath.Join(candidate, "schema")} {
+		for _, name := range []string{"ClientRequest", "ServerRequest", "ClientNotification"} {
+			writeFile(t, filepath.Join(schemaRoot, name+".json"), `{"title":"`+name+`","oneOf":[]}`)
+		}
+		payload, err := os.ReadFile(filepath.Join(schemaRoot, "v2/Payload.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, filepath.Join(schemaRoot, "ServerNotification.json"), `{"title":"ServerNotification","oneOf":[{"type":"object","properties":{"method":{"type":"string","enum":["notice"]},"params":{"$ref":"#/definitions/Payload"}},"required":["method","params"]}],"definitions":{"Payload":`+string(payload)+`}}`)
+	}
+	writeOracleAcceptedManifest(t, filepath.Join(module, "internal/protocolschema/appserver/v2"), nil)
+	writeFile(t, filepath.Join(candidate, "common.rs"), "client_request_definitions! {\n}\nserver_request_definitions! {\n}\n")
+	writeFile(t, filepath.Join(candidate, "schema/v2/InternalNotification.json"), `{"title":"InternalNotification","type":"object","properties":{"private":{"type":"string"}}}`)
 	sandbox, e := newOracleSandbox(context.Background(), root, candidate)
 	if e != nil {
 		t.Fatal(e)
@@ -104,7 +121,7 @@ func(p *Payload) UnmarshalJSON(b []byte) error { var m map[string]json.RawMessag
 		{"candidate_init_bypasses_test", "package protocolv2\nimport \"os\"\ntype Payload struct{Current bool `json:\"current\"`}\nfunc init(){os.Exit(0)}\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			writeFile(t, subject, tc.code)
+			writeFile(t, subject, tc.code+"\ntype ServerNotification struct{ Params Payload `json:\"params\"`; Method string `json:\"method\"` }\n")
 			if e := runTargetOracle(context.Background(), req, root, sandbox); e == nil {
 				t.Fatal("invalid implementation acquired independent proof")
 			}

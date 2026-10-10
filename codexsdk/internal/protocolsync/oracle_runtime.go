@@ -30,7 +30,7 @@ func (e *oracleIntegrityError) Unwrap() error { return e.error }
 // candidate TestMain functions cannot skip it or supply its expected values.
 func runTargetOracle(ctx context.Context, req ResumeRequest, root string, sandbox oracleSandbox) error {
 	baseline := filepath.Join(req.ModuleRoot, "internal/protocolschema/appserver/v2")
-	specification, err := schemaOracleRequest(baseline, filepath.Join(req.CandidateDir, "schema"), filepath.Join(root, "codexsdk/protocolv2"))
+	specification, err := schemaOraclePublicRequest(baseline, filepath.Join(req.CandidateDir, "schema"), filepath.Join(root, "codexsdk/protocolv2"), filepath.Join(req.CandidateDir, "common.rs"))
 	if err != nil {
 		return err
 	}
@@ -96,7 +96,10 @@ func (w *oracleTestEvents) Write(p []byte) (int, error) {
 			w.invalid = true
 			continue
 		}
-		if e.Action == "output" {
+		// Modern go test -json interleaves BuildEvents with TestEvents.
+		// Build diagnostics have ImportPath, not Package; retain them without
+		// treating any build event as evidence that a test executed.
+		if e.Action == "output" || e.Action == "build-output" {
 			_, _ = w.diagnostic.Write([]byte(e.Output))
 		}
 		if e.Package != "github.com/ronhuafeng/llm-go/codexsdk/internal/schemaoracleprobe" || e.Test != "TestTrustedSchemaOracle" {
@@ -298,7 +301,7 @@ func (w *baselineTestEvents) Write(p []byte) (int, error) {
 			w.invalid = true
 			continue
 		}
-		if e.Action == "output" {
+		if e.Action == "output" || e.Action == "build-output" {
 			_, _ = w.diagnostic.Write([]byte(e.Output))
 		}
 		key := e.Package + "/" + e.Test

@@ -2,9 +2,38 @@ package protocolsync
 
 import (
 	"encoding/json"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestOracleRetainsRealGoBuildDiagnostics(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "go.mod"), "module example.invalid/oraclebuild\n\ngo 1.26\n")
+	writeFile(t, filepath.Join(root, "contract_test.go"), "package oraclebuild\nimport \"testing\"\nfunc TestTrustedSchemaOracle(t *testing.T) { _ = missingContractBinding }\n")
+	cmd := exec.Command("go", "test", "-json", ".")
+	cmd.Dir = root
+	out, err := cmd.Output()
+	if err == nil {
+		t.Fatal("broken trusted fixture unexpectedly compiled")
+	}
+	var target oracleTestEvents
+	baseline := baselineTestEvents{expected: map[string]bool{"example.invalid/oraclebuild/TestTrustedSchemaOracle": true}, ran: map[string]bool{}, passed: map[string]bool{}}
+	// Preserve framing when BuildEvents arrive across arbitrary writes.
+	for _, b := range out {
+		_, _ = target.Write([]byte{b})
+		_, _ = baseline.Write([]byte{b})
+	}
+	for name, diagnostic := range map[string]string{"target": target.diagnostic.String(), "baseline": baseline.diagnostic.String()} {
+		if !strings.Contains(diagnostic, "contract_test.go:") || !strings.Contains(diagnostic, "undefined: missingContractBinding") {
+			t.Fatalf("%s lost actual compiler diagnostic: %q; raw=%s", name, diagnostic, out)
+		}
+	}
+	if target.started || target.passed || baseline.verify() == nil {
+		t.Fatal("build failure was accepted as executed test evidence")
+	}
+}
 
 func TestAcceptedBaselineEvidenceRequiresEveryTest(t *testing.T) {
 	const pkg = "github.com/ronhuafeng/llm-go/codexsdk"

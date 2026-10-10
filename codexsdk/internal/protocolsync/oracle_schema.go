@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ronhuafeng/llm-go/codexsdk/internal/protocolupgrade"
 	"github.com/ronhuafeng/llm-go/codexsdk/internal/schemaoracle"
 )
 
@@ -24,10 +25,26 @@ type oracleSchemaFact struct {
 	inline    bool
 }
 
-// schemaOracleRequest selects coverage from source schemas, never from proposed
-// generated declarations. Bindings are protocol type names; a missing binding
-// fails compilation rather than quietly reducing the probe set.
+// schemaOraclePublicRequest scopes expectations to upstream public entrypoints.
+// Candidate generated declarations never decide reachability.
+func schemaOraclePublicRequest(baseline, candidate, generated, commonRS string) (schemaoracle.Request, error) {
+	roots, err := protocolupgrade.OraclePublicRoots(candidate, commonRS)
+	if err != nil {
+		return schemaoracle.Request{}, &oracleContractError{err}
+	}
+	oldRoots, err := protocolupgrade.OracleAcceptedPublicRoots(baseline)
+	if err != nil {
+		return schemaoracle.Request{}, &oracleContractError{err}
+	}
+	return schemaOracleScopedRequest(baseline, candidate, generated, oldRoots, roots)
+}
+
+// schemaOracleRequest is the unscoped shape-comparison seam for focused tests.
 func schemaOracleRequest(baseline, candidate, generated string) (schemaoracle.Request, error) {
+	return schemaOracleScopedRequest(baseline, candidate, generated, nil, nil)
+}
+
+func schemaOracleScopedRequest(baseline, candidate, generated string, oldRoots, roots map[string]bool) (schemaoracle.Request, error) {
 	old, _, err := oracleSchemaFacts(baseline)
 	if err != nil {
 		return schemaoracle.Request{}, err
@@ -36,6 +53,15 @@ func schemaOracleRequest(baseline, candidate, generated string) (schemaoracle.Re
 	if err != nil {
 		return schemaoracle.Request{}, err
 	}
+	if roots != nil {
+		if err := oracleScopeFacts(old, oldRoots); err != nil {
+			return schemaoracle.Request{}, &oracleContractError{err}
+		}
+		if err := oracleScopeFacts(next, roots); err != nil {
+			return schemaoracle.Request{}, &oracleContractError{err}
+		}
+	}
+
 	changed := map[string]bool{}
 	for name, fact := range next {
 		if prior, ok := old[name]; !ok || prior.shape != fact.shape {
@@ -459,6 +485,43 @@ func oracleSourceStructure(node any, path string, document bool) error {
 			} else if err := oracleSourceStructure(v, path+"/"+k, false); err != nil {
 				return err
 			}
+		}
+	}
+	return nil
+}
+
+func oracleScopeFacts(facts map[string]oracleSchemaFact, roots map[string]bool) error {
+	for name := range facts {
+		if oracleEnvelopeName(name) || name == "RequestId" {
+			roots[name] = true
+		}
+	}
+	reachable := map[string]bool{}
+	var visit func(string) error
+	visit = func(name string) error {
+		if reachable[name] {
+			return nil
+		}
+		fact, ok := facts[name]
+		if !ok {
+			return fmt.Errorf("schema oracle: public source root/reference %s has no schema binding", name)
+		}
+		reachable[name] = true
+		for ref := range fact.refs {
+			if err := visit(ref); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	for name := range roots {
+		if err := visit(name); err != nil {
+			return err
+		}
+	}
+	for name := range facts {
+		if !reachable[name] {
+			delete(facts, name)
 		}
 	}
 	return nil
