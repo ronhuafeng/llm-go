@@ -636,17 +636,6 @@ jobs:
           go-version-file: go.mod
           cache: false
 
-      - name: Enable sandbox namespaces on ephemeral hosted VM
-        id: sandbox_host
-        env:
-          HOSTED_ENVIRONMENT: ${{ runner.environment }}
-        run: |
-          set -euo pipefail
-          test "${HOSTED_ENVIRONMENT}" = github-hosted
-          # Ubuntu 24 AppArmor otherwise denies namespace-local loopback setup.
-          # This VM-only prerequisite does not change the child sandbox policy.
-          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-
       - name: Build trusted publication control
         working-directory: codexsdk
         env:

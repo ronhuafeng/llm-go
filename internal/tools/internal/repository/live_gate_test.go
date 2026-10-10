@@ -166,6 +166,15 @@ func TestSandboxHostSetupIsBoundedToEphemeralHostedVM(t *testing.T) {
 	}
 	for _, name := range []string{"pr-verification.yml", "live-codex-smoke.yml", "codexsdk-upstream-protocol-sync.yml"} {
 		workflow := readWorkflow(t, root, name)
+		if strings.Count(workflow, "id: sandbox_host") != 1 {
+			t.Fatal(name, "unexpected additional administrative sandbox setup")
+		}
+		if name == "codexsdk-upstream-protocol-sync.yml" {
+			publish := strings.Index(workflow, "\n  publish:")
+			if publish < 0 || strings.Contains(workflow[publish:], "apparmor_restrict_unprivileged_userns") {
+				t.Fatal("publication must not alter sandbox host security")
+			}
+		}
 		step, ok := workflowStepByID(workflow, "sandbox_host")
 		if !ok {
 			t.Fatal(name, "missing explicit sandbox host prerequisite")
