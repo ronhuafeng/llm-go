@@ -34,7 +34,7 @@ if [[ "$*" == *" -list "* ]]; then
     exit 1
   fi
   if [[ "$MODE" != "empty" ]]; then
-    printf '%s\n' TestLiveRepairSandboxA TestLiveVerifierProofMatrixNewCase TestLiveVerifierProofMatrix未来
+    printf '%s\n' TestLiveRepairSandboxA TestLiveVerifierProofMatrixNewCase TestLiveVerifierProofMatrix未来 TestLiveRepairSandboxA
   fi
   printf '%s\n' 'ok example/package 0.001s'
   exit 0
