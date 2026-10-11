@@ -833,21 +833,26 @@ func VerifierContinuationTitle(number int, head string) string {
 	return fmt.Sprintf("Verifier continuation PR %d H %s", number, head)
 }
 
+// GitHub may omit this association index on a closed-PR run (observed for
+// run 38133358063). Event identity comes from the fixed workflow's native
+// title/branch/head, bound to ResolveVerifier's independently verified merged
+// PR and publication evidence. A present index must agree with that identity.
+func verifierContinuationIndexAgrees(run verifierNativeRun, pub VerifierPublication) bool {
+	return len(run.PullRequests) == 0 || (len(run.PullRequests) == 1 &&
+		run.PullRequests[0].Number == pub.Number && run.PullRequests[0].Head.SHA == pub.Head)
+}
+
 func priorVerifierContinuation(req VerifierPublicationRequest, pub VerifierPublication, currentID int64) (bool, error) {
 	current, err := readVerifierRun(req, currentID)
 	if err != nil {
 		return false, err
 	}
 	title := VerifierContinuationTitle(pub.Number, pub.Head)
-	if current.Event != "pull_request" || current.Status != "in_progress" || current.HeadSHA != pub.Head || current.DisplayTitle != title {
+	if current.Event != "pull_request" || current.Status != "in_progress" || current.HeadSHA != pub.Head || current.HeadBranch != pub.Branch || current.DisplayTitle != title {
 		return false, publicationPolicy("current continuation is not the trusted merged verifier event")
 	}
-	bound := false
-	for _, pr := range current.PullRequests {
-		bound = bound || pr.Number == pub.Number && pr.Head.SHA == pub.Head
-	}
-	if !bound {
-		return false, publicationPolicy("continuation run has no native exact verifier PR binding")
+	if !verifierContinuationIndexAgrees(current, pub) {
+		return false, publicationPolicy("continuation run PR index contradicts native merged verifier identity")
 	}
 	if current.RunAttempt > 1 {
 		return true, nil
@@ -877,14 +882,13 @@ func priorVerifierContinuation(req VerifierPublicationRequest, pub VerifierPubli
 			if run.ID <= 0 {
 				return false, publicationPolicy("invalid native continuation run")
 			}
-			if !verifierWorkflowPath(run.Path, verifierWorkflow) || run.Repository.FullName != req.Repository || run.HeadRepository.FullName != req.Repository || run.HeadSHA != pub.Head || run.Event != "pull_request" || run.DisplayTitle != title {
+			if !verifierWorkflowPath(run.Path, verifierWorkflow) || run.Repository.FullName != req.Repository || run.HeadRepository.FullName != req.Repository || run.HeadSHA != pub.Head || run.HeadBranch != pub.Branch || run.Event != "pull_request" || run.DisplayTitle != title {
 				continue
 			}
-			for _, pr := range run.PullRequests {
-				if pr.Number == pub.Number && pr.Head.SHA == pub.Head {
-					return true, nil
-				}
+			if !verifierContinuationIndexAgrees(run, pub) {
+				return false, publicationPolicy("prior continuation PR index contradicts native merged verifier identity")
 			}
+			return true, nil
 		}
 		if len(batch.Runs) < 100 {
 			if count != total {

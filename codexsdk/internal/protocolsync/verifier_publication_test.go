@@ -208,6 +208,7 @@ func (f *verifierPublicationFixture) merge(pub VerifierPublication) VerifierCont
 	run.ID = 303
 	run.Event = "pull_request"
 	run.HeadSHA = pub.Head
+	run.HeadBranch = pub.Branch
 	run.Status = "in_progress"
 	run.Conclusion = ""
 	run.DisplayTitle = VerifierContinuationTitle(pub.Number, pub.Head)
@@ -397,6 +398,7 @@ func TestVerifierContinuationRejectsStaleNativeAndCheckpointState(t *testing.T) 
 			case "run-unbound":
 				run := f.runs[303]
 				run.PullRequests = nil
+				run.HeadBranch = "unbound"
 				f.runs[303] = run
 			case "read-failure":
 				f.failRead = true
@@ -682,5 +684,96 @@ func TestVerifierNativeQualifiedWorkflowPath(t *testing.T) {
 		if verifierWorkflowPath(bad, verifierWorkflow) {
 			t.Fatalf("accepted wrong native workflow file %q", bad)
 		}
+	}
+}
+
+// Actions run 38133358063 exposed an empty pull_requests index for a genuine
+// closed verifier PR. The fixed event projection and independently read merged
+// PR remain authoritative; the optional index must never contradict them.
+func TestVerifierContinuationOptionalIndexRequiresNativeBinding(t *testing.T) {
+	for _, mode := range []string{"empty", "matching", "branch", "head", "title", "event", "repository", "fork", "workflow", "wrong-number", "wrong-index-head", "ambiguous-index", "not-active"} {
+		t.Run(mode, func(t *testing.T) {
+			f := newVerifierPublicationFixture(t)
+			pub := f.publish()
+			req := f.merge(pub)
+			run := f.runs[303]
+			if mode != "matching" && mode != "wrong-number" && mode != "wrong-index-head" && mode != "ambiguous-index" {
+				run.PullRequests = nil
+			}
+			switch mode {
+			case "branch":
+				run.HeadBranch = "codex/verifier-repair/forged"
+			case "head":
+				run.HeadSHA = f.handoff.BaseSHA
+			case "title":
+				run.DisplayTitle = VerifierContinuationTitle(pub.Number+1, pub.Head)
+			case "event":
+				run.Event = "workflow_dispatch"
+			case "repository":
+				run.Repository.FullName = "other/repo"
+			case "fork":
+				run.HeadRepository.FullName = "other/repo"
+			case "workflow":
+				run.Path = ".github/workflows/untrusted.yml"
+			case "wrong-number":
+				run.PullRequests[0].Number++
+			case "wrong-index-head":
+				run.PullRequests[0].Head.SHA = f.handoff.BaseSHA
+			case "ambiguous-index":
+				run.PullRequests = append(run.PullRequests, run.PullRequests[0])
+				run.PullRequests[1].Number++
+			case "not-active":
+				run.Status = "completed"
+			}
+			f.runs[303] = run
+			f.continuations = []verifierNativeRun{run}
+			got, err := ContinueVerifier(req)
+			if mode == "empty" || mode == "matching" {
+				if err != nil || got.Duplicate || got.RemainingRounds != 4 || got.Publication.Handoff.DeadlineUTC != f.handoff.DeadlineUTC {
+					t.Fatalf("native event lost or budget changed: %+v %v", got, err)
+				}
+			} else if err == nil {
+				t.Fatal("contradictory native event accepted")
+			}
+		})
+	}
+}
+
+func TestVerifierContinuationEmptyIndexDoesNotRepeatRecovery(t *testing.T) {
+	for _, mode := range []string{"prior", "later", "rerun", "prior-contradiction"} {
+		t.Run(mode, func(t *testing.T) {
+			f := newVerifierPublicationFixture(t)
+			pub := f.publish()
+			req := f.merge(pub)
+			current := f.runs[303]
+			current.PullRequests = nil
+			prior := current
+			prior.ID, prior.Status, prior.Conclusion = 302, "completed", "failure"
+			switch mode {
+			case "later":
+				prior.ID, prior.Status = 304, "queued"
+			case "rerun":
+				current.RunAttempt = 2
+			case "prior-contradiction":
+				if err := json.Unmarshal(verifierFixtureJSON(t, []any{map[string]any{"number": pub.Number + 1, "head": map[string]string{"sha": pub.Head}}}), &prior.PullRequests); err != nil {
+					t.Fatal(err)
+				}
+			}
+			f.runs[303] = current
+			f.continuations = []verifierNativeRun{prior, current}
+			got, err := ContinueVerifier(req)
+			if mode == "prior-contradiction" {
+				if err == nil {
+					t.Fatal("conflicting prior native index permitted recovery")
+				}
+			} else if err != nil || got.Duplicate != (mode != "later") {
+				t.Fatalf("dedupe=%+v err=%v", got, err)
+			}
+			if mode != "later" {
+				if _, err := os.Stat(req.OutputDir); !os.IsNotExist(err) {
+					t.Fatal("duplicate or ambiguous run materialized recovery bytes")
+				}
+			}
+		})
 	}
 }

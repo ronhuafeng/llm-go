@@ -73,6 +73,9 @@ Verifier changes become authority only after their own reviewed PR is integrated
 - Unknown review, failed tests/checks, stale main/source, changed patch, or missing
   provenance retains a blocked result. It does not silently retry or reset limits.
 - Origin run, target, verifier PR head, and integrated main identify continuation.
+  The fixed closed-event workflow binds its native PR-number/head projection and
+  exact branch/head to the independently verified merged PR. The Actions run
+  pull-request index may be empty; when present it must uniquely agree.
   Within the existing serialized workflow concurrency, native workflow-run
   observation (excluding the current run) suppresses duplicate merged events or
   attempts before starting work; an uncoordinated check-then-start is insufficient.
