@@ -1,10 +1,16 @@
 package schemaoracle
 
 import (
+	"bytes"
 	"encoding/json"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -105,14 +111,14 @@ func TestOutputSchemaOverlayKeepsOtherAggregateBranchesUnconstrained(t *testing.
 	}
 }
 
-// Execute the real accepted field graph rather than duplicating a tiny wrapper.
+// Execute the frozen accepted field graph rather than duplicating a tiny wrapper.
 // Contract locations: protocolv2/output_schema.go:17-30,61-73;
 // protocolv2/output_schema_test.go:9-79; v2/TurnStartParams.json:872-874.
+// These fixtures implement rust-v0.160.0, so their schema must stay at that
+// version even when the selected source gains or removes fields. Target wire
+// coverage remains owned by Generate with the independently selected source.
 func TestAcceptedOutputSchemaRuntimeContract(t *testing.T) {
-	raw, err := os.ReadFile("../protocolschema/appserver/v2/v2/TurnStartParams.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	raw := []byte(acceptedTurnStartSchema)
 	r := Request{Schemas: map[string][]byte{"v2/TurnStartParams.json": raw}, Bindings: map[string]string{"v2/TurnStartParams.json": "TurnStartParams"}, Package: "verifierfixture", CloseObjects: true}
 	source, err := Generate(r)
 	if err != nil {
@@ -140,6 +146,86 @@ func TestAcceptedOutputSchemaRuntimeContract(t *testing.T) {
 			cmd.Dir = dir
 			out, err := cmd.CombinedOutput()
 			requireOracleOutcome(t, out, err, tt.pass)
+		})
+	}
+}
+
+// Keep every frozen decoder paired with the same source-derived schema, including
+// the standalone record overlay in docs/protocol-sync.md. This compares schema
+// data, not candidate Go fields or the decoder's acceptance decisions.
+func TestOutputSchemaFrozenFixtureContracts(t *testing.T) {
+	decode := func(raw []byte) any {
+		t.Helper()
+		var doc any
+		d := json.NewDecoder(bytes.NewReader(raw))
+		d.UseNumber()
+		if err := d.Decode(&doc); err != nil {
+			t.Fatal(err)
+		}
+		return doc
+	}
+	want := decode([]byte(acceptedTurnStartSchema))
+	if err := prepareReachable(want, want, "#", true, map[string]bool{}); err != nil {
+		t.Fatal(err)
+	}
+	// The existing frozen fixtures preserve branch titles when flattening
+	// compound object alternatives. Titles are annotations, not wire constraints.
+	var removeTitles func(any)
+	removeTitles = func(node any) {
+		m, ok := node.(map[string]any)
+		if !ok {
+			return
+		}
+		delete(m, "title")
+		for _, key := range []string{"definitions", "$defs", "properties"} {
+			if children, ok := m[key].(map[string]any); ok {
+				for _, child := range children {
+					removeTitles(child)
+				}
+			}
+		}
+		for _, key := range []string{"items", "additionalProperties"} {
+			removeTitles(m[key])
+		}
+		for _, key := range []string{"anyOf", "oneOf", "allOf"} {
+			if children, ok := m[key].([]any); ok {
+				for _, child := range children {
+					removeTitles(child)
+				}
+			}
+		}
+	}
+	removeTitles(want)
+	for _, fixture := range []string{"good", "permissive", "object_only", "lossy", "shape_unchecked"} {
+		t.Run(fixture, func(t *testing.T) {
+			file, err := parser.ParseFile(token.NewFileSet(), "testdata/verifier-proof/output_schema_"+fixture+".go", nil, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var frozen string
+			ast.Inspect(file, func(n ast.Node) bool {
+				spec, ok := n.(*ast.ValueSpec)
+				if !ok || len(spec.Names) != 1 || spec.Names[0].Name != "frozenSource" || len(spec.Values) != 1 {
+					return true
+				}
+				literal, ok := spec.Values[0].(*ast.BasicLit)
+				if !ok || literal.Kind != token.STRING {
+					t.Fatal("fixture schema must be a frozen string literal")
+				}
+				frozen, err = strconv.Unquote(literal.Value)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return false
+			})
+			if frozen == "" {
+				t.Fatal("missing frozen fixture schema")
+			}
+			got := decode([]byte(frozen))
+			removeTitles(got)
+			if !reflect.DeepEqual(got, want) {
+				t.Fatal("fixture schema differs from frozen accepted source with standalone overlay")
+			}
 		})
 	}
 }
