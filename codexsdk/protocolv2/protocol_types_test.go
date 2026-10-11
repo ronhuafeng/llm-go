@@ -9439,3 +9439,50 @@ func TestGeneratedUserVerificationRpcErrorRejectsMalformedProtocol(t *testing.T)
 		t.Fatalf("unexpected unknown error-details field error: %v", err)
 	}
 }
+
+// The shared type does not choose permissiveness: the decode entrypoint does.
+func TestGeneratedEmptyRecordDecodeRoles(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		decode       func([]byte, any) error
+		allowUnknown bool
+	}{
+		{"public_default", json.Unmarshal, false},
+		{"server_observation", unmarshalServerObservation, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var value ThreadArchiveResponse
+			if err := tc.decode([]byte(`{}`), &value); err != nil {
+				t.Fatal(err)
+			}
+			err := tc.decode([]byte(`{"futureMember":true}`), &value)
+			if !tc.allowUnknown {
+				if err == nil || !strings.Contains(err.Error(), `unknown field "futureMember"`) {
+					t.Fatalf("strict entrypoint error=%v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			encoded, err := json.Marshal(value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(encoded) != "{}" {
+				t.Fatalf("observation should ignore unknown member, got %s", encoded)
+			}
+		})
+	}
+}
+
+func TestGeneratedEmptyActionVariantRejectsUnknownMembers(t *testing.T) {
+	var value ClientNotification
+	if err := unmarshalActionBearingMessage([]byte(`{"method":"initialized"}`), &value); err != nil {
+		t.Fatal(err)
+	}
+	err := unmarshalActionBearingMessage([]byte(`{"method":"initialized","futureMember":true}`), &value)
+	if err == nil || !strings.Contains(err.Error(), `decode ClientNotification.initialized: unknown field "futureMember"`) {
+		t.Fatalf("empty action variant error=%v", err)
+	}
+}

@@ -13,6 +13,10 @@ changes may occur in minor releases.
 
 #### Fixed
 
+- Align protocol verification with strict standalone public record decoding,
+  including empty records, while preserving tolerant server observations,
+  action-bearing validation, and explicitly open maps and union alternatives.
+
 - Keep protocol Agent execution logs and the final message in runner temporary
   storage so a successful Agent proposal can pass the repository scope check.
 

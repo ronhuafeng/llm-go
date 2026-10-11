@@ -111,6 +111,27 @@ A new protocol instance is not itself a reason for a handwritten checkpoint.
 Changing an established public representation requires an explicit migration;
 repository search cannot establish every external consumer.
 
+Decoding policy follows the entry point. Standalone public `json.Unmarshal`
+and transport `ActionBearingMessage` decoding reject undeclared record fields.
+Transport `ServerObservation` decoding ignores unknown fields recursively while
+still validating known fields, requiredness, nullability, and union variants.
+The same nested type can appear in both roles; its name does not choose policy.
+These existing roles remain unchanged by protocol synchronization.
+
+The source-derived oracle invokes standalone public `json.Unmarshal`, so its
+record overlay is strict: named object records at schema roots or definitions
+reject undeclared fields, including empty records with no `properties`, when
+`additionalProperties` is absent. This applies uniformly to existing and new
+records in that entry point, not to `ServerObservation`. It is a local Go API
+contract, not a claim that upstream Rust empty structs reject unknown fields. Explicit
+`additionalProperties: true` or schema-valued maps retain their declared open
+behavior. Anonymous open union alternatives remain open and are evaluated as
+part of the whole union; unconstrained `true`, `{}`, and annotation-only schemas
+remain unconstrained. Neither silently ignoring nor retaining unknown fields
+satisfies the standalone strict record's rejection contract. Role-specific
+regressions separately prove observation tolerance and action-bearing rejection;
+the standalone oracle does not certify a lossless observation/relay API.
+
 A small facade-name map may preserve public acronyms/names. It has no authority
 over method presence, stability, parameters, responses, or type generation.
 Unrepresentable meaning fails closed; do not drop fields or introduce lossy
@@ -237,8 +258,11 @@ The existing controller owns two verification paths:
   Missing reachable Go bindings still fail compilation. A separate read-only Go test package
   checks field/tag coverage, rejection and lossless JSON round trips. Candidate
   tests and `TestMain` cannot replace its run/pass event. The explicit local overlay
-  preserves strict decoding of property-bearing objects unless the source declares
-  them open; open union alternatives are evaluated against the whole schema.
+  preserves standalone public decoding of property-bearing objects and named records,
+  including empty records, unless the source declares them open. It derives
+  record roles from raw schema roots/definitions rather than a type-name list or
+  candidate declarations; open union alternatives are evaluated against the
+  whole schema.
 - Baseline regressions: the proposed generator runs through its stable CLI against
   the accepted baseline schema in another disposable tree. Accepted SDK/runtime
   assertions exercise proposed handwritten implementation with matching baseline

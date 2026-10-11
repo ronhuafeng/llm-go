@@ -23,9 +23,9 @@ import (
 // Bindings select independently determined changed targets, including optional
 // #/definitions/... fragments. Schemas includes their full owning documents.
 // Candidate declarations may supply names only, never select this target set.
-// CloseObjects is the explicit public decoder overlay: objects with declared
-// properties and no additionalProperties reject unknown fields. Unconstrained
-// objects and explicitly open maps remain open.
+// CloseObjects is the standalone public json.Unmarshal overlay: property-bearing objects
+// and named object records (including empty records) reject unknown fields unless
+// explicitly open. Unconstrained JSON and anonymous union catch-alls stay open.
 type Request struct {
 	// Context carries the existing repair deadline through bounded construction.
 	Context      context.Context
@@ -423,10 +423,24 @@ func objectFields(doc, node any, depth int) ([]string, bool, error) {
 	if !ok {
 		return nil, false, nil
 	}
+	if len(p) == 0 {
+		if extra, exists := m["additionalProperties"]; exists {
+			if closed, isBool := extra.(bool); !isBool || closed {
+				return nil, false, nil
+			}
+		}
+	}
 	return keys(p), true, nil
 }
 
 func prepareReachable(doc, node any, path string, close bool, seen map[string]bool) error {
+	if close && namedRecordPosition(path) {
+		if m, ok := node.(map[string]any); ok && emptyObjectRecord(m) {
+			// Named empty records have the same field-set contract as records
+			// with declared properties. Reuse the existing overlay and checker.
+			m["properties"] = map[string]any{}
+		}
+	}
 	if err := prepare(node, path, close, 0); err != nil {
 		return err
 	}
@@ -693,4 +707,44 @@ func allDiscriminators(doc, node any, seen map[string]bool, depth int) []string 
 		}
 	}
 	return keys(found)
+}
+
+// Titles are annotations, not naming authority. Only a document root or a
+// direct definition is a named binding; a ref into an anonymous union branch
+// does not promote that branch into a closed record.
+func namedRecordPosition(path string) bool {
+	if path == "#" {
+		return true
+	}
+	for _, prefix := range []string{"#/definitions/", "#/$defs/"} {
+		if name, ok := strings.CutPrefix(path, prefix); ok && name != "" && !strings.Contains(name, "/") {
+			return true
+		}
+	}
+	return false
+}
+
+func emptyObjectRecord(m map[string]any) bool {
+	kind, _ := m["type"].(string)
+	object := kind == "object"
+	if types, ok := m["type"].([]any); ok {
+		object = false
+		if len(types) == 1 {
+			kind, _ := types[0].(string)
+			object = kind == "object"
+		}
+	}
+	if !object {
+		return false
+	}
+	for _, key := range []string{"properties", "$ref", "anyOf", "oneOf", "allOf"} {
+		if _, exists := m[key]; exists {
+			return false
+		}
+	}
+	if extra, exists := m["additionalProperties"]; exists {
+		closed, ok := extra.(bool)
+		return ok && !closed
+	}
+	return true
 }
