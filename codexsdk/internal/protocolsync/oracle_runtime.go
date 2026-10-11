@@ -62,6 +62,9 @@ func runTargetOracle(ctx context.Context, req ResumeRequest, root string, sandbo
 	var stderr repairOutput
 	cmd.Stderr = &stderr
 	runErr := cmd.Run()
+	if events.pending != "" {
+		_, _ = events.diagnostic.Write([]byte("incomplete go test output: " + events.pending))
+	}
 	_, _ = events.diagnostic.Write([]byte(stderr.String()))
 	after, err := repairPatch(root)
 	if err != nil {
@@ -79,7 +82,7 @@ func runTargetOracle(ctx context.Context, req ResumeRequest, root string, sandbo
 type oracleTestEvents struct {
 	pending                          string
 	started, passed, failed, invalid bool
-	diagnostic                       repairOutput
+	diagnostic                       oracleDiagnostic
 }
 
 func (w *oracleTestEvents) Write(p []byte) (int, error) {
@@ -91,17 +94,20 @@ func (w *oracleTestEvents) Write(p []byte) (int, error) {
 			break
 		}
 		w.pending = rest
-		var e struct{ Action, Test, Package, Output string }
+		var e struct{ Action, Test, Package, ImportPath, Output string }
 		if json.Unmarshal([]byte(line), &e) != nil {
 			w.invalid = true
+			_, _ = w.diagnostic.Write([]byte("unparsed go test output: " + line + "\n"))
 			continue
 		}
 		// Modern go test -json interleaves BuildEvents with TestEvents.
 		// Build diagnostics have ImportPath, not Package; retain them without
 		// treating any build event as evidence that a test executed.
-		if e.Action == "output" || e.Action == "build-output" {
-			_, _ = w.diagnostic.Write([]byte(e.Output))
+		diagnosticPackage := e.Package
+		if e.ImportPath != "" && strings.HasPrefix(e.Action, "build-") {
+			diagnosticPackage = e.ImportPath
 		}
+		w.diagnostic.event(e.Action, diagnosticPackage, e.Test, e.Output)
 		if e.Package != "github.com/ronhuafeng/llm-go/codexsdk/internal/schemaoracleprobe" || e.Test != "TestTrustedSchemaOracle" {
 			continue
 		}
@@ -119,6 +125,7 @@ func (w *oracleTestEvents) Write(p []byte) (int, error) {
 	}
 	if len(w.pending) > 4<<20 {
 		w.invalid = true
+		_, _ = w.diagnostic.Write([]byte("go test event omitted: framing bound exceeded\n"))
 		w.pending = ""
 	}
 	return n, nil
@@ -208,6 +215,9 @@ func runBaselineOracle(ctx context.Context, req ResumeRequest, targetSandbox ora
 	var stderr repairOutput
 	cmd.Stderr = &stderr
 	runErr = cmd.Run()
+	if events.pending != "" {
+		_, _ = events.diagnostic.Write([]byte("incomplete go test output: " + events.pending))
+	}
 	_, _ = events.diagnostic.Write([]byte(stderr.String()))
 	after, err = repairPatch(root)
 	if err != nil {
@@ -285,7 +295,7 @@ type baselineTestEvents struct {
 	expected, ran, passed map[string]bool
 	pending               string
 	invalid               bool
-	diagnostic            repairOutput
+	diagnostic            oracleDiagnostic
 }
 
 func (w *baselineTestEvents) Write(p []byte) (int, error) {
@@ -296,14 +306,17 @@ func (w *baselineTestEvents) Write(p []byte) (int, error) {
 			break
 		}
 		w.pending = rest
-		var e struct{ Action, Package, Test, Output string }
+		var e struct{ Action, Package, Test, ImportPath, Output string }
 		if json.Unmarshal([]byte(line), &e) != nil {
 			w.invalid = true
+			_, _ = w.diagnostic.Write([]byte("unparsed go test output: " + line + "\n"))
 			continue
 		}
-		if e.Action == "output" || e.Action == "build-output" {
-			_, _ = w.diagnostic.Write([]byte(e.Output))
+		diagnosticPackage := e.Package
+		if e.ImportPath != "" && strings.HasPrefix(e.Action, "build-") {
+			diagnosticPackage = e.ImportPath
 		}
+		w.diagnostic.event(e.Action, diagnosticPackage, e.Test, e.Output)
 		key := e.Package + "/" + e.Test
 		if !w.expected[key] {
 			continue
@@ -322,6 +335,7 @@ func (w *baselineTestEvents) Write(p []byte) (int, error) {
 	}
 	if len(w.pending) > 4<<20 {
 		w.invalid = true
+		_, _ = w.diagnostic.Write([]byte("go test event omitted: framing bound exceeded\n"))
 		w.pending = ""
 	}
 	return len(p), nil

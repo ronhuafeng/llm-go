@@ -294,9 +294,13 @@ output is applied back; failed generated trees are discarded.
 
 On failure or interruption, a bounded checkpoint artifact retains the complete
 candidate, handwritten patch, base/target/digests, consumed round count and sanitized
-stage diagnostics. Structured Go build output is retained as compiler feedback;
-a build failure never counts as an executed contract test. It contains no Codex
-home, credential, or raw model transcript.
+stage diagnostics. Independent oracle diagnostics prioritize failed-test output
+and compiler errors within the feedback bound; successful test chatter must not
+displace an already observed failure. Truncation remains explicit, and a missing
+assertion is not reconstructed from the package failure summary. Structured Go
+build output is retained as compiler feedback; a build failure never counts as
+an executed contract test. The artifact contains no Codex home, credential, or
+raw model transcript.
 An explicit `recovery_run_id` workflow dispatch may restore the latest attempt's
 artifact from this trusted workflow on the exact current main commit. Native run
 origin, fresh upstream ref, candidate bytes, proposal scope, and current main are

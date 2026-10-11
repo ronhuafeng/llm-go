@@ -242,7 +242,7 @@ func repairIntegrity(req ResumeRequest, base string) error {
 	return VerifyCandidate(req.CandidateDir, req.CandidateSHA256, req.TargetRef, req.TargetKind, req.TargetSHA)
 }
 func repairDigest(b []byte) string { h := sha256.Sum256(b); return hex.EncodeToString(h[:]) }
-func boundedRepairDiagnostic(s string) string {
+func redactRepairDiagnostic(s string) string {
 	for _, entry := range os.Environ() {
 		name, value, _ := strings.Cut(entry, "=")
 		if len(value) >= 8 && (strings.Contains(name, "KEY") || strings.Contains(name, "TOKEN") || strings.Contains(name, "SECRET") || name == "CODEX_RESPONSES_API_ENDPOINT") {
@@ -250,6 +250,11 @@ func boundedRepairDiagnostic(s string) string {
 		}
 	}
 
+	return s
+}
+
+func boundedRepairDiagnostic(s string) string {
+	s = redactRepairDiagnostic(s)
 	if len(s) > 8192 {
 		s = s[len(s)-8192:]
 	}
