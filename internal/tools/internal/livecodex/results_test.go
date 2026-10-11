@@ -119,3 +119,19 @@ func TestReadOnlyReviewerFactsRemainBounded(t *testing.T) {
 		t.Fatal("unbounded reviewer diagnostic")
 	}
 }
+
+func TestHarnessCleanupDiagnosticNeverLeaksPath(t *testing.T) {
+	var out bytes.Buffer
+	events := `{"Action":"run","Test":"TestLiveCodexSmoke"}
+{"Action":"output","Test":"TestLiveCodexSmoke","Output":"testing.go:1464: TempDir RemoveAll cleanup: PRIVATE https://secret.invalid\n"}
+{"Action":"fail","Test":"TestLiveCodexSmoke"}`
+	if CheckResults(strings.NewReader(events), &out) == nil {
+		t.Fatal("cleanup failure accepted")
+	}
+	if !strings.Contains(out.String(), "live_harness.cleanup_signature=tempdir_removeall") {
+		t.Fatal("lost owned cleanup signature")
+	}
+	if strings.Contains(out.String(), "PRIVATE") || strings.Contains(out.String(), "secret.invalid") {
+		t.Fatal("cleanup payload leaked")
+	}
+}

@@ -2,9 +2,11 @@ package codexexec
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -53,6 +55,10 @@ func TestLiveCodexRepairPreflightAndFeedback(t *testing.T) {
 		t.Log("live_executor.stage=resume outcome=failed diagnostic=file_assertion")
 		t.Fatal("independent feedback file assertion failed")
 	}
+	if err := proveNativeSandboxMode(ctx, executor, false); err != nil {
+		t.Log("live_executor.stage=readonly_probe outcome=failed diagnostic=positive_control_failed")
+		t.Fatal(err)
+	}
 	// A fresh verifier identity must inspect the same candidate without write access.
 	t.Log("live_executor.stage=readonly_review outcome=started diagnostic=none")
 	reviewer, err := New(ctx, Config{Workspace: workspace, StateDir: t.TempDir(), ReadOnly: true, Version: os.Getenv("CODEX_CLI_VERSION"), BaseURL: os.Getenv("CODEX_RESPONSES_API_ENDPOINT"), APIKey: os.Getenv("AZURE_OPENAI_API_KEY"), Model: os.Getenv("LLMGO_LIVE_CODEX_MODEL"), Reasoning: os.Getenv("LLMGO_LIVE_CODEX_REASONING")})
@@ -61,7 +67,12 @@ func TestLiveCodexRepairPreflightAndFeedback(t *testing.T) {
 		t.Fatal("reviewer configuration failed")
 	}
 	defer reviewer.Close()
-	reviewed, err := reviewer.Run(ctx, "This is a read-only sandbox acceptance fixture. Attempt exactly one shell command: printf changed > feedback.txt . The sandbox must reject the write. Do not retry or seek another permission. Then read feedback.txt using a shell command and reply with its exact contents only.", "")
+	if err := proveNativeSandboxMode(ctx, reviewer, true); err != nil {
+		t.Log("live_executor.stage=readonly_probe outcome=failed diagnostic=write_denial_unverified")
+		t.Fatal(err)
+	}
+	t.Log("live_executor.stage=readonly_probe outcome=completed diagnostic=write_denied_read_verified")
+	reviewed, err := reviewer.Run(ctx, "Read feedback.txt using a shell command without changing any file. Reply with its exact contents only, without quotes or formatting.", "")
 	if err != nil {
 		t.Log("live_executor.stage=readonly_review outcome=failed diagnostic=" + reviewed.Diagnostic)
 		t.Fatal("reviewer execution failed")
@@ -69,10 +80,6 @@ func TestLiveCodexRepairPreflightAndFeedback(t *testing.T) {
 	if reviewed.SessionID == "" || reviewed.SessionID == first.SessionID {
 		t.Log("live_executor.stage=readonly_review outcome=failed diagnostic=session_mismatch")
 		t.Fatal("reviewer did not use fresh session")
-	}
-	if reviewed.ToolDiagnostic != "command_failed" && reviewed.ToolDiagnostic != "sandbox_unavailable" {
-		t.Log("live_executor.stage=readonly_review outcome=failed diagnostic=write_not_observed")
-		t.Fatal("read-only reviewer did not demonstrate denied write")
 	}
 	if b, e := os.ReadFile(filepath.Join(workspace, "feedback.txt")); e != nil || string(b) != "verified" {
 		t.Log("live_executor.stage=readonly_review outcome=failed diagnostic=file_assertion")
@@ -84,4 +91,38 @@ func TestLiveCodexRepairPreflightAndFeedback(t *testing.T) {
 	}
 	t.Log("live_executor.stage=readonly_review outcome=completed diagnostic=write_denied_read_verified")
 
+}
+
+// The official CLI sandbox helper resolves the same home, cwd and explicit
+// permission overrides as Executor.Run. The writable control must succeed first;
+// arbitrary process failure cannot count as a denied write.
+func proveNativeSandboxMode(ctx context.Context, e *Executor, readonly bool) error {
+	mode := "workspace-write"
+	script := "printf 'probe-start\\n'; printf verified > feedback.txt || exit 23; printf 'write-allowed\\n'"
+	want := "probe-start\nwrite-allowed\n"
+	if readonly {
+		mode = "read-only"
+		script = "printf 'probe-start\\n'; if printf changed > feedback.txt; then exit 21; fi; test \"$(cat feedback.txt)\" = verified || exit 22; printf 'write-denied-read-verified\\n'"
+		want = "probe-start\nwrite-denied-read-verified\n"
+	}
+	if e.config.ReadOnly != readonly {
+		return fmt.Errorf("probe mode differs from executor")
+	}
+	args := []string{"sandbox", "-c", "sandbox_mode=" + strconv.Quote(mode)}
+	args = append(args, e.sandboxOverrides()...)
+	args = append(args, "--", "sh", "-c", script)
+	cmd := e.command(ctx, args...)
+	// This fixed fixture has no model request and needs no provider credential.
+	env := cmd.Env[:0]
+	for _, entry := range cmd.Env {
+		if !strings.HasPrefix(entry, "AZURE_OPENAI_API_KEY=") {
+			env = append(env, entry)
+		}
+	}
+	cmd.Env = env
+	out, err := cmd.Output()
+	if err != nil || string(out) != want {
+		return fmt.Errorf("native sandbox did not establish expected read/write boundary")
+	}
+	return nil
 }

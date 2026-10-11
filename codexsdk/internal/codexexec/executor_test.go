@@ -219,3 +219,38 @@ func TestReadOnlyReviewerConfigAndCLI(t *testing.T) {
 		t.Fatal("reviewer reused author's identity home")
 	}
 }
+
+func TestNativeSandboxProbeRequiresExecutedPositiveAndNegative(t *testing.T) {
+	for _, mode := range []string{"positive", "negative", "arbitrary-failure", "missing-marker", "wrong-control"} {
+		t.Run(mode, func(t *testing.T) {
+			body := `test -z "$AZURE_OPENAI_API_KEY" || exit 8
+ printf '%s\n' "$@" > probe-args.txt
+ `
+			readonly := mode == "negative" || mode == "arbitrary-failure" || mode == "missing-marker"
+			switch mode {
+			case "positive":
+				body += `printf 'probe-start\nwrite-allowed\n'`
+			case "negative":
+				body += `printf 'probe-start\nwrite-denied-read-verified\n'`
+			case "arbitrary-failure":
+				body += `exit 1`
+			case "missing-marker":
+				body += `printf 'write-denied-read-verified\n'`
+			case "wrong-control":
+				body += `printf 'probe-start\nwrite-denied-read-verified\n'`
+			}
+			e := fakeExecutor(t, body)
+			e.config.ReadOnly = readonly
+			err := proveNativeSandboxMode(context.Background(), e, readonly)
+			if (err == nil) != (mode == "positive" || mode == "negative") {
+				t.Fatalf("probe %s err=%v", mode, err)
+			}
+			args, _ := os.ReadFile(filepath.Join(e.config.Workspace, "probe-args.txt"))
+			for _, required := range []string{"sandbox\n", "sandbox_mode=", "sandbox_workspace_write.exclude_slash_tmp=true", "sandbox_workspace_write.writable_roots=[]"} {
+				if !strings.Contains(string(args), required) {
+					t.Fatal("probe does not share actual execution boundary")
+				}
+			}
+		})
+	}
+}

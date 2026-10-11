@@ -298,7 +298,9 @@ it is not a local-machine or self-hosted-runner recipe. Codex remains
 separate read-only inputs, private process namespace, and network isolation.
 The actual executor and oracle isolation assertions remain mandatory.
 
-The repair-executor scenario also starts a fresh read-only verifier session. It
-attempts one fixture write, requires the native failed-command observation and
-unchanged candidate bytes, then verifies that the reviewer read the candidate.
+The repair-executor scenario also starts a fresh read-only verifier session.
+A fixed official CLI sandbox probe uses the executor's actual home, cwd and
+permission overrides. Its writable positive control must execute successfully;
+the same read-only reviewer boundary must execute, deny the write and read the
+unchanged candidate. The fresh model reviewer then reads that candidate.
 This bounds the reviewer role's runtime guarantee; its prose is not acceptance.

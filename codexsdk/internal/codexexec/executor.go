@@ -163,6 +163,20 @@ func (e *Executor) Preflight(ctx context.Context) error {
 	return nil
 }
 
+// sandboxOverrides is shared by execution and the fixed native acceptance probe.
+// Model selection/provider configuration does not change filesystem permissions.
+func (e *Executor) sandboxOverrides() []string {
+	return []string{
+		"-c", "sandbox_workspace_write.network_access=false",
+		"-c", "sandbox_workspace_write.writable_roots=[]",
+		"-c", "sandbox_workspace_write.exclude_tmpdir_env_var=true",
+		"-c", "sandbox_workspace_write.exclude_slash_tmp=true",
+		"-c", `shell_environment_policy.inherit="core"`,
+		"-c", `shell_environment_policy.ignore_default_excludes=false`,
+		"-c", `shell_environment_policy.exclude=["AZURE_OPENAI_API_KEY"]`,
+	}
+}
+
 // Run executes exactly one turn. A nonempty sessionID must be the exact UUID
 // observed from an earlier run. No provider retry or most-recent-session lookup.
 func (e *Executor) Run(ctx context.Context, prompt, sessionID string) (Result, error) {
@@ -191,14 +205,9 @@ func (e *Executor) Run(ctx context.Context, prompt, sessionID string) (Result, e
 		"-c", "model=" + strconv.Quote(e.config.Model),
 		"-c", "model_reasoning_effort=" + strconv.Quote(e.config.Reasoning),
 		"-c", "model_providers.llm-go-exec=" + provider,
-		"-c", "sandbox_workspace_write.network_access=false",
-		"-c", "sandbox_workspace_write.writable_roots=[]",
-		"-c", "sandbox_workspace_write.exclude_tmpdir_env_var=true",
-		"-c", "sandbox_workspace_write.exclude_slash_tmp=true",
-		"-c", `shell_environment_policy.inherit="core"`,
-		"-c", `shell_environment_policy.ignore_default_excludes=false`,
-		"-c", `shell_environment_policy.exclude=["AZURE_OPENAI_API_KEY"]`,
 	}
+	args = append(args, e.sandboxOverrides()...)
+
 	if sessionID != "" {
 		args = append(args, "resume", sessionID, "-")
 	} else {

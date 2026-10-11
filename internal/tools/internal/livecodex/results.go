@@ -13,7 +13,7 @@ var safeFact = regexp.MustCompile(`^live_failure\.(stage=(startup|fixture|thread
 
 var safeStoryFact = regexp.MustCompile(`^live_story\.stage=(structured-call|persistent-start|resume|fork|fork-turn) outcome=(started|completed)$`)
 
-var safeExecutorFact = regexp.MustCompile(`^live_executor\.stage=(configure|preflight|start|resume|readonly_review) outcome=(started|completed|failed) diagnostic=(none|completed|write_not_observed|read_assertion|write_denied_read_verified|configuration_failed|file_assertion|sandbox_write_unverified|sandbox_unavailable|command_failed|runtime_warning|command_succeeded_write_unverified|endpoint_not_found|authentication_failed|provider_failed|execution_failed|missing_session|session_mismatch|invalid_event_stream|cancelled)$`)
+var safeExecutorFact = regexp.MustCompile(`^live_executor\.stage=(configure|preflight|start|resume|readonly_review|readonly_probe) outcome=(started|completed|failed) diagnostic=(none|completed|positive_control_failed|write_denial_unverified|write_not_observed|read_assertion|write_denied_read_verified|configuration_failed|file_assertion|sandbox_write_unverified|sandbox_unavailable|command_failed|runtime_warning|command_succeeded_write_unverified|endpoint_not_found|authentication_failed|provider_failed|execution_failed|missing_session|session_mismatch|invalid_event_stream|cancelled)$`)
 
 var safeScenario = regexp.MustCompile(`^TestLiveCodex[a-zA-Z0-9_./-]*$`)
 
@@ -49,6 +49,11 @@ func CheckResults(input io.Reader, output io.Writer) error {
 			failed = true
 		case "output":
 			for _, line := range strings.Split(event.Output, "\n") {
+				// Go testing's owned cleanup signature, never the path/error payload or a provider claim.
+				if strings.Contains(line, "TempDir RemoveAll cleanup: ") {
+					fmt.Fprintln(output, "live_harness.cleanup_signature=tempdir_removeall")
+				}
+
 				// t.Log's file/line prefix may itself contain "live_".
 				if index := strings.LastIndex(line, "live_"); index >= 0 {
 					fact := line[index:]
