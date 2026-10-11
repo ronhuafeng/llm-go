@@ -342,7 +342,9 @@ jobs:
         run: |
           set -euo pipefail
           control="${RUNNER_TEMP}/protocolupgrade-control"
-          go mod download
+          # Warm only the accepted module graph, including dependency tests used
+          # by tidy, before any untrusted verifier runs without network access.
+          go mod download all
           go build -o "${control}" ./internal/cmd/protocolupgrade
           digest="$(sha256sum "${control}" | cut -d ' ' -f1)"
           echo "sha256=${digest}" >> "${GITHUB_OUTPUT}"

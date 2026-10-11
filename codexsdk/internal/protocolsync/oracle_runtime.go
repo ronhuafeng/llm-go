@@ -243,8 +243,13 @@ func baselineOracleNonGeneratedPatch(root string) ([]byte, error) {
 // in the same platform sandbox. Neither TestMain nor candidate output selects
 // which accepted assertions must complete.
 func acceptedBaselineTests(module string) (map[string]bool, error) {
+	return selectedExecutableTests(module, []string{".", "protocolv2", "internal/wirejson"})
+}
+
+// Selection observes current executable names, not frozen historical assertions.
+func selectedExecutableTests(module string, packages []string) (map[string]bool, error) {
 	expected := map[string]bool{}
-	for _, rel := range []string{".", "protocolv2", "internal/wirejson"} {
+	for _, rel := range packages {
 		dir := filepath.Join(module, rel)
 		pkg, err := build.Default.ImportDir(dir, build.IgnoreVendor)
 		if err != nil {

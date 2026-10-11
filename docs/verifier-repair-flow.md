@@ -26,8 +26,17 @@ Verifier changes become authority only after their own reviewed PR is integrated
    under the existing finite limits. Prose never authorizes broader file scope.
 4. A verifier patch must contain a reproducible old-verifier false rejection and
    regressions that reject actual defective implementations. A trusted runner
-   executes the focused tests against old and proposed verifier trees in isolated
-   sandboxes. A fresh independent review inspects the source/contract basis and
+   first runs root module tidy diff and vet, plus the verifier package
+   race tests against the exact proposed tree in a read-only, no-network
+   sandbox, before injecting any temporary proof drivers. This is a preflight
+   subset; full root CI remains required because some existing generator tests
+   intentionally create temporary packages within their checkout. Current
+   permanent verifier tests must actually run and pass. Concrete source failures return
+   to the same author within the original budget; unavailable dependencies,
+   isolation failures, and unknown outcomes block. Dependency files remain
+   outside the proposal scope. The runner then executes focused counterexamples
+   against old and proposed verifier trees in isolated sandboxes. A fresh
+   independent review inspects the source/contract basis and
    test quality; the author cannot certify its own assertions. Review is necessary
    but does not replace execution, fixed scope checks, or the normal CI gates.
 5. A separate publisher creates a verifier-only PR from the accepted base. It does

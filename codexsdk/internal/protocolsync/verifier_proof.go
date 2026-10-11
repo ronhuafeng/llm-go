@@ -138,6 +138,13 @@ func runVerifierProposalProof(ctx context.Context, req verifierProofRequest) (ve
 		}
 		roots[version] = root
 	}
+	// Source gates inspect exactly accepted+patch, before temporary drivers and
+	// probe packages could alter dependency classification or permanent tests.
+	sourceLanes, err := runVerifierSourceGates(ctx, roots["new"], req.CandidateDir)
+	evidence.Lanes = append(evidence.Lanes, sourceLanes...)
+	if err != nil {
+		return evidence, err
+	}
 	loaded, err := loadVerifierProofFixtures(roots["new"], req.Cases)
 	if err != nil {
 		return evidence, err

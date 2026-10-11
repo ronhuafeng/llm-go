@@ -14,7 +14,7 @@ import (
 )
 
 func TestVerifierRolesDoNotSelfAcceptOrResetBudget(t *testing.T) {
-	for _, mode := range []string{"proposal", "empty", "review-reject", "same-session", "scope", "proof-failed", "tamper", "proof-feedback"} {
+	for _, mode := range []string{"proposal", "empty", "review-reject", "same-session", "scope", "proof-failed", "tamper", "proof-feedback", "tidy-feedback"} {
 		t.Run(mode, func(t *testing.T) {
 			req := repairFixture(t)
 			writeFile(t, filepath.Join(req.RepoRoot, ".gitignore"), "codexsdk/.cache/\n")
@@ -25,7 +25,7 @@ func TestVerifierRolesDoNotSelfAcceptOrResetBudget(t *testing.T) {
 				t.Fatal(e)
 			}
 			req.MaxRounds = 2
-			if mode == "proof-feedback" {
+			if mode == "proof-feedback" || mode == "tidy-feedback" {
 				req.MaxRounds = 3
 			}
 			req.Executor = repairExecutorFixture{run: func(context.Context, string, string) (codexexec.Result, error) {
@@ -41,6 +41,9 @@ func TestVerifierRolesDoNotSelfAcceptOrResetBudget(t *testing.T) {
 				if mode == "proof-feedback" && proofCalls == 1 {
 					return verifierProofEvidence{}, verifierFeedback(errors.New("fix fixture compile"))
 				}
+				if mode == "tidy-feedback" && proofCalls == 1 {
+					return verifierProofEvidence{}, verifierSourceTidyFeedbackFixture(t)
+				}
 				if mode == "proof-failed" {
 					return verifierProofEvidence{}, errors.New("fixed proof failed")
 				}
@@ -51,7 +54,11 @@ func TestVerifierRolesDoNotSelfAcceptOrResetBudget(t *testing.T) {
 				return repairExecutorFixture{run: func(_ context.Context, prompt, resumed string) (codexexec.Result, error) {
 					final := filepath.Join(t.TempDir(), "result.json")
 					if !readonly {
-						if mode == "proof-feedback" && proofCalls == 1 && (resumed != "author" || !strings.Contains(prompt, "fix fixture compile")) {
+						expectedFeedback := "fix fixture compile"
+						if mode == "tidy-feedback" {
+							expectedFeedback = "verifier source tidy"
+						}
+						if (mode == "proof-feedback" || mode == "tidy-feedback") && proofCalls == 1 && (resumed != "author" || !strings.Contains(prompt, expectedFeedback)) {
 							t.Fatal("verifier feedback lost session or concrete cause")
 						}
 						if mode != "empty" {
@@ -87,7 +94,7 @@ func TestVerifierRolesDoNotSelfAcceptOrResetBudget(t *testing.T) {
 			if cp.Round != req.MaxRounds || cp.MaxRounds != req.MaxRounds {
 				t.Fatalf("budget reset: %+v", cp)
 			}
-			if mode == "proposal" || mode == "proof-feedback" {
+			if mode == "proposal" || mode == "proof-feedback" || mode == "tidy-feedback" {
 				if err != nil || result.Outcome != OutcomeVerifierProposal || cp.VerifierHandoffs != 1 || proofCalls != req.MaxRounds-1 || reviewCalls != 1 {
 					t.Fatalf("result=%+v cp=%+v err=%v", result, cp, err)
 				}

@@ -133,10 +133,11 @@ func TestLiveVerifierProofMatrix(t *testing.T) {
 	for _, erased := range []bool{false, true} {
 		t.Run(map[bool]string{false: "complete", true: "erased assertions"}[erased], func(t *testing.T) {
 			r := proofInputFixture(t)
-			writeFile(t, filepath.Join(r.AcceptedRoot, "go.mod"), "module github.com/ronhuafeng/llm-go\ngo 1.26.8\n")
+			writeFile(t, filepath.Join(r.AcceptedRoot, "go.mod"), "module github.com/ronhuafeng/llm-go\n\ngo 1.26.8\n")
 			path := filepath.Join(r.AcceptedRoot, "codexsdk/internal/schemaoracle/oracle.go")
 			old := proofStubVerifier(false, false)
 			writeFile(t, path, old)
+			writeFile(t, filepath.Join(r.AcceptedRoot, "codexsdk/internal/schemaoracle/oracle_test.go"), `package schemaoracle;import "testing";func TestPermanentVerifier(t *testing.T){if _,err:=Generate(Request{});err!=nil{t.Fatal(err)}}`)
 			for _, args := range [][]string{{"init", "-q"}, {"add", "."}, {"-c", "user.name=fixture", "-c", "user.email=fixture@example.invalid", "commit", "-qm", "fixture"}} {
 				cmd := exec.Command("git", append([]string{"-C", r.AcceptedRoot}, args...)...)
 				if out, e := cmd.CombinedOutput(); e != nil {
