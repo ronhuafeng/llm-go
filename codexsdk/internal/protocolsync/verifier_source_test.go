@@ -2,6 +2,7 @@ package protocolsync
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -103,6 +104,9 @@ func TestVerifierSourcePermanentExecutionEvidence(t *testing.T) {
 		{"child skip", `func TestPermanent(t *testing.T){t.Run("missing",func(t *testing.T){t.Skip("erased")})}`, false, false},
 		{"cache", `func TestPermanent(t *testing.T){t.Fatal("module lookup disabled by GOPROXY=off")}`, false, false},
 		{"compile", `func TestPermanent(t *testing.T){missingIdentifier()}`, true, false},
+		{"child assertion", `func TestPermanent(t *testing.T){t.Run("contract",func(t *testing.T){t.Fatal("invariant violated")})}`, true, false},
+		{"silent failure", `func TestPermanent(t *testing.T){t.Fail()}`, true, false},
+		{"panic", `func TestPermanent(t *testing.T){panic("invariant violated")}`, false, false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			root := t.TempDir()
@@ -123,6 +127,10 @@ func TestVerifierSourcePermanentExecutionEvidence(t *testing.T) {
 			runErr := cmd.Run()
 			_, _ = events.baseline.diagnostic.Write([]byte(stderr.String()))
 			err = verifierSourceTestOutcome(events, runErr, stderr.String())
+			var assertion *verifierAssertionError
+			if got := errors.As(err, &assertion); got != (tt.name == "assertion" || tt.name == "child assertion") {
+				t.Fatalf("assertion evidence=%t for %s: %v", got, tt.name, err)
+			}
 			if (err == nil) != tt.pass || isVerifierSourceFeedback(err) != tt.feedback {
 				t.Fatalf("pass=%t feedback=%t want %t/%t: %v", err == nil, isVerifierSourceFeedback(err), tt.pass, tt.feedback, err)
 			}
@@ -186,5 +194,34 @@ func TestVerifierSourceRetainsOutputTruncation(t *testing.T) {
 	output.Write([]byte("late infrastructure failure"))
 	if !output.truncated || output.Len() != 65536 {
 		t.Fatal("truncated output lost its unknown-outcome marker")
+	}
+}
+
+func TestVerifierSourceMalformedOrderCannotProveOldAssertion(t *testing.T) {
+	const pkg = "github.com/ronhuafeng/llm-go/codexsdk/internal/schemaoracle"
+	for _, mode := range []string{"terminal before run", "oversized framing"} {
+		t.Run(mode, func(t *testing.T) {
+			events := newVerifierSourceEvents(map[string]bool{pkg + "/TestPermanent": true})
+			emit := func(action, output string) {
+				b, err := json.Marshal(map[string]string{"Action": action, "Package": pkg, "Test": "TestPermanent", "Output": output})
+				if err != nil {
+					t.Fatal(err)
+				}
+				events.Write(append(b, '\n'))
+			}
+			if mode == "terminal before run" {
+				emit("pass", "")
+			} else {
+				events.Write([]byte(strings.Repeat("x", (4<<20)+1)))
+			}
+			emit("run", "")
+			emit("output", "    oracle_test.go:4: contract failed\n")
+			emit("fail", "")
+			err := verifierSourceTestOutcome(events, sourceExitOne(t), "")
+			var assertion *verifierAssertionError
+			if err == nil || errors.As(err, &assertion) {
+				t.Fatalf("malformed evidence counted: %v", err)
+			}
+		})
 	}
 }

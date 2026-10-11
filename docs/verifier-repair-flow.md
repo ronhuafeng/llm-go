@@ -31,7 +31,17 @@ Verifier changes become authority only after their own reviewed PR is integrated
    sandbox, before injecting any temporary proof drivers. This is a preflight
    subset; full root CI remains required because some existing generator tests
    intentionally create temporary packages within their checkout. Current
-   permanent verifier tests must actually run and pass. Concrete source failures return
+   permanent verifier tests must actually run and pass. The proof compares old and
+   proposed verifier acceptance against both accepted and target schema views in
+   disposable copies, without applying the upgrade implementation. Old accepted
+   tests must pass; a real old-target permanent assertion failure or the focused
+   old-good rejection establishes the false rejection. Compiler, crash, skip, and
+   unknown outcomes are not red evidence. Proposed tests must pass in both views,
+   including every original top-level test. Fixed fixtures must use same-version
+   fixed schema; target fixtures must use target schema. Correct Generate behavior
+   need not change to repair a faulty permanent test. All new-good and actual
+   mutant challenges remain mandatory; independent review rejects empty or
+   weakened assertions even when test names remain. Concrete source failures return
    to the same author within the original budget; unavailable dependencies,
    isolation failures, and unknown outcomes block. Dependency files remain
    outside the proposal scope. The runner then executes focused counterexamples

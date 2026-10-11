@@ -263,3 +263,99 @@ func TestVerifierProofRetainsAbnormalFlagBeyondDiagnosticBounds(t *testing.T) {
 		t.Fatal("truncated panic became ordinary rejection")
 	}
 }
+
+func TestVerifierProofOldAcceptanceBoundary(t *testing.T) {
+	x := []verifierProofCounterexample{{Input: "true"}}
+	for _, tt := range []struct {
+		name            string
+		lane            verifierProofLane
+		permanent, want bool
+	}{
+		{"correct old generator with permanent red", verifierProofLane{Passed: true}, true, true},
+		{"no old false rejection", verifierProofLane{Passed: true}, false, false},
+		{"old probe false rejection", verifierProofLane{Failed: true, Diagnostic: "schema-valid input rejected: true: stale rule"}, false, true},
+		{"unrelated failure cannot borrow permanent red", verifierProofLane{Failed: true, Diagnostic: "unrelated failure"}, true, false},
+		{"unknown cannot borrow permanent red", verifierProofLane{}, true, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := verifierOldAcceptanceEstablished(tt.lane, x, tt.permanent); got != tt.want {
+				t.Fatalf("got %t want %t", got, tt.want)
+			}
+		})
+	}
+}
+
+// A schema's legal title change exposes a permanent test coupled to a moving
+// schema path. Generate is already correct and must not be made wrong for proof.
+func TestLiveVerifierProofMatrixPermanentPairing(t *testing.T) {
+	if os.Getenv("LLMGO_REPAIR_SANDBOX_TEST") != "1" {
+		t.Skip("required hosted sandbox integration")
+	}
+	const baseline = `{"title":"BaselinePayload","type":"boolean"}`
+	const oldTest = `package schemaoracle
+import("testing";"os";"encoding/json")
+func TestPermanentVerifier(t *testing.T){b,e:=os.ReadFile("../protocolschema/appserver/v2/v2/Payload.json");if e!=nil{t.Fatal(e)};var schema struct{Title string};if e=json.Unmarshal(b,&schema);e!=nil{t.Fatal(e)};if schema.Title!="BaselinePayload"{t.Fatal("fixed baseline fixture paired with moving schema")}}
+`
+	// The fixture contract is frozen independently of the moving target view.
+	const correctedTest = `package schemaoracle
+import("testing";"encoding/json")
+func TestPermanentVerifier(t *testing.T){b:=[]byte(` + "`" + baseline + "`" + `);var schema struct{Title string;Type string};if e:=json.Unmarshal(b,&schema);e!=nil{t.Fatal(e)};if schema.Title!="BaselinePayload"||schema.Type!="boolean"{t.Fatal("fixed baseline fixture contract changed")}}
+`
+	for _, mode := range []string{"paired", "deleted", "skipped", "no old rejection", "weak verifier"} {
+		t.Run(mode, func(t *testing.T) {
+			r := proofInputFixture(t)
+			writeFile(t, filepath.Join(r.CandidateDir, "schema/v2/Payload.json"), `{"title":"TargetPayload","type":"boolean"}`)
+			writeFile(t, filepath.Join(r.AcceptedRoot, mechanicalPrefix, "v2/Payload.json"), baseline)
+			writeFile(t, filepath.Join(r.AcceptedRoot, "go.mod"), "module github.com/ronhuafeng/llm-go\n\ngo 1.26.8\n")
+			verifier := filepath.Join(r.AcceptedRoot, "codexsdk/internal/schemaoracle/oracle.go")
+			writeFile(t, verifier, proofStubVerifier(true, false))
+			testPath := filepath.Join(r.AcceptedRoot, "codexsdk/internal/schemaoracle/oracle_test.go")
+			before := oldTest
+			if mode == "no old rejection" {
+				before = correctedTest
+			}
+			writeFile(t, testPath, before)
+			for _, args := range [][]string{{"init", "-q"}, {"add", "."}, {"-c", "user.name=fixture", "-c", "user.email=fixture@example.invalid", "commit", "-qm", "fixture"}} {
+				if out, e := exec.Command("git", append([]string{"-C", r.AcceptedRoot}, args...)...).CombinedOutput(); e != nil {
+					t.Fatalf("git: %v %s", e, out)
+				}
+			}
+			after := correctedTest
+			switch mode {
+			case "deleted":
+				after = "package schemaoracle\n"
+			case "skipped":
+				after = `package schemaoracle;import "testing";func TestPermanentVerifier(t *testing.T){t.Skip("erased")}`
+			case "no old rejection":
+				after += "\n// no semantic change\n"
+			case "weak verifier":
+				writeFile(t, verifier, proofStubVerifier(true, true))
+			}
+			writeFile(t, testPath, after)
+			var err error
+			r.Patch, err = exec.Command("git", "-C", r.AcceptedRoot, "diff", "--binary").Output()
+			if err != nil {
+				t.Fatal(err)
+			}
+			writeFile(t, testPath, before)
+			writeFile(t, verifier, proofStubVerifier(true, false))
+			proof, err := runVerifierProposalProof(context.Background(), r)
+			if mode == "paired" {
+				if err != nil || !proof.Passed {
+					t.Fatalf("correct permanent-test repair rejected: %v %+v", err, proof)
+				}
+				var oldGood bool
+				for _, lane := range proof.Lanes {
+					if lane.Lane == "old-good" {
+						oldGood = lane.Passed
+					}
+				}
+				if !oldGood {
+					t.Fatal("proof artificially required correct old Generate to fail")
+				}
+			} else if err == nil || proof.Passed {
+				t.Fatalf("false acceptance for %s: %+v", mode, proof)
+			}
+		})
+	}
+}

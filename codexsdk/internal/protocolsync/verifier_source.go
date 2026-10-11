@@ -11,21 +11,13 @@ import (
 	"strings"
 )
 
-// runVerifierSourceGates runs root tidy/vet and permanent verifier tests on
-// accepted+patch before temporary proof code is injected. The full root suite
-// remains CI-owned: some accepted tests need writable repository temp folders.
+// runVerifierSourceGates runs root tidy/vet on accepted+patch before temporary
+// proof code is injected. Permanent tests belong to the baseline/target matrix.
+// Full root CI remains required: some accepted tests need writable temp folders.
 func runVerifierSourceGates(ctx context.Context, root, candidate string) ([]verifierProofLane, error) {
 	var lanes []verifierProofLane
-	for _, gate := range []string{"tidy", "vet", "permanent-tests"} {
-		var expected map[string]bool
-		if gate == "permanent-tests" {
-			var err error
-			expected, err = selectedExecutableTests(filepath.Join(root, "codexsdk"), []string{"internal/schemaoracle"})
-			if err != nil {
-				return lanes, fmt.Errorf("verifier permanent test selection: %w", err)
-			}
-		}
-		lane, err := runVerifierSourceGate(ctx, root, candidate, gate, expected)
+	for _, gate := range []string{"tidy", "vet"} {
+		lane, err := runVerifierSourceGate(ctx, root, candidate, gate, nil)
 		lanes = append(lanes, lane)
 		if err != nil {
 			return lanes, err
@@ -195,13 +187,21 @@ func verifierTidyDiff(output string) bool {
 	return len(seen) > 0
 }
 
+// verifierAssertionError distinguishes an executed permanent assertion from a
+// compiler, environment, or incomplete test outcome. Only the former can prove
+// that the old acceptance boundary falsely rejected a target.
+type verifierAssertionError struct{ error }
+
+var verifierAssertionDiagnostic = regexp.MustCompile(`(?m)^\s*[^\s]+\.go:[0-9]+: .+`)
+
 type verifierSourceEvents struct {
+	failedExpected, assertionOutput, eventRuns                                      map[string]bool
 	baseline                                                                        baselineTestEvents
 	failedTest, buildFailed, compilerDiagnostic, infrastructure, skipped, malformed bool
 }
 
 func newVerifierSourceEvents(expected map[string]bool) *verifierSourceEvents {
-	return &verifierSourceEvents{baseline: baselineTestEvents{expected: expected, ran: map[string]bool{}, passed: map[string]bool{}}}
+	return &verifierSourceEvents{failedExpected: map[string]bool{}, assertionOutput: map[string]bool{}, eventRuns: map[string]bool{}, baseline: baselineTestEvents{expected: expected, ran: map[string]bool{}, passed: map[string]bool{}}}
 }
 func (w *verifierSourceEvents) Write(p []byte) (int, error) {
 	framed := w.baseline.pending + string(p)
@@ -209,6 +209,9 @@ func (w *verifierSourceEvents) Write(p []byte) (int, error) {
 	for {
 		line, rest, ok := strings.Cut(framed, "\n")
 		if !ok {
+			if len(framed) > 4<<20 {
+				w.malformed = true
+			}
 			break
 		}
 		framed = rest
@@ -216,6 +219,17 @@ func (w *verifierSourceEvents) Write(p []byte) (int, error) {
 		if json.Unmarshal([]byte(line), &e) != nil {
 			w.malformed = true
 			continue
+		}
+		key := e.Package + "/" + e.Test
+		if w.baseline.expected[key] {
+			switch e.Action {
+			case "run":
+				w.eventRuns[key] = true
+			case "pass", "fail":
+				if !w.eventRuns[key] {
+					w.malformed = true
+				}
+			}
 		}
 		if verifierSourceInfrastructure(e.Output) {
 			w.infrastructure = true
@@ -226,8 +240,18 @@ func (w *verifierSourceEvents) Write(p []byte) (int, error) {
 		if e.Action == "build-fail" {
 			w.buildFailed = true
 		}
+		if e.Action == "output" && e.Test != "" && verifierAssertionDiagnostic.MatchString(e.Output) {
+			key := e.Package + "/" + strings.SplitN(e.Test, "/", 2)[0]
+			if w.baseline.expected[key] && w.eventRuns[key] {
+				w.assertionOutput[key] = true
+			}
+		}
 		if e.Action == "fail" && e.Test != "" {
 			w.failedTest = true
+			key := e.Package + "/" + e.Test
+			if w.baseline.expected[key] && w.eventRuns[key] {
+				w.failedExpected[key] = true
+			}
 		}
 		if e.Package == "github.com/ronhuafeng/llm-go/codexsdk/internal/schemaoracle" && e.Action == "skip" && e.Test != "" {
 			w.skipped = true
@@ -245,6 +269,15 @@ func verifierSourceTestOutcome(events *verifierSourceEvents, runErr error, stder
 		return cause
 	}
 	exit, ok := runErr.(*exec.ExitError)
+	if ok && exit.ExitCode() == 1 && !events.buildFailed && !events.compilerDiagnostic && strings.TrimSpace(stderr) == "" && len(events.failedExpected) > 0 {
+		complete := len(events.baseline.expected) > 0
+		for key := range events.baseline.expected {
+			complete = complete && events.baseline.ran[key] && (events.baseline.passed[key] || events.failedExpected[key] && events.assertionOutput[key])
+		}
+		if complete {
+			return verifierFeedback(&verifierAssertionError{cause})
+		}
+	}
 	if ok && exit.ExitCode() == 1 && (events.failedTest || events.buildFailed && events.compilerDiagnostic) {
 		return verifierFeedback(cause)
 	}

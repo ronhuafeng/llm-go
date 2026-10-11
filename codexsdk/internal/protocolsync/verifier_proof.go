@@ -145,6 +145,11 @@ func runVerifierProposalProof(ctx context.Context, req verifierProofRequest) (ve
 	if err != nil {
 		return evidence, err
 	}
+	acceptanceLanes, acceptanceRed, err := runVerifierAcceptance(ctx, roots["old"], roots["new"], req.CandidateDir)
+	evidence.Lanes = append(evidence.Lanes, acceptanceLanes...)
+	if err != nil {
+		return evidence, err
+	}
 	loaded, err := loadVerifierProofFixtures(roots["new"], req.Cases)
 	if err != nil {
 		return evidence, err
@@ -220,7 +225,7 @@ func runVerifierProposalProof(ctx context.Context, req verifierProofRequest) (ve
 			if version == "new" && !result.Passed {
 				return evidence, verifierFeedback(fmt.Errorf("%s: proposed verifier rejected good fixture: %s", c.Name, result.Diagnostic))
 			}
-			if version == "old" && (!result.Failed || !verifierProofCounterexampleFailure(result.Diagnostic, c.Counterexamples)) {
+			if version == "old" && !verifierOldAcceptanceEstablished(result, c.Counterexamples, acceptanceRed) {
 				return evidence, verifierFeedback(fmt.Errorf("%s: old verifier false rejection not established: %s", c.Name, result.Diagnostic))
 			}
 		}
@@ -246,12 +251,23 @@ func runVerifierProposalProof(ctx context.Context, req verifierProofRequest) (ve
 	return evidence, nil
 }
 
+// A permanent-test counterexample permits a correct old Generate to stay green,
+// but cannot launder an unrelated failure in the independent good-fixture lane.
+func verifierOldAcceptanceEstablished(good verifierProofLane, challenges []verifierProofCounterexample, permanentRed bool) bool {
+	return good.Passed && permanentRed || good.Failed && verifierProofCounterexampleFailure(good.Diagnostic, challenges)
+}
+
 func verifierProofInputs(req verifierProofRequest) ([]schemaoracle.Request, string, error) {
 	if len(req.Cases) == 0 || len(req.Cases) > 8 {
 		return nil, "", fmt.Errorf("verifier proof: require 1..8 cases")
 	}
 	var specs []schemaoracle.Request
 	var sources bytes.Buffer
+	targetDigest, err := verifierAcceptanceSchemaDigest(req.CandidateDir)
+	if err != nil {
+		return nil, "", err
+	}
+	fmt.Fprintf(&sources, "target-view\x00%s\x00", targetDigest)
 	seen := map[string]bool{}
 	for _, c := range req.Cases {
 		if c.Name == "" || len(c.Name) > 80 || seen[c.Name] {
