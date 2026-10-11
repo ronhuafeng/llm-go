@@ -47,7 +47,7 @@ B is an ancestor of H
 AND source verification(H) succeeds
 AND generated reproducibility(H) succeeds
 AND protocol provenance(H, U) succeeds or explicitly reports not applicable
-AND live Codex integration(H, runtime from U) succeeds or explicitly reports not applicable
+AND live Codex integration(H, recorded run-resolved latest runtime) succeeds or explicitly reports not applicable
 AND the existing repository review policy is satisfied
 ```
 
@@ -99,7 +99,7 @@ used by the live suite.
 ### Live Codex integration
 
 The required live context executes the active scenario suite against an official
-installed release derived from H's baseline, using the canonical Linux/native
+installed latest release resolved once for the execution, using the canonical Linux/native
 provider/real model configuration in [`live-codex.md`](live-codex.md).
 
 The relevance classifier covers code and shared dependencies that can affect the
@@ -113,6 +113,13 @@ A relevant execution must select and run the active stories, without cached
 success, automatic retries, fallback models, zero-test success, or prerequisite
 skips. A service failure blocks acceptance even when its cause is external.
 Report the cause separately from the gate verdict.
+
+Live failure logs retain only bounded facts. A native error's fixed
+`message_signature` reports an observed official message literal or prefix;
+it does not prove a Rust error variant, provider attribution, or root cause.
+Unrecognized text, oversized messages, and messages containing ASCII control
+characters stay `unknown`. Raw messages, URLs, response bodies, and credentials
+are not published as diagnostics.
 
 The actual required-context consumer, including Auto-forward, must require this
 result. A green legacy smoke, successful parent workflow, or post-merge run alone

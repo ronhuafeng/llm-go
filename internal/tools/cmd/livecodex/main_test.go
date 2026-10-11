@@ -10,13 +10,6 @@ import (
 func TestRunNormalizesCanonicalCredentialBeforeLaunchingTests(t *testing.T) {
 	const key = "private-runner-fixture-key"
 	root := t.TempDir()
-	metadata := filepath.Join(root, "codexsdk/internal/protocolschema/appserver/v2/baseline_metadata.json")
-	if err := os.MkdirAll(filepath.Dir(metadata), 0700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(metadata, []byte(`{"codex_version":"codex-cli 0.159.0","source_ref_name":"rust-v0.159.0"}`), 0600); err != nil {
-		t.Fatal(err)
-	}
 	bin := filepath.Join(root, "bin")
 	if err := os.Mkdir(bin, 0700); err != nil {
 		t.Fatal(err)
@@ -28,6 +21,9 @@ func TestRunNormalizesCanonicalCredentialBeforeLaunchingTests(t *testing.T) {
 [ "$CODEX_RESPONSES_API_ENDPOINT" = 'https://provider.example/v1/responses' ] || exit 45
 [ -z "$GH_TOKEN$GITHUB_TOKEN$AUTO_FORWARD_APP_PRIVATE_KEY$PROTOCOL_SYNC_APP_PRIVATE_KEY" ] || exit 43
 [ "$LLMGO_LIVE_CODEX" = 1 ] || exit 44
+[ "$CODEX_CLI_VERSION" = 0.171.2 ] || exit 46
+[ "$LLMGO_LIVE_CODEX_MODEL" = gpt-6-sol ] || exit 47
+[ "$LLMGO_LIVE_CODEX_REASONING" = high ] || exit 48
 : > child-started
 printf '%s\n' '{"Action":"run","Test":"TestLiveCodexFixture"}' '{"Action":"pass","Test":"TestLiveCodexFixture"}'
 `,
@@ -37,6 +33,7 @@ printf '%s\n' '{"Action":"run","Test":"TestLiveCodexFixture"}' '{"Action":"pass"
 		}
 	}
 	t.Chdir(root)
+	t.Setenv("CODEX_CLI_VERSION", "0.171.2")
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("CODEX_RESPONSES_API_ENDPOINT", "https://provider.example/v1/responses")
 	for _, name := range []string{"GH_TOKEN", "GITHUB_TOKEN", "AUTO_FORWARD_APP_PRIVATE_KEY", "PROTOCOL_SYNC_APP_PRIVATE_KEY"} {
@@ -72,5 +69,16 @@ printf '%s\n' '{"Action":"run","Test":"TestLiveCodexFixture"}' '{"Action":"pass"
 			}
 			_ = os.Remove("child-started")
 		})
+	}
+}
+
+func TestRunRequiresSelectedRuntime(t *testing.T) {
+	t.Setenv("AZURE_OPENAI_API_KEY", "fixture-key")
+	for _, version := range []string{"", "latest", "0.171.2-alpha.1"} {
+		t.Setenv("CODEX_CLI_VERSION", version)
+		err := run([]string{"run"})
+		if err == nil || !strings.Contains(err.Error(), "CODEX_CLI_VERSION") {
+			t.Fatalf("unselected runtime: %v", err)
+		}
 	}
 }

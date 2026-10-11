@@ -34,8 +34,9 @@ required check.
 - Run the live suite for changes that can affect the Codex runtime path,
   including protocol-sync PRs and the shared dependencies used by the composed
   scenario. An unrelated PR gets successful not-applicable, not a model call.
-- Install the official Codex release derived from H's checked-in baseline.
-  Do not select `latest` or keep a second runtime-version authority.
+- Resolve official Codex `latest` once per execution, install that exact
+  version, and verify and record the observed version. Hold it fixed throughout
+  the execution; schema provenance remains bound to H's exact upstream source.
 - Configure Codex directly to the Responses-compatible endpoint with native
   URL/key/provider settings. Use `AZURE_OPENAI_API_KEY` and
   `CODEX_RESPONSES_API_ENDPOINT` directly, with a fixture-owned provider label.

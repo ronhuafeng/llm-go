@@ -161,13 +161,21 @@ lifecycle API.
 
 ## One canonical environment
 
-The runtime version comes from the tested revision's
-[`baseline_metadata.json`](../codexsdk/internal/protocolschema/appserver/v2/baseline_metadata.json).
-Install the corresponding exact official release and check the observed CLI
-version. A protocol-sync PR uses its candidate baseline, not main's older
-baseline. Do not use `@latest`, silently substitute a different release, or
-maintain another known-good version file. If the baseline cannot identify an
-installable matching release, fail the setup rather than testing another one.
+Resolve the official `@openai/codex` npm `latest` release once for the execution,
+then install that exact version and check the observed CLI version. Keep that
+resolved version unchanged through setup, preflight, and all scenarios; record
+it with the tested repository revision. Fail on resolution or version mismatch
+rather than substituting another release. There is no checked-in runtime pin.
+The exact schema identity in
+[`baseline_metadata.json`](../codexsdk/internal/protocolschema/appserver/v2/baseline_metadata.json)
+still owns generated-protocol provenance. It does not select the installed CLI.
+A live pass proves the executed scenarios on the recorded runtime, not blanket
+compatibility between every latest runtime and every schema baseline.
+
+For local execution, resolve once with `go run ./internal/tools/cmd/livecodex version`,
+install that exact official npm package version, and export the same value as
+`CODEX_CLI_VERSION` before running the suite. Missing selection or an installed
+version mismatch is a setup failure. CI's shared setup action owns these steps.
 
 Use Linux and the single configured model `gpt-6-sol` with reasoning effort
 `high`. The model can be explicitly changed later when operational needs
@@ -273,7 +281,7 @@ owns required execution of both stories.
 The same required live command also runs
 `codexsdk/internal/codexexec.TestLiveCodexRepairPreflightAndFeedback`. It verifies
 the internal workflow executor separately from the public SDK stories: official
-baseline-selected CLI, native Responses configuration, actual sandbox nonce-file
+run-resolved latest CLI, native Responses configuration, actual sandbox nonce-file
 preflight, an identified initial session, and exact-session continuation with
 independent file-validation feedback. The fixture uses the shared suite's selected
 model/reasoning and has no publication token. Repair workflow model selection

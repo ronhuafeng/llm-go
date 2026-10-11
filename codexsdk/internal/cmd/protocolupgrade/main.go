@@ -9,8 +9,6 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
@@ -436,24 +434,13 @@ func runRepair(args []string, stdout, stderr io.Writer) int {
 	defer stop()
 	ctx, cancel := context.WithTimeout(ctx, 90*time.Minute)
 	defer cancel()
-	var baseline struct {
-		Version string `json:"codex_version"`
-	}
-	raw, err := os.ReadFile(filepath.Join(*module, "internal/protocolschema/appserver/v2/baseline_metadata.json"))
-	if err == nil {
-		err = json.Unmarshal(raw, &baseline)
-	}
-	if err != nil {
-		fmt.Fprintln(stderr, err)
-		return 1
-	}
 	state, err := os.MkdirTemp("", "protocol-repair-executor-")
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
 	defer os.RemoveAll(state)
-	executor, err := codexexec.New(ctx, codexexec.Config{Workspace: *root, StateDir: state, Version: strings.TrimPrefix(baseline.Version, "codex-cli "), BaseURL: os.Getenv("CODEX_RESPONSES_API_ENDPOINT"), APIKey: os.Getenv("AZURE_OPENAI_API_KEY"), Model: os.Getenv("CODEX_MODEL"), Reasoning: os.Getenv("CODEX_REASONING_EFFORT")})
+	executor, err := codexexec.New(ctx, codexexec.Config{Workspace: *root, StateDir: state, Version: os.Getenv("CODEX_CLI_VERSION"), BaseURL: os.Getenv("CODEX_RESPONSES_API_ENDPOINT"), APIKey: os.Getenv("AZURE_OPENAI_API_KEY"), Model: os.Getenv("CODEX_MODEL"), Reasoning: os.Getenv("CODEX_REASONING_EFFORT")})
 	var repairExecutor interface {
 		Preflight(context.Context) error
 		Run(context.Context, string, string) (codexexec.Result, error)

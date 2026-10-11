@@ -176,3 +176,12 @@ func TestTerminalToolFailureWithoutExitCodeIsDiagnosed(t *testing.T) {
 		}
 	}
 }
+
+func TestExecutorRequiresExactSelectedRuntime(t *testing.T) {
+	for _, version := range []string{"", "latest", "0.160.0-alpha.1", "0.160.0+build", "v0.160.0", "01.2.3"} {
+		_, err := New(context.Background(), Config{Version: version, BaseURL: "https://example.invalid/v1", APIKey: "fixture-key", Model: "gpt-6.1-sol", Reasoning: "high"})
+		if err == nil || err.Error() != "exact stable runtime version, model and reasoning are required" {
+			t.Fatalf("invalid runtime accepted or wrongly diagnosed: %v", err)
+		}
+	}
+}

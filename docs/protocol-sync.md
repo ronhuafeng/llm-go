@@ -18,13 +18,14 @@ Codex release as an external black-box runtime. Do not confuse the schema-build
 executable with the production/runtime fixture, or import the upstream Rust
 test suite as a downstream conformance obligation.
 
-The accepted live policy uses the runtime from the candidate PR's checked-in
-baseline, not `latest` and not main's prior baseline. Even provenance-only
-runtime advances require the applicable live check. This does not narrow
+The repair executor and live suite resolve the official latest CLI once per
+execution, then install, verify, and record that exact runtime independently of
+the candidate's exact schema source. Even provenance-only
+baseline advances require the applicable live check. This does not narrow
 protocol generation to live-covered methods: full reachable wire representation
 and scenario-based runtime evidence have distinct jobs.
 
-**Live implementation:** #376 supplies the baseline-selected native provider
+**Live implementation:** #376 supplies the native provider
 fixture and fourth required result. #377 supplies the structured composed call
 and continuous persistent Start/Resume/Fork stories through the same suite.
 Their actual workflow results own execution evidence. Runtime proof and wire
@@ -42,6 +43,12 @@ The checked-in baseline metadata is the source authority. PR titles, visible
 prose, hidden publication markers, manifests, and coverage annotations are
 projections or explanatory data, not substitutes for that identity and fresh
 upstream facts. Observation timestamps are not protocol meaning.
+
+The formal upstream repair Agent is configured as `gpt-6.1-sol` with `high`
+reasoning. The [official model documentation](https://developers.openai.com/api/docs/models/gpt-6.1-sol)
+confirms that ID and effort; availability and credit at the configured provider
+remain separate operational prerequisites. The Live suite retains its separately
+configured `gpt-6-sol/high` fixture. Neither model choice selects the schema target.
 
 ## Construction sequence
 

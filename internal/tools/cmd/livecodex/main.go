@@ -29,7 +29,7 @@ func run(args []string) error {
 	}
 	switch args[0] {
 	case "version":
-		version, err := livecodex.Version(".")
+		version, err := livecodex.Version()
 		if err != nil {
 			return err
 		}
@@ -62,7 +62,7 @@ func run(args []string) error {
 			fmt.Println("live_failure.stage=fixture")
 			return err
 		}
-		version, err := livecodex.Version(".")
+		version, err := livecodex.SelectedVersion(os.Getenv("CODEX_CLI_VERSION"))
 		if err != nil {
 			return err
 		}
@@ -77,12 +77,12 @@ func run(args []string) error {
 		for _, entry := range os.Environ() {
 			name, _, _ := strings.Cut(entry, "=")
 			switch name {
-			case "GH_TOKEN", "GITHUB_TOKEN", "AUTO_FORWARD_APP_PRIVATE_KEY", "PROTOCOL_SYNC_APP_PRIVATE_KEY", "LLMGO_LIVE_CODEX", "AZURE_OPENAI_API_KEY":
+			case "GH_TOKEN", "GITHUB_TOKEN", "AUTO_FORWARD_APP_PRIVATE_KEY", "PROTOCOL_SYNC_APP_PRIVATE_KEY", "LLMGO_LIVE_CODEX", "LLMGO_LIVE_CODEX_MODEL", "LLMGO_LIVE_CODEX_REASONING", "CODEX_CLI_VERSION", "AZURE_OPENAI_API_KEY":
 				continue
 			}
 			command.Env = append(command.Env, entry)
 		}
-		command.Env = append(command.Env, "LLMGO_LIVE_CODEX=1", "LLMGO_LIVE_CODEX_VERSION="+version, "LLMGO_LIVE_CODEX_MODEL="+livecodex.Model, "LLMGO_LIVE_CODEX_REASONING="+livecodex.Reasoning, "AZURE_OPENAI_API_KEY="+key)
+		command.Env = append(command.Env, "LLMGO_LIVE_CODEX=1", "CODEX_CLI_VERSION="+version, "LLMGO_LIVE_CODEX_MODEL="+livecodex.Model, "LLMGO_LIVE_CODEX_REASONING="+livecodex.Reasoning, "AZURE_OPENAI_API_KEY="+key)
 		command.Stderr = io.Discard
 		pipe, err := command.StdoutPipe()
 		if err != nil {

@@ -1,5 +1,5 @@
 name: Run Codex repair
-description: Run a trusted bounded repair controller using the baseline-pinned official CLI and direct Responses provider.
+description: Run a trusted bounded repair controller using the run-selected official latest CLI and direct Responses provider.
 
 inputs:
   api-key:
@@ -77,18 +77,9 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: Set up Node.js
-      uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
-      with:
-        node-version: "24"
-
-    - name: Install baseline-selected official Codex
-      shell: bash
-      run: |
-        set -euo pipefail
-        version="$(go run ./internal/tools/cmd/livecodex version)"
-        npm install --global "@openai/codex@${version}"
-        test "$(codex --version)" = "codex-cli ${version}"
+    - name: Set up official Codex latest
+      id: runtime
+      uses: ./.github/actions/setup-codex
 
     - name: Run trusted repair controller
       id: codex
@@ -96,6 +87,7 @@ runs:
       env:
         AZURE_OPENAI_API_KEY: ${{ inputs.api-key }}
         CODEX_RESPONSES_API_ENDPOINT: ${{ inputs.responses-api-endpoint }}
+        CODEX_CLI_VERSION: ${{ steps.runtime.outputs.version }}
         CODEX_MODEL: ${{ inputs.model }}
         CODEX_REASONING_EFFORT: ${{ inputs.reasoning-effort }}
         CONTROL: ${{ inputs.controller-path }}

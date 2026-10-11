@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -150,12 +149,7 @@ func newLiveCodexClient(t *testing.T) (*codexsdk.Client, livecodex.Fixture) {
 	if os.Getenv("LLMGO_LIVE_CODEX") != "1" {
 		t.Skip("use livecodex run to execute the real Codex stories")
 	}
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Fatal("cannot find the live fixture source")
-	}
-	root := filepath.Clean(filepath.Join(wd, "..", "..", ".."))
-	fixture, err := livecodex.Prepare(root, t.TempDir(), os.Getenv("CODEX_RESPONSES_API_ENDPOINT"), os.Getenv("AZURE_OPENAI_API_KEY"))
+	fixture, err := livecodex.Prepare(os.Getenv("CODEX_CLI_VERSION"), t.TempDir(), os.Getenv("CODEX_RESPONSES_API_ENDPOINT"), os.Getenv("AZURE_OPENAI_API_KEY"))
 	if err != nil {
 		t.Log("live_failure.stage=fixture")
 		t.Fatal(err)

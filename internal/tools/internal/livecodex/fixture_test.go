@@ -9,19 +9,6 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
-func fixtureBaseline(t *testing.T) string {
-	t.Helper()
-	root := t.TempDir()
-	path := filepath.Join(root, "codexsdk/internal/protocolschema/appserver/v2/baseline_metadata.json")
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte(`{"codex_version":"codex-cli 0.159.0","source_ref_name":"rust-v0.159.0"}`), 0600); err != nil {
-		t.Fatal(err)
-	}
-	return root
-}
-
 func fakeCLI(t *testing.T, version string) {
 	t.Helper()
 	dir := t.TempDir()
@@ -34,7 +21,7 @@ func fakeCLI(t *testing.T, version string) {
 func TestPrepareIsolatedNativeResponsesFixture(t *testing.T) {
 	fakeCLI(t, "0.159.0")
 	dir := t.TempDir()
-	f, err := Prepare(fixtureBaseline(t), dir, "https://provider.example/v1", "private-test-key")
+	f, err := Prepare("0.159.0", dir, "https://provider.example/v1", "private-test-key")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +71,7 @@ func TestPrepareRejectsMissingPrerequisitesWithoutLeakingInputs(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			fakeCLI(t, test.version)
-			_, err := Prepare(fixtureBaseline(t), t.TempDir(), test.endpoint, test.key)
+			_, err := Prepare("0.159.0", t.TempDir(), test.endpoint, test.key)
 			if err == nil {
 				t.Fatal("missing or mismatched prerequisite accepted")
 			}
@@ -92,5 +79,14 @@ func TestPrepareRejectsMissingPrerequisitesWithoutLeakingInputs(t *testing.T) {
 				t.Fatal("unsafe setup diagnostic")
 			}
 		})
+	}
+}
+
+func TestPrepareRejectsUnselectedRuntime(t *testing.T) {
+	for _, version := range []string{"", "latest", "0.159.0-alpha.1"} {
+		_, err := Prepare(version, t.TempDir(), "https://provider.example/v1", "key")
+		if err == nil {
+			t.Fatal("unresolved runtime accepted")
+		}
 	}
 }

@@ -837,7 +837,7 @@ func TestProtocolAgentPassesWorkflowSelectedModel(t *testing.T) {
 
 }
 
-func TestRepairUsesBaselinePinnedNativeCodex(t *testing.T) {
+func TestRepairUsesRunSelectedNativeCodex(t *testing.T) {
 	root, _ := filepath.Abs("../../../..")
 	data, err := os.ReadFile(filepath.Join(root, ".github/actions/codex-exec/action.yml"))
 	if err != nil {
@@ -849,7 +849,7 @@ func TestRepairUsesBaselinePinnedNativeCodex(t *testing.T) {
 			t.Fatalf("unexpected repair execution path: %s", bad)
 		}
 	}
-	for _, want := range []string{"go run ./internal/tools/cmd/livecodex version", `@openai/codex@${version}`, "CONTROL_SHA256", "checkpoint-dir:"} {
+	for _, want := range []string{"uses: ./.github/actions/setup-codex", "CODEX_CLI_VERSION: ${{ steps.runtime.outputs.version }}", "CONTROL_SHA256", "checkpoint-dir:"} {
 		if !strings.Contains(action, want) {
 			t.Fatalf("missing executor invariant: %s", want)
 		}

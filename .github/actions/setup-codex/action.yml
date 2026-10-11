@@ -1,0 +1,24 @@
+name: Set up official Codex latest
+description: Resolve official latest once, then install and verify that exact stable CLI release.
+outputs:
+  version:
+    description: Exact official CLI version selected and installed for this run.
+    value: ${{ steps.runtime.outputs.version }}
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      with:
+        node-version: "24"
+    - name: Resolve and install official Codex
+      id: runtime
+      shell: bash
+      run: |
+        set -euo pipefail
+        version="$(go run ./internal/tools/cmd/livecodex version)"
+        npm install --global --registry=https://registry.npmjs.org "@openai/codex@${version}"
+        observed="$(codex --version)"
+        test "${observed}" = "codex-cli ${version}"
+        echo "version=${version}" >> "${GITHUB_OUTPUT}"
+        echo "codex_runtime_release=${version}"
+        echo "codex_runtime_observed=${observed}"

@@ -93,7 +93,7 @@ func TestLiveVerificationUsesExactCandidateAndNativeSecretMapping(t *testing.T) 
 		}
 	}
 	called := readWorkflow(t, root, "live-codex-smoke.yml")
-	for _, want := range []string{"ref: ${{ inputs.ref || github.sha }}", "go run ./internal/tools/cmd/livecodex version", "go run ./internal/tools/cmd/livecodex run", "not applicable"} {
+	for _, want := range []string{"ref: ${{ inputs.ref || github.sha }}", "uses: ./.github/actions/setup-codex", "CODEX_CLI_VERSION: ${{ steps.runtime.outputs.version }}", "go run ./internal/tools/cmd/livecodex run", "not applicable"} {
 		if !strings.Contains(called, want) {
 			t.Fatalf("live workflow missing %q", want)
 		}

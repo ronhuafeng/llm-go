@@ -29,8 +29,8 @@ own configuration, credentials, approval, sandbox, and side-effect policy.
 
 The selected protocol source is recorded in
 [`baseline_metadata.json`](codexsdk/internal/protocolschema/appserver/v2/baseline_metadata.json).
-The runtime compatibility target is that exact synced Codex release, not
-whatever `latest` resolves to. A generated method or type is not evidence that
+Live verification resolves the official latest Codex CLI once per execution and
+records its exact version separately from that schema source. A generated method or type is not evidence that
 all of its runtime behavior has been exercised.
 
 ## What live verification means

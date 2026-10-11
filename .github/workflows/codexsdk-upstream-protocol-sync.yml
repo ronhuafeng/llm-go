@@ -463,8 +463,8 @@ jobs:
         with:
           api-key: ${{ secrets.AZURE_OPENAI_API_KEY }}
           responses-api-endpoint: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
-          model: gpt-6-sol
-          reasoning-effort: xhigh
+          model: gpt-6.1-sol
+          reasoning-effort: high
           working-directory: .
           controller-path: ${{ runner.temp }}/protocolupgrade-control
           control-sha256: ${{ steps.control.outputs.sha256 }}

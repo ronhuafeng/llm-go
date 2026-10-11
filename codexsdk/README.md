@@ -45,8 +45,8 @@ newline delimiter.
 
 The generated surface follows the selected source in
 [`baseline_metadata.json`](internal/protocolschema/appserver/v2/baseline_metadata.json).
-The supported live runtime target is the exact official Codex release identified
-there, not an independently selected latest or known-good version.
+Live verification resolves the official latest Codex CLI once per execution and
+records its exact observed version separately from that schema source.
 
 Generated API availability and live runtime coverage are different. Our live
 guarantee is the behavior exercised and asserted by active integration

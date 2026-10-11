@@ -10,7 +10,8 @@ module distribution. Once created, a version/tag identity is immutable.
 [`live-codex.md`](live-codex.md) defines the scenario-based runtime guarantee.
 Use the active scenario assertions and actual results for the released source,
 not a separate compatibility matrix or an unimplemented design paragraph.
-The selected Codex runtime comes from that source's checked-in baseline.
+Record the exact official latest Codex runtime resolved for the accepted live
+execution separately from that source's checked-in schema baseline.
 
 Adding a scenario adds evidence. Removing or materially weakening a scenario
 requires the implementation PR to identify the live-contract retirement and the

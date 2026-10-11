@@ -85,8 +85,9 @@ specifically about structured output should validate its schema and a simple
 closed result, such as an integer arithmetic answer.
 
 [`Live Codex integration`](docs/live-codex.md) owns the accepted suite and its
-implementation transition. Its fixed runtime is derived from the synced
-baseline. Its live fixture is Linux, a direct Responses-compatible endpoint,
+implementation transition. Its official latest runtime is resolved once and
+held fixed within an execution, separately from schema provenance.
+Its live fixture is Linux, a direct Responses-compatible endpoint,
 and one selected model, not a platform/model/latest-version matrix.
 
 Adding a live scenario expands the evidenced behavior. Retiring or materially

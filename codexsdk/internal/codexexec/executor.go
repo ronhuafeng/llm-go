@@ -39,10 +39,12 @@ type Executor struct {
 
 var httpStatusPattern = regexp.MustCompile(`(?i)(?:^|status(?: code)?[ :]+|http[ /a-z0-9.]*[ :]+)([45][0-9]{2})\b`)
 
+var runtimeVersionPattern = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
+
 var sessionPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
 // New creates a fresh home and verifies the installed release. Version must be
-// selected by the caller from the repository baseline, never from latest.
+// the exact stable release resolved from official latest once for this run.
 func New(ctx context.Context, cfg Config) (*Executor, error) {
 	cfg.APIKey = strings.TrimSpace(cfg.APIKey)
 	if cfg.APIKey == "" || strings.ContainsFunc(cfg.APIKey, unicode.IsSpace) {
@@ -53,8 +55,8 @@ func New(ctx context.Context, cfg Config) (*Executor, error) {
 	if err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") || u.User != nil || u.RawQuery != "" || u.ForceQuery || strings.Contains(cfg.BaseURL, "#") || strings.HasSuffix(u.Path, "/responses") {
 		return nil, errors.New("invalid Responses API base URL")
 	}
-	if cfg.Version == "" || cfg.Model == "" || cfg.Reasoning == "" {
-		return nil, errors.New("runtime version, model and reasoning are required")
+	if !runtimeVersionPattern.MatchString(cfg.Version) || cfg.Model == "" || cfg.Reasoning == "" {
+		return nil, errors.New("exact stable runtime version, model and reasoning are required")
 	}
 	if cfg.Binary == "" {
 		cfg.Binary = "codex"
@@ -102,7 +104,7 @@ func New(ctx context.Context, cfg Config) (*Executor, error) {
 	cmd := e.command(versionCtx, "--version")
 	out, err := cmd.Output()
 	if err != nil || strings.TrimSpace(string(out)) != "codex-cli "+cfg.Version {
-		return fail("installed Codex does not match baseline release")
+		return fail("installed Codex does not match selected release")
 	}
 	return e, nil
 }

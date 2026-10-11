@@ -40,6 +40,10 @@ changes may occur in minor releases.
 
 ### Repository
 
+- Use `gpt-6.1-sol/high` for formal upstream repair. Resolve and record the
+  official latest Codex CLI per execution for repair and Live, independently
+  of the exact schema baseline; the Live model remains `gpt-6-sol/high`.
+
 - Use `AZURE_OPENAI_API_KEY` and `CODEX_RESPONSES_API_ENDPOINT` directly for live
   tests and readiness, with a fixture-owned provider label and shared local/CI
   direct API base configuration. Preserve the existing secrets, model, transport,

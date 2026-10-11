@@ -37,7 +37,7 @@ func NormalizeKey(key string) (string, error) {
 
 // Prepare validates the native API base, uses
 // caller-owned temporary state, and never persists the provider key.
-func Prepare(root, directory, baseURL, key string) (Fixture, error) {
+func Prepare(selectedVersion, directory, baseURL, key string) (Fixture, error) {
 	canonicalKey, err := NormalizeKey(key)
 	if err != nil {
 		return Fixture{}, err
@@ -51,7 +51,7 @@ func Prepare(root, directory, baseURL, key string) (Fixture, error) {
 		return Fixture{}, errors.New("CODEX_RESPONSES_API_ENDPOINT must be an HTTP(S) URL without credentials, query parameters, or a fragment")
 	}
 	baseURL = strings.TrimRight(baseURL, "/")
-	version, err := Version(root)
+	version, err := SelectedVersion(selectedVersion)
 	if err != nil {
 		return Fixture{}, err
 	}
@@ -62,7 +62,7 @@ func Prepare(root, directory, baseURL, key string) (Fixture, error) {
 		return Fixture{}, errors.New("official codex CLI is required")
 	}
 	if strings.TrimSpace(string(out)) != "codex-cli "+version {
-		return Fixture{}, errors.New("installed Codex version does not match the tested baseline")
+		return Fixture{}, errors.New("installed Codex version does not match the selected release")
 	}
 	f := Fixture{Home: filepath.Join(directory, "codex-home"), Workspace: filepath.Join(directory, "workspace")}
 	for _, path := range []string{f.Home, f.Workspace} {
