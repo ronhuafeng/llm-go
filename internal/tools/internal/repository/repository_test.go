@@ -418,7 +418,7 @@ func TestProtocolSyncPreservesAuthorityAndPublicationBoundaries(t *testing.T) {
 		t.Fatal("publication must not change the proven base by rebasing")
 	}
 	control, ok := workflowStepByID(syncText, "control")
-	if !ok || !strings.Contains(control, "go mod download all") || !strings.Contains(control, "go build -o") || !strings.Contains(control, "sha256sum") {
+	if !ok || !strings.Contains(control, `go mod download -modfile "${warmup}/go.mod" all`) || !strings.Contains(control, `cp "${GITHUB_WORKSPACE}/go.sum" "${warmup}/go.sum"`) || !strings.Contains(control, `diff --exit-code -- go.mod go.sum`) || !strings.Contains(control, "go build -o") || !strings.Contains(control, "sha256sum") {
 		t.Fatal("publication control must be built and fingerprinted before the Agent")
 	}
 	handoff, ok := workflowStepByID(syncText, "handoff")

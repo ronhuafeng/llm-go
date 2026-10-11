@@ -344,7 +344,12 @@ jobs:
           control="${RUNNER_TEMP}/protocolupgrade-control"
           # Warm only the accepted module graph, including dependency tests used
           # by tidy, before any untrusted verifier runs without network access.
-          go mod download all
+          # Additional download checksums belong only to this disposable copy.
+          warmup="$(mktemp -d "${RUNNER_TEMP}/protocol-modules.XXXXXX")"
+          cp "${GITHUB_WORKSPACE}/go.mod" "${warmup}/go.mod"
+          cp "${GITHUB_WORKSPACE}/go.sum" "${warmup}/go.sum"
+          go mod download -modfile "${warmup}/go.mod" all
+          git -C "${GITHUB_WORKSPACE}" diff --exit-code -- go.mod go.sum
           go build -o "${control}" ./internal/cmd/protocolupgrade
           digest="$(sha256sum "${control}" | cut -d ' ' -f1)"
           echo "sha256=${digest}" >> "${GITHUB_OUTPUT}"
