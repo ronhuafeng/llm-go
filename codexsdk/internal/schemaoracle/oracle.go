@@ -105,8 +105,13 @@ func Build(req Request) ([]Target, error) {
 		if err := prepareReachable(doc, root, fragment, req.CloseObjects, map[string]bool{}); err != nil {
 			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
 		}
+		if err := prepareOutputSchema(doc, root, docName, fragment, map[string]bool{}); err != nil {
+			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
+		}
 		c := validator.NewCompiler()
 		c.UseLoader(denyLoader{})
+		c.RegisterVocabulary(outputSchemaVocabulary())
+		c.AssertVocabs()
 		const url = "https://schema-oracle.invalid/target.json"
 		if err := c.AddResource(url, doc); err != nil {
 			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
