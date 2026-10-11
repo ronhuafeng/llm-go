@@ -115,6 +115,24 @@ func Build(req Request) ([]Target, error) {
 		if err != nil {
 			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
 		}
+		sourceSchema := compiled
+		hasOutputSchema, err := applyOutputSchemaOverlay(doc, root, fragment, docName)
+		if err != nil {
+			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
+		}
+		if hasOutputSchema {
+			c = validator.NewCompiler()
+			c.UseLoader(denyLoader{})
+			c.RegisterVocabulary(outputSchemaVocabulary())
+			c.AssertVocabs()
+			if err := c.AddResource(url, doc); err != nil {
+				return nil, err
+			}
+			compiled, err = c.Compile(url + fragment)
+			if err != nil {
+				return nil, fmt.Errorf("schema oracle %s: %w", name, err)
+			}
+		}
 		w := witnesses{doc: doc}
 		values, err := w.make(root, fragment, 0)
 		if err != nil {
@@ -155,11 +173,13 @@ func Build(req Request) ([]Target, error) {
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			if compiled.Validate(v) != nil {
-				return nil, fmt.Errorf("schema oracle %s: cannot construct valid witness at root: %v", name, compiled.Validate(v))
+			if sourceSchema.Validate(v) != nil {
+				return nil, fmt.Errorf("schema oracle %s: cannot construct valid witness at root: %v", name, sourceSchema.Validate(v))
 			}
-			valid++
-			add(v, true)
+			if compiled.Validate(v) == nil {
+				valid++
+			}
+			add(v, false)
 			context := mutationShape(v, 0)
 			if len(discriminators) > 0 {
 				context = fmt.Sprintf("%T", v)

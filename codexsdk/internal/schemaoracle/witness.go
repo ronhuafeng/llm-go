@@ -47,6 +47,9 @@ func (w *witnesses) make(node any, path string, depth int) ([]any, error) {
 		return freeValues(fmt.Sprint(w.count)), nil
 	}
 	m := node.(map[string]any)
+	if m[outputSchemaKeyword] == true {
+		return outputSchemaWitnesses(), nil
+	}
 	if r, ok := m["$ref"].(string); ok {
 		n, err := pointer(w.doc, r)
 		if err != nil {
