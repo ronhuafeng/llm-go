@@ -140,3 +140,48 @@ func TestLiveFailureFactsOmitAbsentNativeTurnError(t *testing.T) {
 		t.Fatalf("missing absent native error in:\n%s", got)
 	}
 }
+
+func TestNativeMessageSignatureIsAnObservationNotAttribution(t *testing.T) {
+	for _, tc := range []struct{ name, message, want string }{
+		{"content filter", "stream disconnected before completion: Incomplete response returned, reason: content_filter", "content_filter_message"},
+		{"request timeout", "request timed out", "request_timeout_message"},
+		{"child timeout", "timeout waiting for child process to exit", "child_timeout_message"},
+		{"child stdio", "spawn failed: child stdout/stderr not captured", "child_stdio_message"},
+		{"sandbox executable", "codex-linux-sandbox was required but not provided", "sandbox_executable_message"},
+		{"stream payload", "stream disconnected before completion: PRIVATE https://secret.invalid/?key=PRIVATE", "stream_disconnected_prefix"},
+		{"fatal payload", "Fatal error: PRIVATE", "fatal_prefix"},
+		{"missing env payload", "Missing environment variable: `PRIVATE`. PRIVATE", "missing_environment_prefix"},
+		{"unknown provider text", "HTTP 401 PRIVATE model unavailable", "unknown"},
+		{"embedded prefix", "PRIVATE stream disconnected before completion: PRIVATE", "unknown"},
+		{"multiline mixed", "Fatal error: PRIVATE\nrequest timed out", "unknown"},
+		{"suffix on literal", "request timed out PRIVATE", "unknown"},
+		{"leading whitespace", " request timed out", "unknown"},
+		{"case folded", "REQUEST TIMED OUT", "unknown"},
+		{"control character", "Fatal error: \x1b[31mPRIVATE", "unknown"},
+		{"oversized", "Fatal error: " + strings.Repeat("PRIVATE", 3000), "unknown"},
+		{"empty prefix", "Fatal error: ", "unknown"},
+		{"empty", "", "unknown"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := nativeMessageSignature(tc.message); got != tc.want {
+				t.Fatalf("signature=%q, want=%q", got, tc.want)
+			}
+			for _, withInfo := range []bool{true, false} {
+				native := protocolv2.TurnError{Message: tc.message}
+				if withInfo {
+					native.CodexErrorInfo = protocolv2.Value(protocolv2.NewCodexErrorInfoOther())
+				}
+				facts := nativeTurnErrorFacts(protocolv2.Turn{Error: protocolv2.Value(native)})
+				got := strings.Join(facts, "\n")
+				if !strings.Contains(got, "message_signature="+tc.want) {
+					t.Fatal("missing fixed signature")
+				}
+				for _, private := range []string{"PRIVATE", "secret.invalid", "HTTP 401", "key="} {
+					if strings.Contains(got, private) {
+						t.Fatal("native error payload leaked")
+					}
+				}
+			}
+		})
+	}
+}

@@ -114,11 +114,12 @@ func nativeTurnErrorFacts(turn protocolv2.Turn) []string {
 		return []string{"live_failure.native_turn_error=absent"}
 	}
 	native := *turn.Error.Value
+	facts := []string{"live_failure.native_turn_error.message_signature=" + nativeMessageSignature(native.Message)}
 	if native.CodexErrorInfo == nil || native.CodexErrorInfo.Value == nil {
-		return []string{"live_failure.native_turn_error.codex_error_info=absent"}
+		return append(facts, "live_failure.native_turn_error.codex_error_info=absent")
 	}
 	info := *native.CodexErrorInfo.Value
-	facts := []string{"live_failure.native_turn_error.codex_error_info=" + string(info.Kind())}
+	facts = append(facts, "live_failure.native_turn_error.codex_error_info="+string(info.Kind()))
 	if status, ok := httpStatusFromCodexErrorInfo(info); ok {
 		facts = append(facts, fmt.Sprintf("live_failure.native_turn_error.http_status=%d", status))
 	}
@@ -154,4 +155,45 @@ func liveCLIVersion() string {
 		return ""
 	}
 	return strings.TrimSpace(string(out))
+}
+
+// nativeMessageSignature reports only an observed literal/prefix, never the
+// original message, interpolated payload, provider attribution, or root cause.
+// Codex 0.160.0 sources (a956835d020762cb2b570053af06f643a11c0ecc):
+// https://github.com/openai/codex/blob/a956835d020762cb2b570053af06f643a11c0ecc/codex-rs/protocol/src/error.rs#L84-L204
+// defines CodexErrorDetails display strings; EnvVarError's display is L867-L872.
+// L459-L501 maps these details to CodexErrorInfo::Other. In particular,
+// InvalidRequest(String), Io and Json have arbitrary/transparent displays, so
+// generic HTTP/auth/model keywords are not evidence for a stronger category.
+func nativeMessageSignature(message string) string {
+	// Do not search embedded or multiline text for a recognizable fragment.
+	// Refuse control characters rather than normalizing attacker-supplied text.
+	if len(message) > 16384 || strings.ContainsFunc(message, func(r rune) bool { return r < 32 || r == 127 }) {
+		return "unknown"
+	}
+	switch message {
+	case "stream disconnected before completion: Incomplete response returned, reason: content_filter":
+		return "content_filter_message"
+	case "request timed out":
+		return "request_timeout_message"
+	case "timeout waiting for child process to exit":
+		return "child_timeout_message"
+	case "spawn failed: child stdout/stderr not captured":
+		return "child_stdio_message"
+	case "codex-linux-sandbox was required but not provided":
+		return "sandbox_executable_message"
+	}
+	// Prefix names intentionally describe text observations. Even an exact
+	// prefix can be echoed in arbitrary upstream text; it does not identify the
+	// Rust variant or prove that the provider or sandbox caused the failure.
+	for _, signature := range []struct{ prefix, name string }{
+		{"stream disconnected before completion: ", "stream_disconnected_prefix"},
+		{"Fatal error: ", "fatal_prefix"},
+		{"Missing environment variable: `", "missing_environment_prefix"},
+	} {
+		if strings.HasPrefix(message, signature.prefix) && len(message) > len(signature.prefix) {
+			return signature.name
+		}
+	}
+	return "unknown"
 }

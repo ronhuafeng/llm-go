@@ -71,3 +71,34 @@ func TestResultsRetainStoryStagesWithoutPrivateContent(t *testing.T) {
 		t.Fatal("private content was forwarded as a story stage")
 	}
 }
+
+func TestResultsAllowOnlyFixedNativeMessageSignatures(t *testing.T) {
+	signatures := []string{"unknown", "content_filter_message", "request_timeout_message", "child_timeout_message", "child_stdio_message", "sandbox_executable_message", "stream_disconnected_prefix", "fatal_prefix", "missing_environment_prefix"}
+	for _, signature := range signatures {
+		if !safeFact.MatchString("live_failure.native_turn_error.message_signature=" + signature) {
+			t.Errorf("fixed signature rejected: %s", signature)
+		}
+	}
+	for _, signature := range []string{"PRIVATE", "unknown PRIVATE", "fatal_prefixhttps://secret.invalid", "provider_authentication_failed", "stream_disconnected_prefix\nPRIVATE", ""} {
+		if safeFact.MatchString("live_failure.native_turn_error.message_signature=" + signature) {
+			t.Fatal("unapproved signature accepted")
+		}
+	}
+	var out bytes.Buffer
+	events := `{"Action":"run","Test":"TestLiveCodexSmoke"}
+{"Action":"output","Test":"TestLiveCodexSmoke","Output":"    live_failure_facts.go:28: live_failure.native_turn_error.message_signature=stream_disconnected_prefix\n    live_failure_facts.go:28: live_failure.native_turn_error.message_signature=unknown\n    live_failure_facts.go:28: live_failure.native_turn_error.message_signature=unknown PRIVATE\n    live_failure_facts.go:28: live_failure.native_turn_error.message_signature=PRIVATE\n    live_failure_facts.go:28: live_failure.native_turn_error.message=Fatal error: PRIVATE https://secret.invalid/?key=PRIVATE"}
+{"Action":"fail","Test":"TestLiveCodexSmoke"}`
+	if err := CheckResults(strings.NewReader(events), &out); err == nil {
+		t.Fatal("diagnostics must not make a failed scenario pass")
+	}
+	for _, signature := range []string{"stream_disconnected_prefix", "unknown"} {
+		if !strings.Contains(out.String(), "message_signature="+signature+"\n") {
+			t.Fatal("fixed signature was lost")
+		}
+	}
+	for _, private := range []string{"PRIVATE", "secret.invalid", "Fatal error", "key="} {
+		if strings.Contains(out.String(), private) {
+			t.Fatal("private output leaked")
+		}
+	}
+}
