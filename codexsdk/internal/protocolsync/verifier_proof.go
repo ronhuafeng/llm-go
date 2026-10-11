@@ -174,9 +174,6 @@ func runVerifierProposalProof(ctx context.Context, req verifierProofRequest) (ve
 				return evidence, frozenErr
 			}
 			if e != nil {
-				if version == "new" {
-					return evidence, verifierFeedback(fmt.Errorf("%s/%s generation blocked: %w", c.Name, version, e))
-				}
 				return evidence, fmt.Errorf("%s/%s generation blocked: %w", c.Name, version, e)
 			}
 			generated[version] = data
