@@ -168,7 +168,7 @@ jobs:
           # Keep Go's ten-minute invocation limit and the outer job limit. Each
           # selected top-level test (including all its subtests) runs once.
           listing="$(go test "${package}" -list '^(TestLiveRepairSandbox|TestLiveVerifierProofMatrix)')"
-          tests="$(printf '%s\n' "${listing}" | grep -E '^Test[A-Za-z0-9_]+$')"
+          tests="$(printf '%s\n' "${listing}" | grep -E '^Test[^[:space:]]+$')"
           test -n "${tests}"
           while IFS= read -r name; do
             go test "${package}" -run "^${name}$" -count=1 -timeout=10m -v

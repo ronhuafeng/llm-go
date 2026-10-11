@@ -34,7 +34,7 @@ if [[ "$*" == *" -list "* ]]; then
     exit 1
   fi
   if [[ "$MODE" != "empty" ]]; then
-    printf '%s\n' TestLiveRepairSandboxA TestLiveVerifierProofMatrixNewCase TestLiveVerifierProofMatrixThird
+    printf '%s\n' TestLiveRepairSandboxA TestLiveVerifierProofMatrixNewCase TestLiveVerifierProofMatrix未来
   fi
   printf '%s\n' 'ok example/package 0.001s'
   exit 0
@@ -58,7 +58,7 @@ if [[ "$MODE" == "execution failure" && "$*" == *'^TestLiveVerifierProofMatrixNe
 			if calls[0] != "test ./codexsdk/internal/protocolsync -list ^(TestLiveRepairSandbox|TestLiveVerifierProofMatrix)" {
 				t.Fatalf("changed selection: %q", calls)
 			}
-			want := []string{"TestLiveRepairSandboxA", "TestLiveVerifierProofMatrixNewCase", "TestLiveVerifierProofMatrixThird"}
+			want := []string{"TestLiveRepairSandboxA", "TestLiveVerifierProofMatrixNewCase", "TestLiveVerifierProofMatrix未来"}
 			switch mode {
 			case "discovery failure", "empty":
 				want = nil
