@@ -41,11 +41,17 @@ inputs:
   target-sha:
     description: Exact selected upstream commit.
     required: true
+  continuation-file:
+    description: Native-verified merged verifier continuation receipt.
+    required: false
   checkpoint-dir:
     description: Private checkpoint directory outside the repair workspace.
     required: true
 
 outputs:
+  verifier_dir:
+    description: Reviewed verifier-only proposal artifact directory.
+    value: ${{ steps.codex.outputs.verifier_dir }}
   outcome:
     description: Deterministic repair outcome.
     value: ${{ steps.codex.outputs.outcome }}
@@ -98,9 +104,14 @@ runs:
         TARGET_KIND: ${{ inputs.target-kind }}
         TARGET_SHA: ${{ inputs.target-sha }}
         CHECKPOINT_DIR: ${{ inputs.checkpoint-dir }}
+        CONTINUATION_FILE: ${{ inputs.continuation-file }}
       run: |
         set -euo pipefail
         test "$(sha256sum "${CONTROL}" | cut -d ' ' -f 1)" = "${CONTROL_SHA256}"
+        continuation_args=()
+        if [[ -n "${CONTINUATION_FILE:-}" ]]; then
+          continuation_args+=(-continuation-file "${CONTINUATION_FILE}")
+        fi
         "${CONTROL}" repair \
           -repo-root "${GITHUB_WORKSPACE}" \
           -module-root "${GITHUB_WORKSPACE}/codexsdk" \
@@ -109,4 +120,5 @@ runs:
           -target-ref "${TARGET_REF}" \
           -target-kind "${TARGET_KIND}" \
           -target-sha "${TARGET_SHA}" \
-          -checkpoint-dir "${CHECKPOINT_DIR}"
+          -checkpoint-dir "${CHECKPOINT_DIR}" \
+          "${continuation_args[@]}"

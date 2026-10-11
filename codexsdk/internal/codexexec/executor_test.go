@@ -185,3 +185,37 @@ func TestExecutorRequiresExactSelectedRuntime(t *testing.T) {
 		}
 	}
 }
+
+func TestReadOnlyReviewerConfigAndCLI(t *testing.T) {
+	original := fakeExecutor(t, `printf '%s\n' "$@" > args.txt
+ cat >/dev/null
+ printf '%s\n' '{"type":"thread.started","thread_id":"`+testSession+`"}' '{"type":"turn.completed"}'
+`)
+	cfg := original.config
+	cfg.ReadOnly = true
+	reviewer, e := New(context.Background(), cfg)
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer reviewer.Close()
+	if _, e := reviewer.Run(context.Background(), "review", ""); e != nil {
+		t.Fatal(e)
+	}
+	b, e := os.ReadFile(filepath.Join(reviewer.home, "config.toml"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	if !strings.Contains(string(b), "read-only") || strings.Contains(string(b), "workspace-write") {
+		t.Fatal("reviewer configuration is writable")
+	}
+	b, e = os.ReadFile(filepath.Join(cfg.Workspace, "args.txt"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	if !strings.Contains(string(b), "--sandbox\nread-only\n") {
+		t.Fatal("CLI overrides reviewer sandbox")
+	}
+	if reviewer.home == original.home {
+		t.Fatal("reviewer reused author's identity home")
+	}
+}

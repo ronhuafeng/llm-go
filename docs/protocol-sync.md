@@ -242,6 +242,12 @@ and executes proposed Go in a no-network Linux namespace with private temp/home,
 read-only Git identity and candidate inputs. Proposed target tests, generation checks,
 and vet run first. They supplement independent evidence; they do not choose it.
 
+The [reviewed verifier repair flow](verifier-repair-flow.md) gives the separate
+verifier role a bounded proposal path: independent executed counterexamples and
+fresh read-only review, a verifier-only PR through the normal four checks and
+auto-forward, then a fresh accepted-main controller on the retained target.
+Neither role can replace the running controller or approve its own proposal.
+
 Verifier implementation and version-specific assertions may evolve. Their authority
 is the selected upstream contract plus explicit local wire guarantees, not the old
 verifier's source code. A verifier change must show a legitimate change rejected by

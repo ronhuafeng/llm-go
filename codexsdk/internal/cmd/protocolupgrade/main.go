@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -26,6 +27,14 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	switch args[0] {
+	case "prepare-verifier":
+		return runVerifierPreparation(args[1:], stdout, stderr)
+	case "publish-verifier":
+		return runVerifierPublication(args[1:], stdout, stderr)
+	case "resolve-verifier":
+		return runVerifierResolution(args[1:], stdout, stderr)
+	case "continue-verifier":
+		return runVerifierContinuation(args[1:], stdout, stderr)
 	case "sync":
 		return runSync(args[1:], stdout, stderr, false)
 	case "diagnose":
@@ -427,6 +436,7 @@ func runRepair(args []string, stdout, stderr io.Writer) int {
 	sha := fs.String("target-sha", "", "selected SHA")
 	checkpoint := fs.String("checkpoint-dir", "", "private checkpoint directory")
 	rounds := fs.Int("max-rounds", 6, "finite repair round limit (1..12)")
+	continuation := fs.String("continuation-file", "", "native-verified continuation receipt")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -450,7 +460,30 @@ func runRepair(args []string, stdout, stderr io.Writer) int {
 	} else {
 		defer executor.Close()
 	}
-	result, err := protocolsync.Repair(ctx, protocolsync.RepairRequest{ResumeRequest: protocolsync.ResumeRequest{RepoRoot: *root, ModuleRoot: *module, CandidateDir: *candidate, CandidateSHA256: *digest, TargetRef: *ref, TargetKind: *kind, TargetSHA: *sha}, CheckpointDir: *checkpoint, MaxRounds: *rounds, Executor: repairExecutor})
+	var verifier *protocolsync.VerifierRepairConfig
+	if runID := os.Getenv("GITHUB_RUN_ID"); runID != "" {
+		origin, parseErr := strconv.ParseInt(runID, 10, 64)
+		attempt, attemptErr := strconv.Atoi(os.Getenv("GITHUB_RUN_ATTEMPT"))
+		if parseErr != nil || attemptErr != nil || origin < 1 || attempt < 1 {
+			fmt.Fprintln(stderr, "invalid trusted verifier origin")
+			return 1
+		}
+		verifier = &protocolsync.VerifierRepairConfig{OriginRunID: origin, OriginAttempt: attempt, OutputDir: *checkpoint + "-verifier", Actor: func(c context.Context, workspace string, readOnly bool) (protocolsync.VerifierActor, func(), error) {
+			actor, e := codexexec.New(c, codexexec.Config{Workspace: workspace, StateDir: state, ReadOnly: readOnly, Version: os.Getenv("CODEX_CLI_VERSION"), BaseURL: os.Getenv("CODEX_RESPONSES_API_ENDPOINT"), APIKey: os.Getenv("AZURE_OPENAI_API_KEY"), Model: os.Getenv("CODEX_MODEL"), Reasoning: os.Getenv("CODEX_REASONING_EFFORT")})
+			if e != nil {
+				return nil, nil, e
+			}
+			return actor, func() { _ = actor.Close() }, nil
+		}}
+	}
+	repairRequest := protocolsync.RepairRequest{ResumeRequest: protocolsync.ResumeRequest{RepoRoot: *root, ModuleRoot: *module, CandidateDir: *candidate, CandidateSHA256: *digest, TargetRef: *ref, TargetKind: *kind, TargetSHA: *sha}, CheckpointDir: *checkpoint, MaxRounds: *rounds, Executor: repairExecutor, Verifier: verifier}
+	if *continuation != "" {
+		if e := protocolsync.BindVerifierContinuation(&repairRequest, *continuation); e != nil {
+			fmt.Fprintln(stderr, e)
+			return 1
+		}
+	}
+	result, err := protocolsync.Repair(ctx, repairRequest)
 	if e := protocolsync.WriteGitHubOutput(os.Getenv("GITHUB_OUTPUT"), result); e != nil {
 		err = e
 	}

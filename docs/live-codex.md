@@ -297,3 +297,8 @@ it is not a local-machine or self-hosted-runner recipe. Codex remains
 `workspace-write` with network access disabled, and the oracle retains its
 separate read-only inputs, private process namespace, and network isolation.
 The actual executor and oracle isolation assertions remain mandatory.
+
+The repair-executor scenario also starts a fresh read-only verifier session. It
+attempts one fixture write, requires the native failed-command observation and
+unchanged candidate bytes, then verifies that the reviewer read the candidate.
+This bounds the reviewer role's runtime guarantee; its prose is not acceptance.

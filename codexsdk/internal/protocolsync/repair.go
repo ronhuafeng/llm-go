@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/ronhuafeng/llm-go/codexsdk/internal/codexexec"
 )
@@ -20,9 +21,14 @@ import (
 // gets a fresh clone, so failed Apply output never becomes the next proposal.
 type RepairRequest struct {
 	ResumeRequest
-	CheckpointDir string
-	MaxRounds     int
-	Executor      interface {
+	CheckpointDir     string
+	MaxRounds         int
+	ConsumedRounds    int
+	DeadlineUTC       string
+	VerifyBeforeModel bool
+	VerifierHandoffs  int
+	Verifier          *VerifierRepairConfig
+	Executor          interface {
 		Preflight(context.Context) error
 		Run(context.Context, string, string) (codexexec.Result, error)
 	}
@@ -31,23 +37,38 @@ type RepairRequest struct {
 }
 
 type repairCheckpoint struct {
-	Version         int    `json:"version"`
-	Base            string `json:"base"`
-	Target          Target `json:"target"`
-	CandidateSHA256 string `json:"candidate_sha256"`
-	ProposalSHA256  string `json:"proposal_sha256"`
-	Round           int    `json:"round"`
-	Status          string `json:"status"`
-	Stage           string `json:"stage"`
-	Diagnostic      string `json:"diagnostic"`
+	Version          int    `json:"version"`
+	DeadlineUTC      string `json:"deadline_utc,omitempty"`
+	Base             string `json:"base"`
+	Target           Target `json:"target"`
+	CandidateSHA256  string `json:"candidate_sha256"`
+	ProposalSHA256   string `json:"proposal_sha256"`
+	Round            int    `json:"round"`
+	Status           string `json:"status"`
+	Stage            string `json:"stage"`
+	Diagnostic       string `json:"diagnostic"`
+	MaxRounds        int    `json:"max_rounds,omitempty"`
+	VerifierHandoffs int    `json:"verifier_handoffs,omitempty"`
 }
 
 func Repair(ctx context.Context, req RepairRequest) (result SyncResult, err error) {
 	if req.MaxRounds == 0 {
 		req.MaxRounds = 6
 	}
-	if req.MaxRounds < 1 || req.MaxRounds > 12 || req.Executor == nil || req.CheckpointDir == "" {
+	if req.MaxRounds < 1 || req.MaxRounds > 12 || req.ConsumedRounds < 0 || req.ConsumedRounds > req.MaxRounds || req.VerifierHandoffs < 0 || req.VerifierHandoffs > 1 || req.Executor == nil || req.CheckpointDir == "" {
 		return result, errors.New("repair requires executor, checkpoint directory and 1..12 rounds")
+	}
+	if req.DeadlineUTC != "" {
+		deadline, e := time.Parse(time.RFC3339Nano, req.DeadlineUTC)
+		if e != nil || !time.Now().Before(deadline) {
+			return result, errors.New("repair continuation deadline expired or invalid")
+		}
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithDeadline(ctx, deadline)
+		defer cancel()
+	}
+	if deadline, ok := ctx.Deadline(); ok {
+		req.DeadlineUTC = deadline.UTC().Format(time.RFC3339Nano)
 	}
 	checkpointAbs, e := filepath.Abs(req.CheckpointDir)
 	if e != nil {
@@ -65,7 +86,7 @@ func Repair(ctx context.Context, req RepairRequest) (result SyncResult, err erro
 		return result, err
 	}
 	base = strings.TrimSpace(base)
-	cp := repairCheckpoint{Version: 1, Base: base, Target: Target{RefName: req.TargetRef, RefKind: req.TargetKind, PeeledCommitSHA: req.TargetSHA}, CandidateSHA256: req.CandidateSHA256, Status: "ready"}
+	cp := repairCheckpoint{Version: 1, DeadlineUTC: req.DeadlineUTC, Base: base, Target: Target{RefName: req.TargetRef, RefKind: req.TargetKind, PeeledCommitSHA: req.TargetSHA}, CandidateSHA256: req.CandidateSHA256, Status: "ready", Round: req.ConsumedRounds, MaxRounds: req.MaxRounds, VerifierHandoffs: req.VerifierHandoffs}
 	if err = repairIntegrity(req.ResumeRequest, base); err != nil {
 		return result, err
 	}
@@ -104,21 +125,59 @@ func Repair(ctx context.Context, req RepairRequest) (result SyncResult, err erro
 	if err != nil {
 		return result, err
 	}
+	oracle := req.Oracle
+	if oracle == nil {
+		oracle = repairOracle
+	}
+	initialFeedback := ""
+	if req.VerifyBeforeModel {
+		cp.Stage = "oracle"
+		before := repairDigest(proposal)
+		observed, generated, verifyErr := oracle(ctx, req.ResumeRequest)
+		if e := repairIntegrity(req.ResumeRequest, base); e != nil {
+			return result, e
+		}
+		after, e := repairPatch(req.RepoRoot)
+		if e != nil {
+			return result, e
+		}
+		if repairDigest(after) != before {
+			return result, errors.New("continued proposal changed during fresh verification")
+		}
+		if verifyErr == nil && observed.Outcome == OutcomeApplied {
+			if e := applyProposalPatchBytes(req.RepoRoot, generated); e != nil {
+				return result, e
+			}
+			if e := CheckScope(req.RepoRoot, "final"); e != nil {
+				return result, e
+			}
+			cp.Status = "verified"
+			cp.Diagnostic = "fresh accepted controller verified continued proposal without a model turn"
+			return observed, nil
+		}
+		recoverable := (observed.Stage == "replan" && observed.FailureCategory == FailureUnsupported && observed.Issue != nil) || observed.Stage == "verification"
+		if !recoverable {
+			return observed, fmt.Errorf("continued verification blocked: %w", verifyErr)
+		}
+		cp.Diagnostic = boundedRepairDiagnostic(fmt.Sprint(verifyErr))
+		initialFeedback = "Fresh accepted-controller verification rejected the retained proposal: " + cp.Diagnostic
+	}
+	if cp.Round >= req.MaxRounds {
+		cp.Status = "exhausted"
+		return result, errors.New("inherited repair budget exhausted")
+	}
 	if err = req.Executor.Preflight(ctx); err != nil {
 		cp.Status = "blocked"
 		cp.Stage = "executor_preflight"
 		cp.Diagnostic = boundedRepairDiagnostic(err.Error())
 		return result, err
 	}
-	oracle := req.Oracle
-	if oracle == nil {
-		oracle = repairOracle
-	}
 	session := ""
 	feedback := "Read .agents/skills/codexsdk-sync-upstream/SKILL.md and codexsdk/.cache/codexsdk-sync/agent-input.md. Repair only permitted handwritten source and focused tests for the exact retained candidate. Do not edit generated output, control policy, acceptance, Git state, or credentials. Leave changes unstaged. Independent verification will supply feedback."
+	feedback += "\n" + initialFeedback
 	lastDigest := ""
-	for round := 1; round <= req.MaxRounds; round++ {
-		cp.Round = round
+	for cp.Round < req.MaxRounds {
+		cp.Round++
 		cp.Stage = "agent"
 		if err = repairIntegrity(req.ResumeRequest, base); err != nil {
 			return result, err
@@ -215,6 +274,19 @@ func Repair(ctx context.Context, req RepairRequest) (result SyncResult, err erro
 			return result, fmt.Errorf("independent oracle blocked repair at %s: %w", result.Stage, verifyErr)
 		}
 		cp.Diagnostic = boundedRepairDiagnostic(fmt.Sprint(verifyErr))
+		if result.Stage == "verification" && req.Verifier != nil && req.VerifierHandoffs == 0 {
+			proposed, proposalErr := proposeVerifier(ctx, req, &cp, proposal)
+			if proposalErr != nil {
+				return result, proposalErr
+			}
+			if proposed {
+				result.Outcome = OutcomeVerifierProposal
+				result.Stage = "verifier_proposal"
+				result.VerifierDir = req.Verifier.OutputDir
+				result.Target = cp.Target
+				return result, nil
+			}
+		}
 		feedback = "Independent verification rejected the current proposal. Continue the same exact candidate and permitted scope. Stage: " + result.Stage + ". Diagnostic:\n" + cp.Diagnostic
 		if result.Issue != nil {
 			feedback += "\nTyped unresolved: " + result.Issue.Stage + " " + result.Issue.Path + ": " + result.Issue.Reason

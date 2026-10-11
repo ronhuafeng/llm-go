@@ -161,7 +161,7 @@ jobs:
         env:
           GOTOOLCHAIN: local
           LLMGO_REPAIR_SANDBOX_TEST: "1"
-        run: go test ./codexsdk/internal/protocolsync -run '^TestLiveRepairSandbox' -count=1
+        run: go test ./codexsdk/internal/protocolsync -run '^(TestLiveRepairSandbox|TestLiveVerifierProofMatrix)'  -count=1
 
       - name: Root module proof
         env:

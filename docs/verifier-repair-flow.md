@@ -1,7 +1,8 @@
 # Reviewed verifier repair continuation
 
-Status: implementation design for the bounded protocol repair flow. Existing
-runtime behavior remains the authority until the accompanying tests and CI pass.
+Status: implementation candidate for the bounded protocol repair flow. Hosted
+isolation, live runtime and end-to-end target continuation remain acceptance
+obligations; local tests and this document alone do not establish deployment.
 This is a process change, not a preinstalled fix for the current target.
 
 ## Outcome
@@ -55,14 +56,19 @@ Verifier changes become authority only after their own reviewed PR is integrated
   round allowance (default six) before it starts, including empty, failed or
   cancelled attempts. Continuation carries consumption forward. One
   verifier-PR handoff per chain is the initial bound; it is not recursive repair
-  of the repair process. The existing time/cancellation bounds still apply.
+  of the repair process. The original absolute 90-minute repair deadline is
+  retained across the verifier PR, including CI/queue time; it is not restarted.
+  Explicit author format/fixture/proof failures feed the same verifier session
+  within the remaining shared allowance. Scope, identity, sandbox setup, unknown
+  failures and unknown/refused independent review stop the chain.
 - Unknown review, failed tests/checks, stale main/source, changed patch, or missing
   provenance retains a blocked result. It does not silently retry or reset limits.
 - Origin run, target, verifier PR head, and integrated main identify continuation.
   Within the existing serialized workflow concurrency, native workflow-run
   observation (excluding the current run) suppresses duplicate merged events or
   attempts before starting work; an uncoordinated check-then-start is insufficient.
-  Existing exact-base `recovery_run_id` behavior is not weakened.
+  Existing exact-base `recovery_run_id` remains an explicitly authorized new finite
+  invocation, never an automatic fallback or same-chain budget reset.
 - A historical exhausted run does not acquire more rounds from this feature.
   A separately authorized fresh task is represented honestly as a new chain.
 - Workflow-event resolution and provenance validation run from trusted default-branch

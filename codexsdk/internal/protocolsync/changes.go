@@ -71,13 +71,14 @@ func CheckScope(repoRoot, phase string) error {
 }
 
 func validatePaths(paths []string, phase string) error {
-	if phase != "mechanical" && phase != "agent" && phase != "final" {
+	if phase != "mechanical" && phase != "agent" && phase != "final" && phase != "verifier" {
 		return &Failure{Category: FailurePolicy, Err: fmt.Errorf("needs-maintainer: unknown sync scope %q", phase)}
 	}
 	var invalid []string
 	for _, p := range paths {
 		allowed := (phase == "mechanical" || phase == "final") && isMechanicalPath(p)
 		allowed = allowed || (phase == "agent" || phase == "final") && isAgentProposalPath(p)
+		allowed = allowed || phase == "verifier" && isVerifierProposalPath(p)
 		if !allowed {
 			invalid = append(invalid, p)
 		}
@@ -110,6 +111,17 @@ func isAgentProposalPath(p string) bool {
 	default:
 		return false
 	}
+}
+
+// Verifier proposals are a separate publication epoch. They never enter the
+// ordinary sync final scope and cannot rewrite their runner or public contract.
+func isVerifierProposalPath(p string) bool {
+	const root = "codexsdk/internal/schemaoracle/"
+	if !strings.HasPrefix(p, root) || path.Clean(p) != p || !strings.HasSuffix(p, ".go") || strings.HasSuffix(p, ".gen.go") {
+		return false
+	}
+	rel := strings.TrimPrefix(p, root)
+	return !strings.Contains(rel, "/") || strings.HasPrefix(rel, "testdata/verifier-proof/")
 }
 
 func isMechanicalPath(p string) bool {

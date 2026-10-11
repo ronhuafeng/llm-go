@@ -1,7 +1,10 @@
 name: Auto-forward PR
-run-name: "Auto-forward PR #${{ inputs.pr_number }}"
+run-name: "${{ github.event_name == 'workflow_run' && format('Auto-forward verifier after run {0}', github.event.workflow_run.id) || format('Auto-forward PR #{0}', inputs.pr_number) }}"
 
 on:
+  workflow_run:
+    workflows: [PR verification]
+    types: [completed]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -20,11 +23,52 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  resolve:
+    if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.event.workflow_run.head_branch, 'codex/verifier-repair/') }}
+    name: Resolve trusted integration request
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      pr_number: ${{ steps.request.outputs.pr_number }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Resolve authorized exact-head verifier proposal
+        id: request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          VERIFICATION_RUN: ${{ github.event.workflow_run.id }}
+          APP_BOT_ID: ${{ vars.PROTOCOL_SYNC_APP_BOT_ID }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF_NAME}" = "${DEFAULT_BRANCH}"
+          if [[ "${EVENT_NAME}" == workflow_dispatch ]]; then
+            [[ "${PR_NUMBER}" =~ ^[0-9]+$ ]]
+            echo "pr_number=${PR_NUMBER}" >> "${GITHUB_OUTPUT}"
+          else
+            go run ./codexsdk/internal/cmd/protocolupgrade resolve-verifier \
+              -repo-root "${GITHUB_WORKSPACE}" -github-repository "${GITHUB_REPOSITORY}" \
+              -base-branch "${DEFAULT_BRANCH}" -app-bot-id "${APP_BOT_ID}" \
+              -verification-run-id "${VERIFICATION_RUN}"
+          fi
   verify:
+    needs: resolve
+    if: ${{ needs.resolve.outputs.pr_number != '' }}
     name: Verify auto-forwardable head
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
+      pr_number: ${{ needs.resolve.outputs.pr_number }}
       head: ${{ steps.candidate.outputs.head }}
       base: ${{ steps.candidate.outputs.base }}
       head_ref: ${{ steps.candidate.outputs.head_ref }}
@@ -54,7 +98,7 @@ jobs:
         id: candidate
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ inputs.pr_number }}
+          PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           REPOSITORY: ${{ github.repository }}
         run: |
@@ -100,7 +144,7 @@ jobs:
         id: acceptance
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ inputs.pr_number }}
+          PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
           REPOSITORY: ${{ github.repository }}
           HEAD_SHA: ${{ steps.candidate.outputs.head }}
         run: &require_acceptance |
@@ -150,7 +194,7 @@ jobs:
       - name: Revalidate current candidate
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ inputs.pr_number }}
+          PR_NUMBER: ${{ needs.verify.outputs.pr_number }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           REPOSITORY: ${{ github.repository }}
           EXPECTED_HEAD: ${{ needs.verify.outputs.head }}
@@ -179,10 +223,24 @@ jobs:
             exit 1
           fi
 
+      - name: Reconfirm automatic verifier evidence
+        if: ${{ github.event_name == 'workflow_run' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ needs.verify.outputs.pr_number }}
+          HEAD_SHA: ${{ needs.verify.outputs.head }}
+          APP_BOT_ID: ${{ vars.PROTOCOL_SYNC_APP_BOT_ID }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          go run ./codexsdk/internal/cmd/protocolupgrade resolve-verifier \
+            -repo-root "${GITHUB_WORKSPACE}" -github-repository "${GITHUB_REPOSITORY}" \
+            -base-branch "${DEFAULT_BRANCH}" -app-bot-id "${APP_BOT_ID}" \
+            -pr-number "${PR_NUMBER}" -head "${HEAD_SHA}"
+
       - name: Reconfirm current-head checks and review policy
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ inputs.pr_number }}
+          PR_NUMBER: ${{ needs.verify.outputs.pr_number }}
           REPOSITORY: ${{ github.repository }}
           HEAD_SHA: ${{ needs.verify.outputs.head }}
         run: *require_acceptance
@@ -215,7 +273,7 @@ jobs:
           {
             echo '## Auto-forward result'
             echo
-            echo "- PR: #${{ inputs.pr_number }}"
+            echo "- PR: #${{ needs.verify.outputs.pr_number }}"
             echo "- Verified/integrated H: ${HEAD_SHA}"
             echo "- New ${DEFAULT_BRANCH}: ${actual}"
             echo "- Integration: non-force fast-forward"
@@ -229,7 +287,7 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           HEAD_SHA: ${{ needs.verify.outputs.head }}
           HEAD_REF: ${{ needs.verify.outputs.head_ref }}
-          PR_NUMBER: ${{ inputs.pr_number }}
+          PR_NUMBER: ${{ needs.verify.outputs.pr_number }}
           REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail

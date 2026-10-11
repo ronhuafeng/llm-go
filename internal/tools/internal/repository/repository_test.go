@@ -430,7 +430,7 @@ func TestProtocolSyncPreservesAuthorityAndPublicationBoundaries(t *testing.T) {
 		t.Fatal("Agent and executable proposal tests must run without repository-write authority")
 	}
 
-	if !strings.Contains(proofJob, "if: ${{ inputs.diagnostic_only != true && inputs.validation_only != true }}") {
+	if !strings.Contains(proofJob, "if: ${{ inputs.diagnostic_only != true && inputs.validation_only != true &&") {
 		t.Fatal("read-only modes must not enter the Agent/apply job")
 	}
 	for _, step := range []string{freeze, checks} {
@@ -444,7 +444,11 @@ func TestProtocolSyncPreservesAuthorityAndPublicationBoundaries(t *testing.T) {
 		t.Fatal("trusted pending discovery needs only the built-in read token")
 	}
 	recovered, _ := workflowStepByID(proofJob, "recovered")
-	if strings.Contains(strings.Replace(strings.Replace(proofJob, mechanical, "", 1), recovered, "", 1), "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}") {
+	continued, _ := workflowStepByID(proofJob, "continued")
+	if !strings.Contains(continued, "continue-verifier") || !strings.Contains(continued, "github.event_name == 'pull_request'") {
+		t.Fatal("continuation must resolve native merged verifier identity")
+	}
+	if strings.Contains(strings.Replace(strings.Replace(strings.Replace(proofJob, mechanical, "", 1), recovered, "", 1), continued, "", 1), "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}") {
 		t.Fatal("the pending-discovery token must not escape its trusted step")
 	}
 	publishJob, ok := workflowJobByID(syncText, "publish")
@@ -1282,5 +1286,38 @@ func TestCodexRepairActionBindsTrustedControlAndCheckpoint(t *testing.T) {
 				t.Fatalf("tamper=%v error=%v %s", tampered, err, out)
 			}
 		})
+	}
+}
+
+func TestVerifierProposalWorkflowPreservesIndependentIntegration(t *testing.T) {
+	root, e := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	if e != nil {
+		t.Fatal(e)
+	}
+	sync := readWorkflow(t, root, "codexsdk-upstream-protocol-sync.yml")
+	publisher, ok := workflowJobByID(sync, "publish-verifier")
+	if !ok {
+		t.Fatal("missing dedicated verifier publisher")
+	}
+	for _, want := range []string{"needs.sync.outputs.resume_outcome == 'verifier_proposal'", "prepare-verifier", "publish-verifier", "GH_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}"} {
+		if !strings.Contains(publisher, want) {
+			t.Fatal("missing trusted boundary: " + want)
+		}
+	}
+	if strings.Index(publisher, "prepare-verifier") > strings.Index(publisher, "Mint repository publication token") || strings.Contains(publisher, "codex-exec") || strings.Contains(publisher, "go test") {
+		t.Fatal("untrusted execution in publication credential job")
+	}
+	forward := readWorkflow(t, root, "auto-forward.yml")
+	for _, want := range []string{"workflow_run:", "workflows: [PR verification]", "resolve-verifier", "-verification-run-id", "Reconfirm automatic verifier evidence", "checkacceptance", "git merge-base --is-ancestor"} {
+		if !strings.Contains(forward, want) {
+			t.Fatal("missing native integration guard: " + want)
+		}
+	}
+	verification := readWorkflow(t, root, "pr-verification.yml")
+	if !strings.Contains(verification, "LLMGO_REPAIR_SANDBOX_TEST: \"1\"") || !strings.Contains(verification, "TestLiveVerifierProofMatrix") {
+		t.Fatal("fixed proof matrix must run under required hosted isolation check")
+	}
+	if !strings.Contains(sync, "-current-run-id \"${GITHUB_RUN_ID}\" -output-dir") || !strings.Contains(sync, "continuation-file:") {
+		t.Fatal("merged event must invoke fresh identity-checked continuation")
 	}
 }

@@ -1,7 +1,9 @@
 name: Codex Upstream Protocol Sync
-run-name: "Protocol sync ${{ inputs.upstream_ref || 'latest stable' }}"
+run-name: "${{ github.event_name == 'pull_request' && format('Verifier continuation PR {0} H {1}', github.event.pull_request.number, github.event.pull_request.head.sha) || format('Protocol sync {0}', inputs.upstream_ref || 'latest stable') }}"
 
 on:
+  pull_request:
+    types: [closed]
   schedule:
     - cron: "0 10 * * 1-5"
   workflow_dispatch:
@@ -252,7 +254,7 @@ jobs:
           if-no-files-found: ignore
 
   sync:
-    if: ${{ inputs.diagnostic_only != true && inputs.validation_only != true }}
+    if: ${{ inputs.diagnostic_only != true && inputs.validation_only != true && (github.event_name != 'pull_request' || (github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'codex/verifier-repair/'))) }}
     name: Sync upstream protocol
     runs-on: ubuntu-latest
     timeout-minutes: 360
@@ -262,19 +264,19 @@ jobs:
       checks: read
       actions: read
     outputs:
-      outcome: ${{ steps.mechanical.outputs.outcome || steps.recovered.outputs.outcome }}
+      outcome: ${{ steps.continued.outputs.outcome || steps.mechanical.outputs.outcome || steps.recovered.outputs.outcome }}
       resume_outcome: ${{ steps.resume.outputs.outcome }}
-      target_ref: ${{ steps.mechanical.outputs.target_ref || steps.recovered.outputs.target_ref }}
-      target_kind: ${{ steps.mechanical.outputs.target_kind || steps.recovered.outputs.target_kind }}
-      target_sha: ${{ steps.mechanical.outputs.target_sha || steps.recovered.outputs.target_sha }}
-      check_state: ${{ steps.mechanical.outputs.check_state || steps.recovered.outputs.check_state }}
-      check_run_id: ${{ steps.mechanical.outputs.check_run_id || steps.recovered.outputs.check_run_id }}
-      check_run_attempt: ${{ steps.mechanical.outputs.check_run_attempt || steps.recovered.outputs.check_run_attempt }}
-      publication_number: ${{ steps.mechanical.outputs.publication_number || steps.recovered.outputs.publication_number }}
-      publication_head: ${{ steps.mechanical.outputs.publication_head || steps.recovered.outputs.publication_head }}
-      publication_branch: ${{ steps.mechanical.outputs.publication_branch || steps.recovered.outputs.publication_branch }}
-      publication_checks: ${{ steps.mechanical.outputs.publication_checks || steps.recovered.outputs.publication_checks }}
-      pr_url: ${{ steps.mechanical.outputs.pr_url || steps.recovered.outputs.pr_url }}
+      target_ref: ${{ steps.continued.outputs.target_ref || steps.mechanical.outputs.target_ref || steps.recovered.outputs.target_ref }}
+      target_kind: ${{ steps.continued.outputs.target_kind || steps.mechanical.outputs.target_kind || steps.recovered.outputs.target_kind }}
+      target_sha: ${{ steps.continued.outputs.target_sha || steps.mechanical.outputs.target_sha || steps.recovered.outputs.target_sha }}
+      check_state: ${{ steps.continued.outputs.check_state || steps.mechanical.outputs.check_state || steps.recovered.outputs.check_state }}
+      check_run_id: ${{ steps.continued.outputs.check_run_id || steps.mechanical.outputs.check_run_id || steps.recovered.outputs.check_run_id }}
+      check_run_attempt: ${{ steps.continued.outputs.check_run_attempt || steps.mechanical.outputs.check_run_attempt || steps.recovered.outputs.check_run_attempt }}
+      publication_number: ${{ steps.continued.outputs.publication_number || steps.mechanical.outputs.publication_number || steps.recovered.outputs.publication_number }}
+      publication_head: ${{ steps.continued.outputs.publication_head || steps.mechanical.outputs.publication_head || steps.recovered.outputs.publication_head }}
+      publication_branch: ${{ steps.continued.outputs.publication_branch || steps.mechanical.outputs.publication_branch || steps.recovered.outputs.publication_branch }}
+      publication_checks: ${{ steps.continued.outputs.publication_checks || steps.mechanical.outputs.publication_checks || steps.recovered.outputs.publication_checks }}
+      pr_url: ${{ steps.continued.outputs.pr_url || steps.mechanical.outputs.pr_url || steps.recovered.outputs.pr_url }}
       patch_sha256: ${{ steps.handoff.outputs.patch_sha256 }}
       stage: ${{ steps.resume.outputs.stage || steps.mechanical.outputs.stage }}
       category: ${{ steps.resume.outputs.failure_category || steps.mechanical.outputs.failure_category }}
@@ -345,6 +347,23 @@ jobs:
           digest="$(sha256sum "${control}" | cut -d ' ' -f1)"
           echo "sha256=${digest}" >> "${GITHUB_OUTPUT}"
 
+      - name: Resolve merged verifier continuation
+        id: continued
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APP_BOT_ID: ${{ vars.PROTOCOL_SYNC_APP_BOT_ID }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          VERIFIER_PR: ${{ github.event.pull_request.number }}
+          VERIFIER_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          "${RUNNER_TEMP}/protocolupgrade-control" continue-verifier \
+            -repo-root "${GITHUB_WORKSPACE}" -github-repository "${GITHUB_REPOSITORY}" \
+            -base-branch "${DEFAULT_BRANCH}" -app-bot-id "${APP_BOT_ID}" \
+            -pr-number "${VERIFIER_PR}" -head "${VERIFIER_HEAD}" \
+            -current-run-id "${GITHUB_RUN_ID}" -output-dir "${RUNNER_TEMP}/verifier-continuation"
+
       - name: Restore validated repair checkpoint
         id: recovered
         if: ${{ inputs.recovery_run_id != '' }}
@@ -375,7 +394,7 @@ jobs:
 
       - name: Plan/apply native protocol sync
         id: mechanical
-        if: ${{ inputs.recovery_run_id == '' }}
+        if: ${{ github.event_name != 'pull_request' && inputs.recovery_run_id == '' }}
         working-directory: codexsdk
         env:
           GOTOOLCHAIN: local
@@ -418,15 +437,15 @@ jobs:
           go run ./internal/cmd/protocolupgrade "${args[@]}"
 
       - name: Write Agent drift input
-        if: ${{ success() && (steps.mechanical.outputs.outcome == 'semantic_unresolved' || steps.recovered.outputs.outcome == 'semantic_unresolved') }}
+        if: ${{ success() && (steps.continued.outputs.outcome == 'semantic_unresolved' || steps.mechanical.outputs.outcome == 'semantic_unresolved' || steps.recovered.outputs.outcome == 'semantic_unresolved') }}
         working-directory: codexsdk
         env:
-          TARGET_REF: ${{ steps.mechanical.outputs.target_ref || steps.recovered.outputs.target_ref }}
-          TARGET_KIND: ${{ steps.mechanical.outputs.target_kind || steps.recovered.outputs.target_kind }}
-          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha || steps.recovered.outputs.target_sha }}
-          CANDIDATE: ${{ steps.mechanical.outputs.candidate || steps.recovered.outputs.candidate }}
-          CANDIDATE_DIR: ${{ steps.mechanical.outputs.candidate_dir || steps.recovered.outputs.candidate_dir }}
-          CANDIDATE_SHA256: ${{ steps.mechanical.outputs.candidate_sha256 || steps.recovered.outputs.candidate_sha256 }}
+          TARGET_REF: ${{ steps.continued.outputs.target_ref || steps.mechanical.outputs.target_ref || steps.recovered.outputs.target_ref }}
+          TARGET_KIND: ${{ steps.continued.outputs.target_kind || steps.mechanical.outputs.target_kind || steps.recovered.outputs.target_kind }}
+          TARGET_SHA: ${{ steps.continued.outputs.target_sha || steps.mechanical.outputs.target_sha || steps.recovered.outputs.target_sha }}
+          CANDIDATE: ${{ steps.continued.outputs.candidate || steps.mechanical.outputs.candidate || steps.recovered.outputs.candidate }}
+          CANDIDATE_DIR: ${{ steps.continued.outputs.candidate_dir || steps.mechanical.outputs.candidate_dir || steps.recovered.outputs.candidate_dir }}
+          CANDIDATE_SHA256: ${{ steps.continued.outputs.candidate_sha256 || steps.mechanical.outputs.candidate_sha256 || steps.recovered.outputs.candidate_sha256 }}
           ISSUE_STAGE: ${{ steps.mechanical.outputs.issue_stage || steps.recovered.outputs.issue_stage }}
           ISSUE_PATH: ${{ steps.mechanical.outputs.issue_path || steps.recovered.outputs.issue_path }}
           ISSUE_REASON: ${{ steps.mechanical.outputs.issue_reason || steps.recovered.outputs.issue_reason }}
@@ -455,7 +474,7 @@ jobs:
 
       - name: Repair with independent verification feedback
         id: resume
-        if: ${{ success() && (steps.mechanical.outputs.outcome == 'semantic_unresolved' || steps.recovered.outputs.outcome == 'semantic_unresolved') }}
+        if: ${{ success() && (steps.continued.outputs.outcome == 'semantic_unresolved' || steps.mechanical.outputs.outcome == 'semantic_unresolved' || steps.recovered.outputs.outcome == 'semantic_unresolved') }}
         uses: ./.github/actions/codex-exec
         env:
           GITHUB_TOKEN: ""
@@ -468,12 +487,21 @@ jobs:
           working-directory: .
           controller-path: ${{ runner.temp }}/protocolupgrade-control
           control-sha256: ${{ steps.control.outputs.sha256 }}
-          candidate-dir: ${{ steps.mechanical.outputs.candidate_dir || steps.recovered.outputs.candidate_dir }}
-          candidate-sha256: ${{ steps.mechanical.outputs.candidate_sha256 || steps.recovered.outputs.candidate_sha256 }}
-          target-ref: ${{ steps.mechanical.outputs.target_ref || steps.recovered.outputs.target_ref }}
-          target-kind: ${{ steps.mechanical.outputs.target_kind || steps.recovered.outputs.target_kind }}
-          target-sha: ${{ steps.mechanical.outputs.target_sha || steps.recovered.outputs.target_sha }}
+          candidate-dir: ${{ steps.continued.outputs.candidate_dir || steps.mechanical.outputs.candidate_dir || steps.recovered.outputs.candidate_dir }}
+          candidate-sha256: ${{ steps.continued.outputs.candidate_sha256 || steps.mechanical.outputs.candidate_sha256 || steps.recovered.outputs.candidate_sha256 }}
+          target-ref: ${{ steps.continued.outputs.target_ref || steps.mechanical.outputs.target_ref || steps.recovered.outputs.target_ref }}
+          target-kind: ${{ steps.continued.outputs.target_kind || steps.mechanical.outputs.target_kind || steps.recovered.outputs.target_kind }}
+          target-sha: ${{ steps.continued.outputs.target_sha || steps.mechanical.outputs.target_sha || steps.recovered.outputs.target_sha }}
           checkpoint-dir: ${{ runner.temp }}/protocol-repair-checkpoint
+          continuation-file: ${{ github.event_name == 'pull_request' && format('{0}/verifier-continuation/continuation.json', runner.temp) || '' }}
+
+      - name: Upload reviewed verifier proposal
+        if: ${{ success() && steps.resume.outputs.outcome == 'verifier_proposal' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: protocol-sync-verifier-proposal-${{ github.run_attempt }}
+          path: ${{ steps.resume.outputs.verifier_dir }}
+          if-no-files-found: error
 
       - name: Retain bounded repair checkpoint
         if: ${{ always() && steps.resume.outcome != 'skipped' }}
@@ -486,7 +514,7 @@ jobs:
 
       - name: Check Agent proposal scope
         id: proposal_scope
-        if: ${{ success() && (steps.mechanical.outputs.outcome == 'semantic_unresolved' || steps.recovered.outputs.outcome == 'semantic_unresolved') }}
+        if: ${{ success() && (steps.continued.outputs.outcome == 'semantic_unresolved' || steps.mechanical.outputs.outcome == 'semantic_unresolved' || steps.recovered.outputs.outcome == 'semantic_unresolved') }}
         env:
           CONTROL_SHA256: ${{ steps.control.outputs.sha256 }}
         run: &agent_proposal_scope |
@@ -522,7 +550,7 @@ jobs:
         env:
           GOTOOLCHAIN: local
           REPAIR_VERIFIED: ${{ steps.resume.outputs.applied }}
-          CANDIDATE: ${{ steps.mechanical.outputs.candidate || steps.recovered.outputs.candidate }}
+          CANDIDATE: ${{ steps.continued.outputs.candidate || steps.mechanical.outputs.candidate || steps.recovered.outputs.candidate }}
         run: |
           set -euo pipefail
           if [[ "${REPAIR_VERIFIED}" == true ]]; then
@@ -539,7 +567,7 @@ jobs:
 
       - name: Recheck Agent proposal scope after tests
         id: final_scope
-        if: ${{ success() && (steps.mechanical.outputs.outcome == 'semantic_unresolved' || steps.recovered.outputs.outcome == 'semantic_unresolved') }}
+        if: ${{ success() && (steps.continued.outputs.outcome == 'semantic_unresolved' || steps.mechanical.outputs.outcome == 'semantic_unresolved' || steps.recovered.outputs.outcome == 'semantic_unresolved') }}
         env:
           CONTROL_SHA256: ${{ steps.control.outputs.sha256 }}
           SCOPE_PHASE: final
@@ -550,11 +578,11 @@ jobs:
         if: ${{ success() && (steps.mechanical.outputs.outcome == 'applied' || steps.resume.outputs.outcome == 'applied') }}
         working-directory: codexsdk
         env:
-          CANDIDATE_DIR: ${{ steps.mechanical.outputs.candidate_dir || steps.recovered.outputs.candidate_dir }}
-          CANDIDATE_SHA256: ${{ steps.mechanical.outputs.candidate_sha256 || steps.recovered.outputs.candidate_sha256 }}
-          TARGET_KIND: ${{ steps.mechanical.outputs.target_kind || steps.recovered.outputs.target_kind }}
-          TARGET_REF: ${{ steps.mechanical.outputs.target_ref || steps.recovered.outputs.target_ref }}
-          TARGET_SHA: ${{ steps.mechanical.outputs.target_sha || steps.recovered.outputs.target_sha }}
+          CANDIDATE_DIR: ${{ steps.continued.outputs.candidate_dir || steps.mechanical.outputs.candidate_dir || steps.recovered.outputs.candidate_dir }}
+          CANDIDATE_SHA256: ${{ steps.continued.outputs.candidate_sha256 || steps.mechanical.outputs.candidate_sha256 || steps.recovered.outputs.candidate_sha256 }}
+          TARGET_KIND: ${{ steps.continued.outputs.target_kind || steps.mechanical.outputs.target_kind || steps.recovered.outputs.target_kind }}
+          TARGET_REF: ${{ steps.continued.outputs.target_ref || steps.mechanical.outputs.target_ref || steps.recovered.outputs.target_ref }}
+          TARGET_SHA: ${{ steps.continued.outputs.target_sha || steps.mechanical.outputs.target_sha || steps.recovered.outputs.target_sha }}
           CONTROL_SHA256: ${{ steps.control.outputs.sha256 }}
           PROPOSAL_SHA256: ${{ steps.freeze.outputs.patch_sha256 }}
         run: |
@@ -715,9 +743,70 @@ jobs:
             -target-sha "${TARGET_SHA}" \
             "${repair_args[@]}"
 
+  publish-verifier:
+    if: ${{ needs.sync.outputs.resume_outcome == 'verifier_proposal' }}
+    needs: sync
+    name: Publish independently reviewed verifier PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Build trusted verifier publisher
+        run: go build -o "${RUNNER_TEMP}/protocolupgrade-control" ./codexsdk/internal/cmd/protocolupgrade
+      - name: Validate and stage reviewed verifier before publication credential
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APP_BOT_ID: ${{ vars.PROTOCOL_SYNC_APP_BOT_ID }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          "${RUNNER_TEMP}/protocolupgrade-control" prepare-verifier \
+            -repo-root "${GITHUB_WORKSPACE}" -github-repository "${GITHUB_REPOSITORY}" \
+            -base-branch "${DEFAULT_BRANCH}" -app-bot-id "${APP_BOT_ID}" \
+            -origin-run-id "${GITHUB_RUN_ID}" -origin-attempt "${GITHUB_RUN_ATTEMPT}" \
+            -current-run-id "${GITHUB_RUN_ID}"
+          git -c user.name='protocol-sync[bot]' -c user.email='protocol-sync[bot]@users.noreply.github.com' \
+            commit -m 'fix(schemaoracle): apply independently reviewed verifier proposal'
+      - name: Mint repository publication token
+        id: app_token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.PROTOCOL_SYNC_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PROTOCOL_SYNC_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Publish verifier-only proposal
+        env:
+          GH_TOKEN: ${{ steps.app_token.outputs.token }}
+          GH_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APP_BOT_ID: ${{ vars.PROTOCOL_SYNC_APP_BOT_ID }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          "${RUNNER_TEMP}/protocolupgrade-control" publish-verifier \
+            -repo-root "${GITHUB_WORKSPACE}" -github-repository "${GITHUB_REPOSITORY}" \
+            -base-branch "${DEFAULT_BRANCH}" -app-bot-id "${APP_BOT_ID}" \
+            -origin-run-id "${GITHUB_RUN_ID}" -origin-attempt "${GITHUB_RUN_ATTEMPT}" \
+            -current-run-id "${GITHUB_RUN_ID}"
+
   summary:
     if: ${{ always() }}
-    needs: [diagnose, sync, publish]
+    needs: [diagnose, sync, publish, publish-verifier]
     name: Report observed sync result
     runs-on: ubuntu-latest
     permissions: {}

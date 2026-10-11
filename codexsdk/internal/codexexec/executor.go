@@ -26,6 +26,7 @@ import (
 )
 
 type Config struct {
+	ReadOnly                                                                bool
 	Workspace, StateDir, Binary, Version, BaseURL, APIKey, Model, Reasoning string
 }
 type Result struct {
@@ -85,9 +86,13 @@ func New(ctx context.Context, cfg Config) (*Executor, error) {
 		return nil, errors.New("Codex home must be outside the repair workspace")
 	}
 	fail := func(message string) (*Executor, error) { _ = e.Close(); return nil, errors.New(message) }
+	sandboxMode := "workspace-write"
+	if cfg.ReadOnly {
+		sandboxMode = "read-only"
+	}
 	native := map[string]any{
 		"model": cfg.Model, "model_reasoning_effort": cfg.Reasoning, "model_provider": "llm-go-exec",
-		"approval_policy": "never", "sandbox_mode": "workspace-write",
+		"approval_policy": "never", "sandbox_mode": sandboxMode,
 		"model_providers": map[string]any{"llm-go-exec": map[string]any{
 			"name": "llm-go direct executor", "base_url": cfg.BaseURL, "env_key": "AZURE_OPENAI_API_KEY", "wire_api": "responses", "requires_openai_auth": false, "supports_websockets": false,
 		}},
@@ -176,7 +181,11 @@ func (e *Executor) Run(ctx context.Context, prompt, sessionID string) (Result, e
 	// home: candidate project config must not redirect the provider credential
 	// or widen the sandbox on a later repair turn.
 	provider := fmt.Sprintf(`{name="llm-go direct executor",base_url=%s,env_key="AZURE_OPENAI_API_KEY",wire_api="responses",requires_openai_auth=false,supports_websockets=false}`, strconv.Quote(e.config.BaseURL))
-	args := []string{"exec", "--sandbox", "workspace-write", "--json", "--output-last-message", f.Name(),
+	sandboxMode := "workspace-write"
+	if e.config.ReadOnly {
+		sandboxMode = "read-only"
+	}
+	args := []string{"exec", "--sandbox", sandboxMode, "--json", "--output-last-message", f.Name(),
 		"-c", `approval_policy="never"`,
 		"-c", `model_provider="llm-go-exec"`,
 		"-c", "model=" + strconv.Quote(e.config.Model),

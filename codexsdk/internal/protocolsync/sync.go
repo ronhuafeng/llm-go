@@ -19,6 +19,7 @@ const (
 	OutcomePlanReady          = "plan_ready"
 	OutcomePRPending          = "pr_pending"
 	OutcomeRepairReady        = "repair_ready"
+	OutcomeVerifierProposal   = "verifier_proposal"
 	OutcomeSemanticUnresolved = "semantic_unresolved"
 )
 
@@ -59,6 +60,7 @@ type ResumeRequest struct {
 
 // SyncResult is the minimal outcome the workflow needs.
 type SyncResult struct {
+	VerifierDir     string
 	Publication     *PendingPublication
 	Stage           string
 	FailureCategory string
@@ -522,6 +524,7 @@ func WriteGitHubOutput(path string, result SyncResult) error {
 	lines := []string{
 		"check_run_id=" + checkRun, "check_run_attempt=" + checkAttempt, "check_state=" + checkState,
 		"outcome=" + githubOutputValue(result.Outcome),
+		"verifier_dir=" + githubOutputValue(result.VerifierDir),
 		"publication_head=" + githubOutputValue(publicationHead),
 		"publication_branch=" + githubOutputValue(publicationBranch),
 		"publication_number=" + githubOutputValue(publicationNumber),
