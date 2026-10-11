@@ -158,10 +158,21 @@ jobs:
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
       - name: Prove repair oracle isolation
+        id: repair_isolation
         env:
           GOTOOLCHAIN: local
           LLMGO_REPAIR_SANDBOX_TEST: "1"
-        run: go test ./codexsdk/internal/protocolsync -run '^(TestLiveRepairSandbox|TestLiveVerifierProofMatrix)'  -count=1
+        run: |
+          set -euo pipefail
+          package=./codexsdk/internal/protocolsync
+          # Keep Go's ten-minute invocation limit and the outer job limit. Each
+          # selected top-level test (including all its subtests) runs once.
+          listing="$(go test "${package}" -list '^(TestLiveRepairSandbox|TestLiveVerifierProofMatrix)')"
+          tests="$(printf '%s\n' "${listing}" | grep -E '^Test[A-Za-z0-9_]+$')"
+          test -n "${tests}"
+          while IFS= read -r name; do
+            go test "${package}" -run "^${name}$" -count=1 -timeout=10m -v
+          done <<< "${tests}"
 
       - name: Root module proof
         env:
