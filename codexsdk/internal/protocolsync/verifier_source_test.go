@@ -107,13 +107,14 @@ func TestVerifierSourcePermanentExecutionEvidence(t *testing.T) {
 		{"child assertion", `func TestPermanent(t *testing.T){t.Run("contract",func(t *testing.T){t.Fatal("invariant violated")})}`, true, false},
 		{"silent failure", `func TestPermanent(t *testing.T){t.Fail()}`, true, false},
 		{"panic", `func TestPermanent(t *testing.T){panic("invariant violated")}`, false, false},
+		{"nested compile", `func TestPermanent(t *testing.T){d:=t.TempDir();if e:=os.WriteFile(d+"/go.mod",[]byte("module nested\ngo 1.26.8\n"),0600);e!=nil{t.Fatal(e)};if e:=os.WriteFile(d+"/broken.go",[]byte("package nested;var _=missingIdentifier"),0600);e!=nil{t.Fatal(e)};cmd:=exec.Command("go","test",".");cmd.Dir=d;if b,e:=cmd.CombinedOutput();e!=nil{t.Fatalf("nested contract: %v\n%s",e,b)}}`, true, false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			root := t.TempDir()
 			writeFile(t, filepath.Join(root, "go.mod"), "module github.com/ronhuafeng/llm-go\ngo 1.26.8\n")
 			dir := filepath.Join(root, "codexsdk/internal/schemaoracle")
 			writeFile(t, filepath.Join(dir, "oracle.go"), "package schemaoracle\n")
-			writeFile(t, filepath.Join(dir, "oracle_test.go"), "package schemaoracle\nimport(\"testing\";\"os\");var _=os.Args\n"+tt.body)
+			writeFile(t, filepath.Join(dir, "oracle_test.go"), "package schemaoracle\nimport(\"testing\";\"os\";\"os/exec\");var _,_=os.Args,exec.Command\n"+tt.body)
 			expected, err := selectedExecutableTests(filepath.Join(root, "codexsdk"), []string{"internal/schemaoracle"})
 			if err != nil {
 				t.Fatal(err)

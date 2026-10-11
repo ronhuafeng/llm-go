@@ -234,7 +234,9 @@ func (w *verifierSourceEvents) Write(p []byte) (int, error) {
 		if verifierSourceInfrastructure(e.Output) {
 			w.infrastructure = true
 		}
-		if e.Action == "build-output" && verifierGoDiagnostic.MatchString(e.Output) {
+		// Permanent tests may run nested Go commands; their compiler output is
+		// carried by ordinary outer test output events, not build-output events.
+		if verifierGoDiagnostic.MatchString(e.Output) || strings.Contains(e.Output, "[build failed]") {
 			w.compilerDiagnostic = true
 		}
 		if e.Action == "build-fail" {
