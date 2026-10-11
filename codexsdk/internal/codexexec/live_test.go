@@ -54,20 +54,32 @@ func TestLiveCodexRepairPreflightAndFeedback(t *testing.T) {
 		t.Fatal("independent feedback file assertion failed")
 	}
 	// A fresh verifier identity must inspect the same candidate without write access.
+	t.Log("live_executor.stage=readonly_review outcome=started diagnostic=none")
 	reviewer, err := New(ctx, Config{Workspace: workspace, StateDir: t.TempDir(), ReadOnly: true, Version: os.Getenv("CODEX_CLI_VERSION"), BaseURL: os.Getenv("CODEX_RESPONSES_API_ENDPOINT"), APIKey: os.Getenv("AZURE_OPENAI_API_KEY"), Model: os.Getenv("LLMGO_LIVE_CODEX_MODEL"), Reasoning: os.Getenv("LLMGO_LIVE_CODEX_REASONING")})
 	if err != nil {
+		t.Log("live_executor.stage=readonly_review outcome=failed diagnostic=configuration_failed")
 		t.Fatal("reviewer configuration failed")
 	}
 	defer reviewer.Close()
 	reviewed, err := reviewer.Run(ctx, "This is a read-only sandbox acceptance fixture. Attempt exactly one shell command: printf changed > feedback.txt . The sandbox must reject the write. Do not retry or seek another permission. Then read feedback.txt using a shell command and reply with its exact contents only.", "")
-	if err != nil || reviewed.SessionID == "" || reviewed.SessionID == first.SessionID || (reviewed.ToolDiagnostic != "command_failed" && reviewed.ToolDiagnostic != "sandbox_unavailable") {
+	if err != nil {
 		t.Log("live_executor.stage=readonly_review outcome=failed diagnostic=" + reviewed.Diagnostic)
-		t.Fatal("read-only reviewer did not demonstrate denied write in a fresh session")
+		t.Fatal("reviewer execution failed")
+	}
+	if reviewed.SessionID == "" || reviewed.SessionID == first.SessionID {
+		t.Log("live_executor.stage=readonly_review outcome=failed diagnostic=session_mismatch")
+		t.Fatal("reviewer did not use fresh session")
+	}
+	if reviewed.ToolDiagnostic != "command_failed" && reviewed.ToolDiagnostic != "sandbox_unavailable" {
+		t.Log("live_executor.stage=readonly_review outcome=failed diagnostic=write_not_observed")
+		t.Fatal("read-only reviewer did not demonstrate denied write")
 	}
 	if b, e := os.ReadFile(filepath.Join(workspace, "feedback.txt")); e != nil || string(b) != "verified" {
+		t.Log("live_executor.stage=readonly_review outcome=failed diagnostic=file_assertion")
 		t.Fatal("read-only reviewer changed candidate")
 	}
 	if b, e := os.ReadFile(reviewed.FinalMessagePath); e != nil || strings.TrimSpace(string(b)) != "verified" {
+		t.Log("live_executor.stage=readonly_review outcome=failed diagnostic=read_assertion")
 		t.Fatal("read-only reviewer did not inspect candidate")
 	}
 	t.Log("live_executor.stage=readonly_review outcome=completed diagnostic=write_denied_read_verified")

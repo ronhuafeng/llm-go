@@ -102,3 +102,20 @@ func TestResultsAllowOnlyFixedNativeMessageSignatures(t *testing.T) {
 		}
 	}
 }
+
+func TestReadOnlyReviewerFactsRemainBounded(t *testing.T) {
+	for _, diagnostic := range []string{"none", "write_not_observed", "read_assertion", "write_denied_read_verified", "file_assertion", "session_mismatch"} {
+		fact := "live_executor.stage=readonly_review outcome=failed diagnostic=" + diagnostic
+		if !safeExecutorFact.MatchString(fact) {
+			t.Fatal("lost reviewer stage fact")
+		}
+		for _, suffix := range []string{" PRIVATE", "https://secret.invalid", "\nPRIVATE"} {
+			if safeExecutorFact.MatchString(fact + suffix) {
+				t.Fatal("private reviewer output allowed")
+			}
+		}
+	}
+	if safeExecutorFact.MatchString("live_executor.stage=readonly_review outcome=failed diagnostic=PRIVATE") {
+		t.Fatal("unbounded reviewer diagnostic")
+	}
+}
