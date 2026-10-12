@@ -47,11 +47,19 @@ type Client struct {
 	closed              bool
 	failure             error
 	normalClosing       bool
+	constructing        bool
+	closeReason         error
+	callbackFailure     error
+	callbackWork        atomic.Int64
 	handlerWG           sync.WaitGroup
 	closeCauseOnce      sync.Once
 	closeCausePublished chan struct{}
 
 	shutdownOnce        sync.Once
+	shutdownDone        chan struct{}
+	handlersDone        chan struct{}
+	processDone         chan struct{}
+	startupDone         chan struct{}
 	dispatchStop        chan struct{}
 	dispatcherDone      chan struct{}
 	notifications       chan acceptedNotification
@@ -146,15 +154,82 @@ type acceptedNotification struct {
 	retained     *retentionLease
 }
 
+// New uses a 15-second deadline for launch and initialize.
 func New(options ClientOptions) (*Client, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), DefaultStartupTimeout)
+	defer cancel()
+	return NewContext(ctx, options)
+}
+
+// NewContext bounds launch and initialize with ctx. Cancellation after successful
+// construction does not close the returned client. Input is copied before launch.
+func NewContext(ctx context.Context, options ClientOptions) (*Client, error) {
+	if ctx == nil {
+		return nil, errors.New("codexsdk: startup context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	// Copy caller memory synchronously. Validation (including filesystem/runtime
+	// schema work), launch and initialize run under the caller's bounded wait.
+	owned, err := copyStartupOptions(options)
+	if err != nil {
+		return nil, err
+	}
+	type outcome struct {
+		client *Client
+		err    error
+	}
+	ready := make(chan outcome, 1)
+	go func() { c, err := newClientContext(ctx, owned); ready <- outcome{c, err} }()
+	select {
+	case result := <-ready:
+		return result.client, result.err
+	case <-ctx.Done():
+		select {
+		case result := <-ready:
+			return result.client, result.err
+		default:
+		}
+		return nil, ctx.Err()
+	}
+}
+
+func copyStartupOptions(options ClientOptions) (ClientOptions, error) {
+	options.Command = append([]string(nil), options.Command...)
+	if options.Env != nil {
+		owned := make([]string, len(options.Env))
+		copy(owned, options.Env)
+		options.Env = owned
+	}
+	if options.RawNotifications != nil {
+		owned := *options.RawNotifications
+		owned.Methods = append([]string(nil), owned.Methods...)
+		options.RawNotifications = &owned
+	}
+	if !reflect.DeepEqual(options.Initialize, protocolv2.InitializeParams{}) {
+		cloned, err := cloneJSON(options.Initialize)
+		if err != nil {
+			return ClientOptions{}, fmt.Errorf("codexsdk: invalid ClientOptions.Initialize: %w", err)
+		}
+		options.Initialize = cloned
+	}
+	return options, nil
+}
+
+func newClientContext(ctx context.Context, options ClientOptions) (*Client, error) {
 	normalized, err := validateOptions(options)
 	if err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	clientCtx, cancel := context.WithCancel(context.Background())
 	handlerCtx, handlerCancel := context.WithCancel(clientCtx)
 	c := &Client{
 		options:                    normalized,
+		startupDone:                make(chan struct{}),
 		retention:                  &notificationRetention{limit: normalized.NotificationRetention},
 		attachmentRetention:        map[string]*retentionLease{},
 		ctx:                        clientCtx,
@@ -182,34 +257,59 @@ func New(options ClientOptions) (*Client, error) {
 	}
 	c.notifications = make(chan acceptedNotification, queueCapacity)
 	go c.notificationDispatcher()
-	if err := c.start(); err != nil {
-		cancel()
-		return nil, err
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	initializeParamsMap, err := encodeProtocolParams(protocolv2.MethodInitialize, normalized.Initialize)
+
+	watchDone := make(chan struct{})
+	c.constructing = true
+	go func() {
+		select {
+		case <-watchDone:
+		case <-ctx.Done():
+			cancel, claimed := c.claimStartupFailure(ctx.Err())
+			if claimed {
+				if cancel != nil {
+					cancel()
+				}
+				c.startClientFailureTeardown()
+				c.publishClaimedClientFailure(ctx.Err())
+			}
+		}
+	}()
+	err = c.initialize(ctx, normalized)
 	if err != nil {
-		_ = c.Close()
-		return nil, err
+		c.failClient(err)
 	}
-	initializeResult, err := c.call(ctx, protocolv2.MethodInitialize, initializeParamsMap)
+	c.closeMu.Lock()
+	c.constructing = false
+	if c.closeReason != nil {
+		err = c.closeReason
+	}
+	c.closeMu.Unlock()
+	close(watchDone)
 	if err != nil {
-		_ = c.Close()
-		return nil, err
-	}
-	initializeResponse, err := decodeInitializeResponse(initializeResult)
-	if err != nil {
-		_ = c.Close()
-		return nil, err
-	}
-	c.runtimeAppServer = ObserveRuntimeAppServer(initializeResponse)
-	c.runtimeCompatibility = RuntimeCompatibilityOf(initializeResponse)
-	if err := c.notify(protocolv2.NewClientNotificationInitialized()); err != nil {
-		_ = c.Close()
 		return nil, err
 	}
 	return c, nil
+}
+
+func (c *Client) initialize(ctx context.Context, normalized ClientOptions) error {
+	if err := c.start(); err != nil {
+		return err
+	}
+	initializeParamsMap, err := encodeProtocolParams(protocolv2.MethodInitialize, normalized.Initialize)
+	if err != nil {
+		return err
+	}
+	initializeResult, err := c.call(ctx, protocolv2.MethodInitialize, initializeParamsMap)
+	if err != nil {
+		return err
+	}
+	response, err := decodeInitializeResponse(initializeResult)
+	if err != nil {
+		return err
+	}
+	c.runtimeAppServer = ObserveRuntimeAppServer(response)
+	c.runtimeCompatibility = RuntimeCompatibilityOf(response)
+	return c.notify(protocolv2.NewClientNotificationInitialized())
 }
 
 func initializeParams(options ClientOptions) protocolv2.InitializeParams {
@@ -282,14 +382,13 @@ func validateOptions(options ClientOptions) (ClientOptions, error) {
 	return validateRawSubscription(options)
 }
 
+// Close joins admitted callback work within DefaultShutdownTimeout. Use
+// CloseContext for a caller-selected deadline and explicit cleanup observations.
 func (c *Client) Close() error {
-	if c == nil || c.ctx == nil {
-		return nil
-	}
-	c.shutdownOnce.Do(c.shutdown)
-	c.closeMu.Lock()
-	defer c.closeMu.Unlock()
-	return c.failure
+	ctx, cancel := context.WithTimeout(context.Background(), DefaultShutdownTimeout)
+	defer cancel()
+	_, err := c.CloseContext(ctx)
+	return err
 }
 
 func (c *Client) checkOpen() error {
@@ -305,8 +404,11 @@ func (c *Client) checkOpen() error {
 }
 
 func (c *Client) start() error {
+	if c.startupDone != nil {
+		defer close(c.startupDone)
+	}
 	command := c.options.Command
-	cmd := exec.Command(command[0], command[1:]...)
+	cmd := exec.CommandContext(c.ctx, command[0], command[1:]...)
 	cmd.Dir = c.options.CWD
 	cmd.Env = c.options.Env
 	stdin, err := cmd.StdinPipe()
@@ -429,7 +531,7 @@ func (c *Client) readLoopWithLimit(stdout io.Reader, maxBytes int) {
 				break
 			}
 			if c.isClosed() {
-				c.failAll(ErrClientClosed)
+				c.awaitClosedReadLoopSettlement()
 				return
 			}
 			c.failClient(err)
@@ -442,10 +544,21 @@ func (c *Client) readLoopWithLimit(stdout io.Reader, maxBytes int) {
 		}
 	}
 	if c.isClosed() {
-		c.failAll(ErrClientClosed)
+		c.awaitClosedReadLoopSettlement()
 		return
 	}
 	c.failClient(errors.New("codexsdk: app-server closed stdout"))
+}
+
+// A close/failure publisher owns the pending-prefix snapshot. Process teardown
+// can close stdout before that publication finishes; a second failAll must not
+// terminalize streams while the first publisher is still committing evidence.
+func (c *Client) awaitClosedReadLoopSettlement() {
+	if c.closeCausePublished != nil {
+		c.awaitCloseCausePublication()
+		return
+	}
+	c.failAll(ErrClientClosed)
 }
 
 func readFrame(reader *bufio.Reader, maxBytes int) ([]byte, error) {
@@ -678,7 +791,7 @@ func (c *Client) routeNotification(notification rpcNotification) {
 			return
 		}
 		if dispatched != nil && len(terminalCompletions) > 0 {
-			<-dispatched
+			c.awaitDispatch(dispatched)
 		}
 		for _, complete := range terminalCompletions {
 			complete()
@@ -935,7 +1048,7 @@ func (c *Client) attachExactStreamLocked(stream *exactRunState) {
 				if c.testBeforePendingTerminalFence != nil {
 					c.testBeforePendingTerminalFence()
 				}
-				notification.awaitEvidenceHandler()
+				c.awaitEvidenceHandler(notification)
 				notification.completeEvidenceTerminal()
 			}
 		}
@@ -1013,9 +1126,15 @@ func (n rpcNotification) resolveReplayingEvidence() error {
 	})
 }
 
-func (n rpcNotification) awaitEvidenceHandler() {
+func (c *Client) awaitDispatch(dispatched <-chan struct{}) {
+	select {
+	case <-dispatched:
+	case <-c.closeCausePublished:
+	}
+}
+func (c *Client) awaitEvidenceHandler(n rpcNotification) {
 	if n.evidence != nil && n.evidence.dispatched != nil {
-		<-n.evidence.dispatched
+		c.awaitDispatch(n.evidence.dispatched)
 	}
 }
 
@@ -1112,7 +1231,7 @@ func (c *Client) finishAttachingExactStream(stream *exactRunState, finishErr err
 			return stream.acceptRetainedBeforeTerminalCompletion(typed, notification.retained)
 		})
 		if completion := notification.evidenceCompletion(); completion != nil {
-			notification.awaitEvidenceHandler()
+			c.awaitEvidenceHandler(notification)
 			notification.completeEvidenceTerminal()
 		}
 		if deliveryErr == nil && err != nil {
@@ -1143,6 +1262,7 @@ func (c *Client) unregisterExactRun(stream *exactRunState) {
 }
 
 func (c *Client) failAll(err error) {
+	err = c.firstCloseReason(err)
 	c.closeMu.Lock()
 	pendingCalls := make([]pendingCall, 0, len(c.pending))
 	for id, call := range c.pending {

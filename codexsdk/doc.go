@@ -4,6 +4,8 @@
 // turn execution, notifications, and typed server-request delivery. Exact Run
 // APIs retain Codex-specific lifecycle data and partial results when available.
 // SDK-owned notification retention is bounded by finite count and byte budgets.
+// NewContext and CloseContext provide caller-owned lifecycle deadlines and
+// distinguish owned-process cleanup from callback work that ignores cancellation.
 //
 // Admission callbacks and server-request answers are application-owned. The SDK
 // never invents approval, permission, user input, or other application policy.

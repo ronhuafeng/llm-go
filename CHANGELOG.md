@@ -13,6 +13,14 @@ changes may occur in minor releases.
 
 #### Added
 
+- Add `NewContext` for caller-bounded App Server validation/launch/initialize,
+  and `CloseContext` with separate owned-process and unresolved callback facts.
+  Process cleanup no longer waits indefinitely for callbacks or a blocked writer.
+  `New` now bounds the complete launch/initialize with 15 seconds; `Close` uses
+  a five-second caller deadline and finite notification grace. Uncooperative Go
+  callbacks stay reported as pending. Close/failure preserves the first cause,
+  partial evidence, local observer cancellation and required raw terminal fences.
+
 - Bound SDK-owned notification retention by configurable finite count and byte
   budgets (default 65,536 representation slots and 64 MiB), including callback
   delivery, attachment/replay, Exact Run history/projections and diagnostics.

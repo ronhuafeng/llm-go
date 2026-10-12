@@ -608,7 +608,9 @@ func (s *exactRunState) finishState(err error) bool {
 	}
 	if s.client != nil {
 		s.client.closeMu.Lock()
-		if s.client.failure != nil {
+		if s.client.closeReason != nil {
+			err = s.client.closeReason
+		} else if s.client.failure != nil {
 			err = s.client.failure
 		}
 		s.client.closeMu.Unlock()

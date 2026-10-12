@@ -8,8 +8,10 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/signal"
 	"reflect"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -85,6 +87,15 @@ func TestEnvironmentHelperProcess(t *testing.T) {
 	if index < 0 {
 		return
 	}
+	mode := os.Getenv("CODEXSDK_FIXTURE_LIFECYCLE")
+	if pidPath := os.Getenv("CODEXSDK_FIXTURE_PID"); pidPath != "" {
+		if os.WriteFile(pidPath, []byte(strconv.Itoa(os.Getpid())), 0600) != nil {
+			os.Exit(2)
+		}
+	}
+	if mode == "unresponsive" {
+		signal.Ignore(os.Interrupt)
+	}
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		var message map[string]any
@@ -94,7 +105,42 @@ func TestEnvironmentHelperProcess(t *testing.T) {
 		method, _ := message["method"].(string)
 		switch method {
 		case "initialize":
+			if mode == "stall-initialize" {
+				for {
+					time.Sleep(time.Hour)
+				}
+			}
+			if mode == "eof-initialize" {
+				os.Exit(0)
+			}
+			if mode == "invalid-initialize" {
+				send(map[string]any{"id": message["id"], "result": map[string]any{"userAgent": 123}})
+				continue
+			}
 			send(map[string]any{"id": message["id"], "result": map[string]any{"codexHome": os.Getenv("CODEX_HOME"), "platformFamily": "fixture", "platformOs": runtime.GOOS, "userAgent": "environment-fixture"}})
+		case "thread/start":
+			identity := os.Getenv("CODEXSDK_ENV_CORRELATION")
+			sendProtocolResult(message["id"], facadeThreadStartResponse(identity, "fixture-model"))
+		case "turn/start":
+			identity := os.Getenv("CODEXSDK_ENV_CORRELATION")
+			turnID := "turn-" + identity
+			sendRawItem(identity, turnID, "before-response", false)
+			sendEnvironmentNotification(protocolv2.NewServerNotificationThreadNameUpdated(protocolv2.ServerNotificationThreadNameUpdated{Params: protocolv2.ThreadNameUpdatedNotification{ThreadID: identity, ThreadName: protocolv2.Value("observed")}}))
+			sendProtocolResult(message["id"], protocolv2.TurnStartResponse{Turn: protocolv2.Turn{ID: turnID, Status: protocolv2.TurnStatusInProgress, Items: []protocolv2.ThreadItem{}}})
+			count, _ := strconv.Atoi(os.Getenv("CODEXSDK_FIXTURE_EVENTS"))
+			if mode == "blocked-work" {
+				continue
+			}
+			for i := 0; i < count; i++ {
+				sendRawItem(identity, turnID, strconv.Itoa(i/2), false)
+				n := tokenUsageNotification(identity, turnID)
+				send(map[string]any{"method": n.method, "params": n.params})
+			}
+			sendEnvironmentNotification(protocolv2.NewServerNotificationTurnCompleted(protocolv2.ServerNotificationTurnCompleted{Params: protocolv2.TurnCompletedNotification{ThreadID: identity, Turn: protocolv2.Turn{ID: turnID, Status: protocolv2.TurnStatusCompleted, Items: []protocolv2.ThreadItem{}}}}))
+		case "fixture/finish":
+			identity := os.Getenv("CODEXSDK_ENV_CORRELATION")
+			sendEnvironmentNotification(protocolv2.NewServerNotificationTurnCompleted(protocolv2.ServerNotificationTurnCompleted{Params: protocolv2.TurnCompletedNotification{ThreadID: identity, Turn: protocolv2.Turn{ID: "turn-" + identity, Status: protocolv2.TurnStatusCompleted, Items: []protocolv2.ThreadItem{}}}}))
+			send(map[string]any{"id": message["id"], "result": map[string]any{}})
 		case "fixture/environment":
 			observations := map[string]any{}
 			for _, key := range []string{"CODEX_HOME", "CODEXSDK_ENV_SECRET", "CODEXSDK_ENV_EMPTY", "CODEXSDK_ENV_REMOVE", "CODEXSDK_ENV_PARENT", "CODEXSDK_ENV_CASE"} {
@@ -117,7 +163,16 @@ func TestEnvironmentHelperProcess(t *testing.T) {
 			send(map[string]any{"method": n.method, "params": n.params})
 			send(map[string]any{"id": message["id"], "result": map[string]any{}})
 		case "model/list":
-			sendProtocolResult(message["id"], protocolv2.ModelListResponse{Data: []protocolv2.Model{}})
+			if mode == "unresponsive" || mode == "blocked-work" {
+				for {
+					time.Sleep(time.Hour)
+				}
+			}
+			if mode == "combined" {
+				sendProtocolResult(message["id"], protocolv2.ModelListResponse{Data: []protocolv2.Model{{ID: "fixture-model", Model: "fixture-model", DisplayName: "Fixture", Description: "typed observation", DefaultReasoningEffort: protocolv2.ReasoningEffort("high"), IsDefault: true, SupportedReasoningEfforts: []protocolv2.ReasoningEffortOption{}}}})
+			} else {
+				sendProtocolResult(message["id"], protocolv2.ModelListResponse{Data: []protocolv2.Model{}})
+			}
 		}
 	}
 	os.Exit(0)
@@ -318,4 +373,12 @@ func TestChildEnvironmentClientCloseReapsOwnedProcess(t *testing.T) {
 	if err = c.Close(); err != nil {
 		t.Fatal("repeated child cleanup failed")
 	}
+}
+
+func sendEnvironmentNotification(n protocolv2.ServerNotification) {
+	raw, err := json.Marshal(n)
+	if err != nil {
+		os.Exit(2)
+	}
+	_, _ = os.Stdout.Write(append(raw, '\n'))
 }

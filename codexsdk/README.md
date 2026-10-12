@@ -41,6 +41,60 @@ individual live test that asks for a response.
 Inbound newline-delimited JSON-RPC frames are limited to 16 MiB including the
 newline delimiter.
 
+## Startup and shutdown deadlines
+
+Use `NewContext(ctx, options)` to bound validation, child launch and initialize
+with the caller's context. Caller-owned option memory is copied synchronously
+before that work; this preserves environment/input ownership even when a deadline
+returns before validation finishes. A context canceled before construction prevents
+launch. Initialization/transport failures keep their cause; an incomplete
+construction at its deadline returns the context error, with owned cleanup
+continuing independently. Canceling the startup context after successful
+construction does not close the client. `New(options)` uses a 15-second deadline
+for launch/initialize, rather than starting its timeout only after launch.
+
+`CloseContext(ctx)` closes the whole client's admission and returns
+`(ShutdownResult, error)` within the caller's wait. `ProcessReaped` separately
+reports owned-process cleanup; `CallbackWorkPending` counts admitted work still
+executing or queued. `Cause` is the first client failure, or `ErrClientClosed`
+when normal closure settled pending work. A nil error proves process cleanup
+and all admitted callback work completed. `ShutdownError` uses a fixed safe error
+string and retains deadline, first-cause and `ErrCallbackWorkPending` identities
+through `errors.Is`. Applications own disclosure of unwrapped errors.
+
+Normal shutdown publishes partial facts and settles pending RPC/Exact Run
+observers before joining callbacks. It cancels server-request callbacks promptly
+and lets accepted notification callbacks drain for up to two seconds. A caller
+shutdown deadline or expiry of that grace cancels the client notification context
+and discards queued work explicitly under the close/failure cause. Process cleanup
+runs independently of callback joins and `writeMu`: once launch has completed,
+it waits at most two seconds for callback grace, then closes transport, terminates
+and reaps the child, escalating to kill after a further two seconds. OS launch
+itself is not preemptible; a canceled launch is killed/reaped when `os/exec`
+returns. Caller return remains bounded while that owned cleanup proceeds.
+
+A Go callback ignoring cancellation cannot be killed. It stays reported as
+pending, and its retained notification remains charged until it returns. Queued
+reservations are released on discard; readable Exact Run histories keep their
+ordinary retention ownership. Late callbacks, EOF or terminal delivery cannot
+replace the first close/failure cause or create a successful run. EOF during
+teardown waits for the publisher's partial-evidence snapshot rather than racing
+another terminal snapshot. Callback delivery failure during normal closure is
+also reported explicitly by the shutdown API.
+
+`Close()` uses a five-second caller deadline and joins normal cooperative work.
+This replaces its prior potentially infinite callback join; callers needing
+cleanup observations or another wait should use `CloseContext`. Concurrent close
+calls share one cleanup and cannot reopen admission. A second call can observe
+completed process cleanup while an uncooperative callback still remains pending.
+
+`Stream.Wait(ctx)` and `Stream.Next(ctx)` remain caller-local observations:
+canceling their contexts does not cancel the shared run or client. `Stream.Close`
+interrupts the shared run; client close stops the entire client. Terminal
+success still waits for all preceding admitted raw/typed callback delivery.
+No request is retried or resubmitted by these APIs, and server-request decisions
+remain application-owned.
+
 ## Child process environment
 
 `ClientOptions.Env` follows Go's process environment contract. A nil slice
@@ -118,8 +172,9 @@ second raw history in `ThreadRunResult`.
 Exact Run successful terminal completion waits for preceding admitted callback
 work, including raw observation even if only raw-item methods were subscribed.
 Direct typed facade responses can arrive before asynchronous callbacks complete;
-`Close` retains its existing callback-joining behavior. Callbacks should return
-promptly and avoid synchronous `Close` on their own client.
+`Close` joins admitted callback work within the finite shutdown grace described
+below. Callbacks should return promptly and avoid synchronous close on their own
+client.
 Invalid required payloads fail the client with `ErrRawNotificationDecode`;
 callback error/panic uses `ErrRawNotificationDelivery` and `ErrHandlerFailed`;
 queue saturation uses `ErrNotificationBackpressure`. Pending work receives the

@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"os"
+	"time"
 
 	"github.com/ronhuafeng/llm-go/codexsdk"
 	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
@@ -42,4 +43,31 @@ func ExampleNew_environment() {
 		log.Fatal("cannot start client")
 	}
 	defer client.Close()
+}
+
+// ExampleNewContext compiles the caller-owned startup deadline.
+func ExampleNewContext() {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	client, err := codexsdk.NewContext(ctx, codexsdk.ClientOptions{CWD: ".", Command: []string{"codex", "app-server", "--listen", "stdio://"}})
+	if err != nil {
+		log.Fatal("cannot initialize client")
+	}
+	defer client.Close()
+}
+
+func ExampleClient_CloseContext() {
+	client, err := codexsdk.New(codexsdk.ClientOptions{CWD: ".", Command: []string{"codex", "app-server", "--listen", "stdio://"}})
+	if err != nil {
+		log.Fatal("cannot initialize client")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	result, err := client.CloseContext(ctx)
+	if err != nil {
+		log.Print("shutdown incomplete or failed")
+	}
+	if !result.ProcessReaped || result.CallbackWorkPending > 0 {
+		// Cleanup continues; a Go callback ignoring cancellation remains unresolved.
+	}
 }

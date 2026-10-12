@@ -3,7 +3,6 @@ package codexsdk
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
@@ -49,7 +48,7 @@ func (c *Client) enqueueAcceptedNotification(accepted acceptedNotification, wait
 	}
 	accepted.retained = retained
 	if hasHandler {
-		c.handlerWG.Add(1)
+		c.addHandlerWork()
 	}
 	select {
 	case c.notifications <- accepted:
@@ -59,7 +58,7 @@ func (c *Client) enqueueAcceptedNotification(accepted acceptedNotification, wait
 		accepted.retained.release()
 		accepted.retained = nil
 		if hasHandler {
-			c.handlerWG.Done()
+			c.endHandlerWork()
 		}
 		c.closeMu.Unlock()
 		c.failClient(ErrNotificationBackpressure)
@@ -164,6 +163,7 @@ func (c *Client) discardCurrentAndQueuedNotifications(accepted acceptedNotificat
 }
 
 func (c *Client) dispatchAcceptedNotification(handler ServerNotificationHandler, accepted acceptedNotification) bool {
+	defer c.endNotificationHandler()
 	var err error
 	if accepted.raw != nil {
 		err = invokeRawNotificationHandler(c.ctx, c.options.RawNotifications.Handler, *accepted.raw)
@@ -171,11 +171,15 @@ func (c *Client) dispatchAcceptedNotification(handler ServerNotificationHandler,
 	if err == nil && handler != nil && accepted.notification.Kind() != "" {
 		err = invokeNotificationHandler(c.ctx, handler, accepted.notification)
 	}
-	c.endNotificationHandler()
 	if err == nil {
 		accepted.releaseDispatchWaiter()
 		return true
 	}
+	c.closeMu.Lock()
+	if c.normalClosing && c.callbackFailure == nil {
+		c.callbackFailure = err
+	}
+	c.closeMu.Unlock()
 	c.failClient(err)
 	c.discardAcceptedNotifications()
 	accepted.releaseDispatchWaiter()
@@ -188,7 +192,7 @@ func (c *Client) beginHandler() (context.Context, bool) {
 	if c.closed {
 		return nil, false
 	}
-	c.handlerWG.Add(1)
+	c.addHandlerWork()
 	return c.callbackContext(), true
 }
 
@@ -205,12 +209,12 @@ func (c *Client) callbackContext() context.Context {
 }
 
 func (c *Client) endHandler() {
-	c.handlerWG.Done()
+	c.endHandlerWork()
 }
 
 func (c *Client) endNotificationHandler() {
 	if c.hasNotificationHandler() {
-		c.handlerWG.Done()
+		c.endHandlerWork()
 	}
 }
 
@@ -219,7 +223,7 @@ func (c *Client) discardAcceptedNotifications() {
 		select {
 		case accepted := <-c.notifications:
 			if c.hasNotificationHandler() {
-				c.handlerWG.Done()
+				c.endHandlerWork()
 			}
 			accepted.releaseDispatchWaiter()
 		default:
@@ -255,19 +259,26 @@ func (c *Client) failClient(err error) {
 // claimClientFailure closes callback admission and gives one caller ownership
 // of first-cause publication and teardown.
 func (c *Client) claimClientFailure(err error) (context.CancelFunc, bool) {
-	if err == nil {
+	c.closeMu.Lock()
+	defer c.closeMu.Unlock()
+	return c.claimFailureLocked(err)
+}
+func (c *Client) claimStartupFailure(err error) (context.CancelFunc, bool) {
+	c.closeMu.Lock()
+	defer c.closeMu.Unlock()
+	if !c.constructing {
 		return nil, false
 	}
-	c.closeMu.Lock()
-	if c.failure != nil {
-		c.closeMu.Unlock()
+	return c.claimFailureLocked(err)
+}
+func (c *Client) claimFailureLocked(err error) (context.CancelFunc, bool) {
+	if err == nil || c.closed {
 		return nil, false
 	}
 	c.failure = err
+	c.closeReason = err
 	c.closed = true
-	cancel := c.cancel
-	c.closeMu.Unlock()
-	return cancel, true
+	return c.cancel, true
 }
 
 func (c *Client) publishClaimedClientFailure(err error) {
@@ -276,7 +287,7 @@ func (c *Client) publishClaimedClientFailure(err error) {
 }
 
 func (c *Client) startClientFailureTeardown() {
-	go func() { _ = c.Close() }()
+	c.beginShutdown()
 }
 
 func (c *Client) publishCloseCause() {
@@ -293,10 +304,9 @@ func (c *Client) publishCloseCause() {
 func (c *Client) shutdown() {
 	c.closeMu.Lock()
 	failure := c.failure
-	c.closed = true
-	c.normalClosing = failure == nil
 	c.closeMu.Unlock()
-
+	// Owned process cleanup starts independently of evidence and callback joins.
+	go c.cleanupProcess()
 	if failure == nil {
 		c.failAll(ErrClientClosed)
 		c.publishCloseCause()
@@ -309,30 +319,26 @@ func (c *Client) shutdown() {
 	if c.handlerCancel != nil {
 		c.handlerCancel()
 	}
-	if c.dispatcherDone != nil {
-		<-c.dispatcherDone
+	go func() {
+		if c.dispatcherDone != nil {
+			<-c.dispatcherDone
+		}
+		c.handlerWG.Wait()
+		close(c.handlersDone)
+	}()
+	// The grace is finite even for CloseContext with an unbounded context.
+	timer := time.NewTimer(callbackShutdownGrace)
+	defer timer.Stop()
+	select {
+	case <-c.handlersDone:
+	case <-timer.C:
+	case <-c.ctx.Done():
 	}
 	if c.cancel != nil {
 		c.cancel()
 	}
-	c.handlerWG.Wait()
-	c.writeMu.Lock()
-	if c.stdin != nil {
-		_ = c.stdin.Close()
-	}
-	c.writeMu.Unlock()
-	if c.stdout != nil {
-		_ = c.stdout.Close()
-	}
-	if c.cmd != nil && c.cmd.Process != nil {
-		_ = c.cmd.Process.Signal(os.Interrupt)
-		done := make(chan error, 1)
-		go func() { done <- c.cmd.Wait() }()
-		select {
-		case <-done:
-		case <-time.After(2 * time.Second):
-			_ = c.cmd.Process.Kill()
-			<-done
-		}
-	}
+	c.discardAcceptedNotifications()
+	<-c.processDone
+	// Uncooperative callbacks remain unresolved. Do not wait for them here.
+	close(c.shutdownDone)
 }
