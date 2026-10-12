@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"os/signal"
 	"reflect"
 	"runtime"
@@ -88,10 +89,38 @@ func TestEnvironmentHelperProcess(t *testing.T) {
 		return
 	}
 	mode := os.Getenv("CODEXSDK_FIXTURE_LIFECYCLE")
+	var childInterrupted chan os.Signal
+	if mode == "launcher" || mode == "launcher-child" {
+		childInterrupted = make(chan os.Signal, 1)
+		signal.Notify(childInterrupted, os.Interrupt)
+	}
 	if pidPath := os.Getenv("CODEXSDK_FIXTURE_PID"); pidPath != "" {
 		if os.WriteFile(pidPath, []byte(strconv.Itoa(os.Getpid())), 0600) != nil {
 			os.Exit(2)
 		}
+	}
+	if mode == "launcher" {
+		// Model a runtime launcher: forward Interrupt and join its native child.
+		child := exec.Command(environmentCommand()[0], environmentCommand()[1:]...)
+		child.Env = append(os.Environ(), "CODEXSDK_FIXTURE_LIFECYCLE=launcher-child", "CODEXSDK_FIXTURE_PID="+os.Getenv("CODEXSDK_FIXTURE_PID")+".child")
+		child.Stdin, child.Stdout, child.Stderr = os.Stdin, os.Stdout, os.Stderr
+		if child.Start() != nil {
+			os.Exit(2)
+		}
+		go func() { <-childInterrupted; _ = child.Process.Signal(os.Interrupt) }()
+		_ = child.Wait()
+		os.Exit(0)
+	}
+	if mode == "launcher-child" {
+		go func() {
+			<-childInterrupted
+			// Cleanup must wait for child shutdown, even after client cancellation.
+			time.Sleep(80 * time.Millisecond)
+			if os.WriteFile(os.Getenv("CODEXSDK_FIXTURE_PID")+".settled", []byte("settled"), 0600) != nil {
+				os.Exit(2)
+			}
+			os.Exit(0)
+		}()
 	}
 	if mode == "unresponsive" {
 		signal.Ignore(os.Interrupt)
@@ -173,6 +202,12 @@ func TestEnvironmentHelperProcess(t *testing.T) {
 			} else {
 				sendProtocolResult(message["id"], protocolv2.ModelListResponse{Data: []protocolv2.Model{}})
 			}
+		}
+	}
+	if mode == "launcher-child" {
+		// EOF alone does not prove runtime-owned cleanup has settled.
+		for {
+			time.Sleep(time.Hour)
 		}
 	}
 	os.Exit(0)

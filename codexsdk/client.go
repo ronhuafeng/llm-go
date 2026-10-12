@@ -409,6 +409,11 @@ func (c *Client) start() error {
 	}
 	command := c.options.Command
 	cmd := exec.CommandContext(c.ctx, command[0], command[1:]...)
+	// Keep the pre-launch context check, but let cleanupProcess own termination.
+	// CommandContext's default Kill can destroy a launcher before it forwards
+	// Interrupt and joins its native child. Cancellation still starts bounded
+	// cleanup, including when it races Start; cleanup waits for startupDone.
+	cmd.Cancel = nil
 	cmd.Dir = c.options.CWD
 	cmd.Env = c.options.Env
 	stdin, err := cmd.StdinPipe()

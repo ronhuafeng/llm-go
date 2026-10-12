@@ -63,6 +63,55 @@ func requireOwnedCleanup(t *testing.T, c *Client) {
 	}
 }
 
+func TestCloseContextLetsLauncherForwardAndReapChild(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Interrupt forwarding fixture requires Unix signals")
+	}
+	for _, expired := range []bool{false, true} {
+		t.Run(strconv.FormatBool(expired), func(t *testing.T) {
+			options, pidFile := lifecycleOptions(t, "launcher")
+			options.Env = append(options.Env, "GORACE=atexit_sleep_ms=0")
+			c, err := New(options)
+			if err != nil {
+				t.Fatal(err)
+			}
+			pid := waitFixturePID(t, pidFile)
+			childPID := waitFixturePID(t, pidFile+".child")
+			childSettled := false
+			t.Cleanup(func() {
+				// Also clean up descendants if the regression kills the launcher.
+				if !childSettled {
+					p, err := os.FindProcess(childPID)
+					if err == nil {
+						_ = p.Kill()
+					}
+				}
+				_ = c.Close()
+			})
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			if expired {
+				cancel()
+			}
+			result, err := c.CloseContext(ctx)
+			if expired {
+				if !errors.Is(err, context.Canceled) {
+					t.Fatal("caller cancellation was lost")
+				}
+			} else if err != nil || !result.ProcessReaped {
+				t.Fatal("launcher cleanup failed")
+			}
+			requireOwnedCleanup(t, c)
+			if _, err := os.Stat(pidFile + ".child.settled"); err != nil {
+				t.Fatal("process cleanup killed launcher before native child settled")
+			}
+			requireFixtureReaped(t, pid)
+			requireFixtureReaped(t, childPID)
+			childSettled = true
+		})
+	}
+}
+
 func TestNewContextCanceledBeforeLaunch(t *testing.T) {
 	options, pidFile := lifecycleOptions(t, "stall-initialize")
 	ctx, cancel := context.WithCancel(context.Background())

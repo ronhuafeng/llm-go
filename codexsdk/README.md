@@ -69,8 +69,10 @@ shutdown deadline or expiry of that grace cancels the client notification contex
 and discards queued work explicitly under the close/failure cause. Process cleanup
 runs independently of callback joins and `writeMu`: once launch has completed,
 it waits at most two seconds for callback grace, then closes transport, terminates
-and reaps the child, escalating to kill after a further two seconds. OS launch
-itself is not preemptible; a canceled launch is killed/reaped when `os/exec`
+and reaps the child, escalating to kill after a further two seconds. Context
+cancellation uses this same cleanup path, allowing an executable launcher to
+forward Interrupt and join its native child before escalation. OS launch itself
+is not preemptible; a canceled launch is killed/reaped when `os/exec`
 returns. Caller return remains bounded while that owned cleanup proceeds.
 
 A Go callback ignoring cancellation cannot be killed. It stays reported as
