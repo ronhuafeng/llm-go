@@ -24,7 +24,11 @@ func TestIndependentWitnessFailuresExecuteTogether(t *testing.T) {
 	out := runOracleFixture(t, r, bad, false)
 	for _, value := range []string{"null", "false", "{}"} {
 		witness := "value=" + map[string]string{"null": "null", "false": "false", "{}": "<object members=0>"}[value]
-		if !strings.Contains(string(out), "schema-invalid input accepted:") || !strings.Contains(string(out), witness) {
+		// The native assertion must carry the exact frozen input as well as its
+		// source diagnostic, so an independently replayed challenge can identify
+		// the failed witness without trusting decoder-authored output.
+		input := `{"method":"fixture/item","params":{"item":` + value + `}}`
+		if !strings.Contains(string(out), "schema-invalid input accepted: "+input+": ") || !strings.Contains(string(out), witness) {
 			t.Errorf("missing executed witness %s in one process:\n%s", witness, out)
 		}
 	}

@@ -133,7 +133,11 @@ func Build(req Request) ([]Target, error) {
 		if err != nil {
 			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
 		}
-		if hasOutputSchema {
+		hasCommandArgv, err := applyCommandArgvOverlay(doc, root, fragment, docName)
+		if err != nil {
+			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
+		}
+		if hasOutputSchema || hasCommandArgv {
 			c = validator.NewCompiler()
 			c.UseLoader(denyLoader{})
 			c.RegisterVocabulary(outputSchemaVocabulary())
@@ -296,7 +300,7 @@ func Render(req Request, targets []Target) ([]byte, error) {
    t.Run("probe_"+strconv.Itoa(i),func(t *testing.T){
    if p.Diagnostic<0||p.Diagnostic>=len(frozen.Diagnostics){t.Fatal("frozen diagnostic reference out of range")}
    target := factory(); err := json.Unmarshal(bytes.Clone(p.JSON),target)
-   if !p.Valid { if err == nil { t.Fatalf("probe %d: schema-invalid input accepted: %s",i,frozen.Diagnostics[p.Diagnostic]) }; return }
+   if !p.Valid { if err == nil { t.Fatalf("probe %d: schema-invalid input accepted: %s: %s",i,p.JSON,frozen.Diagnostics[p.Diagnostic]) }; return }
    if err != nil { t.Fatalf("probe %d: schema-valid input rejected: %s: %v",i,p.JSON,err) }
    actual,err:=json.Marshal(target);if err!=nil{t.Fatal(err)}
    decode:=func(raw []byte) any { var v any; d:=json.NewDecoder(bytes.NewReader(raw));d.UseNumber();if err:=d.Decode(&v);err!=nil{t.Fatal(err)};return v }

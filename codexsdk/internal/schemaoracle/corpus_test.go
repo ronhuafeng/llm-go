@@ -126,8 +126,12 @@ func TestFullTargetCorpusBudgetAndIdentity(t *testing.T) {
 	if len(targets) != 65 || count != 124376 {
 		t.Fatalf("coverage changed: %d targets %d probes", len(targets), count)
 	}
-	if got := fmt.Sprintf("%x", sequence.Sum(nil)); got != "355bac40eaa8cedfd2ff8e9447ffa91596af6ae13e568e81f8fc8d27ca6b7fca" {
-		t.Fatal("original input/verdict/order changed", got)
+	// The reviewed non-empty CommandExecParams.command overlay (accepted
+	// protocol_types_test.go:3680-3701,3749-3762) changes command/exec witnesses
+	// and verdicts. Keep the complete ordered fingerprint and coverage assertion;
+	// the previous 355bac40... fingerprint included the incorrect empty-argv rule.
+	if got := fmt.Sprintf("%x", sequence.Sum(nil)); got != "178f8ebb69c851eabf9439bd45a2b3786a7b1d3f6126fa0e584a89ff9dbca2f8" {
+		t.Fatal("source-derived input/verdict/order changed", got)
 	}
 	if got := fmt.Sprintf("%x", metadata.Sum(nil)); got != "040fc52c499408681c6d76ae42fdaa148ed804c4ca4ef2a6df863c33045c3f7f" {
 		t.Fatal("target bindings or acceptance metadata changed", got)
