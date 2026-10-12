@@ -103,13 +103,7 @@ func VerifyGoalContracts(ctx context.Context, req GoalContractRequest) error {
 	}
 	defer os.RemoveAll(driver)
 	// The fixed driver imports the candidate package, including its source selector.
-	program := `package main
-import("context";"os";"fmt";"encoding/json"
- "encoding/hex"
- "io/fs"
- "reflect"; p "github.com/ronhuafeng/llm-go/codexsdk/internal/protocolsync")
-func main(){var failures []string;if len(os.Args)>5 {b,e:=os.ReadFile(os.Args[6]);if e==nil{e=json.Unmarshal(b,&failures)};if e!=nil{fmt.Fprintln(os.Stderr,e);os.Exit(1)};failures=append([]string{os.Args[5]},failures...)};if err:=p.GenerateGoalContract(context.Background(),p.GoalContractRequest{RepoRoot:os.Args[1],BaseRoot:os.Args[2],CandidateDir:os.Args[3]},os.Args[4],failures...);err!=nil{fmt.Fprintln(os.Stderr,err);os.Exit(1)}}`
-	if err = os.WriteFile(filepath.Join(driver, "main.go"), []byte(program), 0600); err != nil {
+	if err = os.WriteFile(filepath.Join(driver, "main.go"), []byte(goalContractDriverSource), 0600); err != nil {
 		return err
 	}
 	sandbox.readonly = append(sandbox.readonly, root)
@@ -407,3 +401,8 @@ func goalContractTree(root string, schema bool) (map[string]string, error) {
 	})
 	return files, err
 }
+
+// Shared with the real compile regression; these are the exact runtime bytes.
+const goalContractDriverSource = `package main
+import("context";"os";"fmt";"encoding/json"; p "github.com/ronhuafeng/llm-go/codexsdk/internal/protocolsync")
+func main(){var failures []string;if len(os.Args)>5 {b,e:=os.ReadFile(os.Args[6]);if e==nil{e=json.Unmarshal(b,&failures)};if e!=nil{fmt.Fprintln(os.Stderr,e);os.Exit(1)};failures=append([]string{os.Args[5]},failures...)};if err:=p.GenerateGoalContract(context.Background(),p.GoalContractRequest{RepoRoot:os.Args[1],BaseRoot:os.Args[2],CandidateDir:os.Args[3]},os.Args[4],failures...);err!=nil{fmt.Fprintln(os.Stderr,err);os.Exit(1)}}`

@@ -340,3 +340,31 @@ func TestGoalContractCheckerFixtureCompiles(t *testing.T) {
 		})
 	}
 }
+
+func TestGoalContractFixedDriverCompiles(t *testing.T) {
+	_, checker := goalContractCheckerFixture()
+	for _, broken := range []bool{false, true} {
+		t.Run(fmt.Sprintf("polluted_imports_%t", broken), func(t *testing.T) {
+			root := t.TempDir()
+			writeFile(t, filepath.Join(root, "go.mod"), "module github.com/ronhuafeng/llm-go\ngo 1.26.8\n")
+			writeFile(t, filepath.Join(root, "codexsdk/internal/protocolsync/fixture.go"), checker)
+			source := goalContractDriverSource
+			if broken {
+				source = strings.Replace(source, `"encoding/json"`, `"encoding/json";"encoding/hex";"io/fs";"reflect"`, 1)
+			}
+			writeFile(t, filepath.Join(root, "codexsdk/internal/goalcontractdriver/main.go"), source)
+			runGitInit(t, root)
+			cmd := exec.Command("go", "build", "-o", filepath.Join(root, "driver"), "./codexsdk/internal/goalcontractdriver")
+			cmd.Dir = root
+			cmd.Env = append(os.Environ(), "GOPROXY=off", "GOSUMDB=off", "GOTOOLCHAIN=local")
+			out, err := cmd.CombinedOutput()
+			if broken {
+				if err == nil || !strings.Contains(string(out), "imported and not used") {
+					t.Fatalf("polluted driver did not reproduce compilation failure: %v %s", err, out)
+				}
+			} else if err != nil {
+				t.Fatalf("actual runtime driver compile: %v %s", err, out)
+			}
+		})
+	}
+}
