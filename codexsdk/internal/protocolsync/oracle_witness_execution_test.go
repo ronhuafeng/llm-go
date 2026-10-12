@@ -2,6 +2,7 @@ package protocolsync
 
 import (
 	"encoding/json"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -143,7 +144,7 @@ func(p Payload)MarshalJSON()([]byte,error){return p.raw,nil}
 	for _, compact := range []bool{false, true} {
 		source := string(generated)
 		if !compact {
-			source = strings.Replace(source, "i, p.Diagnostic)", "i, preview(p.JSON))", 1)
+			source = strings.Replace(source, "i, p.Diagnostic)", "i, p.JSON[:min(len(p.JSON),2048)])", 1)
 			if source == string(generated) {
 				t.Fatal("legacy fixture replacement failed")
 			}
@@ -155,8 +156,49 @@ func(p Payload)MarshalJSON()([]byte,error){return p.raw,nil}
 		cmd := exec.Command("go", "test", "-count=1", "-json", ".")
 		cmd.Dir = dir
 		out, runErr := cmd.Output()
+		ctx, artifact, cp, artifactDir := feedbackFixture(t)
+		capture := targetFeedbackCapture(ctx, targets)
 		var events oracleTestEvents
+		events.diagnostic.capture = capture
 		events.Write(out)
+		capture.finish(runErr != nil, events.pending)
+		ref, e := artifact.seal(runErr)
+		if e != nil {
+			t.Fatal(e)
+		}
+		path, e := feedbackPath(artifactDir, ref, cp, []byte("proposal"))
+		if e != nil {
+			t.Fatal(e)
+		}
+		data, e := os.ReadFile(path)
+		if e != nil {
+			t.Fatal(e)
+		}
+		failures := 0
+		for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+			var record struct {
+				Kind     string `json:"kind"`
+				Redacted bool   `json:"redacted"`
+				Probe    struct {
+					Input    map[string]any `json:"input"`
+					Location struct {
+						Source string `json:"source"`
+					} `json:"location"`
+				} `json:"probe"`
+			}
+			if e := json.Unmarshal([]byte(line), &record); e != nil {
+				t.Fatal(e)
+			}
+			if record.Kind == "test_failure" && record.Probe.Location.Source != "" {
+				failures++
+				if record.Probe.Input["aaaPadding"] != strings.ReplaceAll(padding, secret, "[redacted]") || !record.Redacted || !strings.Contains(record.Probe.Location.Source, "ReasoningEffort/minLength") {
+					t.Fatal("missing complete sanitized trusted probe", string(line))
+				}
+			}
+		}
+		if failures != 5 {
+			t.Fatalf("frozen failed witnesses=%d", failures)
+		}
 		if runErr == nil || !events.started || !events.failed || events.passed || events.invalid {
 			t.Fatalf("false acceptance compact=%t: %v %+v", compact, runErr, events)
 		}
@@ -177,5 +219,62 @@ func(p Payload)MarshalJSON()([]byte,error){return p.raw,nil}
 			t.Fatal(diagnostic)
 		}
 		t.Logf("compact=%t feedback bytes=%d", compact, len(diagnostic))
+	}
+}
+
+func TestRoundtripFeedbackPreservesLateObservedDifference(t *testing.T) {
+	padding := strings.Repeat("padding-", 400)
+	raw, _ := json.Marshal(map[string]any{"type": "object", "properties": map[string]any{"aaa": map[string]any{"const": padding}, "zzz": map[string]any{"type": "string"}}, "required": []string{"aaa", "zzz"}})
+	req := schemaoracle.Request{Schemas: map[string][]byte{"Loss.json": raw}, Bindings: map[string]string{"Loss.json": "Payload"}, Package: "schemaoracleprobe", CloseObjects: true}
+	targets, e := schemaoracle.Build(req)
+	if e != nil {
+		t.Fatal(e)
+	}
+	source, e := schemaoracle.Render(req, targets)
+	if e != nil {
+		t.Fatal(e)
+	}
+	accepted := map[string]bool{}
+	for _, p := range targets[0].Probes {
+		if p.Valid {
+			accepted[p.JSON] = true
+		}
+	}
+	encoded, _ := json.Marshal(accepted)
+	code := `package schemaoracleprobe
+import("encoding/json";"fmt")
+type Payload struct{AAA string ` + "`json:\"aaa\"`" + `;ZZZ string ` + "`json:\"zzz\"`" + `}
+var accepted map[string]bool
+func init(){json.Unmarshal([]byte(` + strconv.Quote(string(encoded)) + `),&accepted)}
+func(p *Payload)UnmarshalJSON(b []byte)error{if !accepted[string(b)]{return fmt.Errorf("invalid")};var v map[string]string;json.Unmarshal(b,&v);p.AAA=v["aaa"];p.ZZZ="LATE_OBSERVED_DIFFERENCE";return nil}
+`
+	work := t.TempDir()
+	writeFile(t, filepath.Join(work, "go.mod"), "module github.com/ronhuafeng/llm-go/codexsdk/internal/schemaoracleprobe\n\ngo 1.26.8\n")
+	writeFile(t, filepath.Join(work, "payload.go"), code)
+	writeFile(t, filepath.Join(work, "contract_test.go"), string(source))
+	ctx, a, cp, dir := feedbackFixture(t)
+	capture := targetFeedbackCapture(ctx, targets)
+	var events oracleTestEvents
+	events.diagnostic.capture = capture
+	cmd := exec.Command("go", "test", "-count=1", "-json", ".")
+	cmd.Dir = work
+	cmd.Stdout = &events
+	e = cmd.Run()
+	capture.finish(e != nil, events.pending)
+	if e == nil || !events.failed {
+		t.Fatal("lossy decoder accepted")
+	}
+	ref, e := a.seal(e)
+	if e != nil {
+		t.Fatal(e)
+	}
+	path, e := feedbackPath(dir, ref, cp, []byte("proposal"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	data, _ := os.ReadFile(path)
+	output := feedbackOutputs(t, string(data))
+	if !strings.Contains(output, padding) || !strings.Contains(output, "LATE_OBSERVED_DIFFERENCE") {
+		t.Fatal("late actual value truncated before capture")
 	}
 }

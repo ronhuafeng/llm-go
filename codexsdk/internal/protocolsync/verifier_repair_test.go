@@ -14,9 +14,12 @@ import (
 )
 
 func TestVerifierRolesDoNotSelfAcceptOrResetBudget(t *testing.T) {
-	for _, mode := range []string{"proposal", "empty", "review-reject", "same-session", "scope", "proof-failed", "tamper", "proof-feedback", "tidy-feedback"} {
+	for _, mode := range []string{"proposal", "empty", "review-reject", "same-session", "scope", "proof-failed", "tamper", "proof-feedback", "tidy-feedback", "format-feedback", "proof-then-empty"} {
 		t.Run(mode, func(t *testing.T) {
 			req := repairFixture(t)
+			if mode == "format-feedback" {
+				installFailingGofmt(t, true)
+			}
 			writeFile(t, filepath.Join(req.RepoRoot, ".gitignore"), "codexsdk/.cache/\n")
 			if e := runGit(req.RepoRoot, "add", ".gitignore"); e != nil {
 				t.Fatal(e)
@@ -25,7 +28,7 @@ func TestVerifierRolesDoNotSelfAcceptOrResetBudget(t *testing.T) {
 				t.Fatal(e)
 			}
 			req.MaxRounds = 2
-			if mode == "proof-feedback" || mode == "tidy-feedback" {
+			if mode == "proof-feedback" || mode == "tidy-feedback" || mode == "format-feedback" || mode == "proof-then-empty" {
 				req.MaxRounds = 3
 			}
 			req.Executor = repairExecutorFixture{run: func(context.Context, string, string) (codexexec.Result, error) {
@@ -38,7 +41,7 @@ func TestVerifierRolesDoNotSelfAcceptOrResetBudget(t *testing.T) {
 			proofCalls, reviewCalls := 0, 0
 			req.Verifier = &VerifierRepairConfig{OriginRunID: 123, OriginAttempt: 1, OutputDir: filepath.Join(t.TempDir(), "verifier"), Proof: func(_ context.Context, r verifierProofRequest) (verifierProofEvidence, error) {
 				proofCalls++
-				if mode == "proof-feedback" && proofCalls == 1 {
+				if (mode == "proof-feedback" || mode == "proof-then-empty") && proofCalls == 1 {
 					return verifierProofEvidence{}, verifierFeedback(errors.New("fix fixture compile"))
 				}
 				if mode == "tidy-feedback" && proofCalls == 1 {
@@ -58,10 +61,18 @@ func TestVerifierRolesDoNotSelfAcceptOrResetBudget(t *testing.T) {
 						if mode == "tidy-feedback" {
 							expectedFeedback = "verifier source tidy"
 						}
-						if (mode == "proof-feedback" || mode == "tidy-feedback") && proofCalls == 1 && (resumed != "author" || !strings.Contains(prompt, expectedFeedback)) {
+						if (mode == "proof-feedback" || mode == "tidy-feedback") && proofCalls == 1 && (resumed != "author" || (!strings.Contains(readFeedbackPrompt(t, prompt), expectedFeedback) || strings.Contains(prompt, expectedFeedback))) {
 							t.Fatal("verifier feedback lost session or concrete cause")
 						}
-						if mode != "empty" {
+						if mode == "format-feedback" && resumed == "author" && proofCalls == 0 {
+							if !strings.Contains(feedbackOutputs(t, readFeedbackPrompt(t, prompt)), "LAST_FORMAT_CAUSE") {
+								t.Fatal("lost full verifier formatter output")
+							}
+						}
+						if mode == "proof-then-empty" && resumed == "author" {
+							os.Remove(filepath.Join(root, "codexsdk/internal/schemaoracle/repair.go"))
+						}
+						if mode != "empty" && !(mode == "proof-then-empty" && resumed == "author") {
 							name := "codexsdk/internal/schemaoracle/repair.go"
 							if mode == "scope" {
 								name = "codexsdk/internal/protocolsync/repair.go"
@@ -91,11 +102,29 @@ func TestVerifierRolesDoNotSelfAcceptOrResetBudget(t *testing.T) {
 			}
 			result, err := Repair(context.Background(), req)
 			cp := readRepairCheckpoint(t, req.CheckpointDir)
+			if mode == "proof-then-empty" {
+				proposal, e := repairPatch(req.RepoRoot)
+				if e != nil {
+					t.Fatal(e)
+				}
+				prompt, e := feedbackPrompt(req.CheckpointDir, cp, proposal)
+				if e != nil {
+					t.Fatal(e)
+				}
+				raw := readFeedbackPrompt(t, prompt)
+				if !strings.Contains(raw, "concrete failure") || !strings.Contains(raw, "Implementation defect remains") || !strings.Contains(raw, "untrusted_reviewer_analysis") {
+					t.Fatal("lost original evidence after verifier retry", raw)
+				}
+			}
 			if cp.Round != req.MaxRounds || cp.MaxRounds != req.MaxRounds {
 				t.Fatalf("budget reset: %+v", cp)
 			}
-			if mode == "proposal" || mode == "proof-feedback" || mode == "tidy-feedback" {
-				if err != nil || result.Outcome != OutcomeVerifierProposal || cp.VerifierHandoffs != 1 || proofCalls != req.MaxRounds-1 || reviewCalls != 1 {
+			if mode == "proposal" || mode == "proof-feedback" || mode == "tidy-feedback" || mode == "format-feedback" {
+				expectedProofCalls := req.MaxRounds - 1
+				if mode == "format-feedback" {
+					expectedProofCalls--
+				}
+				if err != nil || result.Outcome != OutcomeVerifierProposal || cp.VerifierHandoffs != 1 || proofCalls != expectedProofCalls || reviewCalls != 1 {
 					t.Fatalf("result=%+v cp=%+v err=%v", result, cp, err)
 				}
 				if _, e := os.Stat(filepath.Join(req.RepoRoot, "codexsdk/internal/schemaoracle/repair.go")); !os.IsNotExist(e) {

@@ -141,8 +141,9 @@ the standalone oracle does not certify a lossless observation/relay API.
 
 The oracle checks each wire witness in its own Go subtest, independently of the
 declared-field check. An assertion failure does not suppress later witnesses for
-the same contract. Feedback still uses the existing diagnostic bounds and marks
-omitted output; compiler errors, panics, skipped or missing trusted tests remain
+the same contract. Operator console summaries still use the existing diagnostic
+bounds and mark omitted output; the repair file retains complete failure records
+within its explicit file limit. Compiler errors, panics, skipped or missing trusted tests remain
 failed or unavailable evidence.
 
 Round trips preserve JSON member presence except the accepted parameterless
@@ -323,8 +324,29 @@ and compiler errors within the feedback bound; successful test chatter must not
 displace an already observed failure. Truncation remains explicit, and a missing
 assertion is not reconstructed from the package failure summary. Structured Go
 build output is retained as compiler feedback; a build failure never counts as
-an executed contract test. The artifact contains no Codex home, credential, or
-raw model transcript.
+an executed contract test. These 4 KiB/8 KiB summaries are operator context,
+not the repair author's evidence transport.
+
+The trusted controller writes verification failure records to one streamed JSONL
+file outside the proposal workspace. Repair and verifier-author prompts receive
+only its path. Each failed target probe includes the controller-frozen input and
+source/keyword/instance locations; union explanations remain explicitly sampled
+or ambiguous. Native process output is labeled untrusted, distinct from frozen
+schema facts. Provisional passing-test output is discarded. Existing known-secret
+redaction applies before storage, including across output chunks and to decoded
+witness strings; redacted records are marked and are not exact replayable inputs.
+This is not a guarantee of arbitrary sensitive-data detection. The existing bounded
+verifier final analysis may be retained as untrusted reviewer analysis, never as
+checker authority or a raw model transcript.
+
+The JSONL has a 16 MiB file limit, independently of console and model budgets.
+Overflow, unframed output, or a write/close/seal failure blocks the handoff rather
+than advertising incomplete evidence as complete. Its header/footer and checkpoint
+reference bind base, target, candidate, proposal, round, completeness and digest.
+Only the referenced sealed file survives checkpoint retention/publication; restored
+paths are resolved locally and rechecked. Neither the file nor an old successful
+footer supplies acceptance: native execution and fresh verification still decide.
+The artifact contains no Codex home, provider credential, or raw model transcript.
 An explicit `recovery_run_id` workflow dispatch may restore the latest attempt's
 artifact from this trusted workflow on the exact current main commit. Native run
 origin, fresh upstream ref, candidate bytes, proposal scope, and current main are

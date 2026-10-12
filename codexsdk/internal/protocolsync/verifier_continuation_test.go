@@ -33,6 +33,7 @@ func verifierContinuationFixture(t *testing.T) (*verifierPublicationFixture, Ver
 	}
 	cp["proposal_sha256"] = f.handoff.ProposalSHA256
 	f.checkpoint["checkpoint.json"] = verifierFixtureJSON(t, cp)
+	f.refreshFeedback()
 	f.sealEvidence()
 	pub := f.publish()
 	req := f.merge(pub)

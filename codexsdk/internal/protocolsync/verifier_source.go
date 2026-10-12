@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -60,13 +61,16 @@ func runVerifierSourceGate(ctx context.Context, root, candidate, gate string, ex
 	}
 	var stdout, stderr verifierSourceOutput
 	events := newVerifierSourceEvents(expected)
+	capture := newFeedbackCapture(ctx, "verifier_source_"+gate)
+	events.baseline.diagnostic.capture = capture
 	if gate == "permanent-tests" {
 		cmd.Stdout = events
 	} else {
-		cmd.Stdout = &stdout
+		cmd.Stdout = io.MultiWriter(&stdout, feedbackStream{capture, "stdout"})
 	}
-	cmd.Stderr = &stderr
+	cmd.Stderr = io.MultiWriter(&stderr, feedbackStream{capture, "stderr"})
 	runErr := cmd.Run()
+	capture.finish(runErr != nil || (gate == "permanent-tests" && events.baseline.verify() != nil), events.baseline.pending)
 	after, err := repairPatch(root)
 	if err != nil {
 		return lane, err

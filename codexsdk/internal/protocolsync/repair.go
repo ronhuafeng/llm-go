@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -37,18 +38,19 @@ type RepairRequest struct {
 }
 
 type repairCheckpoint struct {
-	Version          int    `json:"version"`
-	DeadlineUTC      string `json:"deadline_utc,omitempty"`
-	Base             string `json:"base"`
-	Target           Target `json:"target"`
-	CandidateSHA256  string `json:"candidate_sha256"`
-	ProposalSHA256   string `json:"proposal_sha256"`
-	Round            int    `json:"round"`
-	Status           string `json:"status"`
-	Stage            string `json:"stage"`
-	Diagnostic       string `json:"diagnostic"`
-	MaxRounds        int    `json:"max_rounds,omitempty"`
-	VerifierHandoffs int    `json:"verifier_handoffs,omitempty"`
+	Version          int         `json:"version"`
+	DeadlineUTC      string      `json:"deadline_utc,omitempty"`
+	Base             string      `json:"base"`
+	Target           Target      `json:"target"`
+	CandidateSHA256  string      `json:"candidate_sha256"`
+	ProposalSHA256   string      `json:"proposal_sha256"`
+	Round            int         `json:"round"`
+	Status           string      `json:"status"`
+	Stage            string      `json:"stage"`
+	Diagnostic       string      `json:"diagnostic"`
+	Feedback         feedbackRef `json:"feedback,omitempty"`
+	MaxRounds        int         `json:"max_rounds,omitempty"`
+	VerifierHandoffs int         `json:"verifier_handoffs,omitempty"`
 }
 
 func Repair(ctx context.Context, req RepairRequest) (result SyncResult, err error) {
@@ -81,6 +83,21 @@ func Repair(ctx context.Context, req RepairRequest) (result SyncResult, err erro
 	if rel, e := filepath.Rel(rootAbs, checkpointAbs); e != nil || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))) {
 		return result, errors.New("checkpoint must be outside the proposal workspace")
 	}
+	if e := os.MkdirAll(checkpointAbs, 0700); e != nil {
+		return result, e
+	}
+	checkpointReal, e := filepath.EvalSymlinks(checkpointAbs)
+	if e != nil {
+		return result, e
+	}
+	rootReal, e := filepath.EvalSymlinks(rootAbs)
+	if e != nil {
+		return result, e
+	}
+	if rel, e := filepath.Rel(rootReal, checkpointReal); e != nil || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))) {
+		return result, errors.New("checkpoint real path must be outside proposal workspace")
+	}
+	req.CheckpointDir = checkpointReal
 	base, err := gitOutput(req.RepoRoot, "rev-parse", "HEAD")
 	if err != nil {
 		return result, err
@@ -129,11 +146,27 @@ func Repair(ctx context.Context, req RepairRequest) (result SyncResult, err erro
 	if oracle == nil {
 		oracle = repairOracle
 	}
+	invokeOracle := func(ctx context.Context) (SyncResult, []byte, error) {
+		captureCtx, artifact, e := newFeedbackArtifact(ctx, req.CheckpointDir, cp, proposal)
+		if e != nil {
+			return SyncResult{Stage: "diagnostic_artifact"}, nil, &feedbackArtifactError{e}
+		}
+		observed, generated, verifyErr := oracle(captureCtx, req.ResumeRequest)
+		if observed.Issue != nil {
+			artifact.record(feedbackRecord{Kind: "typed_unresolved", Trust: "untrusted_candidate_report", Probe: observed.Issue})
+		}
+		ref, e := artifact.seal(verifyErr)
+		if e != nil {
+			return SyncResult{Stage: "diagnostic_artifact"}, nil, e
+		}
+		cp.Feedback = ref
+		return observed, generated, verifyErr
+	}
 	initialFeedback := ""
 	if req.VerifyBeforeModel {
 		cp.Stage = "oracle"
 		before := repairDigest(proposal)
-		observed, generated, verifyErr := oracle(ctx, req.ResumeRequest)
+		observed, generated, verifyErr := invokeOracle(ctx)
 		if e := repairIntegrity(req.ResumeRequest, base); e != nil {
 			return result, e
 		}
@@ -160,7 +193,10 @@ func Repair(ctx context.Context, req RepairRequest) (result SyncResult, err erro
 			return observed, fmt.Errorf("continued verification blocked: %w", verifyErr)
 		}
 		cp.Diagnostic = boundedRepairDiagnostic(fmt.Sprint(verifyErr))
-		initialFeedback = "Fresh accepted-controller verification rejected the retained proposal: " + cp.Diagnostic
+		initialFeedback, err = feedbackPrompt(req.CheckpointDir, cp, proposal)
+		if err != nil {
+			return observed, err
+		}
 	}
 	if cp.Round >= req.MaxRounds {
 		cp.Status = "exhausted"
@@ -182,6 +218,11 @@ func Repair(ctx context.Context, req RepairRequest) (result SyncResult, err erro
 		if err = repairIntegrity(req.ResumeRequest, base); err != nil {
 			return result, err
 		}
+		if cp.Feedback.File != "" {
+			if _, e := feedbackPath(req.CheckpointDir, cp.Feedback, cp, proposal); e != nil {
+				return result, &feedbackArtifactError{e}
+			}
+		}
 		execution, runErr := req.Executor.Run(ctx, feedback, session)
 		if session != "" && execution.SessionID != "" && execution.SessionID != session {
 			return result, errors.New("repair executor changed session identity")
@@ -194,6 +235,7 @@ func Repair(ctx context.Context, req RepairRequest) (result SyncResult, err erro
 			return result, scopeErr
 		}
 		var normalizeErr error
+		var normalizationArtifact *feedbackArtifact
 		if runErr == nil {
 			paths, e := ChangedPaths(req.RepoRoot)
 			if e != nil {
@@ -210,14 +252,32 @@ func Repair(ctx context.Context, req RepairRequest) (result SyncResult, err erro
 			if len(source) > 0 {
 				command := exec.CommandContext(ctx, "gofmt", append([]string{"-w"}, source...)...)
 				command.Env = repairEnvironment()
-				if out, e := command.CombinedOutput(); e != nil {
+				formatCtx, artifact, e := newFeedbackArtifact(ctx, req.CheckpointDir, cp, proposal)
+				if e != nil {
+					return result, &feedbackArtifactError{e}
+				}
+				normalizationArtifact = artifact
+				if out, e := feedbackCommandOutput(formatCtx, command); e != nil {
 					normalizeErr = fmt.Errorf("normalize handwritten proposal: %w: %s", e, boundedRepairDiagnostic(string(out)))
 				}
 			}
 		}
+		cp.Feedback = feedbackRef{} // A new/partial proposal cannot reuse prior diagnostics.
 		proposal, err = repairPatch(req.RepoRoot)
 		if err != nil {
 			return result, err
+		}
+		if normalizationArtifact != nil {
+			normalizationArtifact.identity.Proposal = repairDigest(proposal)
+			if normalizeErr != nil {
+				ref, e := normalizationArtifact.seal(normalizeErr)
+				if e != nil {
+					return result, e
+				}
+				cp.Feedback = ref
+			} else if e := discardFeedback(normalizationArtifact); e != nil {
+				return result, e
+			}
 		}
 		if runErr != nil {
 			cp.Status = execution.Status
@@ -239,8 +299,13 @@ func Repair(ctx context.Context, req RepairRequest) (result SyncResult, err erro
 		if normalizeErr != nil {
 			result = SyncResult{Stage: "verification", FailureCategory: FailureValidation}
 			verifyErr = normalizeErr
+			if cp.Feedback.File == "" {
+				if e := saveFeedbackError(ctx, req.CheckpointDir, &cp, proposal, normalizeErr); e != nil {
+					return result, e
+				}
+			}
 		} else {
-			result, generated, verifyErr = oracle(ctx, req.ResumeRequest)
+			result, generated, verifyErr = invokeOracle(ctx)
 		}
 		if integrityErr := repairIntegrity(req.ResumeRequest, base); integrityErr != nil {
 			return result, integrityErr
@@ -287,9 +352,9 @@ func Repair(ctx context.Context, req RepairRequest) (result SyncResult, err erro
 				return result, nil
 			}
 		}
-		feedback = "Independent verification rejected the current proposal. Continue the same exact candidate and permitted scope. Stage: " + result.Stage + ". Diagnostic:\n" + cp.Diagnostic
-		if result.Issue != nil {
-			feedback += "\nTyped unresolved: " + result.Issue.Stage + " " + result.Issue.Path + ": " + result.Issue.Reason
+		feedback, err = feedbackPrompt(req.CheckpointDir, cp, proposal)
+		if err != nil {
+			return result, err
 		}
 		cp.Status = "repairable"
 		if err = saveRepairCheckpoint(req.CheckpointDir, req.ResumeRequest, cp, proposal); err != nil {
@@ -371,7 +436,7 @@ func repairOracle(ctx context.Context, req ResumeRequest) (SyncResult, []byte, e
 	defer os.RemoveAll(dir)
 	root := filepath.Join(dir, "repo")
 	cmd := exec.CommandContext(ctx, "git", "clone", "--quiet", "--no-hardlinks", req.RepoRoot, root)
-	if out, e := boundedCommandOutput(cmd); e != nil {
+	if out, e := feedbackCommandOutput(ctx, cmd); e != nil {
 		return result, nil, fmt.Errorf("clone oracle: %w: %s", e, out)
 	}
 	patch, err := repairPatch(req.RepoRoot)
@@ -424,7 +489,7 @@ func repairOracle(ctx context.Context, req ResumeRequest) (SyncResult, []byte, e
 	}
 	binary := filepath.Join(sandbox.work, "protocolupgrade")
 	cmd = sandbox.command(ctx, filepath.Join(sandbox.goroot, "bin", "go"), "build", "-o", binary, "./internal/cmd/protocolupgrade")
-	buildOutput, buildErr := boundedCommandOutput(cmd)
+	buildOutput, buildErr := feedbackCommandOutput(ctx, cmd)
 	if e := verifyIdentity(); e != nil {
 		return SyncResult{Stage: "oracle_integrity"}, nil, e
 	}
@@ -443,9 +508,12 @@ func repairOracle(ctx context.Context, req ResumeRequest) (SyncResult, []byte, e
 
 	cmd.Dir = filepath.Join(root, "codexsdk")
 	var stdout, stderr repairOutput
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	capture := newFeedbackCapture(ctx, "candidate_resume")
+	cmd.Stdout = io.MultiWriter(&stdout, feedbackStream{capture, "stdout"})
+	cmd.Stderr = io.MultiWriter(&stderr, feedbackStream{capture, "stderr"})
 	runErr := cmd.Run()
+	captureFailed := true
+	defer func() { capture.finish(captureFailed) }()
 	if e := verifyIdentity(); e != nil {
 		return SyncResult{Stage: "oracle_integrity"}, nil, e
 	}
@@ -465,6 +533,7 @@ func repairOracle(ctx context.Context, req ResumeRequest) (SyncResult, []byte, e
 	if runErr != nil {
 		return result, nil, fmt.Errorf("%s", boundedRepairDiagnostic(stderr.String()))
 	}
+	captureFailed = false
 	if _, err = repairPatch(root); err != nil {
 		return result, nil, err
 	}
@@ -495,7 +564,7 @@ func repairOracle(ctx context.Context, req ResumeRequest) (SyncResult, []byte, e
 	for _, args := range [][]string{{"test", "./..."}, {"run", "./internal/cmd/protocolupgrade", "check", "-module-root", ".", "-candidate", filepath.Join(req.CandidateDir, "schema")}, {"vet", "./..."}} {
 		cmd = sandbox.command(ctx, filepath.Join(sandbox.goroot, "bin", "go"), args...)
 		cmd.Dir = filepath.Join(root, "codexsdk")
-		out, e := boundedCommandOutput(cmd)
+		out, e := feedbackCommandOutput(ctx, cmd)
 		if identityErr := verifyIdentity(); identityErr != nil {
 			return SyncResult{Stage: "oracle_integrity"}, nil, identityErr
 		}

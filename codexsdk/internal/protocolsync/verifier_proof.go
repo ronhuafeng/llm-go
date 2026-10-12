@@ -122,7 +122,7 @@ func runVerifierProposalProof(ctx context.Context, req verifierProofRequest) (ve
 			return evidence, err
 		}
 		cmd := exec.CommandContext(ctx, "git", "clone", "--quiet", "--no-hardlinks", req.AcceptedRoot, root)
-		if out, e := boundedCommandOutput(cmd); e != nil {
+		if out, e := feedbackCommandOutput(ctx, cmd); e != nil {
 			return evidence, fmt.Errorf("clone verifier proof: %w: %s", e, boundedRepairDiagnostic(string(out)))
 		}
 		if version == "new" {
@@ -488,7 +488,7 @@ func main(){var r schemaoracle.Request;if e:=json.Unmarshal([]byte(` + strconv.Q
 	if e != nil {
 		return nil, e
 	}
-	out, runErr := boundedCommandOutput(cmd)
+	out, runErr := feedbackCommandOutput(ctx, cmd)
 	after, e := repairPatch(s.root)
 	if e != nil {
 		return nil, e
@@ -535,14 +535,17 @@ func verifierProofExecute(ctx context.Context, root, candidate, fixture string, 
 	s.readonly = append(s.readonly, root)
 	cmd := s.command(ctx, filepath.Join(s.goroot, "bin", "go"), "test", "-count=1", "-json", "-run", "^TestTrustedSchemaOracle$", "./internal/schemaoracleprobe")
 	var events verifierProofEvents
+	capture := newFeedbackCapture(ctx, "verifier_fixture")
+	events.all.diagnostic.capture = capture
 	var stderr repairOutput
 	cmd.Stdout = &events
-	cmd.Stderr = &stderr
+	cmd.Stderr = io.MultiWriter(&stderr, feedbackStream{capture, "stderr"})
 	before, e := repairPatch(root)
 	if e != nil {
 		return result, e
 	}
 	runErr := cmd.Run()
+	capture.finish(runErr != nil || !events.all.started || !events.all.passed || events.all.invalid || events.all.pending != "", events.all.pending)
 	after, e := repairPatch(root)
 	if e != nil {
 		return result, e

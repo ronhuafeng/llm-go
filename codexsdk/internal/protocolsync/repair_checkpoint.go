@@ -32,7 +32,15 @@ func saveRepairCheckpoint(dir string, req ResumeRequest, cp repairCheckpoint, pa
 		return err
 	}
 	cp.ProposalSHA256 = repairDigest(patch)
+	if cp.Feedback.File != "" {
+		if _, err := feedbackPath(dir, cp.Feedback, cp, patch); err != nil {
+			return err
+		}
+	}
 	if err := atomicRepairWrite(filepath.Join(dir, "proposal.patch"), patch); err != nil {
+		return err
+	}
+	if err := retainFeedback(dir, cp.Feedback); err != nil {
 		return err
 	}
 	data, err := json.MarshalIndent(cp, "", "  ")
@@ -121,6 +129,11 @@ func RestoreRepair(root, dir, remote, baseBranch string, lookup RemoteLookuper, 
 	}
 	if repairDigest(patch) != cp.ProposalSHA256 {
 		return result, errors.New("checkpoint proposal digest mismatch")
+	}
+	if cp.Feedback.File != "" {
+		if _, err := feedbackPath(dir, cp.Feedback, cp, patch); err != nil {
+			return result, err
+		}
 	}
 	// Validate paths in a disposable clone before applying any bytes to the real
 	// workspace; a recovery artifact cannot enlarge the repair scope.

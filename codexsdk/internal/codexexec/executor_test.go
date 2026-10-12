@@ -254,3 +254,47 @@ func TestNativeSandboxProbeRequiresExecutedPositiveAndNegative(t *testing.T) {
 		})
 	}
 }
+
+func TestNativeFeedbackBoundaryRejectsMissingReadAndTampering(t *testing.T) {
+	for _, mode := range []string{"verified", "arbitrary-failure", "missing-positive", "wrong-read", "overwrite", "replacement"} {
+		t.Run(mode, func(t *testing.T) {
+			body := `test -z "$AZURE_OPENAI_API_KEY" || exit 8
+printf '%s\n' "$@" > probe-args.txt
+for arg do path="$arg"; done
+`
+			switch mode {
+			case "arbitrary-failure":
+				body += "exit 1\n"
+			case "wrong-read":
+				body += "printf 'wrong-read\\n'\n"
+			default:
+				if mode != "missing-positive" {
+					body += "printf workspace-write-verified > feedback-probe-positive.txt\n"
+				}
+				if mode == "overwrite" {
+					body += "printf changed > \"$path\"\n"
+				}
+				if mode == "replacement" {
+					body += "cat \"$path\" > replacement.jsonl\nmv replacement.jsonl \"$path\"\n"
+				}
+				body += "printf 'feedback-read-verified\\nworkspace-write-verified\\nfeedback-write-and-replacement-denied\\n'\n"
+			}
+			e := fakeExecutor(t, body)
+			path := filepath.Join(t.TempDir(), "feedback.jsonl")
+			expected := []byte("{\"stage\":\"verification\",\"status\":\"failed\"}\n")
+			if err := os.WriteFile(path, expected, 0600); err != nil {
+				t.Fatal(err)
+			}
+			err := proveNativeFeedbackBoundary(context.Background(), e, path, expected)
+			if (err == nil) != (mode == "verified") {
+				t.Fatalf("mode=%s err=%v", mode, err)
+			}
+			args, _ := os.ReadFile(filepath.Join(e.config.Workspace, "probe-args.txt"))
+			for _, required := range []string{"sandbox\n", `sandbox_mode="workspace-write"`, "sandbox_workspace_write.exclude_slash_tmp=true", "sandbox_workspace_write.exclude_tmpdir_env_var=true", "sandbox_workspace_write.writable_roots=[]", "cmp - \"$1\"", "mv -f -- feedback-probe-replacement.jsonl", path} {
+				if !strings.Contains(string(args), required) {
+					t.Fatalf("feedback probe missing invariant %q", required)
+				}
+			}
+		})
+	}
+}

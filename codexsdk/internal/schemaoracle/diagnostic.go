@@ -11,10 +11,22 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6/kind"
 )
 
+type DiagnosticLocation struct {
+	Source      string `json:"source,omitempty"`
+	Instance    string `json:"instance"`
+	Origin      string `json:"origin,omitempty"`
+	Attribution string `json:"attribution"`
+}
+
 // Freeze only a compact explanation, never the validator's potentially wide
 // union error tree. This is feedback, not an additional acceptance decision.
-func invalidDiagnostic(original any, name string, value any, mutationPath string, err error) string {
-	fallback := "instance=" + diagnosticClip(mutationPath, 160) + " validation failed; attribution ambiguous"
+func invalidDiagnostic(original any, name string, value any, mutationPath string, err error, locations ...*DiagnosticLocation) string {
+	location := &DiagnosticLocation{Instance: mutationPath, Attribution: "ambiguous"}
+	if len(locations) > 0 {
+		location = locations[0]
+		*location = DiagnosticLocation{Instance: mutationPath, Attribution: "ambiguous"}
+	}
+	fallback := "instance=" + mutationPath + " validation failed; attribution ambiguous"
 	root, ok := err.(*validator.ValidationError)
 	if !ok {
 		return fallback
@@ -115,7 +127,13 @@ func invalidDiagnostic(original any, name string, value any, mutationPath string
 	} else if sampled {
 		suffix = "; sampled cause; attribution ambiguous"
 	}
-	return label + diagnosticClip(name+source, 192) + " instance=" + diagnosticClip(at, 160) + " " + diagnosticClip(message, 120) + " value=" + preview + suffix
+	location.Source = name + source
+	location.Instance = at
+	location.Origin = strings.TrimSuffix(label, "=")
+	if !union && !sampled {
+		location.Attribution = "mutation_local"
+	}
+	return label + name + source + " instance=" + at + " " + message + " value=" + preview + suffix
 }
 
 func diagnosticPointer(tokens []string) string {

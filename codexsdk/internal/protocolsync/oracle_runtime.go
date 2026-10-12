@@ -9,9 +9,11 @@ import (
 	"go/doc"
 	"go/parser"
 	"go/token"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -38,7 +40,11 @@ func runTargetOracle(ctx context.Context, req ResumeRequest, root string, sandbo
 		return nil
 	} // no changed wire contracts; baseline regression still runs
 	specification.Context = ctx
-	source, err := schemaoracle.Generate(specification)
+	targets, err := schemaoracle.Build(specification)
+	if err != nil {
+		return &oracleContractError{err}
+	}
+	source, err := schemaoracle.Render(specification, targets)
 	if err != nil {
 		return &oracleContractError{err}
 	}
@@ -58,10 +64,13 @@ func runTargetOracle(ctx context.Context, req ResumeRequest, root string, sandbo
 	}
 	cmd := sandbox.command(ctx, filepath.Join(sandbox.goroot, "bin", "go"), "test", "-count=1", "-json", "./internal/schemaoracleprobe")
 	var events oracleTestEvents
+	capture := targetFeedbackCapture(ctx, targets)
+	events.diagnostic.capture = capture
 	cmd.Stdout = &events
 	var stderr repairOutput
-	cmd.Stderr = &stderr
+	cmd.Stderr = io.MultiWriter(&stderr, feedbackStream{capture, "stderr"})
 	runErr := cmd.Run()
+	capture.finish(runErr != nil || !events.started || !events.passed || events.failed || events.invalid || events.pending != "", events.pending)
 	if events.pending != "" {
 		_, _ = events.diagnostic.Write([]byte("incomplete go test output: " + events.pending))
 	}
@@ -77,6 +86,37 @@ func runTargetOracle(ctx context.Context, req ResumeRequest, root string, sandbo
 		return fmt.Errorf("independent schema contract: %v (started=%t passed=%t failed=%t): %s", runErr, events.started, events.passed, events.failed, boundedRepairDiagnostic(events.diagnostic.String()))
 	}
 	return nil
+}
+
+func targetFeedbackCapture(ctx context.Context, targets []schemaoracle.Target) *feedbackCapture {
+	capture := newFeedbackCapture(ctx, "target_schema")
+	if capture != nil {
+		capture.probe = func(test string) any {
+			prefix, indexText, ok := strings.Cut(test, "/probe_")
+			if !ok {
+				return nil
+			}
+			index, e := strconv.Atoi(indexText)
+			if e != nil {
+				return nil
+			}
+			for _, target := range targets {
+				if prefix == "TestTrustedSchemaOracle/"+target.Schema && index >= 0 && index < len(target.Probes) {
+					p := target.Probes[index]
+					return struct {
+						Schema     string                           `json:"schema"`
+						Index      int                              `json:"index"`
+						Valid      bool                             `json:"expected_valid"`
+						Diagnostic string                           `json:"constraint"`
+						Location   *schemaoracle.DiagnosticLocation `json:"location,omitempty"`
+						Input      json.RawMessage                  `json:"input"`
+					}{target.Schema, index, p.Valid, p.Diagnostic, p.Location, json.RawMessage(p.JSON)}
+				}
+			}
+			return nil
+		}
+	}
+	return capture
 }
 
 type oracleTestEvents struct {
@@ -97,6 +137,9 @@ func (w *oracleTestEvents) Write(p []byte) (int, error) {
 		var e struct{ Action, Test, Package, ImportPath, Output string }
 		if json.Unmarshal([]byte(line), &e) != nil {
 			w.invalid = true
+			if w.diagnostic.capture != nil {
+				w.diagnostic.capture.markIncomplete()
+			}
 			_, _ = w.diagnostic.Write([]byte("unparsed go test output: " + line + "\n"))
 			continue
 		}
@@ -125,6 +168,9 @@ func (w *oracleTestEvents) Write(p []byte) (int, error) {
 	}
 	if len(w.pending) > 4<<20 {
 		w.invalid = true
+		if w.diagnostic.capture != nil {
+			w.diagnostic.capture.markIncomplete()
+		}
 		_, _ = w.diagnostic.Write([]byte("go test event omitted: framing bound exceeded\n"))
 		w.pending = ""
 	}
@@ -137,7 +183,7 @@ func (w *oracleTestEvents) Write(p []byte) (int, error) {
 func runBaselineOracle(ctx context.Context, req ResumeRequest, targetSandbox oracleSandbox) error {
 	binary := filepath.Join(targetSandbox.work, "baseline-protocolv2gen")
 	cmd := targetSandbox.command(ctx, filepath.Join(targetSandbox.goroot, "bin", "go"), "build", "-o", binary, "./internal/cmd/protocolv2gen")
-	if out, err := boundedCommandOutput(cmd); err != nil {
+	if out, err := feedbackCommandOutput(ctx, cmd); err != nil {
 		return fmt.Errorf("build baseline generator: %w: %s", err, boundedRepairDiagnostic(string(out)))
 	}
 	dir, err := os.MkdirTemp("", "protocol-baseline-oracle-")
@@ -147,7 +193,7 @@ func runBaselineOracle(ctx context.Context, req ResumeRequest, targetSandbox ora
 	defer os.RemoveAll(dir)
 	root := filepath.Join(dir, "repo")
 	cmd = exec.CommandContext(ctx, "git", "clone", "--quiet", "--no-hardlinks", req.RepoRoot, root)
-	if out, err := boundedCommandOutput(cmd); err != nil {
+	if out, err := feedbackCommandOutput(ctx, cmd); err != nil {
 		return fmt.Errorf("clone baseline regression: %w: %s", err, boundedRepairDiagnostic(string(out)))
 	}
 	expected, err := acceptedBaselineTests(filepath.Join(root, "codexsdk"))
@@ -194,7 +240,7 @@ func runBaselineOracle(ctx context.Context, req ResumeRequest, targetSandbox ora
 		return err
 	}
 	cmd = sandbox.command(ctx, program, "-schema-root", "internal/protocolschema/appserver/v2", "-out", "protocolv2")
-	out, runErr := boundedCommandOutput(cmd)
+	out, runErr := feedbackCommandOutput(ctx, cmd)
 	after, err := baselineOracleNonGeneratedPatch(root)
 	if err != nil {
 		return err
@@ -211,10 +257,13 @@ func runBaselineOracle(ctx context.Context, req ResumeRequest, targetSandbox ora
 	}
 	cmd = sandbox.command(ctx, filepath.Join(sandbox.goroot, "bin", "go"), "test", "-count=1", "-json", ".", "./protocolv2", "./internal/wirejson")
 	events := baselineTestEvents{expected: expected, ran: map[string]bool{}, passed: map[string]bool{}}
+	capture := newFeedbackCapture(ctx, "baseline")
+	events.diagnostic.capture = capture
 	cmd.Stdout = &events
 	var stderr repairOutput
-	cmd.Stderr = &stderr
+	cmd.Stderr = io.MultiWriter(&stderr, feedbackStream{capture, "stderr"})
 	runErr = cmd.Run()
+	capture.finish(runErr != nil || events.verify() != nil, events.pending)
 	if events.pending != "" {
 		_, _ = events.diagnostic.Write([]byte("incomplete go test output: " + events.pending))
 	}
@@ -314,6 +363,9 @@ func (w *baselineTestEvents) Write(p []byte) (int, error) {
 		var e struct{ Action, Package, Test, ImportPath, Output string }
 		if json.Unmarshal([]byte(line), &e) != nil {
 			w.invalid = true
+			if w.diagnostic.capture != nil {
+				w.diagnostic.capture.markIncomplete()
+			}
 			_, _ = w.diagnostic.Write([]byte("unparsed go test output: " + line + "\n"))
 			continue
 		}
@@ -340,6 +392,9 @@ func (w *baselineTestEvents) Write(p []byte) (int, error) {
 	}
 	if len(w.pending) > 4<<20 {
 		w.invalid = true
+		if w.diagnostic.capture != nil {
+			w.diagnostic.capture.markIncomplete()
+		}
 		_, _ = w.diagnostic.Write([]byte("go test event omitted: framing bound exceeded\n"))
 		w.pending = ""
 	}

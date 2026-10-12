@@ -1,6 +1,7 @@
 package codexexec
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -59,6 +60,19 @@ func TestLiveCodexRepairPreflightAndFeedback(t *testing.T) {
 		t.Log("live_executor.stage=readonly_probe outcome=failed diagnostic=positive_control_failed")
 		t.Fatal(err)
 	}
+	// The repair controller owns feedback outside the writable proposal. Use
+	// ordinary owner-writable permissions so denial proves the native sandbox,
+	// rather than a read-only Unix mode bit or a missing path.
+	feedbackPath := filepath.Join(t.TempDir(), "feedback.jsonl")
+	feedback := []byte("{\"stage\":\"verification\",\"status\":\"failed\"}\n")
+	if err := os.WriteFile(feedbackPath, feedback, 0600); err != nil {
+		t.Fatal("cannot prepare controller feedback fixture")
+	}
+	if err := proveNativeFeedbackBoundary(ctx, executor, feedbackPath, feedback); err != nil {
+		t.Log("live_executor.stage=readonly_probe outcome=failed diagnostic=write_denial_unverified")
+		t.Fatal(err)
+	}
+	t.Log("live_executor.stage=readonly_probe outcome=completed diagnostic=write_denied_read_verified")
 	// A fresh verifier identity must inspect the same candidate without write access.
 	t.Log("live_executor.stage=readonly_review outcome=started diagnostic=none")
 	reviewer, err := New(ctx, Config{Workspace: workspace, StateDir: t.TempDir(), ReadOnly: true, Version: os.Getenv("CODEX_CLI_VERSION"), BaseURL: os.Getenv("CODEX_RESPONSES_API_ENDPOINT"), APIKey: os.Getenv("AZURE_OPENAI_API_KEY"), Model: os.Getenv("LLMGO_LIVE_CODEX_MODEL"), Reasoning: os.Getenv("LLMGO_LIVE_CODEX_REASONING")})
@@ -108,11 +122,57 @@ func proveNativeSandboxMode(ctx context.Context, e *Executor, readonly bool) err
 	if e.config.ReadOnly != readonly {
 		return fmt.Errorf("probe mode differs from executor")
 	}
+	cmd := nativeSandboxProbe(ctx, e, mode, "sh", "-c", script)
+	out, err := cmd.Output()
+	if err != nil || string(out) != want {
+		return fmt.Errorf("native sandbox did not establish expected read/write boundary")
+	}
+	return nil
+}
+
+// This fixed command uses the same Executor config and native sandbox as Run.
+// Successful workspace writes and an exact read precede both denial checks.
+func proveNativeFeedbackBoundary(ctx context.Context, e *Executor, path string, expected []byte) error {
+	if e.config.ReadOnly {
+		return fmt.Errorf("feedback probe requires repair workspace-write mode")
+	}
+	before, err := os.Lstat(path)
+	if err != nil || !before.Mode().IsRegular() {
+		return fmt.Errorf("controller feedback fixture is not a regular file")
+	}
+	script := `command -v cmp >/dev/null && command -v mv >/dev/null || exit 20
+cmp - "$1" || exit 21
+printf workspace-write-verified > feedback-probe-positive.txt || exit 22
+cat "$1" > feedback-probe-original.jsonl || exit 23
+printf replacement > feedback-probe-replacement.jsonl || exit 24
+if printf changed > "$1"; then exit 25; fi
+cmp feedback-probe-original.jsonl "$1" || exit 26
+if mv -f -- feedback-probe-replacement.jsonl "$1"; then exit 27; fi
+test -f feedback-probe-replacement.jsonl || exit 28
+cmp feedback-probe-original.jsonl "$1" || exit 29
+printf 'feedback-read-verified\nworkspace-write-verified\nfeedback-write-and-replacement-denied\n'`
+	cmd := nativeSandboxProbe(ctx, e, "workspace-write", "sh", "-c", script, "feedback-boundary", path)
+	cmd.Stdin = bytes.NewReader(expected)
+	out, runErr := cmd.Output()
+	after, statErr := os.Lstat(path)
+	original, readErr := os.ReadFile(path)
+	if statErr != nil || !after.Mode().IsRegular() || !os.SameFile(before, after) || readErr != nil || !bytes.Equal(original, expected) {
+		return fmt.Errorf("controller feedback changed during native sandbox probe")
+	}
+	positive, positiveErr := os.ReadFile(filepath.Join(e.config.Workspace, "feedback-probe-positive.txt"))
+	if runErr != nil || string(out) != "feedback-read-verified\nworkspace-write-verified\nfeedback-write-and-replacement-denied\n" || positiveErr != nil || string(positive) != "workspace-write-verified" {
+		return fmt.Errorf("native sandbox did not establish controller feedback read/write boundary")
+	}
+	return nil
+}
+
+func nativeSandboxProbe(ctx context.Context, e *Executor, mode string, command ...string) *exec.Cmd {
 	args := []string{"sandbox", "-c", "sandbox_mode=" + strconv.Quote(mode)}
 	args = append(args, e.sandboxOverrides()...)
-	args = append(args, "--", "sh", "-c", script)
+	args = append(args, "--")
+	args = append(args, command...)
 	cmd := e.command(ctx, args...)
-	// This fixed fixture has no model request and needs no provider credential.
+	// This fixed fixture makes no model request and needs no provider credential.
 	env := cmd.Env[:0]
 	for _, entry := range cmd.Env {
 		if !strings.HasPrefix(entry, "AZURE_OPENAI_API_KEY=") {
@@ -120,9 +180,5 @@ func proveNativeSandboxMode(ctx context.Context, e *Executor, readonly bool) err
 		}
 	}
 	cmd.Env = env
-	out, err := cmd.Output()
-	if err != nil || string(out) != want {
-		return fmt.Errorf("native sandbox did not establish expected read/write boundary")
-	}
-	return nil
+	return cmd
 }

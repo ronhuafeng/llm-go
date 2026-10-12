@@ -78,7 +78,7 @@ func TestTrustedSchemaOracle(t *testing.T){
 	round := 0
 	req.Executor = repairExecutorFixture{run: func(_ context.Context, prompt, session string) (codexexec.Result, error) {
 		round++
-		if round > 1 && (!strings.Contains(prompt, cause) || strings.Contains(prompt, secret)) {
+		if round > 1 && (!strings.Contains(readFeedbackPrompt(t, prompt), cause) || strings.Contains(prompt, cause) || strings.Contains(prompt, secret)) {
 			t.Fatalf("repair feedback lost cause or secret: %s", prompt)
 		}
 		writeFile(t, filepath.Join(req.RepoRoot, "codexsdk/internal/protocolgen/fixture.go"), "package protocolgen // same proposal\n")

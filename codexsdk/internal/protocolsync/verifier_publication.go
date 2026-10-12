@@ -789,18 +789,7 @@ func loadVerifierCheckpoint(req VerifierPublicationRequest, h VerifierHandoff) (
 	if err != nil {
 		return artifact, nil, err
 	}
-	var cp struct {
-		Version          int    `json:"version"`
-		Status           string `json:"status"`
-		DeadlineUTC      string `json:"deadline_utc"`
-		Base             string `json:"base"`
-		Target           Target `json:"target"`
-		CandidateSHA256  string `json:"candidate_sha256"`
-		ProposalSHA256   string `json:"proposal_sha256"`
-		Round            int    `json:"round"`
-		MaxRounds        int    `json:"max_rounds"`
-		VerifierHandoffs int    `json:"verifier_handoffs"`
-	}
+	var cp repairCheckpoint
 	if err = json.Unmarshal(files["checkpoint.json"], &cp); err != nil {
 		return artifact, nil, err
 	}
@@ -808,7 +797,7 @@ func loadVerifierCheckpoint(req VerifierPublicationRequest, h VerifierHandoff) (
 		return artifact, nil, publicationPolicy("original repair checkpoint identity or consumed budget mismatch")
 	}
 	for name := range files {
-		if name != "checkpoint.json" && name != "proposal.patch" && !strings.HasPrefix(name, "candidate/") {
+		if name != "checkpoint.json" && name != "proposal.patch" && name != cp.Feedback.File && !strings.HasPrefix(name, "candidate/") {
 			return artifact, nil, publicationPolicy("unexpected checkpoint file %s", name)
 		}
 	}
@@ -820,6 +809,11 @@ func loadVerifierCheckpoint(req VerifierPublicationRequest, h VerifierHandoff) (
 	dir := filepath.Join(parent, "data")
 	if err = writeVerifierFiles(dir, files); err != nil {
 		return artifact, nil, err
+	}
+	if cp.Feedback.File != "" {
+		if _, e := feedbackPath(dir, cp.Feedback, cp, files["proposal.patch"]); e != nil {
+			return artifact, nil, e
+		}
 	}
 	if err = VerifyCandidate(filepath.Join(dir, "candidate"), h.CandidateSHA256, h.Target.RefName, h.Target.RefKind, h.Target.PeeledCommitSHA); err != nil {
 		return artifact, nil, err

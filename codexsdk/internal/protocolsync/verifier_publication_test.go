@@ -3,7 +3,9 @@ package protocolsync
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -102,6 +104,7 @@ func newVerifierPublicationFixture(t *testing.T) *verifierPublicationFixture {
 	f.runs[101] = origin
 	f.checkpoint["checkpoint.json"] = verifierFixtureJSON(t, map[string]any{"version": 1, "status": "verifier_proposed", "deadline_utc": h.DeadlineUTC, "base": base, "target": h.Target, "candidate_sha256": h.CandidateSHA256, "proposal_sha256": h.ProposalSHA256, "round": 2, "max_rounds": 6, "verifier_handoffs": 1})
 	f.checkpoint["proposal.patch"] = []byte("retained upgrade proposal")
+	f.refreshFeedback()
 	if err = filepath.WalkDir(candidate, func(name string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -775,5 +778,30 @@ func TestVerifierContinuationEmptyIndexDoesNotRepeatRecovery(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func (f *verifierPublicationFixture) refreshFeedback() {
+	t := f.t
+	var checkpoint repairCheckpoint
+	if err := json.Unmarshal(f.checkpoint["checkpoint.json"], &checkpoint); err != nil {
+		t.Fatal(err)
+	}
+	delete(f.checkpoint, checkpoint.Feedback.File)
+	feedbackDir := t.TempDir()
+	_, feedback, err := newFeedbackArtifact(context.Background(), feedbackDir, checkpoint, f.checkpoint["proposal.patch"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	feedback.record(feedbackRecord{Kind: "test_failure", Output: "original checker failure"})
+	ref, err := feedback.seal(errors.New("verification failed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkpoint.Feedback = ref
+	f.checkpoint["checkpoint.json"] = verifierFixtureJSON(t, checkpoint)
+	f.checkpoint[ref.File], err = os.ReadFile(filepath.Join(feedbackDir, ref.File))
+	if err != nil {
+		t.Fatal(err)
 	}
 }

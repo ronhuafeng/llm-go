@@ -72,6 +72,7 @@ func verifierDecode(b []byte, v any) error {
 // It can only produce a separately reviewed publication artifact.
 func proposeVerifier(ctx context.Context, req RepairRequest, cp *repairCheckpoint, proposal []byte) (bool, error) {
 	cfg := req.Verifier
+	upgradeFeedback := cp.Feedback
 	if cfg == nil || req.VerifierHandoffs != 0 || cp.Round >= req.MaxRounds {
 		return false, nil
 	}
@@ -102,18 +103,30 @@ func proposeVerifier(ctx context.Context, req RepairRequest, cp *repairCheckpoin
 	if e := os.WriteFile(upgradePatch, proposal, 0400); e != nil {
 		return false, e
 	}
+	originalFeedbackPath, e := feedbackPath(req.CheckpointDir, upgradeFeedback, *cp, proposal)
+	if e != nil {
+		return false, e
+	}
+	feedbackBackup := filepath.Join(work, "upgrade-feedback.jsonl")
+	if e := copyFeedbackFile(originalFeedbackPath, feedbackBackup); e != nil {
+		return false, e
+	}
 	actor, closeActor, e := cfg.Actor(ctx, author, false)
 	if e != nil {
 		return false, e
 	}
 	defer closeActor()
+	failurePath, e := feedbackPrompt(req.CheckpointDir, *cp, proposal)
+	if e != nil {
+		return false, e
+	}
 	prompt := fmt.Sprintf(`You are the independent verifier-repair role. Diagnose the concrete failure against immutable upstream source and already accepted public contracts, not the upgrade author's claims.
 Accepted source: %s. Candidate source: %s. Upgrade proposal (read only): %s.
-Failure: %s
+Verification JSONL: %s
 If this is an implementation defect, leave the verifier unchanged and explain the actual counterexample for the upgrade role. Unknown evidence is not permission to relax a rule.
 If the existing verifier demonstrably misstates an accepted contract, propose the smallest repair only within codexsdk/internal/schemaoracle/*.go and its testdata/verifier-proof Go fixtures. Do not alter controller, workflows, public API contracts, source bytes, dependencies or credentials. Leave changes uncommitted.
 Write bounded proof cases to codexsdk/.cache/verifier-proof/cases.json. Each case has JSON keys name, source (candidate or baseline), schema (relative source path), fragment, binding, good (tracked fixture Go path), counterexamples (mutant fixture path, input JSON string, accept boolean, canonical JSON string when accepted). Good and mutant fixtures must implement the named public binding without TestMain or test entry points. The fixed runner proves the complete acceptance boundary: old-baseline permanent tests must pass; a genuine old-target permanent assertion failure or each old-good probe rejection establishes the old false rejection. New permanent tests must pass against both baseline and target schema views, retaining execution of all original top-level tests. Every new-good probe must pass and every actual new-mutant must fail; the runner independently replays each challenge. A correct old Generate may remain unchanged and accept the good fixture. Pair frozen fixtures with same-version frozen schema data, and target bindings with target schema; do not require moving schema paths to match baseline fixtures. Every negative fixture must actually violate its claimed challenge.
-The fixed runner also checks root module tidy diff, root vet and actual execution of permanent verifier package tests before the counterexample proof. A direct import that requires dependency-file changes must be avoided within your permitted scope. Add focused permanent regressions and cite exact accepted contract locations. A separate fresh reviewer and all normal checks must approve before your verifier becomes authority. Do not fix the upgrade proposal or broaden unrelated source constraints.`, accepted, req.CandidateDir, upgradePatch, cp.Diagnostic)
+The fixed runner also checks root module tidy diff, root vet and actual execution of permanent verifier package tests before the counterexample proof. A direct import that requires dependency-file changes must be avoided within your permitted scope. Add focused permanent regressions and cite exact accepted contract locations. A separate fresh reviewer and all normal checks must approve before your verifier becomes authority. Do not fix the upgrade proposal or broaden unrelated source constraints.`, accepted, req.CandidateDir, upgradePatch, failurePath)
 	var execution codexexec.Result
 	var patch, casesBytes []byte
 	var evidence verifierProofEvidence
@@ -127,7 +140,16 @@ The fixed runner also checks root module tidy diff, root vet and actual executio
 		}
 		cp.Round++
 		cp.Diagnostic = boundedRepairDiagnostic(cause.Error())
-		prompt = "Independent fixed verification rejected your verifier proposal. Repair the precise failure in the same permitted scope; do not change authority or weaken fixtures. Feedback: " + cp.Diagnostic
+		if cp.Feedback.File == "" {
+			if e := saveFeedbackError(ctx, req.CheckpointDir, cp, proposal, cause); e != nil {
+				return e
+			}
+		}
+		path, e := feedbackPrompt(req.CheckpointDir, *cp, proposal)
+		if e != nil {
+			return e
+		}
+		prompt = path
 		return saveRepairCheckpoint(req.CheckpointDir, req.ResumeRequest, *cp, proposal)
 	}
 	for {
@@ -139,6 +161,7 @@ The fixed runner also checks root module tidy diff, root vet and actual executio
 			return false, errors.New("verifier author did not complete identified session")
 		}
 		session = execution.SessionID
+		cp.Feedback = feedbackRef{}
 		if e := CheckScope(author, "verifier"); e != nil {
 			return false, e
 		}
@@ -147,8 +170,18 @@ The fixed runner also checks root module tidy diff, root vet and actual executio
 			return false, e
 		}
 		if len(paths) == 0 {
+			cp.Feedback = upgradeFeedback
+			original := filepath.Join(req.CheckpointDir, upgradeFeedback.File)
+			if _, e := os.Lstat(original); os.IsNotExist(e) {
+				if e := copyFeedbackFile(feedbackBackup, original); e != nil {
+					return false, e
+				}
+			}
 			if b, e := verifierRead(execution.FinalMessagePath, 8192); e == nil {
 				cp.Diagnostic = boundedRepairDiagnostic(cp.Diagnostic + "\nIndependent verifier analysis: " + string(b))
+				if e := appendReviewerAnalysis(ctx, req.CheckpointDir, cp, proposal, string(b)); e != nil {
+					return false, e
+				}
 			}
 			return false, nil
 		}
@@ -160,11 +193,24 @@ The fixed runner also checks root module tidy diff, root vet and actual executio
 		}
 		if len(gofiles) > 0 {
 			cmd := exec.CommandContext(ctx, "gofmt", append([]string{"-w"}, gofiles...)...)
-			if out, e := boundedCommandOutput(cmd); e != nil {
-				if e := retryAuthor(fmt.Errorf("format verifier: %w: %s", e, boundedRepairDiagnostic(string(out)))); e != nil {
+			formatCtx, artifact, e := newFeedbackArtifact(ctx, req.CheckpointDir, *cp, proposal)
+			if e != nil {
+				return false, &feedbackArtifactError{e}
+			}
+			out, formatErr := feedbackCommandOutput(formatCtx, cmd)
+			if formatErr != nil {
+				ref, e := artifact.seal(formatErr)
+				if e != nil {
+					return false, e
+				}
+				cp.Feedback = ref
+				if e := retryAuthor(fmt.Errorf("format verifier: %w: %s", formatErr, boundedRepairDiagnostic(string(out)))); e != nil {
 					return false, e
 				}
 				continue
+			}
+			if e := discardFeedback(artifact); e != nil {
+				return false, e
 			}
 		}
 		patch, e = repairPatch(author)
@@ -196,7 +242,17 @@ The fixed runner also checks root module tidy diff, root vet and actual executio
 		if proof == nil {
 			proof = runVerifierProposalProof
 		}
-		evidence, e = proof(ctx, verifierProofRequest{AcceptedRoot: accepted, CandidateDir: req.CandidateDir, CandidateSHA256: req.CandidateSHA256, ProposalSHA256: repairDigest(proposal), Patch: patch, Cases: cases})
+		proofCtx, artifact, artifactErr := newFeedbackArtifact(ctx, req.CheckpointDir, *cp, proposal)
+		if artifactErr != nil {
+			return false, &feedbackArtifactError{artifactErr}
+		}
+		artifact.record(feedbackRecord{Kind: "verifier_proposal", Trust: "controller", Output: repairDigest(patch)})
+		evidence, e = proof(proofCtx, verifierProofRequest{AcceptedRoot: accepted, CandidateDir: req.CandidateDir, CandidateSHA256: req.CandidateSHA256, ProposalSHA256: repairDigest(proposal), Patch: patch, Cases: cases})
+		ref, artifactErr := artifact.seal(e)
+		if artifactErr != nil {
+			return false, artifactErr
+		}
+		cp.Feedback = ref
 		if e != nil {
 			var feedback *verifierFeedbackError
 			if !errors.As(e, &feedback) {

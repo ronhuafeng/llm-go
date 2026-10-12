@@ -55,7 +55,7 @@ func TestRepairSequentialUnknownShapesAndValidationFeedback(t *testing.T) {
 		if round > 0 && session != "exact-session" {
 			t.Fatal("not exact resume")
 		}
-		if round > 0 && !strings.Contains(prompt, "Independent verification") {
+		if round > 0 && !strings.Contains(readFeedbackPrompt(t, prompt), "controller_failure") {
 			t.Fatal("missing oracle feedback")
 		}
 		round++

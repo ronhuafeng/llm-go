@@ -44,7 +44,8 @@ const (
 type Probe struct {
 	JSON       string
 	Valid      bool
-	Diagnostic string `json:",omitempty"`
+	Diagnostic string              `json:",omitempty"`
+	Location   *DiagnosticLocation `json:",omitempty"`
 }
 type Target struct {
 	Schema, GoType string
@@ -177,9 +178,11 @@ func Build(req Request) ([]Target, error) {
 				validationErr := compiled.Validate(v)
 				p := Probe{JSON: s, Valid: validationErr == nil}
 				if validationErr != nil {
-					p.Diagnostic = invalidDiagnostic(original, docName, v, mutationPath, validationErr)
+					p.Location = &DiagnosticLocation{}
+					p.Diagnostic = invalidDiagnostic(original, docName, v, mutationPath, validationErr, p.Location)
 				}
-				totalJSONBytes += len(p.Diagnostic)
+				locationBytes, _ := json.Marshal(p.Location)
+				totalJSONBytes += len(p.Diagnostic) + len(locationBytes)
 				if totalJSONBytes > maxCorpusBytes {
 					budgetErr = fmt.Errorf("schema oracle %s: total corpus byte/probe bound exceeded", name)
 					return
@@ -249,6 +252,15 @@ func Generate(req Request) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	return Render(req, targets)
+}
+
+// Render uses the exact corpus already frozen by Build; the trusted controller
+// also retains it for diagnostic attribution without revalidating every probe.
+func Render(req Request, targets []Target) ([]byte, error) {
+	if req.Context == nil {
+		req.Context = context.Background()
+	}
 	pkg := req.Package
 	if pkg == "" {
 		pkg = "protocolv2"
@@ -275,7 +287,6 @@ func Generate(req Request) ([]byte, error) {
  reader,err:=gzip.NewReader(bytes.NewReader(encoded));if err!=nil{t.Fatal(err)}
  raw,err:=io.ReadAll(io.LimitReader(reader,maxFrozenCorpusBytes+1));closeErr:=reader.Close();if err!=nil{t.Fatal(err)};if closeErr!=nil{t.Fatal(closeErr)};if len(raw)>maxFrozenCorpusBytes{t.Fatal("decompressed corpus bound exceeded")}
  var corpus [][]probe;if err:=json.Unmarshal(raw,&corpus);err!=nil{t.Fatal(err)};if len(corpus)!=frozenTargetCount{t.Fatal("frozen target count mismatch")}
- preview:=func(data string)string{if len(data)>2048{return data[:2048]+"...[truncated]"};return data}
  var equal func(any,any)bool
  equal=func(a,b any)bool{switch x:=a.(type){case json.Number:y,ok:=b.(json.Number);if !ok{return false};r,ok:=new(big.Rat).SetString(string(x));if !ok{return false};s,ok:=new(big.Rat).SetString(string(y));return ok&&r.Cmp(s)==0;case map[string]any:y,ok:=b.(map[string]any);if !ok||len(x)!=len(y){return false};for k,v:=range x{other,exists:=y[k];if !exists||!equal(v,other){return false}};return true;case []any:y,ok:=b.([]any);if !ok||len(x)!=len(y){return false};for i,v:=range x{if !equal(v,y[i]){return false}};return true;default:return reflect.DeepEqual(a,b)}}
  check := func(t *testing.T, factory func() any, fields []string, checkFields bool, probes []probe, parameterlessMethods []string) {
@@ -285,7 +296,7 @@ func Generate(req Request) ([]byte, error) {
    t.Run("probe_"+strconv.Itoa(i),func(t *testing.T){
    target := factory(); err := json.Unmarshal([]byte(p.JSON),target)
    if !p.Valid { if err == nil { t.Fatalf("probe %d: schema-invalid input accepted: %s",i,p.Diagnostic) }; return }
-   if err != nil { t.Fatalf("probe %d: schema-valid input rejected: %s: %v",i,preview(p.JSON),err) }
+   if err != nil { t.Fatalf("probe %d: schema-valid input rejected: %s: %v",i,p.JSON,err) }
    actual,err:=json.Marshal(target);if err!=nil{t.Fatal(err)}
    decode:=func(raw []byte) any { var v any; d:=json.NewDecoder(bytes.NewReader(raw));d.UseNumber();if err:=d.Decode(&v);err!=nil{t.Fatal(err)};return v }
    expected,observed:=decode([]byte(p.JSON)),decode(actual)
@@ -299,7 +310,7 @@ func Generate(req Request) ([]byte, error) {
      for _,allowed:=range parameterlessMethods {if method==allowed {delete(input,"params");break}}
     }
    }
-   if !equal(expected,observed){t.Fatalf("probe %d: wire value lost: input=%s output=%s",i,preview(p.JSON),preview(string(actual)))}
+   if !equal(expected,observed){t.Fatalf("probe %d: wire value lost: input=%s output=%s",i,p.JSON,string(actual))}
    })
   }
  }
