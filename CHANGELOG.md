@@ -13,6 +13,12 @@ changes may occur in minor releases.
 
 #### Added
 
+- Add `ClientOptions.Env` for copied, process-scoped environment replacement.
+  Nil preserves inheritance; omitted keys are unset, `KEY=` is present-empty,
+  and duplicate keys use the last value with native platform name matching.
+  Invalid entries fail without disclosing environment values. Concurrent clients
+  can use separate homes and credentials without mutating the parent environment.
+
 - Opt-in required raw notification subscriptions with lossless JSON observation,
   source-schema validation for the explicitly enabled internal raw-item extension,
   ordered shared dispatch and Exact Run terminal fencing. Unsupported subscriptions,

@@ -128,9 +128,15 @@ type ServerNotificationHandler func(context.Context, protocolv2.ServerNotificati
 
 type ClientOptions struct {
 	// RawNotifications opts into required lossless observation delivery.
-	RawNotifications          *RawNotificationSubscription
-	CWD                       string
-	Command                   []string
+	RawNotifications *RawNotificationSubscription
+	CWD              string
+	Command          []string
+	// Env is the complete child environment, using KEY=value entries. Nil
+	// inherits the parent; a non-nil empty slice requests an empty environment
+	// except platform-required entries added by os/exec.
+	// Omit a key to remove it; KEY= retains a present empty value. Duplicate
+	// keys use the last entry (case-insensitive on Windows). Input is copied.
+	Env                       []string
 	Initialize                protocolv2.InitializeParams
 	ServerRequestHandler      ServerRequestHandler
 	ServerNotificationHandler ServerNotificationHandler

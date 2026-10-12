@@ -240,6 +240,11 @@ func validateOptions(options ClientOptions) (ClientOptions, error) {
 		return ClientOptions{}, errors.New("codexsdk: ClientOptions.Command is required")
 	}
 	options.Command = append([]string(nil), options.Command...)
+	env, err := childEnvironment(options.Env)
+	if err != nil {
+		return ClientOptions{}, err
+	}
+	options.Env = env
 	if reflect.DeepEqual(options.Initialize, protocolv2.InitializeParams{}) {
 		options.Initialize = initializeParams(options)
 	} else {
@@ -284,6 +289,7 @@ func (c *Client) start() error {
 	command := c.options.Command
 	cmd := exec.Command(command[0], command[1:]...)
 	cmd.Dir = c.options.CWD
+	cmd.Env = c.options.Env
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return err

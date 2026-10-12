@@ -41,6 +41,38 @@ individual live test that asks for a response.
 Inbound newline-delimited JSON-RPC frames are limited to 16 MiB including the
 newline delimiter.
 
+## Child process environment
+
+`ClientOptions.Env` follows Go's process environment contract. A nil slice
+preserves ordinary parent inheritance, including `os/exec` working-directory
+handling. A non-nil slice completely replaces the child environment; an empty
+slice requests no application environment. Each entry is `KEY=value`, where
+`KEY=` means present-empty. Omit a key from a replacement to remove it from the
+child. Keys and values are not trimmed; values may contain `=`.
+
+Duplicate keys use the last supplied value, matching `os/exec`. Matching is
+case-sensitive on Unix and case-insensitive on Windows, including Windows
+hidden drive-directory entries. Platform-required entries such as Windows
+`SYSTEMROOT` may still be supplied by `os/exec`. Executable-name lookup uses the
+parent's environment, as in Go; use an absolute `Command[0]` when selecting an
+executable independently of the parent `PATH`.
+
+The SDK validates and copies entries before launch. Missing separators, empty
+ordinary keys and NUL bytes return `ErrInvalidEnvironment` without including
+entry names or values. Caller slices must not be mutated concurrently with
+construction; mutation after construction does not change client options.
+To override inherited values, build a replacement from `os.Environ()` and append
+the overrides. To remove inherited values, filter those keys from that copy.
+The SDK never calls `os.Setenv` or `os.Unsetenv` for a child.
+
+For isolated concurrent clients, provide distinct `CODEX_HOME` and credential
+entries in each client's replacement. Credentials and all other process
+configuration remain application-owned. Environment values are passed only
+through the process environment, without argv additions or environment dumps in
+SDK diagnostics. This changes neither initialization nor runtime identity
+inference. The [compiled example](example_test.go) shows explicit replacement;
+controlled process fixtures prove isolation without provider requests.
+
 ## Required raw notifications
 
 Set `ClientOptions.RawNotifications` to a `RawNotificationSubscription` with
