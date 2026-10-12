@@ -522,12 +522,22 @@ func TestLifecycleCombinedBlockedHandlerOverflowCloseAndTerminalFirstCause(t *te
 				releaseOnce.Do(func() { close(release) })
 				_ = c.Close()
 			})
-			if winner == "close" {
-				c.testPendingExactNotification = func(n rpcNotification) {
-					if n.method == "thread/tokenUsage/updated" {
-						gateOnce.Do(func() { close(gateEntered) })
-						<-gateRelease
-					}
+			c.testPendingExactNotification = func(n rpcNotification) {
+				if n.method == "thread/tokenUsage/updated" {
+					gateOnce.Do(func() {
+						// Establish the blocked callback before allowing the reader to
+						// exhaust retention. Otherwise failure may validly discard the
+						// queued raw frame before its handler ever starts.
+						select {
+						case <-entered:
+						case <-gateRelease:
+							return
+						}
+						close(gateEntered)
+						if winner == "close" {
+							<-gateRelease
+						}
+					})
 				}
 			}
 			c.testBeforeExactTurnAttach = func() { <-c.closeCausePublished }
@@ -544,10 +554,18 @@ func TestLifecycleCombinedBlockedHandlerOverflowCloseAndTerminalFirstCause(t *te
 				stream, err := c.ThreadRunner().StartStream(context.Background(), StartThreadRunRequest{Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}}})
 				started <- outcome{stream, err}
 			}()
-			<-entered
+			select {
+			case <-entered:
+			case <-time.After(3 * time.Second):
+				t.Fatal("combined fixture did not establish its blocked raw callback")
+			}
 			expected := ErrNotificationRetention
 			if winner == "close" {
-				<-gateEntered
+				select {
+				case <-gateEntered:
+				case <-time.After(3 * time.Second):
+					t.Fatal("combined fixture did not establish pending typed evidence")
+				}
 				ctx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
 				closed, err := c.CloseContext(ctx)
 				cancel()
