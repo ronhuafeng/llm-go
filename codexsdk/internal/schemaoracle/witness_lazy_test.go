@@ -88,7 +88,9 @@ func TestLazyMutationsPreserveCompleteCorpusAndObligations(t *testing.T) {
 				t.Fatal(err)
 			}
 			eagerCorpus = append(eagerCorpus, eager...)
-			lazyCorpus = append(lazyCorpus, lazy...)
+			for _, mutation := range lazy {
+				lazyCorpus = append(lazyCorpus, mutation.Value)
+			}
 		}
 	}
 	expected, _ := json.Marshal(eagerCorpus)

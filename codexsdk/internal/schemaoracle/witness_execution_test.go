@@ -1,7 +1,6 @@
 package schemaoracle
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 )
@@ -24,7 +23,7 @@ func TestIndependentWitnessFailuresExecuteTogether(t *testing.T) {
 	bad := strings.Replace(itemWitnessDecoder, "CHECK_ITEM", `raw,_:=json.Marshal(item);if string(raw)!="null"&&string(raw)!="false"&&string(raw)!="{}"{`+goodCheck+`}`, 1)
 	out := runOracleFixture(t, r, bad, false)
 	for _, value := range []string{"null", "false", "{}"} {
-		witness := fmt.Sprintf(`"item":%s`, value)
+		witness := "value=" + map[string]string{"null": "null", "false": "false", "{}": "<object members=0>"}[value]
 		if !strings.Contains(string(out), "schema-invalid input accepted:") || !strings.Contains(string(out), witness) {
 			t.Errorf("missing executed witness %s in one process:\n%s", witness, out)
 		}

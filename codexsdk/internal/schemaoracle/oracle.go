@@ -42,8 +42,9 @@ const (
 )
 
 type Probe struct {
-	JSON  string
-	Valid bool
+	JSON       string
+	Valid      bool
+	Diagnostic string `json:",omitempty"`
 }
 type Target struct {
 	Schema, GoType string
@@ -101,6 +102,12 @@ func Build(req Request) ([]Target, error) {
 		if err := dec.Decode(new(any)); err != io.EOF {
 			return nil, fmt.Errorf("schema oracle %s: trailing JSON data", name)
 		}
+		var original any
+		originalDecoder := json.NewDecoder(bytes.NewReader(raw))
+		originalDecoder.UseNumber()
+		if err := originalDecoder.Decode(&original); err != nil {
+			return nil, err
+		}
 		root, err := pointer(doc, fragment)
 		if err != nil {
 			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
@@ -149,7 +156,7 @@ func Build(req Request) ([]Target, error) {
 			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
 		}
 		seen := map[string]bool{}
-		add := func(v any, knownValid bool) {
+		add := func(v any, mutationPath string) {
 			if err := ctx.Err(); err != nil {
 				budgetErr = err
 				return
@@ -167,7 +174,17 @@ func Build(req Request) ([]Target, error) {
 					return
 				}
 				seen[s] = true
-				target.Probes = append(target.Probes, Probe{s, knownValid || compiled.Validate(v) == nil})
+				validationErr := compiled.Validate(v)
+				p := Probe{JSON: s, Valid: validationErr == nil}
+				if validationErr != nil {
+					p.Diagnostic = invalidDiagnostic(original, docName, v, mutationPath, validationErr)
+				}
+				totalJSONBytes += len(p.Diagnostic)
+				if totalJSONBytes > maxCorpusBytes {
+					budgetErr = fmt.Errorf("schema oracle %s: total corpus byte/probe bound exceeded", name)
+					return
+				}
+				target.Probes = append(target.Probes, p)
 			}
 		}
 		valid := 0
@@ -184,7 +201,7 @@ func Build(req Request) ([]Target, error) {
 			if compiled.Validate(v) == nil {
 				valid++
 			}
-			add(v, false)
+			add(v, "#")
 			context := mutationShape(v, 0)
 			if len(discriminators) > 0 {
 				context = fmt.Sprintf("%T", v)
@@ -203,7 +220,7 @@ func Build(req Request) ([]Target, error) {
 				return nil, fmt.Errorf("schema oracle %s: %w", name, err)
 			}
 			for _, mutation := range mutations {
-				add(mutation, false)
+				add(mutation.Value, mutation.Path)
 			}
 			if budgetErr != nil {
 				return nil, budgetErr
@@ -252,7 +269,7 @@ func Generate(req Request) ([]byte, error) {
 	}
 	fmt.Fprintf(&b, "const frozenCorpus = %s\nconst maxFrozenCorpusBytes = %d\nconst maxFrozenCompressedBytes = %d\nconst frozenTargetCount = %d\n", strconv.Quote(base64.StdEncoding.EncodeToString(compressed)), maxCorpusBytes, maxCompressedBytes, len(targets))
 	b.WriteString(`func TestTrustedSchemaOracle(t *testing.T) {
- type probe struct { JSON string; Valid bool }
+ type probe struct { JSON string; Valid bool; Diagnostic string }
  if len(frozenCorpus)>((maxFrozenCompressedBytes+2)/3)*4{t.Fatal("compressed corpus bound exceeded")}
  encoded,err:=base64.StdEncoding.DecodeString(frozenCorpus);if err!=nil{t.Fatal(err)};if len(encoded)>maxFrozenCompressedBytes{t.Fatal("compressed corpus bound exceeded")}
  reader,err:=gzip.NewReader(bytes.NewReader(encoded));if err!=nil{t.Fatal(err)}
@@ -267,7 +284,7 @@ func Generate(req Request) ([]byte, error) {
   for i, p := range probes {
    t.Run("probe_"+strconv.Itoa(i),func(t *testing.T){
    target := factory(); err := json.Unmarshal([]byte(p.JSON),target)
-   if !p.Valid { if err == nil { t.Fatalf("probe %d: schema-invalid input accepted: %s",i,preview(p.JSON)) }; return }
+   if !p.Valid { if err == nil { t.Fatalf("probe %d: schema-invalid input accepted: %s",i,p.Diagnostic) }; return }
    if err != nil { t.Fatalf("probe %d: schema-valid input rejected: %s: %v",i,preview(p.JSON),err) }
    actual,err:=json.Marshal(target);if err!=nil{t.Fatal(err)}
    decode:=func(raw []byte) any { var v any; d:=json.NewDecoder(bytes.NewReader(raw));d.UseNumber();if err:=d.Decode(&v);err!=nil{t.Fatal(err)};return v }

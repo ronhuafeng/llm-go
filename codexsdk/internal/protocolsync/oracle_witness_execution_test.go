@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -71,7 +72,7 @@ func(p *Payload)UnmarshalJSON(b []byte)error{var root map[string]json.RawMessage
 			if tc.name == "three_invalid_witnesses" {
 				t.Logf("bounded native feedback from one execution:\n%s", diagnostic)
 				for _, value := range []string{"null", "false", "{}"} {
-					if !strings.Contains(diagnostic, `"item":`+value) {
+					if !strings.Contains(diagnostic, "value="+map[string]string{"null": "null", "false": "false", "{}": "<object members=0>"}[value]) {
 						t.Errorf("one-pass native feedback omitted %s: %s", value, diagnostic)
 					}
 				}
@@ -90,5 +91,91 @@ func(p *Payload)UnmarshalJSON(b []byte)error{var root map[string]json.RawMessage
 				t.Fatal("missing-test counterexample did not exercise zero-exit without proof")
 			}
 		})
+	}
+}
+
+// Compile and run the frozen oracle, then feed native go-test events through the
+// unchanged 4 KiB failure and 8 KiB repair bounds. A wide request formerly hid
+// every late field behind repeated payload prefixes.
+func TestCompactOracleWideEnvelopeFeedback(t *testing.T) {
+	const secret = "private-oracle-url-and-body-28473"
+	t.Setenv("ORACLE_BODY_SECRET", secret)
+	padding := strings.Repeat("wide-body-", 260) + "https://user:" + secret + "@example.test/?token=" + secret
+	props := map[string]any{"aaaPadding": map[string]any{"const": padding}}
+	required := []string{"aaaPadding"}
+	for _, field := range []string{"effortA", "effortB", "effortC", "effortD", "effortE"} {
+		props[field] = map[string]any{"$ref": "#/definitions/ReasoningEffort"}
+		required = append(required, field)
+	}
+	schema, _ := json.Marshal(map[string]any{"definitions": map[string]any{"ReasoningEffort": map[string]any{"type": "string", "minLength": 1}}, "anyOf": []any{map[string]any{"type": "null"}, map[string]any{"type": "integer"}, map[string]any{"type": "object", "properties": props, "required": required, "additionalProperties": false}}})
+	request := schemaoracle.Request{Schemas: map[string][]byte{"Envelope.json": schema}, Bindings: map[string]string{"Envelope.json": "Payload"}, Package: "schemaoracleprobe", CloseObjects: true}
+	targets, err := schemaoracle.Build(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	accepted := map[string]bool{}
+	invalidCount := 0
+	for _, p := range targets[0].Probes {
+		if p.Valid {
+			accepted[p.JSON] = true
+		}
+		if !p.Valid && strings.Contains(p.Diagnostic, "ReasoningEffort/minLength") {
+			accepted[p.JSON] = true
+			invalidCount++
+		}
+	}
+	if invalidCount != 5 {
+		t.Fatalf("fixture invalid probes=%d", invalidCount)
+	}
+	acceptedJSON, _ := json.Marshal(accepted)
+	decoder := `package schemaoracleprobe
+import("encoding/json";"fmt")
+type Payload struct{raw json.RawMessage}
+var accepted map[string]bool
+func init(){json.Unmarshal([]byte(` + strconv.Quote(string(acceptedJSON)) + `),&accepted)}
+func(p *Payload)UnmarshalJSON(b []byte)error{if !accepted[string(b)]{return fmt.Errorf("invalid")};p.raw=append(p.raw[:0],b...);return nil}
+func(p Payload)MarshalJSON()([]byte,error){return p.raw,nil}
+`
+	generated, err := schemaoracle.Generate(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, compact := range []bool{false, true} {
+		source := string(generated)
+		if !compact {
+			source = strings.Replace(source, "i, p.Diagnostic)", "i, preview(p.JSON))", 1)
+			if source == string(generated) {
+				t.Fatal("legacy fixture replacement failed")
+			}
+		}
+		dir := t.TempDir()
+		writeFile(t, filepath.Join(dir, "go.mod"), "module github.com/ronhuafeng/llm-go/codexsdk/internal/schemaoracleprobe\n\ngo 1.26.8\n")
+		writeFile(t, filepath.Join(dir, "payload.go"), decoder)
+		writeFile(t, filepath.Join(dir, "contract_test.go"), source)
+		cmd := exec.Command("go", "test", "-count=1", "-json", ".")
+		cmd.Dir = dir
+		out, runErr := cmd.Output()
+		var events oracleTestEvents
+		events.Write(out)
+		if runErr == nil || !events.started || !events.failed || events.passed || events.invalid {
+			t.Fatalf("false acceptance compact=%t: %v %+v", compact, runErr, events)
+		}
+		diagnostic := boundedRepairDiagnostic(events.diagnostic.String())
+		if len(diagnostic) > 8192 || len(events.diagnostic.String()) > 6144 {
+			t.Fatal("expanded feedback budget")
+		}
+		if strings.Contains(diagnostic, secret) {
+			t.Fatal("secret escaped existing redactor")
+		}
+		for _, field := range required[1:] {
+			present := strings.Contains(diagnostic, "instance=#/"+field)
+			if present != compact {
+				t.Fatalf("compact=%t path=%s retained=%s", compact, field, diagnostic)
+			}
+		}
+		if compact && (!strings.Contains(diagnostic, "Envelope.json#/definitions/ReasoningEffort/minLength") || !strings.Contains(diagnostic, `minLength: got 0, want 1 value=""`)) {
+			t.Fatal(diagnostic)
+		}
+		t.Logf("compact=%t feedback bytes=%d", compact, len(diagnostic))
 	}
 }

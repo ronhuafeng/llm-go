@@ -314,14 +314,19 @@ func freeValues(path string) []any {
 // field corruption. Every schema-valid witness is still retained separately.
 // Materialize only unseen obligations: rebuilding an already-covered path adds
 // no evidence and otherwise repeatedly clones all of its ancestors.
-func mutations(v any, context string, seen map[string]bool, discriminators []string) ([]any, error) {
-	var out []any
+type mutation struct {
+	Value any
+	Path  string
+}
+
+func mutations(v any, context string, seen map[string]bool, discriminators []string) ([]mutation, error) {
+	var out []mutation
 	visited := 0
-	add := func(obligation string, materialize func() any) {
+	add := func(obligation, path string, materialize func() any) {
 		key := context + "/" + obligation
 		if !seen[key] {
 			seen[key] = true
-			out = append(out, materialize())
+			out = append(out, mutation{materialize(), path})
 		}
 	}
 	var walk func(any, string, string, func(any) any, int) error
@@ -339,14 +344,14 @@ func mutations(v any, context string, seen map[string]bool, discriminators []str
 			}
 		}
 		for i, bad := range []any{nil, false, json.Number("-1"), json.Number("0.5"), "", []any{}, map[string]any{}} {
-			add(fmt.Sprintf("%s/%s/type/%d", branch, path, i), func() any { return rebuild(bad) })
+			add(fmt.Sprintf("%s/%s/type/%d", branch, path, i), path, func() any { return rebuild(bad) })
 		}
 		switch object := current.(type) {
 		case map[string]any:
-			add(branch+"/"+path+"/unknown", func() any { extra := cloneMap(object); extra["__oracle_unknown_field__"] = true; return rebuild(extra) })
+			add(branch+"/"+path+"/unknown", path, func() any { extra := cloneMap(object); extra["__oracle_unknown_field__"] = true; return rebuild(extra) })
 			for _, key := range keys(object) {
 				nextPath := path + "/" + strings.ReplaceAll(strings.ReplaceAll(key, "~", "~0"), "/", "~1")
-				add(branch+"/"+nextPath+"/omit", func() any { missing := cloneMap(object); delete(missing, key); return rebuild(missing) })
+				add(branch+"/"+nextPath+"/omit", nextPath, func() any { missing := cloneMap(object); delete(missing, key); return rebuild(missing) })
 				childRebuild := func(value any) any { copy := cloneMap(object); copy[key] = value; return rebuild(copy) }
 				if err := walk(object[key], nextPath, branch, childRebuild, depth+1); err != nil {
 					return err
