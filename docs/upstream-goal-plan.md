@@ -21,7 +21,7 @@ protocol upgrade. Inspected baseline: `9769ba362a5e946c17a6eb78d8e2155e19bb4f28`
   Complete failure diagnostics remain JSONL files; the same goal receives paths.
 
 The thin runner installs handlers before GoalSet, then waits for terminal goal
-state, no active turn, and an observed completed turn. Only `complete` is a
+state, no active turn, and an observed completed turn belonging to this goal invocation. Only `complete` is a
 completion candidate. Blocked, paused, limited, cancellation, disconnect and
 cleanup failures cannot imply acceptance. Keep a finite runtime deadline; do
 not reproduce Codex's goal loop or add a replacement round counter.
@@ -42,37 +42,27 @@ An ordinary exec prompt containing `/goal` does not invoke this API.
 exact target, isolated environment, `gpt-6.1-sol/high`, run-resolved official
 latest CLI and finite deadline. The model does not select or override them.
 
-> 使用仓库的 `.agents/skills/codexsdk-sync-upstream/SKILL.md`，将 llm-go 从基线
-> `${BASE_SHA}` 完整同步到 openai/codex 的 `rust-v0.162.1`，精确提交
+> 使用仓库的 `.agents/skills/codexsdk-sync-upstream/SKILL.md`，将 llm-go 从
+> `${BASE_SHA}` 完整升级到 `openai/codex` 的 `rust-v0.162.1`，精确提交
 > `092d3acd6bec3e3a14bdc7e7a2810ab628ab759d`。
 >
-> 你负责完成整个目标：生成目标协议、适配实现、修正有上游契约依据的验证器假设、
-> 运行全部验证，并根据失败自行修复，直到通过。自行决定工作顺序，
-> 不等待外层流程分配下一轮。
+> 独立完成该 skill 定义的全部工作和验收，包含生成、适配、必要的验证器修正、
+> 全部验证及失败修复，直到同一最终候选通过完整验收。自行安排工作，
+> 不等待外层分配下一步。
 >
-> 完成标准是同一份最终候选通过仓库的四项验收：Root source verification；
-> Codex generated reproducibility / Generated reproducibility；
-> Codex protocol provenance；Live Codex integration / Live scenarios。
-> 包括源码检查、生成物可复现与隔离编译、精确上游来源验证、真实 Codex 场景。
-> 后续 CI 会复跑这些相同标准，不能留给 CI 才首次验证。
->
-> 需要调整验证器时，以固定上游源码/schema 和已接受的 SDK 契约为依据，补上
-> 合法行为通过、真实错误仍被拒绝的测试。不能通过删测试、缩小验证范围或放松
-> 未知字段/类型等既有边界取得通过；契约确实冲突时明确报告需要决定的事项。
->
-> 验证失败的完整诊断写入 JSONL 文件，检查命令只返回文件路径；你读取文件、
-> 定位原因、继续修复。不把截断摘要当完整证据，不输出凭据或私有会话。
->
-> 保留已有无关改动。生成物由正式生成命令产生。不要更改目标身份、发布权限、
-> 工作流保护或验收门禁；不要提交、推送、发布或合入。只有最终候选已实际通过
-> 全部标准才将 goal 标记 complete，并简述改动和验证结果；遇到凭据、环境或
-> 必须由用户决定的契约阻碍，报告具体证据并标记 blocked，不冒充通过。
+> 保留已有无关改动。遵守 skill 的来源、权限和发布边界；完成后简述改动与
+> 实际验证结果。遇到需要用户决定的契约冲突或外部阻碍，给出具体证据并报告
+> blocked，不把部分成功当作完成。
 
 ## Skill responsibilities and current verification entrypoints
 
-The skill supplies current generation commands, contract sources and complete
-verification instructions. It must stop requiring a typed unresolved admission,
-external repair rounds or a separate verifier PR. It is not a second scheduler.
+The revised skill supplies the complete task contract and a single acceptance
+entrypoint: `go run ./codexsdk/internal/cmd/protocolupgrade verify`. That thin
+composition entrypoint is not implemented yet; this Draft must not be run as a
+formal goal until it is. CI and the skill will share its checks, with each CI
+context selecting its existing gate. The prompt does not duplicate that contract.
+The skill no longer requires typed unresolved admission, external repair rounds
+or a separate verifier PR. It is not a second scheduler.
 
 The following are existing commands, not newly invented acceptance shortcuts:
 
