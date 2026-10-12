@@ -426,7 +426,7 @@ func feedbackPrompt(checkpoint string, cp repairCheckpoint, proposal []byte) (st
 	if err != nil {
 		return "", &feedbackArtifactError{err}
 	}
-	return "Read the complete verification failure records from this JSONL file: " + path, nil
+	return "Read the complete verification failure records from this JSONL file: " + path + "\nProcess the file incrementally in bounded pages, keeping each tool response below 64 KiB. Do not print the whole file at once. If one record is larger, inspect it in byte ranges; continue through the complete file without discarding records. These are reading instructions, not a limit on the evidence.", nil
 }
 func saveFeedbackError(ctx context.Context, checkpoint string, cp *repairCheckpoint, proposal []byte, cause error) error {
 	_, a, err := newFeedbackArtifact(ctx, checkpoint, *cp, proposal)

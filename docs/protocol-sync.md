@@ -348,6 +348,16 @@ This is not a guarantee of arbitrary sensitive-data detection. The existing boun
 verifier final analysis may be retained as untrusted reviewer analysis, never as
 checker authority or a raw model transcript.
 
+The path handoff includes fixed instructions to read incrementally and keep each
+tool response below 64 KiB, using byte ranges for unusually large records. This
+does not truncate or filter the file: the author must process all its records.
+The executor independently retains its existing 1 MiB per-CLI-event limit.
+Invalid JSON, invalid completion order, an oversized event, and reader failure
+have distinct fixed diagnostics; raw event text is never retained. Failure errors
+may include only a numeric process exit code or a fixed wait-failure marker,
+without command arguments, paths, stderr, or model transcripts. These facts aid
+diagnosis; an oversized feedback file alone does not prove an oversized CLI event.
+
 The JSONL has a 16 MiB file limit, independently of console and model budgets.
 Overflow, unframed output, or a write/close/seal failure blocks the handoff rather
 than advertising incomplete evidence as complete. Its header/footer and checkpoint

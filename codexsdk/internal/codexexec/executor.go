@@ -236,10 +236,12 @@ func (e *Executor) Run(ctx context.Context, prompt, sessionID string) (Result, e
 		result.Diagnostic = "cancelled"
 	} else if parsedResult.err != nil {
 		result.Diagnostic = parsedResult.result.Diagnostic
-		if classified := classify(diagnostics.String()); classified != "execution_failed" {
-			result.Diagnostic = classified
-		} else if result.Diagnostic == "execution_failed" {
-			result.Diagnostic = classify(diagnostics.String())
+		// A proven local decoding/ordering/reader failure is not evidence of
+		// provider failure. Untrusted stderr must not overwrite that fact.
+		if !localEventFailure(result.Diagnostic) {
+			if classified := classify(diagnostics.String()); classified != "execution_failed" {
+				result.Diagnostic = classified
+			}
 		}
 	} else if runErr != nil {
 		result.Diagnostic = classify(diagnostics.String())
@@ -251,7 +253,33 @@ func (e *Executor) Run(ctx context.Context, prompt, sessionID string) (Result, e
 	if result.Diagnostic == "endpoint_not_found" || result.Diagnostic == "authentication_failed" || result.Diagnostic == "provider_failed" {
 		result.Status = "blocked"
 	}
-	return result, errors.New(result.Diagnostic)
+	if result.Status == "cancelled" {
+		return result, errors.New(result.Diagnostic)
+	}
+	return result, executionError(result.Diagnostic, runErr)
+}
+
+// Keep the primary diagnostic a fixed enum. The returned error adds only a
+// bounded process fact, never the underlying error text (which can carry paths,
+// private stderr, or provider data). A clean exit does not validate its stream.
+func executionError(diagnostic string, runErr error) error {
+	if runErr == nil {
+		return fmt.Errorf("%s process_exit=0", diagnostic)
+	}
+	var exit *exec.ExitError
+	if errors.As(runErr, &exit) && exit.ExitCode() >= 0 {
+		return fmt.Errorf("%s process_exit=%d", diagnostic, exit.ExitCode())
+	}
+	return fmt.Errorf("%s process_wait_failed", diagnostic)
+}
+
+func localEventFailure(diagnostic string) bool {
+	switch diagnostic {
+	case "event_too_large", "event_decode_failed", "event_sequence_invalid", "event_read_failed", "session_mismatch":
+		return true
+	default:
+		return false
+	}
 }
 
 type boundedBuffer struct{ bytes.Buffer }
@@ -304,7 +332,7 @@ func parseEvents(r io.Reader, expected string) (Result, error) {
 		}
 		if json.Unmarshal(scanner.Bytes(), &event) != nil {
 			failed = true
-			result.Diagnostic = "invalid_event_stream"
+			result.Diagnostic = "event_decode_failed"
 			continue
 		}
 		switch event.Type {
@@ -338,7 +366,7 @@ func parseEvents(r io.Reader, expected string) (Result, error) {
 		case "turn.completed":
 			if (!started || completed) && !failed {
 				failed = true
-				result.Diagnostic = "invalid_event_stream"
+				result.Diagnostic = "event_sequence_invalid"
 			}
 			completed = true
 		case "turn.failed", "error":
@@ -348,9 +376,14 @@ func parseEvents(r io.Reader, expected string) (Result, error) {
 			failed = true
 		}
 	}
-	if scanner.Err() != nil {
+	if scanErr := scanner.Err(); scanErr != nil {
+		// Retain the limit and fail closed. Drain without retaining raw events
+		// so the CLI stdout copier can finish; drain errors are not acceptance.
 		_, _ = io.Copy(io.Discard, r)
-		result.Diagnostic = "invalid_event_stream"
+		result.Diagnostic = "event_read_failed"
+		if errors.Is(scanErr, bufio.ErrTooLong) {
+			result.Diagnostic = "event_too_large"
+		}
 		failed = true
 	}
 	if !started && !failed {

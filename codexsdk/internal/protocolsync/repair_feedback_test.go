@@ -296,6 +296,11 @@ func TestFeedbackReviewerAnalysisIsUntrustedAndPathOnly(t *testing.T) {
 	if strings.Contains(prompt, "counterexample") || strings.Contains(prompt, "original failure") {
 		t.Fatal("inline diagnostic")
 	}
+	for _, instruction := range []string{"bounded pages", "below 64 KiB", "byte ranges", "without discarding records"} {
+		if !strings.Contains(prompt, instruction) {
+			t.Fatalf("missing bounded reading instruction %q", instruction)
+		}
+	}
 	raw := readFeedbackPrompt(t, prompt)
 	if !strings.Contains(raw, "original failure") || !strings.Contains(raw, "implementation counterexample") || !strings.Contains(raw, `"trust":"untrusted_reviewer_analysis"`) {
 		t.Fatal(raw)

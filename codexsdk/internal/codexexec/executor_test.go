@@ -2,6 +2,9 @@ package codexexec
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -21,7 +24,7 @@ func TestEvents(t *testing.T) {
 	}{
 		{"success", started + completed, "", "completed", true},
 		{"exact resume", started + completed, testSession, "completed", true},
-		{"missing session", completed, "", "invalid_event_stream", false},
+		{"missing session", completed, "", "event_sequence_invalid", false},
 		{"empty stream", "", "", "missing_session", false},
 		{"incomplete", started, "", "execution_failed", false},
 		{"failed turn", started + `{"type":"turn.failed","error":{"message":"failed"}}`, "", "execution_failed", false},
@@ -30,8 +33,8 @@ func TestEvents(t *testing.T) {
 		{"provider", started + `{"type":"error","message":"503 TOPSECRET"}`, "", "provider_failed", false},
 		{"wrong session", started + completed, "019a0000-1111-7222-8333-0123456789ac", "session_mismatch", false},
 		{"failure dominates", started + `{"type":"turn.failed","error":{"message":"failed"}}` + "\n" + completed, "", "execution_failed", false},
-		{"invalid JSON", "TOPSECRET", "", "invalid_event_stream", false},
-		{"duplicate completion", started + completed + completed, "", "invalid_event_stream", false},
+		{"invalid JSON", "TOPSECRET", "", "event_decode_failed", false},
+		{"duplicate completion", started + completed + completed, "", "event_sequence_invalid", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := parseEvents(strings.NewReader(tc.events), tc.expected)
@@ -99,7 +102,7 @@ func TestCancellation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
 	result, err := e.Run(ctx, "prompt", "")
-	if err == nil || result.Status != "cancelled" || result.Diagnostic != "cancelled" {
+	if err == nil || result.Status != "cancelled" || result.Diagnostic != "cancelled" || err.Error() != "cancelled" {
 		t.Fatalf("%+v %v", result, err)
 	}
 }
@@ -296,5 +299,93 @@ for arg do path="$arg"; done
 				}
 			}
 		})
+	}
+}
+
+// This is a valid official-shaped command event, not malformed JSON. Its raw
+// output is synthetic and must never become a diagnostic or persisted transcript.
+func commandEvent(t *testing.T, payloadBytes int) string {
+	t.Helper()
+	event, err := json.Marshal(map[string]any{"type": "item.completed", "item": map[string]any{
+		"type": "command_execution", "status": "completed", "exit_code": 0, "aggregated_output": strings.Repeat("x", payloadBytes),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(event) + "\n"
+}
+
+type privateReadError struct{}
+
+func (privateReadError) Read([]byte) (int, error) {
+	return 0, errors.New("PRIVATE I/O /private/path https://private.invalid/?key=PRIVATE")
+}
+
+func TestEventFailuresAreDistinctAndKeepOneMiBLimit(t *testing.T) {
+	start := `{"type":"thread.started","thread_id":"` + testSession + `"}` + "\n"
+	end := `{"type":"turn.completed"}` + "\n"
+	for _, tc := range []struct {
+		name  string
+		input io.Reader
+		want  string
+	}{
+		{"valid below limit", strings.NewReader(start + commandEvent(t, 1024*1024-1024) + end), "completed"},
+		{"valid event exceeds limit", strings.NewReader(start + commandEvent(t, 1024*1024) + end), "event_too_large"},
+		{"many small events exceed total limit", strings.NewReader(start + strings.Repeat(commandEvent(t, 128*1024), 60) + end), "completed"},
+		{"malformed JSON", strings.NewReader(start + "PRIVATE malformed\n" + end), "event_decode_failed"},
+		{"valid JSON wrong field type", strings.NewReader(start + `{"type":"item.completed","item":{"exit_code":"PRIVATE"}}` + "\n" + end), "event_decode_failed"},
+		{"completed before start", strings.NewReader(end + start), "event_sequence_invalid"},
+		{"duplicate completed", strings.NewReader(start + end + end), "event_sequence_invalid"},
+		{"reader error", io.MultiReader(strings.NewReader(start), privateReadError{}), "event_read_failed"},
+		{"incomplete EOF", strings.NewReader(start), "execution_failed"},
+		{"empty", strings.NewReader(""), "missing_session"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := parseEvents(tc.input, "")
+			if result.Diagnostic != tc.want || (err == nil) != (tc.want == "completed") {
+				t.Fatalf("diagnostic=%q err=%v", result.Diagnostic, err)
+			}
+			if err != nil && err.Error() != tc.want {
+				t.Fatal("parser error leaked non-enum detail")
+			}
+		})
+	}
+}
+
+func TestRunKeepsLocalEventFailureDespiteMaliciousStderr(t *testing.T) {
+	start := `{"type":"thread.started","thread_id":"` + testSession + `"}` + "\n"
+	end := `{"type":"turn.completed"}` + "\n"
+	for _, tc := range []struct{ name, input, session, want string }{
+		{"large", start + commandEvent(t, 1024*1024) + end, "", "event_too_large"},
+		{"decode", start + "PRIVATE malformed\n" + end, "", "event_decode_failed"},
+		{"sequence", end + start, "", "event_sequence_invalid"},
+		{"identity", start + end, "019a0000-1111-7222-8333-0123456789ac", "session_mismatch"},
+	} {
+		for _, exitCode := range []string{"0", "42"} {
+			t.Run(tc.name+"/exit"+exitCode, func(t *testing.T) {
+				e := fakeExecutor(t, "cat fixture.jsonl\necho 'HTTP 401 PRIVATE authentication https://private.invalid/?key=PRIVATE' >&2\nexit "+exitCode+"\n")
+				if err := os.WriteFile(filepath.Join(e.config.Workspace, "fixture.jsonl"), []byte(tc.input), 0600); err != nil {
+					t.Fatal(err)
+				}
+				result, err := e.Run(context.Background(), "fixture", tc.session)
+				if err == nil || result.Status != "failed" || result.Diagnostic != tc.want || err.Error() != tc.want+" process_exit="+exitCode {
+					t.Fatalf("status=%q diagnostic=%q err=%v", result.Status, result.Diagnostic, err)
+				}
+			})
+		}
+	}
+}
+
+func TestProcessFailureFactDoesNotExposeErrorText(t *testing.T) {
+	if got := executionError("event_read_failed", errors.New("PRIVATE /private/path https://private.invalid")).Error(); got != "event_read_failed process_wait_failed" {
+		t.Fatalf("unsafe process fact: %s", got)
+	}
+	e := fakeExecutor(t, "")
+	if err := os.Remove(e.config.Binary); err != nil {
+		t.Fatal(err)
+	}
+	result, err := e.Run(context.Background(), "fixture", "")
+	if result.Status != "failed" || result.Diagnostic != "missing_session" || err == nil || err.Error() != "missing_session process_wait_failed" {
+		t.Fatalf("status=%q diagnostic=%q err=%v", result.Status, result.Diagnostic, err)
 	}
 }

@@ -13,7 +13,7 @@ var safeFact = regexp.MustCompile(`^live_failure\.(stage=(startup|fixture|thread
 
 var safeStoryFact = regexp.MustCompile(`^live_story\.stage=(structured-call|persistent-start|resume|fork|fork-turn) outcome=(started|completed)$`)
 
-var safeExecutorFact = regexp.MustCompile(`^live_executor\.stage=(configure|preflight|start|resume|readonly_review|readonly_probe) outcome=(started|completed|failed) diagnostic=(none|completed|positive_control_failed|write_denial_unverified|write_not_observed|read_assertion|write_denied_read_verified|configuration_failed|file_assertion|sandbox_write_unverified|sandbox_unavailable|command_failed|runtime_warning|command_succeeded_write_unverified|endpoint_not_found|authentication_failed|provider_failed|execution_failed|missing_session|session_mismatch|invalid_event_stream|cancelled)$`)
+var safeExecutorFact = regexp.MustCompile(`^live_executor\.stage=(configure|preflight|start|resume|readonly_review|readonly_probe) outcome=(started|completed|failed) diagnostic=(none|completed|positive_control_failed|write_denial_unverified|write_not_observed|read_assertion|write_denied_read_verified|configuration_failed|file_assertion|sandbox_write_unverified|sandbox_unavailable|command_failed|runtime_warning|command_succeeded_write_unverified|endpoint_not_found|authentication_failed|provider_failed|execution_failed|missing_session|session_mismatch|invalid_event_stream|event_too_large|event_decode_failed|event_sequence_invalid|event_read_failed|cancelled)$`)
 
 var safeScenario = regexp.MustCompile(`^TestLiveCodex[a-zA-Z0-9_./-]*$`)
 

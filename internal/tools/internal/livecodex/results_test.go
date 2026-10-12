@@ -104,7 +104,7 @@ func TestResultsAllowOnlyFixedNativeMessageSignatures(t *testing.T) {
 }
 
 func TestReadOnlyReviewerFactsRemainBounded(t *testing.T) {
-	for _, diagnostic := range []string{"none", "write_not_observed", "read_assertion", "write_denied_read_verified", "file_assertion", "session_mismatch"} {
+	for _, diagnostic := range []string{"none", "write_not_observed", "read_assertion", "write_denied_read_verified", "file_assertion", "session_mismatch", "event_too_large", "event_decode_failed", "event_sequence_invalid", "event_read_failed"} {
 		fact := "live_executor.stage=readonly_review outcome=failed diagnostic=" + diagnostic
 		if !safeExecutorFact.MatchString(fact) {
 			t.Fatal("lost reviewer stage fact")
