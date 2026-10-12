@@ -10,6 +10,7 @@ import (
 	"github.com/ronhuafeng/llm-go/codexsdk/internal/schemaoracle"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -91,42 +92,36 @@ func TestLiveRepairSandboxGoalContractsUseCandidateChecker(t *testing.T) {
 	}
 	writeFile(t, filepath.Join(upstream, "schema/version.json"), `{"version":"target"}`)
 	writeFile(t, filepath.Join(upstream, "common.rs"), "source")
-	probe := `package schemaoracleprobe
-import("testing";p "github.com/ronhuafeng/llm-go/codexsdk/protocolv2")
-func TestTrustedSchemaOracle(t *testing.T){t.Run("Payload",func(t *testing.T){t.Run("probe_0",func(t *testing.T){if p.Wire()!=` + "`{\"current\":true}`" + `{t.Fatal("missing target field")}})})}`
-	checker := `package protocolsync
-import("context";"io";"os";"path/filepath";"fmt";"encoding/json")
-type GoalContractRequest struct{RepoRoot,BaseRoot,CandidateDir string;Output io.Writer}
-func GenerateGoalContract(_ context.Context,r GoalContractRequest,out string,failures ...string)error{
-a,e:=os.ReadFile(filepath.Join(r.BaseRoot,"` + mechanicalPrefix + `/version.json"));if e!=nil{return e}; b,e:=os.ReadFile(filepath.Join(r.CandidateDir,"schema/version.json"));if e!=nil{return e};if string(a)==string(b){return fmt.Errorf("self comparison")}
-if len(failures)>0{f,e:=os.Create(filepath.Join(out,"failure-metadata.jsonl"));if e!=nil{return e};defer f.Close();for _,name:=range failures[1:]{if e=json.NewEncoder(f).Encode(map[string]any{"test":name,"expectation":map[string]any{"kind":"schema_probe_expectation","input":map[string]any{"current":true}}});e!=nil{return e}}};return os.WriteFile(filepath.Join(out,"contract_test.go"),[]byte(` + fmt.Sprintf("%q", probe) + `),0600)}`
+	probe, checker := goalContractCheckerFixture()
 	checkerPath := filepath.Join(candidate, "codexsdk/internal/protocolsync/fixture.go")
 	writeFile(t, checkerPath, strings.Replace(checker, "if string(a)==string(b)", "if string(a)!=string(b)", 1))
-	req := GoalContractRequest{RepoRoot: candidate, BaseRoot: base, CandidateDir: upstream}
-	if err := VerifyGoalContracts(context.Background(), req); err == nil {
-		t.Fatal("incorrect candidate selector accepted")
+	var diagnostics bytes.Buffer
+	req := GoalContractRequest{RepoRoot: candidate, BaseRoot: base, CandidateDir: upstream, Output: &diagnostics}
+	verify := func() error { diagnostics.Reset(); return VerifyGoalContracts(context.Background(), req) }
+	if err := verify(); err == nil {
+		t.Fatalf("incorrect candidate selector accepted: %s", diagnostics.String())
 	}
 	writeFile(t, checkerPath, strings.Replace(checker, fmt.Sprintf("%q", probe), `""`, 1))
-	if err := VerifyGoalContracts(context.Background(), req); err == nil || !strings.Contains(err.Error(), "coverage empty") {
-		t.Fatalf("empty candidate selector bypassed target lane: %v", err)
+	if err := verify(); err == nil || !strings.Contains(err.Error(), "coverage empty") {
+		t.Fatalf("empty candidate selector bypassed target lane: %v\n%s", err, diagnostics.String())
 	}
 	writeFile(t, checkerPath, checker)
-	if err := VerifyGoalContracts(context.Background(), req); err != nil {
-		t.Fatalf("candidate checker: %v", err)
+	if err := verify(); err != nil {
+		t.Fatalf("candidate checker: %v\n%s", err, diagnostics.String())
 	}
 	writeFile(t, filepath.Join(candidate, "codexsdk/protocolv2/runtime.go"), "package protocolv2\nfunc Wire() string{return `{}`}\n")
-	if err := VerifyGoalContracts(context.Background(), req); err == nil || !strings.Contains(err.Error(), "missing target field") {
-		t.Fatalf("missing field escaped assertion: %v", err)
+	if err := verify(); err == nil || !strings.Contains(err.Error(), "missing target field") {
+		t.Fatalf("missing field escaped assertion: %v\n%s", err, diagnostics.String())
 	}
 	writeFile(t, checkerPath, strings.Replace(checker, `return os.WriteFile(filepath.Join(out,"contract_test.go")`, `if len(failures)>0{return os.WriteFile(filepath.Join(out,"contract_test.go"),[]byte("changed source"),0600)};return os.WriteFile(filepath.Join(out,"contract_test.go")`, 1))
-	if err := VerifyGoalContracts(context.Background(), req); err == nil || !strings.Contains(err.Error(), "digest changed") {
-		t.Fatalf("changed reconstruction accepted: %v", err)
+	if err := verify(); err == nil || !strings.Contains(err.Error(), "digest changed") {
+		t.Fatalf("changed reconstruction accepted: %v\n%s", err, diagnostics.String())
 	}
 	writeFile(t, checkerPath, checker)
 	writeFile(t, filepath.Join(candidate, "codexsdk/protocolv2/runtime.go"), "package protocolv2\nfunc Wire() string{return `{\"current\":true}`}\n")
 	writeFile(t, filepath.Join(candidate, "codexsdk/runtime.go"), "package codexsdk\nfunc Stable() bool{return false}\n")
-	if err := VerifyGoalContracts(context.Background(), req); err == nil || !strings.Contains(err.Error(), "baseline broken") {
-		t.Fatalf("baseline public assertion escaped: %v", err)
+	if err := verify(); err == nil || !strings.Contains(err.Error(), "baseline broken") {
+		t.Fatalf("baseline public assertion escaped: %v\n%s", err, diagnostics.String())
 	}
 }
 
@@ -302,5 +297,46 @@ func TestGoalContractEmptySelectorRejectsRealPublicDrift(t *testing.T) {
 	writeFile(t, filepath.Join(candidate, mechanicalPrefix, "baseline_metadata.json"), `{"source_commit":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`)
 	if err = checkGoalContractCoverage(nil, req); err == nil {
 		t.Fatal("different source with same schema accepted")
+	}
+}
+
+func goalContractCheckerFixture() (string, string) {
+	probe := `package schemaoracleprobe
+import("testing";p "github.com/ronhuafeng/llm-go/codexsdk/protocolv2")
+func TestTrustedSchemaOracle(t *testing.T){t.Run("Payload",func(t *testing.T){t.Run("probe_0",func(t *testing.T){if p.Wire()!=` + "`{\"current\":true}`" + `{t.Fatal("missing target field")}})})}`
+	checker := `package protocolsync
+import("context";"io";"os";"path/filepath";"fmt";"encoding/json")
+type GoalContractRequest struct{RepoRoot,BaseRoot,CandidateDir string;Output io.Writer}
+func GenerateGoalContract(_ context.Context,r GoalContractRequest,out string,failures ...string)error{
+a,e:=os.ReadFile(filepath.Join(r.BaseRoot,"` + mechanicalPrefix + `/version.json"));if e!=nil{return e}; b,e:=os.ReadFile(filepath.Join(r.CandidateDir,"schema/version.json"));if e!=nil{return e};if string(a)==string(b){return fmt.Errorf("self comparison")}
+if len(failures)>0{f,e:=os.Create(filepath.Join(out,"failure-metadata.jsonl"));if e!=nil{return e};defer f.Close();for _,name:=range failures[1:]{if e=json.NewEncoder(f).Encode(map[string]any{"test":name,"expectation":map[string]any{"kind":"schema_probe_expectation","input":map[string]any{"current":true}}});e!=nil{return e}}};return os.WriteFile(filepath.Join(out,"contract_test.go"),[]byte(` + fmt.Sprintf("%q", probe) + `),0600)}`
+	return probe, checker
+}
+
+// Compile the exact hosted fixture locally, without executing candidate code or
+// requiring namespace support. Compilation alone does not prove that the
+// hosted empty-lane runtime guard executed.
+func TestGoalContractCheckerFixtureCompiles(t *testing.T) {
+	probe, checker := goalContractCheckerFixture()
+	variants := []struct {
+		name, source string
+	}{
+		{"normal", checker},
+		{"empty", strings.Replace(checker, fmt.Sprintf("%q", probe), `""`, 1)},
+		{"changed_reconstruction", strings.Replace(checker, `return os.WriteFile(filepath.Join(out,"contract_test.go")`, `if len(failures)>0{return os.WriteFile(filepath.Join(out,"contract_test.go"),[]byte("changed source"),0600)};return os.WriteFile(filepath.Join(out,"contract_test.go")`, 1)},
+	}
+	for _, v := range variants {
+		t.Run(v.name, func(t *testing.T) {
+			root := t.TempDir()
+			writeFile(t, filepath.Join(root, "go.mod"), "module fixture\ngo 1.26.8\n")
+			writeFile(t, filepath.Join(root, "fixture.go"), v.source)
+			cmd := exec.Command("go", "build", ".")
+			cmd.Dir = root
+			cmd.Env = append(os.Environ(), "GOPROXY=off", "GOSUMDB=off", "GOTOOLCHAIN=local")
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("fixture compile: %v %s", err, out)
+			}
+		})
 	}
 }
