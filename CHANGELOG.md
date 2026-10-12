@@ -13,6 +13,14 @@ changes may occur in minor releases.
 
 #### Added
 
+- Bound SDK-owned notification retention by configurable finite count and byte
+  budgets (default 65,536 representation slots and 64 MiB), including callback
+  delivery, attachment/replay, Exact Run history/projections and diagnostics.
+  Exhaustion returns `ErrNotificationRetention` with partial facts and cannot
+  become a later successful terminal. Histories remain readable and charged
+  until unreachable; ordinary consumer progress releases callback/buffer space.
+  This replaces previously unbounded history/attachment retention.
+
 - Add `ClientOptions.Env` for copied, process-scoped environment replacement.
   Nil preserves inheritance; omitted keys are unset, `KEY=` is present-empty,
   and duplicate keys use the last value with native platform name matching.

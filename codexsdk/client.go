@@ -51,10 +51,12 @@ type Client struct {
 	closeCauseOnce      sync.Once
 	closeCausePublished chan struct{}
 
-	shutdownOnce   sync.Once
-	dispatchStop   chan struct{}
-	dispatcherDone chan struct{}
-	notifications  chan acceptedNotification
+	shutdownOnce        sync.Once
+	dispatchStop        chan struct{}
+	dispatcherDone      chan struct{}
+	notifications       chan acceptedNotification
+	retention           *notificationRetention
+	attachmentRetention map[string]*retentionLease
 
 	writeMu sync.Mutex
 	stdin   io.WriteCloser
@@ -71,6 +73,8 @@ type Client struct {
 	armedThreadAttach          map[string]struct{}
 	armedTurnAttach            map[string]struct{}
 	pendingThreadNotifications map[string][]protocolv2.ServerNotification
+	pendingThreadRetention     map[string][]*retentionLease
+	pendingDiagnosticRetention map[string][]*retentionLease
 	// replayingEvents keeps accepted evidence visible to terminalization after
 	// attachment removes it from pendingEvents and until replay commits it.
 	replayingEvents    map[*exactRunState][]rpcNotification
@@ -113,6 +117,7 @@ type rpcNotification struct {
 	method   string
 	params   map[string]any
 	evidence *notificationEvidence
+	retained *retentionLease
 }
 
 type notificationEvidence struct {
@@ -138,6 +143,7 @@ type acceptedNotification struct {
 	notification protocolv2.ServerNotification
 	evidence     *notificationEvidence
 	dispatched   chan struct{}
+	retained     *retentionLease
 }
 
 func New(options ClientOptions) (*Client, error) {
@@ -149,6 +155,8 @@ func New(options ClientOptions) (*Client, error) {
 	handlerCtx, handlerCancel := context.WithCancel(clientCtx)
 	c := &Client{
 		options:                    normalized,
+		retention:                  &notificationRetention{limit: normalized.NotificationRetention},
+		attachmentRetention:        map[string]*retentionLease{},
 		ctx:                        clientCtx,
 		cancel:                     cancel,
 		handlerCtx:                 handlerCtx,
@@ -159,6 +167,8 @@ func New(options ClientOptions) (*Client, error) {
 		armedThreadAttach:          map[string]struct{}{},
 		armedTurnAttach:            map[string]struct{}{},
 		pendingThreadNotifications: map[string][]protocolv2.ServerNotification{},
+		pendingThreadRetention:     map[string][]*retentionLease{},
+		pendingDiagnosticRetention: map[string][]*retentionLease{},
 		pendingDiagnostics:         map[string][]DiagnosticRef{},
 		pending:                    map[string]pendingCall{},
 		readerDone:                 make(chan struct{}),
@@ -259,6 +269,15 @@ func validateOptions(options ClientOptions) (ClientOptions, error) {
 	}
 	if options.NotificationQueueCapacity < 0 {
 		return ClientOptions{}, errors.New("codexsdk: ClientOptions.NotificationQueueCapacity must not be negative")
+	}
+	if options.NotificationRetention.MaxCount < 0 || options.NotificationRetention.MaxBytes < 0 {
+		return ClientOptions{}, errors.New("codexsdk: invalid notification retention budget")
+	}
+	if options.NotificationRetention.MaxCount == 0 {
+		options.NotificationRetention.MaxCount = DefaultNotificationRetentionCount
+	}
+	if options.NotificationRetention.MaxBytes == 0 {
+		options.NotificationRetention.MaxBytes = DefaultNotificationRetentionBytes
 	}
 	return validateRawSubscription(options)
 }
@@ -514,12 +533,20 @@ func (c *Client) routeResponse(message map[string]any) {
 	}
 	if pending.method == protocolv2.MethodThreadStart || pending.method == protocolv2.MethodThreadResume {
 		if threadID := threadIDFromProtocolResult(result); threadID != "" {
-			c.armThreadAttach(threadID)
+			if err := c.armThreadAttach(threadID); err != nil {
+				pending.response <- rpcResponse{err: err}
+				c.failClient(err)
+				return
+			}
 		}
 	}
 	if pending.method == protocolv2.MethodTurnStart {
 		if turnID := turnIDFromProtocolResult(result); turnID != "" {
-			c.armTurnAttach(turnID)
+			if err := c.armTurnAttach(turnID); err != nil {
+				pending.response <- rpcResponse{err: err}
+				c.failClient(err)
+				return
+			}
 		}
 	}
 	pending.response <- rpcResponse{result: result}
@@ -537,25 +564,53 @@ func turnIDFromProtocolResult(result map[string]any) string {
 	return id
 }
 
-func (c *Client) armThreadAttach(threadID string) {
+func (c *Client) armThreadAttach(threadID string) error {
 	c.turnMu.Lock()
 	defer c.turnMu.Unlock()
+	if err := c.retainAttachmentLocked("thread:" + threadID); err != nil {
+		return err
+	}
 	if c.armedThreadAttach == nil {
 		c.armedThreadAttach = map[string]struct{}{}
 	}
 	c.armedThreadAttach[threadID] = struct{}{}
+	return nil
 }
-
-func (c *Client) armTurnAttach(turnID string) {
+func (c *Client) armTurnAttach(turnID string) error {
 	if turnID == "" {
-		return
+		return nil
 	}
 	c.turnMu.Lock()
 	defer c.turnMu.Unlock()
+	if err := c.retainAttachmentLocked("turn:" + turnID); err != nil {
+		return err
+	}
 	if c.armedTurnAttach == nil {
 		c.armedTurnAttach = map[string]struct{}{}
 	}
 	c.armedTurnAttach[turnID] = struct{}{}
+	return nil
+}
+func (c *Client) retainAttachmentLocked(key string) error {
+	if c.isClosed() {
+		return ErrClientClosed
+	}
+	if _, exists := c.attachmentRetention[key]; exists {
+		return nil
+	}
+	l, err := c.retention.reserve(1, 2*retainedValueBytes(key))
+	if err != nil {
+		return err
+	}
+	if c.attachmentRetention == nil {
+		c.attachmentRetention = map[string]*retentionLease{}
+	}
+	c.attachmentRetention[key] = l
+	return nil
+}
+func (c *Client) releaseAttachmentLocked(key string) {
+	c.attachmentRetention[key].release()
+	delete(c.attachmentRetention, key)
 }
 
 func protocolError(id any, method string, rawError any) error {
@@ -654,6 +709,10 @@ func (c *Client) routeExactNotificationBeforeTerminalCompletion(notification rpc
 		return false, nil, nil
 	}
 	c.turnMu.Lock()
+	if c.isClosed() {
+		c.turnMu.Unlock()
+		return false, nil, nil
+	}
 	var targets []*exactRunState
 	switch class {
 	case notificationAttributionTurn:
@@ -693,12 +752,29 @@ func (c *Client) routeExactNotificationBeforeTerminalCompletion(notification rpc
 				if c.pendingThreadNotifications == nil {
 					c.pendingThreadNotifications = map[string][]protocolv2.ServerNotification{}
 				}
+				retained, err := c.retention.reserve(3, 3*retainedValueBytes(typed))
+				if err != nil {
+					c.turnMu.Unlock()
+					c.failClient(err)
+					return false, nil, nil
+				}
+				if c.pendingThreadRetention == nil {
+					c.pendingThreadRetention = map[string][]*retentionLease{}
+				}
+				c.pendingThreadRetention[identity.threadID] = append(c.pendingThreadRetention[identity.threadID], retained)
 				c.pendingThreadNotifications[identity.threadID] = append(c.pendingThreadNotifications[identity.threadID], typed)
 			}
 		}
 	}
 	if len(targets) == 0 {
 		if _, armed := c.armedTurnAttach[identity.turnID]; armed && identity.turnID != "" {
+			retained, err := c.retention.reserve(4, retainedValueBytes(notification.params)+3*retainedValueBytes(typed))
+			if err != nil {
+				c.turnMu.Unlock()
+				c.failClient(err)
+				return false, nil, nil
+			}
+			notification.retained = retained
 			evidence := &notificationEvidence{ready: make(chan struct{})}
 			for stream := range c.exactAttaching[identity.threadID] {
 				evidence.state = stream
@@ -768,11 +844,24 @@ func (c *Client) routeExactNotificationError(notification rpcNotification, err e
 		}
 	}
 	if len(targets) == 0 && turnID != "" {
+		l, budgetErr := c.retention.reserve(1, retainedValueBytes(ref))
+		if budgetErr != nil {
+			c.turnMu.Unlock()
+			c.failClient(budgetErr)
+			return
+		}
+		if c.pendingDiagnosticRetention == nil {
+			c.pendingDiagnosticRetention = map[string][]*retentionLease{}
+		}
+		c.pendingDiagnosticRetention[turnID] = append(c.pendingDiagnosticRetention[turnID], l)
 		c.pendingDiagnostics[turnID] = append(c.pendingDiagnostics[turnID], ref)
 	}
 	c.turnMu.Unlock()
 	for _, stream := range targets {
-		stream.addDiagnosticOrdered(ref)
+		if budgetErr := stream.addDiagnosticOrdered(ref); budgetErr != nil {
+			c.failClient(budgetErr)
+			return
+		}
 	}
 	c.failClient(err)
 }
@@ -785,6 +874,7 @@ func (c *Client) attachExactStreamLocked(stream *exactRunState) {
 	stream.mu.Unlock()
 	turnID := stream.turnIDSnapshot()
 	delete(c.armedTurnAttach, turnID)
+	c.releaseAttachmentLocked("turn:" + turnID)
 	delete(c.exactAttaching[stream.threadID], stream)
 	if len(c.exactAttaching[stream.threadID]) == 0 {
 		delete(c.exactAttaching, stream.threadID)
@@ -807,6 +897,13 @@ func (c *Client) attachExactStreamLocked(stream *exactRunState) {
 		c.replayingEvents[stream] = pending
 	}
 	diagnostics := append([]DiagnosticRef(nil), c.pendingDiagnostics[turnID]...)
+	diagnosticRetention := c.pendingDiagnosticRetention[turnID]
+	delete(c.pendingDiagnosticRetention, turnID)
+	defer func() {
+		for _, l := range diagnosticRetention {
+			l.release()
+		}
+	}()
 	delete(c.pendingDiagnostics, turnID)
 	globalErr := c.pendingGlobal
 	c.pendingGlobal = nil
@@ -820,11 +917,15 @@ func (c *Client) attachExactStreamLocked(stream *exactRunState) {
 			var typed protocolv2.ServerNotification
 			typed, err = exactNotification(notification)
 			if err == nil {
-				err = stream.accept(typed)
+				var complete func()
+				complete, err = stream.acceptRetainedBeforeTerminalCompletion(typed, notification.retained)
+				if complete != nil {
+					complete()
+				}
 			}
 		} else {
 			err = notification.resolveEvidence(func(typed protocolv2.ServerNotification) (func(), error) {
-				return stream.acceptStateBeforeTerminalCompletion(typed)
+				return stream.acceptRetainedBeforeTerminalCompletion(typed, notification.retained)
 			})
 			if notification.evidenceCompletion() != nil {
 				if c.testBeforePendingTerminalFence != nil {
@@ -842,8 +943,16 @@ func (c *Client) attachExactStreamLocked(stream *exactRunState) {
 		}
 	}
 	c.finishExactPendingReplay(stream)
-	for _, diagnostic := range diagnostics {
-		stream.addDiagnostic(diagnostic)
+	for i, diagnostic := range diagnostics {
+		var l *retentionLease
+		if i < len(diagnosticRetention) {
+			l = diagnosticRetention[i]
+		}
+		if err := stream.addDiagnosticRetained(diagnostic, l); err != nil {
+			stream.notificationOrderMu.Unlock()
+			c.failClient(err)
+			return
+		}
 	}
 	if globalErr != nil {
 		stream.notificationOrderMu.Unlock()
@@ -855,8 +964,12 @@ func (c *Client) attachExactStreamLocked(stream *exactRunState) {
 
 func (c *Client) finishExactPendingReplay(stream *exactRunState) {
 	c.turnMu.Lock()
+	pending := c.replayingEvents[stream]
 	delete(c.replayingEvents, stream)
 	c.turnMu.Unlock()
+	for _, n := range pending {
+		n.retained.release()
+	}
 }
 
 func (n rpcNotification) resolveEvidence(accept func(protocolv2.ServerNotification) (func(), error)) error {
@@ -882,14 +995,18 @@ func (n rpcNotification) resolvePendingEvidence() error {
 	// in order. The evidence Once serializes each commit; the state mutex protects
 	// its contents. Do not acquire notificationOrderMu inside Once: attachment
 	// holds that mutex while replaying the same evidence (and waiting on dispatch).
-	return n.resolveEvidence(n.evidence.state.acceptStateBeforeTerminalCompletion)
+	return n.resolveEvidence(func(typed protocolv2.ServerNotification) (func(), error) {
+		return n.evidence.state.acceptRetainedBeforeTerminalCompletion(typed, n.retained)
+	})
 }
 
 func (n rpcNotification) resolveReplayingEvidence() error {
 	if n.evidence == nil || n.evidence.state == nil {
 		return nil
 	}
-	return n.resolveEvidence(n.evidence.state.acceptStateBeforeTerminalCompletion)
+	return n.resolveEvidence(func(typed protocolv2.ServerNotification) (func(), error) {
+		return n.evidence.state.acceptRetainedBeforeTerminalCompletion(typed, n.retained)
+	})
 }
 
 func (n rpcNotification) awaitEvidenceHandler() {
@@ -922,12 +1039,29 @@ func (c *Client) registerAttachingExactStream(stream *exactRunState) error {
 	}
 	c.exactAttaching[stream.threadID][stream] = struct{}{}
 	pending := append([]protocolv2.ServerNotification(nil), c.pendingThreadNotifications[stream.threadID]...)
+	retained := c.pendingThreadRetention[stream.threadID]
+	delete(c.pendingThreadRetention, stream.threadID)
 	delete(c.pendingThreadNotifications, stream.threadID)
 	delete(c.armedThreadAttach, stream.threadID)
+	c.releaseAttachmentLocked("thread:" + stream.threadID)
 	c.turnMu.Unlock()
-	for _, typed := range pending {
-		if err := stream.accept(typed); err != nil {
+	defer func() {
+		for _, l := range retained {
+			l.release()
+		}
+	}()
+	for i, typed := range pending {
+		var lease *retentionLease
+		if i < len(retained) {
+			lease = retained[i]
+		}
+		complete, err := stream.acceptRetainedBeforeTerminalCompletion(typed, lease)
+		if err != nil {
+			c.failClient(err)
 			return err
+		}
+		if complete != nil {
+			complete()
 		}
 	}
 	return nil
@@ -950,6 +1084,7 @@ func (c *Client) finishAttachingExactStream(stream *exactRunState, finishErr err
 			}
 			kept = append(kept, notification)
 		}
+		clear(notifications[len(kept):])
 		if len(kept) == 0 {
 			delete(c.pendingEvents, turnID)
 		} else {
@@ -958,10 +1093,15 @@ func (c *Client) finishAttachingExactStream(stream *exactRunState, finishErr err
 	}
 	c.turnMu.Unlock()
 
+	defer func() {
+		for _, n := range pending {
+			n.retained.release()
+		}
+	}()
 	var deliveryErr error
 	for _, notification := range pending {
 		err := notification.resolveEvidence(func(typed protocolv2.ServerNotification) (func(), error) {
-			return stream.acceptStateBeforeTerminalCompletion(typed)
+			return stream.acceptRetainedBeforeTerminalCompletion(typed, notification.retained)
 		})
 		if completion := notification.evidenceCompletion(); completion != nil {
 			notification.awaitEvidenceHandler()
@@ -1022,10 +1162,29 @@ func (c *Client) failAll(err error) {
 			}
 		}
 	}
+	c.pendingEvents = map[string][]rpcNotification{}
+	for _, leases := range c.pendingThreadRetention {
+		for _, l := range leases {
+			l.release()
+		}
+	}
+	c.pendingThreadNotifications = map[string][]protocolv2.ServerNotification{}
+	c.pendingThreadRetention = map[string][]*retentionLease{}
+	for _, l := range c.attachmentRetention {
+		l.release()
+	}
+	c.attachmentRetention = map[string]*retentionLease{}
+	c.armedThreadAttach = map[string]struct{}{}
+	c.armedTurnAttach = map[string]struct{}{}
+	diagnostics := c.pendingDiagnostics
+	diagnosticLeases := c.pendingDiagnosticRetention
+	c.pendingDiagnostics = map[string][]DiagnosticRef{}
+	c.pendingDiagnosticRetention = map[string][]*retentionLease{}
 	var replayingEvidence []rpcNotification
 	for _, notifications := range c.replayingEvents {
 		for _, notification := range notifications {
 			if notification.evidence != nil {
+				notification.retained.retain()
 				replayingEvidence = append(replayingEvidence, notification)
 			}
 		}
@@ -1033,9 +1192,25 @@ func (c *Client) failAll(err error) {
 	c.turnMu.Unlock()
 	for _, notification := range pendingEvidence {
 		_ = notification.resolvePendingEvidence()
+		notification.retained.release()
 	}
 	for _, notification := range replayingEvidence {
 		_ = notification.resolveReplayingEvidence()
+		notification.retained.release()
+	}
+	for turnID, refs := range diagnostics {
+		for i, ref := range refs {
+			var l *retentionLease
+			if i < len(diagnosticLeases[turnID]) {
+				l = diagnosticLeases[turnID][i]
+			}
+			for _, stream := range exactStreams {
+				if stream.turnIDSnapshot() == turnID {
+					_ = stream.addDiagnosticRetained(ref, l)
+				}
+			}
+			l.release()
+		}
 	}
 	for _, stream := range exactStreams {
 		stream.finish(err)

@@ -30,6 +30,24 @@ func (c *Client) enqueueAcceptedNotification(accepted acceptedNotification, wait
 		accepted.releaseDispatchWaiter()
 		return nil, nil
 	}
+	count, size := 0, int64(0)
+	if accepted.notification.Kind() != "" {
+		count++
+		size += retainedValueBytes(accepted.notification)
+	}
+	if accepted.raw != nil {
+		count++
+		size += retainedValueBytes(*accepted.raw)
+	}
+	retained, err := c.retention.reserve(count, size)
+	if err != nil {
+		c.closeMu.Unlock()
+		c.failClient(err)
+		c.awaitCloseCausePublication()
+		accepted.releaseDispatchWaiter()
+		return nil, err
+	}
+	accepted.retained = retained
 	if hasHandler {
 		c.handlerWG.Add(1)
 	}
@@ -38,6 +56,8 @@ func (c *Client) enqueueAcceptedNotification(accepted acceptedNotification, wait
 		c.closeMu.Unlock()
 		return dispatched, nil
 	default:
+		accepted.retained.release()
+		accepted.retained = nil
 		if hasHandler {
 			c.handlerWG.Done()
 		}
@@ -57,6 +77,7 @@ func (accepted acceptedNotification) releaseDispatchWaiter() {
 	if accepted.dispatched != nil {
 		close(accepted.dispatched)
 	}
+	accepted.retained.release()
 }
 
 func (c *Client) awaitCloseCausePublication() {
@@ -93,8 +114,12 @@ func (c *Client) notificationDispatcher() {
 				c.discardCurrentAndQueuedNotifications(accepted)
 				return
 			}
-			if c.hasNotificationHandler() && !c.dispatchAcceptedNotification(handler, accepted) {
-				return
+			if c.hasNotificationHandler() {
+				if !c.dispatchAcceptedNotification(handler, accepted) {
+					return
+				}
+			} else {
+				accepted.releaseDispatchWaiter()
 			}
 		case <-c.dispatchStop:
 			c.finishDispatchStop(handler, nil)
@@ -190,13 +215,12 @@ func (c *Client) endNotificationHandler() {
 }
 
 func (c *Client) discardAcceptedNotifications() {
-	if !c.hasNotificationHandler() {
-		return
-	}
 	for {
 		select {
 		case accepted := <-c.notifications:
-			c.handlerWG.Done()
+			if c.hasNotificationHandler() {
+				c.handlerWG.Done()
+			}
 			accepted.releaseDispatchWaiter()
 		default:
 			return

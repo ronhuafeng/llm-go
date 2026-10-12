@@ -3,6 +3,7 @@
 // Client owns process/JSON-RPC lifecycle, generated protocol facades, thread and
 // turn execution, notifications, and typed server-request delivery. Exact Run
 // APIs retain Codex-specific lifecycle data and partial results when available.
+// SDK-owned notification retention is bounded by finite count and byte budgets.
 //
 // Admission callbacks and server-request answers are application-owned. The SDK
 // never invents approval, permission, user input, or other application policy.

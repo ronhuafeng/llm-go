@@ -133,6 +133,53 @@ frames. A server that never emits an expected raw item is an application
 acceptance decision; a clean SDK terminal alone does not prove that observation.
 These fixture-tested delivery semantics do not expand the existing live scenarios.
 
+## Notification retention
+
+Every client has a finite `ClientOptions.NotificationRetention` budget with
+`MaxCount` and `MaxBytes`. Zero selects `DefaultNotificationRetentionCount`
+(65,536 representation slots) and `DefaultNotificationRetentionBytes` (64 MiB)
+independently; negative limits fail before launch. Neither limit can be disabled.
+Applications expecting larger histories must explicitly choose larger finite
+limits. This is a compatibility change from unbounded Exact Run histories and
+attachment buffers; ordinary history/cursor/result semantics stay intact.
+
+The count covers retained representations, not just emitted frames. Byte charges
+include Go value headers, pointed-to values, strings, slice capacity, and
+conservative map/ownership overhead; shared backing storage is charged again.
+They are deterministic admission charges, not measured heap size or JSON wire
+length. The SDK reserves before storing evidence, using these owners:
+
+| Owner | Representation slots and release |
+| --- | --- |
+| Callback queue, including executing callback | One typed slot and one raw slot when both exist; released after dispatch/discard. |
+| Exact Run history | Three slots per typed observation, reserving the cloned history plus usage/terminal/error projections; retained with the run. |
+| Pending turn / replay | Four slots for params and future history/projections; transferred to the run during replay without further allocation of budget. |
+| Pending thread | Three slots including future history; transferred at attachment. |
+| Decode diagnostics | One slot per retained reference, transferred to the matching run or released at failure. |
+| Armed attachment identities | One slot per distinct thread/turn identity; released at attachment or client failure/closure. |
+
+Conservative reservations remain charged after transfer even if fewer copies
+are needed. All clients' concurrent runs share their own client budget; separate
+clients have independent budgets. Buffer cleanup clears payload references and
+releases its ownership. Completed/canceled `Stream` histories remain readable,
+so they stay charged until the run and its cursors become unreachable; Go cleanup
+then releases their reservations. Cleanup timing is controlled by Go, and delayed
+collection can conservatively exhaust a budget. `Next` does not evict history;
+its current value references that immutable SDK history. Returned results and
+notification snapshots are copied and application-owned. Retaining arbitrarily
+many application snapshots is outside this SDK budget.
+
+Exhaustion fails the client with the fixed, payload-free
+`ErrNotificationRetention`, settles pending RPCs and Exact Run observers, and
+preserves admitted partial evidence. A later terminal cannot replace that cause.
+No required event is silently evicted to permit success. This differs from
+`ErrNotificationBackpressure`, which reports a full callback channel even when
+retention budget remains. A missing/slow callback, direct typed facades, raw
+subscriptions, late/duplicate events, and attachment races cannot bypass these
+limits. The existing 16 MiB ingress-frame bound limits transient decoding;
+retention limits constrain cumulative stored observations. This adds no durable
+recorder and changes no application acceptance or server-request authority.
+
 ## Compatibility and evidence
 
 The generated surface follows the selected source in

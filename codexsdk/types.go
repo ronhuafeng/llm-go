@@ -13,6 +13,7 @@ var (
 	ErrStreamClosed             = errors.New("codexsdk: stream closed")
 	ErrTurnFailed               = errors.New("codexsdk: turn failed")
 	ErrTurnInterrupted          = errors.New("codexsdk: turn interrupted")
+	ErrNotificationRetention    = errors.New("codexsdk: notification retention budget exhausted")
 	ErrNotificationBackpressure = errors.New("codexsdk: notification backpressure")
 	ErrHandlerFailed            = errors.New("codexsdk: handler failed")
 	ErrExactServerRequest       = errors.New("codexsdk: exact server request failed closed")
@@ -141,6 +142,8 @@ type ClientOptions struct {
 	ServerRequestHandler      ServerRequestHandler
 	ServerNotificationHandler ServerNotificationHandler
 	NotificationQueueCapacity int
+	// NotificationRetention bounds all SDK-owned notification representations.
+	NotificationRetention NotificationRetentionBudget
 }
 
 type ServerRequestHandler func(context.Context, protocolv2.ServerRequest) (ServerRequestResponse, error)

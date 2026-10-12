@@ -105,6 +105,17 @@ func TestEnvironmentHelperProcess(t *testing.T) {
 			safeArgs := secret == "" || !strings.Contains(strings.Join(os.Args, "\n"), secret)
 			observations["safeArgs"] = safeArgs
 			send(map[string]any{"id": message["id"], "result": observations})
+		case "fixture/budget-notifications":
+			identity := os.Getenv("CODEXSDK_ENV_CORRELATION")
+			params, _ := message["params"].(map[string]any)
+			marker := "admitted"
+			if params["oversize"] == true {
+				marker = strings.Repeat("payload-sentinel", 4096)
+			}
+			sendRawItem(identity, "turn-"+identity, marker, false)
+			n := tokenUsageNotification(identity, "turn-"+identity)
+			send(map[string]any{"method": n.method, "params": n.params})
+			send(map[string]any{"id": message["id"], "result": map[string]any{}})
 		case "model/list":
 			sendProtocolResult(message["id"], protocolv2.ModelListResponse{Data: []protocolv2.Model{}})
 		}

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -43,6 +44,7 @@ type exactRunState struct {
 	hasResult                        bool
 	err                              error
 	terminal                         bool
+	retained                         *retentionOwners
 }
 
 type TurnError struct {
@@ -242,7 +244,7 @@ func (s *Stream[R]) Next(ctx context.Context) bool {
 		}
 		s.state.mu.Unlock()
 		if ok {
-			s.current, _ = cloneJSON(notification)
+			s.current = notification
 			s.mu.Unlock()
 			return true
 		}
@@ -408,7 +410,7 @@ func (s *Stream[R]) Close() error {
 }
 
 func newExactRunState(client *Client, threadID string, result any) *exactRunState {
-	return &exactRunState{
+	s := &exactRunState{
 		client:    client,
 		threadID:  threadID,
 		updated:   make(chan struct{}),
@@ -416,6 +418,8 @@ func newExactRunState(client *Client, threadID string, result any) *exactRunStat
 		result:    result,
 		hasResult: true,
 	}
+	installRunRetention(s)
+	return s
 }
 
 func (c *Client) newExactRunState(threadID string, result any) *exactRunState {
@@ -468,15 +472,31 @@ func (s *exactRunState) accept(notification protocolv2.ServerNotification) error
 }
 
 func (s *exactRunState) acceptStateBeforeTerminalCompletion(notification protocolv2.ServerNotification) (func(), error) {
-	cloned, err := cloneJSON(notification)
-	if err != nil {
-		return nil, err
-	}
+	return s.acceptRetainedBeforeTerminalCompletion(notification, nil)
+}
+
+func (s *exactRunState) acceptRetainedBeforeTerminalCompletion(notification protocolv2.ServerNotification, retained *retentionLease) (func(), error) {
+	defer runtime.KeepAlive(s)
 	s.mu.Lock()
 	if s.terminal {
 		s.mu.Unlock()
 		return nil, nil
 	}
+	if retained == nil && s.client != nil {
+		var err error
+		retained, err = s.client.retention.reserve(3, 3*retainedValueBytes(notification))
+		if err != nil {
+			s.mu.Unlock()
+			return nil, err
+		}
+		defer retained.release()
+	}
+	cloned, err := cloneJSON(notification)
+	if err != nil {
+		s.mu.Unlock()
+		return nil, err
+	}
+	s.retained.add(retained)
 	s.updateRunLocked(func(run *ThreadRunResult) {
 		run.Notifications = append(run.Notifications, cloned)
 		if usage, ok := cloned.AsThreadTokenUsageUpdated(); ok {
@@ -549,18 +569,29 @@ func (s *exactRunState) updateRunLocked(update func(*ThreadRunResult)) {
 	}
 }
 
-func (s *exactRunState) addDiagnostic(ref DiagnosticRef) {
+func (s *exactRunState) addDiagnosticRetained(ref DiagnosticRef, l *retentionLease) error {
+	defer runtime.KeepAlive(s)
+	if l == nil && s.client != nil {
+		var err error
+		l, err = s.client.retention.reserve(1, retainedValueBytes(ref))
+		if err != nil {
+			return err
+		}
+		defer l.release()
+	}
 	s.mu.Lock()
-	s.updateRunLocked(func(run *ThreadRunResult) {
-		run.Diagnostics = append(run.Diagnostics, ref)
-	})
-	s.mu.Unlock()
+	defer s.mu.Unlock()
+	if s.terminal {
+		return nil
+	}
+	s.retained.add(l)
+	s.updateRunLocked(func(run *ThreadRunResult) { run.Diagnostics = append(run.Diagnostics, ref) })
+	return nil
 }
-
-func (s *exactRunState) addDiagnosticOrdered(ref DiagnosticRef) {
+func (s *exactRunState) addDiagnosticOrdered(ref DiagnosticRef) error {
 	s.notificationOrderMu.Lock()
 	defer s.notificationOrderMu.Unlock()
-	s.addDiagnostic(ref)
+	return s.addDiagnosticRetained(ref, nil)
 }
 
 func (s *exactRunState) finish(err error) {
@@ -574,6 +605,13 @@ func (s *exactRunState) finishState(err error) bool {
 	if s.terminal {
 		s.mu.Unlock()
 		return false
+	}
+	if s.client != nil {
+		s.client.closeMu.Lock()
+		if s.client.failure != nil {
+			err = s.client.failure
+		}
+		s.client.closeMu.Unlock()
 	}
 	s.err = err
 	s.terminal = true
