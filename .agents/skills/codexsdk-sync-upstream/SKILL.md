@@ -33,48 +33,46 @@ conflict, report the specific decision required.
 
 ## One acceptance entrypoint
 
-From the repository root, run:
+Call the provided `verify_upstream` tool with no arguments. It is the single
+full-acceptance entrypoint for this goal. The trusted launcher binds its
+repository, Draft PR, branch, base, target and deadline; you cannot choose an
+alternative publication destination.
 
-```sh
-go run ./codexsdk/internal/cmd/protocolupgrade verify
-```
+**Draft integration status:** this tool and its shared local check composition
+are being implemented in PR #421. Do not start a formal goal until they are
+implemented, reviewed and the complete prompt is approved.
 
-**Draft integration status:** this entrypoint is being implemented in PR #421.
-Until it exists and its same-candidate behavior is verified, this revised skill
-must not be used for a formal goal. The earlier `protocolupgrade check` command
-checks only schema/generated artifacts and is not a substitute.
+The tool first freezes the current candidate, including intended untracked
+source, and runs the credential-free local checks in the existing isolation
+boundary. It does not commit or alter your proposal workspace. After those
+checks pass, it may append a normal commit only to the bound Draft PR branch.
+It then waits for that exact head's current required CI checks, including real
+Live. These are the four existing standards in `docs/verify.md`:
 
-The command owns the complete acceptance standard and is shared with CI. It
-checks a frozen snapshot of the current candidate, including intended untracked
-source, without committing or changing the proposal workspace. All gates refer
-to those same bytes:
-
-- Source correctness, including the repository's applicable syntax/isolation
-  checks, tidy-without-diff, vet and race tests.
-- Generated reproducibility and compilation of freshly generated protocol code
-  in isolation.
+- Source correctness, including applicable syntax/isolation checks,
+  tidy-without-diff, vet and race tests.
+- Generated reproducibility and isolated compilation of freshly generated code.
 - Provenance rebuilt from the exact recorded upstream source.
-- The existing real Codex Live scenarios, with the run-selected installed CLI
-  and their own existing model/provider fixture.
+- Existing real Codex Live scenarios, with their own model/provider fixture.
 
-These are the four required CI contexts defined in `docs/verify.md`, not four
-additional standards. Necessary build/runtime prerequisites are provisioned by
-the launcher. Missing prerequisites or credentials are blockers, not skips.
-The Agent must execute full verification before completion; later CI repeats
-that same standard and cannot replace the Agent's first verification.
+Local checks and CI share the check implementations; local success alone is
+not full acceptance. The goal's tool invocation includes waiting for CI, reading
+its diagnostics and repairing failures. Later checks repeat these same standards.
+Do not run Live with host credentials, configure authentication or create a new
+credential service. Missing prerequisites or unavailable CI are blockers.
 
-On failure the command writes complete, secret-safe diagnostics to JSONL and
-returns the file path. Read the file incrementally, fix the underlying cause,
-and rerun the affected checks; rerun the full entrypoint on the final candidate.
-Preserve all diagnostic records. Do not replace the file with a truncated inline
-summary, print credentials, or copy private model transcripts. Rerun real Live
-only when a relevant change or verified transient recovery justifies it, not in
-an unbounded retry loop.
+The tool returns only the path to a complete, secret-safe JSONL diagnostic file.
+Read it incrementally and fix the underlying cause. Call the full tool again
+for a changed final candidate. Preserve diagnostic records; do not replace them
+with an inline truncated summary, print credentials or copy private transcripts.
+A diagnostic file delivery does not mean its checks passed. Do not repeatedly
+rerun real Live without a relevant change or verified transient recovery.
 
 ## Completion and authority
 
 Mark the native goal complete only after the exact final candidate passes the
-full entrypoint. Report the changes, checks and diagnostic paths. A model's
+full tool invocation, including all four CI gates for its exact head. Report
+the changes, checks, diagnostic paths and Draft PR. A model's
 completion claim, a tool exit without the required checks, or a partial pass is
 not independent acceptance.
 
@@ -82,8 +80,9 @@ The proposal may contain generated artifacts, implementation changes, focused
 tests and justified verifier changes. Do not alter the launcher's source
 identity, credential boundary, scope checks, publication controls or required
 CI gates. Do not configure authentication, stage or commit in the proposal
-repository, push, mutate PRs, dispatch workflows, integrate or tag. The trusted
-publisher and independent review own those effects.
+repository, push, mutate PRs or dispatch workflows yourself. Only the fixed
+verification tool may update the bound Draft PR after local checks pass. Keep
+that PR Draft. Do not merge, integrate or tag, even when all checks pass.
 
 Report a concrete blocked outcome for unavailable credentials/environment or an
 unresolved contract decision. Respect the supplied deadline; do not invent a new

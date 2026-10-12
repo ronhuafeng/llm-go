@@ -38,31 +38,46 @@ An ordinary exec prompt containing `/goal` does not invoke this API.
 
 ## Complete proposed goal prompt
 
-`${BASE_SHA}` is injected by the trusted launcher. The launcher also owns the
-exact target, isolated environment, `gpt-6.1-sol/high`, run-resolved official
-latest CLI and finite deadline. The model does not select or override them.
+`${BASE_SHA}`, `${PR_URL}` and `${BRANCH}` are injected by the trusted launcher.
+It also owns the exact target, isolated environment, `gpt-6.1-sol/high`,
+run-resolved official latest CLI and finite deadline. The model cannot choose
+another repository, branch or PR. PR #421 contains this workflow implementation;
+the target upgrade belongs in a separately prepared, fixed synchronization Draft
+PR. The main branch has not deployed this new workflow.
 
 > 使用仓库的 `.agents/skills/codexsdk-sync-upstream/SKILL.md`，将 llm-go 从
-> `${BASE_SHA}` 完整升级到 `openai/codex` 的 `rust-v0.162.1`，精确提交
-> `092d3acd6bec3e3a14bdc7e7a2810ab628ab759d`。
+> `${BASE_SHA}` 完整升级到 openai/codex 的 rust-v0.162.1，精确提交
+> 092d3acd6bec3e3a14bdc7e7a2810ab628ab759d。
 >
-> 独立完成该 skill 定义的全部工作和验收，包含生成、适配、必要的验证器修正、
-> 全部验证及失败修复，直到同一最终候选通过完整验收。自行安排工作，
-> 不等待外层分配下一步。
+> 你负责生成、适配、必要的契约依据验证器修正、全部验证及失败修复。
+> 自行安排工作，直到同一最终候选达到 skill 的完整通过标准。
 >
-> 保留已有无关改动。遵守 skill 的来源、权限和发布边界；完成后简述改动与
-> 实际验证结果。遇到需要用户决定的契约冲突或外部阻碍，给出具体证据并报告
-> blocked，不把部分成功当作完成。
+> 调用提供的 `verify_upstream` 工具完成验收：它先执行无密钥本地检查，
+> 通过后只能正常更新已绑定的 Draft PR `${PR_URL}` / 分支 `${BRANCH}`，
+> 并等待该精确 head 的现有 CI（包括真实 Live）。读取工具返回的 JSONL
+> 诊断文件，在这个 goal 内继续修复。不得绕过该入口自行操作 GitHub。
+>
+> 保留无关改动，不更换目标或验收标准。只有本地检查及该最终 head 的
+> 四门 CI 都真实通过，才标记 complete 并简述改动、验证和 PR。
+> 不得合入；PR 保持 Draft。外部阻碍或必须由用户决定的契约冲突，
+> 报告具体证据并标记 blocked。
 
 ## Skill responsibilities and current verification entrypoints
 
-The revised skill supplies the complete task contract and a single acceptance
-entrypoint: `go run ./codexsdk/internal/cmd/protocolupgrade verify`. That thin
-composition entrypoint is not implemented yet; this Draft must not be run as a
-formal goal until it is. CI and the skill will share its checks, with each CI
-context selecting its existing gate. The prompt does not duplicate that contract.
-The skill no longer requires typed unresolved admission, external repair rounds
-or a separate verifier PR. It is not a second scheduler.
+The goal invokes one fixed, no-argument `verify_upstream` tool. Its local check
+composition reuses existing checks on an immutable, credential-free candidate
+snapshot. Only after local success may the trusted handler append to the bound
+Draft PR branch, then wait for exact-head CI including existing real Live. CI
+failure diagnostics return by JSONL path to the same goal. No outer repair turn,
+verifier role or merge continuation is added. Normal cancellation/deadline bounds
+the outstanding tool call.
+
+The tool is not yet implemented. The revised skill must not be used for a formal
+goal before implementation and prompt review. Local-only verification explicitly
+reports that limited scope; it cannot stand in for the four-gate result. Existing
+CI Live retains its current credential/trust arrangement. Candidate code in that
+job already has provider access; this plan does not claim otherwise or introduce
+a new host credential broker.
 
 The following are existing commands, not newly invented acceptance shortcuts:
 
@@ -88,11 +103,18 @@ commit to the working branch merely to bypass that prerequisite. Reuse existing
 snapshot/isolation mechanisms without adding a second workflow or evidence
 registry. The final post-goal checks verify the same standards and exact bytes.
 
-## Completion evidence
+## Completion evidence and current execution ceiling
 
-The issue is complete only after one implementation PR has independent review,
-all four exact-head checks and protected linear integration, followed by a new
-formal sync that integrates the exact `rust-v0.162.1` target through its own
-protected PR and four checks. Record actual run/PR/base/head/target outcomes in
-[#420](https://github.com/ronhuafeng/llm-go/issues/420); avoid a second status ledger.
-A green refactor PR or a goal's self-reported completion is not that evidence.
+Record implementation evidence and target acceptance separately in
+[#420](https://github.com/ronhuafeng/llm-go/issues/420):
+
+1. PR #421 has independent review, lifecycle/security regressions and four
+   exact-head CI results. Fixture success establishes only the tested behavior.
+2. After prompt approval, one real goal upgrades the fixed target in its own
+   bound Draft PR, observes a real failure and correction where applicable,
+   and reaches the four actual checks on the final exact head.
+
+The user's current ceiling is **no merge**. Both PRs remain Draft; neither
+implementation CI nor the goal may merge them. Main deployment and eventual
+integration are separate, still-unfinished outcomes. A green refactor PR or a
+goal's self-report is not evidence that the target upgrade succeeded.
