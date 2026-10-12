@@ -828,6 +828,10 @@ func (c *Client) routeExactNotificationError(notification rpcNotification, err e
 	ref := DiagnosticRef{Kind: "notification_decode_error", ID: turnID, Path: notification.method, SizeBytes: int64(len(raw)), SHA256: hex.EncodeToString(sum[:])}
 	threadID := threadIDFromNotification(notification.params)
 	c.turnMu.Lock()
+	if c.isClosed() {
+		c.turnMu.Unlock()
+		return
+	}
 	var targets []*exactRunState
 	for candidateTurnID, streams := range c.exactStreams {
 		for stream := range streams {
@@ -1030,6 +1034,10 @@ func (n rpcNotification) completeEvidenceTerminal() {
 
 func (c *Client) registerAttachingExactStream(stream *exactRunState) error {
 	c.turnMu.Lock()
+	if c.isClosed() {
+		c.turnMu.Unlock()
+		return ErrClientClosed
+	}
 	if len(c.exactAttaching[stream.threadID]) != 0 {
 		c.turnMu.Unlock()
 		return fmt.Errorf("%w: thread_id=%s", errConcurrentTurnStart, stream.threadID)

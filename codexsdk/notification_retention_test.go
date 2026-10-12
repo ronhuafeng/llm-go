@@ -541,3 +541,20 @@ func TestNotificationRetentionDenseRawChargesGoStorageBeyondWireBytes(t *testing
 	c.routeNotification(rpcNotification{method: RawResponseItemCompletedExtension, params: params})
 	requireRetentionFailure(t, c)
 }
+
+func TestNotificationRetentionClosedAdmissionCannotRefillFailureBuffers(t *testing.T) {
+	c := retentionClient(t, 100, 1<<20)
+	c.failClient(ErrNotificationRetention)
+	c.routeExactNotificationError(rpcNotification{method: "thread/tokenUsage/updated", params: map[string]any{"turnId": "late", "private": "private-sentinel"}}, errors.New("late decode"))
+	s := newExactRunState(c, "late", StartedThreadRun{Start: facadeThreadStartResponse("late", "fixture")})
+	if err := c.registerAttachingExactStream(s); !errors.Is(err, ErrClientClosed) {
+		t.Fatal("closed client admitted attachment")
+	}
+	c.turnMu.Lock()
+	remaining := len(c.pendingDiagnostics) + len(c.exactAttaching)
+	c.turnMu.Unlock()
+	count, bytes := retentionFacts(c.retention)
+	if remaining != 0 || count != 0 || bytes != 0 {
+		t.Fatal("closed admission refilled failure buffers")
+	}
+}
