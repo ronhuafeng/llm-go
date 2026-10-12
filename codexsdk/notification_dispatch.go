@@ -157,8 +157,8 @@ func (c *Client) finishDispatchStop(handler ServerNotificationHandler, current *
 }
 
 func (c *Client) discardCurrentAndQueuedNotifications(accepted acceptedNotification) {
-	c.endNotificationHandler()
 	accepted.releaseDispatchWaiter()
+	c.endNotificationHandler()
 	c.discardAcceptedNotifications()
 }
 
@@ -222,10 +222,10 @@ func (c *Client) discardAcceptedNotifications() {
 	for {
 		select {
 		case accepted := <-c.notifications:
+			accepted.releaseDispatchWaiter()
 			if c.hasNotificationHandler() {
 				c.endHandlerWork()
 			}
-			accepted.releaseDispatchWaiter()
 		default:
 			return
 		}
@@ -333,6 +333,14 @@ func (c *Client) shutdown() {
 	case <-c.handlersDone:
 	case <-timer.C:
 	case <-c.ctx.Done():
+		// Cancellation stops delivery and releases queued ownership promptly, but
+		// cooperative work still gets the remaining finite grace to finish its
+		// error/fence/lease publication. Process cleanup never waits on this join.
+		c.discardAcceptedNotifications()
+		select {
+		case <-c.handlersDone:
+		case <-timer.C:
+		}
 	}
 	if c.cancel != nil {
 		c.cancel()

@@ -77,7 +77,9 @@ returns. Caller return remains bounded while that owned cleanup proceeds.
 
 A Go callback ignoring cancellation cannot be killed. It stays reported as
 pending, and its retained notification remains charged until it returns. Queued
-reservations are released on discard; readable Exact Run histories keep their
+reservations are released on discard. Canceled cooperative callbacks get the
+remaining grace to finish publishing delivery facts and releasing reservations;
+pending work is decremented only after that cleanup. Readable Exact Run histories keep their
 ordinary retention ownership. Late callbacks, EOF or terminal delivery cannot
 replace the first close/failure cause or create a successful run. EOF during
 teardown waits for the publisher's partial-evidence snapshot rather than racing
