@@ -2,18 +2,15 @@ package protocolsync
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/ronhuafeng/llm-go/codexsdk/internal/codexexec"
 )
 
-func TestOracleFailureSurvivesRealSuccessFloodAndRepairCheckpoint(t *testing.T) {
+func TestOracleFailureSurvivesRealSuccessFlood(t *testing.T) {
 	const pkg = "github.com/ronhuafeng/llm-go/codexsdk/internal/schemaoracleprobe"
 	const cause = "FIRST_ASSERTION_CAUSE required record field"
 	const secret = "private-oracle-test-secret-938247"
@@ -73,25 +70,7 @@ func TestTrustedSchemaOracle(t *testing.T){
 			t.Fatalf("retained bound %d", len(retained))
 		}
 	}
-	req := repairFixture(t)
-	req.MaxRounds = 2
-	round := 0
-	req.Executor = repairExecutorFixture{run: func(_ context.Context, prompt, session string) (codexexec.Result, error) {
-		round++
-		if round > 1 && (!strings.Contains(readFeedbackPrompt(t, prompt), cause) || strings.Contains(prompt, cause) || strings.Contains(prompt, secret)) {
-			t.Fatalf("repair feedback lost cause or secret: %s", prompt)
-		}
-		writeFile(t, filepath.Join(req.RepoRoot, "codexsdk/internal/protocolgen/fixture.go"), "package protocolgen // same proposal\n")
-		return codexexec.Result{Status: "completed", SessionID: "fixture-session"}, nil
-	}}
-	req.Oracle = func(context.Context, ResumeRequest) (SyncResult, []byte, error) {
-		return SyncResult{Stage: "verification"}, nil, fmt.Errorf("independent schema contract: %s", boundedRepairDiagnostic(target.diagnostic.String()))
-	}
-	_, _ = Repair(context.Background(), req)
-	cp := readRepairCheckpoint(t, req.CheckpointDir)
-	if round != 2 || !strings.Contains(cp.Diagnostic, cause) || strings.Contains(cp.Diagnostic, secret) || len(cp.Diagnostic) > 8192 {
-		t.Fatalf("round=%d checkpoint=%+v", round, cp)
-	}
+
 }
 
 func TestOracleDiagnosticKeepsBoundedUnfinishedAndRootContext(t *testing.T) {

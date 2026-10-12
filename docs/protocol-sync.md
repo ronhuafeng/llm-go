@@ -1,89 +1,87 @@
 # Codex protocol synchronization
 
-This document owns how `codexsdk` moves between selected Codex App Server
-protocol sources. The selected source owns wire meaning. Runtime integration
-acceptance is separate and is defined in [`live-codex.md`](live-codex.md) and
-[`verify.md`](verify.md).
+One native Codex goal owns the complete fixed-target upgrade. The
+[upstream skill](../.agents/skills/codexsdk-sync-upstream/SKILL.md) defines its
+passing standard; the [goal prompt](../.agents/skills/codexsdk-sync-upstream/goal.txt)
+contains the objective and trusted launch bindings. An ordinary `codex exec`
+prompt containing `/goal` does not enable native goal continuation.
 
-## Source and runtime are different proofs
+This replacement is developed in Draft [#421](https://github.com/ronhuafeng/llm-go/pull/421).
+Its engineering tests and the actual target-upgrade acceptance are separate
+obligations in [#420](https://github.com/ronhuafeng/llm-go/issues/420). The current
+execution ceiling is Draft-only: do not merge. Formal goal execution awaits
+review of the complete prompt; a green refactor PR is not a completed upgrade.
 
-An accepted protocol baseline records exact upstream source identity together
-with schema and generated Go. A target is one selected upstream ref and peeled
-commit. A candidate is fresh temporary construction for that target, not an
-accepted baseline or durable repair queue.
+## One goal, one acceptance standard
 
-Protocol provenance may build the selected Rust source to reconstruct schema.
-The real integration suite instead uses the corresponding official installed
-Codex release as an external black-box runtime. Do not confuse the schema-build
-executable with the production/runtime fixture, or import the upstream Rust
-test suite as a downstream conformance obligation.
+The trusted launcher fixes the accepted base, exact upstream ref/peeled SHA,
+credential-free candidate workspace, dedicated Draft PR/branch, model and runtime.
+It uses `gpt-6.1-sol/high`; official latest CLI is resolved, installed, checked
+and recorded once per run. The selected schema source is independent of that
+CLI version. Live retains its own existing `gpt-6-sol/high` fixture.
 
-The repair executor and live suite resolve the official latest CLI once per
-execution, then install, verify, and record that exact runtime independently of
-the candidate's exact schema source. Even provenance-only
-baseline advances require the applicable live check. This does not narrow
-protocol generation to live-covered methods: full reachable wire representation
-and scenario-based runtime evidence have distinct jobs.
+The goal chooses how to generate, adapt, correct justified verifier assumptions,
+verify and repair. Codex owns continuation through its native GoalSet API; there
+is no host-authored repair round, verifier role, separate verifier PR or merge
+continuation. Goal completion is only a lifecycle fact. Acceptance additionally
+requires unchanged candidate bytes and actual exact-head checks.
 
-**Live implementation:** #376 supplies the native provider
-fixture and fourth required result. #377 supplies the structured composed call
-and continuous persistent Start/Resume/Fork stories through the same suite.
-Their actual workflow results own execution evidence. Runtime proof and wire
-reconstruction remain separate.
+The fixed no-argument `verify_upstream` tool:
 
-## Ownership
+1. Freezes tracked and intended untracked candidate content. It runs source,
+   generated and exact-source provenance checks without credentials or network,
+   using trusted prewarmed inputs. Target-schema probes and original-baseline
+   public regressions remain real checks; candidate verifier changes execute
+   inside the same existing isolation boundary.
+2. On local success, validates the fixed repository, Draft PR, App actor, branch,
+   original base, exact target, scope and snapshot. It appends one normal commit
+   to the observed head. Identical content reuses the same head. Uncertain effects
+   are read back; another remote head is not silently adopted.
+3. Waits for that exact head's latest trusted PR-verification attempt, including
+   the existing real Live job. It does not dispatch retries. The same goal reads
+   the complete diagnostic JSONL path and repairs a failed candidate.
 
-Go owns target policy, fresh construction, comparison, planning, application,
-and deterministic checks. GitHub Actions owns triggers, permissions, and
-publication authorization. An Agent may propose narrowly scoped handwritten
-repair for a typed unresolved representation; it does not select the target,
-certify correctness, publish, or integrate.
+Local checks and CI call the same gate implementations. Source, generated,
+provenance and Live remain the four contexts in [verify.md](verify.md). A thin
+CI launcher also records compiler/start failures when the Go gate itself cannot
+start. Diagnostic files have a 16 MiB hard bound: overflow or incomplete output
+is explicitly incomplete, never a truncated successful report. The model sees
+only a file path; it reads records incrementally. Do not retain model transcripts.
 
-The checked-in baseline metadata is the source authority. PR titles, visible
-prose, hidden publication markers, manifests, and coverage annotations are
-projections or explanatory data, not substitutes for that identity and fresh
-upstream facts. Observation timestamps are not protocol meaning.
+Contract-grounded verifier changes belong with implementation in the same
+proposal. Legitimate evolution must pass and real defects must still fail;
+expectations derive from the exact source and accepted public contract. Source
+identity, credential isolation, publication and required-check controls remain
+outside the goal's editable scope. Independent review remains necessary.
 
-The formal upstream repair Agent is configured as `gpt-6.1-sol` with `high`
-reasoning. The [official model documentation](https://developers.openai.com/api/docs/models/gpt-6.1-sol)
-confirms that ID and effort; availability and credit at the configured provider
-remain separate operational prerequisites. The Live suite retains its separately
-configured `gpt-6-sol/high` fixture. Neither model choice selects the schema target.
+## Runtime and effect boundaries
 
-## Construction sequence
+The complete App Server runs in a fixed Ubuntu GitHub-hosted empty-root bwrap
+view: public runtime trees, exact toolchains/module cache, the candidate and its
+isolated state, plus read-only diagnostic files. A private PID namespace and
+fresh proc hide the publishing parent's process environment. Host HOME, GitHub
+configuration, controller checkout, temporary directories and filesystem sockets
+are not exposed. Provider networking remains available to the CLI; Codex's inner
+model-command sandbox remains network-denied. This layout is not a claim of
+support for arbitrary hosts or isolation from host TCP/abstract sockets.
 
-```text
-accepted baseline + exact target
-  -> fresh complete/stable candidate
-  -> read-only Plan
-  -> bounded exact-session handwritten repair for typed semantic_unresolved
-  -> independent re-plan/check in a disposable sandbox; feed repairable failures back
-  -> Apply only a complete ready plan
-  -> deterministic checks
-  -> publish protected sync PR
-  -> required PR proofs, including the accepted live runtime gate
-  -> trusted auto-forward integration
-```
+The trusted parent alone holds the existing repository-scoped App publication
+identity. It exposes no arbitrary command/path/ref input through the tool. The
+existing CI Live trust arrangement is unchanged: candidate CI tests there have
+provider access. No new Live credential broker is introduced. Missing setup or
+expired credentials produce a concrete blocked outcome, not an alternative identity.
 
-Plan must not partially mutate the accepted worktree. It constructs and retains
-complete candidate bytes in temporary state. Apply checks that the accepted
-baseline has not changed and materializes the prepared result; it does not
-reread upstream inputs or repeat generation. Partial generation and
-surface-skipping modes are unsupported.
+`PROTOCOL_SYNC_APP_CLIENT_ID`, `PROTOCOL_SYNC_APP_BOT_ID` and
+`PROTOCOL_SYNC_APP_PRIVATE_KEY` retain their existing roles. The App requests
+only existing Contents and Pull requests write grants for this repository;
+check/artifact observations use the read-only workflow identity. The separate
+Auto-forward App is not used by the goal. Neither the tool nor this workflow
+marks ready, merges, tags or releases.
 
-Planning also compiles the public SDK/protocol packages and handwritten tests
-using a temporary Go overlay and `go test -c`; initializers and tests do not
-execute. If the accepted baseline compiles and the candidate does not, report
-typed `go_compatibility` unresolved evidence before Apply. If both fail, retain
-both diagnostics without blaming upstream. Resume repeats that check; final
-executable tests and the isolated generated build remain separate proofs.
-
-One package constructor is shared by planning, reproducibility, and protocol
-CLI operations. Complete and stable schema visibility are distinct inputs.
-Reuse selected types/names inside a construction, derive the facade from those
-facts, and check generated/handwritten declaration and receiver collisions in
-each real Go package. Diagnostics retain available source and Go locations;
-never infer upstream ownership by reversing emitted names.
+Native terminal-goal, idle-turn and observed-completed-turn conditions are all
+required. Blocked/paused/limit/cancellation/disconnect/cleanup errors cannot imply
+acceptance. The launcher supplies one finite deadline, including verification
+and CI wait. It never resets the old pipeline's exhausted checkpoint or budget.
 
 ## Fresh wire facts
 
@@ -199,185 +197,6 @@ method. Historical `facade_status` cannot overrule current construction;
 `internal.*` targets remain intentionally non-public. Protocol manifests and
 coverage remain generator machinery, not a second live capability registry.
 
-## Pending PRs and recovery
-
-Before spending new generation or Agent work, observe native GitHub PR/branch
-state. An unchanged App-owned pending PR for the same base/target can be returned
-with current check observations; that acquires no new proof and does not mean
-main has integrated it. Main's checked-in baseline owns accepted state.
-
-Check ownership using the configured App bot ID, native PR creator/latest ref
-activity actor, actual repository/base/head, source identity, after-SHA, and
-allowed paths. Client ID only mints a token; commit author text and editable
-metadata do not establish push authority. Ambiguous ownership or human source
-interference requires maintainer intervention. Manually closed candidates stay
-paused, a changed upstream tag is an integrity failure, and an older attempt
-must not replace a newer pending stable target.
-
-When the target or base changes, reconstruct and validate against that exact
-base. Carry the observed old head to publication and use an explicit Git lease
-for an existing branch. Recheck native state after writing. The PR API's
-`base.sha` may lag main; selected checkout and remote base ref own the base.
-Read back lost write responses before repeating effects. An orphan App-owned
-branch must be rebuilt and verified before its PR is completed.
-
-New branch names derive from target identity and accepted base SHA, not run
-number or timestamp. B/U retries reuse the same publication epoch; a later
-proposal after an earlier merge gets a distinct base-derived branch. Open
-pending branches retain their name on update. Native refs/PRs and accepted
-metadata are sufficient cross-run state.
-
-`repair_pending` is explicit maintainer recovery for an open App-owned sync head
-that is not a single candidate commit. It does not regenerate protocol files.
-Replay its valid protocol diff from the parent already contained in main onto
-current main, then update with force-with-lease so later main changes remain.
-Do not repair a single-commit head, a closed candidate, or mismatched baseline
-identity. Recovery is not the integrator's responsibility.
-
-## Agent scope
-
-Only owner-identified unsupported representation or missing mapping/prerequisite
-produces `semantic_unresolved`. I/O, malformed source, identity, storage,
-environment, and other ordinary failures retain their cause and fail normally.
-Never parse error prose to authorize an Agent.
-
-Each bounded Agent repair receives the already selected target and concrete
-stage/path/reason. Read `codexsdk/internal/protocolsync/changes.go`; its policy
-owns allowed handwritten Go/test paths. Changes to sync policy, acceptance,
-identity, publication, validators, or unknown generated paths are outside that
-repair. Report `needs-maintainer` rather than enlarging scope.
-
-The trusted workflow holds a digest of the complete per-run candidate outside
-the proposal. Before re-planning, check Git-visible scope and copy candidate
-inputs into an isolated directory only if every byte/path and target matches.
-Missing, added, redirected, or altered inputs fail. Use the same copy for the
-second Plan and Apply.
-
-Before proposed code executes and after tests, verify the prebuilt control
-binary and run its scope check. Normalize changed Go before sealing the patch,
-compare proposal bytes before/after executable checks, and recheck candidate
-identity. A separate publication runner verifies the patch and uses control
-built from trusted checkout. Proposed code never receives repository-write
-credentials. A second typed unresolved plan or deterministic validation failure is feedback to
-that exact identified session, not acceptance or immediate abandonment. The trusted
-controller stops on no proposal progress, six rounds (maximum configurable twelve),
-90 minutes, cancellation, or a source/scope/environment block. An executor 404 is
-reported as endpoint-not-found without guessing another URL. Native preflight
-proves an actual selected-model sandbox write before repair.
-
-Every oracle round clones the accepted base, applies only the handwritten proposal,
-and executes proposed Go in a no-network Linux namespace with private temp/home,
-read-only Git identity and candidate inputs. Proposed target tests, generation checks,
-and vet run first. They supplement independent evidence; they do not choose it.
-
-The [reviewed verifier repair flow](verifier-repair-flow.md) gives the separate
-verifier role a bounded proposal path: independent executed counterexamples and
-fresh read-only review, a verifier-only PR through the normal four checks and
-auto-forward, then a fresh accepted-main controller on the retained target.
-Neither role can replace the running controller or approve its own proposal.
-
-Verifier implementation and version-specific assertions may evolve. Their authority
-is the selected upstream contract plus explicit local wire guarantees, not the old
-verifier's source code. A verifier change must show a legitimate change rejected by
-the old rule and an actual defect still rejected by the replacement, with separate
-review of its expectations. Merely copying the candidate's reflection-based expected
-values or removing the failing gate is not independent evidence.
-
-The existing controller owns two verification paths:
-
-- Target contract: `internal/schemaoracle` reads the retained exact schema bytes,
-  selects changed/new public-reachable contracts and their transitive users, and computes
-  valid/invalid witnesses with an independent JSON Schema validator. Required
-  bindings and exact declared fields come from source, never from whichever Go
-  types the proposal happened to generate. Public roots come from upstream
-  request/notification aggregates and their exact `common.rs` response mappings;
-  exporting an internal-only standalone schema does not make it a public root.
-  Old public reachability is computed separately from the accepted raw aggregates
-  and their frozen, provenance-checked baseline manifest response mappings. Those
-  mappings must match the accepted aggregate requests and source identity. Target
-  manifest projections never choose either version's coverage.
-  Missing reachable Go bindings still fail compilation. A separate read-only Go test package
-  checks field/tag coverage, rejection and lossless JSON round trips. Candidate
-  tests and `TestMain` cannot replace its run/pass event. The explicit local overlay
-  preserves standalone public decoding of property-bearing objects and named records,
-  including empty records, unless the source declares them open. It derives
-  record roles from raw schema roots/definitions rather than a type-name list or
-  candidate declarations; open union alternatives are evaluated against the
-  whole schema.
-- Baseline regressions: the proposed generator runs through its stable CLI against
-  the accepted baseline schema in another disposable tree. Accepted SDK/runtime
-  assertions exercise proposed handwritten implementation with matching baseline
-  generated types. The accepted test set is selected before applying proposal code;
-  every selected test must freshly run and pass, so an initializer or `TestMain`
-  exiting early cannot supply success. This does not freeze private generator helper signatures or put
-  old version-specific literals onto incompatible target types.
-
-Witnesses vary one member at a time; they do not enumerate Cartesian combinations.
-Repeated path/branch obligations are deduplicated before constructing JSON. Each
-contract has one test with indexed failures, rather than one emitted test event per
-probe. Construction honors the existing repair cancellation and deadline.
-
-Traversal, witness and output limits are bounded and fail with an uncovered source
-path rather than silently reducing proof. New schema constructs can require a
-reviewed checker extension with positive and negative cases. The checker is not a
-claim of exhaustive program equivalence. Source identity, authorization, scope,
-immutable input and publication controls remain mandatory across verifier revisions.
-Tests cannot modify the control plane, probe source or publication workspace.
-Frozen patch and candidate bytes are rechecked after execution. Only verified
-output is applied back; failed generated trees are discarded.
-
-On failure or interruption, a bounded checkpoint artifact retains the complete
-candidate, handwritten patch, base/target/digests, consumed round count and sanitized
-stage diagnostics. Independent oracle diagnostics prioritize failed-test output
-and compiler errors within the feedback bound; successful test chatter must not
-displace an already observed failure. Truncation remains explicit, and a missing
-assertion is not reconstructed from the package failure summary. Structured Go
-build output is retained as compiler feedback; a build failure never counts as
-an executed contract test. These 4 KiB/8 KiB summaries are operator context,
-not the repair author's evidence transport.
-
-The trusted controller writes verification failure records to one streamed JSONL
-file outside the proposal workspace. Repair and verifier-author prompts receive
-only its path. Each failed target probe includes the controller-frozen input and
-source/keyword/instance locations; union explanations remain explicitly sampled
-or ambiguous. Native process output is labeled untrusted, distinct from frozen
-schema facts. Provisional passing-test output is discarded. Existing known-secret
-redaction applies before storage, including across output chunks and to decoded
-witness strings; redacted records are marked and are not exact replayable inputs.
-This is not a guarantee of arbitrary sensitive-data detection. The existing bounded
-verifier final analysis may be retained as untrusted reviewer analysis, never as
-checker authority or a raw model transcript.
-
-The path handoff includes fixed instructions to read incrementally and keep each
-tool response below 64 KiB, using byte ranges for unusually large records. This
-does not truncate or filter the file: the author must process all its records.
-The executor independently retains its existing 1 MiB per-CLI-event limit.
-Invalid JSON, invalid completion order, an oversized event, and reader failure
-have distinct fixed diagnostics; raw event text is never retained. Failure errors
-may include only a numeric process exit code or a fixed wait-failure marker,
-without command arguments, paths, stderr, or model transcripts. These facts aid
-diagnosis; an oversized feedback file alone does not prove an oversized CLI event.
-
-The JSONL has a 16 MiB file limit, independently of console and model budgets.
-Overflow, unframed output, or a write/close/seal failure blocks the handoff rather
-than advertising incomplete evidence as complete. Its header/footer and checkpoint
-reference bind base, target, candidate, proposal, round, completeness and digest.
-Only the referenced sealed file survives checkpoint retention/publication; restored
-paths are resolved locally and rechecked. Neither the file nor an old successful
-footer supplies acceptance: native execution and fresh verification still decide.
-The artifact contains no Codex home, provider credential, or raw model transcript.
-An explicit `recovery_run_id` workflow dispatch may restore the latest attempt's
-artifact from this trusted workflow on the exact current main commit. Native run
-origin, fresh upstream ref, candidate bytes, proposal scope, and current main are
-checked before replay. Stale base/target or tampering requires reconstruction.
-Recovery starts a new finite invocation and new session with the retained task;
-no prior verification is reused. The artifact is a cache; main and native Git refs
-remain authoritative. Recovery is never scheduled automatically to reset a budget.
-
-The protocol Agent's model/effort is owned by its workflow, independently of the
-live-suite model. Do not change live scenarios, runtime selection, or acceptance
-rules to make an automatic protocol repair pass green.
-
 ## Deterministic proof and build inputs
 
 Before publication, require exact target identity, matching fresh schema,
@@ -412,77 +231,25 @@ Stale requiredness, stability, mappings, identity, or generated artifacts fail
 even when checked-in Go agrees with stale metadata. Validation-only invokes no
 Agent, accepted-worktree Apply, or publication.
 
-## Results and effects
+## Native commands and final evidence
 
-Keep native results distinct:
+`protocolupgrade sync` still resolves, generates, plans and applies a ready
+candidate; an unresolved representation remains a useful diagnostic for the same
+goal. `-offline-upstream` uses the explicitly prewarmed official-origin ref and
+commit, without replacing the generation implementation. The goal may use native
+`compare`, `apply` and `check` while editing; `check` alone is not full acceptance.
 
-| Result | Meaning |
-| --- | --- |
-| `baseline_matches` | Baseline identity already matches; no fresh upstream proof. |
-| `schemas_match` | Read-only schema comparison only; no provenance advance or full derived proof. |
-| `exact_verified` | Fresh reconstruction matches semantic artifacts; other PR proofs remain separate. |
-| `plan_ready` | Read-only construction succeeded; not applied. |
-| `applied` | Candidate materialized locally; not published or integrated. |
-| `pr_pending` | An observed/published PR awaits current acceptance and integration. |
+`verify` performs local checks only and requires an external trusted source cache.
+`verify-ci-gate` runs one of the same four checks in its established CI context.
+The fixed tool composes local success, append-only publication and actual CI;
+the model cannot substitute the CI-only entrypoint to obtain host credentials.
 
-A provenance-only plan advances the exact source identity when a newer target
-produces unchanged protocol bytes. Mechanical drift needs no handwritten
-semantic repair; semantic drift may use the one bounded pass. Neither permits
-bypassing runtime acceptance.
+`diagnose` and `sync -force-compare -validation-only` retain their read-only
+workflows. The latter rebuilds the checked-in exact source and never invokes an
+Agent, accepted-worktree Apply, commit, PR mutation, tag or release.
 
-Failures report the last native stage, known target, and an owner-assigned
-category only when established. Unknown attribution stays unknown. File
-locations are diagnostics, not repair authority. A green summary step cannot
-certify failed/cancelled work, and an earlier Apply does not override a later
-failure.
-
-Publication creates or updates a protected proposal only after deterministic
-proof. It does not merge, tag, release, or distribute the module. Open Git refs
-and the checked-in baseline own identity; the hidden `codexsdk-upstream-sync`
-block is recoverable metadata. Preserve operator-owned visible PR prose rather
-than making its wording correctness authority.
-
-## Existing publication App setup
-
-Use a repository-scoped GitHub App with Contents and Pull requests read/write,
-installed only on `ronhuafeng/llm-go` where possible. Configure:
-
-- Actions variable `PROTOCOL_SYNC_APP_CLIENT_ID`: the App Client ID used to mint
-  tokens, not its installation ID;
-- Actions variable `PROTOCOL_SYNC_APP_BOT_ID`: numeric bot user ID used for
-  ownership checks;
-- Actions secret `PROTOCOL_SYNC_APP_PRIVATE_KEY`: the private PEM, never source
-  or diagnostic content.
-
-The separate publisher uses a read-only built-in token, then requests only the
-repository/write grants needed for publication. Only the publication effect
-receives the short-lived token; it is not a job output. Agent/proposal tests
-and read-only verifiers receive neither App key nor token. Missing or invalid
-configuration fails with no fallback identity.
-
-Observe required checks on actual bot-created/updated PR events; a manual
-workflow dispatch alone does not prove that event chain. Publication authority
-is separate from the Auto-forward integration App and from model-provider
-credentials.
-
-## Final acceptance and native commands
-
-The current PR head H is the sole candidate. Required source, generated, fresh
-H/U provenance, and the accepted live-runtime proof must satisfy
-[`verify.md`](verify.md). The live test uses H's synced official runtime and the
-active scenarios; a passing schema build is not runtime evidence.
-
-Current main must remain an ancestor of H. The existing trusted integration
-route may only fast-forward to that verified H. A stale proposal needs new
-construction/rebase and new results; the integrator does not repair it.
-
-The Go owner exposes `protocolupgrade sync`, `scope`, `resume`, `check`, and
-publication/staging control. Ready plans apply; unresolved plans leave the
-accepted worktree untouched; resume re-plans the same candidate after the
-bounded handwritten proposal. `validation_only` requires `force_compare` and
-binds to the checked-in source; an explicit ref must resolve to that identity.
-It is diagnostic and performs no commit, push, PR mutation, tag, or release.
-
-Read the current command/workflow inputs rather than inventing another control
-path. Keep the accepted live integration migration separate from deterministic
-schema validation. See [`auto-forward.md`](auto-forward.md) for integration.
+Record actual base/target/head/PR/run and all four results. A stale base blocks
+publication or acceptance, and a late result cannot overwrite newer work.
+Current authorization stops at the verified Draft PR. Any future integration
+must use the normal protected exact-head fast-forward route described in
+[auto-forward.md](auto-forward.md), under separate applicable authorization.

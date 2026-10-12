@@ -67,6 +67,7 @@ jobs:
           rustup default stable
           sudo apt-get update
           sudo apt-get install -y \
+            bubblewrap \
             clang \
             cmake \
             libasound2-dev \
@@ -74,27 +75,47 @@ jobs:
             pkg-config \
             protobuf-compiler
 
-      - name: Verify exact upstream provenance
-        id: exact
+      - name: Enable contract sandbox namespaces on ephemeral hosted VM
         if: ${{ steps.classify.outputs.required == 'true' }}
-        working-directory: codexsdk
+        env:
+          HOSTED_ENVIRONMENT: ${{ runner.environment }}
+        run: |
+          set -euo pipefail
+          test "${HOSTED_ENVIRONMENT}" = github-hosted
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: Prepare exact accepted contract baseline
+        if: ${{ steps.classify.outputs.required == 'true' }}
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          base="${RUNNER_TEMP}/accepted-contract-base"
+          git clone --no-hardlinks --no-local "${GITHUB_WORKSPACE}" "${base}"
+          git -C "${base}" checkout --detach "${BASE_SHA}"
+          test "$(git -C "${base}" rev-parse HEAD)" = "${BASE_SHA}"
+          echo "LLMGO_GOAL_BASE_ROOT=${base}" >> "${GITHUB_ENV}"
+
+      - name: Verify provenance through shared gate
+        id: goal_gate
+        if: ${{ steps.classify.outputs.required == 'true' }}
         env:
           GOTOOLCHAIN: local
         run: |
-          set -euo pipefail
-          go run ./internal/cmd/protocolupgrade sync \
-            -repo-root "${GITHUB_WORKSPACE}" \
-            -module-root . \
-            -upstream-repo https://github.com/openai/codex.git \
-            -event-name "${GITHUB_EVENT_NAME}" \
-            -force-compare \
-            -validation-only
-          git -C "${GITHUB_WORKSPACE}" diff --exit-code
-          if [[ -n "$(git -C "${GITHUB_WORKSPACE}" status --porcelain --untracked-files=normal)" ]]; then
-            git -C "${GITHUB_WORKSPACE}" status --short >&2
-            echo "exact provenance verification modified the PR head worktree" >&2
-            exit 1
-          fi
+          set +e
+          path="$(python3 .github/scripts/verify-protocol-gate.py provenance)"
+          status=$?
+          echo "path=${path}" >> "${GITHUB_OUTPUT}"
+          echo "head=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
+          exit "${status}"
+
+      - name: Retain complete provenance diagnostics
+        if: ${{ always() && !cancelled() && steps.goal_gate.outputs.path != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: protocol-goal-provenance-${{ steps.goal_gate.outputs.head }}-${{ github.run_attempt }}
+          path: ${{ steps.goal_gate.outputs.path }}
+          if-no-files-found: error
 
       - name: Summarize protocol provenance
         if: ${{ always() && !cancelled() }}
@@ -102,10 +123,10 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           REQUIRED: ${{ steps.classify.outputs.required || 'false' }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-          TARGET_REF: ${{ steps.exact.outputs.target_ref }}
-          TARGET_SHA: ${{ steps.exact.outputs.target_sha }}
-          OUTCOME: ${{ steps.exact.outputs.outcome }}
-          REASON: ${{ steps.exact.outputs.reason }}
+          TARGET_REF: ${{ steps.goal_gate.outputs.target_ref }}
+          TARGET_SHA: ${{ steps.goal_gate.outputs.target_sha }}
+          OUTCOME: ${{ steps.goal_gate.outputs.outcome }}
+          REASON: ${{ steps.goal_gate.outputs.reason }}
         run: |
           {
             echo '## Codex protocol provenance'
@@ -138,11 +159,6 @@ jobs:
           go-version-file: go.mod
           cache: false
 
-      - name: Workflow syntax
-        env:
-          GOTOOLCHAIN: local
-        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
-
       - name: Install repair oracle sandbox
         run: sudo apt-get update && sudo apt-get install -y bubblewrap
 
@@ -157,31 +173,30 @@ jobs:
           # This VM-only prerequisite does not change the child sandbox policy.
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
-      - name: Prove repair oracle isolation
-        id: repair_isolation
-        env:
-          GOTOOLCHAIN: local
-          LLMGO_REPAIR_SANDBOX_TEST: "1"
-        run: |
-          set -euo pipefail
-          package=./codexsdk/internal/protocolsync
-          # Keep Go's ten-minute invocation limit and the outer job limit. Each
-          # selected top-level test (including all its subtests) runs once.
-          listing="$(go test "${package}" -list '^(TestLiveRepairSandbox|TestLiveVerifierProofMatrix)')"
-          tests="$(printf '%s\n' "${listing}" | grep -E '^Test[^[:space:]]+$' | sort -u)"
-          test -n "${tests}"
-          while IFS= read -r name; do
-            go test "${package}" -run "^${name}$" -count=1 -timeout=10m -v
-          done <<< "${tests}"
+      - name: Set up official Codex latest for native boundary checks
+        id: runtime
+        uses: ./.github/actions/setup-codex
 
-      - name: Root module proof
+      - name: Verify source through shared gate
+        id: goal_gate
         env:
           GOTOOLCHAIN: local
+          CODEX_CLI_VERSION: ${{ steps.runtime.outputs.version }}
         run: |
-          set -euo pipefail
-          go mod tidy -diff
-          go vet ./...
-          go test -race ./...
+          set +e
+          path="$(python3 .github/scripts/verify-protocol-gate.py source)"
+          status=$?
+          echo "path=${path}" >> "${GITHUB_OUTPUT}"
+          echo "head=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
+          exit "${status}"
+
+      - name: Retain complete source diagnostics
+        if: ${{ always() && !cancelled() && steps.goal_gate.outputs.path != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: protocol-goal-source-${{ steps.goal_gate.outputs.head }}-${{ github.run_attempt }}
+          path: ${{ steps.goal_gate.outputs.path }}
+          if-no-files-found: error
 
       - name: Worktree remains clean
         if: ${{ always() && !cancelled() }}

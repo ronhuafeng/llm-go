@@ -72,8 +72,8 @@ failure diagnostics return by JSONL path to the same goal. No outer repair turn,
 verifier role or merge continuation is added. Normal cancellation/deadline bounds
 the outstanding tool call.
 
-The tool is not yet implemented. The revised skill must not be used for a formal
-goal before implementation and prompt review. Local-only verification explicitly
+The implementation is under review in this Draft PR. The revised skill must not
+be used for a formal goal before exact-head verification and prompt review. Local-only verification explicitly
 reports that limited scope; it cannot stand in for the four-gate result. Existing
 CI Live retains its current credential/trust arrangement. Candidate code in that
 job already has provider access; this plan does not claim otherwise or introduce
@@ -118,3 +118,21 @@ The user's current ceiling is **no merge**. Both PRs remain Draft; neither
 implementation CI nor the goal may merge them. Main deployment and eventual
 integration are separate, still-unfinished outcomes. A green refactor PR or a
 goal's self-report is not evidence that the target upgrade succeeded.
+
+## Implementation layout
+
+The native AppServer adapter owns one goal lifecycle and one fixed tool. The
+shared gate implementation freezes candidate bytes, preserves complete JSONL
+diagnostics, checks accepted-base behavior plus exact upstream contracts, and
+uses the same gate commands in CI. The fixed Draft publisher reuses existing
+source identity, scope and exact-head acceptance checks; it performs ordinary
+branch pushes only. No verifier PR, role switch, checkpoint or merge continuation
+remains. Existing non-goal `exec` consumers retain their adapter.
+
+The AppServer process and descendants run under the existing Linux bubblewrap
+boundary with an empty root, fixed public runtime paths, private process/home/tmp
+state, candidate-write and diagnostics-read-only mounts. The controller checkout,
+GitHub authentication and host file sockets are not mounted. Only the trusted
+parent performs the fixed publication operations. The supported proof target is
+the temporary Ubuntu GitHub-hosted VM; other platforms are not claimed. CI Live
+continues using its existing trust arrangement, without a new credential service.

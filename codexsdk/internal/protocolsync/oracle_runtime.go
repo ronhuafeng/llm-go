@@ -13,13 +13,26 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 
 	"github.com/ronhuafeng/llm-go/codexsdk/internal/schemaoracle"
 )
+
+type oracleRequest struct {
+	failure                            func(string) error
+	RepoRoot, ModuleRoot, CandidateDir string
+	BaseRoot                           string
+	Output                             io.Writer
+}
+
+func (r oracleRequest) output() io.Writer {
+	if r.Output == nil {
+		return io.Discard
+	}
+	return r.Output
+}
 
 type oracleContractError struct{ error }
 type oracleIntegrityError struct{ error }
@@ -30,7 +43,8 @@ func (e *oracleIntegrityError) Unwrap() error { return e.error }
 // runTargetOracle keeps expectations out of the candidate's test package. The
 // controller derives source coverage and compiles a separate immutable probe;
 // candidate TestMain functions cannot skip it or supply its expected values.
-func runTargetOracle(ctx context.Context, req ResumeRequest, root string, sandbox oracleSandbox) error {
+func runTargetOracle(ctx context.Context, req oracleRequest, root string, sandbox oracleSandbox) error {
+	req.Output = &serializedOracleOutput{writer: req.output()}
 	baseline := filepath.Join(req.ModuleRoot, "internal/protocolschema/appserver/v2")
 	specification, err := schemaOraclePublicRequest(baseline, filepath.Join(req.CandidateDir, "schema"), filepath.Join(root, "codexsdk/protocolv2"), filepath.Join(req.CandidateDir, "common.rs"))
 	if err != nil {
@@ -48,6 +62,12 @@ func runTargetOracle(ctx context.Context, req ResumeRequest, root string, sandbo
 	if err != nil {
 		return &oracleContractError{err}
 	}
+	return executeTargetOracle(ctx, req, root, sandbox, source, targets)
+}
+
+func executeTargetOracle(ctx context.Context, req oracleRequest, root string, sandbox oracleSandbox, source []byte, targets []schemaoracle.Target) error {
+	req.Output = &serializedOracleOutput{writer: req.output()}
+	var err error
 	dir := filepath.Join(root, "codexsdk/internal/schemaoracleprobe")
 	if err = os.Mkdir(dir, 0700); err != nil {
 		return fmt.Errorf("create independent probe: %w", err)
@@ -64,13 +84,14 @@ func runTargetOracle(ctx context.Context, req ResumeRequest, root string, sandbo
 	}
 	cmd := sandbox.command(ctx, filepath.Join(sandbox.goroot, "bin", "go"), "test", "-count=1", "-json", "./internal/schemaoracleprobe")
 	var events oracleTestEvents
-	capture := targetFeedbackCapture(ctx, targets)
-	events.diagnostic.capture = capture
-	cmd.Stdout = &events
+	events.failure = req.failure
+	if events.failure == nil {
+		events.failure = func(test string) error { return writeTargetOracleProbe(req.output(), targets, test) }
+	}
+	cmd.Stdout = io.MultiWriter(&events, req.output())
 	var stderr repairOutput
-	cmd.Stderr = io.MultiWriter(&stderr, feedbackStream{capture, "stderr"})
+	cmd.Stderr = io.MultiWriter(&stderr, req.output())
 	runErr := cmd.Run()
-	capture.finish(runErr != nil || !events.started || !events.passed || events.failed || events.invalid || events.pending != "", events.pending)
 	if events.pending != "" {
 		_, _ = events.diagnostic.Write([]byte("incomplete go test output: " + events.pending))
 	}
@@ -88,38 +109,8 @@ func runTargetOracle(ctx context.Context, req ResumeRequest, root string, sandbo
 	return nil
 }
 
-func targetFeedbackCapture(ctx context.Context, targets []schemaoracle.Target) *feedbackCapture {
-	capture := newFeedbackCapture(ctx, "target_schema")
-	if capture != nil {
-		capture.probe = func(test string) any {
-			prefix, indexText, ok := strings.Cut(test, "/probe_")
-			if !ok {
-				return nil
-			}
-			index, e := strconv.Atoi(indexText)
-			if e != nil {
-				return nil
-			}
-			for _, target := range targets {
-				if prefix == "TestTrustedSchemaOracle/"+target.Schema && index >= 0 && index < len(target.Probes) {
-					p := target.Probes[index]
-					return struct {
-						Schema     string                           `json:"schema"`
-						Index      int                              `json:"index"`
-						Valid      bool                             `json:"expected_valid"`
-						Diagnostic string                           `json:"constraint"`
-						Location   *schemaoracle.DiagnosticLocation `json:"location,omitempty"`
-						Input      json.RawMessage                  `json:"input"`
-					}{target.Schema, index, p.Valid, p.Diagnostic, p.Location, json.RawMessage(p.JSON)}
-				}
-			}
-			return nil
-		}
-	}
-	return capture
-}
-
 type oracleTestEvents struct {
+	failure                          func(string) error
 	pending                          string
 	started, passed, failed, invalid bool
 	diagnostic                       oracleDiagnostic
@@ -137,9 +128,6 @@ func (w *oracleTestEvents) Write(p []byte) (int, error) {
 		var e struct{ Action, Test, Package, ImportPath, Output string }
 		if json.Unmarshal([]byte(line), &e) != nil {
 			w.invalid = true
-			if w.diagnostic.capture != nil {
-				w.diagnostic.capture.markIncomplete()
-			}
 			_, _ = w.diagnostic.Write([]byte("unparsed go test output: " + line + "\n"))
 			continue
 		}
@@ -151,6 +139,12 @@ func (w *oracleTestEvents) Write(p []byte) (int, error) {
 			diagnosticPackage = e.ImportPath
 		}
 		w.diagnostic.event(e.Action, diagnosticPackage, e.Test, e.Output)
+		if e.Action == "fail" && e.Package == "github.com/ronhuafeng/llm-go/codexsdk/internal/schemaoracleprobe" && w.failure != nil {
+			if err := w.failure(e.Test); err != nil {
+				w.invalid = true
+				return n, err
+			}
+		}
 		if e.Package != "github.com/ronhuafeng/llm-go/codexsdk/internal/schemaoracleprobe" || e.Test != "TestTrustedSchemaOracle" {
 			continue
 		}
@@ -168,9 +162,6 @@ func (w *oracleTestEvents) Write(p []byte) (int, error) {
 	}
 	if len(w.pending) > 4<<20 {
 		w.invalid = true
-		if w.diagnostic.capture != nil {
-			w.diagnostic.capture.markIncomplete()
-		}
 		_, _ = w.diagnostic.Write([]byte("go test event omitted: framing bound exceeded\n"))
 		w.pending = ""
 	}
@@ -180,10 +171,11 @@ func (w *oracleTestEvents) Write(p []byte) (int, error) {
 // runBaselineOracle exercises proposed handwritten implementation using the
 // accepted schema and accepted public/runtime assertions. Generator internals
 // may refactor: only its stable CLI and public output contract are required.
-func runBaselineOracle(ctx context.Context, req ResumeRequest, targetSandbox oracleSandbox) error {
+func runBaselineOracle(ctx context.Context, req oracleRequest, targetSandbox oracleSandbox) error {
+	req.Output = &serializedOracleOutput{writer: req.output()}
 	binary := filepath.Join(targetSandbox.work, "baseline-protocolv2gen")
 	cmd := targetSandbox.command(ctx, filepath.Join(targetSandbox.goroot, "bin", "go"), "build", "-o", binary, "./internal/cmd/protocolv2gen")
-	if out, err := feedbackCommandOutput(ctx, cmd); err != nil {
+	if out, err := oracleCommandOutput(req.Output, cmd); err != nil {
 		return fmt.Errorf("build baseline generator: %w: %s", err, boundedRepairDiagnostic(string(out)))
 	}
 	dir, err := os.MkdirTemp("", "protocol-baseline-oracle-")
@@ -192,32 +184,16 @@ func runBaselineOracle(ctx context.Context, req ResumeRequest, targetSandbox ora
 	}
 	defer os.RemoveAll(dir)
 	root := filepath.Join(dir, "repo")
-	cmd = exec.CommandContext(ctx, "git", "clone", "--quiet", "--no-hardlinks", req.RepoRoot, root)
-	if out, err := feedbackCommandOutput(ctx, cmd); err != nil {
+	cmd = exec.CommandContext(ctx, "git", "clone", "--quiet", "--no-hardlinks", baselineRoot(req), root)
+	if out, err := oracleCommandOutput(req.Output, cmd); err != nil {
 		return fmt.Errorf("clone baseline regression: %w: %s", err, boundedRepairDiagnostic(string(out)))
 	}
 	expected, err := acceptedBaselineTests(filepath.Join(root, "codexsdk"))
 	if err != nil {
 		return &oracleContractError{err}
 	}
-	paths, err := ChangedPaths(req.RepoRoot)
-	if err != nil {
+	if err = overlayGoalImplementation(root, req.RepoRoot); err != nil {
 		return err
-	}
-	var implementation []string
-	for _, p := range paths {
-		if !strings.HasSuffix(p, "_test.go") {
-			implementation = append(implementation, p)
-		}
-	}
-	if len(implementation) > 0 {
-		patch, err := exec.Command("git", append([]string{"-C", req.RepoRoot, "diff", "--binary", "HEAD", "--"}, implementation...)...).Output()
-		if err != nil {
-			return err
-		}
-		if err = applyProposalPatchBytes(root, patch); err != nil {
-			return err
-		}
 	}
 	if err = os.MkdirAll(filepath.Join(root, "codexsdk/.cache/openai-codex"), 0700); err != nil {
 		return err
@@ -240,7 +216,7 @@ func runBaselineOracle(ctx context.Context, req ResumeRequest, targetSandbox ora
 		return err
 	}
 	cmd = sandbox.command(ctx, program, "-schema-root", "internal/protocolschema/appserver/v2", "-out", "protocolv2")
-	out, runErr := feedbackCommandOutput(ctx, cmd)
+	out, runErr := oracleCommandOutput(req.Output, cmd)
 	after, err := baselineOracleNonGeneratedPatch(root)
 	if err != nil {
 		return err
@@ -257,13 +233,10 @@ func runBaselineOracle(ctx context.Context, req ResumeRequest, targetSandbox ora
 	}
 	cmd = sandbox.command(ctx, filepath.Join(sandbox.goroot, "bin", "go"), "test", "-count=1", "-json", ".", "./protocolv2", "./internal/wirejson")
 	events := baselineTestEvents{expected: expected, ran: map[string]bool{}, passed: map[string]bool{}}
-	capture := newFeedbackCapture(ctx, "baseline")
-	events.diagnostic.capture = capture
-	cmd.Stdout = &events
+	cmd.Stdout = io.MultiWriter(&events, req.output())
 	var stderr repairOutput
-	cmd.Stderr = io.MultiWriter(&stderr, feedbackStream{capture, "stderr"})
+	cmd.Stderr = io.MultiWriter(&stderr, req.output())
 	runErr = cmd.Run()
-	capture.finish(runErr != nil || events.verify() != nil, events.pending)
 	if events.pending != "" {
 		_, _ = events.diagnostic.Write([]byte("incomplete go test output: " + events.pending))
 	}
@@ -363,9 +336,6 @@ func (w *baselineTestEvents) Write(p []byte) (int, error) {
 		var e struct{ Action, Package, Test, ImportPath, Output string }
 		if json.Unmarshal([]byte(line), &e) != nil {
 			w.invalid = true
-			if w.diagnostic.capture != nil {
-				w.diagnostic.capture.markIncomplete()
-			}
 			_, _ = w.diagnostic.Write([]byte("unparsed go test output: " + line + "\n"))
 			continue
 		}
@@ -392,9 +362,6 @@ func (w *baselineTestEvents) Write(p []byte) (int, error) {
 	}
 	if len(w.pending) > 4<<20 {
 		w.invalid = true
-		if w.diagnostic.capture != nil {
-			w.diagnostic.capture.markIncomplete()
-		}
 		_, _ = w.diagnostic.Write([]byte("go test event omitted: framing bound exceeded\n"))
 		w.pending = ""
 	}

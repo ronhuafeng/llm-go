@@ -26,6 +26,7 @@ import (
 )
 
 type Config struct {
+	GoalSandbox                                                             *GoalSandboxConfig
 	ReadOnly                                                                bool
 	Workspace, StateDir, Binary, Version, BaseURL, APIKey, Model, Reasoning string
 }
@@ -47,6 +48,12 @@ var sessionPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA
 // New creates a fresh home and verifies the installed release. Version must be
 // the exact stable release resolved from official latest once for this run.
 func New(ctx context.Context, cfg Config) (*Executor, error) {
+	if cfg.GoalSandbox != nil {
+		owned := *cfg.GoalSandbox
+		owned.RuntimeDirs = append([]string(nil), owned.RuntimeDirs...)
+		owned.ReadOnlyDirs = append([]string(nil), owned.ReadOnlyDirs...)
+		cfg.GoalSandbox = &owned
+	}
 	cfg.APIKey = strings.TrimSpace(cfg.APIKey)
 	if cfg.APIKey == "" || strings.ContainsFunc(cfg.APIKey, unicode.IsSpace) {
 		return nil, errors.New("invalid provider credential")
@@ -177,6 +184,26 @@ func (e *Executor) sandboxOverrides() []string {
 	}
 }
 
+// runtimeOverrides pins trust-sensitive settings above candidate project config.
+// Both exec and app-server must use these values to prevent provider redirection
+// or expanded tool permissions. The credential is an environment value only.
+func (e *Executor) runtimeOverrides() []string {
+	provider := fmt.Sprintf(`{name="llm-go direct executor",base_url=%s,env_key="AZURE_OPENAI_API_KEY",wire_api="responses",requires_openai_auth=false,supports_websockets=false}`, strconv.Quote(e.config.BaseURL))
+	sandboxMode := "workspace-write"
+	if e.config.ReadOnly {
+		sandboxMode = "read-only"
+	}
+	args := []string{
+		"-c", `approval_policy="never"`,
+		"-c", "sandbox_mode=" + strconv.Quote(sandboxMode),
+		"-c", `model_provider="llm-go-exec"`,
+		"-c", "model=" + strconv.Quote(e.config.Model),
+		"-c", "model_reasoning_effort=" + strconv.Quote(e.config.Reasoning),
+		"-c", "model_providers.llm-go-exec=" + provider,
+	}
+	return append(args, e.sandboxOverrides()...)
+}
+
 // Run executes exactly one turn. A nonempty sessionID must be the exact UUID
 // observed from an earlier run. No provider retry or most-recent-session lookup.
 func (e *Executor) Run(ctx context.Context, prompt, sessionID string) (Result, error) {
@@ -191,22 +218,12 @@ func (e *Executor) Run(ctx context.Context, prompt, sessionID string) (Result, e
 	}
 	_ = f.Close()
 	result.FinalMessagePath = f.Name()
-	// Pin trust-sensitive values at CLI precedence as well as in the isolated
-	// home: candidate project config must not redirect the provider credential
-	// or widen the sandbox on a later repair turn.
-	provider := fmt.Sprintf(`{name="llm-go direct executor",base_url=%s,env_key="AZURE_OPENAI_API_KEY",wire_api="responses",requires_openai_auth=false,supports_websockets=false}`, strconv.Quote(e.config.BaseURL))
 	sandboxMode := "workspace-write"
 	if e.config.ReadOnly {
 		sandboxMode = "read-only"
 	}
-	args := []string{"exec", "--sandbox", sandboxMode, "--json", "--output-last-message", f.Name(),
-		"-c", `approval_policy="never"`,
-		"-c", `model_provider="llm-go-exec"`,
-		"-c", "model=" + strconv.Quote(e.config.Model),
-		"-c", "model_reasoning_effort=" + strconv.Quote(e.config.Reasoning),
-		"-c", "model_providers.llm-go-exec=" + provider,
-	}
-	args = append(args, e.sandboxOverrides()...)
+	args := []string{"exec", "--sandbox", sandboxMode, "--json", "--output-last-message", f.Name()}
+	args = append(args, e.runtimeOverrides()...)
 
 	if sessionID != "" {
 		args = append(args, "resume", sessionID, "-")

@@ -1,17 +1,13 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/ronhuafeng/llm-go/codexsdk/internal/codexexec"
 	"io"
 	"os"
-	"os/signal"
-	"strconv"
-	"syscall"
-	"time"
+	"os/exec"
+	"path/filepath"
 
 	"github.com/ronhuafeng/llm-go/codexsdk/internal/protocolsync"
 	"github.com/ronhuafeng/llm-go/codexsdk/internal/protocolupgrade"
@@ -23,28 +19,24 @@ func main() {
 
 func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "protocolupgrade: command is required: sync, diagnose, resume, verify-candidate, compare, apply, check, scope, stage, or publish\n")
+		fmt.Fprintf(stderr, "protocolupgrade: command is required: goal-prepare, goal, sync, diagnose, verify, verify-ci-gate, verify-provenance-offline, verify-candidate, compare, apply, check, scope, stage, or publish\n")
 		return 2
 	}
 	switch args[0] {
-	case "prepare-verifier":
-		return runVerifierPreparation(args[1:], stdout, stderr)
-	case "publish-verifier":
-		return runVerifierPublication(args[1:], stdout, stderr)
-	case "resolve-verifier":
-		return runVerifierResolution(args[1:], stdout, stderr)
-	case "continue-verifier":
-		return runVerifierContinuation(args[1:], stdout, stderr)
+	case "goal-prepare":
+		return runGoalPrepare(args[1:], stdout, stderr)
+	case "goal":
+		return runNativeGoal(args[1:], stdout, stderr)
+	case "verify-ci-gate":
+		return runCIGate(args[1:], stdout, stderr)
+	case "verify":
+		return runGoalVerify(args[1:], stdout, stderr)
+	case "verify-provenance-offline":
+		return runGoalOfflineProvenance(args[1:], stdout, stderr)
 	case "sync":
 		return runSync(args[1:], stdout, stderr, false)
 	case "diagnose":
 		return runSync(args[1:], stdout, stderr, true)
-	case "repair":
-		return runRepair(args[1:], stdout, stderr)
-	case "recover":
-		return runRecover(args[1:], stdout, stderr)
-	case "resume":
-		return runResume(args[1:], stdout, stderr)
 	case "verify-candidate":
 		return runVerifyCandidate(args[1:], stderr)
 	case "compare":
@@ -241,6 +233,7 @@ func runSync(args []string, stdout, stderr io.Writer, diagnostic bool) int {
 	upstreamRepo := fs.String("upstream-repo", "https://github.com/openai/codex.git", "openai/codex git remote")
 	upstreamRef := fs.String("upstream-ref", "", "optional tag, ref, or full SHA; empty selects the latest stable rust-vX.Y.Z tag")
 	allowDowngrade := fs.Bool("allow-downgrade", false, "allow an explicit older stable tag")
+	offline := fs.Bool("offline-upstream", false, "use only an existing official-origin cached exact upstream ref/commit")
 	forceCompare := fs.Bool("force-compare", false, "generate and compare even when the baseline already matches")
 	repairPending := fs.Bool("repair-pending", false, "preserve an open non-single sync PR tree and replace that head with one commit")
 	validationOnly := fs.Bool("validation-only", false, "verify the exact accepted baseline without applying or publishing")
@@ -262,7 +255,33 @@ func runSync(args []string, stdout, stderr io.Writer, diagnostic bool) int {
 		publication = &protocolsync.PendingRequest{Repository: *repository, AppBotID: *appBotID, BaseBranch: *baseBranch}
 	}
 
+	var lookup protocolsync.RemoteLookuper
+	var generate func(protocolsync.GenerateRequest) (protocolsync.Candidate, error)
+	if *offline {
+		if *upstreamRef == "" {
+			fmt.Fprintln(stderr, "offline upstream requires an explicit target")
+			return 2
+		}
+		module := *moduleRoot
+		if module == "" {
+			module = filepath.Join(*repoRoot, "codexsdk")
+		}
+		var err error
+		lookup, err = protocolsync.CachedUpstreamLookuper(module)
+		if err != nil {
+			fmt.Fprintln(stderr, "offline upstream cache unavailable")
+			return 1
+		}
+		generate = func(req protocolsync.GenerateRequest) (protocolsync.Candidate, error) {
+			cache := filepath.Join(req.ModuleRoot, ".cache/openai-codex")
+			if exec.Command("git", "-C", cache, "cat-file", "-e", req.Target.PeeledCommitSHA+"^{commit}").Run() != nil {
+				return protocolsync.Candidate{}, fmt.Errorf("offline upstream exact commit unavailable")
+			}
+			return protocolsync.GenerateCandidate(req)
+		}
+	}
 	result, err := protocolsync.Sync(protocolsync.SyncRequest{
+		Lookuper: lookup, Generate: generate,
 		Publication:    publication,
 		RepoRoot:       *repoRoot,
 		ModuleRoot:     *moduleRoot,
@@ -294,48 +313,6 @@ func runSync(args []string, stdout, stderr io.Writer, diagnostic bool) int {
 		return 1
 	}
 	fmt.Fprintf(stderr, "protocolupgrade %s: %s\n", command, result.Reason)
-	return 0
-}
-
-func runResume(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("resume", flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	jsonOut := fs.Bool("json", false, "emit the complete typed outcome")
-	repoRoot := fs.String("repo-root", "", "repository root")
-	moduleRoot := fs.String("module-root", "", "codexsdk module root")
-	candidateDir := fs.String("candidate-dir", "", "existing candidate root from the initial sync plan")
-	candidateSHA256 := fs.String("candidate-sha256", "", "sha256 of the complete initial candidate set")
-	targetRef := fs.String("target-ref", "", "selected upstream ref name")
-	targetKind := fs.String("target-kind", "", "selected upstream ref kind")
-	targetSHA := fs.String("target-sha", "", "selected upstream commit SHA")
-	if err := fs.Parse(args); err != nil {
-		return 2
-	}
-	result, err := protocolsync.Resume(protocolsync.ResumeRequest{
-		RepoRoot:        *repoRoot,
-		ModuleRoot:      *moduleRoot,
-		CandidateDir:    *candidateDir,
-		CandidateSHA256: *candidateSHA256,
-		TargetRef:       *targetRef,
-		TargetKind:      *targetKind,
-		TargetSHA:       *targetSHA,
-	})
-	if *jsonOut {
-		if e := encodeJSON(stdout, result); e != nil {
-			err = e
-		}
-	}
-	if writeErr := protocolsync.WriteGitHubOutput(os.Getenv("GITHUB_OUTPUT"), result); writeErr != nil {
-		fmt.Fprintf(stderr, "protocolupgrade resume: write github output: %v\n", writeErr)
-		if err == nil {
-			err = writeErr
-		}
-	}
-	if err != nil {
-		fmt.Fprintf(stderr, "protocolupgrade resume: %v\n", err)
-		return 1
-	}
-	fmt.Fprintf(stderr, "protocolupgrade resume: %s\n", result.Reason)
 	return 0
 }
 
@@ -422,103 +399,4 @@ func encodeJSON(w io.Writer, value any) error {
 	enc := json.NewEncoder(w)
 	enc.SetEscapeHTML(false)
 	return enc.Encode(value)
-}
-
-func runRepair(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("repair", flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	root := fs.String("repo-root", "", "proposal repository")
-	module := fs.String("module-root", "", "codexsdk root")
-	candidate := fs.String("candidate-dir", "", "retained candidate")
-	digest := fs.String("candidate-sha256", "", "trusted candidate digest")
-	ref := fs.String("target-ref", "", "selected ref")
-	kind := fs.String("target-kind", "", "selected kind")
-	sha := fs.String("target-sha", "", "selected SHA")
-	checkpoint := fs.String("checkpoint-dir", "", "private checkpoint directory")
-	rounds := fs.Int("max-rounds", 6, "finite repair round limit (1..12)")
-	continuation := fs.String("continuation-file", "", "native-verified continuation receipt")
-	if err := fs.Parse(args); err != nil {
-		return 2
-	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	ctx, cancel := context.WithTimeout(ctx, 90*time.Minute)
-	defer cancel()
-	state, err := os.MkdirTemp("", "protocol-repair-executor-")
-	if err != nil {
-		fmt.Fprintln(stderr, err)
-		return 1
-	}
-	defer os.RemoveAll(state)
-	executor, err := codexexec.New(ctx, codexexec.Config{Workspace: *root, StateDir: state, Version: os.Getenv("CODEX_CLI_VERSION"), BaseURL: os.Getenv("CODEX_RESPONSES_API_ENDPOINT"), APIKey: os.Getenv("AZURE_OPENAI_API_KEY"), Model: os.Getenv("CODEX_MODEL"), Reasoning: os.Getenv("CODEX_REASONING_EFFORT")})
-	var repairExecutor interface {
-		Preflight(context.Context) error
-		Run(context.Context, string, string) (codexexec.Result, error)
-	} = executor
-	if err != nil {
-		repairExecutor = unavailableRepairExecutor{err: err}
-	} else {
-		defer executor.Close()
-	}
-	var verifier *protocolsync.VerifierRepairConfig
-	if runID := os.Getenv("GITHUB_RUN_ID"); runID != "" {
-		origin, parseErr := strconv.ParseInt(runID, 10, 64)
-		attempt, attemptErr := strconv.Atoi(os.Getenv("GITHUB_RUN_ATTEMPT"))
-		if parseErr != nil || attemptErr != nil || origin < 1 || attempt < 1 {
-			fmt.Fprintln(stderr, "invalid trusted verifier origin")
-			return 1
-		}
-		verifier = &protocolsync.VerifierRepairConfig{OriginRunID: origin, OriginAttempt: attempt, OutputDir: *checkpoint + "-verifier", Actor: func(c context.Context, workspace string, readOnly bool) (protocolsync.VerifierActor, func(), error) {
-			actor, e := codexexec.New(c, codexexec.Config{Workspace: workspace, StateDir: state, ReadOnly: readOnly, Version: os.Getenv("CODEX_CLI_VERSION"), BaseURL: os.Getenv("CODEX_RESPONSES_API_ENDPOINT"), APIKey: os.Getenv("AZURE_OPENAI_API_KEY"), Model: os.Getenv("CODEX_MODEL"), Reasoning: os.Getenv("CODEX_REASONING_EFFORT")})
-			if e != nil {
-				return nil, nil, e
-			}
-			return actor, func() { _ = actor.Close() }, nil
-		}}
-	}
-	repairRequest := protocolsync.RepairRequest{ResumeRequest: protocolsync.ResumeRequest{RepoRoot: *root, ModuleRoot: *module, CandidateDir: *candidate, CandidateSHA256: *digest, TargetRef: *ref, TargetKind: *kind, TargetSHA: *sha}, CheckpointDir: *checkpoint, MaxRounds: *rounds, Executor: repairExecutor, Verifier: verifier}
-	if *continuation != "" {
-		if e := protocolsync.BindVerifierContinuation(&repairRequest, *continuation); e != nil {
-			fmt.Fprintln(stderr, e)
-			return 1
-		}
-	}
-	result, err := protocolsync.Repair(ctx, repairRequest)
-	if e := protocolsync.WriteGitHubOutput(os.Getenv("GITHUB_OUTPUT"), result); e != nil {
-		err = e
-	}
-	if err != nil {
-		fmt.Fprintln(stderr, err)
-		return 1
-	}
-	return 0
-}
-func runRecover(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("recover", flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	root := fs.String("repo-root", "", "repository")
-	checkpoint := fs.String("checkpoint-dir", "", "verified native artifact directory")
-	remote := fs.String("remote", "origin", "remote")
-	repository := fs.String("github-repository", "", "native repository")
-	bot := fs.Int64("app-bot-id", 0, "publishing bot id")
-	branch := fs.String("base-branch", "main", "accepted branch")
-	if err := fs.Parse(args); err != nil {
-		return 2
-	}
-	result, err := protocolsync.RestoreRepair(*root, *checkpoint, *remote, *branch, nil, &protocolsync.PendingRequest{Repository: *repository, AppBotID: *bot, Remote: *remote, BaseBranch: *branch})
-	if e := protocolsync.WriteGitHubOutput(os.Getenv("GITHUB_OUTPUT"), result); e != nil {
-		err = e
-	}
-	if err != nil {
-		fmt.Fprintln(stderr, err)
-		return 1
-	}
-	return 0
-}
-
-type unavailableRepairExecutor struct{ err error }
-
-func (e unavailableRepairExecutor) Preflight(context.Context) error { return e.err }
-func (e unavailableRepairExecutor) Run(context.Context, string, string) (codexexec.Result, error) {
-	return codexexec.Result{Status: "blocked"}, e.err
 }

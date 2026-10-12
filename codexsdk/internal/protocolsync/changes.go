@@ -113,9 +113,13 @@ func isAgentProposalPath(p string) bool {
 	}
 }
 
-// Verifier proposals are a separate publication epoch. They never enter the
-// ordinary sync final scope and cannot rewrite their runner or public contract.
+// Contract-grounded verifier source may evolve in the same goal proposal.
+// Its host runner, source identity and publication controls remain excluded.
 func isVerifierProposalPath(p string) bool {
+	switch p {
+	case "codexsdk/internal/protocolsync/oracle_schema.go", "codexsdk/internal/protocolsync/oracle_schema_test.go", "codexsdk/internal/protocolupgrade/oracle_roots.go", "codexsdk/internal/protocolupgrade/oracle_roots_test.go":
+		return true
+	}
 	const root = "codexsdk/internal/schemaoracle/"
 	if !strings.HasPrefix(p, root) || path.Clean(p) != p || !strings.HasSuffix(p, ".go") || strings.HasSuffix(p, ".gen.go") {
 		return false

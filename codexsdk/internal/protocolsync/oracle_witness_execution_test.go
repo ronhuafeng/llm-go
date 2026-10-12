@@ -2,7 +2,7 @@ package protocolsync
 
 import (
 	"encoding/json"
-	"os"
+	"io"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -96,7 +96,7 @@ func(p *Payload)UnmarshalJSON(b []byte)error{var root map[string]json.RawMessage
 }
 
 // Compile and run the frozen oracle, then feed native go-test events through the
-// unchanged 4 KiB failure and 8 KiB repair bounds. A wide request formerly hid
+// 4 KiB failure and 8 KiB summary bounds. A wide request formerly hid
 // every late field behind repeated payload prefixes.
 func TestCompactOracleWideEnvelopeFeedback(t *testing.T) {
 	const secret = "private-oracle-url-and-body-28473"
@@ -156,49 +156,31 @@ func(p Payload)MarshalJSON()([]byte,error){return p.raw,nil}
 		cmd := exec.Command("go", "test", "-count=1", "-json", ".")
 		cmd.Dir = dir
 		out, runErr := cmd.Output()
-		ctx, artifact, cp, artifactDir := feedbackFixture(t)
-		capture := targetFeedbackCapture(ctx, targets)
+
+		var expectations strings.Builder
 		var events oracleTestEvents
-		events.diagnostic.capture = capture
+		events.failure = func(test string) error { return writeTargetOracleProbe(&expectations, targets, test) }
 		events.Write(out)
-		capture.finish(runErr != nil, events.pending)
-		ref, e := artifact.seal(runErr)
-		if e != nil {
-			t.Fatal(e)
-		}
-		path, e := feedbackPath(artifactDir, ref, cp, []byte("proposal"))
-		if e != nil {
-			t.Fatal(e)
-		}
-		data, e := os.ReadFile(path)
-		if e != nil {
-			t.Fatal(e)
-		}
-		failures := 0
-		for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		count := 0
+		for _, line := range strings.Split(strings.TrimSpace(expectations.String()), "\n") {
 			var record struct {
-				Kind     string `json:"kind"`
-				Redacted bool   `json:"redacted"`
-				Probe    struct {
-					Input    map[string]any `json:"input"`
-					Location struct {
-						Source string `json:"source"`
-					} `json:"location"`
-				} `json:"probe"`
+				Kind, Trust, Schema string
+				Index               int
+				Input               map[string]any
+				Location            struct{ Source string }
 			}
-			if e := json.Unmarshal([]byte(line), &record); e != nil {
-				t.Fatal(e)
+			if err := json.Unmarshal([]byte(line), &record); err != nil {
+				t.Fatal(err)
 			}
-			if record.Kind == "test_failure" && record.Probe.Location.Source != "" {
-				failures++
-				if record.Probe.Input["aaaPadding"] != strings.ReplaceAll(padding, secret, "[redacted]") || !record.Redacted || !strings.Contains(record.Probe.Location.Source, "ReasoningEffort/minLength") {
-					t.Fatal("missing complete sanitized trusted probe", string(line))
-				}
+			if record.Kind != "schema_probe_expectation" || record.Trust != "source-derived" || record.Input["aaaPadding"] != padding || !strings.Contains(record.Location.Source, "ReasoningEffort/minLength") {
+				t.Fatal("full source witness or location lost")
 			}
+			count++
 		}
-		if failures != 5 {
-			t.Fatalf("frozen failed witnesses=%d", failures)
+		if count != 5 {
+			t.Fatalf("source expectations=%d", count)
 		}
+
 		if runErr == nil || !events.started || !events.failed || events.passed || events.invalid {
 			t.Fatalf("false acceptance compact=%t: %v %+v", compact, runErr, events)
 		}
@@ -252,29 +234,23 @@ func(p *Payload)UnmarshalJSON(b []byte)error{if !accepted[string(b)]{return fmt.
 	writeFile(t, filepath.Join(work, "go.mod"), "module github.com/ronhuafeng/llm-go/codexsdk/internal/schemaoracleprobe\n\ngo 1.26.8\n")
 	writeFile(t, filepath.Join(work, "payload.go"), code)
 	writeFile(t, filepath.Join(work, "contract_test.go"), string(source))
-	ctx, a, cp, dir := feedbackFixture(t)
-	capture := targetFeedbackCapture(ctx, targets)
 	var events oracleTestEvents
-	events.diagnostic.capture = capture
+	var rawEvents strings.Builder
 	cmd := exec.Command("go", "test", "-count=1", "-json", ".")
 	cmd.Dir = work
-	cmd.Stdout = &events
+	cmd.Stdout = io.MultiWriter(&events, &rawEvents)
 	e = cmd.Run()
-	capture.finish(e != nil, events.pending)
 	if e == nil || !events.failed {
 		t.Fatal("lossy decoder accepted")
 	}
-	ref, e := a.seal(e)
-	if e != nil {
-		t.Fatal(e)
+	var output strings.Builder
+	for _, line := range strings.Split(rawEvents.String(), "\n") {
+		var event struct{ Output string }
+		if json.Unmarshal([]byte(line), &event) == nil {
+			output.WriteString(event.Output)
+		}
 	}
-	path, e := feedbackPath(dir, ref, cp, []byte("proposal"))
-	if e != nil {
-		t.Fatal(e)
-	}
-	data, _ := os.ReadFile(path)
-	output := feedbackOutputs(t, string(data))
-	if !strings.Contains(output, padding) || !strings.Contains(output, "LATE_OBSERVED_DIFFERENCE") {
-		t.Fatal("late actual value truncated before capture")
+	if !strings.Contains(output.String(), padding) || !strings.Contains(output.String(), "LATE_OBSERVED_DIFFERENCE") {
+		t.Fatal("late actual value truncated before stream")
 	}
 }

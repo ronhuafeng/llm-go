@@ -1,44 +1,27 @@
 name: Codex Upstream Protocol Sync
-run-name: "${{ github.event_name == 'pull_request' && format('Verifier continuation PR {0} H {1}', github.event.pull_request.number, github.event.pull_request.head.sha) || format('Protocol sync {0}', inputs.upstream_ref || 'latest stable') }}"
+run-name: "Native upstream goal ${{ inputs.upstream_ref || 'latest stable' }}"
 
 on:
-  pull_request:
-    types: [closed]
-  schedule:
-    - cron: "0 10 * * 1-5"
   workflow_dispatch:
     inputs:
       upstream_ref:
-        description: "Optional openai/codex tag, ref, or full SHA. Defaults to the latest stable rust-vX.Y.Z tag."
-        required: false
+        description: "Exact upstream tag/ref/SHA; empty selects latest stable once."
         type: string
-      allow_downgrade:
-        description: "Allow an explicit stable rust-vX.Y.Z target older than the current stable-tag baseline."
         required: false
+      allow_downgrade:
+        description: "Allow an explicit older stable tag in read-only diagnosis."
         type: boolean
         default: false
       force_compare:
-        description: "Generate drift artifacts even when baseline metadata already points at the selected upstream target."
-        required: false
+        description: "Rebuild the recorded baseline for validation_only."
         type: boolean
         default: false
-      repair_pending:
-        description: "Preserve the tree of an open App-owned sync PR whose head is not one commit. The App replaces that head with one commit based on current main. Do not combine with force_compare, validation_only, or diagnostic_only."
-        required: false
+      diagnostic_only:
+        description: "Read-only generation and planning, without a goal or publication."
         type: boolean
         default: false
       validation_only:
-        description: "Rebuild and verify this revision's exact checked-in baseline without Agent, Apply, commit, or publication. An explicit upstream_ref must resolve to that same identity. Requires force_compare."
-        required: false
-        type: boolean
-        default: false
-      recovery_run_id:
-        description: "Restore an interrupted repair checkpoint from a trusted run on this exact main/base and upstream target. Does not reuse acceptance proofs."
-        required: false
-        type: string
-      diagnostic_only:
-        description: "Generate the latest stable candidate and run a read-only Plan; never invoke Agent, Apply, checks, or publication."
-        required: false
+        description: "Read-only exact baseline rebuild; requires force_compare."
         type: boolean
         default: false
 
@@ -254,8 +237,8 @@ jobs:
           if-no-files-found: ignore
 
   sync:
-    if: ${{ inputs.diagnostic_only != true && inputs.validation_only != true && (github.event_name != 'pull_request' || (github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'codex/verifier-repair/'))) }}
-    name: Sync upstream protocol
+    if: ${{ inputs.diagnostic_only != true && inputs.validation_only != true }}
+    name: One native upstream goal
     runs-on: ubuntu-latest
     timeout-minutes: 360
     permissions:
@@ -263,428 +246,71 @@ jobs:
       pull-requests: read
       checks: read
       actions: read
-    outputs:
-      outcome: ${{ steps.continued.outputs.outcome || steps.mechanical.outputs.outcome || steps.recovered.outputs.outcome }}
-      resume_outcome: ${{ steps.resume.outputs.outcome }}
-      target_ref: ${{ steps.continued.outputs.target_ref || steps.mechanical.outputs.target_ref || steps.recovered.outputs.target_ref }}
-      target_kind: ${{ steps.continued.outputs.target_kind || steps.mechanical.outputs.target_kind || steps.recovered.outputs.target_kind }}
-      target_sha: ${{ steps.continued.outputs.target_sha || steps.mechanical.outputs.target_sha || steps.recovered.outputs.target_sha }}
-      check_state: ${{ steps.continued.outputs.check_state || steps.mechanical.outputs.check_state || steps.recovered.outputs.check_state }}
-      check_run_id: ${{ steps.continued.outputs.check_run_id || steps.mechanical.outputs.check_run_id || steps.recovered.outputs.check_run_id }}
-      check_run_attempt: ${{ steps.continued.outputs.check_run_attempt || steps.mechanical.outputs.check_run_attempt || steps.recovered.outputs.check_run_attempt }}
-      publication_number: ${{ steps.continued.outputs.publication_number || steps.mechanical.outputs.publication_number || steps.recovered.outputs.publication_number }}
-      publication_head: ${{ steps.continued.outputs.publication_head || steps.mechanical.outputs.publication_head || steps.recovered.outputs.publication_head }}
-      publication_branch: ${{ steps.continued.outputs.publication_branch || steps.mechanical.outputs.publication_branch || steps.recovered.outputs.publication_branch }}
-      publication_checks: ${{ steps.continued.outputs.publication_checks || steps.mechanical.outputs.publication_checks || steps.recovered.outputs.publication_checks }}
-      pr_url: ${{ steps.continued.outputs.pr_url || steps.mechanical.outputs.pr_url || steps.recovered.outputs.pr_url }}
-      patch_sha256: ${{ steps.handoff.outputs.patch_sha256 }}
-      stage: ${{ steps.resume.outputs.stage || steps.mechanical.outputs.stage }}
-      category: ${{ steps.resume.outputs.failure_category || steps.mechanical.outputs.failure_category }}
-      checks: ${{ steps.checks.outcome }}
-      agent: ${{ steps.resume.outcome }}
-      scope: ${{ steps.final_scope.outcome == 'failure' && 'failure' || steps.proposal_scope.outcome }}
-      handoff: ${{ steps.handoff.outcome }}
     steps:
-      - name: Guard control-plane ref
+      - name: Require accepted main control
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
-          if [[ "${GITHUB_REF_NAME}" == "${DEFAULT_BRANCH}" ]]; then
-            exit 0
-          fi
-          echo "Refusing to run write-capable protocol sync from ${GITHUB_REF_NAME}; use ${DEFAULT_BRANCH}." >&2
-          exit 1
-
-      - name: Check out trusted control plane
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+          test "${GITHUB_REF_NAME}" = "${DEFAULT_BRANCH}"
+          # Rerunning this job would allocate a new goal/deadline. Reconcile any
+          # retained Draft binding explicitly instead of silently repeating it.
+          test "${GITHUB_RUN_ATTEMPT}" = 1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
-
-      - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
           cache: false
-
-      - name: Provision Codex schema build dependencies
-        run: |
-          set -euo pipefail
-          rustup default stable
-          sudo apt-get update
-          sudo apt-get install -y \
-            bubblewrap \
-            clang \
-            cmake \
-            libasound2-dev \
-            libssl-dev \
-            pkg-config \
-            protobuf-compiler
-
-      - name: Enable sandbox namespaces on ephemeral hosted VM
+      - name: Provision native build and sandbox prerequisites
         id: sandbox_host
         env:
           HOSTED_ENVIRONMENT: ${{ runner.environment }}
         run: |
           set -euo pipefail
           test "${HOSTED_ENVIRONMENT}" = github-hosted
-          # Ubuntu 24 AppArmor otherwise denies namespace-local loopback setup.
-          # This VM-only prerequisite does not change the child sandbox policy.
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap clang cmake libasound2-dev libssl-dev pkg-config protobuf-compiler
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-
-      - name: Build trusted publication control
-        id: control
-        working-directory: codexsdk
+          rustup default stable
+      - name: Set up official Codex latest once
+        id: runtime
+        uses: ./.github/actions/setup-codex
+      - name: Build trusted launcher and warm exact source inputs
+        id: prepare
         env:
+          REQUESTED_REF: ${{ inputs.upstream_ref }}
           GOTOOLCHAIN: local
         run: |
           set -euo pipefail
-          control="${RUNNER_TEMP}/protocolupgrade-control"
-          # Warm only the accepted module graph, including dependency tests used
-          # by tidy, before any untrusted verifier runs without network access.
-          # Additional download checksums belong only to this disposable copy.
-          warmup="$(mktemp -d "${RUNNER_TEMP}/protocol-modules.XXXXXX")"
-          cp "${GITHUB_WORKSPACE}/go.mod" "${warmup}/go.mod"
-          cp "${GITHUB_WORKSPACE}/go.sum" "${warmup}/go.sum"
-          go mod download -modfile "${warmup}/go.mod" all
-          git -C "${GITHUB_WORKSPACE}" diff --exit-code -- go.mod go.sum
-          go build -o "${control}" ./internal/cmd/protocolupgrade
-          digest="$(sha256sum "${control}" | cut -d ' ' -f1)"
-          echo "sha256=${digest}" >> "${GITHUB_OUTPUT}"
-
-      - name: Resolve merged verifier continuation
-        id: continued
-        if: ${{ github.event_name == 'pull_request' }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          APP_BOT_ID: ${{ vars.PROTOCOL_SYNC_APP_BOT_ID }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          VERIFIER_PR: ${{ github.event.pull_request.number }}
-          VERIFIER_HEAD: ${{ github.event.pull_request.head.sha }}
-        run: |
-          set -euo pipefail
-          "${RUNNER_TEMP}/protocolupgrade-control" continue-verifier \
-            -repo-root "${GITHUB_WORKSPACE}" -github-repository "${GITHUB_REPOSITORY}" \
-            -base-branch "${DEFAULT_BRANCH}" -app-bot-id "${APP_BOT_ID}" \
-            -pr-number "${VERIFIER_PR}" -head "${VERIFIER_HEAD}" \
-            -current-run-id "${GITHUB_RUN_ID}" -output-dir "${RUNNER_TEMP}/verifier-continuation"
-
-      - name: Restore validated repair checkpoint
-        id: recovered
-        if: ${{ inputs.recovery_run_id != '' }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RECOVERY_RUN: ${{ inputs.recovery_run_id }}
-          APP_BOT_ID: ${{ vars.PROTOCOL_SYNC_APP_BOT_ID }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        run: |
-          set -euo pipefail
-          [[ "${RECOVERY_RUN}" =~ ^[0-9]+$ ]]
-          test "${RECOVERY_RUN}" != "${GITHUB_RUN_ID}"
-          run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RECOVERY_RUN}")"
-          jq -e --arg head "${GITHUB_SHA}" --arg branch "${DEFAULT_BRANCH}" '
-            .head_sha == $head and .head_branch == $branch and
-            .path == ".github/workflows/codexsdk-upstream-protocol-sync.yml" and
-            (.event == "workflow_dispatch" or .event == "schedule") and
-            (.conclusion == "failure" or .conclusion == "cancelled")
-          ' <<<"${run}" >/dev/null
-          attempt="$(jq -er '.run_attempt' <<<"${run}")"
-          checkpoint="${RUNNER_TEMP}/recovered-repair"
-          gh run download "${RECOVERY_RUN}" --repo "${GITHUB_REPOSITORY}" \
-            --name "protocol-sync-repair-checkpoint-${attempt}" --dir "${checkpoint}"
-          "${RUNNER_TEMP}/protocolupgrade-control" recover \
-            -repo-root "${GITHUB_WORKSPACE}" -checkpoint-dir "${checkpoint}" \
-            -base-branch "${DEFAULT_BRANCH}" -github-repository "${GITHUB_REPOSITORY}" \
-            -app-bot-id "${APP_BOT_ID}"
-
-      - name: Plan/apply native protocol sync
-        id: mechanical
-        if: ${{ github.event_name != 'pull_request' && inputs.recovery_run_id == '' }}
-        working-directory: codexsdk
-        env:
-          GOTOOLCHAIN: local
-          ALLOW_DOWNGRADE: ${{ inputs.allow_downgrade || false }}
-          FORCE_COMPARE: ${{ inputs.force_compare || false }}
-          REPAIR_PENDING: ${{ inputs.repair_pending || false }}
-          REQUESTED_REF: ${{ inputs.upstream_ref || '' }}
-          EVENT_NAME: ${{ github.event_name }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          APP_BOT_ID: ${{ vars.PROTOCOL_SYNC_APP_BOT_ID }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        run: |
-          set -euo pipefail
-          args=(
-            sync
-            -repo-root "${GITHUB_WORKSPACE}"
-            -module-root .
-            -upstream-repo https://github.com/openai/codex.git
-            -event-name "${EVENT_NAME}"
-            -github-repository "${GITHUB_REPOSITORY}"
-            -app-bot-id "${APP_BOT_ID:-0}"
-            -base-branch "${DEFAULT_BRANCH}"
-          )
-          if [[ -n "${REQUESTED_REF}" ]]; then
-            args+=(-upstream-ref "${REQUESTED_REF}")
+          control="${RUNNER_TEMP}/protocolupgrade"
+          go build -o "${control}" ./codexsdk/internal/cmd/protocolupgrade
+          args=(diagnose -repo-root "${GITHUB_WORKSPACE}" -module-root "${GITHUB_WORKSPACE}/codexsdk" -event-name workflow_dispatch -json)
+          if [[ -n "${REQUESTED_REF}" ]]; then args+=(-upstream-ref "${REQUESTED_REF}"); fi
+          "${control}" "${args[@]}" > "${RUNNER_TEMP}/goal-source.json"
+          target_ref="$(jq -r .Target.RefName "${RUNNER_TEMP}/goal-source.json")"
+          target_kind="$(jq -r .Target.RefKind "${RUNNER_TEMP}/goal-source.json")"
+          if [[ "${target_kind}" == stable_rust_tag ]]; then
+            git -C codexsdk/.cache/openai-codex fetch --no-tags origin "refs/tags/${target_ref}:refs/tags/${target_ref}"
           fi
-          if [[ "${ALLOW_DOWNGRADE}" == "true" ]]; then
-            args+=(-allow-downgrade)
-          fi
-          if [[ "${FORCE_COMPARE}" == "true" ]]; then
-            args+=(-force-compare)
-          fi
-          if [[ "${REPAIR_PENDING}" == "true" ]]; then
-            if [[ "${FORCE_COMPARE}" == "true" ]]; then
-              echo 'repair_pending cannot be combined with force_compare.' >&2
-              exit 1
-            fi
-            args+=(-repair-pending)
-          fi
-          go run ./internal/cmd/protocolupgrade "${args[@]}"
-
-      - name: Write Agent drift input
-        if: ${{ success() && (steps.continued.outputs.outcome == 'semantic_unresolved' || steps.mechanical.outputs.outcome == 'semantic_unresolved' || steps.recovered.outputs.outcome == 'semantic_unresolved') }}
-        working-directory: codexsdk
-        env:
-          TARGET_REF: ${{ steps.continued.outputs.target_ref || steps.mechanical.outputs.target_ref || steps.recovered.outputs.target_ref }}
-          TARGET_KIND: ${{ steps.continued.outputs.target_kind || steps.mechanical.outputs.target_kind || steps.recovered.outputs.target_kind }}
-          TARGET_SHA: ${{ steps.continued.outputs.target_sha || steps.mechanical.outputs.target_sha || steps.recovered.outputs.target_sha }}
-          CANDIDATE: ${{ steps.continued.outputs.candidate || steps.mechanical.outputs.candidate || steps.recovered.outputs.candidate }}
-          CANDIDATE_DIR: ${{ steps.continued.outputs.candidate_dir || steps.mechanical.outputs.candidate_dir || steps.recovered.outputs.candidate_dir }}
-          CANDIDATE_SHA256: ${{ steps.continued.outputs.candidate_sha256 || steps.mechanical.outputs.candidate_sha256 || steps.recovered.outputs.candidate_sha256 }}
-          ISSUE_STAGE: ${{ steps.mechanical.outputs.issue_stage || steps.recovered.outputs.issue_stage }}
-          ISSUE_PATH: ${{ steps.mechanical.outputs.issue_path || steps.recovered.outputs.issue_path }}
-          ISSUE_REASON: ${{ steps.mechanical.outputs.issue_reason || steps.recovered.outputs.issue_reason }}
-        run: |
-          set -euo pipefail
-          mkdir -p .cache/codexsdk-sync
-          {
-            echo "Selected upstream target:"
-            echo "- ref: ${TARGET_REF}"
-            echo "- kind: ${TARGET_KIND}"
-            echo "- commit: ${TARGET_SHA}"
-            echo
-            echo "Candidate root: ${CANDIDATE_DIR}"
-            echo "Candidate sha256: ${CANDIDATE_SHA256}"
-            echo "Candidate schema: ${CANDIDATE}"
-            echo "Drift summary: ${CANDIDATE_DIR}/reports/drift_summary.json"
-            echo
-            echo "Read-only planning found an unresolved deterministic incompatibility."
-            echo "- stage: ${ISSUE_STAGE}"
-            echo "- path: ${ISSUE_PATH}"
-            echo "- reason: ${ISSUE_REASON}"
-            echo
-            echo "No mechanical protocol/generated changes have been applied."
-            echo "Make only the handwritten source and focused test changes required to make this exact candidate plan successfully."
-          } > .cache/codexsdk-sync/agent-input.md
-
-      - name: Repair with independent verification feedback
-        id: resume
-        if: ${{ success() && (steps.continued.outputs.outcome == 'semantic_unresolved' || steps.mechanical.outputs.outcome == 'semantic_unresolved' || steps.recovered.outputs.outcome == 'semantic_unresolved') }}
-        uses: ./.github/actions/codex-exec
-        env:
-          GITHUB_TOKEN: ""
-          GH_TOKEN: ""
-        with:
-          api-key: ${{ secrets.AZURE_OPENAI_API_KEY }}
-          responses-api-endpoint: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
-          model: gpt-6.1-sol
-          reasoning-effort: high
-          working-directory: .
-          controller-path: ${{ runner.temp }}/protocolupgrade-control
-          control-sha256: ${{ steps.control.outputs.sha256 }}
-          candidate-dir: ${{ steps.continued.outputs.candidate_dir || steps.mechanical.outputs.candidate_dir || steps.recovered.outputs.candidate_dir }}
-          candidate-sha256: ${{ steps.continued.outputs.candidate_sha256 || steps.mechanical.outputs.candidate_sha256 || steps.recovered.outputs.candidate_sha256 }}
-          target-ref: ${{ steps.continued.outputs.target_ref || steps.mechanical.outputs.target_ref || steps.recovered.outputs.target_ref }}
-          target-kind: ${{ steps.continued.outputs.target_kind || steps.mechanical.outputs.target_kind || steps.recovered.outputs.target_kind }}
-          target-sha: ${{ steps.continued.outputs.target_sha || steps.mechanical.outputs.target_sha || steps.recovered.outputs.target_sha }}
-          checkpoint-dir: ${{ runner.temp }}/protocol-repair-checkpoint
-          continuation-file: ${{ github.event_name == 'pull_request' && format('{0}/verifier-continuation/continuation.json', runner.temp) || '' }}
-
-      - name: Upload reviewed verifier proposal
-        if: ${{ success() && steps.resume.outputs.outcome == 'verifier_proposal' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: protocol-sync-verifier-proposal-${{ github.run_attempt }}
-          path: ${{ steps.resume.outputs.verifier_dir }}
-          if-no-files-found: error
-
-      - name: Retain bounded repair checkpoint
-        if: ${{ always() && steps.resume.outcome != 'skipped' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: protocol-sync-repair-checkpoint-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/protocol-repair-checkpoint
-          include-hidden-files: true
-          if-no-files-found: ignore
-
-      - name: Check Agent proposal scope
-        id: proposal_scope
-        if: ${{ success() && (steps.continued.outputs.outcome == 'semantic_unresolved' || steps.mechanical.outputs.outcome == 'semantic_unresolved' || steps.recovered.outputs.outcome == 'semantic_unresolved') }}
-        env:
-          CONTROL_SHA256: ${{ steps.control.outputs.sha256 }}
-        run: &agent_proposal_scope |
-          set -euo pipefail
-          control="${RUNNER_TEMP}/protocolupgrade-control"
-          echo "${CONTROL_SHA256}  ${control}" | sha256sum -c -
-          "${control}" scope -repo-root "${GITHUB_WORKSPACE}" -phase "${SCOPE_PHASE:-final}"
-
-      - name: Normalize proposed Go source
-        id: normalize
-        if: ${{ steps.mechanical.outputs.outcome == 'applied' || steps.resume.outputs.outcome == 'applied' }}
-        run: |
-          set -euo pipefail
-          {
-            git -C "${GITHUB_WORKSPACE}" diff --name-only -z --diff-filter=ACMRTUXB HEAD -- 'codexsdk/*.go' 'codexsdk/**/*.go'
-            git -C "${GITHUB_WORKSPACE}" ls-files --others --exclude-standard -z -- 'codexsdk/*.go' 'codexsdk/**/*.go'
-          } | sort -zu | xargs -0 -r gofmt -w
-
-      - name: Freeze proposal bytes before tests
-        id: freeze
-        if: ${{ steps.mechanical.outputs.outcome == 'applied' || steps.resume.outputs.outcome == 'applied' }}
-        run: |
-          set -euo pipefail
-          git ls-files --others --exclude-standard -z |
-            git add -N --pathspec-from-file=- --pathspec-file-nul
-          digest="$(git diff --binary --no-ext-diff HEAD -- | sha256sum | cut -d ' ' -f1)"
-          echo "patch_sha256=${digest}" >> "${GITHUB_OUTPUT}"
-
-      - name: Run deterministic protocol checks
-        id: checks
-        if: ${{ steps.mechanical.outputs.outcome == 'applied' || steps.resume.outputs.outcome == 'applied' }}
-        working-directory: codexsdk
-        env:
-          GOTOOLCHAIN: local
-          REPAIR_VERIFIED: ${{ steps.resume.outputs.applied }}
-          CANDIDATE: ${{ steps.continued.outputs.candidate || steps.mechanical.outputs.candidate || steps.recovered.outputs.candidate }}
-        run: |
-          set -euo pipefail
-          if [[ "${REPAIR_VERIFIED}" == true ]]; then
-            echo 'Independent isolated repair oracle already ran proposed and accepted assertions, generation checks and vet.'
-            exit 0
-          fi
-          go test ./...
-          args=(check -module-root .)
-          if [[ -n "${CANDIDATE}" ]]; then
-            args+=(-candidate "${CANDIDATE}")
-          fi
-          go run ./internal/cmd/protocolupgrade "${args[@]}"
-          go vet ./...
-
-      - name: Recheck Agent proposal scope after tests
-        id: final_scope
-        if: ${{ success() && (steps.continued.outputs.outcome == 'semantic_unresolved' || steps.mechanical.outputs.outcome == 'semantic_unresolved' || steps.recovered.outputs.outcome == 'semantic_unresolved') }}
-        env:
-          CONTROL_SHA256: ${{ steps.control.outputs.sha256 }}
-          SCOPE_PHASE: final
-        run: *agent_proposal_scope
-
-      - name: Seal verified proposal
-        id: handoff
-        if: ${{ success() && (steps.mechanical.outputs.outcome == 'applied' || steps.resume.outputs.outcome == 'applied') }}
-        working-directory: codexsdk
-        env:
-          CANDIDATE_DIR: ${{ steps.continued.outputs.candidate_dir || steps.mechanical.outputs.candidate_dir || steps.recovered.outputs.candidate_dir }}
-          CANDIDATE_SHA256: ${{ steps.continued.outputs.candidate_sha256 || steps.mechanical.outputs.candidate_sha256 || steps.recovered.outputs.candidate_sha256 }}
-          TARGET_KIND: ${{ steps.continued.outputs.target_kind || steps.mechanical.outputs.target_kind || steps.recovered.outputs.target_kind }}
-          TARGET_REF: ${{ steps.continued.outputs.target_ref || steps.mechanical.outputs.target_ref || steps.recovered.outputs.target_ref }}
-          TARGET_SHA: ${{ steps.continued.outputs.target_sha || steps.mechanical.outputs.target_sha || steps.recovered.outputs.target_sha }}
-          CONTROL_SHA256: ${{ steps.control.outputs.sha256 }}
-          PROPOSAL_SHA256: ${{ steps.freeze.outputs.patch_sha256 }}
-        run: |
-          set -euo pipefail
-          git -C "${GITHUB_WORKSPACE}" ls-files --others --exclude-standard -z |
-            git -C "${GITHUB_WORKSPACE}" add -N --pathspec-from-file=- --pathspec-file-nul
-          git -C "${GITHUB_WORKSPACE}" diff --binary --no-ext-diff HEAD -- > "${RUNNER_TEMP}/protocol-sync.final.patch"
-          echo "${PROPOSAL_SHA256}  ${RUNNER_TEMP}/protocol-sync.final.patch" | sha256sum -c -
-          test -s "${RUNNER_TEMP}/protocol-sync.final.patch"
-          control="${RUNNER_TEMP}/protocolupgrade-control"
-          echo "${CONTROL_SHA256}  ${control}" | sha256sum -c -
-          if [[ -n "${CANDIDATE_SHA256}" ]]; then
-            "${control}" verify-candidate \
-              -candidate-dir "${CANDIDATE_DIR}" \
-              -candidate-sha256 "${CANDIDATE_SHA256}" \
-              -target-ref "${TARGET_REF}" \
-              -target-kind "${TARGET_KIND}" \
-              -target-sha "${TARGET_SHA}"
-          fi
-          mkdir -p "${RUNNER_TEMP}/protocol-sync-handoff"
-          cp "${RUNNER_TEMP}/protocol-sync.final.patch" "${RUNNER_TEMP}/protocol-sync-handoff/proposal.patch"
-          digest="$(sha256sum "${RUNNER_TEMP}/protocol-sync-handoff/proposal.patch" | cut -d ' ' -f1)"
-          echo "patch_sha256=${digest}" >> "${GITHUB_OUTPUT}"
-
-      - name: Upload verified proposal
-        if: ${{ success() && steps.handoff.outcome == 'success' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: protocol-sync-proposal
-          path: ${{ runner.temp }}/protocol-sync-handoff/proposal.patch
-          if-no-files-found: error
-
-      - name: Retain selected build inputs
-        if: ${{ always() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: protocol-sync-build-inputs-sync
-          path: |
-            codexsdk/.cache/codexsdk-upstream-*/upstream.Cargo.lock
-            codexsdk/.cache/codexsdk-upstream-*/prepared.Cargo.lock
-          include-hidden-files: true
-          if-no-files-found: ignore
-
-  publish:
-    if: ${{ needs.sync.outputs.outcome == 'applied' || needs.sync.outputs.resume_outcome == 'applied' || needs.sync.outputs.outcome == 'repair_ready' }}
-    needs: sync
-    outputs:
-      outcome: ${{ steps.publish.outputs.outcome }}
-      category: ${{ steps.publish.outputs.failure_category || steps.app_config.outputs.failure_category }}
-      pr_url: ${{ steps.publish.outputs.pr_url }}
-    name: Publish protected sync PR
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      contents: read
-    steps:
-      - name: Check publication App configuration
-        id: app_config
-        env:
-          APP_CONFIGURED: ${{ vars.PROTOCOL_SYNC_APP_CLIENT_ID != '' && vars.PROTOCOL_SYNC_APP_BOT_ID != '' && secrets.PROTOCOL_SYNC_APP_PRIVATE_KEY != '' }}
-        run: |
-          set -euo pipefail
-          if [[ "${APP_CONFIGURED}" != true ]]; then
-            echo '::error::Configure PROTOCOL_SYNC_APP_CLIENT_ID, PROTOCOL_SYNC_APP_BOT_ID and PROTOCOL_SYNC_APP_PRIVATE_KEY for an App installed on this repository with Contents and Pull requests write access. See docs/protocol-sync.md.' >&2
-            echo 'failure_category=policy_configuration' >> "${GITHUB_OUTPUT}"
-            exit 1
-          fi
-
-      - name: Check out trusted control plane
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.sha }}
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          cache: false
-
-      - name: Build trusted publication control
-        working-directory: codexsdk
-        env:
-          GOTOOLCHAIN: local
-        run: go build -o "${RUNNER_TEMP}/protocolupgrade-control" ./internal/cmd/protocolupgrade
-
-      - name: Download verified proposal
-        if: ${{ needs.sync.outputs.outcome != 'repair_ready' }}
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: protocol-sync-proposal
-          path: ${{ runner.temp }}/protocol-sync-handoff
-
-      - name: Mint repository publication token
+          go mod download
+          go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+          workspace="${RUNNER_TEMP}/goal-candidate"
+          git clone --no-hardlinks --no-local "${GITHUB_WORKSPACE}" "${workspace}"
+          git -C "${workspace}" checkout --detach "${GITHUB_SHA}"
+          git -C "${workspace}" remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          cp -a codexsdk/.cache "${workspace}/codexsdk/"
+          mkdir -p "${RUNNER_TEMP}/goal-diagnostics" "${RUNNER_TEMP}/goal-state" "${RUNNER_TEMP}/goal-rust-tools"
+          cp "$(command -v rustup)" "${RUNNER_TEMP}/goal-rust-tools/rustup"
+          for tool in cargo rustc rustdoc; do ln -s rustup "${RUNNER_TEMP}/goal-rust-tools/${tool}"; done
+          echo "control=${control}" >> "${GITHUB_OUTPUT}"
+          echo "workspace=${workspace}" >> "${GITHUB_OUTPUT}"
+      - name: Mint existing repository-scoped publication identity
         id: app_token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
@@ -694,235 +320,64 @@ jobs:
           repositories: ${{ github.event.repository.name }}
           permission-contents: write
           permission-pull-requests: write
-
-      - name: Publish verified proposal
-        id: publish
-        working-directory: codexsdk
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          GH_TOKEN: ${{ steps.app_token.outputs.token }}
-          PATCH_SHA256: ${{ needs.sync.outputs.patch_sha256 }}
-          APP_BOT_ID: ${{ vars.PROTOCOL_SYNC_APP_BOT_ID }}
-          EXPECTED_HEAD: ${{ needs.sync.outputs.publication_head }}
-          EXPECTED_BRANCH: ${{ needs.sync.outputs.publication_branch }}
-          TARGET_KIND: ${{ needs.sync.outputs.target_kind }}
-          TARGET_REF: ${{ needs.sync.outputs.target_ref }}
-          TARGET_SHA: ${{ needs.sync.outputs.target_sha }}
-          REPAIR_PENDING: ${{ needs.sync.outputs.outcome == 'repair_ready' }}
-        run: |
-          set -euo pipefail
-          control="${RUNNER_TEMP}/protocolupgrade-control"
-          if [[ "${REPAIR_PENDING}" == "true" ]]; then
-            git config user.name "ronhuafeng-llm-go-sync[bot]"
-            git config user.email "${APP_BOT_ID}+ronhuafeng-llm-go-sync[bot]@users.noreply.github.com"
-          else
-            patch="${RUNNER_TEMP}/protocol-sync-handoff/proposal.patch"
-            echo "${PATCH_SHA256}  ${patch}" | sha256sum -c -
-            git -C "${GITHUB_WORKSPACE}" apply --check "${patch}"
-            git -C "${GITHUB_WORKSPACE}" apply "${patch}"
-            "${control}" stage \
-              -repo-root "${GITHUB_WORKSPACE}" \
-              -phase final
-            git diff --cached --check
-            git -c user.name="ronhuafeng-llm-go-sync[bot]" \
-              -c user.email="${APP_BOT_ID}+ronhuafeng-llm-go-sync[bot]@users.noreply.github.com" \
-              commit \
-              -m "Sync Codex protocol baseline to ${TARGET_REF}" \
-              -m "Upstream-ref: ${TARGET_REF}" \
-              -m "Upstream-ref-kind: ${TARGET_KIND}" \
-              -m "Upstream-commit: ${TARGET_SHA}"
-          fi
-          gh auth status
-          gh auth setup-git
-          repair_args=()
-          if [[ "${REPAIR_PENDING}" == "true" ]]; then
-            repair_args+=(-repair-pending)
-          fi
-          "${control}" publish \
-            -repo-root "${GITHUB_WORKSPACE}" \
-            -base-branch "${DEFAULT_BRANCH}" \
-            -github-repository "${GITHUB_REPOSITORY}" \
-            -app-bot-id "${APP_BOT_ID}" \
-            -expected-head "${EXPECTED_HEAD}" \
-            -expected-branch "${EXPECTED_BRANCH}" \
-            -target-ref "${TARGET_REF}" \
-            -target-kind "${TARGET_KIND}" \
-            -target-sha "${TARGET_SHA}" \
-            "${repair_args[@]}"
-
-  publish-verifier:
-    if: ${{ needs.sync.outputs.resume_outcome == 'verifier_proposal' }}
-    needs: sync
-    name: Publish independently reviewed verifier PR
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-      actions: read
-      pull-requests: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.sha }}
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          cache: false
-      - name: Build trusted verifier publisher
-        run: go build -o "${RUNNER_TEMP}/protocolupgrade-control" ./codexsdk/internal/cmd/protocolupgrade
-      - name: Validate and stage reviewed verifier before publication credential
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          APP_BOT_ID: ${{ vars.PROTOCOL_SYNC_APP_BOT_ID }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        run: |
-          set -euo pipefail
-          "${RUNNER_TEMP}/protocolupgrade-control" prepare-verifier \
-            -repo-root "${GITHUB_WORKSPACE}" -github-repository "${GITHUB_REPOSITORY}" \
-            -base-branch "${DEFAULT_BRANCH}" -app-bot-id "${APP_BOT_ID}" \
-            -origin-run-id "${GITHUB_RUN_ID}" -origin-attempt "${GITHUB_RUN_ATTEMPT}" \
-            -current-run-id "${GITHUB_RUN_ID}"
-          git -c user.name='protocol-sync[bot]' -c user.email='protocol-sync[bot]@users.noreply.github.com' \
-            commit -m 'fix(schemaoracle): apply independently reviewed verifier proposal'
-      - name: Mint repository publication token
-        id: app_token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          client-id: ${{ vars.PROTOCOL_SYNC_APP_CLIENT_ID }}
-          private-key: ${{ secrets.PROTOCOL_SYNC_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: ${{ github.event.repository.name }}
-          permission-contents: write
-          permission-pull-requests: write
-      - name: Publish verifier-only proposal
+      - name: Prepare and bind one Draft PR
+        id: draft
         env:
           GH_TOKEN: ${{ steps.app_token.outputs.token }}
           GH_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APP_BOT_ID: ${{ vars.PROTOCOL_SYNC_APP_BOT_ID }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          CONTROL: ${{ steps.prepare.outputs.control }}
         run: |
           set -euo pipefail
-          gh auth setup-git
-          "${RUNNER_TEMP}/protocolupgrade-control" publish-verifier \
-            -repo-root "${GITHUB_WORKSPACE}" -github-repository "${GITHUB_REPOSITORY}" \
-            -base-branch "${DEFAULT_BRANCH}" -app-bot-id "${APP_BOT_ID}" \
-            -origin-run-id "${GITHUB_RUN_ID}" -origin-attempt "${GITHUB_RUN_ATTEMPT}" \
-            -current-run-id "${GITHUB_RUN_ID}"
-
-  summary:
-    if: ${{ always() }}
-    needs: [diagnose, sync, publish, publish-verifier]
-    name: Report observed sync result
-    runs-on: ubuntu-latest
-    permissions: {}
-    steps:
-      - name: Summarize observed result
-        id: observed_summary
+          git config --local credential.helper '!gh auth git-credential'
+          "${CONTROL}" goal-prepare -controller-root "${GITHUB_WORKSPACE}" \
+            -repository "${GITHUB_REPOSITORY}" -base-branch "${DEFAULT_BRANCH}" \
+            -base-sha "${GITHUB_SHA}" -app-bot-id "${APP_BOT_ID}" \
+            -target-ref "$(jq -r .Target.RefName "${RUNNER_TEMP}/goal-source.json")" \
+            -target-kind "$(jq -r .Target.RefKind "${RUNNER_TEMP}/goal-source.json")" \
+            -target-sha "$(jq -r .Target.PeeledCommitSHA "${RUNNER_TEMP}/goal-source.json")" \
+            > "${RUNNER_TEMP}/goal-binding.json"
+      - name: Run the complete goal with its fixed verification tool
         env:
-          DIAGNOSE_RESULT: ${{ needs.diagnose.result }}
-          SYNC_RESULT: ${{ needs.sync.result }}
-          PUBLISH_RESULT: ${{ needs.publish.result }}
-          OUTCOME: ${{ needs.publish.outputs.outcome || needs.sync.outputs.resume_outcome || needs.sync.outputs.outcome || needs.diagnose.outputs.outcome }}
-          STAGE: ${{ needs.sync.outputs.stage || needs.diagnose.outputs.stage }}
-          CATEGORY: ${{ needs.publish.outputs.category || needs.sync.outputs.category || needs.diagnose.outputs.category }}
-          TARGET_REF: ${{ needs.sync.outputs.target_ref || needs.diagnose.outputs.target_ref }}
-          TARGET_SHA: ${{ needs.sync.outputs.target_sha || needs.diagnose.outputs.target_sha }}
-          CHECKS: ${{ needs.sync.outputs.checks }}
-          AGENT: ${{ needs.sync.outputs.agent }}
-          SCOPE: ${{ needs.sync.outputs.scope }}
-          HANDOFF: ${{ needs.sync.outputs.handoff }}
-          PR_URL: ${{ needs.publish.outputs.pr_url || needs.sync.outputs.pr_url }}
-          PUBLICATION_CHECKS: ${{ needs.sync.outputs.publication_checks }}
-        run: |
-          set -euo pipefail
-          next='Inspect the failing job logs; attribution is unknown until evidence identifies the cause.'
-          result="${OUTCOME:-unavailable}"
-          if [[ "${DIAGNOSE_RESULT}" == failure || "${SYNC_RESULT}" == failure || "${PUBLISH_RESULT}" == failure || "${DIAGNOSE_RESULT}" == cancelled || "${SYNC_RESULT}" == cancelled || "${PUBLISH_RESULT}" == cancelled ]]; then
-            result=failed
-            if [[ "${PUBLISH_RESULT}" == failure || "${PUBLISH_RESULT}" == cancelled ]]; then
-              STAGE=publication
-            elif [[ "${CHECKS}" == failure ]]; then
-              STAGE=repository_checks
-              CATEGORY=repository_validation
-            elif [[ "${AGENT}" == failure ]]; then
-              STAGE=agent
-              CATEGORY=unknown
-            elif [[ "${SCOPE}" == failure ]]; then
-              STAGE=proposal_scope
-              CATEGORY=policy_configuration
-              next='needs-maintainer: review the rejected proposal paths before attempting another repair.'
-            elif [[ "${HANDOFF}" == failure ]]; then
-              STAGE=handoff
-              CATEGORY=source_integrity
-            fi
-          else
-            case "${result}" in
-              baseline_matches) next='Accepted baseline already points to this target; no fresh upstream proof was acquired.' ;;
-              schemas_match) next='Schemas match only; provenance has not been advanced and no PR was published.' ;;
-              exact_verified) next='Fresh reconstruction verified this repository head; required PR checks remain separate.' ;;
-              plan_ready) next='Candidate can be generated; run the trusted sync workflow to apply and validate it.' ;;
-              semantic_unresolved) next='Review the reported unsupported representation; only the trusted sync workflow may attempt one constrained repair.' ;;
-              pr_pending) next='PR is pending required checks and repository review/integration; publication is not integration.' ;;
-              applied) next='Candidate was applied locally; inspect publication status before claiming delivery.' ;;
-              repair_ready) next='The open sync tree was preserved. Publication replaces the non-single head with one commit on current main.' ;;
-            esac
-          fi
-          {
-            echo '## Observed protocol sync result'
-            echo "- Result: ${result}"
-            echo "- Jobs: diagnosis=${DIAGNOSE_RESULT}; sync=${SYNC_RESULT}; publication=${PUBLISH_RESULT}"
-            echo "- Stage: ${STAGE:-setup_or_unavailable}"
-            echo "- Failure category: ${CATEGORY:-unknown}"
-            echo "- Repository commit: ${GITHUB_SHA}"
-            echo "- Upstream: ${TARGET_REF:-unavailable} / ${TARGET_SHA:-unavailable}"
-            echo "- Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID} (attempt ${GITHUB_RUN_ATTEMPT})"
-            echo "- PR: ${PR_URL:-not_published}"
-            echo "- Observed pending checks: ${PUBLICATION_CHECKS:-not_observed}"
-            echo "- Next: ${next}"
-            echo '- This summary reports observations and never certifies or integrates a candidate.'
-          } >> "${GITHUB_STEP_SUMMARY}"
-
-  recover-checks:
-    name: Recover unstarted cancelled verification
-    needs: sync
-    if: ${{ needs.sync.outputs.outcome == 'pr_pending' && needs.sync.outputs.check_state == 'cancelled' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      pull-requests: read
-      checks: read
-      actions: write
-    steps:
-      - name: Require trusted recovery control
-        env:
+          GH_TOKEN: ${{ steps.app_token.outputs.token }}
+          GH_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          CODEX_RESPONSES_API_ENDPOINT: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
+          CODEX_CLI_VERSION: ${{ steps.runtime.outputs.version }}
+          APP_BOT_ID: ${{ vars.PROTOCOL_SYNC_APP_BOT_ID }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          CONTROL: ${{ steps.prepare.outputs.control }}
+          CANDIDATE: ${{ steps.prepare.outputs.workspace }}
         run: |
           set -euo pipefail
-          test "${GITHUB_REF_NAME}" = "${DEFAULT_BRANCH}"
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+          binding="${RUNNER_TEMP}/goal-binding.json"
+          source="${RUNNER_TEMP}/goal-source.json"
+          "${CONTROL}" goal -controller-root "${GITHUB_WORKSPACE}" -workspace "${CANDIDATE}" \
+            -state-dir "${RUNNER_TEMP}/goal-state" -diagnostic-dir "${RUNNER_TEMP}/goal-diagnostics" \
+            -repository "${GITHUB_REPOSITORY}" -base-branch "${DEFAULT_BRANCH}" -base-sha "${GITHUB_SHA}" \
+            -pr-number "$(jq -r .number "${binding}")" -branch "$(jq -r .branch "${binding}")" \
+            -expected-head "$(jq -r .head "${binding}")" -app-bot-id "${APP_BOT_ID}" \
+            -target-ref "$(jq -r .Target.RefName "${source}")" -target-kind "$(jq -r .Target.RefKind "${source}")" \
+            -target-sha "$(jq -r .Target.PeeledCommitSHA "${source}")" \
+            -candidate-dir "$(jq -r .CandidateDir "${source}")" -runtime-dirs "${RUNNER_TEMP}/goal-rust-tools" -timeout 120m \
+            > "${RUNNER_TEMP}/goal-result.json"
+      - name: Preserve bounded goal evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          cache: false
-
-      - name: Request bounded cancellation recovery
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPOSITORY: ${{ github.repository }}
-          HEAD_SHA: ${{ needs.sync.outputs.publication_head }}
-          PR_NUMBER: ${{ needs.sync.outputs.publication_number }}
-          RUN_ID: ${{ needs.sync.outputs.check_run_id }}
-          RUN_ATTEMPT: ${{ needs.sync.outputs.check_run_attempt }}
+          name: protocol-native-goal-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/goal-source.json
+            ${{ runner.temp }}/goal-binding.json
+            ${{ runner.temp }}/goal-result.json
+            ${{ runner.temp }}/goal-diagnostics/*.jsonl
+          if-no-files-found: warn
+      - name: Summarize Draft-only outcome
+        if: ${{ always() }}
         run: |
-          set -euo pipefail
-          go run ./codexsdk/internal/cmd/checkacceptance \
-            --recover-cancelled --repository "${REPOSITORY}" --head "${HEAD_SHA}" \
-            --pr "${PR_NUMBER}" --run "${RUN_ID}" --attempt "${RUN_ATTEMPT}"
+          {
+            echo '## Native upstream goal'
+            echo 'The bound PR remains Draft. This workflow has no ready or merge operation.'
+            echo 'See the exact-head checks and retained JSONL evidence; goal completion alone is not acceptance.'
+          } >> "${GITHUB_STEP_SUMMARY}"

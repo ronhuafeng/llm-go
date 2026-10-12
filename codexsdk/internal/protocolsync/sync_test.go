@@ -190,7 +190,7 @@ func TestSyncValidationOnlyRejectsIdentityDriftBeforeGeneration(t *testing.T) {
 				UpstreamRepo: "fake", UpstreamRef: test.requested,
 				ForceCompare: true, ValidationOnly: true,
 				Lookuper: fakeLookuper{byPattern: map[string]string{
-					"refs/tags/" + test.lookupRef:       test.lookupSHA + "\trefs/tags/" + test.lookupRef,
+					"refs/tags/" + test.lookupRef:         test.lookupSHA + "\trefs/tags/" + test.lookupRef,
 					"refs/tags/" + test.lookupRef + "^{}": test.lookupSHA + "\trefs/tags/" + test.lookupRef + "^{}",
 				}},
 				Generate: func(GenerateRequest) (Candidate, error) {
@@ -477,103 +477,6 @@ func TestSyncCleanSchemaWithGeneratedSurfaceChangeIsMechanical(t *testing.T) {
 	}
 	if result.Outcome != OutcomeApplied || !strings.Contains(result.Reason, "mechanical") {
 		t.Fatalf("result = %+v", result)
-	}
-}
-
-func TestResumeRejectsMechanicalAgentChanges(t *testing.T) {
-	repo := initSyncRepo(t, oldSHA, "rust-v0.140.0", KindStableTag)
-	if err := os.WriteFile(filepath.Join(repo, "codexsdk", "sdk_surface.gen.go"), []byte("package codexsdk\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	_, err := Resume(ResumeRequest{
-		RepoRoot:     repo,
-		ModuleRoot:   filepath.Join(repo, "codexsdk"),
-		CandidateDir: "/tmp/candidate",
-		TargetRef:    "rust-v0.141.0",
-		TargetKind:   KindStableTag,
-		TargetSHA:    newSHA,
-	})
-	if err == nil || !strings.Contains(err.Error(), "handwritten") {
-		t.Fatalf("err = %v", err)
-	}
-}
-
-func TestResumeBindsAgentProposalToExactCandidateAndProtectedControl(t *testing.T) {
-	for _, test := range []struct {
-		name, want string
-		mutate     func(t *testing.T, repo, candidate string, req *ResumeRequest)
-		unresolved bool
-	}{
-		{name: "allowed generator correction applies"},
-		{name: "second unresolved stops", want: "remains unresolved", unresolved: true},
-		{name: "control change stops before Plan", want: "handwritten codexsdk scope", mutate: func(t *testing.T, repo, _ string, _ *ResumeRequest) {
-			writeFile(t, filepath.Join(repo, "codexsdk/internal/protocolsync/sync.go"), "package protocolsync\n")
-		}},
-		{name: "ignored stable schema changed", want: "changed after initial Plan", mutate: func(t *testing.T, _, candidate string, _ *ResumeRequest) {
-			writeFile(t, filepath.Join(candidate, "stable-schema/ClientRequest.json"), `{"changed":true}`)
-		}},
-		{name: "ignored mapping missing", want: "candidate common.rs", mutate: func(t *testing.T, _, candidate string, _ *ResumeRequest) {
-			if err := os.Remove(filepath.Join(candidate, "common.rs")); err != nil {
-				t.Fatal(err)
-			}
-		}},
-		{name: "target identity changed", want: "does not match target", mutate: func(_ *testing.T, _, _ string, req *ResumeRequest) {
-			req.TargetSHA = oldSHA
-		}},
-		{name: "target ref changed", want: "does not match selected", mutate: func(_ *testing.T, _, _ string, req *ResumeRequest) {
-			req.TargetRef = "rust-v0.142.0"
-		}},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			repo := initSyncRepo(t, oldSHA, "rust-v0.140.0", KindStableTag)
-			writeFile(t, filepath.Join(repo, ".gitignore"), "codexsdk/.cache/\n")
-			runGitInitCommit(t, repo, "ignore candidate cache")
-			candidate := filepath.Join(repo, "codexsdk/.cache/candidate")
-			writeCandidateFixture(t, candidate, newSHA)
-			fingerprint, err := candidateDigest(candidate)
-			if err != nil {
-				t.Fatal(err)
-			}
-			writeFile(t, filepath.Join(repo, "codexsdk/internal/protocolgen/type_plan.go"), "package protocolgen // targeted correction\n")
-			if err := AssertClean(repo); err == nil {
-				t.Fatal("proposal should be visible while ignored candidate remains invisible")
-			}
-			planned, applied := false, false
-			req := ResumeRequest{
-				RepoRoot: repo, ModuleRoot: filepath.Join(repo, "codexsdk"),
-				CandidateDir: candidate, CandidateSHA256: fingerprint,
-				TargetRef: "rust-v0.141.0", TargetKind: KindStableTag, TargetSHA: newSHA,
-				Plan: func(req protocolupgrade.ApplyRequest) (protocolupgrade.PlanResult, error) {
-					planned = true
-					if req.Candidate == filepath.Join(candidate, "schema") {
-						t.Fatal("Plan used mutable ignored candidate instead of verified copy")
-					}
-					if string(mustRead(t, filepath.Join(req.Candidate, "ClientRequest.json"))) != `{"title":"ClientRequest"}` {
-						t.Fatal("Plan did not receive original candidate bytes")
-					}
-					if test.unresolved {
-						return protocolupgrade.PlanResult{Status: protocolupgrade.PlanSemanticUnresolved, Issue: &protocolupgrade.PlanIssue{Stage: "codegen", Reason: "still unsupported"}}, nil
-					}
-					return protocolupgrade.PlanResult{Status: protocolupgrade.PlanReady}, nil
-				},
-				Apply: func(req protocolupgrade.ApplyRequest) (protocolupgrade.ApplyResult, error) {
-					applied = true
-					writeFile(t, filepath.Join(repo, "codexsdk/sdk_surface.gen.go"), "package codexsdk\n")
-					return protocolupgrade.ApplyResult{Status: "ok"}, nil
-				},
-			}
-			if test.mutate != nil {
-				test.mutate(t, repo, candidate, &req)
-			}
-			result, err := Resume(req)
-			if test.want == "" {
-				if err != nil || result.Outcome != OutcomeApplied || !planned || !applied {
-					t.Fatalf("result=%+v err=%v planned=%v applied=%v", result, err, planned, applied)
-				}
-			} else if err == nil || !strings.Contains(err.Error(), test.want) || applied {
-				t.Fatalf("result=%+v err=%v planned=%v applied=%v, want %q before apply", result, err, planned, applied, test.want)
-			}
-		})
 	}
 }
 

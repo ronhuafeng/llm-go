@@ -93,7 +93,7 @@ func TestLiveVerificationUsesExactCandidateAndNativeSecretMapping(t *testing.T) 
 		}
 	}
 	called := readWorkflow(t, root, "live-codex-smoke.yml")
-	for _, want := range []string{"ref: ${{ inputs.ref || github.sha }}", "uses: ./.github/actions/setup-codex", "CODEX_CLI_VERSION: ${{ steps.runtime.outputs.version }}", "go run ./internal/tools/cmd/livecodex run", "not applicable"} {
+	for _, want := range []string{"ref: ${{ inputs.ref || github.sha }}", "uses: ./.github/actions/setup-codex", "CODEX_CLI_VERSION: ${{ steps.runtime.outputs.version }}", "python3 .github/scripts/verify-protocol-gate.py live", "not applicable"} {
 		if !strings.Contains(called, want) {
 			t.Fatalf("live workflow missing %q", want)
 		}
@@ -130,32 +130,20 @@ func TestLiveProviderWorkflowsUseExistingInputNamesDirectly(t *testing.T) {
 	}
 }
 
-func TestCancellationRecoveryHasSeparateTrustedAuthority(t *testing.T) {
-	root, err := filepath.Abs("../../../..")
+func TestNativeGoalDoesNotAutomaticallyRepeatLive(t *testing.T) {
+	root, _ := filepath.Abs("../../../..")
+	workflow := readWorkflow(t, root, "codexsdk-upstream-protocol-sync.yml")
+	for _, forbidden := range []string{"recover-checks:", "actions: write", "--recover-cancelled", "rerun-failed-jobs"} {
+		if strings.Contains(workflow, forbidden) {
+			t.Fatalf("new goal has external retry authority %q", forbidden)
+		}
+	}
+	observer, err := os.ReadFile(filepath.Join(root, "codexsdk/internal/protocolsync/goal_publication.go"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	workflow := readWorkflow(t, root, "codexsdk-upstream-protocol-sync.yml")
-	recovery, ok := workflowJobByID(workflow, "recover-checks")
-	if !ok {
-		t.Fatal("missing native cancellation recovery route")
-	}
-	for _, want := range []string{"needs: sync", "check_state == 'cancelled'", "actions: write", "ref: ${{ github.sha }}", "--recover-cancelled", "--head", "--pr", "--run", "--attempt"} {
-		if !strings.Contains(recovery, want) {
-			t.Errorf("recovery missing %q", want)
-		}
-	}
-	for _, forbidden := range []string{"AZURE_OPENAI_API_KEY", "APP_PRIVATE_KEY", "contents: write", "codex-exec", "rerun-failed-jobs"} {
-		if strings.Contains(recovery, forbidden) {
-			t.Errorf("recovery workflow embeds model/publication authority or native policy: %q", forbidden)
-		}
-	}
-	syncJob, ok := workflowJobByID(workflow, "sync")
-	if !ok {
-		t.Fatal("missing sync")
-	}
-	if strings.Contains(syncJob, "actions: write") {
-		t.Fatal("proposal job received recovery write authority")
+	if !strings.Contains(string(observer), "checkacceptance.Observe") {
+		t.Fatal("same goal must observe trusted exact-head CI")
 	}
 }
 
@@ -170,9 +158,8 @@ func TestSandboxHostSetupIsBoundedToEphemeralHostedVM(t *testing.T) {
 			t.Fatal(name, "unexpected additional administrative sandbox setup")
 		}
 		if name == "codexsdk-upstream-protocol-sync.yml" {
-			publish := strings.Index(workflow, "\n  publish:")
-			if publish < 0 || strings.Contains(workflow[publish:], "apparmor_restrict_unprivileged_userns") {
-				t.Fatal("publication must not alter sandbox host security")
+			if strings.Index(workflow, "id: sandbox_host") > strings.Index(workflow, "id: app_token") {
+				t.Fatal("host prerequisites must precede publication credentials")
 			}
 		}
 		step, ok := workflowStepByID(workflow, "sandbox_host")

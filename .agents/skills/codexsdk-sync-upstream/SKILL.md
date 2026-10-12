@@ -38,9 +38,9 @@ full-acceptance entrypoint for this goal. The trusted launcher binds its
 repository, Draft PR, branch, base, target and deadline; you cannot choose an
 alternative publication destination.
 
-**Draft integration status:** this tool and its shared local check composition
-are being implemented in PR #421. Do not start a formal goal until they are
-implemented, reviewed and the complete prompt is approved.
+**Draft integration status:** the implementation is under review in PR #421.
+Do not start a formal goal until its exact-head checks and independent review
+pass and the complete prompt is approved. This branch is not deployed on main.
 
 The tool first freezes the current candidate, including intended untracked
 source, and runs the credential-free local checks in the existing isolation
@@ -52,7 +52,8 @@ Live. These are the four existing standards in `docs/verify.md`:
 - Source correctness, including applicable syntax/isolation checks,
   tidy-without-diff, vet and race tests.
 - Generated reproducibility and isolated compilation of freshly generated code.
-- Provenance rebuilt from the exact recorded upstream source.
+- Provenance rebuilt from the exact recorded upstream source, with accepted-base
+  behavior and target-schema contracts checked against that same candidate.
 - Existing real Codex Live scenarios, with their own model/provider fixture.
 
 Local checks and CI share the check implementations; local success alone is

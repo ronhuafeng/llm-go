@@ -19,7 +19,6 @@ const (
 	OutcomePlanReady          = "plan_ready"
 	OutcomePRPending          = "pr_pending"
 	OutcomeRepairReady        = "repair_ready"
-	OutcomeVerifierProposal   = "verifier_proposal"
 	OutcomeSemanticUnresolved = "semantic_unresolved"
 )
 
@@ -44,23 +43,8 @@ type SyncRequest struct {
 	Apply          func(protocolupgrade.ApplyRequest) (protocolupgrade.ApplyResult, error)
 }
 
-// ResumeRequest re-plans and applies the exact candidate after one targeted
-// handwritten Agent pass.
-type ResumeRequest struct {
-	RepoRoot        string
-	ModuleRoot      string
-	CandidateDir    string
-	CandidateSHA256 string
-	TargetRef       string
-	TargetKind      string
-	TargetSHA       string
-	Plan            func(protocolupgrade.ApplyRequest) (protocolupgrade.PlanResult, error)
-	Apply           func(protocolupgrade.ApplyRequest) (protocolupgrade.ApplyResult, error)
-}
-
 // SyncResult is the minimal outcome the workflow needs.
 type SyncResult struct {
-	VerifierDir     string
 	Publication     *PendingPublication
 	Stage           string
 	FailureCategory string
@@ -335,105 +319,6 @@ func Sync(req SyncRequest) (result SyncResult, err error) {
 	return result, nil
 }
 
-// Resume verifies the Agent touched only handwritten codexsdk paths, re-plans
-// the same target/candidate, then applies only if the second plan is complete.
-func Resume(req ResumeRequest) (result SyncResult, err error) {
-	stage := "proposal_scope"
-	result.Target = Target{RefName: req.TargetRef, RefKind: req.TargetKind, PeeledCommitSHA: req.TargetSHA, TargetExplicit: true}
-	defer func() { finishSync(&result, err, stage) }()
-	if req.RepoRoot == "" || req.CandidateDir == "" {
-		return result, fmt.Errorf("repo-root and candidate-dir are required")
-	}
-	if req.TargetRef == "" || req.TargetKind == "" || req.TargetSHA == "" {
-		return result, fmt.Errorf("target ref, kind, and sha are required")
-	}
-	paths, err := ChangedPaths(req.RepoRoot)
-	if err != nil {
-		return result, err
-	}
-	if err := validatePaths(paths, "agent"); err != nil {
-		return result, fmt.Errorf("Agent pass escaped handwritten codexsdk scope: %w", err)
-	}
-	stage = "candidate_integrity"
-	verifiedDir, cleanup, err := copyVerifiedCandidate(req.CandidateDir, req.CandidateSHA256, req.TargetRef, req.TargetKind, req.TargetSHA)
-	if err != nil {
-		return result, &Failure{Category: FailureSource, Err: fmt.Errorf("verify initial candidate: %w", err)}
-	}
-	defer cleanup()
-
-	moduleRoot := req.ModuleRoot
-	if moduleRoot == "" {
-		moduleRoot = filepath.Join(req.RepoRoot, "codexsdk")
-	}
-	target := Target{
-		RefName:         req.TargetRef,
-		RefKind:         req.TargetKind,
-		PeeledCommitSHA: req.TargetSHA,
-		TargetExplicit:  true,
-	}
-	candidate := candidateFromDir(verifiedDir, moduleRoot, target)
-	result = SyncResult{
-		Target:          target,
-		Candidate:       filepath.Join(req.CandidateDir, "schema"),
-		CandidateDir:    req.CandidateDir,
-		CandidateSHA256: req.CandidateSHA256,
-	}
-	applyReq := candidateApplyRequest(moduleRoot, candidate, target)
-	plan := req.Plan
-	if plan == nil {
-		plan = protocolupgrade.PlanRepository
-	}
-	stage = "replan"
-	planned, err := plan(applyReq)
-	if err != nil {
-		return result, fmt.Errorf("re-plan candidate: %w", err)
-	}
-	if planned.Status == protocolupgrade.PlanSemanticUnresolved {
-		result.Outcome = OutcomeSemanticUnresolved
-		result.Issue = planned.Issue
-		if planned.Issue != nil {
-			result.Reason = planned.Issue.Reason
-			return result, &Failure{Category: FailureUnsupported, Err: fmt.Errorf("semantic drift remains unresolved after Agent: %s", planned.Issue.Reason)}
-		}
-		return result, &Failure{Category: FailureUnsupported, Err: fmt.Errorf("semantic drift remains unresolved after Agent")}
-	}
-	if planned.Status != protocolupgrade.PlanReady {
-		return result, fmt.Errorf("unknown re-plan status %q", planned.Status)
-	}
-
-	apply := req.Apply
-	if apply == nil {
-		apply = func(protocolupgrade.ApplyRequest) (protocolupgrade.ApplyResult, error) { return planned.Apply() }
-	}
-	stage = "apply"
-	if _, err := apply(applyReq); err != nil {
-		return result, fmt.Errorf("apply re-planned candidate: %w", err)
-	}
-	paths, err = ChangedPaths(req.RepoRoot)
-	if err != nil {
-		return result, err
-	}
-	if err := validatePaths(paths, "final"); err != nil {
-		return result, fmt.Errorf("final sync surface invalid: %w", err)
-	}
-	result.Outcome = OutcomeApplied
-	result.Reason = "Agent proposal re-planned successfully; candidate applied"
-	return result, nil
-}
-
-func candidateFromDir(dir, moduleRoot string, target Target) Candidate {
-	return Candidate{
-		Dir:               dir,
-		SchemaDir:         filepath.Join(dir, "schema"),
-		StableSchemaDir:   filepath.Join(dir, "stable-schema"),
-		ReportsDir:        filepath.Join(dir, "reports"),
-		CommonRS:          filepath.Join(dir, "common.rs"),
-		CommonRSSourceSHA: target.PeeledCommitSHA,
-		CodexRepo:         filepath.Join(moduleRoot, ".cache", "openai-codex"),
-		SourceCommit:      target.PeeledCommitSHA,
-	}
-}
-
 func candidateApplyRequest(moduleRoot string, candidate Candidate, target Target) protocolupgrade.ApplyRequest {
 	return protocolupgrade.ApplyRequest{
 		Baseline:          filepath.Join(moduleRoot, filepath.FromSlash(defaultBaselineRel)),
@@ -524,7 +409,6 @@ func WriteGitHubOutput(path string, result SyncResult) error {
 	lines := []string{
 		"check_run_id=" + checkRun, "check_run_attempt=" + checkAttempt, "check_state=" + checkState,
 		"outcome=" + githubOutputValue(result.Outcome),
-		"verifier_dir=" + githubOutputValue(result.VerifierDir),
 		"publication_head=" + githubOutputValue(publicationHead),
 		"publication_branch=" + githubOutputValue(publicationBranch),
 		"publication_number=" + githubOutputValue(publicationNumber),

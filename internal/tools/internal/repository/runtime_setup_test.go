@@ -71,21 +71,21 @@ printf 'codex-cli %s\n' "$FIXTURE_OBSERVED"`,
 
 func TestRepairRuntimeIsIndependentOfSchemaAndLiveModel(t *testing.T) {
 	root, _ := filepath.Abs("../../../..")
-	workflow := readWorkflow(t, root, "codexsdk-upstream-protocol-sync.yml")
-	step, ok := workflowStepByID(workflow, "resume")
-	if !ok || !strings.Contains(step, "model: gpt-6.1-sol") || !strings.Contains(step, "reasoning-effort: high") {
-		t.Fatal("formal repair model/effort not selected")
-	}
-	source, err := os.ReadFile(filepath.Join(root, "codexsdk/internal/cmd/protocolupgrade/main.go"))
+	data, err := os.ReadFile(filepath.Join(root, "codexsdk/internal/cmd/protocolupgrade/goal_command.go"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, repair, ok := strings.Cut(string(source), "func runRepair(")
-	if !ok {
-		t.Fatal("missing repair entry point")
+	source := string(data)
+	for _, want := range []string{`Model: "gpt-6.1-sol"`, `Reasoning: "high"`, `Version: os.Getenv("CODEX_CLI_VERSION")`} {
+		if !strings.Contains(source, want) {
+			t.Fatalf("native goal missing runtime setting %s", want)
+		}
 	}
-	repair, _, _ = strings.Cut(repair, "func runRecover(")
-	if !strings.Contains(repair, `Version: os.Getenv("CODEX_CLI_VERSION")`) || strings.Contains(repair, "baseline_metadata.json") {
-		t.Fatal("repair runtime must consume run-selected version independently of baseline")
+	if strings.Contains(source, "baseline_metadata.json") {
+		t.Fatal("runtime version must remain independent of schema")
+	}
+	workflow := readWorkflow(t, root, "codexsdk-upstream-protocol-sync.yml")
+	if !strings.Contains(workflow, "CODEX_CLI_VERSION: ${{ steps.runtime.outputs.version }}") {
+		t.Fatal("run-resolved CLI version absent")
 	}
 }

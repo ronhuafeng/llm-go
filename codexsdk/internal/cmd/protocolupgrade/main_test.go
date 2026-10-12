@@ -108,3 +108,12 @@ func writeSchemaSet(t *testing.T, root string) {
 		}
 	}
 }
+
+func TestRetiredRepairCommandsHaveNoExecutionPath(t *testing.T) {
+	for _, command := range []string{"repair", "recover", "resume", "prepare-verifier", "publish-verifier", "resolve-verifier", "continue-verifier"} {
+		var stdout, stderr bytes.Buffer
+		if code := run([]string{command}, &stdout, &stderr); code != 2 || !strings.Contains(stderr.String(), "unknown command") || stdout.Len() != 0 {
+			t.Fatalf("retired command %s still active: code=%d stderr=%s", command, code, stderr.String())
+		}
+	}
+}

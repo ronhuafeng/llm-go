@@ -112,7 +112,7 @@ func(p *ServerNotification) UnmarshalJSON(b []byte) error { var m map[string]jso
 	if e != nil {
 		t.Fatal(e)
 	}
-	req := ResumeRequest{RepoRoot: root, ModuleRoot: module, CandidateDir: candidate}
+	req := oracleRequest{RepoRoot: root, ModuleRoot: module, CandidateDir: candidate}
 	if e := runTargetOracle(context.Background(), req, root, sandbox); e != nil {
 		t.Fatalf("legitimate schema evolution rejected: %v", e)
 	}
@@ -155,7 +155,7 @@ func TestLiveRepairSandboxBaselineKeepsRuntimeAssertions(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	req := ResumeRequest{RepoRoot: root, ModuleRoot: module, CandidateDir: candidate}
+	req := oracleRequest{RepoRoot: root, ModuleRoot: module, CandidateDir: candidate}
 	if e = runBaselineOracle(context.Background(), req, sandbox); e != nil {
 		t.Fatalf("baseline lane: %v", e)
 	}

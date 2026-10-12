@@ -20,12 +20,11 @@ older successes. Any still-active attempt on H blocks acceptance. Incomplete,
 changing, or failed API reads are unknown and stop the operation. A transient
 read can be retried once; write responses are never blindly retried.
 
-Cancellation recovery is separate from acceptance. The trusted sync recovery
-job may request only one `rerun-failed-jobs` after attempt 1, rechecking the open
-same-repository PR, its actual Git ref, and the workflow run/attempt. Failed
-proofs require investigation. A cancelled live job that started is never
-replayed automatically; successful live jobs are not rerun. Fresh results must
-still satisfy the same four-check policy before integration.
+Cancellation is a failed or blocked observation, never acceptance. The native
+goal may repair its candidate and request the same verification entrypoint again;
+an unchanged candidate reuses its current CI observation rather than replaying
+Live. A started cancelled Live job is not automatically rerun. Missing artifacts
+or incomplete diagnostics remain explicit blockers.
 
 [`Live Codex integration`](live-codex.md) owns environment setup and the common
 command. #376 supplies the runtime/gate; #377 supplies the structured composed
@@ -90,7 +89,12 @@ source reconstruction.
 `Codex protocol provenance` reads U from H, freshly reconstructs complete/stable
 schema and derived artifacts from that exact source, and compares with H in
 isolated state. It is read-only and has no Agent/publication authority.
-Unrelated PRs complete the context successfully as not applicable.
+The same gate also checks accepted-base behavior and target-schema contracts
+against the frozen candidate. Contract-grounded checker changes belong to the
+same reviewed proposal; source identity and publication controls stay fixed.
+An empty target selection is accepted only when the upstream commit, raw schema
+JSON tree and public generated tree are unchanged; real drift cannot silently
+skip target checks. Unrelated PRs complete the context successfully as not applicable.
 
 See [`protocol-sync.md`](protocol-sync.md) for source, generation, and publication
 boundaries. A source build for this proof is not the installed runtime fixture
@@ -193,3 +197,15 @@ optional evidence for Codex-affecting changes.
 Source acceptance is not a tag or package release. Follow
 [`release.md`](release.md), including disclosure of intentional live-scenario
 retirement.
+
+## Single-goal verification entrypoint
+
+The native goal invokes only the fixed `verify_upstream` tool. The shared
+`protocolupgrade verify` implementation runs local source/generated/offline
+provenance checks without host credentials. CI invokes the same gate composition
+through `protocolupgrade verify-ci-gate -gate <name>`, adding the existing real
+Live environment only in its existing job. Source checks additionally require
+actual sandbox and candidate-checker fixtures to execute and pass; a skipped or
+zero-test result fails. Full diagnostics are bounded complete JSONL files; tool
+responses contain only the path. Exceeding the 16 MiB bound is incomplete, never
+a truncated complete result.

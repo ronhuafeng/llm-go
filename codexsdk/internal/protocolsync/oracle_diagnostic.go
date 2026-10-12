@@ -8,9 +8,8 @@ import (
 // Test output is provisional until its terminal event. Passing test logs must
 // never displace the first failed assertion. These text buffers total less than
 // the existing 64 KiB command-output bound; the rendered result fits within the
-// final 8 KiB feedback/checkpoint bound (with failures last for outer wrappers).
+// 8 KiB human-facing summary. Full execution records use the caller's writer.
 type oracleDiagnostic struct {
-	capture            *feedbackCapture
 	tests              map[string]string
 	failures, fallback string
 	omitted            bool
@@ -62,9 +61,6 @@ func diagnosticContent(output string) string {
 	return b.String()
 }
 func (d *oracleDiagnostic) event(action, pkg, test, output string) {
-	if action != "build-output" && action != "build-fail" {
-		d.capture.event(action, pkg, test, output)
-	}
 	key := pkg + "/" + test
 	switch action {
 	case "build-output":

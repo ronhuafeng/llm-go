@@ -33,26 +33,25 @@ jobs:
           go-version-file: go.mod
           cache: false
 
-      - name: Check generated artifacts
-        working-directory: codexsdk
-        env:
-          GOTOOLCHAIN: local
-        run: go run ./internal/cmd/generatedcheck
-
-      - name: Build regenerated protocol package in isolation
+      - name: Verify generated through shared gate
+        id: goal_gate
         env:
           GOTOOLCHAIN: local
         run: |
-          set -euo pipefail
-          isolated="$(mktemp -d "${RUNNER_TEMP}/protocolv2-build.XXXXXX")"
-          cp go.mod go.sum "${isolated}/"
-          mkdir -p "${isolated}/codexsdk/internal/protocolschema/appserver" "${isolated}/codexsdk/protocolv2"
-          cp -a codexsdk/internal/protocolschema/appserver/v2 "${isolated}/codexsdk/internal/protocolschema/appserver/"
-          cp -a codexsdk/internal/wirejson "${isolated}/codexsdk/internal/"
-          find codexsdk/protocolv2 -maxdepth 1 -type f -name '*.go' ! -name '*.gen.go' ! -name '*_test.go' \
-            -exec cp -t "${isolated}/codexsdk/protocolv2" {} +
-          go run ./codexsdk/internal/cmd/generatedcheck -module-root "${isolated}/codexsdk" -write-artifacts
-          (cd "${isolated}" && go build ./codexsdk/protocolv2)
+          set +e
+          path="$(python3 .github/scripts/verify-protocol-gate.py generated)"
+          status=$?
+          echo "path=${path}" >> "${GITHUB_OUTPUT}"
+          echo "head=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
+          exit "${status}"
+
+      - name: Retain complete generated diagnostics
+        if: ${{ always() && !cancelled() && steps.goal_gate.outputs.path != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: protocol-goal-generated-${{ steps.goal_gate.outputs.head }}-${{ github.run_attempt }}
+          path: ${{ steps.goal_gate.outputs.path }}
+          if-no-files-found: error
 
       - name: Worktree remains clean
         if: ${{ always() && !cancelled() }}
