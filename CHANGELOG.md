@@ -11,6 +11,15 @@ changes may occur in minor releases.
 
 ### codexsdk
 
+#### Added
+
+- Opt-in required raw notification subscriptions with lossless JSON observation,
+  source-schema validation for the explicitly enabled internal raw-item extension,
+  ordered shared dispatch and Exact Run terminal fencing. Unsupported subscriptions,
+  malformed required payloads, callback failures and queue overflow fail explicitly
+  with secret-safe raw-observer diagnostics. Unsubscribed unknown events retain
+  their existing ignore policy; fixture evidence does not claim runtime emission.
+
 #### Fixed
 
 - Align protocol verification with strict standalone public record decoding,

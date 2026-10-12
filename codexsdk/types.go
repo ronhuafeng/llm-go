@@ -127,6 +127,8 @@ type ThreadRunner interface {
 type ServerNotificationHandler func(context.Context, protocolv2.ServerNotification) error
 
 type ClientOptions struct {
+	// RawNotifications opts into required lossless observation delivery.
+	RawNotifications          *RawNotificationSubscription
 	CWD                       string
 	Command                   []string
 	Initialize                protocolv2.InitializeParams

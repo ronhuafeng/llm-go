@@ -109,6 +109,7 @@ type pendingCall struct {
 }
 
 type rpcNotification struct {
+	envelope map[string]any
 	method   string
 	params   map[string]any
 	evidence *notificationEvidence
@@ -133,6 +134,7 @@ func (e *notificationEvidence) releaseReady() {
 }
 
 type acceptedNotification struct {
+	raw          *RawNotification
 	notification protocolv2.ServerNotification
 	evidence     *notificationEvidence
 	dispatched   chan struct{}
@@ -253,7 +255,7 @@ func validateOptions(options ClientOptions) (ClientOptions, error) {
 	if options.NotificationQueueCapacity < 0 {
 		return ClientOptions{}, errors.New("codexsdk: ClientOptions.NotificationQueueCapacity must not be negative")
 	}
-	return options, nil
+	return validateRawSubscription(options)
 }
 
 func (c *Client) Close() error {
@@ -479,7 +481,7 @@ func (c *Client) handleMessage(message map[string]any) {
 	}
 	if hasMethod {
 		params, _ := message["params"].(map[string]any)
-		c.routeNotification(rpcNotification{method: method, params: params})
+		c.routeNotification(rpcNotification{method: method, params: params, envelope: message})
 	}
 }
 
@@ -579,19 +581,37 @@ func (c *Client) routeNotification(notification rpcNotification) {
 	if c.isClosed() {
 		return
 	}
+	var raw *RawNotification
+	if c.requiresRawNotification(notification.method) {
+		var err error
+		raw, err = rawNotification(notification)
+		if err != nil {
+			c.failClient(err)
+			return
+		}
+		if notification.method == RawResponseItemCompletedExtension {
+			_, _ = c.enqueueAcceptedNotification(acceptedNotification{raw: raw}, false)
+			return
+		}
+	}
+	// The raw observer owns its JSON value; pending typed replay needs only params.
+	notification.envelope = nil
 	method, known := protocolv2.LookupMethod(notification.method)
 	if !known || method.Direction != protocolv2.MethodDirectionServerToClient || method.Kind != protocolv2.MethodKindNotification {
 		return
 	}
 	typed, err := exactNotification(notification)
 	if err != nil {
+		if raw != nil {
+			err = ErrRawNotificationDecode
+		}
 		c.routeExactNotificationError(notification, err)
 		return
 	}
 	var terminalCompletions []func()
 	var evidence *notificationEvidence
 	defer func() {
-		dispatched, err := c.enqueueNotification(typed, evidence, len(terminalCompletions) > 0)
+		dispatched, err := c.enqueueAcceptedNotification(acceptedNotification{notification: typed, evidence: evidence, raw: raw}, len(terminalCompletions) > 0)
 		if err != nil {
 			c.failClient(err)
 			return
@@ -678,7 +698,7 @@ func (c *Client) routeExactNotificationBeforeTerminalCompletion(notification rpc
 				evidence.state = stream
 				break
 			}
-			if c.options.ServerNotificationHandler != nil {
+			if c.hasNotificationHandler() {
 				evidence.dispatched = make(chan struct{})
 			}
 			notification.evidence = evidence

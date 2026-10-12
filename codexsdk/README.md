@@ -41,6 +41,66 @@ individual live test that asks for a response.
 Inbound newline-delimited JSON-RPC frames are limited to 16 MiB including the
 newline delimiter.
 
+## Required raw notifications
+
+Set `ClientOptions.RawNotifications` to a `RawNotificationSubscription` with
+explicit `Methods` and a `Handler`. Generated server notification methods are
+supported. Unknown notifications remain ignored when unsubscribed; unsupported
+required methods, duplicate method entries, and missing handlers fail `New`
+before launching the child.
+
+`rawResponseItem/completed` is upstream internal-only at the selected baseline:
+it has a standalone payload schema but is absent from the public notification
+union. Subscribe using `RawResponseItemCompletedExtension` and explicitly set
+`EnableRawResponseItemExtension: true`. This SDK extension validates the entire
+payload against the checked-in standalone schema, without changing generated
+protocol declarations or their provenance. Schema regeneration updates that
+validation input; it must continue to compile and satisfy the extension tests.
+This does not establish an official runtime emission guarantee. Applications
+request raw emission through the existing `ThreadStartParams.ExperimentalRawEvents`
+and experimental initialization settings when supported by their runtime.
+
+```go
+options.RawNotifications = &codexsdk.RawNotificationSubscription{
+    Methods: []string{codexsdk.RawResponseItemCompletedExtension},
+    EnableRawResponseItemExtension: true,
+    Handler: func(ctx context.Context, event codexsdk.RawNotification) error {
+        // Inspect event.Envelope privately; return an error to reject delivery.
+        return nil
+    },
+}
+```
+
+`RawNotification.Envelope` retains JSON values, unknown fields, exact number
+tokens, and omitted/null distinctions. `Method`, `ThreadID`, and `TurnID` expose
+wire correlation. Raw and typed callbacks share the existing finite notification
+queue (64 entries by default, configurable with `NotificationQueueCapacity`),
+consume events in transport order, and run raw before typed for the same frame.
+A duplicate emitted frame is a separate observation and is delivered once;
+the SDK does not infer item deduplication from payload equality. Attachment and
+replay do not dispatch a frame again. Observation is client-scoped: late frames
+retain their wire identity without rewriting an already completed run snapshot.
+Raw items go to the callback, without a
+second raw history in `ThreadRunResult`.
+
+Exact Run successful terminal completion waits for preceding admitted callback
+work, including raw observation even if only raw-item methods were subscribed.
+Direct typed facade responses can arrive before asynchronous callbacks complete;
+`Close` retains its existing callback-joining behavior. Callbacks should return
+promptly and avoid synchronous `Close` on their own client.
+Invalid required payloads fail the client with `ErrRawNotificationDecode`;
+callback error/panic uses `ErrRawNotificationDelivery` and `ErrHandlerFailed`;
+queue saturation uses `ErrNotificationBackpressure`. Pending work receives the
+first failure and Exact Run preserves available partial typed observations.
+Raw callback errors retain cause identity for `errors.Is`/`errors.As`, while
+their error strings and panic diagnostics omit private callback/payload values.
+Applications control any disclosure of the delivered envelope or unwrapped cause.
+
+A required subscription ensures SDK delivery or explicit failure for admitted
+frames. A server that never emits an expected raw item is an application
+acceptance decision; a clean SDK terminal alone does not prove that observation.
+These fixture-tested delivery semantics do not expand the existing live scenarios.
+
 ## Compatibility and evidence
 
 The generated surface follows the selected source in

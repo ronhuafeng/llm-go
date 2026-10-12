@@ -10,15 +10,20 @@ import (
 )
 
 func (c *Client) enqueueNotification(notification protocolv2.ServerNotification, evidence *notificationEvidence, waitForDispatch bool) (<-chan struct{}, error) {
+	return c.enqueueAcceptedNotification(acceptedNotification{notification: notification, evidence: evidence}, waitForDispatch)
+}
+
+func (c *Client) enqueueAcceptedNotification(accepted acceptedNotification, waitForDispatch bool) (<-chan struct{}, error) {
 	c.closeMu.Lock()
-	hasHandler := c.options.ServerNotificationHandler != nil
+	hasHandler := c.hasNotificationHandler()
+	evidence := accepted.evidence
 	var dispatched chan struct{}
 	if evidence != nil {
 		dispatched = evidence.dispatched
 	} else if hasHandler && waitForDispatch {
 		dispatched = make(chan struct{})
 	}
-	accepted := acceptedNotification{notification: notification, evidence: evidence, dispatched: dispatched}
+	accepted.dispatched = dispatched
 	if c.closed {
 		c.closeMu.Unlock()
 		c.awaitCloseCausePublication()
@@ -88,7 +93,7 @@ func (c *Client) notificationDispatcher() {
 				c.discardCurrentAndQueuedNotifications(accepted)
 				return
 			}
-			if handler != nil && !c.dispatchAcceptedNotification(handler, accepted) {
+			if c.hasNotificationHandler() && !c.dispatchAcceptedNotification(handler, accepted) {
 				return
 			}
 		case <-c.dispatchStop:
@@ -104,7 +109,7 @@ func (c *Client) notificationDispatcher() {
 func (c *Client) finishDispatchStop(handler ServerNotificationHandler, current *acceptedNotification) {
 	if current != nil {
 		current.evidence.releaseReady()
-		if handler != nil {
+		if c.hasNotificationHandler() {
 			if !c.dispatchAcceptedNotification(handler, *current) {
 				return
 			}
@@ -115,10 +120,10 @@ func (c *Client) finishDispatchStop(handler ServerNotificationHandler, current *
 	for {
 		select {
 		case accepted := <-c.notifications:
-			if handler != nil && !c.dispatchAcceptedNotification(handler, accepted) {
+			if c.hasNotificationHandler() && !c.dispatchAcceptedNotification(handler, accepted) {
 				return
 			}
-			if handler == nil {
+			if !c.hasNotificationHandler() {
 				accepted.releaseDispatchWaiter()
 			}
 		default:
@@ -134,7 +139,13 @@ func (c *Client) discardCurrentAndQueuedNotifications(accepted acceptedNotificat
 }
 
 func (c *Client) dispatchAcceptedNotification(handler ServerNotificationHandler, accepted acceptedNotification) bool {
-	err := invokeNotificationHandler(c.ctx, handler, accepted.notification)
+	var err error
+	if accepted.raw != nil {
+		err = invokeRawNotificationHandler(c.ctx, c.options.RawNotifications.Handler, *accepted.raw)
+	}
+	if err == nil && handler != nil && accepted.notification.Kind() != "" {
+		err = invokeNotificationHandler(c.ctx, handler, accepted.notification)
+	}
 	c.endNotificationHandler()
 	if err == nil {
 		accepted.releaseDispatchWaiter()
@@ -173,13 +184,13 @@ func (c *Client) endHandler() {
 }
 
 func (c *Client) endNotificationHandler() {
-	if c.options.ServerNotificationHandler != nil {
+	if c.hasNotificationHandler() {
 		c.handlerWG.Done()
 	}
 }
 
 func (c *Client) discardAcceptedNotifications() {
-	if c.options.ServerNotificationHandler == nil {
+	if !c.hasNotificationHandler() {
 		return
 	}
 	for {

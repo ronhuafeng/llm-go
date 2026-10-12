@@ -1077,6 +1077,25 @@ func runFakeAppServer(mode string, extra []string) {
 			}
 			params, _ := message["params"].(map[string]any)
 			threadID, _ := params["threadId"].(string)
+			if strings.HasPrefix(mode, "raw-") {
+				if mode != "raw-missing" {
+					sendRawItem(threadID, turnID, "before-response", false)
+				}
+				if mode == "raw-overflow" {
+					waitForFakePath(extra[0])
+				}
+				sendProtocolResult(id, protocolv2.TurnStartResponse{Turn: protocolv2.Turn{ID: turnID, Items: []protocolv2.ThreadItem{}, Status: protocolv2.TurnStatusInProgress}})
+				if mode == "raw-malformed" {
+					send(map[string]any{"method": RawResponseItemCompletedExtension, "params": map[string]any{"threadId": threadID, "turnId": turnID, "item": map[string]any{"type": "compaction", "encrypted_content": 123, "private": "raw-secret-sentinel"}}})
+				} else if mode != "raw-missing" {
+					sendRawItem(threadID, turnID, "during-attach", true)
+					// Identical wire frames are distinct emissions; do not invent deduplication.
+					sendRawItem(threadID, turnID, "duplicate", false)
+					sendRawItem(threadID, turnID, "duplicate", false)
+				}
+				completeTurn(threadID, turnID)
+				continue
+			}
 			if mode == "turn-start-missing-id-once" && turnCounter == 1 {
 				sendProtocolResult(id, protocolv2.TurnStartResponse{
 					Turn: protocolv2.Turn{
@@ -1794,4 +1813,12 @@ func (w *recordingWriteCloser) String() string {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return w.buf.String()
+}
+
+func sendRawItem(threadID, turnID, marker string, presentNull bool) {
+	item := map[string]any{"type": "compaction", "encrypted_content": "raw-secret-sentinel", "marker": marker, "number": json.Number("9007199254740993")}
+	if presentNull {
+		item["id"] = nil
+	}
+	send(map[string]any{"method": RawResponseItemCompletedExtension, "emittedAtMs": json.Number("9007199254740993"), "params": map[string]any{"threadId": threadID, "turnId": turnID, "item": item}})
 }
