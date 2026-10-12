@@ -12,7 +12,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -277,13 +276,9 @@ func TestCompressedCorpusPreservesEveryProbe(t *testing.T) {
 		t.Fatal(e)
 	}
 	defer reader.Close()
-	var corpus [][]Probe
-	if e := json.NewDecoder(reader).Decode(&corpus); e != nil {
-		t.Fatal(e)
-	}
-	if len(corpus) != len(targets) || !reflect.DeepEqual(corpus[0], targets[0].Probes) {
-		t.Fatal("compression changed frozen expectations")
-	}
+	corpus := decodeWireCorpus(t, reader)
+	assertWireProbes(t, targets, corpus)
+
 }
 
 func TestCompoundRootPreservesLocalDefinitionResources(t *testing.T) {
@@ -517,17 +512,12 @@ func TestStreamingCorpusMatchesOriginalBytes(t *testing.T) {
 		t.Fatal(err)
 	}
 	reader.Close()
-	original := make([][]Probe, len(targets))
-	for i, target := range targets {
-		original[i] = target.Probes
+	corpus := decodeWireCorpus(t, bytes.NewReader(raw))
+	assertWireProbes(t, targets, corpus)
+	if corpus.Targets[1] != nil || corpus.Targets[2] == nil {
+		t.Fatal("nil/empty target changed")
 	}
-	want, err := json.Marshal(original)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(raw, want) {
-		t.Fatalf("stream changed corpus: %s != %s", raw, want)
-	}
+
 }
 
 func requireOracleOutcome(t *testing.T, output []byte, err error, wantPass bool) {

@@ -76,6 +76,7 @@ func Build(req Request) ([]Target, error) {
 	}
 	var result []Target
 	totalJSONBytes, totalProbes := 0, 0
+	metadata := newDiagnosticPool()
 	var budgetErr error
 	for _, name := range keys(req.Bindings) {
 		if err := ctx.Err(); err != nil {
@@ -168,7 +169,7 @@ func Build(req Request) ([]Target, error) {
 			b, _ := json.Marshal(v)
 			s := string(b)
 			if !seen[s] {
-				totalJSONBytes += len(s)
+				totalJSONBytes += len(s) + 24 // string and location references retained per probe
 				totalProbes++
 				if totalJSONBytes > maxCorpusBytes || totalProbes > 200000 {
 					budgetErr = fmt.Errorf("schema oracle %s: total corpus byte/probe bound exceeded (bytes=%d probes=%d)", name, totalJSONBytes, totalProbes)
@@ -181,8 +182,7 @@ func Build(req Request) ([]Target, error) {
 					p.Location = &DiagnosticLocation{}
 					p.Diagnostic = invalidDiagnostic(original, docName, v, mutationPath, validationErr, p.Location)
 				}
-				locationBytes, _ := json.Marshal(p.Location)
-				totalJSONBytes += len(p.Diagnostic) + len(locationBytes)
+				totalJSONBytes += metadata.intern(&p)
 				if totalJSONBytes > maxCorpusBytes {
 					budgetErr = fmt.Errorf("schema oracle %s: total corpus byte/probe bound exceeded", name)
 					return
@@ -281,12 +281,12 @@ func Render(req Request, targets []Target) ([]byte, error) {
 	}
 	fmt.Fprintf(&b, "const frozenCorpus = %s\nconst maxFrozenCorpusBytes = %d\nconst maxFrozenCompressedBytes = %d\nconst frozenTargetCount = %d\n", strconv.Quote(base64.StdEncoding.EncodeToString(compressed)), maxCorpusBytes, maxCompressedBytes, len(targets))
 	b.WriteString(`func TestTrustedSchemaOracle(t *testing.T) {
- type probe struct { JSON string; Valid bool; Diagnostic string }
+ type probe struct { JSON json.RawMessage; Valid bool; Diagnostic int }
  if len(frozenCorpus)>((maxFrozenCompressedBytes+2)/3)*4{t.Fatal("compressed corpus bound exceeded")}
  encoded,err:=base64.StdEncoding.DecodeString(frozenCorpus);if err!=nil{t.Fatal(err)};if len(encoded)>maxFrozenCompressedBytes{t.Fatal("compressed corpus bound exceeded")}
  reader,err:=gzip.NewReader(bytes.NewReader(encoded));if err!=nil{t.Fatal(err)}
  raw,err:=io.ReadAll(io.LimitReader(reader,maxFrozenCorpusBytes+1));closeErr:=reader.Close();if err!=nil{t.Fatal(err)};if closeErr!=nil{t.Fatal(closeErr)};if len(raw)>maxFrozenCorpusBytes{t.Fatal("decompressed corpus bound exceeded")}
- var corpus [][]probe;if err:=json.Unmarshal(raw,&corpus);err!=nil{t.Fatal(err)};if len(corpus)!=frozenTargetCount{t.Fatal("frozen target count mismatch")}
+ var frozen struct { Targets [][]probe; Diagnostics []string };if err:=json.Unmarshal(raw,&frozen);err!=nil{t.Fatal(err)};corpus:=frozen.Targets;if len(corpus)!=frozenTargetCount{t.Fatal("frozen target count mismatch")}
  var equal func(any,any)bool
  equal=func(a,b any)bool{switch x:=a.(type){case json.Number:y,ok:=b.(json.Number);if !ok{return false};r,ok:=new(big.Rat).SetString(string(x));if !ok{return false};s,ok:=new(big.Rat).SetString(string(y));return ok&&r.Cmp(s)==0;case map[string]any:y,ok:=b.(map[string]any);if !ok||len(x)!=len(y){return false};for k,v:=range x{other,exists:=y[k];if !exists||!equal(v,other){return false}};return true;case []any:y,ok:=b.([]any);if !ok||len(x)!=len(y){return false};for i,v:=range x{if !equal(v,y[i]){return false}};return true;default:return reflect.DeepEqual(a,b)}}
  check := func(t *testing.T, factory func() any, fields []string, checkFields bool, probes []probe, parameterlessMethods []string) {
@@ -294,8 +294,9 @@ func Render(req Request, targets []Target) ([]byte, error) {
 
   for i, p := range probes {
    t.Run("probe_"+strconv.Itoa(i),func(t *testing.T){
-   target := factory(); err := json.Unmarshal([]byte(p.JSON),target)
-   if !p.Valid { if err == nil { t.Fatalf("probe %d: schema-invalid input accepted: %s",i,p.Diagnostic) }; return }
+   if p.Diagnostic<0||p.Diagnostic>=len(frozen.Diagnostics){t.Fatal("frozen diagnostic reference out of range")}
+   target := factory(); err := json.Unmarshal(bytes.Clone(p.JSON),target)
+   if !p.Valid { if err == nil { t.Fatalf("probe %d: schema-invalid input accepted: %s",i,frozen.Diagnostics[p.Diagnostic]) }; return }
    if err != nil { t.Fatalf("probe %d: schema-valid input rejected: %s: %v",i,p.JSON,err) }
    actual,err:=json.Marshal(target);if err!=nil{t.Fatal(err)}
    decode:=func(raw []byte) any { var v any; d:=json.NewDecoder(bytes.NewReader(raw));d.UseNumber();if err:=d.Decode(&v);err!=nil{t.Fatal(err)};return v }
@@ -357,7 +358,9 @@ func compressCorpus(ctx context.Context, targets []Target) ([]byte, error) {
 			writeErr = fmt.Errorf("schema oracle: corpus exceeds %d compressed bytes", maxCompressedBytes)
 		}
 	}
-	write([]byte("["))
+	write([]byte(`{"Targets":[`))
+	diagnostics := []string{}
+	diagnosticIndex := map[string]int{}
 	for i, target := range targets {
 		if i > 0 {
 			write([]byte(","))
@@ -374,15 +377,32 @@ func compressCorpus(ctx context.Context, targets []Target) ([]byte, error) {
 			if j > 0 {
 				write([]byte(","))
 			}
-			data, err := json.Marshal(probe)
-			if err != nil {
-				return nil, err
+			index, exists := diagnosticIndex[probe.Diagnostic]
+			if !exists {
+				index = len(diagnostics)
+				diagnosticIndex[probe.Diagnostic] = index
+				diagnostics = append(diagnostics, probe.Diagnostic)
 			}
-			write(data)
+			// Build already froze valid JSON bytes. Insert them verbatim so the
+			// wire envelope never double-escapes or normalizes their spelling.
+			write([]byte(`{"JSON":`))
+			write([]byte(probe.JSON))
+			write([]byte(`,"Valid":` + strconv.FormatBool(probe.Valid) + `,"Diagnostic":` + strconv.Itoa(index) + `}`))
 		}
 		write([]byte("]"))
 	}
-	write([]byte("]"))
+	write([]byte(`],"Diagnostics":[`))
+	for i, diagnostic := range diagnostics {
+		if i > 0 {
+			write([]byte(","))
+		}
+		data, err := json.Marshal(diagnostic)
+		if err != nil {
+			return nil, err
+		}
+		write(data)
+	}
+	write([]byte("]}"))
 	if writeErr != nil {
 		return nil, writeErr
 	}
