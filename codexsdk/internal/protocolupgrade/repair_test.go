@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -12,7 +13,7 @@ import (
 // Run the real owner against a benign generator regression, then rebuild from
 // the permitted repair. A frozen control binary must accept the implementation
 // change without authorizing a change to its own acceptance policy.
-func TestGeneratorRepairResumesSameCandidateWithTrustedScope(t *testing.T) {
+func TestGeneratorSameCandidateAfterRepairWithTrustedScope(t *testing.T) {
 	source, err := filepath.Abs("../../..")
 	if err != nil {
 		t.Fatal(err)
@@ -34,7 +35,7 @@ func TestGeneratorRepairResumesSameCandidateWithTrustedScope(t *testing.T) {
 		}
 		put(filepath.Join(repo, rel), raw)
 	}
-	for _, pkg := range []string{"checkacceptance", "codexexec", "schemaoracle", "protocolsync", "protocolupgrade", "protocolgen", "generatedcheck", "wirejson", "cmd/protocolupgrade"} {
+	for _, pkg := range []string{"protocolupgrade", "protocolgen", "generatedcheck", "wirejson"} {
 		dir := filepath.Join(source, "codexsdk/internal", pkg)
 		entries, err := os.ReadDir(dir)
 		if err != nil {
@@ -97,13 +98,11 @@ func (*Client) callProtocolNoParams(context.Context, string, any) error { return
 	put(filepath.Join(candidate, "common.rs"), raw)
 	put(filepath.Join(candidate, "common.rs.source_sha"), []byte(sha+"\n"))
 	writeJSONFile(t, filepath.Join(candidate, "reports/drift_summary.json"), map[string]any{"target": map[string]string{"source_ref_name": "rust-v1.2.3", "source_ref_kind": "stable_rust_tag", "source_commit": sha}})
-	// Acquisition is a fixture seam; Plan, construction, Apply and digest binding
-	// below are the production implementations, with no injected success result.
+	// The focused helper executes the real planning/materialization owner. The
+	// fixed scope/check control is built separately from the real repository.
 	helper := `package main
-import("encoding/json";"os";"path/filepath";"github.com/ronhuafeng/llm-go/codexsdk/internal/protocolsync")
-type lookup string
-func(s lookup) LSRemote(_ string, patterns ...string)(string,error){return string(s)+"\trefs/tags/rust-v1.2.3\n",nil}
-func main(){r,c,s:=os.Args[1],os.Args[2],os.Args[3]; m:=filepath.Join(r,"codexsdk"); result,err:=protocolsync.Sync(protocolsync.SyncRequest{RepoRoot:r,ModuleRoot:m,UpstreamRef:"rust-v1.2.3",Lookuper:lookup(s),Generate:func(protocolsync.GenerateRequest)(protocolsync.Candidate,error){return protocolsync.Candidate{Dir:c,SchemaDir:filepath.Join(c,"schema"),StableSchemaDir:filepath.Join(c,"stable-schema"),ReportsDir:filepath.Join(c,"reports"),CommonRS:filepath.Join(c,"common.rs"),CommonRSSourceSHA:s,CodexRepo:filepath.Join(m,".cache/openai-codex"),SourceCommit:s,DriftStatus:"review-required"},nil}});if err!=nil{panic(err)};json.NewEncoder(os.Stdout).Encode(result)}
+import("encoding/json";"os";"path/filepath";"fmt";"github.com/ronhuafeng/llm-go/codexsdk/internal/protocolupgrade")
+func main(){r,c,s:=os.Args[1],os.Args[2],os.Args[3];m:=filepath.Join(r,"codexsdk");req:=protocolupgrade.ApplyRequest{ModuleRoot:m,Baseline:filepath.Join(m,"internal/protocolschema/appserver/v2"),Candidate:filepath.Join(c,"schema"),StableCandidate:filepath.Join(c,"stable-schema"),Reports:filepath.Join(m,".cache/repair-reports"),CommonRS:filepath.Join(c,"common.rs"),CommonRSSourceSHA:s,CodexRepo:filepath.Join(m,".cache/openai-codex"),TargetRef:"rust-v1.2.3",TargetKind:"stable_rust_tag",TargetSHA:s};planned,err:=protocolupgrade.PlanRepository(req);if err!=nil{fmt.Fprintln(os.Stderr,err);os.Exit(1)};if len(os.Args)>4 {if planned.Status!=protocolupgrade.PlanReady{fmt.Fprintln(os.Stderr,planned.Issue);os.Exit(1)};if _,err=planned.Apply();err!=nil{fmt.Fprintln(os.Stderr,err);os.Exit(1)}};json.NewEncoder(os.Stdout).Encode(planned)}
 `
 	put(filepath.Join(module, "internal/cmd/fixture/main.go"), []byte(helper))
 	generator := filepath.Join(module, "internal/protocolgen/package.go")
@@ -143,28 +142,64 @@ func TestNoPublicationCredentials(t *testing.T){for _,key:=range []string{"GH_TO
 		return out
 	}
 	control := filepath.Join(t.TempDir(), "control")
-	must("go", "build", "-o", control, "./codexsdk/internal/cmd/protocolupgrade")
+	buildControl := exec.Command("go", "build", "-o", control, "./codexsdk/internal/cmd/protocolupgrade")
+	buildControl.Dir = source
+	buildControl.Env = append(os.Environ(), "GH_TOKEN=", "GITHUB_TOKEN=", "GITHUB_OUTPUT=")
+	if out, e := buildControl.CombinedOutput(); e != nil {
+		t.Fatalf("build frozen real control: %v\n%s", e, out)
+	}
+	baselineBefore, err := snapshotHashes(baseline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidateBefore, err := snapshotHashes(candidate)
+	if err != nil {
+		t.Fatal(err)
+	}
 	initial := must("go", "run", "./codexsdk/internal/cmd/fixture", repo, candidate, sha)
-	var result struct{ Outcome, CandidateSHA256 string }
-	if err := json.Unmarshal(initial, &result); err != nil {
+	var result PlanResult
+	if err = json.Unmarshal(initial, &result); err != nil {
 		t.Fatalf("initial result: %v: %s", err, initial)
 	}
-	if result.Outcome != "semantic_unresolved" || result.CandidateSHA256 == "" {
+	if result.Status != PlanSemanticUnresolved || result.Issue == nil || !strings.Contains(result.Issue.Reason, "fixture unsupported representation") {
 		t.Fatalf("initial=%s", initial)
 	}
-	put(generator, original) // the permitted generator implementation repair
+	baselineAfter, err := snapshotHashes(baseline)
+	if err != nil || !reflect.DeepEqual(baselineBefore, baselineAfter) {
+		t.Fatalf("unresolved Plan changed accepted baseline: %v", err)
+	}
+	put(generator, original)
 	must(control, "scope", "-repo-root", repo, "-phase", "agent")
-	repaired := filepath.Join(t.TempDir(), "repaired")
-	must("go", "build", "-o", repaired, "./codexsdk/internal/cmd/protocolupgrade")
-	args := []string{"resume", "-repo-root", repo, "-module-root", module, "-candidate-dir", candidate, "-candidate-sha256", result.CandidateSHA256, "-target-ref", "rust-v1.2.3", "-target-kind", "stable_rust_tag", "-target-sha", sha}
-	if out := must(repaired, args...); !strings.Contains(string(out), "re-planned successfully") {
-		t.Fatalf("resume=%s", out)
+	// A different claimed target cannot reuse the same exact common.rs checkout.
+	if out, e := command("go", "run", "./codexsdk/internal/cmd/fixture", repo, candidate, strings.Repeat("f", 40)); e == nil || !strings.Contains(string(out), "common.rs") {
+		t.Fatalf("wrong target accepted or unrelated failure: %v %s", e, out)
+	}
+	repaired := must("go", "run", "./codexsdk/internal/cmd/fixture", repo, candidate, sha, "apply")
+	if err = json.Unmarshal(repaired, &result); err != nil || result.Status != PlanReady {
+		t.Fatalf("repaired plan: %v %s", err, repaired)
+	}
+	candidateAfter, err := snapshotHashes(candidate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(candidateBefore, candidateAfter) {
+		var changed []string
+		for name, hash := range candidateBefore {
+			if candidateAfter[name] != hash {
+				changed = append(changed, name)
+			}
+		}
+		for name := range candidateAfter {
+			if _, ok := candidateBefore[name]; !ok {
+				changed = append(changed, name)
+			}
+		}
+		t.Fatalf("repair or apply changed the bound candidate bytes: %v", changed)
 	}
 	must("go", "test", "./codexsdk/internal/protocolgen", "-run", "TestNoPublicationCredentials")
-	must(repaired, "check", "-module-root", module)
+	must(control, "check", "-module-root", module)
 	must(control, "scope", "-repo-root", repo, "-phase", "final")
 	must(control, "stage", "-repo-root", repo, "-phase", "final")
-	must(control, "verify-candidate", "-candidate-dir", candidate, "-candidate-sha256", result.CandidateSHA256, "-target-ref", "rust-v1.2.3", "-target-kind", "stable_rust_tag", "-target-sha", sha)
 	protected := filepath.Join(module, "internal/protocolsync/policy.go")
 	put(protected, []byte("package protocolsync // fixture control change\n"))
 	if out, err := command(control, "stage", "-repo-root", repo, "-phase", "final"); err == nil || !strings.Contains(string(out), "needs-maintainer") {
