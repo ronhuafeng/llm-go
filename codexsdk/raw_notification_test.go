@@ -436,3 +436,54 @@ func TestRawKnownNotificationExtractsNestedIdentity(t *testing.T) {
 		t.Fatal("nested thread correlation lost")
 	}
 }
+
+func TestRawFailurePublishesWhileAttachmentOwnsReplayOrder(t *testing.T) {
+	t.Setenv("CODEXSDK_FAKE_RECORD", tempRecord(t))
+	pendingTerminal, attachmentLocked, releaseAttachment := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	failure := errors.New("private-raw-callback-cause")
+	options := rawOptions(t, "raw-happy", func(context.Context, RawNotification) error { <-attachmentLocked; return failure })
+	options.RawNotifications.Methods = []string{RawResponseItemCompletedExtension}
+	c, err := New(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	c.testBeforeExactTurnAttach = func() { <-pendingTerminal }
+	c.testPendingExactNotification = func(n rpcNotification) {
+		if n.method == "turn/completed" {
+			close(pendingTerminal)
+		}
+	}
+	c.testAfterExactTurnPublished = func() { close(attachmentLocked); <-releaseAttachment }
+	type outcome struct {
+		result StartedThreadRun
+		err    error
+	}
+	done := make(chan outcome, 1)
+	go func() {
+		r, e := c.ThreadRunner().Start(context.Background(), StartThreadRunRequest{Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}}})
+		done <- outcome{r, e}
+	}()
+	<-attachmentLocked
+	select {
+	case <-c.closeCausePublished:
+	case <-time.After(time.Second):
+		close(releaseAttachment)
+		t.Fatal("raw failure publication waits on attachment replay lock")
+	}
+	close(releaseAttachment)
+	select {
+	case got := <-done:
+		if !errors.Is(got.err, ErrRawNotificationDelivery) || !errors.Is(got.err, failure) {
+			t.Fatalf("first cause lost: %v", got.err)
+		}
+		if len(got.result.Run.Notifications) != 3 {
+			t.Fatal("failure lost accepted pending typed evidence")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("failed pending run did not settle")
+	}
+	if err = c.Close(); !errors.Is(err, failure) {
+		t.Fatal("close changed the first cause")
+	}
+}

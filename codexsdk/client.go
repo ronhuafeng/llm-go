@@ -872,7 +872,11 @@ func (n rpcNotification) resolvePendingEvidence() error {
 	if n.evidence == nil || n.evidence.state == nil {
 		return nil
 	}
-	return n.resolveEvidence(n.evidence.state.acceptOrderedBeforeTerminalCompletion)
+	// Failure snapshots and attachment replay traverse the same pending prefix
+	// in order. The evidence Once serializes each commit; the state mutex protects
+	// its contents. Do not acquire notificationOrderMu inside Once: attachment
+	// holds that mutex while replaying the same evidence (and waiting on dispatch).
+	return n.resolveEvidence(n.evidence.state.acceptStateBeforeTerminalCompletion)
 }
 
 func (n rpcNotification) resolveReplayingEvidence() error {
