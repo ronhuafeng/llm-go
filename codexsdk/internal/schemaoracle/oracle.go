@@ -50,6 +50,9 @@ type Target struct {
 	Probes         []Probe
 	Fields         []string
 	CheckFields    bool
+	// Only the source-selected ClientRequest envelope may canonically omit
+	// optional null-only params. Other object members retain exact presence.
+	ParameterlessMethods []string
 }
 
 // Build computes all expectations before candidate code is compiled or run.
@@ -102,6 +105,7 @@ func Build(req Request) ([]Target, error) {
 		if err != nil {
 			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
 		}
+		parameterlessMethods := parameterlessRequestMethods(root, docName, fragment)
 		if err := prepareReachable(doc, root, fragment, req.CloseObjects, map[string]bool{}); err != nil {
 			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
 		}
@@ -139,6 +143,7 @@ func Build(req Request) ([]Target, error) {
 			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
 		}
 		target := Target{Schema: name, GoType: binding}
+		target.ParameterlessMethods = parameterlessMethods
 		target.Fields, target.CheckFields, err = objectFields(doc, root, 0)
 		if err != nil {
 			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
@@ -217,7 +222,8 @@ func Build(req Request) ([]Target, error) {
 
 // Generate renders a stdlib-only test. Candidate tests cannot select the corpus
 // or decide which mutations are valid. Decode success also requires lossless
-// JSON roundtrip, including optional absence, null, and distinct field values.
+// JSON roundtrip, including optional absence, null, and distinct field values,
+// except the established parameterless ClientRequest canonical encoding.
 func Generate(req Request) ([]byte, error) {
 	if req.Context == nil {
 		req.Context = context.Background()
@@ -239,7 +245,7 @@ func Generate(req Request) ([]byte, error) {
 	}
 	var b strings.Builder
 	typePrefix := ""
-	fmt.Fprintf(&b, "package %s\nimport (\"encoding/json\";\"bytes\";\"reflect\";\"testing\";\"sort\";\"strings\";\"compress/gzip\";\"encoding/base64\";\"io\";\"math/big\")\n", pkg)
+	fmt.Fprintf(&b, "package %s\nimport (\"encoding/json\";\"bytes\";\"reflect\";\"testing\";\"sort\";\"strings\";\"strconv\";\"compress/gzip\";\"encoding/base64\";\"io\";\"math/big\")\n", pkg)
 	if req.ImportPath != "" {
 		fmt.Fprintf(&b, "import subject %s\n", strconv.Quote(req.ImportPath))
 		typePrefix = "subject."
@@ -255,16 +261,29 @@ func Generate(req Request) ([]byte, error) {
  preview:=func(data string)string{if len(data)>2048{return data[:2048]+"...[truncated]"};return data}
  var equal func(any,any)bool
  equal=func(a,b any)bool{switch x:=a.(type){case json.Number:y,ok:=b.(json.Number);if !ok{return false};r,ok:=new(big.Rat).SetString(string(x));if !ok{return false};s,ok:=new(big.Rat).SetString(string(y));return ok&&r.Cmp(s)==0;case map[string]any:y,ok:=b.(map[string]any);if !ok||len(x)!=len(y){return false};for k,v:=range x{other,exists:=y[k];if !exists||!equal(v,other){return false}};return true;case []any:y,ok:=b.([]any);if !ok||len(x)!=len(y){return false};for i,v:=range x{if !equal(v,y[i]){return false}};return true;default:return reflect.DeepEqual(a,b)}}
- check := func(t *testing.T, factory func() any, fields []string, checkFields bool, probes []probe) {
-  if checkFields { typ:=reflect.TypeOf(factory()).Elem();if typ.Kind()!=reflect.Struct{t.Fatalf("schema object must bind struct, got %s",typ)};actual:=[]string{};for i:=0;i<typ.NumField();i++ {f:=typ.Field(i);if f.PkgPath!=""{continue};tag:=strings.Split(f.Tag.Get("json"),",")[0];if tag=="-"{continue};if tag==""{tag=f.Name};actual=append(actual,tag)};sort.Strings(actual);if !reflect.DeepEqual(actual,fields){t.Fatalf("schema fields=%v Go JSON fields=%v",fields,actual)} }
+ check := func(t *testing.T, factory func() any, fields []string, checkFields bool, probes []probe, parameterlessMethods []string) {
+  if checkFields { t.Run("fields",func(t *testing.T){typ:=reflect.TypeOf(factory()).Elem();if typ.Kind()!=reflect.Struct{t.Fatalf("schema object must bind struct, got %s",typ)};actual:=[]string{};for i:=0;i<typ.NumField();i++ {f:=typ.Field(i);if f.PkgPath!=""{continue};tag:=strings.Split(f.Tag.Get("json"),",")[0];if tag=="-"{continue};if tag==""{tag=f.Name};actual=append(actual,tag)};sort.Strings(actual);if !reflect.DeepEqual(actual,fields){t.Fatalf("schema fields=%v Go JSON fields=%v",fields,actual)} }) }
 
   for i, p := range probes {
+   t.Run("probe_"+strconv.Itoa(i),func(t *testing.T){
    target := factory(); err := json.Unmarshal([]byte(p.JSON),target)
-   if !p.Valid { if err == nil { t.Fatalf("probe %d: schema-invalid input accepted: %s",i,preview(p.JSON)) }; continue }
+   if !p.Valid { if err == nil { t.Fatalf("probe %d: schema-invalid input accepted: %s",i,preview(p.JSON)) }; return }
    if err != nil { t.Fatalf("probe %d: schema-valid input rejected: %s: %v",i,preview(p.JSON),err) }
    actual,err:=json.Marshal(target);if err!=nil{t.Fatal(err)}
    decode:=func(raw []byte) any { var v any; d:=json.NewDecoder(bytes.NewReader(raw));d.UseNumber();if err:=d.Decode(&v);err!=nil{t.Fatal(err)};return v }
-   if !equal(decode([]byte(p.JSON)),decode(actual)){t.Fatalf("probe %d: wire value lost: input=%s output=%s",i,preview(p.JSON),preview(string(actual)))}
+   expected,observed:=decode([]byte(p.JSON)),decode(actual)
+   // This is directional canonical omission, not absent/null equivalence.
+   // The method list was frozen from the exact top-level source branches.
+   input,inObject:=expected.(map[string]any);output,outObject:=observed.(map[string]any)
+   if inObject&&outObject {
+    params,present:=input["params"];_,outputPresent:=output["params"]
+    method,inMethod:=input["method"].(string);outputMethod,outMethod:=output["method"].(string)
+    if present&&params==nil&&!outputPresent&&inMethod&&outMethod&&method==outputMethod {
+     for _,allowed:=range parameterlessMethods {if method==allowed {delete(input,"params");break}}
+    }
+   }
+   if !equal(expected,observed){t.Fatalf("probe %d: wire value lost: input=%s output=%s",i,preview(p.JSON),preview(string(actual)))}
+   })
   }
  }
 `)
@@ -273,7 +292,11 @@ func Generate(req Request) ([]byte, error) {
 		for _, field := range t.Fields {
 			fmt.Fprintf(&b, "%s,", strconv.Quote(field))
 		}
-		fmt.Fprintf(&b, "},%t,corpus[%d])})\n", t.CheckFields, i)
+		fmt.Fprintf(&b, "},%t,corpus[%d],[]string{", t.CheckFields, i)
+		for _, method := range t.ParameterlessMethods {
+			fmt.Fprintf(&b, "%s,", strconv.Quote(method))
+		}
+		b.WriteString("})})\n")
 	}
 	b.WriteString("}\n")
 	if b.Len() > 12<<20 {

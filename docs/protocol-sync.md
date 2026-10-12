@@ -139,6 +139,24 @@ satisfies the standalone strict record's rejection contract. Role-specific
 regressions separately prove observation tolerance and action-bearing rejection;
 the standalone oracle does not certify a lossless observation/relay API.
 
+The oracle checks each wire witness in its own Go subtest, independently of the
+declared-field check. An assertion failure does not suppress later witnesses for
+the same contract. Feedback still uses the existing diagnostic bounds and marks
+omitted output; compiler errors, panics, skipped or missing trusted tests remain
+failed or unavailable evidence.
+
+Round trips preserve JSON member presence except the accepted parameterless
+`ClientRequest` canonical encoding. At that source document's top-level envelope,
+a simple singleton-method branch with required `id` and `method` and optional
+null-only `params` permits decoding explicit null and encoding without params.
+Eligibility comes from the exact raw source branch, not a method name or Go
+binding. The comparison permits only that direction of omission with the same
+method; other members still compare exactly. Required params, nullable non-null
+params, nested or ordinary fields, and other envelope roles receive no exception.
+Additional envelope constraints or ambiguous discriminators retain exact
+comparison until separately reviewed. This rule changes neither source validity
+classification nor action/observation decoding policy.
+
 A small facade-name map may preserve public acronyms/names. It has no authority
 over method presence, stability, parameters, responses, or type generation.
 Unrepresentable meaning fails closed; do not drop fields or introduce lossy

@@ -293,7 +293,7 @@ func TestCompoundRootPreservesLocalDefinitionResources(t *testing.T) {
 	}
 }
 
-func runOracleFixture(t *testing.T, r Request, implementation string, wantPass bool) {
+func runOracleFixture(t *testing.T, r Request, implementation string, wantPass bool) []byte {
 	t.Helper()
 	source, err := Generate(r)
 	if err != nil {
@@ -309,6 +309,7 @@ func runOracleFixture(t *testing.T, r Request, implementation string, wantPass b
 	cmd.Dir = dir
 	output, err := cmd.CombinedOutput()
 	requireOracleOutcome(t, output, err, wantPass)
+	return output
 }
 
 func TestDeepRequiredAndTypeMutationsExecuteAgainstWeakDecoder(t *testing.T) {
@@ -451,8 +452,53 @@ func TestGeneratedCasesStayInsideOneContractTest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Count(string(source), "t.Run(") != len(targets) || !bytes.Contains(source, []byte("probe %d:")) {
-		t.Fatal("probe count inflated test events or lost indexed diagnostics")
+	// Keep a single trusted parent per source contract, but execute each
+	// witness independently. Text counts cannot establish actual execution.
+	implementation := `package fixture
+import("bytes";"encoding/json";"fmt")
+type Payload struct{One string ` + "`json:\"one\"`" + `;Two *bool ` + "`json:\"two,omitempty\"`" + `}
+func(p *Payload)UnmarshalJSON(b []byte)error{var root map[string]json.RawMessage;if json.Unmarshal(b,&root)!=nil||root["one"]==nil{return fmt.Errorf("one required")};for key,value:=range root{if key!="one"&&key!="two"||bytes.Equal(value,[]byte("null")){return fmt.Errorf("field")}};type plain Payload;return json.Unmarshal(b,(*plain)(p))}
+`
+	dir := t.TempDir()
+	for name, body := range map[string]string{"go.mod": "module fixture\ngo 1.26.8\n", "payload.go": implementation, "oracle_test.go": string(source)} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cmd := exec.Command("go", "test", "-count=1", "-json", ".")
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	requireOracleOutcome(t, out, err, true)
+	ran, passed := map[string]int{}, map[string]int{}
+	for _, line := range bytes.Split(out, []byte("\n")) {
+		if len(line) == 0 {
+			continue
+		}
+		var event struct{ Action, Test string }
+		if err := json.Unmarshal(line, &event); err != nil {
+			t.Fatal(err)
+		}
+		switch event.Action {
+		case "run":
+			ran[event.Test]++
+		case "pass":
+			if event.Test != "" {
+				passed[event.Test]++
+			}
+		}
+	}
+	parent := "TestTrustedSchemaOracle/target.json"
+	names := []string{"TestTrustedSchemaOracle", parent, parent + "/fields"}
+	for i := range targets[0].Probes {
+		names = append(names, parent+"/probe_"+strconv.Itoa(i))
+	}
+	if len(ran) != len(names) || len(passed) != len(names) {
+		t.Fatalf("executed tests=%d passed=%d expected=%d", len(ran), len(passed), len(names))
+	}
+	for _, name := range names {
+		if ran[name] != 1 || passed[name] != 1 {
+			t.Errorf("%s executed=%d passed=%d, want once each", name, ran[name], passed[name])
+		}
 	}
 }
 
