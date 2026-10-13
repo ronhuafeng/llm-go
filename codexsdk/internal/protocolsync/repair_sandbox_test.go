@@ -1,13 +1,83 @@
 package protocolsync
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"fmt"
+	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
+
+// A version-pinned go run still looks up module deprecation metadata. Exercise
+// the sandbox's real environment after its original proxy has disappeared.
+func TestOracleSandboxRunsPinnedToolFromPrewarmedCache(t *testing.T) {
+	base := t.TempDir()
+	proxy := filepath.Join(base, "original-proxy")
+	versions := filepath.Join(proxy, "example.test/tool/@v")
+	for _, version := range []string{"v1.0.0", "v1.1.0"} {
+		mod := "module example.test/tool\n\ngo 1.26.8\n"
+		writeFile(t, filepath.Join(versions, version+".mod"), mod)
+		writeFile(t, filepath.Join(versions, version+".info"), fmt.Sprintf(`{"Version":%q,"Time":"2026-01-01T00:00:00Z"}`, version))
+		var archive bytes.Buffer
+		zw := zip.NewWriter(&archive)
+		for name, content := range map[string]string{
+			"go.mod":  mod,
+			"main.go": fmt.Sprintf("package main\nimport \"fmt\"\nfunc main(){fmt.Println(%q)}\n", version),
+		} {
+			entry, err := zw.Create("example.test/tool@" + version + "/" + name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = entry.Write([]byte(content)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := zw.Close(); err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, filepath.Join(versions, version+".zip"), archive.String())
+	}
+	writeFile(t, filepath.Join(versions, "list"), "v1.0.0\nv1.1.0\n")
+	root := filepath.Join(base, "workspace")
+	writeFile(t, filepath.Join(root, "go.mod"), "module fixture\n\ngo 1.26.8\n")
+	s := oracleSandbox{root: root, work: filepath.Join(base, "private"), goroot: runtime.GOROOT(), modules: filepath.Join(base, "module cache")}
+	for _, dir := range []string{s.modules, filepath.Join(s.work, "home"), filepath.Join(s.work, "cache")} {
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	run := func(env []string, version string) ([]byte, error) {
+		cmd := exec.Command(filepath.Join(s.goroot, "bin", "go"), "run", "example.test/tool@"+version)
+		cmd.Dir, cmd.Env = root, env
+		return cmd.CombinedOutput()
+	}
+	warmEnv := append([]string{}, s.command(context.Background(), "/bin/true").Env...)
+	warmEnv = append(warmEnv, "GOFLAGS=-modcacherw") // allow TempDir cleanup of downloaded fixtures
+	for i, value := range warmEnv {
+		if strings.HasPrefix(value, "GOPROXY=") {
+			warmEnv[i] = "GOPROXY=" + (&url.URL{Scheme: "file", Path: filepath.ToSlash(proxy)}).String()
+		}
+	}
+	if out, err := run(warmEnv, "v1.0.0"); err != nil || strings.TrimSpace(string(out)) == "v1.1.0" {
+		t.Fatalf("warm pinned tool: %v: %s", err, out)
+	}
+	if err := os.Rename(proxy, proxy+"-unavailable"); err != nil {
+		t.Fatal(err)
+	}
+	env := s.command(context.Background(), "/bin/true").Env
+	if out, err := run(env, "v1.0.0"); err != nil || strings.TrimSpace(string(out)) != "v1.0.0" {
+		t.Fatalf("offline pinned tool: %v: %s", err, out)
+	}
+	if out, err := run(env, "v1.2.0"); err == nil {
+		t.Fatalf("uncached tool version succeeded: %s", out)
+	}
+}
 
 func TestOracleSandboxPolicyBindsOnlyDisposableWrites(t *testing.T) {
 	root := t.TempDir()

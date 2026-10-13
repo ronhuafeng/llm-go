@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -72,7 +73,10 @@ func (s oracleSandbox) command(ctx context.Context, program string, args ...stri
 	if s.extraPath != "" {
 		path = filepath.Join(s.goroot, "bin") + ":" + s.extraPath + ":/usr/bin:/bin"
 	}
-	cmd.Env = []string{"PATH=" + path, "HOME=" + filepath.Join(s.work, "home"), "GOCACHE=" + filepath.Join(s.work, "cache"), "GOMODCACHE=" + s.modules, "GOTOOLCHAIN=local", "GOPROXY=off", "GOSUMDB=off", "TMPDIR=/tmp", "CI=true"}
+	// Version-pinned go run also reads deprecation metadata through GOPROXY.
+	// Serve only the already mounted read-only cache; never fall back to a network proxy.
+	proxy := (&url.URL{Scheme: "file", Path: filepath.ToSlash(filepath.Join(s.modules, "cache", "download"))}).String()
+	cmd.Env = []string{"PATH=" + path, "HOME=" + filepath.Join(s.work, "home"), "GOCACHE=" + filepath.Join(s.work, "cache"), "GOMODCACHE=" + s.modules, "GOTOOLCHAIN=local", "GOPROXY=" + proxy, "GOSUMDB=off", "TMPDIR=/tmp", "CI=true"}
 	return cmd
 }
 
