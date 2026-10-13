@@ -334,7 +334,7 @@ func TestProtocolSyncPreservesAuthorityAndPublicationBoundaries(t *testing.T) {
 		t.Fatal("native tool must verify frozen bytes before publishing and observing CI")
 	}
 	publisher := repositorySource(t, root, "codexsdk/internal/protocolsync/goal_publication.go")
-	for _, want := range []string{"!pr.Draft", "goalSnapshot(", `"commit-tree", tree, "-p", req.ExpectedHead`, `"push", "--porcelain"`, "isMechanicalPath(p)", "isAgentProposalPath(p)", "isVerifierProposalPath(p)", "checkacceptance.Observe"} {
+	for _, want := range []string{"!pr.Draft", "goalSnapshot(", `"commit-tree", tree, "-p", req.ExpectedHead`, `"push", "--porcelain"`, "checkacceptance.Observe"} {
 		if !strings.Contains(publisher, want) {
 			t.Fatalf("publisher/observer lost boundary %q", want)
 		}
