@@ -225,15 +225,9 @@ func TestGoalDraftAppendsFrozenTreeAndReusesIdenticalHead(t *testing.T) {
 		t.Fatal("second append lost previous parent")
 	}
 }
-func TestGoalDraftRejectsChangedBindingAndScopeBeforePush(t *testing.T) {
+func TestGoalDraftRejectsChangedBindingBeforePush(t *testing.T) {
 	cases := map[string]func(*goalPublicationFixture){
 		"ready": func(f *goalPublicationFixture) { f.pr.Draft = false }, "closed": func(f *goalPublicationFixture) { f.pr.State = "closed" }, "foreign repo": func(f *goalPublicationFixture) { f.pr.Head.Repo.FullName = "other/repo" }, "foreign creator": func(f *goalPublicationFixture) { f.pr.User.ID++ }, "foreign actor": func(f *goalPublicationFixture) { f.actor.ID++ }, "wrong base": func(f *goalPublicationFixture) { f.pr.Base.SHA = strings.Repeat("c", 40) }, "namespace": func(f *goalPublicationFixture) { f.request.Branch = "feature/anything" }, "zero PR": func(f *goalPublicationFixture) { f.request.Number = 0 }, "digest": func(f *goalPublicationFixture) { f.request.SnapshotDigest = strings.Repeat("0", 64) },
-		"scope": func(f *goalPublicationFixture) {
-			goalTestWrite(t, f.request.CandidateDir, "README.md", "changed contract")
-			goalTestGit(t, f.request.CandidateDir, "add", "-A")
-			goalTestGit(t, f.request.CandidateDir, "-c", "user.name=Fixture", "-c", "user.email=fixture@localhost", "commit", "-m", "scope escape")
-			f.request.SnapshotDigest, _ = goalSnapshot(context.Background(), f.request.CandidateDir, "")
-		},
 		"source": func(f *goalPublicationFixture) { f.request.Target.PeeledCommitSHA = strings.Repeat("c", 40) },
 	}
 	for name, mutate := range cases {
@@ -346,11 +340,11 @@ func TestGoalDraftMainMovementBlocksBeforeAndAfterPush(t *testing.T) {
 	}
 }
 
-func TestGoalDraftRejectsFrozenSourceAndAuthorityChanges(t *testing.T) {
-	for _, name := range []string{"codexsdk/internal/protocolschema/appserver/v2/baseline_metadata.json", "codexsdk/internal/protocolsync/goal_publication.go", ".github/workflows/pr-verification.yml"} {
-		t.Run(name, func(t *testing.T) {
+func TestGoalDraftRejectsFrozenSourceIdentityChanges(t *testing.T) {
+	for _, body := range []string{"invalid identity", fmt.Sprintf(`{"source_commit":%q,"source_ref_name":"rust-v0.141.0","source_ref_kind":"stable_rust_tag"}`, strings.Repeat("c", 40))} {
+		t.Run(body, func(t *testing.T) {
 			f := newGoalPublicationFixture(t)
-			goalTestWrite(t, f.request.CandidateDir, name, "replaced authority or identity\n")
+			goalTestWrite(t, f.request.CandidateDir, "codexsdk/internal/protocolschema/appserver/v2/baseline_metadata.json", body)
 			goalTestGit(t, f.request.CandidateDir, "add", "-A")
 			goalTestGit(t, f.request.CandidateDir, "-c", "user.name=Fixture", "-c", "user.email=fixture@localhost", "commit", "-m", "changed frozen candidate")
 			f.request.SnapshotDigest, _ = goalSnapshot(context.Background(), f.request.CandidateDir, "")

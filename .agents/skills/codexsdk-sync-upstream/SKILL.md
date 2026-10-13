@@ -77,11 +77,14 @@ the changes, checks, diagnostic paths and Draft PR. A model's
 completion claim, a tool exit without the required checks, or a partial pass is
 not independent acceptance.
 
-The proposal may contain generated artifacts, implementation changes, focused
-tests and justified verifier changes. Do not alter the launcher's source
-identity, credential boundary, scope checks, publication controls or required
-CI gates. Do not configure authentication, stage or commit in the proposal
-repository, push, mutate PRs or dispatch workflows yourself. Only the fixed
+Change the files needed for the fixed-target upgrade, including generated
+artifacts, implementation, tests and justified verifier changes. Publication
+has no file-path allowlist. Explain changes beyond protocol generation and
+adaptation, and their risks, in the final report for independent review. Preserve
+the acceptance contract; the trusted launcher owns source identity, credentials,
+publication and required-check decisions. Do not configure authentication, stage
+or commit in the proposal repository, push, mutate PRs or dispatch workflows
+yourself. Only the fixed
 verification tool may update the bound Draft PR after local checks pass. Keep
 that PR Draft. Do not merge, integrate or tag, even when all checks pass.
 

@@ -36,7 +36,7 @@ The fixed no-argument `verify_upstream` tool:
    public regressions remain real checks; candidate verifier changes execute
    inside the same existing isolation boundary.
 2. On local success, validates the fixed repository, Draft PR, App actor, branch,
-   original base, exact target, scope and snapshot. It appends one normal commit
+   original base, exact target and snapshot. It appends one normal commit
    to the observed head. Identical content reuses the same head. Uncertain effects
    are read back; another remote head is not silently adopted.
 3. Waits for that exact head's latest trusted PR-verification attempt, including
@@ -54,7 +54,11 @@ Contract-grounded verifier changes belong with implementation in the same
 proposal. Legitimate evolution must pass and real defects must still fail;
 expectations derive from the exact source and accepted public contract. Source
 identity, credential isolation, publication and required-check controls remain
-outside the goal's editable scope. Independent review remains necessary.
+owned by the trusted launcher. Publication has no file-path allowlist. The
+result and publication diagnostics retain all changed paths for independent
+review; the goal's final report explains risks from changes beyond protocol
+generation and adaptation. Review checks that the acceptance contract was not
+weakened, including when the proposal changes verification or control code.
 
 ## Runtime and effect boundaries
 

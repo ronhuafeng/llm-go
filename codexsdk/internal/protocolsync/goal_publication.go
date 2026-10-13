@@ -34,10 +34,11 @@ type GoalPublicationRequest struct {
 // GoalPublication.Head is our Git-confirmed effect locator. It may accompany an
 // error when later PR/base checks fail; a nonempty Head alone is not acceptance.
 type GoalPublication struct {
-	Number         int    `json:"number"`
-	Head           string `json:"head"`
-	PreviousHead   string `json:"previous_head"`
-	SnapshotDigest string `json:"snapshot_sha256"`
+	Number         int      `json:"number"`
+	Head           string   `json:"head"`
+	PreviousHead   string   `json:"previous_head"`
+	SnapshotDigest string   `json:"snapshot_sha256"`
+	ChangedPaths   []string `json:"changed_paths"`
 }
 
 type goalDraftPR struct {
@@ -90,13 +91,10 @@ func appendGoalDraft(ctx context.Context, req GoalPublicationRequest, push goalP
 	}
 	paths, err := gitNUL(req.RepoRoot, "diff", "--name-only", "--no-renames", "-z", req.BaseSHA, tree, "--")
 	if err != nil {
-		return result, errors.New("cannot inspect publication scope")
+		return result, errors.New("cannot inspect candidate changes")
 	}
-	for _, p := range paths {
-		if !isMechanicalPath(p) && !isAgentProposalPath(p) && !isVerifierProposalPath(p) {
-			return result, errors.New("candidate escapes fixed goal scope")
-		}
-	}
+	// File layout is review evidence, not publication authority. The trusted
+	// target, snapshot, Draft binding and exact-head checks remain authoritative.
 	identity, err := gitBaselineIdentity(req.RepoRoot, tree)
 	if err != nil || identity.SourceCommit != req.Target.PeeledCommitSHA || identity.SourceRefName != req.Target.RefName || identity.SourceRefKind != req.Target.RefKind {
 		return result, errors.New("candidate source identity differs from bound target")
@@ -109,7 +107,7 @@ func appendGoalDraft(ctx context.Context, req GoalPublicationRequest, push goalP
 		if err := goalCurrent(ctx, req, req.ExpectedHead); err != nil {
 			return result, err
 		}
-		return GoalPublication{Number: req.Number, Head: req.ExpectedHead, PreviousHead: req.ExpectedHead, SnapshotDigest: req.SnapshotDigest}, nil
+		return GoalPublication{Number: req.Number, Head: req.ExpectedHead, PreviousHead: req.ExpectedHead, SnapshotDigest: req.SnapshotDigest, ChangedPaths: paths}, nil
 	}
 	digest, err = goalSnapshot(ctx, req.CandidateDir, "")
 	if err != nil || digest != req.SnapshotDigest {
@@ -143,7 +141,7 @@ func appendGoalDraft(ctx context.Context, req GoalPublicationRequest, push goalP
 	// Exact Git readback confirms our own effect even if the PR projection lags.
 	// Preserve its locator on postcondition failure; this is not acceptance and
 	// never adopts an arbitrary remote head.
-	result = GoalPublication{Number: req.Number, Head: head, PreviousHead: req.ExpectedHead, SnapshotDigest: req.SnapshotDigest}
+	result = GoalPublication{Number: req.Number, Head: head, PreviousHead: req.ExpectedHead, SnapshotDigest: req.SnapshotDigest, ChangedPaths: paths}
 	if err = goalCurrent(readCtx, req, head); err != nil {
 		return result, err
 	}

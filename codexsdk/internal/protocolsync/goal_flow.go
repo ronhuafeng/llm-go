@@ -27,6 +27,7 @@ type GoalFlowRequest struct {
 type GoalFlowResult struct {
 	ThreadID, Head, SnapshotDigest, DiagnosticPath string
 	NativeStatus                                   string
+	ChangedPaths                                   []string
 	Checks                                         checkacceptance.Observation
 }
 
@@ -103,6 +104,7 @@ func runUpstreamGoal(ctx context.Context, req GoalFlowRequest, runner GoalRunner
 		if published.Head != "" && published.PreviousHead == binding.ExpectedHead && published.SnapshotDigest == local.SnapshotDigest {
 			binding.ExpectedHead = published.Head
 			result.Head = published.Head
+			result.ChangedPaths = published.ChangedPaths
 		}
 		if e != nil {
 			log.record("publication", "", map[string]any{"passed": false, "error": goalError(e)})
@@ -112,7 +114,7 @@ func runUpstreamGoal(ctx context.Context, req GoalFlowRequest, runner GoalRunner
 		candidate.ExpectedHead = published.Head
 		result.Head = published.Head
 		result.SnapshotDigest = local.SnapshotDigest
-		log.record("publication", "", map[string]any{"head": published.Head, "number": published.Number, "snapshot_sha256": local.SnapshotDigest})
+		log.record("publication", "", map[string]any{"head": published.Head, "number": published.Number, "snapshot_sha256": local.SnapshotDigest, "changed_paths": published.ChangedPaths})
 		observation, e := op.observe(call, candidate, published.Head, 30*time.Second)
 		result.Checks = observation
 		log.record("ci_observation", "", map[string]any{"observation": observation})

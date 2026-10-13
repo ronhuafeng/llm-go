@@ -51,9 +51,21 @@ func TestGoalFlowRetainsNativeFailureStatusWithoutPrivateError(t *testing.T) {
 	}
 }
 func TestNativeGoalFlowRequiresActualAcceptance(t *testing.T) {
-	for _, scenario := range []string{"passes", "never_calls", "local_failure", "ci_failure", "mutates_after", "late_failed_tool", "blocked"} {
+	for _, scenario := range []string{"passes", "new_paths", "never_calls", "local_failure", "ci_failure", "mutates_after", "late_failed_tool", "blocked"} {
 		t.Run(scenario, func(t *testing.T) {
 			fixture := newGoalPublicationFixture(t)
+			if scenario == "new_paths" {
+				goalTestWrite(t, fixture.request.RepoRoot, "codexsdk/internal/protocolgen/testdata/union.json", `{"type":"string"}`)
+				goalTestWrite(t, fixture.request.RepoRoot, "codexsdk/internal/protocolsync/oracle_schema_helpers.go", "package protocolsync\n")
+				goalTestWrite(t, fixture.request.RepoRoot, "codexsdk/internal/protocolsync/goal_publication.go", "package protocolsync\n")
+				goalTestWrite(t, fixture.request.RepoRoot, ".github/workflows/pr-verification.yml", "name: proposed workflow\n")
+				fixture.request.CandidateDir = filepath.Join(t.TempDir(), "candidate")
+				var err error
+				fixture.request.SnapshotDigest, err = goalSnapshot(context.Background(), fixture.request.RepoRoot, fixture.request.CandidateDir)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
 			diag := t.TempDir()
 			localPath := filepath.Join(diag, "local.jsonl")
 			if err := os.WriteFile(localPath, []byte("{\"kind\":\"result\",\"passed\":true}\n"), 0600); err != nil {
@@ -100,11 +112,26 @@ func TestNativeGoalFlowRequiresActualAcceptance(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			result, err := runUpstreamGoal(ctx, req, runner, ops)
-			if (err == nil) != (scenario == "passes") {
+			wantPass := scenario == "passes" || scenario == "new_paths"
+			if (err == nil) != wantPass {
 				t.Fatalf("scenario %s got %v", scenario, err)
 			}
-			if scenario == "passes" && (result.Head == "" || result.Checks.State != checkacceptance.Succeeded) {
+			if wantPass && (result.Head == "" || result.Checks.State != checkacceptance.Succeeded) {
 				t.Fatalf("missing acceptance %+v", result)
+			}
+			if scenario == "new_paths" {
+				data, err := os.ReadFile(result.DiagnosticPath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, name := range []string{"codexsdk/internal/protocolgen/testdata/union.json", "codexsdk/internal/protocolsync/oracle_schema_helpers.go", "codexsdk/internal/protocolsync/goal_publication.go", ".github/workflows/pr-verification.yml"} {
+					if !strings.Contains(strings.Join(result.ChangedPaths, "\n"), name) || !bytes.Contains(data, []byte(name)) {
+						t.Fatalf("published path missing from review evidence: %s", name)
+					}
+					if got := goalTestGit(t, fixture.request.RepoRoot, "show", result.Head+":"+name); got == "" {
+						t.Fatalf("candidate content omitted: %s", name)
+					}
+				}
 			}
 		})
 	}
