@@ -296,7 +296,8 @@ jobs:
           if [[ "${target_kind}" == stable_rust_tag ]]; then
             git -C codexsdk/.cache/openai-codex fetch --no-tags origin "refs/tags/${target_ref}:refs/tags/${target_ref}"
           fi
-          go mod download
+          # Warm dependency-test modules required by the offline tidy gate too.
+          go mod tidy -diff
           go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=normal)"
