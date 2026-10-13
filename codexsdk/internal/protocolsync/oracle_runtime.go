@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -84,15 +85,17 @@ func executeTargetOracle(ctx context.Context, req oracleRequest, root string, sa
 	}
 	cmd := sandbox.command(ctx, filepath.Join(sandbox.goroot, "bin", "go"), "test", "-count=1", "-json", "./internal/schemaoracleprobe")
 	var events oracleTestEvents
+	events.output = req.output()
 	events.failure = req.failure
 	if events.failure == nil {
 		events.failure = func(test string) error { return writeTargetOracleProbe(req.output(), targets, test) }
 	}
-	cmd.Stdout = io.MultiWriter(&events, req.output())
+	cmd.Stdout = &events
 	var stderr repairOutput
 	cmd.Stderr = io.MultiWriter(&stderr, req.output())
 	runErr := cmd.Run()
 	if events.pending != "" {
+		_, _ = io.WriteString(req.output(), events.pending)
 		_, _ = events.diagnostic.Write([]byte("incomplete go test output: " + events.pending))
 	}
 	_, _ = events.diagnostic.Write([]byte(stderr.String()))
@@ -111,6 +114,7 @@ func executeTargetOracle(ctx context.Context, req oracleRequest, root string, sa
 
 type oracleTestEvents struct {
 	failure                          func(string) error
+	output                           io.Writer
 	pending                          string
 	started, passed, failed, invalid bool
 	diagnostic                       oracleDiagnostic
@@ -126,7 +130,15 @@ func (w *oracleTestEvents) Write(p []byte) (int, error) {
 		}
 		w.pending = rest
 		var e struct{ Action, Test, Package, ImportPath, Output string }
-		if json.Unmarshal([]byte(line), &e) != nil {
+		parseErr := json.Unmarshal([]byte(line), &e)
+		// The verdict parser still receives every event. Only repetitive passing
+		// probe status is omitted from retained text; failures and root events stay.
+		if w.output != nil && (parseErr != nil || !oraclePassingProbeStatus(e.Action, e.Package, e.Test, e.Output)) {
+			if _, err := io.WriteString(w.output, line+"\n"); err != nil {
+				return n, err
+			}
+		}
+		if parseErr != nil {
 			w.invalid = true
 			_, _ = w.diagnostic.Write([]byte("unparsed go test output: " + line + "\n"))
 			continue
@@ -163,9 +175,40 @@ func (w *oracleTestEvents) Write(p []byte) (int, error) {
 	if len(w.pending) > 4<<20 {
 		w.invalid = true
 		_, _ = w.diagnostic.Write([]byte("go test event omitted: framing bound exceeded\n"))
+		if w.output != nil {
+			if _, err := io.WriteString(w.output, w.pending); err != nil {
+				return n, err
+			}
+		}
 		w.pending = ""
 	}
 	return n, nil
+}
+
+func oraclePassingProbeStatus(action, pkg, test, output string) bool {
+	if pkg != "github.com/ronhuafeng/llm-go/codexsdk/internal/schemaoracleprobe" || !strings.HasPrefix(test, "TestTrustedSchemaOracle/") {
+		return false
+	}
+	_, index, ok := strings.Cut(test, "/probe_")
+	n, err := strconv.Atoi(index)
+	if !ok || err != nil || n < 0 {
+		return false
+	}
+	if action == "run" || action == "pass" {
+		return output == ""
+	}
+	if action != "output" {
+		return false
+	}
+	if output == "=== RUN   "+test+"\n" {
+		return true
+	}
+	prefix := "--- PASS: " + test + " ("
+	if !strings.HasPrefix(output, prefix) || !strings.HasSuffix(output, "s)\n") {
+		return false
+	}
+	seconds, err := strconv.ParseFloat(strings.TrimSuffix(strings.TrimPrefix(output, prefix), "s)\n"), 64)
+	return err == nil && seconds >= 0
 }
 
 // runBaselineOracle exercises proposed handwritten implementation using the

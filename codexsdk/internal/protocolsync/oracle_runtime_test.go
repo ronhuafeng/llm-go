@@ -1,12 +1,99 @@
 package protocolsync
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestOracleGoalEvidenceSurvivesRealPassingProbeVolume(t *testing.T) {
+	const pkg = "github.com/ronhuafeng/llm-go/codexsdk/internal/schemaoracleprobe"
+	const secret = "oracle-volume-secret-472916"
+	t.Setenv("ORACLE_LOG_TEST_SECRET", secret)
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "go.mod"), "module "+pkg+"\n\ngo 1.26\n")
+	writeFile(t, filepath.Join(dir, "contract_test.go"), `package fixture
+import("testing";"fmt";"os")
+func TestTrustedSchemaOracle(t *testing.T){
+ for i:=0;i<20000;i++{t.Run(fmt.Sprintf("ClientRequest.json/probe_%d",i),func(t *testing.T){})}
+ if os.Getenv("ORACLE_LOG_TEST_FAIL")=="1"{t.Run("ClientRequest.json/probe_20000",func(t *testing.T){t.Fatalf("LATE_CONTRACT_FAILURE token=%s",os.Getenv("ORACLE_LOG_TEST_SECRET"))})}
+}
+`)
+	for _, tc := range []struct {
+		name, flag string
+		pass       bool
+	}{{"pass", "0", true}, {"late failure", "1", false}} {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd := exec.Command("go", "test", "-count=1", "-json", ".")
+			cmd.Dir = dir
+			cmd.Env = append(os.Environ(), "GOWORK=off", "ORACLE_LOG_TEST_FAIL="+tc.flag)
+			out, runErr := cmd.Output()
+			if (runErr == nil) != tc.pass || len(out) < goalDiagnosticLimit {
+				t.Fatalf("fixture process=%v output bytes=%d", runErr, len(out))
+			}
+			d, err := newGoalDiagnostics(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer d.file.Close()
+			output := &goalOutput{log: d, gate: "provenance"}
+			events := oracleTestEvents{output: output, failure: func(test string) error {
+				if strings.HasSuffix(test, "/probe_20000") {
+					_, err := io.WriteString(output, "{\"kind\":\"schema_probe_expectation\",\"trust\":\"source-derived\",\"marker\":\"LATE_EXPECTATION\"}\n")
+					return err
+				}
+				return nil
+			}}
+			for len(out) > 0 {
+				n := min(3337, len(out))
+				if _, err := events.Write(out[:n]); err != nil {
+					t.Fatal(err)
+				}
+				out = out[n:]
+			}
+			if events.invalid || events.pending != "" || !events.started || events.passed != tc.pass || events.failed == tc.pass {
+				t.Fatal("full process stream lost its original verdict")
+			}
+			output.flush(true)
+			d.record("footer", "provenance", map[string]any{"complete": true, "passed": tc.pass})
+			if d.err != nil {
+				t.Fatalf("passing status volume displaced terminal evidence: %v", d.err)
+			}
+			data, err := os.ReadFile(d.file.Name())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(data) > 256<<10 || bytes.Contains(data, []byte(secret)) {
+				t.Fatal("diagnostics retained status noise or a configured secret")
+			}
+			var text strings.Builder
+			footer := false
+			decoder := json.NewDecoder(bytes.NewReader(data))
+			for {
+				var record map[string]any
+				if err := decoder.Decode(&record); err == io.EOF {
+					break
+				} else if err != nil {
+					t.Fatal(err)
+				}
+				if value, ok := record["output"].(string); ok {
+					text.WriteString(value)
+				}
+				if record["kind"] == "footer" {
+					footer = record["complete"] == true && record["passed"] == tc.pass
+				}
+			}
+			if !footer || (!tc.pass && (!strings.Contains(text.String(), "LATE_CONTRACT_FAILURE") || !strings.Contains(text.String(), "LATE_EXPECTATION") || !strings.Contains(text.String(), "[redacted]"))) {
+				t.Fatal("terminal result or late failure evidence was lost")
+			}
+		})
+	}
+}
 
 func TestOracleRetainsRealGoBuildDiagnostics(t *testing.T) {
 	root := t.TempDir()

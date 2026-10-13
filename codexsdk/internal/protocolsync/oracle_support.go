@@ -51,7 +51,7 @@ func oracleCommandOutput(output io.Writer, cmd *exec.Cmd) ([]byte, error) {
 }
 
 // A failed subtest name selects a source-derived expectation, never a claimed
-// actual value. Raw process events are streamed separately by the caller.
+// actual value. The event parser retains failures and execution summaries.
 func writeTargetOracleProbe(output io.Writer, targets []schemaoracle.Target, test string) error {
 	prefix, indexText, ok := strings.Cut(test, "/probe_")
 	if !ok {

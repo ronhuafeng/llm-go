@@ -8,7 +8,8 @@ import (
 // Test output is provisional until its terminal event. Passing test logs must
 // never displace the first failed assertion. These text buffers total less than
 // the existing 64 KiB command-output bound; the rendered result fits within the
-// 8 KiB human-facing summary. Full execution records use the caller's writer.
+// 8 KiB human-facing summary. Execution diagnostics use the caller's writer;
+// repetitive passing probe status may be omitted from that retained text.
 type oracleDiagnostic struct {
 	tests              map[string]string
 	failures, fallback string
