@@ -332,7 +332,7 @@ func markReachableGeneratedDefinitions(plan *ProtocolTypePlan, manifest Manifest
 			{keyword: "oneOf", variants: schema.OneOf},
 		} {
 			for index, variant := range group.variants {
-				if err := walkSchema(document, nestedSchemaPath(schemaPath, group.keyword, index), stability, typeName, variant, group.keyword == "oneOf" && isMixedUnionDefinitionSchema(schema)); err != nil {
+				if err := walkSchema(document, nestedSchemaPath(schemaPath, group.keyword, index), stability, typeName, variant, (group.keyword == "oneOf" || group.keyword == "anyOf") && isMixedUnionDefinitionSchema(schema)); err != nil {
 					return err
 				}
 			}

@@ -188,7 +188,9 @@ func TestGoalContractFullCorpusTransportBudget(t *testing.T) {
 	for _, v := range corpus.Targets {
 		n += len(v)
 	}
-	if len(corpus.Targets) != 65 || n != 124376 {
+	// The same full source corpus now includes open object-anyOf mixed values;
+	// its exact sequence and unchanged limits are checked in schemaoracle too.
+	if len(corpus.Targets) != 65 || n != 128968 {
 		t.Fatalf("coverage changed: %d/%d", len(corpus.Targets), n)
 	}
 	t.Logf("full corpus: source=%d compressed=%d raw=%d probes=%d", len(source), len(compressed), len(raw), n)

@@ -3,13 +3,13 @@
   "comparison_mode": "canonical-json",
   "target": {
     "source_repo": "https://github.com/openai/codex",
-    "source_ref_name": "rust-v0.160.0",
+    "source_ref_name": "rust-v0.162.1",
     "source_ref_kind": "stable_rust_tag",
-    "source_commit": "a956835d020762cb2b570053af06f643a11c0ecc",
-    "codex_version": "codex-cli 0.160.0",
+    "source_commit": "092d3acd6bec3e3a14bdc7e7a2810ab628ab759d",
+    "codex_version": "codex-cli 0.162.1",
     "generator": "cargo",
     "generator_detail": "codex app-server generate-json-schema --experimental --out internal/protocolschema/appserver/v2",
-    "schema_bundle_sha256": "3309fdbd535d5d73514e5669a827e1a268c675e789a76375c6581e833501beca",
+    "schema_bundle_sha256": "e36abfcbaa81a3ebe8cb1de248e82b55c58cfe72ff27f6b46a9fd48874965d13",
     "canonical_json_note": "Schema comparisons use canonical JSON; object member ordering is irrelevant."
   },
   "file_diff": {
@@ -38,12 +38,20 @@
   "matrix_update_skeleton": "matrix_update_skeleton.json",
   "generated_compatibility": {
     "added": [],
-    "changed": [],
-    "compatibility_impact": "additive_or_metadata_only",
+    "changed": [
+      {
+        "classification": "stable",
+        "from_signature": "struct {\n\tkind        ResourceContentKind\n\textra       map[string]JSONValue\n\tvariantText *ResourceContentText\n\tvariantBlob *ResourceContentBlob\n}",
+        "kind": "type",
+        "name": "ResourceContent",
+        "to_signature": "struct {\n\tkind        ResourceContentKind\n\tvariantText *ResourceContentText\n\tvariantBlob *ResourceContentBlob\n}"
+      }
+    ],
+    "compatibility_impact": "incompatible",
     "external_implementation_obligations": [],
     "policy": "go_source_compatibility_with_classification_metadata",
     "reclassified": [],
-    "release_impact": "metadata-only",
+    "release_impact": "breaking",
     "removed": [],
     "strengthened_support": [],
     "weakened_support": []

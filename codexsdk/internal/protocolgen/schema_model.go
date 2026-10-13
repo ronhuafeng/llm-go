@@ -122,6 +122,7 @@ type Schema struct {
 	Items                *Schema
 	Minimum              *float64
 	MinItems             *uint64
+	MinLength            *uint64
 	OneOf                []*Schema
 	Properties           map[string]*Schema
 	Ref                  string
@@ -155,7 +156,7 @@ func (s *Schema) UnmarshalJSON(data []byte) error {
 	// Reject that malformed input before it can look like an empty schema.
 	for keyword, value := range raw {
 		switch keyword {
-		case "$ref", "type", "enum", "anyOf", "oneOf", "allOf", "properties", "required", "items", "additionalProperties", "definitions":
+		case "$ref", "type", "enum", "anyOf", "oneOf", "allOf", "properties", "required", "items", "additionalProperties", "definitions", "minLength":
 			if strings.TrimSpace(string(value)) == "null" {
 				return fmt.Errorf("schema keyword %s cannot be null", keyword)
 			}
@@ -174,6 +175,7 @@ func (s *Schema) UnmarshalJSON(data []byte) error {
 		Items                *Schema               `json:"items"`
 		Minimum              *float64              `json:"minimum"`
 		MinItems             *uint64               `json:"minItems"`
+		MinLength            *uint64               `json:"minLength"`
 		OneOf                []*Schema             `json:"oneOf"`
 		Properties           map[string]*Schema    `json:"properties"`
 		Ref                  string                `json:"$ref"`
@@ -197,6 +199,7 @@ func (s *Schema) UnmarshalJSON(data []byte) error {
 	s.Items = object.Items
 	s.Minimum = object.Minimum
 	s.MinItems = object.MinItems
+	s.MinLength = object.MinLength
 	s.OneOf = object.OneOf
 	s.Properties = object.Properties
 	s.Ref = object.Ref
@@ -223,7 +226,7 @@ func (s *Schema) IsUnconstrained() bool {
 	return s.Ref == "" && s.Type.Values == nil && s.Enum == nil &&
 		s.AnyOf == nil && s.OneOf == nil && len(s.AllOf) == 0 &&
 		len(s.Properties) == 0 && len(s.Required) == 0 && s.Items == nil &&
-		!s.AdditionalProperties.Present && s.Format == "" && s.Minimum == nil && s.MinItems == nil &&
+		!s.AdditionalProperties.Present && s.Format == "" && s.Minimum == nil && s.MinItems == nil && s.MinLength == nil &&
 		len(s.UnknownKeywords) == 0
 }
 
@@ -386,6 +389,9 @@ func unmodeledKeywords(schema *Schema) []string {
 		}
 		for _, keyword := range current.UnknownKeywords {
 			seen[keyword] = true
+		}
+		if current.MinLength != nil {
+			seen["minLength"] = true
 		}
 		collect(current.Items)
 		if current.AdditionalProperties.Schema != nil {

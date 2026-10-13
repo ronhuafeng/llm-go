@@ -123,10 +123,10 @@ func TestFullTargetCorpusBudgetAndIdentity(t *testing.T) {
 		metadata.Write(b)
 		metadata.Write([]byte("\n"))
 	}
-	if len(targets) != 65 || count != 124376 {
+	if len(targets) != 65 || count != 128968 {
 		t.Fatalf("coverage changed: %d targets %d probes", len(targets), count)
 	}
-	if got := fmt.Sprintf("%x", sequence.Sum(nil)); got != "355bac40eaa8cedfd2ff8e9447ffa91596af6ae13e568e81f8fc8d27ca6b7fca" {
+	if got := fmt.Sprintf("%x", sequence.Sum(nil)); got != "c74c50d65f5e74a1e17cc448fec276d5465eac447a807c95c4b3a139c16aa389" {
 		t.Fatal("original input/verdict/order changed", got)
 	}
 	if got := fmt.Sprintf("%x", metadata.Sum(nil)); got != "040fc52c499408681c6d76ae42fdaa148ed804c4ca4ef2a6df863c33045c3f7f" {

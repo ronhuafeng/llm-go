@@ -133,12 +133,16 @@ func Build(req Request) ([]Target, error) {
 		if err != nil {
 			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
 		}
-		if hasOutputSchema {
+		contractDoc, hasSDKOverlay, err := sdkContractDocument(doc, fragment, docName)
+		if err != nil {
+			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
+		}
+		if hasOutputSchema || hasSDKOverlay {
 			c = validator.NewCompiler()
 			c.UseLoader(denyLoader{})
 			c.RegisterVocabulary(outputSchemaVocabulary())
 			c.AssertVocabs()
-			if err := c.AddResource(url, doc); err != nil {
+			if err := c.AddResource(url, contractDoc); err != nil {
 				return nil, err
 			}
 			compiled, err = c.Compile(url + fragment)
@@ -427,6 +431,10 @@ func keys[V any](m map[string]V) []string {
 // prepare audits schema keywords (not instance property names), prohibits all
 // network/relative references and IDs, and applies the stated local overlay.
 func prepare(n any, path string, close bool, depth int) error {
+	return prepareNode(n, path, close, true, depth)
+}
+
+func prepareNode(n any, path string, close, closeSelf bool, depth int) error {
 	if depth > 100 {
 		return fmt.Errorf("%s: schema depth bound exceeded", path)
 	}
@@ -437,7 +445,7 @@ func prepare(n any, path string, close bool, depth int) error {
 	if !ok {
 		return fmt.Errorf("%s: expected schema object", path)
 	}
-	if err := flattenObjectAlternatives(m, path); err != nil {
+	if err := flattenObjectAlternatives(m, path, close); err != nil {
 		return err
 	}
 	for _, k := range keys(m) {
@@ -474,7 +482,7 @@ func prepare(n any, path string, close bool, depth int) error {
 				return fmt.Errorf("%s/%s: empty or invalid alternatives", path, k)
 			}
 			for i, c := range children {
-				if err := prepare(c, fmt.Sprintf("%s/%s/%d", path, k, i), close, depth+1); err != nil {
+				if err := prepareNode(c, fmt.Sprintf("%s/%s/%d", path, k, i), close, k != "anyOf", depth+1); err != nil {
 					return err
 				}
 			}
@@ -482,7 +490,7 @@ func prepare(n any, path string, close bool, depth int) error {
 			return fmt.Errorf("%s: unsupported verifier keyword %s", path, k)
 		}
 	}
-	if close {
+	if close && closeSelf {
 		if _, has := m["properties"]; has {
 			if _, explicit := m["additionalProperties"]; !explicit {
 				m["additionalProperties"] = false
@@ -582,7 +590,7 @@ func prepareReachable(doc, node any, path string, close bool, seen map[string]bo
 // JSON Schema combines sibling properties with anyOf conjunctively. Normalize
 // the small object-product form before adding the strict-object overlay, so
 // closure applies to the complete alternative, never half an object.
-func flattenObjectAlternatives(m map[string]any, path string) error {
+func flattenObjectAlternatives(m map[string]any, path string, close bool) error {
 	props, ok := m["properties"].(map[string]any)
 	if !ok {
 		return nil
@@ -594,6 +602,22 @@ func flattenObjectAlternatives(m map[string]any, path string) error {
 		}
 		if _, ok := m["additionalProperties"]; ok {
 			return fmt.Errorf("%s: explicit closure with sibling %s unsupported", path, kind)
+		}
+		// Closure belongs to the complete record. Other alternatives' fields
+		// remain unconstrained in an open anyOf branch, even when present.
+		unionProperties := cloneMap(props)
+		if kind == "anyOf" {
+			for _, a := range alts {
+				if branch, ok := a.(map[string]any); ok {
+					if bp, ok := branch["properties"].(map[string]any); ok {
+						for name := range bp {
+							if _, exists := unionProperties[name]; !exists {
+								unionProperties[name] = true
+							}
+						}
+					}
+				}
+			}
 		}
 		merged := make([]any, 0, len(alts))
 		for _, a := range alts {
@@ -613,14 +637,17 @@ func flattenObjectAlternatives(m map[string]any, path string) error {
 			delete(copy, "$defs")
 			delete(copy, "$schema")
 			delete(copy, kind)
-			p := cloneMap(props)
+			p := cloneMap(unionProperties)
 			for k, v := range bp {
-				if _, exists := p[k]; exists {
+				if _, exists := props[k]; exists {
 					return fmt.Errorf("%s: overlapping compound property %s unsupported", path, k)
 				}
 				p[k] = v
 			}
 			copy["properties"] = p
+			if close {
+				copy["additionalProperties"] = false
+			}
 			req, _ := m["required"].([]any)
 			br, _ := branch["required"].([]any)
 			copy["required"] = append(append([]any{}, req...), br...)

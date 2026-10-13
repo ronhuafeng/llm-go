@@ -12,7 +12,15 @@
   "field_updates": [],
   "generated_compatibility_updates": {
     "added": [],
-    "changed": [],
+    "changed": [
+      {
+        "classification": "stable",
+        "from_signature": "struct {\n\tkind        ResourceContentKind\n\textra       map[string]JSONValue\n\tvariantText *ResourceContentText\n\tvariantBlob *ResourceContentBlob\n}",
+        "kind": "type",
+        "name": "ResourceContent",
+        "to_signature": "struct {\n\tkind        ResourceContentKind\n\tvariantText *ResourceContentText\n\tvariantBlob *ResourceContentBlob\n}"
+      }
+    ],
     "reclassified": [],
     "removed": []
   }

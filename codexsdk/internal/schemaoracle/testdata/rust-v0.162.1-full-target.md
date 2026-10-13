@@ -40,3 +40,27 @@ hashes cover both ordered schema/input/verdict records and complete target
 acceptance metadata (Go bindings, field checks and parameterless methods).
 Neither obligations nor execution are deduplicated; only immutable representation
 is shared. The 128 MiB decompressed and 8 MiB compressed limits remain unchanged.
+
+The fixed-target upgrade corrects object-product `anyOf` classification: the
+complete record closes its declared field set, while each open alternative
+constrains only its own fields. URL/file-ID mixed-type values and values matching
+both branches are now covered. The unchanged source fixture produces 65 targets
+and 128,968 ordered probes, with a 131,406,260-byte wire corpus (gzip 2,035,302
+bytes). Its updated schema/input/verdict sequence hash is
+`c74c50d65f5e74a1e17cc448fec276d5465eac447a807c95c4b3a139c16aa389`;
+the target acceptance metadata hash is unchanged. Executed evolution and defect
+fixtures separately prove that valid mixed types survive and that intersected
+branches, missing validation, and dropped fields still fail.
+
+The accepted nonempty `CommandExecParams.command` and opaque experimental
+realtime notification item overlays now apply to the validation document only.
+The source witness document, all 128,968 inputs, their order, 65 target bindings,
+and transport bounds remain intact.
+Executable fixtures accept those public contracts and still fail for empty argv,
+lost realtime item data, and undeclared outer notification fields.
+
+The unchanged MCP `ResourceContent` source retains its accepted public overlay:
+text and blob fields are exclusive, and each resource record is closed. The
+frozen baseline MCP assertion remains enforced. This overlay does not close
+general anonymous `anyOf` alternatives or the image object product; standalone
+fixtures execute both the accepted resource contract and a payload-loss defect.
