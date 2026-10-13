@@ -31,6 +31,18 @@ Do not delete tests, reduce coverage, or relax a stable type, authority or
 lifecycle invariant merely to obtain a pass. If the authorities genuinely
 conflict, report the specific decision required.
 
+When adapting `anyOf`, preserve each branch's constraints and accept a value
+when at least one branch holds. Review of the `rust-v0.162.1` image input found
+that merging URL and file-ID properties into shared typed fields rejected
+source-valid values such as `{"type":"image","url":"ok","fileId":3}`.
+The URL branch accepts that value because the other branch's field is open.
+Check single-branch, both-branch and mixed-type examples against the unmodified
+source schema, then apply only the accepted public overlays. Preserve accepted
+values on round trip; retain rejection when no branch holds and for undeclared
+record fields. Exercise the independent oracle too: closing each branch before
+considering the whole union can repeat the same defect and hide it behind green
+checks. The goal owns the representation, oracle and regression repairs.
+
 ## One acceptance entrypoint
 
 Call the provided `verify_upstream` tool with no arguments. It is the single
