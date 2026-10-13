@@ -127,7 +127,7 @@ The native AppServer adapter owns one goal lifecycle and one fixed tool. The
 shared gate implementation freezes candidate bytes, preserves complete JSONL
 diagnostics, checks accepted-base behavior plus exact upstream contracts, and
 uses the same gate commands in CI. The fixed Draft publisher reuses existing
-source identity, scope and exact-head acceptance checks; it performs ordinary
+source identity and exact-head acceptance checks; it performs ordinary
 branch pushes only. No verifier PR, role switch, checkpoint or merge continuation
 remains. Existing non-goal `exec` consumers retain their adapter.
 
