@@ -231,8 +231,10 @@ func goalCurrent(ctx context.Context, r GoalPublicationRequest, head string) (re
 	if err := r.API.Request("GET", fmt.Sprintf("repos/%s/pulls/%d", r.Repository, r.Number), nil, &pr); err != nil {
 		return errors.New("cannot read bound draft PR")
 	}
-	if pr.Number != r.Number || pr.State != "open" || !pr.Draft || pr.MergedAt != nil || pr.Head.Ref != r.Branch || pr.Head.SHA != head || pr.Head.Repo.FullName != r.Repository || pr.Base.Ref != r.BaseBranch || pr.Base.SHA != r.BaseSHA || pr.Base.Repo.FullName != r.Repository {
-		return errors.New("draft PR identity or exact head changed")
+	// The PR head SHA can lag a confirmed push. Its fixed repository/ref identify
+	// the branch; the Git readback below owns its exact current head.
+	if pr.Number != r.Number || pr.State != "open" || !pr.Draft || pr.MergedAt != nil || pr.Head.Ref != r.Branch || pr.Head.Repo.FullName != r.Repository || pr.Base.Ref != r.BaseBranch || pr.Base.SHA != r.BaseSHA || pr.Base.Repo.FullName != r.Repository {
+		return errors.New("draft PR identity changed")
 	}
 	if err := verifyAppActor(pr.User, r.AppBotID); err != nil {
 		return errors.New("draft PR creator differs from bound actor")

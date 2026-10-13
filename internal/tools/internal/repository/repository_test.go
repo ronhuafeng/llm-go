@@ -311,7 +311,7 @@ func TestProtocolSyncPreservesAuthorityAndPublicationBoundaries(t *testing.T) {
 	if !ok {
 		t.Fatal("native goal job missing")
 	}
-	for _, want := range []string{"inputs.diagnostic_only != true && inputs.validation_only != true", "contents: read", "actions: read", "Require accepted main control", "go build -o", "goal-prepare", "\"${CONTROL}\" goal ", "-expected-head", "-pr-number", "-timeout 120m", "GH_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}"} {
+	for _, want := range []string{"inputs.diagnostic_only != true && inputs.validation_only != true", "contents: read", "actions: read", "Require accepted main control", "go build -o", "goal-prepare", "\"${CONTROL}\" goal ", "-expected-head", "-pr-number", "-timeout 300m", "GH_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}"} {
 		if !strings.Contains(job, want) {
 			t.Fatalf("native goal boundary missing %q", want)
 		}

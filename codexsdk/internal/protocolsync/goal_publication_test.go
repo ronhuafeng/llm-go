@@ -373,16 +373,26 @@ func TestGoalDraftRetainsConfirmedHeadWhenPRReadbackLags(t *testing.T) {
 				}
 				return nil
 			})
-			if err == nil {
-				t.Fatal("postcondition failure became acceptance")
+			if mode == "stale projection" && err != nil {
+				t.Fatalf("lagging PR projection rejected confirmed Git head: %v", err)
+			}
+			if mode == "read failure" && err == nil {
+				t.Fatal("unavailable PR identity became acceptance")
 			}
 			actual, readErr := goalRemoteHead(context.Background(), f.request, f.request.Branch)
 			if readErr != nil || got.Head == "" || got.Head != actual || got.PreviousHead != f.request.ExpectedHead || got.Number != f.request.Number || got.SnapshotDigest != f.request.SnapshotDigest {
 				t.Fatalf("confirmed effect lost: %+v %v", got, readErr)
 			}
 			f.request.ExpectedHead = got.Head
-			f.staleProjection = ""
 			f.failPRRead = false
+			if mode == "stale projection" {
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+				defer cancel()
+				observation, err := ObserveGoalCI(ctx, f.request, got.Head, time.Millisecond)
+				if err != nil || observation.State != checkacceptance.Succeeded || observation.Head != got.Head {
+					t.Fatalf("confirmed exact-head CI blocked by stale PR projection: %+v %v", observation, err)
+				}
+			}
 			again, err := appendGoalDraft(context.Background(), f.request, func(context.Context, GoalPublicationRequest, string) error {
 				pushes++
 				t.Fatal("confirmed identical snapshot pushed twice")

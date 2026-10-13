@@ -363,7 +363,7 @@ jobs:
             -expected-head "$(jq -r .head "${binding}")" -app-bot-id "${APP_BOT_ID}" \
             -target-ref "$(jq -r .Target.RefName "${source}")" -target-kind "$(jq -r .Target.RefKind "${source}")" \
             -target-sha "$(jq -r .Target.PeeledCommitSHA "${source}")" \
-            -candidate-dir "$(jq -r .CandidateDir "${source}")" -runtime-dirs "${RUNNER_TEMP}/goal-rust-tools" -timeout 120m \
+            -candidate-dir "$(jq -r .CandidateDir "${source}")" -runtime-dirs "${RUNNER_TEMP}/goal-rust-tools" -timeout 300m \
             > "${RUNNER_TEMP}/goal-result.json"
       - name: Preserve bounded goal evidence
         if: ${{ always() }}

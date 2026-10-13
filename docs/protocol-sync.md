@@ -38,7 +38,9 @@ The fixed no-argument `verify_upstream` tool:
 2. On local success, validates the fixed repository, Draft PR, App actor, branch,
    original base, exact target and snapshot. It appends one normal commit
    to the observed head. Identical content reuses the same head. Uncertain effects
-   are read back; another remote head is not silently adopted.
+   are read back; another remote head is not silently adopted. The remote Git ref
+   owns the exact head; a lagging PR head projection does not invalidate that
+   confirmed ref.
 3. Waits for that exact head's latest trusted PR-verification attempt, including
    the existing real Live job. It does not dispatch retries. The same goal reads
    the complete diagnostic JSONL path and repairs a failed candidate.
