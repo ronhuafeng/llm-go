@@ -290,7 +290,7 @@ func goalNativeRuntimeInputs(sandbox *oracleSandbox, binary string) error {
 
 func goalSandboxCommand(ctx context.Context, sandbox oracleSandbox, cmd *exec.Cmd, binary, version string) *exec.Cmd {
 	dir := cmd.Dir
-	if goalNativeTest(cmd) == "TestNativeGoalSandboxBoundary" {
+	if goalNativeTest(cmd) != "" {
 		dir = sandbox.root
 	}
 	isolated := sandbox.command(ctx, filepath.Join(sandbox.goroot, "bin", "go"), append([]string{"-C", dir}, cmd.Args[1:]...)...)
@@ -1011,7 +1011,7 @@ func verifyCIGate(ctx context.Context, req GoalVerifyRequest, run goalCommandRun
 		// Exercise the same composition as the real goal before starting another
 		// model run. Other CI commands retain their established CI trust context.
 		run = func(cmd *exec.Cmd) error {
-			if goalNativeTest(cmd) == "TestNativeGoalSandboxBoundary" {
+			if goalNativeTest(cmd) != "" {
 				return goalSandboxCommand(ctx, sandbox, cmd, binary, os.Getenv("CODEX_CLI_VERSION")).Run()
 			}
 			return cmd.Run()

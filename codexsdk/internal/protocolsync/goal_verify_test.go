@@ -540,6 +540,7 @@ func TestGoalSandboxCommandKeepsGateWorkingDirectories(t *testing.T) {
 		{"generated", "/tmp/regenerated", "/tmp/regenerated", []string{"build", "./codexsdk/protocolv2"}},
 		{"module", "/tmp/frozen-candidate/codexsdk", "/tmp/frozen-candidate/codexsdk", []string{"run", "./internal/cmd/generatedcheck"}},
 		{"native-ci", "/tmp/accepted-checkout", sandbox.root, []string{"test", "./codexsdk/internal/codexexec", "-run", "^TestNativeGoalSandboxBoundary$", "-count=1", "-json"}},
+		{"contracts-ci", "/tmp/accepted-checkout", sandbox.root, []string{"test", "./codexsdk/internal/protocolsync", "-run", "^TestLiveRepairSandboxGoalContractsUseCandidateChecker$", "-count=1", "-json"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cmd := exec.Command("go", tc.args...)
