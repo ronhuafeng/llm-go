@@ -531,6 +531,33 @@ func TestGoalSourceRequiresBothNativeProofs(t *testing.T) {
 	}
 }
 
+func TestGoalSandboxCommandKeepsGateWorkingDirectories(t *testing.T) {
+	sandbox := oracleSandbox{root: "/tmp/frozen-candidate", candidate: "/tmp/retained", work: "/tmp/sandbox-work", goroot: "/opt/go", modules: "/tmp/modules"}
+	for _, tc := range []struct {
+		name, dir, want string
+		args            []string
+	}{
+		{"generated", "/tmp/regenerated", "/tmp/regenerated", []string{"build", "./codexsdk/protocolv2"}},
+		{"module", "/tmp/frozen-candidate/codexsdk", "/tmp/frozen-candidate/codexsdk", []string{"run", "./internal/cmd/generatedcheck"}},
+		{"native-ci", "/tmp/accepted-checkout", sandbox.root, []string{"test", "./codexsdk/internal/codexexec", "-run", "^TestNativeGoalSandboxBoundary$", "-count=1", "-json"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd := exec.Command("go", tc.args...)
+			cmd.Dir = tc.dir
+			isolated := goalSandboxCommand(context.Background(), sandbox, cmd, "/opt/codex", "0.162.1")
+			for i, arg := range isolated.Args {
+				if arg == "-C" {
+					if i+1 >= len(isolated.Args) || isolated.Args[i+1] != tc.want {
+						t.Fatal("wrong gate working directory", isolated.Args)
+					}
+					return
+				}
+			}
+			t.Fatal("missing explicit Go working directory")
+		})
+	}
+}
+
 func goalContractFixtureRequest(t *testing.T, root, gate string) GoalVerifyRequest {
 	t.Helper()
 	facts := t.TempDir()

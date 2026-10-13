@@ -202,16 +202,8 @@ func verifyGoal(ctx context.Context, req GoalVerifyRequest, run goalCommandRunne
 				if e != nil {
 					return result, e
 				}
-				dirs, e := codexexec.NativeGoalRuntimePaths(nativeBinary)
-				if e != nil {
+				if e = goalNativeRuntimeInputs(&sandbox, nativeBinary); e != nil {
 					return result, e
-				}
-				sandbox.readonly = append(sandbox.readonly, dirs...)
-				for _, dir := range dirs {
-					if sandbox.extraPath != "" {
-						sandbox.extraPath += ":"
-					}
-					sandbox.extraPath += dir + ":" + filepath.Join(dir, "bin")
 				}
 			}
 		}
@@ -221,15 +213,7 @@ func verifyGoal(ctx context.Context, req GoalVerifyRequest, run goalCommandRunne
 			if strings.Contains(strings.Join(cmd.Args, " "), "verify-provenance-offline") {
 				local.writableUpstream = true
 			}
-			isolated := local.command(ctx, filepath.Join(sandbox.goroot, "bin", "go"), append([]string{"-C", cmd.Dir}, cmd.Args[1:]...)...)
-			switch goalNativeTest(cmd) {
-			case "TestNativeGoalSandboxBoundary":
-				isolated.Env = append(isolated.Env, "LLMGO_NATIVE_GOAL_SANDBOX=1", "CODEX_BINARY="+nativeBinary, "CODEX_CLI_VERSION="+nativeVersion)
-			case "TestLiveRepairSandboxGoalContractsUseCandidateChecker":
-				isolated.Env = append(isolated.Env, "LLMGO_REPAIR_SANDBOX_TEST=1")
-			}
-			isolated.Stdout = cmd.Stdout
-			isolated.Stderr = cmd.Stderr
+			isolated := goalSandboxCommand(ctx, local, cmd, nativeBinary, nativeVersion)
 			return isolated.Run()
 		}
 	}
@@ -275,6 +259,49 @@ func verifyGoal(ctx context.Context, req GoalVerifyRequest, run goalCommandRunne
 		result.Gates = append(result.Gates, gate)
 	}
 	return result, nil
+}
+
+// Public native runtime files may resolve into paths hidden by the outer
+// sandbox (for example /etc/resolv.conf into /run). Re-admit only those exact
+// targets, read-only; their containing directories and sockets remain hidden.
+func goalNativeRuntimeInputs(sandbox *oracleSandbox, binary string) error {
+	dirs, err := codexexec.NativeGoalRuntimePaths(binary)
+	if err != nil {
+		return err
+	}
+	sandbox.readonly = append(sandbox.readonly, dirs...)
+	for _, dir := range dirs {
+		if sandbox.extraPath != "" {
+			sandbox.extraPath += ":"
+		}
+		sandbox.extraPath += dir + ":" + filepath.Join(dir, "bin")
+	}
+	for _, path := range []string{"/etc/ssl/certs", "/etc/resolv.conf", "/etc/hosts", "/etc/nsswitch.conf"} {
+		target, err := filepath.EvalSymlinks(path)
+		if err != nil {
+			return fmt.Errorf("native runtime input unavailable: %s", path)
+		}
+		if target != path {
+			sandbox.readonly = append(sandbox.readonly, target)
+		}
+	}
+	return nil
+}
+
+func goalSandboxCommand(ctx context.Context, sandbox oracleSandbox, cmd *exec.Cmd, binary, version string) *exec.Cmd {
+	dir := cmd.Dir
+	if goalNativeTest(cmd) == "TestNativeGoalSandboxBoundary" {
+		dir = sandbox.root
+	}
+	isolated := sandbox.command(ctx, filepath.Join(sandbox.goroot, "bin", "go"), append([]string{"-C", dir}, cmd.Args[1:]...)...)
+	switch goalNativeTest(cmd) {
+	case "TestNativeGoalSandboxBoundary":
+		isolated.Env = append(isolated.Env, "LLMGO_NATIVE_GOAL_SANDBOX=1", "CODEX_BINARY="+binary, "CODEX_CLI_VERSION="+version)
+	case "TestLiveRepairSandboxGoalContractsUseCandidateChecker":
+		isolated.Env = append(isolated.Env, "LLMGO_REPAIR_SANDBOX_TEST=1")
+	}
+	isolated.Stdout, isolated.Stderr = cmd.Stdout, cmd.Stderr
+	return isolated
 }
 func goalError(err error) string {
 	if err == nil {
@@ -966,8 +993,28 @@ func verifyCIGate(ctx context.Context, req GoalVerifyRequest, run goalCommandRun
 		if err = os.MkdirAll(filepath.Join(snapshot, "codexsdk/.cache/openai-codex"), 0700); err != nil {
 			return result, err
 		}
-		if _, err = newOracleSandbox(ctx, snapshot, retained); err != nil {
+		sandbox, err := newOracleSandbox(ctx, snapshot, retained)
+		if err != nil {
 			return result, err
+		}
+		binary := os.Getenv("CODEX_BINARY")
+		if binary == "" {
+			binary = "codex"
+		}
+		binary, err = exec.LookPath(binary)
+		if err != nil {
+			return result, errors.New("CI source requires the installed native runtime")
+		}
+		if err = goalNativeRuntimeInputs(&sandbox, binary); err != nil {
+			return result, err
+		}
+		// Exercise the same composition as the real goal before starting another
+		// model run. Other CI commands retain their established CI trust context.
+		run = func(cmd *exec.Cmd) error {
+			if goalNativeTest(cmd) == "TestNativeGoalSandboxBoundary" {
+				return goalSandboxCommand(ctx, sandbox, cmd, binary, os.Getenv("CODEX_CLI_VERSION")).Run()
+			}
+			return cmd.Run()
 		}
 		log.record("native_boundary", "source", map[string]any{"passed": true, "trust": "controller_native_probe"})
 	}
