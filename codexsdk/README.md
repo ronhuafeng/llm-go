@@ -239,7 +239,34 @@ limits. The existing 16 MiB ingress-frame bound limits transient decoding;
 retention limits constrain cumulative stored observations. This adds no durable
 recorder and changes no application acceptance or server-request authority.
 
+## Image source alternatives
+
+Generated image payloads such as `protocolv2.UserInputImage` expose string
+conveniences (`URL`, `FileID`) and `AlternativeFields map[string]JSONValue`.
+Use the strings for ordinary non-empty source identifiers. Use
+`AlternativeFields` for explicit empty strings, null, or other JSON values;
+its entries take precedence over the string conveniences. Decoding retains
+exact presence and values in this map, including when both source fields occur.
+Only the source union's declared property names are accepted in the map.
+
+At least one image source branch must validate. For example,
+`{"type":"image","url":"ok","fileId":3}` is valid because the URL branch
+does not constrain `fileId`. With both source fields invalid, decoding and
+encoding fail. Shared fields such as `detail` still validate independently.
+This repairs previously omitted branch fields and rejects source-less image
+payloads. Standalone decoding continues to reject undeclared fields;
+server observations retain their existing unknown-field tolerance.
+
 ## Compatibility and evidence
+
+The `rust-v0.162.1` source removes
+`ModelProviderCapabilitiesReadResponse.NamespaceTools`. Remove references to
+that field when upgrading; it is no longer a reported wire capability.
+`CodexErrorInfo` retains its known constructors/accessors and adds
+`NewCodexErrorInfoUnknown` / `AsUnknown` for the source's unconstrained
+string/object fallback. A value that fails a known error branch can still
+satisfy the fallback and is retained exactly. Numbers, arrays, booleans and
+null remain outside this union.
 
 The generated surface follows the selected source in
 [`baseline_metadata.json`](internal/protocolschema/appserver/v2/baseline_metadata.json).

@@ -11,6 +11,26 @@ changes may occur in minor releases.
 
 ### codexsdk
 
+#### Protocol baseline
+
+- Upgrade generated App Server schemas and Go facades to `rust-v0.162.1`,
+  exact source `092d3acd6bec3e3a14bdc7e7a2810ab628ab759d`.
+  Add Bedrock GovCloud checks, thread attachment-owner listing, and prediction
+  request/update protocol types. Upstream removes
+  `ModelProviderCapabilitiesReadResponse.NamespaceTools`; consumers must remove
+  that field and use the remaining reported capabilities.
+- Preserve known `CodexErrorInfo` constructors and accessors while adding
+  `NewCodexErrorInfoUnknown` / `AsUnknown` for the upstream string/object
+  fallback. Unknown strings and objects, including invalid known shapes, now
+  round-trip through that explicitly open source branch. Other JSON kinds fail.
+- Repair image source `anyOf` generation and the independent schema oracle.
+  Image payloads now expose source strings and exact `AlternativeFields` JSON
+  values. Both branches and mixed-type cross-branch fields round-trip when at
+  least one branch holds; source-less images and undeclared fields fail.
+- Enforce source nullability for array/map members and `minLength` for generated
+  string aliases. Align the independent oracle with the existing opaque realtime
+  lifecycle `item` contract while retaining enclosing record constraints.
+
 #### Added
 
 - Add `NewContext` for caller-bounded App Server validation/launch/initialize,

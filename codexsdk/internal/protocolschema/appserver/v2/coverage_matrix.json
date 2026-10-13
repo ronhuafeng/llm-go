@@ -1822,6 +1822,32 @@
       "type": "AuthRecoveryNotification"
     },
     {
+      "exit_condition": "Regenerate if upstream schema drift changes BedrockCheckGovCloudRequirementsResponse.isGovCloud semantics.",
+      "field": "isGovCloud",
+      "owner": "codex-go-sdk",
+      "path": "v2/BedrockCheckGovCloudRequirementsResponse.json#/properties/isGovCloud",
+      "reason": "Generated as a strict typed BedrockCheckGovCloudRequirementsResponse field.",
+      "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/BedrockCheckGovCloudRequirementsResponse.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "BedrockCheckGovCloudRequirementsResponse"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes BedrockCheckGovCloudRequirementsResponse.shouldWarn semantics.",
+      "field": "shouldWarn",
+      "owner": "codex-go-sdk",
+      "path": "v2/BedrockCheckGovCloudRequirementsResponse.json#/properties/shouldWarn",
+      "reason": "Generated as a strict typed BedrockCheckGovCloudRequirementsResponse field.",
+      "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/BedrockCheckGovCloudRequirementsResponse.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "BedrockCheckGovCloudRequirementsResponse"
+    },
+    {
       "exit_condition": "Regenerate if upstream schema drift changes BedrockDiscoverResponse.environmentCredentials semantics.",
       "field": "environmentCredentials",
       "owner": "codex-go-sdk",
@@ -2420,6 +2446,19 @@
       "type": "ConfigRequirementsReadResponse"
     },
     {
+      "exit_condition": "Regenerate if upstream schema drift changes ConfigRequirementsReadResponse.supportsIndependentSpeedModes semantics.",
+      "field": "supportsIndependentSpeedModes",
+      "owner": "codex-go-sdk",
+      "path": "v2/ConfigRequirementsReadResponse.json#/properties/supportsIndependentSpeedModes",
+      "reason": "Generated as a strict typed ConfigRequirementsReadResponse field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ConfigRequirementsReadResponse.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "ConfigRequirementsReadResponse"
+    },
+    {
       "exit_condition": "Regenerate if upstream schema drift changes config payload field shapes, nullable semantics, JSONValue locations, or dependent generated protocol types.",
       "field": "expectedVersion",
       "owner": "codex-go-sdk",
@@ -2725,6 +2764,19 @@
       "path": "v2/EnvironmentAddParams.json#/properties/execServerUrl",
       "reason": "Generated as a required strict protocolv2 field from reviewed upstream schema baseline.",
       "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/EnvironmentAddParams.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "EnvironmentAddParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes EnvironmentAddParams.skills semantics.",
+      "field": "skills",
+      "owner": "codex-go-sdk",
+      "path": "v2/EnvironmentAddParams.json#/properties/skills",
+      "reason": "Generated as a strict typed EnvironmentAddParams field.",
+      "required": false,
       "revisit_trigger": "protocolv2 generation or upstream schema drift",
       "schema": "v2/EnvironmentAddParams.json",
       "stability": "experimental",
@@ -5059,6 +5111,19 @@
       "type": "McpServerOauthLoginCompletedNotification"
     },
     {
+      "exit_condition": "Regenerate if upstream schema drift changes McpServerOauthLoginCompletedNotification.loginId semantics.",
+      "field": "loginId",
+      "owner": "codex-go-sdk",
+      "path": "v2/McpServerOauthLoginCompletedNotification.json#/properties/loginId",
+      "reason": "Generated as a strict typed McpServerOauthLoginCompletedNotification field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/McpServerOauthLoginCompletedNotification.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "McpServerOauthLoginCompletedNotification"
+    },
+    {
       "exit_condition": "Regenerate if upstream stable notification field drift changes type, requiredness, enum values, or omit/null/value semantics.",
       "field": "name",
       "owner": "codex-go-sdk",
@@ -5169,6 +5234,19 @@
       "path": "v2/McpServerOauthLoginResponse.json#/properties/authorizationUrl",
       "reason": "Generated as a required strict string field with missing/null validation.",
       "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/McpServerOauthLoginResponse.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "McpServerOauthLoginResponse"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes McpServerOauthLoginResponse.loginId semantics.",
+      "field": "loginId",
+      "owner": "codex-go-sdk",
+      "path": "v2/McpServerOauthLoginResponse.json#/properties/loginId",
+      "reason": "Generated as a strict typed McpServerOauthLoginResponse field.",
+      "required": false,
       "revisit_trigger": "protocolv2 generation or upstream schema drift",
       "schema": "v2/McpServerOauthLoginResponse.json",
       "stability": "stable",
@@ -5544,19 +5622,6 @@
       "field": "imageGeneration",
       "owner": "codex-go-sdk",
       "path": "v2/ModelProviderCapabilitiesReadResponse.json#/properties/imageGeneration",
-      "reason": "Generated as a strict model protocolv2 field with focused marshal/unmarshal coverage for requiredness, nullability, collections, enums, and malformed protocol rejection.",
-      "required": true,
-      "revisit_trigger": "protocolv2 generation or upstream schema drift",
-      "schema": "v2/ModelProviderCapabilitiesReadResponse.json",
-      "stability": "stable",
-      "status": "supported-generated",
-      "type": "ModelProviderCapabilitiesReadResponse"
-    },
-    {
-      "exit_condition": "Regenerate if upstream model schema drift changes field shape, requiredness, nullability, definition dependencies, collection items, or enum values.",
-      "field": "namespaceTools",
-      "owner": "codex-go-sdk",
-      "path": "v2/ModelProviderCapabilitiesReadResponse.json#/properties/namespaceTools",
       "reason": "Generated as a strict model protocolv2 field with focused marshal/unmarshal coverage for requiredness, nullability, collections, enums, and malformed protocol rejection.",
       "required": true,
       "revisit_trigger": "protocolv2 generation or upstream schema drift",
@@ -8608,6 +8673,97 @@
       "type": "ThreadAttachmentListResponse"
     },
     {
+      "exit_condition": "Regenerate if upstream schema drift changes ThreadAttachmentOwnerListParams.archived semantics.",
+      "field": "archived",
+      "owner": "codex-go-sdk",
+      "path": "v2/ThreadAttachmentOwnerListParams.json#/properties/archived",
+      "reason": "Generated as a strict typed ThreadAttachmentOwnerListParams field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadAttachmentOwnerListParams.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "ThreadAttachmentOwnerListParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes ThreadAttachmentOwnerListParams.attachmentType semantics.",
+      "field": "attachmentType",
+      "owner": "codex-go-sdk",
+      "path": "v2/ThreadAttachmentOwnerListParams.json#/properties/attachmentType",
+      "reason": "Generated as a strict typed ThreadAttachmentOwnerListParams field.",
+      "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadAttachmentOwnerListParams.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "ThreadAttachmentOwnerListParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes ThreadAttachmentOwnerListParams.cursor semantics.",
+      "field": "cursor",
+      "owner": "codex-go-sdk",
+      "path": "v2/ThreadAttachmentOwnerListParams.json#/properties/cursor",
+      "reason": "Generated as a strict typed ThreadAttachmentOwnerListParams field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadAttachmentOwnerListParams.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "ThreadAttachmentOwnerListParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes ThreadAttachmentOwnerListParams.identityKey semantics.",
+      "field": "identityKey",
+      "owner": "codex-go-sdk",
+      "path": "v2/ThreadAttachmentOwnerListParams.json#/properties/identityKey",
+      "reason": "Generated as a strict typed ThreadAttachmentOwnerListParams field.",
+      "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadAttachmentOwnerListParams.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "ThreadAttachmentOwnerListParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes ThreadAttachmentOwnerListParams.limit semantics.",
+      "field": "limit",
+      "owner": "codex-go-sdk",
+      "path": "v2/ThreadAttachmentOwnerListParams.json#/properties/limit",
+      "reason": "Generated as a strict typed ThreadAttachmentOwnerListParams field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadAttachmentOwnerListParams.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "ThreadAttachmentOwnerListParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes ThreadAttachmentOwnerListResponse.data semantics.",
+      "field": "data",
+      "owner": "codex-go-sdk",
+      "path": "v2/ThreadAttachmentOwnerListResponse.json#/properties/data",
+      "reason": "Generated as a strict typed ThreadAttachmentOwnerListResponse field.",
+      "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadAttachmentOwnerListResponse.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "ThreadAttachmentOwnerListResponse"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes ThreadAttachmentOwnerListResponse.nextCursor semantics.",
+      "field": "nextCursor",
+      "owner": "codex-go-sdk",
+      "path": "v2/ThreadAttachmentOwnerListResponse.json#/properties/nextCursor",
+      "reason": "Generated as a strict typed ThreadAttachmentOwnerListResponse field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadAttachmentOwnerListResponse.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "ThreadAttachmentOwnerListResponse"
+    },
+    {
       "exit_condition": "Regenerate if upstream schema drift changes ThreadAttachmentRemoveParams.attachmentType semantics.",
       "field": "attachmentType",
       "owner": "codex-go-sdk",
@@ -9362,6 +9518,19 @@
       "type": "ThreadForkResponse"
     },
     {
+      "exit_condition": "Regenerate if upstream schema drift changes ThreadGoalClearParams.origin semantics.",
+      "field": "origin",
+      "owner": "codex-go-sdk",
+      "path": "v2/ThreadGoalClearParams.json#/properties/origin",
+      "reason": "Generated as a strict typed ThreadGoalClearParams field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadGoalClearParams.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "ThreadGoalClearParams"
+    },
+    {
       "exit_condition": "Regenerate if upstream thread control field drift changes type, requiredness, enum values, JSONValue shape, or omit/null/value semantics.",
       "field": "threadId",
       "owner": "codex-go-sdk",
@@ -9432,6 +9601,19 @@
       "owner": "codex-go-sdk",
       "path": "v2/ThreadGoalSetParams.json#/properties/objective",
       "reason": "Generated as a strict typed field with marshal/unmarshal validation and fail-closed unknown-field handling.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadGoalSetParams.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "ThreadGoalSetParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes ThreadGoalSetParams.origin semantics.",
+      "field": "origin",
+      "owner": "codex-go-sdk",
+      "path": "v2/ThreadGoalSetParams.json#/properties/origin",
+      "reason": "Generated as a strict typed ThreadGoalSetParams field.",
       "required": false,
       "revisit_trigger": "protocolv2 generation or upstream schema drift",
       "schema": "v2/ThreadGoalSetParams.json",
@@ -10101,6 +10283,71 @@
       "stability": "stable",
       "status": "supported-generated",
       "type": "ThreadNameUpdatedNotification"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes ThreadPredictionRequestParams.sourceTurnId semantics.",
+      "field": "sourceTurnId",
+      "owner": "codex-go-sdk",
+      "path": "v2/ThreadPredictionRequestParams.json#/properties/sourceTurnId",
+      "reason": "Generated as a strict typed ThreadPredictionRequestParams field.",
+      "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadPredictionRequestParams.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "ThreadPredictionRequestParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes ThreadPredictionRequestParams.threadId semantics.",
+      "field": "threadId",
+      "owner": "codex-go-sdk",
+      "path": "v2/ThreadPredictionRequestParams.json#/properties/threadId",
+      "reason": "Generated as a strict typed ThreadPredictionRequestParams field.",
+      "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadPredictionRequestParams.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "ThreadPredictionRequestParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes ThreadPredictionUpdatedNotification.result semantics.",
+      "field": "result",
+      "owner": "codex-go-sdk",
+      "path": "v2/ThreadPredictionUpdatedNotification.json#/properties/result",
+      "reason": "Generated as a strict typed ThreadPredictionUpdatedNotification field.",
+      "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadPredictionUpdatedNotification.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "ThreadPredictionUpdatedNotification"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes ThreadPredictionUpdatedNotification.sourceTurnId semantics.",
+      "field": "sourceTurnId",
+      "owner": "codex-go-sdk",
+      "path": "v2/ThreadPredictionUpdatedNotification.json#/properties/sourceTurnId",
+      "reason": "Generated as a strict typed ThreadPredictionUpdatedNotification field.",
+      "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadPredictionUpdatedNotification.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "ThreadPredictionUpdatedNotification"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes ThreadPredictionUpdatedNotification.threadId semantics.",
+      "field": "threadId",
+      "owner": "codex-go-sdk",
+      "path": "v2/ThreadPredictionUpdatedNotification.json#/properties/threadId",
+      "reason": "Generated as a strict typed ThreadPredictionUpdatedNotification field.",
+      "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadPredictionUpdatedNotification.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "ThreadPredictionUpdatedNotification"
     },
     {
       "exit_condition": "Regenerate if upstream schema drift changes ThreadProjectUpdatedNotification.projectId semantics.",
@@ -13717,6 +13964,19 @@
       "type": "TurnStartParams"
     },
     {
+      "exit_condition": "Regenerate if upstream schema drift changes TurnStartParams.parentTurnId semantics.",
+      "field": "parentTurnId",
+      "owner": "codex-go-sdk",
+      "path": "v2/TurnStartParams.json#/properties/parentTurnId",
+      "reason": "Generated as a strict typed TurnStartParams field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/TurnStartParams.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "TurnStartParams"
+    },
+    {
       "exit_condition": "Regenerate if upstream schema drift changes this field shape or typed representation.",
       "field": "permissions",
       "owner": "codex-go-sdk",
@@ -13752,6 +14012,19 @@
       "revisit_trigger": "protocolv2 generation or upstream schema drift",
       "schema": "v2/TurnStartParams.json",
       "stability": "experimental",
+      "status": "supported-generated",
+      "type": "TurnStartParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes TurnStartParams.rootTurnId semantics.",
+      "field": "rootTurnId",
+      "owner": "codex-go-sdk",
+      "path": "v2/TurnStartParams.json#/properties/rootTurnId",
+      "reason": "Generated as a strict typed TurnStartParams field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/TurnStartParams.json",
+      "stability": "stable",
       "status": "supported-generated",
       "type": "TurnStartParams"
     },
@@ -14329,6 +14602,18 @@
     }
   ],
   "methods": [
+    {
+      "direction": "client_to_server",
+      "exit_condition": "Regenerate method registry and add handwritten facade coverage only if this upstream method becomes part of the public SDK surface.",
+      "kind": "request",
+      "method": "account/bedrock/checkGovCloudRequirements",
+      "owner": "codex-go-sdk",
+      "reason": "Generated protocolv2 method registry coverage for client_to_server request method; no handwritten facade is claimed until explicitly added.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "source_schema": "ClientRequest.json",
+      "stability": "experimental",
+      "status": "supported-generated"
+    },
     {
       "direction": "client_to_server",
       "exit_condition": "Regenerate method registry and add handwritten facade coverage only if this upstream method becomes part of the public SDK surface.",
@@ -16361,6 +16646,18 @@
       "direction": "client_to_server",
       "exit_condition": "Regenerate method registry and add handwritten facade coverage only if this upstream method becomes part of the public SDK surface.",
       "kind": "request",
+      "method": "thread/attachmentOwner/list",
+      "owner": "codex-go-sdk",
+      "reason": "Generated protocolv2 method registry coverage for client_to_server request method; no handwritten facade is claimed until explicitly added.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "source_schema": "ClientRequest.json",
+      "stability": "stable",
+      "status": "supported-generated"
+    },
+    {
+      "direction": "client_to_server",
+      "exit_condition": "Regenerate method registry and add handwritten facade coverage only if this upstream method becomes part of the public SDK surface.",
+      "kind": "request",
       "method": "thread/backgroundTerminals/clean",
       "owner": "codex-go-sdk",
       "reason": "Generated protocolv2 method registry coverage for client_to_server request method; no handwritten facade is claimed until explicitly added.",
@@ -16662,6 +16959,30 @@
       "exit_condition": "Regenerate method registry and add handwritten facade coverage only if this upstream method becomes part of the public SDK surface.",
       "kind": "notification",
       "method": "thread/name/updated",
+      "owner": "codex-go-sdk",
+      "reason": "Generated protocolv2 method registry coverage for server_to_client notification method; no handwritten facade is claimed until explicitly added.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "source_schema": "ServerNotification.json",
+      "stability": "stable",
+      "status": "supported-generated"
+    },
+    {
+      "direction": "client_to_server",
+      "exit_condition": "Regenerate method registry and add handwritten facade coverage only if this upstream method becomes part of the public SDK surface.",
+      "kind": "request",
+      "method": "thread/prediction/request",
+      "owner": "codex-go-sdk",
+      "reason": "Generated protocolv2 method registry coverage for client_to_server request method; no handwritten facade is claimed until explicitly added.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "source_schema": "ClientRequest.json",
+      "stability": "experimental",
+      "status": "supported-generated"
+    },
+    {
+      "direction": "server_to_client",
+      "exit_condition": "Regenerate method registry and add handwritten facade coverage only if this upstream method becomes part of the public SDK surface.",
+      "kind": "notification",
+      "method": "thread/prediction/updated",
       "owner": "codex-go-sdk",
       "reason": "Generated protocolv2 method registry coverage for server_to_client notification method; no handwritten facade is claimed until explicitly added.",
       "revisit_trigger": "protocolv2 generation or upstream schema drift",
@@ -18066,6 +18387,26 @@
       "stability": "stable",
       "status": "supported-generated",
       "type": "AuthRecoveryNotification"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes this generated protocol type.",
+      "owner": "codex-go-sdk",
+      "reason": "Generated from the checked-in upstream app-server schema baseline.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/BedrockCheckGovCloudRequirementsParams.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "BedrockCheckGovCloudRequirementsParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes this generated protocol type.",
+      "owner": "codex-go-sdk",
+      "reason": "Generated from the checked-in upstream app-server schema baseline.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/BedrockCheckGovCloudRequirementsResponse.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "BedrockCheckGovCloudRequirementsResponse"
     },
     {
       "exit_condition": "Regenerate if upstream schema drift changes this generated protocol type.",
@@ -20372,6 +20713,26 @@
       "owner": "codex-go-sdk",
       "reason": "Generated from the checked-in upstream app-server schema baseline.",
       "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadAttachmentOwnerListParams.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "ThreadAttachmentOwnerListParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes this generated protocol type.",
+      "owner": "codex-go-sdk",
+      "reason": "Generated from the checked-in upstream app-server schema baseline.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadAttachmentOwnerListResponse.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "ThreadAttachmentOwnerListResponse"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes this generated protocol type.",
+      "owner": "codex-go-sdk",
+      "reason": "Generated from the checked-in upstream app-server schema baseline.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
       "schema": "v2/ThreadAttachmentRemoveParams.json",
       "stability": "stable",
       "status": "supported-generated",
@@ -20786,6 +21147,36 @@
       "stability": "stable",
       "status": "supported-generated",
       "type": "ThreadNameUpdatedNotification"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes this generated protocol type.",
+      "owner": "codex-go-sdk",
+      "reason": "Generated from the checked-in upstream app-server schema baseline.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadPredictionRequestParams.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "ThreadPredictionRequestParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes this generated protocol type.",
+      "owner": "codex-go-sdk",
+      "reason": "Generated from the checked-in upstream app-server schema baseline.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadPredictionRequestResponse.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "ThreadPredictionRequestResponse"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes this generated protocol type.",
+      "owner": "codex-go-sdk",
+      "reason": "Generated from the checked-in upstream app-server schema baseline.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadPredictionUpdatedNotification.json",
+      "stability": "stable",
+      "status": "supported-generated",
+      "type": "ThreadPredictionUpdatedNotification"
     },
     {
       "exit_condition": "Regenerate if upstream schema drift changes this generated protocol type.",

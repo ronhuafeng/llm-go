@@ -118,6 +118,9 @@ func Build(req Request) ([]Target, error) {
 		if err := prepareReachable(doc, root, fragment, req.CloseObjects, map[string]bool{}); err != nil {
 			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
 		}
+		if err := applyPublicRepresentationOverlays(doc, root, fragment, docName, false); err != nil {
+			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
+		}
 		c := validator.NewCompiler()
 		c.UseLoader(denyLoader{})
 		const url = "https://schema-oracle.invalid/target.json"
@@ -129,11 +132,14 @@ func Build(req Request) ([]Target, error) {
 			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
 		}
 		sourceSchema := compiled
-		hasOutputSchema, err := applyOutputSchemaOverlay(doc, root, fragment, docName)
+		if err := applyPublicRepresentationOverlays(doc, root, fragment, docName, true); err != nil {
+			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
+		}
+		_, err = applyOutputSchemaOverlay(doc, root, fragment, docName)
 		if err != nil {
 			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
 		}
-		if hasOutputSchema {
+		{
 			c = validator.NewCompiler()
 			c.UseLoader(denyLoader{})
 			c.RegisterVocabulary(outputSchemaVocabulary())
@@ -619,6 +625,20 @@ func flattenObjectAlternatives(m map[string]any, path string) error {
 					return fmt.Errorf("%s: overlapping compound property %s unsupported", path, k)
 				}
 				p[k] = v
+			}
+			// An open anyOf branch does not constrain fields declared only by
+			// another branch. The standalone overlay closes the complete field
+			// set, while keeping those cross-branch values unconstrained.
+			if kind == "anyOf" {
+				for _, alternative := range alts {
+					other, _ := alternative.(map[string]any)
+					otherProperties, _ := other["properties"].(map[string]any)
+					for key := range otherProperties {
+						if _, declared := p[key]; !declared {
+							p[key] = map[string]any{}
+						}
+					}
+				}
 			}
 			copy["properties"] = p
 			req, _ := m["required"].([]any)

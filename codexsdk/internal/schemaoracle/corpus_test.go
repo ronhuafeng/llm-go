@@ -123,11 +123,13 @@ func TestFullTargetCorpusBudgetAndIdentity(t *testing.T) {
 		metadata.Write(b)
 		metadata.Write([]byte("\n"))
 	}
-	if len(targets) != 65 || count != 124376 {
+	// Whole-image anyOf semantics and the documented opaque realtime lifecycle
+	// overlay determine this corpus. Keep every target and both transport bounds.
+	if len(targets) != 65 || count != 128658 {
 		t.Fatalf("coverage changed: %d targets %d probes", len(targets), count)
 	}
-	if got := fmt.Sprintf("%x", sequence.Sum(nil)); got != "355bac40eaa8cedfd2ff8e9447ffa91596af6ae13e568e81f8fc8d27ca6b7fca" {
-		t.Fatal("original input/verdict/order changed", got)
+	if got := fmt.Sprintf("%x", sequence.Sum(nil)); got != "3c4256cbe97b5e235ab531120bd76a267d9619d270c04d42132e56481de0de63" {
+		t.Fatal("source-derived input/verdict/order changed", got)
 	}
 	if got := fmt.Sprintf("%x", metadata.Sum(nil)); got != "040fc52c499408681c6d76ae42fdaa148ed804c4ca4ef2a6df863c33045c3f7f" {
 		t.Fatal("target bindings or acceptance metadata changed", got)

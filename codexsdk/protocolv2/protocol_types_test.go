@@ -1715,30 +1715,31 @@ func TestGeneratedThreadTurnLifecycleParamsRejectMalformedProtocol(t *testing.T)
 		t.Fatalf("unexpected nil MCP tool call result content error: %v", err)
 	}
 
-	var codexError CodexErrorInfo
-	err = json.Unmarshal([]byte(`"mystery"`), &codexError)
-	if err == nil {
-		t.Fatal("expected unknown CodexErrorInfo string variant to fail")
+	// rust-v0.162.1 adds an unconstrained string/object branch. These
+	// values fail the known branches but must round-trip through that branch.
+	for _, raw := range []string{`"mystery"`, `{"activeTurnNotSteerable":{}}`, `{"httpConnectionFailed":{"extra":true}}`} {
+		var codexError CodexErrorInfo
+		if err := json.Unmarshal([]byte(raw), &codexError); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := codexError.AsUnknown(); !ok {
+			t.Fatalf("%s did not use open branch", raw)
+		}
+		encoded, err := json.Marshal(codexError)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(encoded) != raw {
+			t.Fatalf("%s became %s", raw, encoded)
+		}
 	}
-	if !strings.Contains(err.Error(), `decode CodexErrorInfo.value: unknown variant "mystery"`) {
-		t.Fatalf("unexpected unknown CodexErrorInfo string error: %v", err)
+	for _, raw := range []string{`null`, `true`, `1`, `[]`} {
+		var codexError CodexErrorInfo
+		if err := json.Unmarshal([]byte(raw), &codexError); err == nil {
+			t.Fatalf("accepted %s outside string/object union", raw)
+		}
 	}
 
-	err = json.Unmarshal([]byte(`{"activeTurnNotSteerable":{}}`), &codexError)
-	if err == nil {
-		t.Fatal("expected missing activeTurnNotSteerable turnKind to fail")
-	}
-	if !strings.Contains(err.Error(), "decode CodexErrorInfo.activeTurnNotSteerable.turnKind: missing required field") {
-		t.Fatalf("unexpected missing activeTurnNotSteerable turnKind error: %v", err)
-	}
-
-	err = json.Unmarshal([]byte(`{"httpConnectionFailed":{"extra":true}}`), &codexError)
-	if err == nil {
-		t.Fatal("expected unknown CodexErrorInfo object field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode CodexErrorInfo.httpConnectionFailed: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown CodexErrorInfo object field error: %v", err)
-	}
 }
 
 func TestGeneratedThreadLifecycleResponsesRejectMalformedProtocol(t *testing.T) {
@@ -3099,13 +3100,12 @@ func TestGeneratedModelProviderAndNotifications(t *testing.T) {
 
 	responseRaw, err := json.Marshal(ModelProviderCapabilitiesReadResponse{
 		ImageGeneration: true,
-		NamespaceTools:  false,
 		WebSearch:       true,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := string(responseRaw), `{"imageGeneration":true,"namespaceTools":false,"webSearch":true}`; got != want {
+	if got, want := string(responseRaw), `{"imageGeneration":true,"webSearch":true}`; got != want {
 		t.Fatalf("ModelProviderCapabilitiesReadResponse JSON = %s, want %s", got, want)
 	}
 

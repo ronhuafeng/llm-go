@@ -121,6 +121,13 @@ Use explicit overlays only where schema cannot express a required local/public
 meaning. Application authority, lifecycle correlation, command argv, service-tier
 presence, nested elicitation schema documents, and opaque realtime lifecycle
 representations retain their focused owner tests and existing public contracts.
+The schema oracle applies that opaque representation to `item` in
+`ThreadRealtimeItemStartedNotification` and
+`ThreadRealtimeItemCompletedNotification`, including their aggregate references.
+It still checks those records' required fields, typed sibling fields, and
+undeclared-field rejection; other realtime item bindings retain source typing.
+The existing `CommandExecParams.command` non-empty argv overlay also applies
+inside aggregates, even when the source expresses it only in its description.
 A new protocol instance is not itself a reason for a handwritten checkpoint.
 Changing an established public representation requires an explicit migration;
 repository search cannot establish every external consumer.

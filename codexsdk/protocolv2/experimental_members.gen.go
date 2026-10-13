@@ -37,6 +37,10 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"name":   {},
 		"region": {},
 	},
+	"BedrockCheckGovCloudRequirementsResponse": {
+		"isGovCloud": {},
+		"shouldWarn": {},
+	},
 	"BedrockDiscoverResponse": {
 		"environmentCredentials": {},
 		"profiles":               {},
@@ -55,6 +59,10 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 	"CapabilityRootLocationEnvironment": {
 		"environmentId": {},
 		"path":          {},
+	},
+	"ClientRequestAccountBedrockCheckGovCloudRequirements": {
+		"id":     {},
+		"params": {},
 	},
 	"ClientRequestAccountBedrockDiscover": {
 		"id":     {},
@@ -214,6 +222,10 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"params": {},
 	},
 	"ClientRequestThreadMemoryModeSet": {
+		"id":     {},
+		"params": {},
+	},
+	"ClientRequestThreadPredictionRequest": {
 		"id":     {},
 		"params": {},
 	},
@@ -392,6 +404,7 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"connectTimeoutMs": {},
 		"environmentId":    {},
 		"execServerUrl":    {},
+		"skills":           {},
 	},
 	"EnvironmentInfoParams": {
 		"environmentId": {},
@@ -403,6 +416,9 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 	"EnvironmentShellInfo": {
 		"name": {},
 		"path": {},
+	},
+	"EnvironmentSkillsParams": {
+		"required": {},
 	},
 	"EnvironmentStatusParams": {
 		"environmentId": {},
@@ -691,6 +707,11 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"serverName":     {},
 		"status":         {},
 	},
+	"ResponseItemAdditionalTools": {
+		"id":    {},
+		"role":  {},
+		"tools": {},
+	},
 	"ResponseItemAgentMessage": {
 		"author":  {},
 		"content": {},
@@ -903,6 +924,10 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 	"ThreadMetadataUpdateParams": {
 		"daybreakEnabled": {},
 		"projectId":       {},
+	},
+	"ThreadPredictionRequestParams": {
+		"sourceTurnId": {},
+		"threadId":     {},
 	},
 	"ThreadQueueAddParams": {
 		"clientUserMessageId": {},
@@ -1262,69 +1287,71 @@ var ExperimentalUnionValues = map[string]map[string]struct{}{
 		"environment": {},
 	},
 	"ClientRequest": {
-		"account/bedrock/discover":             {},
-		"account/bedrock/setup":                {},
-		"collaborationMode/list":               {},
-		"environment/add":                      {},
-		"environment/info":                     {},
-		"environment/status":                   {},
-		"fuzzyFileSearch/sessionStart":         {},
-		"fuzzyFileSearch/sessionStop":          {},
-		"fuzzyFileSearch/sessionUpdate":        {},
-		"mcpServer/event/stream/start":         {},
-		"mcpServer/event/stream/stop":          {},
-		"memory/reset":                         {},
-		"memory/status":                        {},
-		"mock/experimentalMethod":              {},
-		"plugin/search":                        {},
-		"process/kill":                         {},
-		"process/resizePty":                    {},
-		"process/spawn":                        {},
-		"process/writeStdin":                   {},
-		"project/create":                       {},
-		"project/delete":                       {},
-		"project/import":                       {},
-		"project/list":                         {},
-		"project/move":                         {},
-		"project/read":                         {},
-		"project/update":                       {},
-		"remoteControl/client/list":            {},
-		"remoteControl/client/revoke":          {},
-		"remoteControl/disable":                {},
-		"remoteControl/enable":                 {},
-		"remoteControl/pairing/start":          {},
-		"remoteControl/pairing/status":         {},
-		"remoteControl/status/read":            {},
-		"rollout/compress":                     {},
-		"server/diagnostics":                   {},
-		"thread/backgroundTerminals/clean":     {},
-		"thread/backgroundTerminals/list":      {},
-		"thread/backgroundTerminals/terminate": {},
-		"thread/decrement_elicitation":         {},
-		"thread/increment_elicitation":         {},
-		"thread/memoryMode/set":                {},
-		"thread/queue/add":                     {},
-		"thread/queue/delete":                  {},
-		"thread/queue/list":                    {},
-		"thread/queue/reorder":                 {},
-		"thread/queue/start":                   {},
-		"thread/queue/update":                  {},
-		"thread/realtime/appendAudio":          {},
-		"thread/realtime/appendSpeech":         {},
-		"thread/realtime/appendText":           {},
-		"thread/realtime/listVoices":           {},
-		"thread/realtime/start":                {},
-		"thread/realtime/stop":                 {},
-		"thread/search":                        {},
-		"thread/searchOccurrences":             {},
-		"thread/settings/update":               {},
-		"thread/timeline/list":                 {},
-		"turn/settings/update":                 {},
-		"userVerification/cancel":              {},
-		"userVerification/delete":              {},
-		"userVerification/enroll":              {},
-		"userVerification/status":              {},
-		"userVerification/verify":              {},
+		"account/bedrock/checkGovCloudRequirements": {},
+		"account/bedrock/discover":                  {},
+		"account/bedrock/setup":                     {},
+		"collaborationMode/list":                    {},
+		"environment/add":                           {},
+		"environment/info":                          {},
+		"environment/status":                        {},
+		"fuzzyFileSearch/sessionStart":              {},
+		"fuzzyFileSearch/sessionStop":               {},
+		"fuzzyFileSearch/sessionUpdate":             {},
+		"mcpServer/event/stream/start":              {},
+		"mcpServer/event/stream/stop":               {},
+		"memory/reset":                              {},
+		"memory/status":                             {},
+		"mock/experimentalMethod":                   {},
+		"plugin/search":                             {},
+		"process/kill":                              {},
+		"process/resizePty":                         {},
+		"process/spawn":                             {},
+		"process/writeStdin":                        {},
+		"project/create":                            {},
+		"project/delete":                            {},
+		"project/import":                            {},
+		"project/list":                              {},
+		"project/move":                              {},
+		"project/read":                              {},
+		"project/update":                            {},
+		"remoteControl/client/list":                 {},
+		"remoteControl/client/revoke":               {},
+		"remoteControl/disable":                     {},
+		"remoteControl/enable":                      {},
+		"remoteControl/pairing/start":               {},
+		"remoteControl/pairing/status":              {},
+		"remoteControl/status/read":                 {},
+		"rollout/compress":                          {},
+		"server/diagnostics":                        {},
+		"thread/backgroundTerminals/clean":          {},
+		"thread/backgroundTerminals/list":           {},
+		"thread/backgroundTerminals/terminate":      {},
+		"thread/decrement_elicitation":              {},
+		"thread/increment_elicitation":              {},
+		"thread/memoryMode/set":                     {},
+		"thread/prediction/request":                 {},
+		"thread/queue/add":                          {},
+		"thread/queue/delete":                       {},
+		"thread/queue/list":                         {},
+		"thread/queue/reorder":                      {},
+		"thread/queue/start":                        {},
+		"thread/queue/update":                       {},
+		"thread/realtime/appendAudio":               {},
+		"thread/realtime/appendSpeech":              {},
+		"thread/realtime/appendText":                {},
+		"thread/realtime/listVoices":                {},
+		"thread/realtime/start":                     {},
+		"thread/realtime/stop":                      {},
+		"thread/search":                             {},
+		"thread/searchOccurrences":                  {},
+		"thread/settings/update":                    {},
+		"thread/timeline/list":                      {},
+		"turn/settings/update":                      {},
+		"userVerification/cancel":                   {},
+		"userVerification/delete":                   {},
+		"userVerification/enroll":                   {},
+		"userVerification/status":                   {},
+		"userVerification/verify":                   {},
 	},
 	"CodexResponseHandoffMode": {
 		"bemTags":    {},
@@ -1431,6 +1458,7 @@ var ExperimentalUnionValues = map[string]map[string]struct{}{
 		"desc": {},
 	},
 	"ResponseItem": {
+		"additional_tools":        {},
 		"agent_message":           {},
 		"compaction":              {},
 		"compaction_trigger":      {},
@@ -1604,6 +1632,9 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"default_origin_policy": "BrowserUseOriginPolicyConfig",
 		"origins":               "BrowserUseOriginPolicyConfig",
 	},
+	"BrowserUseExtensionRequirements": {
+		"requestHeaders": "RequestHeader",
+	},
 	"BrowserUseOriginPolicy": {
 		"access":                 "AllowDenyRequirement",
 		"accessApprovalLifetime": "BrowserUseAccessApprovalLifetime",
@@ -1620,6 +1651,7 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	},
 	"BrowserUseRequirements": {
 		"defaultOriginPolicy": "BrowserUseOriginPolicy",
+		"extension":           "BrowserUseExtensionRequirements",
 		"origins":             "BrowserUseOriginPolicy",
 	},
 	"CancelLoginAccountResponse": {
@@ -1627,6 +1659,10 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	},
 	"ChatgptAuthTokensRefreshParams": {
 		"reason": "ChatgptAuthTokensRefreshReason",
+	},
+	"ClientRequestAccountBedrockCheckGovCloudRequirements": {
+		"id":     "RequestId",
+		"params": "BedrockCheckGovCloudRequirementsParams",
 	},
 	"ClientRequestAccountBedrockDiscover": {
 		"id":     "RequestId",
@@ -2049,6 +2085,10 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"id":     "RequestId",
 		"params": "ThreadAttachmentListParams",
 	},
+	"ClientRequestThreadAttachmentOwnerList": {
+		"id":     "RequestId",
+		"params": "ThreadAttachmentOwnerListParams",
+	},
 	"ClientRequestThreadAttachmentRemove": {
 		"id":     "RequestId",
 		"params": "ThreadAttachmentRemoveParams",
@@ -2124,6 +2164,10 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"ClientRequestThreadNameSet": {
 		"id":     "RequestId",
 		"params": "ThreadSetNameParams",
+	},
+	"ClientRequestThreadPredictionRequest": {
+		"id":     "RequestId",
+		"params": "ThreadPredictionRequestParams",
 	},
 	"ClientRequestThreadQueueAdd": {
 		"id":     "RequestId",
@@ -2442,6 +2486,9 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	},
 	"DynamicToolSpecNamespace": {
 		"tools": "DynamicToolNamespaceTool",
+	},
+	"EnvironmentAddParams": {
+		"skills": "EnvironmentSkillsParams",
 	},
 	"EnvironmentInfoResponse": {
 		"cwd":   "PathUri",
@@ -3206,6 +3253,9 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"ServerNotificationThreadNameUpdated": {
 		"params": "ThreadNameUpdatedNotification",
 	},
+	"ServerNotificationThreadPredictionUpdated": {
+		"params": "ThreadPredictionUpdatedNotification",
+	},
 	"ServerNotificationThreadProjectUpdated": {
 		"params": "ThreadProjectUpdatedNotification",
 	},
@@ -3384,6 +3434,9 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"ThreadAttachmentListResponse": {
 		"data": "ThreadAttachment",
 	},
+	"ThreadAttachmentOwnerListResponse": {
+		"data": "ThreadAttachmentOwner",
+	},
 	"ThreadAttachmentUpdatedNotification": {
 		"operation": "ThreadAttachmentOperation",
 	},
@@ -3408,10 +3461,14 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"ThreadGoal": {
 		"status": "ThreadGoalStatus",
 	},
+	"ThreadGoalClearParams": {
+		"origin": "ThreadGoalMutationOrigin",
+	},
 	"ThreadGoalGetResponse": {
 		"goal": "ThreadGoal",
 	},
 	"ThreadGoalSetParams": {
+		"origin": "ThreadGoalMutationOrigin",
 		"status": "ThreadGoalStatus",
 	},
 	"ThreadGoalSetResponse": {
@@ -3465,7 +3522,8 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"status":     "McpToolCallStatus",
 	},
 	"ThreadItemSubAgentActivity": {
-		"kind": "SubAgentActivityKind",
+		"kind":            "SubAgentActivityKind",
+		"reasoningEffort": "ReasoningEffort",
 	},
 	"ThreadItemUserMessage": {
 		"content": "UserInput",
@@ -3497,6 +3555,9 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	},
 	"ThreadMetadataUpdateResponse": {
 		"thread": "Thread",
+	},
+	"ThreadPredictionUpdatedNotification": {
+		"result": "ThreadPredictionResult",
 	},
 	"ThreadQueueAddParams": {
 		"input": "UserInput",
