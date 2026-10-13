@@ -2,10 +2,11 @@
 
 Tracking: [#420](https://github.com/ronhuafeng/llm-go/issues/420).
 
-Status: accepted CR-01–03 direction; implementation pending. The complete prompt
-below is submitted for user review before formal goal execution. This document
-is an implementation plan, not evidence of runtime behavior or a successful
-protocol upgrade. Inspected baseline: `9769ba362a5e946c17a6eb78d8e2155e19bb4f28`.
+Status: CR-01–03 deployed through [#421](https://github.com/ronhuafeng/llm-go/pull/421)
+at `30d86bea257da874165b6df1d0de7ba32a2b604f`, with independent review and four
+exact-head checks passed. The target upgrade still requires a real authorized
+goal and its own accepted Draft PR. This document defines that acceptance; it
+is not evidence that the target upgrade has completed.
 
 ## Smallest complete replacement
 
@@ -26,24 +27,23 @@ completion candidate. Blocked, paused, limited, cancellation, disconnect and
 cleanup failures cannot imply acceptance. Keep a finite runtime deadline; do
 not reproduce Codex's goal loop or add a replacement round counter.
 
-The existing SDK has GoalSet/Get and goal notifications. It lacks a public
-connection-termination observer; select the smallest supported observation path
-while implementing and test silent disconnect, rather than silently waiting to
-claim completion. No new public lifecycle API is assumed by this plan.
+The runner uses the existing GoalSet/Get API and goal notifications. A bounded
+read-only GoalGet probe detects silent disconnect; its response cannot establish
+completion. No additional public lifecycle API is required.
 
 Official source establishes [automatic goal startup and continuation](https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/ext/goal/src/runtime.rs#L425-L491),
 [continuation on idle](https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/ext/goal/src/extension.rs#L180-L190),
 and the [SDK completion condition](https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/sdk/python/src/openai_codex/_goal.py#L54-L86).
 An ordinary exec prompt containing `/goal` does not invoke this API.
 
-## Complete proposed goal prompt
+## Complete goal prompt for review
 
 `${BASE_SHA}`, `${PR_URL}` and `${BRANCH}` are injected by the trusted launcher.
 It also owns the exact target, isolated environment, `gpt-6.1-sol/high`,
 run-resolved official latest CLI and finite deadline. The model cannot choose
-another repository, branch or PR. PR #421 contains this workflow implementation;
+another repository, branch or PR. PR #421 deployed this workflow implementation;
 the target upgrade belongs in a separately prepared, fixed synchronization Draft
-PR. The main branch has not deployed this new workflow.
+PR launched from accepted main.
 
 > 使用仓库的 `.agents/skills/codexsdk-sync-upstream/SKILL.md`，将 llm-go 从
 > `${BASE_SHA}` 完整升级到 openai/codex 的 rust-v0.162.1，精确提交
@@ -72,9 +72,10 @@ failure diagnostics return by JSONL path to the same goal. No outer repair turn,
 verifier role or merge continuation is added. Normal cancellation/deadline bounds
 the outstanding tool call.
 
-The implementation is under review in this Draft PR. The revised skill must not
-be used for a formal goal before exact-head verification and prompt review. Local-only verification explicitly
-reports that limited scope; it cannot stand in for the four-gate result. Existing
+The implementation has passed exact-head verification and independent review.
+Formal execution requires operator review of the complete prompt and authorization
+of the fixed-target run. Local-only verification explicitly reports that limited
+scope; it cannot stand in for the four-gate result. Existing
 CI Live retains its current credential/trust arrangement. Candidate code in that
 job already has provider access; this plan does not claim otherwise or introduce
 a new host credential broker.
@@ -109,15 +110,16 @@ Record implementation evidence and target acceptance separately in
 [#420](https://github.com/ronhuafeng/llm-go/issues/420):
 
 1. PR #421 has independent review, lifecycle/security regressions and four
-   exact-head CI results. Fixture success establishes only the tested behavior.
+   exact-head CI results, and is deployed on main. Fixture success establishes
+   only the tested behavior.
 2. After prompt approval, one real goal upgrades the fixed target in its own
    bound Draft PR, observes a real failure and correction where applicable,
    and reaches the four actual checks on the final exact head.
 
-The user's current ceiling is **no merge**. Both PRs remain Draft; neither
-implementation CI nor the goal may merge them. Main deployment and eventual
-integration are separate, still-unfinished outcomes. A green refactor PR or a
-goal's self-report is not evidence that the target upgrade succeeded.
+The target synchronization PR remains **Draft and unmerged**. Workflow repairs
+follow separately authorized exact-head Auto-forward integration. A green
+implementation PR or a goal's self-report is not evidence that the target
+upgrade succeeded.
 
 ## Implementation layout
 

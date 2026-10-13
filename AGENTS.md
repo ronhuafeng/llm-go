@@ -11,7 +11,7 @@ Read the smallest current source set that owns the task.
   package. For `llmcaller/codex`, read its adapter README and affected tests.
 - For protocol upgrades, use [`docs/protocol-sync.md`](docs/protocol-sync.md).
   The [`codexsdk-sync-upstream`](.agents/skills/codexsdk-sync-upstream/SKILL.md)
-  skill is only for the bounded repair pass described there.
+  skill owns the complete fixed-target native goal described there.
 - For GitHub Actions, also read [`.github/AGENTS.md`](.github/AGENTS.md) and
   [`docs/verify.md`](docs/verify.md). Live-gate enforcement and protocol
   provenance are different responsibilities.

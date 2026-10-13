@@ -26,6 +26,9 @@ type GoalPublicationRequest struct {
 	Target                                                                  Target
 	API                                                                     PublicationAPI
 	Lookuper                                                                RemoteLookuper
+	// PublicationToken obtains a fresh host-only token at the write boundary.
+	// The returned cleanup revokes it after that one Git operation.
+	PublicationToken func(context.Context) (string, func(), error)
 }
 
 // GoalPublication.Head is our Git-confirmed effect locator. It may accompany an
@@ -120,10 +123,7 @@ func appendGoalDraft(ctx context.Context, req GoalPublicationRequest, push goalP
 		return result, err
 	}
 	if push == nil {
-		push = func(ctx context.Context, r GoalPublicationRequest, h string) error {
-			_, e := goalGit(ctx, r.RepoRoot, "push", "--porcelain", goalRemote(r), h+":refs/heads/"+r.Branch)
-			return e
-		}
+		push = pushGoalDraft
 	}
 	pushErr := push(ctx, req, head)
 	// Even if cancellation interrupted push, one bounded readback establishes
@@ -148,6 +148,31 @@ func appendGoalDraft(ctx context.Context, req GoalPublicationRequest, push goalP
 		return result, err
 	}
 	return result, nil
+}
+
+func pushGoalDraft(ctx context.Context, r GoalPublicationRequest, head string) error {
+	if r.PublicationToken == nil {
+		_, err := goalGit(ctx, r.RepoRoot, "push", "--porcelain", goalRemote(r), head+":refs/heads/"+r.Branch)
+		return err
+	}
+	token, release, err := r.PublicationToken(ctx)
+	if err != nil {
+		return errors.New("publication token unavailable")
+	}
+	defer release()
+	cmd := exec.CommandContext(ctx, "git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false",
+		"-c", "credential.helper=", "-c", "credential.helper=!gh auth git-credential",
+		"-C", r.RepoRoot, "push", "--porcelain", goalRemote(r), head+":refs/heads/"+r.Branch)
+	for _, entry := range os.Environ() {
+		if !strings.HasPrefix(entry, "GH_TOKEN=") {
+			cmd.Env = append(cmd.Env, entry)
+		}
+	}
+	cmd.Env = append(cmd.Env, "GH_TOKEN="+token)
+	if err := cmd.Run(); err != nil {
+		return errors.New("trusted publication git operation failed")
+	}
+	return nil
 }
 
 func goalBinding(r GoalPublicationRequest) error {

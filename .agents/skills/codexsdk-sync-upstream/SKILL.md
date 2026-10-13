@@ -38,9 +38,9 @@ full-acceptance entrypoint for this goal. The trusted launcher binds its
 repository, Draft PR, branch, base, target and deadline; you cannot choose an
 alternative publication destination.
 
-**Draft integration status:** the implementation is under review in PR #421.
-Do not start a formal goal until its exact-head checks and independent review
-pass and the complete prompt is approved. This branch is not deployed on main.
+The native workflow is deployed on main through PR #421. The operator reviews
+the complete prompt and authorizes the fixed-target run before launch. The
+target synchronization PR remains Draft, including after successful acceptance.
 
 The tool first freezes the current candidate, including intended untracked
 source, and runs the credential-free local checks in the existing isolation

@@ -120,6 +120,7 @@ func TestNativeGoalSandboxBoundary(t *testing.T) {
 	}
 	defer listener.Close()
 	t.Setenv("GH_TOKEN", goalParentCanary)
+	t.Setenv("PROTOCOL_SYNC_APP_PRIVATE_KEY", goalParentCanary)
 	t.Setenv("GH_CONFIG_DIR", hidden)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer native_fixture_only" {
@@ -269,7 +270,7 @@ func TestNativeGoalSandboxChild(t *testing.T) {
 		}
 	}
 
-	if os.Getenv("GH_TOKEN") != "" || os.Getenv("GH_CONFIG_DIR") != "" {
+	if os.Getenv("GH_TOKEN") != "" || os.Getenv("GH_CONFIG_DIR") != "" || os.Getenv("PROTOCOL_SYNC_APP_PRIVATE_KEY") != "" {
 		fail(90)
 	}
 	if _, err := os.Stat(secret); !os.IsNotExist(err) {

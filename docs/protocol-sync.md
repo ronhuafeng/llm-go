@@ -6,11 +6,13 @@ passing standard; the [goal prompt](../.agents/skills/codexsdk-sync-upstream/goa
 contains the objective and trusted launch bindings. An ordinary `codex exec`
 prompt containing `/goal` does not enable native goal continuation.
 
-This replacement is developed in Draft [#421](https://github.com/ronhuafeng/llm-go/pull/421).
-Its engineering tests and the actual target-upgrade acceptance are separate
-obligations in [#420](https://github.com/ronhuafeng/llm-go/issues/420). The current
-execution ceiling is Draft-only: do not merge. Formal goal execution awaits
-review of the complete prompt; a green refactor PR is not a completed upgrade.
+The native workflow is deployed on main through
+[#421](https://github.com/ronhuafeng/llm-go/pull/421). Its engineering tests and
+the actual target-upgrade acceptance are separate obligations in
+[#420](https://github.com/ronhuafeng/llm-go/issues/420). After review of the complete
+prompt and authorization of the fixed-target run, use the existing main entrypoint.
+The target synchronization PR remains Draft; a green workflow implementation
+does not establish a completed upgrade.
 
 ## One goal, one acceptance standard
 
@@ -73,8 +75,11 @@ expired credentials produce a concrete blocked outcome, not an alternative ident
 
 `PROTOCOL_SYNC_APP_CLIENT_ID`, `PROTOCOL_SYNC_APP_BOT_ID` and
 `PROTOCOL_SYNC_APP_PRIVATE_KEY` retain their existing roles. The App requests
-only existing Contents and Pull requests write grants for this repository;
-check/artifact observations use the read-only workflow identity. The separate
+only existing Contents and Pull requests write grants for Draft preparation.
+Each later push obtains a fresh token with Contents write for this repository,
+then revokes it after the Git operation. The existing installation ID and App
+key stay in the trusted parent; a long goal does not reuse the one-hour seed
+token. Check/artifact observations use the read-only workflow identity. The separate
 Auto-forward App is not used by the goal. Neither the tool nor this workflow
 marks ready, merges, tags or releases.
 

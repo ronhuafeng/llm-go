@@ -340,8 +340,10 @@ jobs:
             > "${RUNNER_TEMP}/goal-binding.json"
       - name: Run the complete goal with its fixed verification tool
         env:
-          GH_TOKEN: ${{ steps.app_token.outputs.token }}
           GH_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROTOCOL_SYNC_APP_CLIENT_ID: ${{ vars.PROTOCOL_SYNC_APP_CLIENT_ID }}
+          PROTOCOL_SYNC_APP_INSTALLATION_ID: ${{ steps.app_token.outputs.installation-id }}
+          PROTOCOL_SYNC_APP_PRIVATE_KEY: ${{ secrets.PROTOCOL_SYNC_APP_PRIVATE_KEY }}
           AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
           CODEX_RESPONSES_API_ENDPOINT: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
           CODEX_CLI_VERSION: ${{ steps.runtime.outputs.version }}

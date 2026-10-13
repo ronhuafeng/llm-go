@@ -28,6 +28,38 @@ type goalPublicationFixture struct {
 	onRead          func()
 }
 
+func TestGoalPushObtainsFreshTokenForEachPublication(t *testing.T) {
+	bin := t.TempDir()
+	// An earlier launch token has expired. Git must receive the token minted for
+	// this publication, including a second publication after a long repair.
+	t.Setenv("GH_TOKEN", "expired-launch-token")
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	script := "#!/bin/sh\ntest \"$GH_TOKEN\" = \"$EXPECTED_PUSH_TOKEN\" && test -z \"$PUSH_FAIL\"\n"
+	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	issued, revoked := 0, 0
+	r := GoalPublicationRequest{RepoRoot: t.TempDir(), Branch: "codex/sync-upstream-fixture"}
+	r.PublicationToken = func(context.Context) (string, func(), error) {
+		issued++
+		return fmt.Sprintf("fresh-publication-%d", issued), func() { revoked++ }, nil
+	}
+	for i := 1; i <= 2; i++ {
+		t.Setenv("EXPECTED_PUSH_TOKEN", fmt.Sprintf("fresh-publication-%d", i))
+		if err := pushGoalDraft(context.Background(), r, strings.Repeat("a", 40)); err != nil {
+			t.Fatalf("publication %d reused an expired token: %v", i, err)
+		}
+		if issued != i || revoked != i || os.Getenv("GH_TOKEN") != "expired-launch-token" {
+			t.Fatal("publication must obtain and release its own token without changing the parent environment")
+		}
+	}
+	t.Setenv("PUSH_FAIL", "1")
+	t.Setenv("EXPECTED_PUSH_TOKEN", "fresh-publication-3")
+	if err := pushGoalDraft(context.Background(), r, strings.Repeat("a", 40)); err == nil || issued != 3 || revoked != 3 {
+		t.Fatal("failed push must release its token without replaying the write")
+	}
+}
+
 func goalTestGit(t *testing.T, root string, args ...string) string {
 	t.Helper()
 	out, err := exec.Command("git", append([]string{"-C", root}, args...)...).CombinedOutput()

@@ -1026,6 +1026,14 @@ func TestProtocolPublicationUsesRepositoryScopedApp(t *testing.T) {
 			t.Fatalf("App authority expanded: %s", bad)
 		}
 	}
+	if strings.Count(job, "GH_TOKEN: ${{ steps.app_token.outputs.token }}") != 1 {
+		t.Fatal("long-running goal must not reuse the seed publication token")
+	}
+	for _, want := range []string{"PROTOCOL_SYNC_APP_CLIENT_ID:", "PROTOCOL_SYNC_APP_INSTALLATION_ID: ${{ steps.app_token.outputs.installation-id }}", "PROTOCOL_SYNC_APP_PRIVATE_KEY:", "GH_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}"} {
+		if !strings.Contains(job, want) {
+			t.Fatalf("trusted goal publication credentials missing %q", want)
+		}
+	}
 	diagnose, _ := workflowJobByID(workflow, "diagnose")
 	if strings.Contains(diagnose, "PROTOCOL_SYNC_APP_PRIVATE_KEY") || strings.Contains(diagnose, "app_token.outputs.token") {
 		t.Fatal("read-only diagnosis acquired publication identity")

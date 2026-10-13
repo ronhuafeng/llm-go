@@ -71,8 +71,9 @@ func fakeExecutor(t *testing.T, body string) *Executor {
 }
 func TestRunExactResumeAndIsolation(t *testing.T) {
 	t.Setenv("GH_TOKEN", "MUST_NOT_REACH_MODEL")
+	t.Setenv("PROTOCOL_SYNC_APP_PRIVATE_KEY", "APP_KEY_MUST_NOT_REACH_MODEL")
 	t.Setenv("OPENAI_API_KEY", "AMBIENT_MUST_NOT_REACH_MODEL")
-	e := fakeExecutor(t, `test -z "$GH_TOKEN" && test -z "$OPENAI_API_KEY" || exit 9
+	e := fakeExecutor(t, `test -z "$GH_TOKEN" && test -z "$OPENAI_API_KEY" && test -z "$PROTOCOL_SYNC_APP_PRIVATE_KEY" || exit 9
  test "$AZURE_OPENAI_API_KEY" = TOPSECRET || exit 8
  printf '%s\n' "$@" > args.txt
  cat >/dev/null

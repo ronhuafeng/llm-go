@@ -53,6 +53,12 @@ func runNativeGoal(args []string, stdout, stderr io.Writer) int {
 	defer cancel()
 	target := protocolsync.Target{RefName: *ref, RefKind: *kind, PeeledCommitSHA: *sha}
 	binding := protocolsync.GoalPublicationRequest{RepoRoot: *root, Repository: *repository, Remote: "origin", BaseBranch: *baseBranch, Branch: *branch, BaseSHA: *base, ExpectedHead: *head, Number: *number, AppBotID: *actor, Target: target, API: protocolsync.NewGoalAPI(ctx, *root)}
+	app, err := newGoalAppCredentials(*repository, stderr)
+	if err != nil {
+		fmt.Fprintln(stderr, "goal: publication App credentials unavailable")
+		return 1
+	}
+	binding.PublicationToken = app.token
 	acceptedHead, err := exec.CommandContext(ctx, "git", "-C", *root, "rev-parse", "HEAD").Output()
 	if err != nil || strings.TrimSpace(string(acceptedHead)) != *base || protocolsync.AssertClean(*root) != nil {
 		fmt.Fprintln(stderr, "goal: accepted checkout does not match fixed base")
