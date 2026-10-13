@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -20,6 +21,34 @@ type goalRunnerFunc func(context.Context, string, func(context.Context) (string,
 
 func (f goalRunnerFunc) RunGoal(c context.Context, s string, v func(context.Context) (string, error)) (codexexec.GoalResult, error) {
 	return f(c, s, v)
+}
+func TestGoalFlowRetainsNativeFailureStatusWithoutPrivateError(t *testing.T) {
+	fixture := newGoalPublicationFixture(t)
+	req := GoalFlowRequest{Objective: "one goal", Local: GoalVerifyRequest{DiagnosticDir: t.TempDir()}, Publication: fixture.request}
+	runtimeErr := errors.New("private provider error detail")
+	runner := goalRunnerFunc(func(context.Context, string, func(context.Context) (string, error)) (codexexec.GoalResult, error) {
+		return codexexec.GoalResult{ThreadID: "native-thread", Status: "goal_turn_failed"}, runtimeErr
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	result, err := runUpstreamGoal(ctx, req, runner, goalFlowOperations{})
+	if !errors.Is(err, runtimeErr) || result.ThreadID != "native-thread" || result.Head != "" {
+		t.Fatal("native failure changed or acquired acceptance", result, err)
+	}
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var retained map[string]any
+	if err = json.Unmarshal(data, &retained); err != nil {
+		t.Fatal(err)
+	}
+	if retained["NativeStatus"] != "goal_turn_failed" {
+		t.Fatal("native failure status omitted from retained JSON", string(data))
+	}
+	if bytes.Contains(data, []byte(runtimeErr.Error())) {
+		t.Fatal("private runtime error retained")
+	}
 }
 func TestNativeGoalFlowRequiresActualAcceptance(t *testing.T) {
 	for _, scenario := range []string{"passes", "never_calls", "local_failure", "ci_failure", "mutates_after", "late_failed_tool", "blocked"} {

@@ -26,6 +26,7 @@ type GoalFlowRequest struct {
 }
 type GoalFlowResult struct {
 	ThreadID, Head, SnapshotDigest, DiagnosticPath string
+	NativeStatus                                   string
 	Checks                                         checkacceptance.Observation
 }
 
@@ -137,6 +138,7 @@ func runUpstreamGoal(ctx context.Context, req GoalFlowRequest, runner GoalRunner
 		return path, e
 	})
 	result.ThreadID = native.ThreadID
+	result.NativeStatus = native.Status
 	if err != nil {
 		return result, err
 	}
