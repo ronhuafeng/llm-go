@@ -188,7 +188,9 @@ func TestGoalContractFullCorpusTransportBudget(t *testing.T) {
 	for _, v := range corpus.Targets {
 		n += len(v)
 	}
-	if len(corpus.Targets) != 65 || n != 124376 {
+	// Match the independently frozen oracle corpus after applying the existing
+	// command argv and opaque realtime item contracts; retain every target.
+	if len(corpus.Targets) != 65 || n != 124066 {
 		t.Fatalf("coverage changed: %d/%d", len(corpus.Targets), n)
 	}
 	t.Logf("full corpus: source=%d compressed=%d raw=%d probes=%d", len(source), len(compressed), len(raw), n)

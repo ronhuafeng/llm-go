@@ -125,6 +125,20 @@ A new protocol instance is not itself a reason for a handwritten checkpoint.
 Changing an established public representation requires an explicit migration;
 repository search cannot establish every external consumer.
 
+The source oracle applies the existing nonempty string argv contract at
+`CommandExecParams.command`, and the opaque `JSONValue` contract at the `item`
+member of `ThreadRealtimeItemStartedNotification` and
+`ThreadRealtimeItemCompletedNotification`. Source document/definition locations
+select these overlays before witness generation; Go binding names do not.
+Unexpected constrained field shapes fail instead of inheriting an exception.
+Realtime outer records still require `item` and `threadId` and reject unknown
+fields. Independent executable fixtures prove that the accepted representations
+pass while empty argv, lost items and lost thread identities fail. The full
+target corpus freezes the resulting witnesses without removing targets or
+changing serialization identity checks or size limits. These overlays certify
+the documented public representation; they do not certify typed interpretation
+of opaque realtime item contents.
+
 Decoding policy follows the entry point. Standalone public `json.Unmarshal`
 and transport `ActionBearingMessage` decoding reject undeclared record fields.
 Transport `ServerObservation` decoding ignores unknown fields recursively while

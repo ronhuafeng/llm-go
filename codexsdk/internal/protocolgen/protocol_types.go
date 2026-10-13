@@ -260,9 +260,10 @@ type ScalarUnionVariantPlan struct {
 }
 
 type MixedUnionPlan struct {
-	SchemaPath string
-	TypeName   string
-	Variants   []MixedUnionVariantPlan
+	SchemaPath       string
+	TypeName         string
+	Variants         []MixedUnionVariantPlan
+	OpenStringObject bool
 }
 
 type MixedUnionVariantPlan struct {
@@ -302,14 +303,15 @@ type TaggedUnionPlan struct {
 }
 
 type TaggedUnionVariantPlan struct {
-	AccessorName       string
-	ConstructorName    string
-	DiscriminatorValue string
-	Fields             []FieldPlan
-	GoName             string
-	NullFields         []NullFieldPlan
-	PayloadTypeName    string
-	PrivateFieldName   string
+	AccessorName         string
+	ConstructorName      string
+	DiscriminatorValue   string
+	Fields               []FieldPlan
+	GoName               string
+	NullFields           []NullFieldPlan
+	PayloadTypeName      string
+	PrivateFieldName     string
+	RequiredAlternatives [][]string
 }
 
 type NullFieldPlan struct {
@@ -318,8 +320,9 @@ type NullFieldPlan struct {
 }
 
 type ScalarAliasPlan struct {
-	Sources  []string
-	TypeName string
+	Sources   []string
+	TypeName  string
+	MinLength *uint64
 }
 
 func generatedDefinitionTypeName(resolver generatedDefinitionNameResolver, schemaPath string, name string) string {
@@ -422,12 +425,13 @@ func isTaggedUnionDefinitionSchema(schema *Schema) bool {
 }
 
 func isMixedUnionDefinitionSchema(schema *Schema) bool {
-	if schema == nil || len(schema.OneOf) == 0 {
+	variants, _, ok := mixedUnionBranches(schema)
+	if !ok {
 		return false
 	}
 	var hasString bool
 	var hasObject bool
-	for _, variant := range schema.OneOf {
+	for _, variant := range variants {
 		switch {
 		case isDirectStringEnumSchema(variant):
 			hasString = true
@@ -438,6 +442,34 @@ func isMixedUnionDefinitionSchema(schema *Schema) bool {
 		}
 	}
 	return hasString && hasObject
+}
+
+// An anonymous string/object branch explicitly admits values outside the
+// enumerated variants. Keep it separate from the typed variants; oneOf cannot
+// use this overlapping catchall without changing its meaning.
+func mixedUnionBranches(schema *Schema) ([]*Schema, bool, bool) {
+	if schema == nil {
+		return nil, false, false
+	}
+	if len(schema.OneOf) > 0 && len(schema.AnyOf) == 0 {
+		return schema.OneOf, false, true
+	}
+	if len(schema.AnyOf) == 0 || len(schema.OneOf) > 0 || len(schema.AllOf) > 0 || len(schema.Type.Values) > 0 || schema.Ref != "" || len(schema.Properties) > 0 || len(schema.UnknownKeywords) > 0 || schema.Bool != nil || len(schema.Enum) > 0 || len(schema.Required) > 0 || schema.AdditionalProperties.Present || schema.Items != nil || schema.Minimum != nil || schema.MinItems != nil || schema.Format != "" {
+		return nil, false, false
+	}
+	var variants []*Schema
+	open := false
+	for _, branch := range schema.AnyOf {
+		if branch != nil && len(branch.Type.Values) == 2 && branch.Type.Has("string") && branch.Type.Has("object") && !hasNonTypeShape(branch) && branch.Bool == nil && len(branch.Required) == 0 && len(branch.Definitions) == 0 && branch.Minimum == nil && branch.MinItems == nil && branch.Format == "" && len(branch.UnknownKeywords) == 0 {
+			if open {
+				return nil, false, false
+			}
+			open = true
+			continue
+		}
+		variants = append(variants, branch)
+	}
+	return variants, open, open && len(variants) > 0
 }
 
 func isUntaggedObjectUnionDefinitionSchema(schema *Schema) bool {
@@ -567,8 +599,9 @@ func (c *typeSelection) SelectGeneratedScalarAliases() (result []ScalarAliasPlan
 			}
 			schemaByName[typeName] = encoded
 			byName[typeName] = ScalarAliasPlan{
-				TypeName: typeName,
-				Sources:  []string{typ.SchemaPath},
+				TypeName:  typeName,
+				Sources:   []string{typ.SchemaPath},
+				MinLength: schema.MinLength,
 			}
 		}
 	}
@@ -838,8 +871,8 @@ func (c *typeSelection) mixedUnionCandidates() ([]TypePlan, error) {
 		sort.Strings(names)
 		for _, name := range names {
 			schema := typ.Schema.Definitions[name]
-			if schema == nil || len(schema.OneOf) == 0 {
-				return nil, unsupportedGeneratedSchema(unsupportedDefinitionPath(typ.SchemaPath, name), "definition mixed union %s in %s is not a oneOf schema", name, typ.SchemaPath)
+			if !isMixedUnionDefinitionSchema(schema) {
+				return nil, unsupportedGeneratedSchema(unsupportedDefinitionPath(typ.SchemaPath, name), "definition mixed union %s in %s has unsupported branches", name, typ.SchemaPath)
 			}
 			candidates = append(candidates, TypePlan{
 				Kind:       TypePlanTaggedUnionCandidate,
@@ -862,21 +895,26 @@ func (c *typeSelection) mixedUnionCandidates() ([]TypePlan, error) {
 }
 
 func buildMixedUnionPlan(typ TypePlan, generatedNamedTypes map[string]bool, resolver generatedDefinitionNameResolver) (MixedUnionPlan, error) {
-	if typ.Schema == nil || len(typ.Schema.OneOf) == 0 {
-		return MixedUnionPlan{}, fmt.Errorf("mixed union %s has no oneOf variants", typ.SchemaPath)
+	variants, open, ok := mixedUnionBranches(typ.Schema)
+	if !ok {
+		return MixedUnionPlan{}, fmt.Errorf("mixed union %s has unsupported branches", typ.SchemaPath)
 	}
 	union := MixedUnionPlan{
-		SchemaPath: typ.SchemaPath,
-		TypeName:   typ.TypeName,
+		SchemaPath:       typ.SchemaPath,
+		TypeName:         typ.TypeName,
+		OpenStringObject: open,
 	}
 	seenValues := map[string]string{}
 	seenNames := map[string]string{}
-	for index, variant := range typ.Schema.OneOf {
+	for index, variant := range variants {
 		plannedVariants, err := mixedUnionVariantPlans(typ, variant, index, generatedNamedTypes, resolver)
 		if err != nil {
 			return MixedUnionPlan{}, fmt.Errorf("mixed union %s variant %d: %w", typ.SchemaPath, index, err)
 		}
 		for _, planned := range plannedVariants {
+			if open && planned.GoName == "Unknown" {
+				return MixedUnionPlan{}, fmt.Errorf("mixed union %s variant conflicts with open branch API", typ.SchemaPath)
+			}
 			if previous, ok := seenValues[planned.DiscriminatorValue]; ok {
 				return MixedUnionPlan{}, fmt.Errorf("mixed union %s variant value %q appears in both %s and %s", typ.SchemaPath, planned.DiscriminatorValue, previous, planned.PayloadTypeName)
 			}
@@ -1789,22 +1827,68 @@ func buildTaggedUnionPlan(typ TypePlan, generatedNamedTypes map[string]bool, res
 		value := values[index]
 		goName := goNames[index]
 		nameSet[goName] = value
-		fields, nullFields, err := taggedUnionVariantFields(typ, variant, discriminator, index, generatedNamedTypes, resolver)
+		flattened, alternatives, err := taggedObjectAlternatives(variant)
+		if err != nil {
+			return TaggedUnionPlan{}, fmt.Errorf("tagged union %s variant %d: %w", typ.SchemaPath, index, err)
+		}
+		fields, nullFields, err := taggedUnionVariantFields(typ, flattened, discriminator, index, generatedNamedTypes, resolver)
 		if err != nil {
 			return TaggedUnionPlan{}, err
 		}
 		union.Variants = append(union.Variants, TaggedUnionVariantPlan{
-			AccessorName:       "As" + goName,
-			ConstructorName:    "New" + typ.TypeName + goName,
-			DiscriminatorValue: value,
-			Fields:             fields,
-			GoName:             goName,
-			NullFields:         nullFields,
-			PayloadTypeName:    typ.TypeName + goName,
-			PrivateFieldName:   unexportedIdentifier(goName),
+			AccessorName:         "As" + goName,
+			ConstructorName:      "New" + typ.TypeName + goName,
+			DiscriminatorValue:   value,
+			Fields:               fields,
+			GoName:               goName,
+			NullFields:           nullFields,
+			PayloadTypeName:      typ.TypeName + goName,
+			PrivateFieldName:     unexportedIdentifier(goName),
+			RequiredAlternatives: alternatives,
 		})
 	}
 	return union, nil
+}
+
+// Flatten conjunctive object properties and an anyOf of disjoint required
+// property groups. Every supplied field keeps its decoder; the group assertion
+// preserves the choice without replacing a typed payload with dynamic JSON.
+func taggedObjectAlternatives(schema *Schema) (*Schema, [][]string, error) {
+	if len(schema.AnyOf) == 0 {
+		if len(schema.AllOf) > 0 {
+			return nil, nil, fmt.Errorf("unsupported object conjunction")
+		}
+		return schema, nil, nil
+	}
+	if len(schema.AllOf) > 0 || len(schema.OneOf) > 0 {
+		return nil, nil, fmt.Errorf("unsupported nested object alternatives")
+	}
+	flattened := *schema
+	flattened.AnyOf = nil
+	flattened.Properties = map[string]*Schema{}
+	for name, field := range schema.Properties {
+		flattened.Properties[name] = field
+	}
+	var groups [][]string
+	for _, branch := range schema.AnyOf {
+		if branch == nil || !branch.Type.Only("object") || len(branch.Properties) == 0 || len(branch.Required) != len(branch.Properties) || branch.AnyOf != nil || branch.OneOf != nil || branch.AllOf != nil || branch.Ref != "" || branch.AdditionalProperties.Present || len(branch.UnknownKeywords) > 0 || branch.Enum != nil || branch.Items != nil || branch.Minimum != nil || branch.MinItems != nil || branch.MinLength != nil || branch.Format != "" {
+			return nil, nil, fmt.Errorf("unsupported nested object choice branch")
+		}
+		group := append([]string(nil), branch.Required...)
+		sort.Strings(group)
+		for _, name := range group {
+			field, exists := branch.Properties[name]
+			if !exists || field == nil || field.Type.Only("null") {
+				return nil, nil, fmt.Errorf("unsupported choice field %s", name)
+			}
+			if _, exists := flattened.Properties[name]; exists {
+				return nil, nil, fmt.Errorf("overlapping choice field %s", name)
+			}
+			flattened.Properties[name] = field
+		}
+		groups = append(groups, group)
+	}
+	return &flattened, groups, nil
 }
 
 func taggedUnionGoNames(values []string) ([]string, error) {
@@ -2160,6 +2244,16 @@ func writeEnumType(out *bytes.Buffer, enum EnumPlan) {
 
 func writeScalarAliasType(out *bytes.Buffer, alias ScalarAliasPlan) {
 	fmt.Fprintf(out, "type %s string\n", alias.TypeName)
+	if alias.MinLength != nil {
+		fmt.Fprintf(out, "\nfunc (value *%s) UnmarshalJSON(data []byte) error {\n", alias.TypeName)
+		out.WriteString("\traw, err := ParseJSONValue(data)\n\tif err != nil { return err }\n\ttext, ok := raw.AsString()\n")
+		fmt.Fprintf(out, "\tif !ok { return fmt.Errorf(\"decode %s: expected string\") }\n", alias.TypeName)
+		fmt.Fprintf(out, "\tif uint64(len([]rune(text))) < %d { return fmt.Errorf(\"decode %s: string too short\") }\n", *alias.MinLength, alias.TypeName)
+		fmt.Fprintf(out, "\t*value = %s(text)\n\treturn nil\n}\n", alias.TypeName)
+		fmt.Fprintf(out, "\nfunc (value %s) MarshalJSON() ([]byte, error) {\n", alias.TypeName)
+		fmt.Fprintf(out, "\tif uint64(len([]rune(value))) < %d { return nil, fmt.Errorf(\"encode %s: string too short\") }\n", *alias.MinLength, alias.TypeName)
+		out.WriteString("\treturn json.Marshal(string(value))\n}\n")
+	}
 }
 
 func validateEnumConstNames(enum EnumPlan) error {
@@ -2574,6 +2668,9 @@ func writeMixedUnionType(out *bytes.Buffer, union MixedUnionPlan) {
 	for _, variant := range union.Variants {
 		fmt.Fprintf(out, "\t%s %s = %s\n", mixedUnionKindConstName(union, variant), kindTypeName, quoted(variant.DiscriminatorValue))
 	}
+	if union.OpenStringObject {
+		fmt.Fprintf(out, "\t%sKindUnknown %s = %q\n", union.TypeName, kindTypeName, "@unknown")
+	}
 	out.WriteString(")\n\n")
 
 	fmt.Fprintf(out, "type %s struct {\n", union.TypeName)
@@ -2581,7 +2678,18 @@ func writeMixedUnionType(out *bytes.Buffer, union MixedUnionPlan) {
 	for _, variant := range union.Variants {
 		fmt.Fprintf(out, "\t%s *%s\n", variant.PrivateFieldName, variant.PayloadTypeName)
 	}
+	if union.OpenStringObject {
+		out.WriteString("\tunknown *JSONValue\n")
+	}
 	out.WriteString("}\n\n")
+	if union.OpenStringObject {
+		fmt.Fprintf(out, "// New%sUnknown preserves a value admitted by the anonymous string/object branch.\n", union.TypeName)
+		fmt.Fprintf(out, "func New%sUnknown(payload JSONValue) %s {\n", union.TypeName, union.TypeName)
+		fmt.Fprintf(out, "\treturn %s{kind: %sKindUnknown, unknown: &payload}\n}\n\n", union.TypeName, union.TypeName)
+		fmt.Fprintf(out, "func (value %s) AsUnknown() (JSONValue, bool) {\n", union.TypeName)
+		fmt.Fprintf(out, "\tif value.kind != %sKindUnknown || value.unknown == nil { return JSONValue{}, false }\n", union.TypeName)
+		out.WriteString("\treturn *value.unknown, true\n}\n\n")
+	}
 
 	for _, variant := range union.Variants {
 		writeMixedUnionPayloadType(out, variant)
@@ -2657,6 +2765,10 @@ func writeMixedUnionIsValid(out *bytes.Buffer, union MixedUnionPlan) {
 		fmt.Fprintf(out, "\tcase %s:\n", mixedUnionKindConstName(union, variant))
 		fmt.Fprintf(out, "\t\treturn value.%s != nil\n", variant.PrivateFieldName)
 	}
+	if union.OpenStringObject {
+		fmt.Fprintf(out, "\tcase %sKindUnknown:\n", union.TypeName)
+		out.WriteString("\t\treturn value.unknown != nil && (value.unknown.Kind() == JSONKindString || value.unknown.Kind() == JSONKindObject)\n")
+	}
 	out.WriteString("\tdefault:\n")
 	out.WriteString("\t\treturn false\n")
 	out.WriteString("\t}\n")
@@ -2674,6 +2786,11 @@ func writeMixedUnionAccessor(out *bytes.Buffer, union MixedUnionPlan, variant Mi
 
 func writeMixedUnionMarshal(out *bytes.Buffer, union MixedUnionPlan) {
 	fmt.Fprintf(out, "func (value %s) MarshalJSON() ([]byte, error) {\n", union.TypeName)
+	if union.OpenStringObject {
+		fmt.Fprintf(out, "\tif value.kind == %sKindUnknown {\n", union.TypeName)
+		fmt.Fprintf(out, "\t\tif !value.IsValid() { return nil, invalidUnionValue(%q) }\n", union.TypeName)
+		out.WriteString("\t\treturn value.unknown.MarshalJSON()\n\t}\n")
+	}
 	out.WriteString("\tswitch value.kind {\n")
 	for _, variant := range union.Variants {
 		fmt.Fprintf(out, "\tcase %s:\n", mixedUnionKindConstName(union, variant))
@@ -2727,6 +2844,14 @@ func writeMixedUnionUnmarshal(out *bytes.Buffer, union MixedUnionPlan) {
 	out.WriteString("\treturn value.unmarshalJSON(data, wireDecodeClosed)\n")
 	out.WriteString("}\n\n")
 	fmt.Fprintf(out, "func (value *%s) unmarshalJSON(data []byte, mode wireDecodeMode) error {\n", union.TypeName)
+	if union.OpenStringObject {
+		out.WriteString("\tif err := value.unmarshalKnownJSON(data, mode); err == nil { return nil }\n")
+		out.WriteString("\tdecoded, err := ParseJSONValue(data)\n")
+		fmt.Fprintf(out, "\tif err != nil { return fmt.Errorf(\"decode %s: %%w\", err) }\n", union.TypeName)
+		fmt.Fprintf(out, "\tif decoded.Kind() != JSONKindString && decoded.Kind() != JSONKindObject { return fmt.Errorf(\"decode %s: expected string or object\") }\n", union.TypeName)
+		fmt.Fprintf(out, "\t*value = New%sUnknown(decoded)\n\treturn nil\n}\n\n", union.TypeName)
+		fmt.Fprintf(out, "func (value *%s) unmarshalKnownJSON(data []byte, mode wireDecodeMode) error {\n", union.TypeName)
+	}
 	out.WriteString("\tdecoded, err := ParseJSONValue(data)\n")
 	out.WriteString("\tif err != nil {\n")
 	fmt.Fprintf(out, "\t\treturn fmt.Errorf(\"decode %s: %%w\", err)\n", union.TypeName)
@@ -3109,6 +3234,7 @@ func writeTaggedUnionMarshal(out *bytes.Buffer, union TaggedUnionPlan) {
 }
 
 func writeTaggedUnionVariantMarshal(out *bytes.Buffer, union TaggedUnionPlan, variant TaggedUnionVariantPlan) {
+	writeRequiredAlternatives(out, union, variant, "value."+variant.PrivateFieldName, "encode")
 	wireFields := append([]FieldPlan(nil), union.SharedFields...)
 	wireFields = append(wireFields, variant.Fields...)
 	wireFields = append(wireFields, FieldPlan{
@@ -3199,6 +3325,7 @@ func writeTaggedUnionUnmarshal(out *bytes.Buffer, union TaggedUnionPlan) {
 		for _, field := range variant.NullFields {
 			writeTaggedUnionNullFieldDecoder(out, union, variant, field)
 		}
+		writeRequiredAlternatives(out, union, variant, "decoded", "decode")
 		fmt.Fprintf(out, "\t\tif err := rejectUnexpectedFieldsForMode(fields, %q, mode); err != nil {\n", union.TypeName+"."+variant.DiscriminatorValue)
 		out.WriteString("\t\t\treturn err\n")
 		out.WriteString("\t\t}\n")
@@ -3213,6 +3340,25 @@ func writeTaggedUnionUnmarshal(out *bytes.Buffer, union TaggedUnionPlan) {
 	fmt.Fprintf(out, "\t\treturn unknownUnionVariant(%q, %q, variant)\n", union.TypeName, union.Discriminator)
 	out.WriteString("\t}\n")
 	out.WriteString("}\n")
+}
+
+func writeRequiredAlternatives(out *bytes.Buffer, union TaggedUnionPlan, variant TaggedUnionVariantPlan, target, operation string) {
+	if len(variant.RequiredAlternatives) == 0 {
+		return
+	}
+	var absent []string
+	for _, group := range variant.RequiredAlternatives {
+		var fields []string
+		for _, name := range group {
+			fields = append(fields, target+"."+fieldGoName(name)+" == nil")
+		}
+		absent = append(absent, "("+strings.Join(fields, " || ")+")")
+	}
+	prefix := ""
+	if operation == "encode" {
+		prefix = "nil, "
+	}
+	fmt.Fprintf(out, "\tif %s { return %sfmt.Errorf(%q) }\n", strings.Join(absent, " && "), prefix, operation+" "+union.TypeName+"."+variant.DiscriminatorValue+": missing required alternative")
 }
 
 func writeTaggedUnionNullFieldDecoder(out *bytes.Buffer, union TaggedUnionPlan, variant TaggedUnionVariantPlan, field NullFieldPlan) {
@@ -3299,6 +3445,7 @@ func writeDecodeHelpers(out *bytes.Buffer, messageRoots []TypePlan) {
 	out.WriteString("\tif decoder, ok := any(target).(wireDecodeUnmarshaler); ok {\n")
 	out.WriteString("\t\treturn decoder.unmarshalJSON(data, mode)\n")
 	out.WriteString("\t}\n")
+	out.WriteString("\tif _, dynamic := any(target).(*JSONValue); !dynamic {\n\t\traw, err := ParseJSONValue(data)\n\t\tif err != nil { return err }\n\t\tif raw.Kind() == JSONKindNull { return fmt.Errorf(\"null is not allowed\") }\n\t}\n")
 	out.WriteString("\treturn json.Unmarshal(data, target)\n")
 	out.WriteString("}\n\n")
 	out.WriteString("func wirePointerDecoder[T any](decode wireJSONDecoder[T]) wireJSONDecoder[*T] {\n")
@@ -3314,7 +3461,7 @@ func writeDecodeHelpers(out *bytes.Buffer, messageRoots []TypePlan) {
 	out.WriteString("\treturn func(data []byte, target *[]T, mode wireDecodeMode) error {\n")
 	out.WriteString("\t\traw, err := ParseJSONValue(data)\n")
 	out.WriteString("\t\tif err != nil {\n\t\t\treturn err\n\t\t}\n")
-	out.WriteString("\t\tif raw.Kind() == JSONKindNull {\n\t\t\t*target = nil\n\t\t\treturn nil\n\t\t}\n")
+	out.WriteString("\t\tif raw.Kind() == JSONKindNull { return fmt.Errorf(\"null array is not allowed\") }\n")
 	out.WriteString("\t\titems, ok := raw.AsArray()\n")
 	out.WriteString("\t\tif !ok {\n\t\t\treturn fmt.Errorf(\"expected array\")\n\t\t}\n")
 	out.WriteString("\t\tvalues := make([]T, len(items))\n")
@@ -3329,7 +3476,7 @@ func writeDecodeHelpers(out *bytes.Buffer, messageRoots []TypePlan) {
 	out.WriteString("\treturn func(data []byte, target *map[string]T, mode wireDecodeMode) error {\n")
 	out.WriteString("\t\traw, err := ParseJSONValue(data)\n")
 	out.WriteString("\t\tif err != nil {\n\t\t\treturn err\n\t\t}\n")
-	out.WriteString("\t\tif raw.Kind() == JSONKindNull {\n\t\t\t*target = nil\n\t\t\treturn nil\n\t\t}\n")
+	out.WriteString("\t\tif raw.Kind() == JSONKindNull { return fmt.Errorf(\"null object is not allowed\") }\n")
 	out.WriteString("\t\titems, ok := raw.AsObject()\n")
 	out.WriteString("\t\tif !ok {\n\t\t\treturn fmt.Errorf(\"expected object\")\n\t\t}\n")
 	out.WriteString("\t\tvalues := make(map[string]T, len(items))\n")

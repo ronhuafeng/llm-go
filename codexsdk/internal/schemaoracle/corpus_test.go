@@ -123,10 +123,13 @@ func TestFullTargetCorpusBudgetAndIdentity(t *testing.T) {
 		metadata.Write(b)
 		metadata.Write([]byte("\n"))
 	}
-	if len(targets) != 65 || count != 124376 {
+	// Public command argv and opaque realtime item contracts are overlaid before
+	// witness generation. Freeze their independently tested verdicts as well as
+	// every target and the production serialization identity.
+	if len(targets) != 65 || count != 124066 {
 		t.Fatalf("coverage changed: %d targets %d probes", len(targets), count)
 	}
-	if got := fmt.Sprintf("%x", sequence.Sum(nil)); got != "355bac40eaa8cedfd2ff8e9447ffa91596af6ae13e568e81f8fc8d27ca6b7fca" {
+	if got := fmt.Sprintf("%x", sequence.Sum(nil)); got != "0104acb287ef5f7143ae5eb863aedb29967ec90b478ca710b9611b633cde228f" {
 		t.Fatal("original input/verdict/order changed", got)
 	}
 	if got := fmt.Sprintf("%x", metadata.Sum(nil)); got != "040fc52c499408681c6d76ae42fdaa148ed804c4ca4ef2a6df863c33045c3f7f" {

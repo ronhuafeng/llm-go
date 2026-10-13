@@ -118,6 +118,9 @@ func Build(req Request) ([]Target, error) {
 		if err := prepareReachable(doc, root, fragment, req.CloseObjects, map[string]bool{}); err != nil {
 			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
 		}
+		if _, err := applySDKSchemaOverlays(doc, root, fragment, docName); err != nil {
+			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
+		}
 		c := validator.NewCompiler()
 		c.UseLoader(denyLoader{})
 		const url = "https://schema-oracle.invalid/target.json"

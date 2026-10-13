@@ -1715,30 +1715,6 @@ func TestGeneratedThreadTurnLifecycleParamsRejectMalformedProtocol(t *testing.T)
 		t.Fatalf("unexpected nil MCP tool call result content error: %v", err)
 	}
 
-	var codexError CodexErrorInfo
-	err = json.Unmarshal([]byte(`"mystery"`), &codexError)
-	if err == nil {
-		t.Fatal("expected unknown CodexErrorInfo string variant to fail")
-	}
-	if !strings.Contains(err.Error(), `decode CodexErrorInfo.value: unknown variant "mystery"`) {
-		t.Fatalf("unexpected unknown CodexErrorInfo string error: %v", err)
-	}
-
-	err = json.Unmarshal([]byte(`{"activeTurnNotSteerable":{}}`), &codexError)
-	if err == nil {
-		t.Fatal("expected missing activeTurnNotSteerable turnKind to fail")
-	}
-	if !strings.Contains(err.Error(), "decode CodexErrorInfo.activeTurnNotSteerable.turnKind: missing required field") {
-		t.Fatalf("unexpected missing activeTurnNotSteerable turnKind error: %v", err)
-	}
-
-	err = json.Unmarshal([]byte(`{"httpConnectionFailed":{"extra":true}}`), &codexError)
-	if err == nil {
-		t.Fatal("expected unknown CodexErrorInfo object field to fail")
-	}
-	if !strings.Contains(err.Error(), `decode CodexErrorInfo.httpConnectionFailed: unknown field "extra"`) {
-		t.Fatalf("unexpected unknown CodexErrorInfo object field error: %v", err)
-	}
 }
 
 func TestGeneratedThreadLifecycleResponsesRejectMalformedProtocol(t *testing.T) {
@@ -3099,13 +3075,12 @@ func TestGeneratedModelProviderAndNotifications(t *testing.T) {
 
 	responseRaw, err := json.Marshal(ModelProviderCapabilitiesReadResponse{
 		ImageGeneration: true,
-		NamespaceTools:  false,
 		WebSearch:       true,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := string(responseRaw), `{"imageGeneration":true,"namespaceTools":false,"webSearch":true}`; got != want {
+	if got, want := string(responseRaw), `{"imageGeneration":true,"webSearch":true}`; got != want {
 		t.Fatalf("ModelProviderCapabilitiesReadResponse JSON = %s, want %s", got, want)
 	}
 
@@ -9484,5 +9459,49 @@ func TestGeneratedEmptyActionVariantRejectsUnknownMembers(t *testing.T) {
 	err := unmarshalActionBearingMessage([]byte(`{"method":"initialized","futureMember":true}`), &value)
 	if err == nil || !strings.Contains(err.Error(), `decode ClientNotification.initialized: unknown field "futureMember"`) {
 		t.Fatalf("empty action variant error=%v", err)
+	}
+}
+
+// rust-v0.162.1 explicitly admits every string/object through the anonymous
+// CodexErrorInfo anyOf branch. Preserve those values instead of rewriting them
+// to Rust's lossy Other canonicalization; other JSON kinds remain invalid.
+func TestGeneratedCodexErrorInfoOpenBranchPreservesWire(t *testing.T) {
+	for _, input := range []string{`"mystery"`, `{}`, `{"futureError":{"code":9007199254740993,"detail":null}}`, `{"activeTurnNotSteerable":{}}`, `{"httpConnectionFailed":{"extra":true}}`, `{"httpConnectionFailed":{"httpStatusCode":"invalid"}}`, `{"httpConnectionFailed":{},"extra":true}`} {
+		t.Run(input, func(t *testing.T) {
+			var value CodexErrorInfo
+			if err := json.Unmarshal([]byte(input), &value); err != nil {
+				t.Fatal(err)
+			}
+			raw, ok := value.AsUnknown()
+			if !ok || !value.IsValid() || !raw.IsValid() {
+				t.Fatalf("missing opaque branch: %#v", value)
+			}
+			output, err := json.Marshal(value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want, _ := ParseJSONValue([]byte(input))
+			got, _ := ParseJSONValue(output)
+			wantJSON, _ := want.MarshalJSON()
+			gotJSON, _ := got.MarshalJSON()
+			if string(wantJSON) != string(gotJSON) {
+				t.Fatalf("wire changed: %s -> %s", input, output)
+			}
+		})
+	}
+	for _, input := range []string{`null`, `true`, `23`, `[]`, `{"x":1,"x":2}`, `"other" true`} {
+		var value CodexErrorInfo
+		if err := json.Unmarshal([]byte(input), &value); err == nil {
+			t.Fatalf("accepted invalid wire: %s", input)
+		}
+	}
+	for _, value := range []JSONValue{JSONValue{}, JSONNull(), JSONBool(true), JSONArray(nil)} {
+		invalid := NewCodexErrorInfoUnknown(value)
+		if invalid.IsValid() {
+			t.Fatal("invalid catchall constructor accepted")
+		}
+		if _, err := json.Marshal(invalid); err == nil {
+			t.Fatal("invalid catchall encoded")
+		}
 	}
 }

@@ -42,6 +42,7 @@ type MethodInfo struct {
 }
 
 const (
+	MethodAccountBedrockCheckGovCloudRequirements = "account/bedrock/checkGovCloudRequirements"
 	MethodAccountBedrockDiscover                  = "account/bedrock/discover"
 	MethodAccountBedrockSetup                     = "account/bedrock/setup"
 	MethodAccountChatGPTAuthTokensRefresh         = "account/chatgptAuthTokens/refresh"
@@ -211,6 +212,7 @@ const (
 	MethodThreadAttachmentList                    = "thread/attachment/list"
 	MethodThreadAttachmentRemove                  = "thread/attachment/remove"
 	MethodThreadAttachmentUpdated                 = "thread/attachment/updated"
+	MethodThreadAttachmentOwnerList               = "thread/attachmentOwner/list"
 	MethodThreadBackgroundTerminalsClean          = "thread/backgroundTerminals/clean"
 	MethodThreadBackgroundTerminalsList           = "thread/backgroundTerminals/list"
 	MethodThreadBackgroundTerminalsTerminate      = "thread/backgroundTerminals/terminate"
@@ -237,6 +239,8 @@ const (
 	MethodThreadMetadataUpdate                    = "thread/metadata/update"
 	MethodThreadNameSet                           = "thread/name/set"
 	MethodThreadNameUpdated                       = "thread/name/updated"
+	MethodThreadPredictionRequest                 = "thread/prediction/request"
+	MethodThreadPredictionUpdated                 = "thread/prediction/updated"
 	MethodThreadProjectUpdated                    = "thread/project/updated"
 	MethodThreadQueueAdd                          = "thread/queue/add"
 	MethodThreadQueueChanged                      = "thread/queue/changed"
@@ -307,6 +311,17 @@ const (
 )
 
 var methodRegistry = map[string]MethodInfo{
+	MethodAccountBedrockCheckGovCloudRequirements: {
+		Method:                MethodAccountBedrockCheckGovCloudRequirements,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "account",
+		ParamsOrPayloadSchema: "BedrockCheckGovCloudRequirementsParams",
+		ResponseSchema:        "v2/BedrockCheckGovCloudRequirementsResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Accounts().BedrockCheckGovCloudRequirements",
+		Stability:             MethodStabilityExperimental,
+	},
 	MethodAccountBedrockDiscover: {
 		Method:                MethodAccountBedrockDiscover,
 		Direction:             MethodDirectionClientToServer,
@@ -2166,6 +2181,17 @@ var methodRegistry = map[string]MethodInfo{
 		FacadeTarget:          "ServerNotifications().ThreadAttachmentUpdated",
 		Stability:             MethodStabilityStable,
 	},
+	MethodThreadAttachmentOwnerList: {
+		Method:                MethodThreadAttachmentOwnerList,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadAttachmentOwnerListParams",
+		ResponseSchema:        "v2/ThreadAttachmentOwnerListResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Threads().AttachmentOwnerList",
+		Stability:             MethodStabilityStable,
+	},
 	MethodThreadBackgroundTerminalsClean: {
 		Method:                MethodThreadBackgroundTerminalsClean,
 		Direction:             MethodDirectionClientToServer,
@@ -2450,6 +2476,28 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchema:        "",
 		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
 		FacadeTarget:          "ServerNotifications().ThreadNameUpdated",
+		Stability:             MethodStabilityStable,
+	},
+	MethodThreadPredictionRequest: {
+		Method:                MethodThreadPredictionRequest,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadPredictionRequestParams",
+		ResponseSchema:        "v2/ThreadPredictionRequestResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Threads().PredictionRequest",
+		Stability:             MethodStabilityExperimental,
+	},
+	MethodThreadPredictionUpdated: {
+		Method:                MethodThreadPredictionUpdated,
+		Direction:             MethodDirectionServerToClient,
+		Kind:                  MethodKindNotification,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadPredictionUpdatedNotification",
+		ResponseSchema:        "",
+		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
+		FacadeTarget:          "ServerNotifications().ThreadPredictionUpdated",
 		Stability:             MethodStabilityStable,
 	},
 	MethodThreadProjectUpdated: {

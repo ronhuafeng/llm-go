@@ -314,6 +314,14 @@ func (c *Client) WindowsSandbox() WindowsSandbox {
 	return WindowsSandbox{client: c}
 }
 
+func (f Accounts) BedrockCheckGovCloudRequirements(ctx context.Context, params protocolv2.BedrockCheckGovCloudRequirementsParams) (protocolv2.BedrockCheckGovCloudRequirementsResponse, error) {
+	var response protocolv2.BedrockCheckGovCloudRequirementsResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodAccountBedrockCheckGovCloudRequirements, params, &response); err != nil {
+		return protocolv2.BedrockCheckGovCloudRequirementsResponse{}, err
+	}
+	return response, nil
+}
+
 func (f Accounts) BedrockDiscover(ctx context.Context, params protocolv2.BedrockDiscoverParams) (protocolv2.BedrockDiscoverResponse, error) {
 	var response protocolv2.BedrockDiscoverResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodAccountBedrockDiscover, params, &response); err != nil {
@@ -1202,6 +1210,14 @@ func (f Threads) AttachmentList(ctx context.Context, params protocolv2.ThreadAtt
 	return response, nil
 }
 
+func (f Threads) AttachmentOwnerList(ctx context.Context, params protocolv2.ThreadAttachmentOwnerListParams) (protocolv2.ThreadAttachmentOwnerListResponse, error) {
+	var response protocolv2.ThreadAttachmentOwnerListResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadAttachmentOwnerList, params, &response); err != nil {
+		return protocolv2.ThreadAttachmentOwnerListResponse{}, err
+	}
+	return response, nil
+}
+
 func (f Threads) AttachmentRemove(ctx context.Context, params protocolv2.ThreadAttachmentRemoveParams) (protocolv2.ThreadAttachmentRemoveResponse, error) {
 	var response protocolv2.ThreadAttachmentRemoveResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadAttachmentRemove, params, &response); err != nil {
@@ -1350,6 +1366,14 @@ func (f Threads) NameSet(ctx context.Context, params protocolv2.ThreadSetNamePar
 	var response protocolv2.ThreadSetNameResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadNameSet, params, &response); err != nil {
 		return protocolv2.ThreadSetNameResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Threads) PredictionRequest(ctx context.Context, params protocolv2.ThreadPredictionRequestParams) (protocolv2.ThreadPredictionRequestResponse, error) {
+	var response protocolv2.ThreadPredictionRequestResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadPredictionRequest, params, &response); err != nil {
+		return protocolv2.ThreadPredictionRequestResponse{}, err
 	}
 	return response, nil
 }

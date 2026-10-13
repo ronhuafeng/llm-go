@@ -11,6 +11,29 @@ changes may occur in minor releases.
 
 ### codexsdk
 
+#### Changed
+
+- Regenerate the App Server protocol from `rust-v0.162.1`, exact upstream
+  commit `092d3acd6bec3e3a14bdc7e7a2810ab628ab759d`. Add attachment-owner listing,
+  thread prediction, Bedrock GovCloud requirements, and the new source fields
+  and enum values. Upstream removed
+  `ModelProviderCapabilitiesReadResponse.NamespaceTools`: remove references to
+  that field when migrating; there is no replacement capability flag.
+- `CodexErrorInfo` now includes an explicit string/object catchall. Existing
+  typed constructors and accessors remain available. Values outside a valid
+  typed branch decode as `CodexErrorInfoKindUnknown`; use `AsUnknown` to inspect
+  their lossless `JSONValue`, or `NewCodexErrorInfoUnknown` to construct one.
+  This includes malformed known payloads admitted by upstream's open branch;
+  callers requiring a particular typed error must check its accessor. Null,
+  booleans, numbers, arrays, and invalid JSON remain rejected. Unknown values
+  round-trip without Rust's conversion to `"other"`.
+- Repair generated image input variants to retain URL/file-ID source fields
+  and require at least one source. These alternatives already existed in the
+  accepted source; previous bindings dropped them. Reject null in nonnullable
+  scalar/container values and enforce the source's nonempty `ReasoningEffort`
+  string constraint. Explicitly nullable and unconstrained JSON values retain
+  their existing representations.
+
 #### Added
 
 - Add `NewContext` for caller-bounded App Server validation/launch/initialize,

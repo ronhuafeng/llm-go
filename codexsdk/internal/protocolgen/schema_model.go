@@ -122,6 +122,7 @@ type Schema struct {
 	Items                *Schema
 	Minimum              *float64
 	MinItems             *uint64
+	MinLength            *uint64
 	OneOf                []*Schema
 	Properties           map[string]*Schema
 	Ref                  string
@@ -174,6 +175,7 @@ func (s *Schema) UnmarshalJSON(data []byte) error {
 		Items                *Schema               `json:"items"`
 		Minimum              *float64              `json:"minimum"`
 		MinItems             *uint64               `json:"minItems"`
+		MinLength            *uint64               `json:"minLength"`
 		OneOf                []*Schema             `json:"oneOf"`
 		Properties           map[string]*Schema    `json:"properties"`
 		Ref                  string                `json:"$ref"`
@@ -197,6 +199,7 @@ func (s *Schema) UnmarshalJSON(data []byte) error {
 	s.Items = object.Items
 	s.Minimum = object.Minimum
 	s.MinItems = object.MinItems
+	s.MinLength = object.MinLength
 	s.OneOf = object.OneOf
 	s.Properties = object.Properties
 	s.Ref = object.Ref
@@ -223,7 +226,7 @@ func (s *Schema) IsUnconstrained() bool {
 	return s.Ref == "" && s.Type.Values == nil && s.Enum == nil &&
 		s.AnyOf == nil && s.OneOf == nil && len(s.AllOf) == 0 &&
 		len(s.Properties) == 0 && len(s.Required) == 0 && s.Items == nil &&
-		!s.AdditionalProperties.Present && s.Format == "" && s.Minimum == nil && s.MinItems == nil &&
+		!s.AdditionalProperties.Present && s.Format == "" && s.Minimum == nil && s.MinItems == nil && s.MinLength == nil &&
 		len(s.UnknownKeywords) == 0
 }
 

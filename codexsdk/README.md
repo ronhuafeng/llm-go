@@ -243,6 +243,14 @@ recorder and changes no application acceptance or server-request authority.
 
 The generated surface follows the selected source in
 [`baseline_metadata.json`](internal/protocolschema/appserver/v2/baseline_metadata.json).
+The `rust-v0.162.1` upgrade removes the upstream `NamespaceTools` provider
+capability field; applications must remove references to it. `CodexErrorInfo`
+retains its typed API and adds `AsUnknown` / `NewCodexErrorInfoUnknown` for the
+source's explicit string/object catchall. A payload that does not satisfy a
+known typed branch, including a malformed known payload, is preserved as
+`CodexErrorInfoKindUnknown`. Check the typed accessor when application logic
+requires a known error. Other JSON kinds remain invalid. See the
+[changelog](../CHANGELOG.md) for migration details.
 Live verification resolves the official latest Codex CLI once per execution and
 records its exact observed version separately from that schema source.
 
