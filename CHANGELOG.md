@@ -44,6 +44,11 @@ changes may occur in minor releases.
 
 #### Fixed
 
+- Deliver direct typed-facade turn notifications during normal operation without
+  waiting for an Exact Run attachment. Bind pending Exact observations to the
+  requesting run and reject contradictory thread/turn attribution before it can
+  change run history, usage, or terminal results.
+
 - Align protocol verification with strict standalone public record decoding,
   including empty records, while preserving tolerant server observations,
   action-bearing validation, and explicitly open maps and union alternatives.

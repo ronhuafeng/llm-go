@@ -11,6 +11,10 @@ import (
 )
 
 func (c *Client) callProtocol(ctx context.Context, method string, params any, response any) error {
+	return c.callProtocolWithExactIntent(ctx, method, params, response, exactCallIntent{})
+}
+
+func (c *Client) callProtocolWithExactIntent(ctx context.Context, method string, params any, response any, exact exactCallIntent) error {
 	if c == nil {
 		return ErrClientClosed
 	}
@@ -29,7 +33,7 @@ func (c *Client) callProtocol(ctx context.Context, method string, params any, re
 	}
 	if _, err := c.callValidated(ctx, method, paramsMap, func(result map[string]any) error {
 		return decodeProtocolResponse(method, result, response)
-	}); err != nil {
+	}, exact); err != nil {
 		return err
 	}
 	return nil
@@ -47,7 +51,7 @@ func (c *Client) callProtocolNoParams(ctx context.Context, method string, respon
 	}
 	if _, err := c.callValidated(ctx, method, nil, func(result map[string]any) error {
 		return decodeProtocolResponse(method, result, response)
-	}); err != nil {
+	}, exactCallIntent{}); err != nil {
 		return err
 	}
 	return nil

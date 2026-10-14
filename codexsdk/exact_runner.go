@@ -104,7 +104,7 @@ func (r *exactRunner) StartStream(ctx context.Context, request StartThreadRunReq
 		return nil, fmt.Errorf("codexsdk: clone turn/start params: %w", err)
 	}
 	var started protocolv2.ThreadStartResponse
-	if err := r.client.callProtocol(ctx, protocolv2.MethodThreadStart, threadParams, &started); err != nil {
+	if err := r.client.callProtocolWithExactIntent(ctx, protocolv2.MethodThreadStart, threadParams, &started, exactCallIntent{thread: true}); err != nil {
 		return nil, err
 	}
 	initial := StartedThreadRun{Start: started, Run: ThreadRunResult{InputStats: exactInputStats(turnParams.Input)}}
@@ -128,7 +128,7 @@ func (r *exactRunner) StartStream(ctx context.Context, request StartThreadRunReq
 		return stream, nil
 	}
 	var turnStarted protocolv2.TurnStartResponse
-	if err := r.client.callProtocol(ctx, protocolv2.MethodTurnStart, turnParams, &turnStarted); err != nil {
+	if err := r.client.callProtocolWithExactIntent(ctx, protocolv2.MethodTurnStart, turnParams, &turnStarted, exactCallIntent{turn: state}); err != nil {
 		r.client.finishAttachingExactStream(state, err)
 		return stream, nil
 	}
@@ -162,7 +162,7 @@ func (r *exactRunner) ResumeStream(ctx context.Context, request ResumeThreadRunR
 		return nil, fmt.Errorf("codexsdk: clone turn/start params: %w", err)
 	}
 	var resumed protocolv2.ThreadResumeResponse
-	if err := r.client.callProtocol(ctx, protocolv2.MethodThreadResume, threadParams, &resumed); err != nil {
+	if err := r.client.callProtocolWithExactIntent(ctx, protocolv2.MethodThreadResume, threadParams, &resumed, exactCallIntent{thread: true}); err != nil {
 		return nil, err
 	}
 	initial := ResumedThreadRun{Resume: resumed, Run: ThreadRunResult{InputStats: exactInputStats(turnParams.Input)}}
@@ -184,7 +184,7 @@ func (r *exactRunner) ResumeStream(ctx context.Context, request ResumeThreadRunR
 		return stream, nil
 	}
 	var turnStarted protocolv2.TurnStartResponse
-	if err := r.client.callProtocol(ctx, protocolv2.MethodTurnStart, turnParams, &turnStarted); err != nil {
+	if err := r.client.callProtocolWithExactIntent(ctx, protocolv2.MethodTurnStart, turnParams, &turnStarted, exactCallIntent{turn: state}); err != nil {
 		r.client.finishAttachingExactStream(state, err)
 		return stream, nil
 	}
@@ -443,7 +443,13 @@ func (s *exactRunState) notificationAtLocked(index int) (protocolv2.ServerNotifi
 func (s *exactRunState) setTurn(turn protocolv2.Turn) {
 	s.mu.Lock()
 	s.turnID = turn.ID
-	s.updateRunLocked(func(run *ThreadRunResult) { run.Turn = turn })
+	s.updateRunLocked(func(run *ThreadRunResult) {
+		// Seed the response without overwriting an already admitted terminal
+		// observation from a failure snapshot before attachment.
+		if run.Turn.ID == "" {
+			run.Turn = turn
+		}
+	})
 	s.mu.Unlock()
 }
 
@@ -477,8 +483,9 @@ func (s *exactRunState) acceptStateBeforeTerminalCompletion(notification protoco
 
 func (s *exactRunState) acceptRetainedBeforeTerminalCompletion(notification protocolv2.ServerNotification, retained *retentionLease) (func(), error) {
 	defer runtime.KeepAlive(s)
+	class, identity := attributionFor(notification)
 	s.mu.Lock()
-	if s.terminal {
+	if s.terminal || class == notificationAttributionUnsupported || !identity.matchesRun(s.threadID, s.turnID) {
 		s.mu.Unlock()
 		return nil, nil
 	}

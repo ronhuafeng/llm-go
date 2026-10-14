@@ -79,7 +79,7 @@ type Client struct {
 	exactAttaching             map[string]map[*exactRunState]struct{}
 	pendingEvents              map[string][]rpcNotification
 	armedThreadAttach          map[string]struct{}
-	armedTurnAttach            map[string]struct{}
+	armedTurnAttach            map[string]*exactRunState
 	pendingThreadNotifications map[string][]protocolv2.ServerNotification
 	pendingThreadRetention     map[string][]*retentionLease
 	pendingDiagnosticRetention map[string][]*retentionLease
@@ -114,7 +114,15 @@ type rpcResponse struct {
 	err    error
 }
 
+// exactCallIntent is supplied only by ThreadRunner. A thread response precedes
+// run construction; a turn response already has its exact run owner.
+type exactCallIntent struct {
+	thread bool
+	turn   *exactRunState
+}
+
 type pendingCall struct {
+	exact    exactCallIntent
 	method   string
 	response chan rpcResponse
 	validate func(map[string]any) error
@@ -240,7 +248,7 @@ func newClientContext(ctx context.Context, options ClientOptions) (*Client, erro
 		exactAttaching:             map[string]map[*exactRunState]struct{}{},
 		pendingEvents:              map[string][]rpcNotification{},
 		armedThreadAttach:          map[string]struct{}{},
-		armedTurnAttach:            map[string]struct{}{},
+		armedTurnAttach:            map[string]*exactRunState{},
 		pendingThreadNotifications: map[string][]protocolv2.ServerNotification{},
 		pendingThreadRetention:     map[string][]*retentionLease{},
 		pendingDiagnosticRetention: map[string][]*retentionLease{},
@@ -440,10 +448,10 @@ func (c *Client) start() error {
 }
 
 func (c *Client) call(ctx context.Context, method string, params map[string]any) (map[string]any, error) {
-	return c.callValidated(ctx, method, params, nil)
+	return c.callValidated(ctx, method, params, nil, exactCallIntent{})
 }
 
-func (c *Client) callValidated(ctx context.Context, method string, params map[string]any, validate func(map[string]any) error) (map[string]any, error) {
+func (c *Client) callValidated(ctx context.Context, method string, params map[string]any, validate func(map[string]any) error, exact exactCallIntent) (map[string]any, error) {
 	if c == nil || c.ctx == nil {
 		return nil, ErrClientClosed
 	}
@@ -452,7 +460,7 @@ func (c *Client) callValidated(ctx context.Context, method string, params map[st
 	if c.testBeforePendingAdmission != nil {
 		c.testBeforePendingAdmission()
 	}
-	if err := c.admitPending(id, pendingCall{method: method, response: ch, validate: validate}); err != nil {
+	if err := c.admitPending(id, pendingCall{method: method, response: ch, validate: validate, exact: exact}); err != nil {
 		return nil, err
 	}
 	payload := map[string]any{"id": id, "method": method}
@@ -649,7 +657,7 @@ func (c *Client) routeResponse(message map[string]any) {
 			return
 		}
 	}
-	if pending.method == protocolv2.MethodThreadStart || pending.method == protocolv2.MethodThreadResume {
+	if pending.exact.thread && (pending.method == protocolv2.MethodThreadStart || pending.method == protocolv2.MethodThreadResume) {
 		if threadID := threadIDFromProtocolResult(result); threadID != "" {
 			if err := c.armThreadAttach(threadID); err != nil {
 				pending.response <- rpcResponse{err: err}
@@ -658,9 +666,9 @@ func (c *Client) routeResponse(message map[string]any) {
 			}
 		}
 	}
-	if pending.method == protocolv2.MethodTurnStart {
+	if pending.exact.turn != nil && pending.method == protocolv2.MethodTurnStart {
 		if turnID := turnIDFromProtocolResult(result); turnID != "" {
-			if err := c.armTurnAttach(turnID); err != nil {
+			if err := c.armTurnAttach(turnID, pending.exact.turn); err != nil {
 				pending.response <- rpcResponse{err: err}
 				c.failClient(err)
 				return
@@ -694,8 +702,8 @@ func (c *Client) armThreadAttach(threadID string) error {
 	c.armedThreadAttach[threadID] = struct{}{}
 	return nil
 }
-func (c *Client) armTurnAttach(turnID string) error {
-	if turnID == "" {
+func (c *Client) armTurnAttach(turnID string, owner *exactRunState) error {
+	if turnID == "" || owner == nil {
 		return nil
 	}
 	c.turnMu.Lock()
@@ -704,9 +712,9 @@ func (c *Client) armTurnAttach(turnID string) error {
 		return err
 	}
 	if c.armedTurnAttach == nil {
-		c.armedTurnAttach = map[string]struct{}{}
+		c.armedTurnAttach = map[string]*exactRunState{}
 	}
-	c.armedTurnAttach[turnID] = struct{}{}
+	c.armedTurnAttach[turnID] = owner
 	return nil
 }
 func (c *Client) retainAttachmentLocked(key string) error {
@@ -839,11 +847,16 @@ func (c *Client) routeExactNotificationBeforeTerminalCompletion(notification rpc
 			return false, nil, nil
 		}
 		for stream := range c.exactStreams[identity.turnID] {
-			targets = append(targets, stream)
-		}
-		for stream := range c.exactAttaching[identity.threadID] {
-			if stream.turnIDSnapshot() == identity.turnID {
+			if identity.matchesRun(stream.threadID, stream.turnIDSnapshot()) {
 				targets = append(targets, stream)
+			}
+		}
+		for _, streams := range c.exactAttaching {
+			for stream := range streams {
+				turnID := stream.turnIDSnapshot()
+				if turnID == identity.turnID && identity.matchesRun(stream.threadID, turnID) {
+					targets = append(targets, stream)
+				}
 			}
 		}
 	case notificationAttributionThread:
@@ -853,14 +866,14 @@ func (c *Client) routeExactNotificationBeforeTerminalCompletion(notification rpc
 		}
 		for _, streams := range c.exactStreams {
 			for stream := range streams {
-				if stream.threadID == identity.threadID {
+				if identity.matchesRun(stream.threadID, stream.turnIDSnapshot()) {
 					targets = append(targets, stream)
 				}
 			}
 		}
-		for candidateThreadID, streams := range c.exactAttaching {
+		for _, streams := range c.exactAttaching {
 			for stream := range streams {
-				if candidateThreadID == identity.threadID {
+				if identity.matchesRun(stream.threadID, stream.turnIDSnapshot()) {
 					targets = append(targets, stream)
 				}
 			}
@@ -885,7 +898,7 @@ func (c *Client) routeExactNotificationBeforeTerminalCompletion(notification rpc
 		}
 	}
 	if len(targets) == 0 {
-		if _, armed := c.armedTurnAttach[identity.turnID]; armed && identity.turnID != "" {
+		if owner := c.armedTurnAttach[identity.turnID]; owner != nil && identity.turnID != "" && identity.matchesRun(owner.threadID, owner.turnIDSnapshot()) {
 			retained, err := c.retention.reserve(4, retainedValueBytes(notification.params)+3*retainedValueBytes(typed))
 			if err != nil {
 				c.turnMu.Unlock()
@@ -893,11 +906,7 @@ func (c *Client) routeExactNotificationBeforeTerminalCompletion(notification rpc
 				return false, nil, nil
 			}
 			notification.retained = retained
-			evidence := &notificationEvidence{ready: make(chan struct{})}
-			for stream := range c.exactAttaching[identity.threadID] {
-				evidence.state = stream
-				break
-			}
+			evidence := &notificationEvidence{ready: make(chan struct{}), state: owner}
 			if c.hasNotificationHandler() {
 				evidence.dispatched = make(chan struct{})
 			}
@@ -1206,6 +1215,12 @@ func (c *Client) finishAttachingExactStream(stream *exactRunState, finishErr err
 	if len(c.exactAttaching[stream.threadID]) == 0 {
 		delete(c.exactAttaching, stream.threadID)
 	}
+	for turnID, owner := range c.armedTurnAttach {
+		if owner == stream {
+			delete(c.armedTurnAttach, turnID)
+			c.releaseAttachmentLocked("turn:" + turnID)
+		}
+	}
 	var pending []rpcNotification
 	for turnID, notifications := range c.pendingEvents {
 		kept := notifications[:0]
@@ -1308,7 +1323,7 @@ func (c *Client) failAll(err error) {
 	}
 	c.attachmentRetention = map[string]*retentionLease{}
 	c.armedThreadAttach = map[string]struct{}{}
-	c.armedTurnAttach = map[string]struct{}{}
+	c.armedTurnAttach = map[string]*exactRunState{}
 	diagnostics := c.pendingDiagnostics
 	diagnosticLeases := c.pendingDiagnosticRetention
 	c.pendingDiagnostics = map[string][]DiagnosticRef{}

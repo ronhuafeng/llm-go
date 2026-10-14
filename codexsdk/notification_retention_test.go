@@ -106,7 +106,7 @@ func TestNotificationRetentionPendingReplayTransfersReservedEvidence(t *testing.
 	if err := c.registerAttachingExactStream(s); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.armTurnAttach("turn-1"); err != nil {
+	if err := c.armTurnAttach("turn-1", s); err != nil {
 		t.Fatal(err)
 	}
 	n := tokenUsageNotification("thread-1", "turn-1")
@@ -153,7 +153,7 @@ func TestNotificationRetentionFailureFlushesPendingPartialEvidence(t *testing.T)
 	if err := c.registerAttachingExactStream(s); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.armTurnAttach("turn-1"); err != nil {
+	if err := c.armTurnAttach("turn-1", s); err != nil {
 		t.Fatal(err)
 	}
 	n := tokenUsageNotification("thread-1", "turn-1")
@@ -196,17 +196,17 @@ func TestNotificationRetentionThreadAndDiagnosticSeams(t *testing.T) {
 			t.Fatal("failed diagnostics retained data")
 		}
 	})
-	t.Run("direct-facade-identities", func(t *testing.T) {
+	t.Run("exact-attachment-identities", func(t *testing.T) {
 		c := retentionClient(t, 2, 1<<20)
 		for _, id := range []string{"a", "b", "c"} {
 			ch := make(chan rpcResponse, 1)
-			if err := c.admitPending(id, pendingCall{method: protocolv2.MethodThreadStart, response: ch}); err != nil {
+			if err := c.admitPending(id, pendingCall{method: protocolv2.MethodThreadStart, response: ch, exact: exactCallIntent{thread: true}}); err != nil {
 				t.Fatal(err)
 			}
 			c.routeResponse(map[string]any{"id": id, "result": map[string]any{"thread": map[string]any{"id": id}}})
 			response := <-ch
 			if id == "c" && !errors.Is(response.err, ErrNotificationRetention) {
-				t.Fatal("direct facade bypassed retention budget")
+				t.Fatal("Exact attachment bypassed retention budget")
 			}
 		}
 		requireRetentionFailure(t, c)
@@ -432,7 +432,7 @@ func TestNotificationRetentionReplayFailureRacePreservesFirstCause(t *testing.T)
 	if err := c.registerAttachingExactStream(s); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.armTurnAttach("turn"); err != nil {
+	if err := c.armTurnAttach("turn", s); err != nil {
 		t.Fatal(err)
 	}
 	n := tokenUsageNotification("thread", "turn")

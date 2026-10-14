@@ -176,6 +176,9 @@ second raw history in `ThreadRunResult`.
 Exact Run successful terminal completion waits for preceding admitted callback
 work, including raw observation even if only raw-item methods were subscribed.
 Direct typed facade responses can arrive before asynchronous callbacks complete;
+their notifications do not require an Exact Run attachment or client closure.
+Exact Run evidence must match its turn and any present thread identity; a
+conflicting frame remains a client-scoped observation without changing that run.
 `Close` joins admitted callback work within the finite shutdown grace described
 below. Callbacks should return promptly and avoid synchronous close on their own
 client.

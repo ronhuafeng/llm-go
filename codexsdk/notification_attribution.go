@@ -24,6 +24,19 @@ type notificationIdentity struct {
 	turnID   string
 }
 
+// matchesRun rejects contradictory present identities. An unpublished turn ID
+// is not a contradiction: pending admission separately requires a turn/start
+// response that binds the notification's turn ID to this exact run.
+func (identity notificationIdentity) matchesRun(threadID, turnID string) bool {
+	if identity.threadID != "" && identity.threadID != threadID {
+		return false
+	}
+	if identity.turnID != "" && turnID != "" && identity.turnID != turnID {
+		return false
+	}
+	return identity.threadID != "" || identity.turnID != ""
+}
+
 func attributionFor(notification protocolv2.ServerNotification) (notificationAttributionClass, notificationIdentity) {
 	if !knownServerNotificationKind(notification.Kind()) {
 		return notificationAttributionUnsupported, notificationIdentity{}

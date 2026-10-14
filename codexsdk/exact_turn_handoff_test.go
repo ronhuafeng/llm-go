@@ -37,7 +37,7 @@ func TestArmedTurnStartPreservesGenuineNotificationWithoutSameThreadGuess(t *tes
 	if err := c.registerAttachingExactStream(state); err != nil {
 		t.Fatal(err)
 	}
-	c.armTurnAttach("turn-1")
+	c.armTurnAttach("turn-1", state)
 
 	historical := tokenUsageNotification("thread-1", "turn-history")
 	historicalTyped, err := exactNotification(historical)
@@ -136,7 +136,7 @@ func newTurnHandoffClient() *Client {
 		exactAttaching:    map[string]map[*exactRunState]struct{}{},
 		pendingEvents:     map[string][]rpcNotification{},
 		armedThreadAttach: map[string]struct{}{},
-		armedTurnAttach:   map[string]struct{}{},
+		armedTurnAttach:   map[string]*exactRunState{},
 	}
 }
 

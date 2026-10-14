@@ -1029,7 +1029,7 @@ func runFakeAppServer(mode string, extra []string) {
 			}
 			send(map[string]any{"id": id, "result": map[string]any{}})
 		case "thread/read":
-			if mode == "facade" {
+			if mode == "facade" || mode == "direct-callback" {
 				params, _ := message["params"].(map[string]any)
 				threadID, _ := params["threadId"].(string)
 				sendProtocolResult(id, protocolv2.ThreadReadResponse{Thread: facadeThread(defaultString(threadID, "thread-1"), nil)})
