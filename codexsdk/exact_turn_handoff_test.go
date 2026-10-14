@@ -2,6 +2,7 @@ package codexsdk
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -32,12 +33,8 @@ func TestUnknownAttachingTurnDoesNotClaimHistoricalTurnNotification(t *testing.T
 }
 
 func TestArmedTurnStartPreservesGenuineNotificationWithoutSameThreadGuess(t *testing.T) {
-	c := newTurnHandoffClient()
-	state := newExactRunState(c, "thread-1", StartedThreadRun{Start: facadeThreadStartResponse("thread-1", "gpt")})
-	if err := c.registerAttachingExactStream(state); err != nil {
-		t.Fatal(err)
-	}
-	c.armTurnAttach("turn-1")
+	c := newTurnHandoffProcess(t, NotificationRetentionBudget{})
+	_, releaseAttach, awaitAttach := pendingTurnHandoff(t, c)
 
 	historical := tokenUsageNotification("thread-1", "turn-history")
 	historicalTyped, err := exactNotification(historical)
@@ -60,8 +57,13 @@ func TestArmedTurnStartPreservesGenuineNotificationWithoutSameThreadGuess(t *tes
 		t.Fatalf("pending new-turn evidence = %#v", c.pendingEvents["turn-1"])
 	}
 
-	c.attachExactStreamForTurn(state, protocolv2.Turn{ID: "turn-1", Status: protocolv2.TurnStatusInProgress})
-	notifications := exactRunNotifications(state)
+	releaseAttach()
+	stream := awaitAttach()
+	result, ok := stream.Result()
+	if !ok || result.Start.Thread.ID != "thread-1" || result.Run.Turn.ID != "turn-1" {
+		t.Fatal("Runner lost the response-proved thread/turn identity")
+	}
+	notifications := result.Run.Notifications
 	if usageCountState(notifications, "turn-history") != 0 {
 		t.Fatalf("historical usage attached to new turn: %#v", notifications)
 	}
@@ -129,6 +131,85 @@ func TestResumeRestoredUsageReachesGlobalHandlerAndDoesNotDeadlock(t *testing.T)
 	}
 }
 
+// The facade fixture returns thread/start and turn/start responses without
+// emitting notifications. The public Runner therefore owns the pending identity,
+// while the test controls exactly which evidence arrives before attachment.
+func newTurnHandoffProcess(t *testing.T, budget NotificationRetentionBudget) *Client {
+	t.Helper()
+	t.Setenv("CODEXSDK_FAKE_RECORD", tempRecord(t))
+	c, err := New(ClientOptions{
+		CWD:                   t.TempDir(),
+		Command:               fakeCommand("facade"),
+		NotificationRetention: budget,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = c.Close() })
+	return c
+}
+
+func pendingTurnHandoff(t *testing.T, c *Client) (*exactRunState, func(), func() *Stream[StartedThreadRun]) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	entered, release, done := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	var releaseOnce sync.Once
+	unblock := func() { releaseOnce.Do(func() { close(release) }) }
+	c.testBeforeExactTurnAttach = func() {
+		close(entered)
+		select {
+		case <-release:
+		case <-ctx.Done():
+			t.Error("turn attachment barrier expired before explicit release")
+		}
+	}
+	var stream *Stream[StartedThreadRun]
+	var err error
+	go func() {
+		stream, err = c.ThreadRunner().StartStream(ctx, StartThreadRunRequest{
+			Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}},
+		})
+		close(done)
+	}()
+	t.Cleanup(func() {
+		unblock()
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			t.Error("Runner did not leave the attachment barrier during cleanup")
+		}
+	})
+	select {
+	case <-entered:
+	case <-done:
+		t.Fatalf("Runner returned before the response-proved attachment barrier: %v", err)
+	case <-ctx.Done():
+		t.Fatal("Runner did not reach the response-proved attachment barrier")
+	}
+	c.turnMu.Lock()
+	var state *exactRunState
+	for candidate := range c.exactAttaching["thread-1"] {
+		state = candidate
+	}
+	c.turnMu.Unlock()
+	if state == nil {
+		t.Fatal("Runner did not register the response-proved attaching run")
+	}
+	return state, unblock, func() *Stream[StartedThreadRun] {
+		t.Helper()
+		select {
+		case <-done:
+		case <-ctx.Done():
+			t.Fatal("Runner did not finish attachment")
+		}
+		if err != nil || stream == nil {
+			t.Fatalf("StartStream = %v, %v", stream, err)
+		}
+		return stream
+	}
+}
+
 func newTurnHandoffClient() *Client {
 	return &Client{
 		ctx:               context.Background(),
@@ -136,7 +217,6 @@ func newTurnHandoffClient() *Client {
 		exactAttaching:    map[string]map[*exactRunState]struct{}{},
 		pendingEvents:     map[string][]rpcNotification{},
 		armedThreadAttach: map[string]struct{}{},
-		armedTurnAttach:   map[string]struct{}{},
 	}
 }
 

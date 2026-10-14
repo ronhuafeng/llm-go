@@ -101,14 +101,8 @@ func TestNotificationRetentionHistoryOverflowPreventsTerminalSuccess(t *testing.
 }
 
 func TestNotificationRetentionPendingReplayTransfersReservedEvidence(t *testing.T) {
-	c := retentionClient(t, 9, 1<<20)
-	s := newExactRunState(c, "thread-1", StartedThreadRun{Start: facadeThreadStartResponse("thread-1", "fixture")})
-	if err := c.registerAttachingExactStream(s); err != nil {
-		t.Fatal(err)
-	}
-	if err := c.armTurnAttach("turn-1"); err != nil {
-		t.Fatal(err)
-	}
+	c := newTurnHandoffProcess(t, NotificationRetentionBudget{MaxCount: 9, MaxBytes: 1 << 20})
+	_, releaseAttach, awaitAttach := pendingTurnHandoff(t, c)
 	n := tokenUsageNotification("thread-1", "turn-1")
 	typed, err := exactNotification(n)
 	if err != nil {
@@ -125,8 +119,10 @@ func TestNotificationRetentionPendingReplayTransfersReservedEvidence(t *testing.
 	if count != 9 {
 		t.Fatal("pending copies not reserved")
 	}
-	c.attachExactStreamForTurn(s, protocolv2.Turn{ID: "turn-1", Status: protocolv2.TurnStatusInProgress, Items: []protocolv2.ThreadItem{}})
-	if len(exactRunNotifications(s)) != 2 {
+	releaseAttach()
+	stream := awaitAttach()
+	result, ok := stream.Result()
+	if !ok || len(result.Run.Notifications) != 2 {
 		t.Fatal("replay lost or duplicated admitted evidence")
 	}
 	count, _ = retentionFacts(c.retention)
@@ -135,7 +131,9 @@ func TestNotificationRetentionPendingReplayTransfersReservedEvidence(t *testing.
 	}
 	c.routeExactNotification(n, typed)
 	requireRetentionFailure(t, c)
-	result, err := (&Stream[StartedThreadRun]{state: s}).Wait(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	result, err = stream.Wait(ctx)
 	if !errors.Is(err, ErrNotificationRetention) || len(result.Run.Notifications) != 2 {
 		t.Fatalf("replay err=%v count=%d", err, len(result.Run.Notifications))
 	}
@@ -148,22 +146,26 @@ func TestNotificationRetentionPendingReplayTransfersReservedEvidence(t *testing.
 }
 
 func TestNotificationRetentionFailureFlushesPendingPartialEvidence(t *testing.T) {
-	c := retentionClient(t, 5, 1<<20)
-	s := newExactRunState(c, "thread-1", StartedThreadRun{Start: facadeThreadStartResponse("thread-1", "fixture")})
-	if err := c.registerAttachingExactStream(s); err != nil {
-		t.Fatal(err)
-	}
-	if err := c.armTurnAttach("turn-1"); err != nil {
-		t.Fatal(err)
-	}
+	c := newTurnHandoffProcess(t, NotificationRetentionBudget{MaxCount: 5, MaxBytes: 1 << 20})
+	s, releaseAttach, awaitAttach := pendingTurnHandoff(t, c)
 	n := tokenUsageNotification("thread-1", "turn-1")
 	typed, _ := exactNotification(n)
 	c.routeExactNotification(n, typed)
 	c.routeExactNotification(n, typed)
 	requireRetentionFailure(t, c)
-	result, err := (&Stream[StartedThreadRun]{state: s}).Wait(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	// Failure must publish the admitted prefix while the Runner is still
+	// before attachment; a later attach must not be needed to recover it.
+	result, err := (&Stream[StartedThreadRun]{state: s}).Wait(ctx)
 	if !errors.Is(err, ErrNotificationRetention) || len(result.Run.Notifications) != 1 {
 		t.Fatal("pending partial evidence was not published")
+	}
+	releaseAttach()
+	stream := awaitAttach()
+	result, err = stream.Wait(ctx)
+	if !errors.Is(err, ErrNotificationRetention) || len(result.Run.Notifications) != 1 {
+		t.Fatal("late attachment changed the failure prefix")
 	}
 }
 
@@ -196,20 +198,97 @@ func TestNotificationRetentionThreadAndDiagnosticSeams(t *testing.T) {
 			t.Fatal("failed diagnostics retained data")
 		}
 	})
-	t.Run("direct-facade-identities", func(t *testing.T) {
-		c := retentionClient(t, 2, 1<<20)
-		for _, id := range []string{"a", "b", "c"} {
-			ch := make(chan rpcResponse, 1)
-			if err := c.admitPending(id, pendingCall{method: protocolv2.MethodThreadStart, response: ch}); err != nil {
-				t.Fatal(err)
-			}
-			c.routeResponse(map[string]any{"id": id, "result": map[string]any{"thread": map[string]any{"id": id}}})
-			response := <-ch
-			if id == "c" && !errors.Is(response.err, ErrNotificationRetention) {
-				t.Fatal("direct facade bypassed retention budget")
+	t.Run("runner-attachment-identities", func(t *testing.T) {
+		c := newTurnHandoffProcess(t, NotificationRetentionBudget{MaxCount: 2, MaxBytes: 1 << 20})
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		entered, release := make(chan struct{}, 3), make(chan struct{})
+		var releaseOnce sync.Once
+		unblock := func() { releaseOnce.Do(func() { close(release) }) }
+		c.testAfterThreadStartResponse = func() {
+			entered <- struct{}{}
+			select {
+			case <-release:
+			case <-ctx.Done():
+				t.Error("thread response barrier expired before explicit release")
 			}
 		}
+		type outcome struct {
+			stream *Stream[StartedThreadRun]
+			err    error
+		}
+		var runners sync.WaitGroup
+		t.Cleanup(func() {
+			unblock()
+			cancel()
+			done := make(chan struct{})
+			go func() { runners.Wait(); close(done) }()
+			select {
+			case <-done:
+			case <-time.After(5 * time.Second):
+				t.Error("Runners did not leave the thread response barrier during cleanup")
+			}
+		})
+		start := func() <-chan outcome {
+			done := make(chan outcome, 1)
+			runners.Add(1)
+			go func() {
+				defer runners.Done()
+				stream, err := c.ThreadRunner().StartStream(ctx, StartThreadRunRequest{
+					Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}},
+				})
+				done <- outcome{stream: stream, err: err}
+			}()
+			return done
+		}
+		// Hold two real Runner responses before registration can release their
+		// thread identity reservations. The third response must fail admission
+		// in production routeResponse and publish the client-wide first cause.
+		var pending []<-chan outcome
+		for i := 0; i < 2; i++ {
+			done := start()
+			pending = append(pending, done)
+			select {
+			case <-entered:
+			case got := <-done:
+				t.Fatalf("Runner returned before thread response barrier: %v", got.err)
+			case <-ctx.Done():
+				t.Fatal("Runner did not reach thread response barrier")
+			}
+		}
+		if count, _ := retentionFacts(c.retention); count != 2 {
+			t.Fatalf("Runner attachment reservations = %d, want 2", count)
+		}
+		select {
+		case got := <-start():
+			if got.stream != nil || !errors.Is(got.err, ErrNotificationRetention) {
+				t.Fatalf("third Runner = %v, %v, want retention failure", got.stream, got.err)
+			}
+		case <-ctx.Done():
+			t.Fatal("third Runner did not fail attachment admission")
+		}
+		select {
+		case <-c.closeCausePublished:
+		case <-ctx.Done():
+			t.Fatal("attachment overflow did not publish the client-wide failure")
+		}
 		requireRetentionFailure(t, c)
+		unblock()
+		for _, done := range pending {
+			select {
+			case got := <-done:
+				if got.err == nil && (got.stream == nil || got.stream.Err() == nil) {
+					t.Fatal("attachment succeeded after client retention failure")
+				}
+			case <-ctx.Done():
+				t.Fatal("failed client left a Runner blocked")
+			}
+		}
+		if err := c.Close(); !errors.Is(err, ErrNotificationRetention) {
+			t.Fatalf("Close changed the first cause: %v", err)
+		}
+		if count, bytes := retentionFacts(c.retention); count != 0 || bytes != 0 {
+			t.Fatalf("failed attachment reservations leaked: count=%d bytes=%d", count, bytes)
+		}
 	})
 }
 
@@ -427,39 +506,52 @@ func TestNotificationRetentionSlowCallbackOverflowAndFailureCleanup(t *testing.T
 }
 
 func TestNotificationRetentionReplayFailureRacePreservesFirstCause(t *testing.T) {
-	c := retentionClient(t, 9, 1<<20)
-	s := newExactRunState(c, "thread", StartedThreadRun{Start: facadeThreadStartResponse("thread", "fixture")})
-	if err := c.registerAttachingExactStream(s); err != nil {
-		t.Fatal(err)
-	}
-	if err := c.armTurnAttach("turn"); err != nil {
-		t.Fatal(err)
-	}
-	n := tokenUsageNotification("thread", "turn")
+	c := newTurnHandoffProcess(t, NotificationRetentionBudget{MaxCount: 9, MaxBytes: 1 << 20})
+	s, releaseAttach, awaitAttach := pendingTurnHandoff(t, c)
+	n := tokenUsageNotification("thread-1", "turn-1")
 	typed, _ := exactNotification(n)
 	c.routeExactNotification(n, typed)
 	c.routeExactNotification(n, typed)
 	published, release := make(chan struct{}), make(chan struct{})
-	c.testAfterExactStreamPublished = func() { close(published); <-release }
-	attached := make(chan struct{})
-	go func() {
-		c.attachExactStreamForTurn(s, protocolv2.Turn{ID: "turn", Status: protocolv2.TurnStatusInProgress, Items: []protocolv2.ThreadItem{}})
-		close(attached)
-	}()
-	<-published
+	var releaseOnce sync.Once
+	unblock := func() { releaseOnce.Do(func() { close(release) }) }
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	c.testAfterExactStreamPublished = func() {
+		close(published)
+		select {
+		case <-release:
+		case <-ctx.Done():
+			t.Error("replay barrier expired before explicit release")
+		}
+	}
+	t.Cleanup(func() {
+		unblock()
+		cancel()
+	})
+	releaseAttach()
+	select {
+	case <-published:
+	case <-ctx.Done():
+		t.Fatal("Runner did not publish the stream before replay")
+	}
 	c.failClient(ErrNotificationRetention)
-	result, err := (&Stream[StartedThreadRun]{state: s}).Wait(context.Background())
+	result, err := (&Stream[StartedThreadRun]{state: s}).Wait(ctx)
 	if !errors.Is(err, ErrNotificationRetention) || len(result.Run.Notifications) != 2 {
 		t.Fatal("failure did not flush replay prefix")
 	}
 	c.failClient(errors.New("secondary transport failure"))
-	close(release)
-	select {
-	case <-attached:
-	case <-time.After(time.Second):
-		t.Fatal("replay deadlocked with failure")
-	}
+	unblock()
+	awaitAttach()
 	requireRetentionFailure(t, c)
+	c.turnMu.Lock()
+	pending, replaying := len(c.pendingEvents), len(c.replayingEvents)
+	c.turnMu.Unlock()
+	if pending != 0 || replaying != 0 {
+		t.Fatal("failure retained replay maps")
+	}
+	if err := c.Close(); !errors.Is(err, ErrNotificationRetention) {
+		t.Fatalf("Close changed the replay failure first cause: %v", err)
+	}
 }
 
 func TestNotificationRetentionProcessAttachmentWithRequiredRawEvents(t *testing.T) {
