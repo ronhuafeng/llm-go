@@ -10,6 +10,13 @@ import (
 
 func (c *Client) handleServerRequest(message map[string]any) {
 	id := message["id"]
+	name, _ := message["method"].(string)
+	method, known := protocolv2.LookupMethod(name)
+	if !known || method.Direction != protocolv2.MethodDirectionServerToClient || method.Kind != protocolv2.MethodKindRequest {
+		failure := fmt.Errorf("codexsdk: unsupported ServerRequest method %q", name)
+		c.failExactServerRequest(id, protocolv2.ServerRequest{}, -32601, failure)
+		return
+	}
 	typed, err := decodeProtocolServerRequest(message)
 	if err != nil {
 		failure := fmt.Errorf("codexsdk: decode ServerRequest request_id=%s: %w", requestIDString(id), err)

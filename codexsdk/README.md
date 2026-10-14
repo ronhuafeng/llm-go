@@ -41,6 +41,56 @@ individual live test that asks for a response.
 Inbound newline-delimited JSON-RPC frames are limited to 16 MiB including the
 newline delimiter.
 
+## Turn completion and partial snapshots
+
+At the selected Codex 0.162.1 source, [`turn/start`](https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/app-server/src/request_processors/turn_processor.rs#L652-L725)
+returns an `inProgress` Turn with empty items, including when input steers an
+existing turn. `turn/steer` returns a turn ID. Normal Exact Run completion comes
+from the matching `turn/completed` notification, whose status is `completed`,
+`failed`, or `interrupted`; the SDK derives its final-response summary there.
+A schema-valid terminal-looking `turn/start` response remains a snapshot and
+does not replace that notification. Historical turns returned by thread read or
+resume are not completion of new work: `ThreadRunner.Resume` resumes the thread
+and then starts a new turn.
+
+Terminal notifications may be admitted before or after response attachment;
+the SDK preserves their order and partial evidence. This is not a promise of
+delivery after disconnection. A caller deadline on `Stream.Wait(ctx)` returns
+the current partial snapshot and the context error without canceling the shared
+run; another wait can still observe a later matching terminal. Inspecting
+`Run.Turn.Status` or an available `Stream.Result()` alone does not establish
+successful completion. No inline-terminal fallback is provided.
+
+## Rejected server requests and tool observations
+
+For a valid JSON-RPC request envelope, the generated method registry determines
+whether its method is an available server-to-client request. Unknown methods,
+client-to-server methods, and notification methods used as requests receive
+`-32601` (method not found). A known server request with invalid typed parameters
+receives `-32602` (invalid params), following the
+[JSON-RPC error categories](https://www.jsonrpc.org/specification#error_object).
+Neither reaches `ServerRequestHandler`. Unvalidated payload IDs are not used to
+guess a run, and rejection alone does not fail the client or an otherwise valid
+turn. Failure to write the rejection is a client-global transport failure.
+After successful decoding, application-handler failures retain their existing
+typed, correlated Exact Run failure semantics.
+
+In Codex 0.162.1, a failed dynamic-tool RPC can become a failed tool result while
+the model continues and the overall turn completes. These are compatible facts,
+not an automatic false success. Applications can observe emitted tool results
+through `ClientOptions.ServerNotificationHandler`: use `AsItemCompleted()` and
+then `Params.Item.AsDynamicToolCall()`, inspecting `Status`, optional `Success`,
+and `ContentItems`. Exact Runs also retain typed observations in
+`Run.Notifications` and terminal items in `Run.Turn.Items`.
+
+These are tool-result observations, not a rejected-request audit hook. There is
+no dedicated protocol-rejection callback; raw subscriptions cover notifications,
+not server requests. Upstream may translate an RPC error into a generic tool
+failure before it reaches Core, so neither these notifications nor saved session
+files guarantee the original SDK rejection code or decode reason. Applications
+own whether observed tool failure is acceptable for their task. See the selected
+[dynamic-tool error handling](https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/app-server/src/dynamic_tools.rs#L18-L57).
+
 ## Startup and shutdown deadlines
 
 Use `NewContext(ctx, options)` to bound validation, child launch and initialize

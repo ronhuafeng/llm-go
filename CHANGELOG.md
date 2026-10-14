@@ -44,6 +44,12 @@ changes may occur in minor releases.
 
 #### Fixed
 
+- Return JSON-RPC `-32601` for unavailable server-request methods and retain
+  `-32602` for malformed known requests, without guessing run ownership or
+  changing recovery behavior. Document tool-failure observation and the selected
+  Codex 0.162.1 notification-based turn completion contract, including caller-local
+  wait deadlines and no inline-terminal fallback.
+
 - Deliver direct typed-facade turn notifications during normal operation without
   waiting for an Exact Run attachment. Bind pending Exact observations to the
   requesting run and reject contradictory thread/turn attribution before it can
