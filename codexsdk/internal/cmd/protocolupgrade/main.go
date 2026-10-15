@@ -19,7 +19,7 @@ func main() {
 
 func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "protocolupgrade: command is required: goal-prepare, goal, sync, diagnose, verify, verify-ci-gate, verify-provenance-offline, verify-candidate, compare, apply, check, scope, stage, or publish\n")
+		fmt.Fprintf(stderr, "protocolupgrade: command is required: goal-prepare, goal, goal-summary, sync, diagnose, verify, verify-ci-gate, verify-provenance-offline, verify-candidate, compare, apply, check, scope, stage, or publish\n")
 		return 2
 	}
 	switch args[0] {
@@ -27,6 +27,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runGoalPrepare(args[1:], stdout, stderr)
 	case "goal":
 		return runNativeGoal(args[1:], stdout, stderr)
+	case "goal-summary":
+		return runGoalSummary(args[1:], stdout, stderr)
 	case "verify-ci-gate":
 		return runCIGate(args[1:], stdout, stderr)
 	case "verify":

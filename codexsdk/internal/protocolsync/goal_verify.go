@@ -19,7 +19,10 @@ import (
 
 // GoalVerifyRequest selects the same native gate commands used by CI. Empty
 // Gate means local source/generated/offline-provenance checks; Live belongs to CI. Diagnostics must live outside the candidate.
-type GoalVerifyRequest struct{ RepoRoot, DiagnosticDir, Gate, TrustedCacheRoot, BaseRoot, CandidateDir string }
+type GoalVerifyRequest struct {
+	RepoRoot, DiagnosticDir, Gate, TrustedCacheRoot, BaseRoot, CandidateDir string
+	Progress                                                                *GoalProgress
+}
 type GoalVerifyResult struct {
 	DiagnosticPath, SnapshotDigest, SnapshotRoot, Scope, Head string
 	cleanupRoot                                               string
@@ -231,6 +234,7 @@ func verifyGoal(ctx context.Context, req GoalVerifyRequest, run goalCommandRunne
 			return result, err
 		}
 		commands, cleanup, err := goalGateCommands(ctx, gate, snapshot, work)
+		req.Progress.line("Local " + gate + ": started")
 		if err != nil {
 			return result, err
 		}
@@ -257,6 +261,7 @@ func verifyGoal(ctx context.Context, req GoalVerifyRequest, run goalCommandRunne
 			}
 		}
 		result.Gates = append(result.Gates, gate)
+		req.Progress.line("Local " + gate + ": passed")
 	}
 	return result, nil
 }

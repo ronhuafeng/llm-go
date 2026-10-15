@@ -997,8 +997,13 @@ func countLeadingSpaces(s string) int {
 func TestProtocolSummaryNeverConvertsFailureIntoSuccess(t *testing.T) {
 	root, _ := filepath.Abs("../../../..")
 	workflow := readWorkflow(t, root, "codexsdk-upstream-protocol-sync.yml")
-	if !strings.Contains(workflow, "goal completion alone is not acceptance") || !strings.Contains(workflow, "The bound PR remains Draft") || strings.Contains(workflow, "continue-on-error") {
-		t.Fatal("summary must preserve Draft-only outcome and native failures")
+	job, _ := workflowJobByID(workflow, "sync")
+	if !strings.Contains(job, `goal-summary -evidence-dir`) || !strings.Contains(job, `GOAL_OUTCOME: ${{ steps.goal.outcome }}`) || strings.Contains(job, "continue-on-error") {
+		t.Fatal("summary must consume the actual goal step outcome without masking native failures")
+	}
+	summary := repositorySource(t, root, "codexsdk/internal/cmd/protocolupgrade/goal_summary.go")
+	if strings.Contains(summary, "exec.Command") || strings.Contains(summary, "checkacceptance.Observe(") {
+		t.Fatal("summary must remain an offline view, not acquire checks or perform effects")
 	}
 	flow := repositorySource(t, root, "codexsdk/internal/protocolsync/goal_flow.go")
 	for _, want := range []string{"!accepted || native.Status != \"complete\"", "native goal completed without exact-candidate acceptance", "final exact-head CI observation is not successful"} {

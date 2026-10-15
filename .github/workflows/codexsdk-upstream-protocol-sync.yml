@@ -340,6 +340,7 @@ jobs:
             -target-sha "$(jq -r .Target.PeeledCommitSHA "${RUNNER_TEMP}/goal-source.json")" \
             > "${RUNNER_TEMP}/goal-binding.json"
       - name: Run the complete goal with its fixed verification tool
+        id: goal
         env:
           GH_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PROTOCOL_SYNC_APP_CLIENT_ID: ${{ vars.PROTOCOL_SYNC_APP_CLIENT_ID }}
@@ -366,6 +367,7 @@ jobs:
             -candidate-dir "$(jq -r .CandidateDir "${source}")" -runtime-dirs "${RUNNER_TEMP}/goal-rust-tools" -timeout 300m \
             > "${RUNNER_TEMP}/goal-result.json"
       - name: Preserve bounded goal evidence
+        id: evidence
         if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -376,11 +378,23 @@ jobs:
             ${{ runner.temp }}/goal-result.json
             ${{ runner.temp }}/goal-diagnostics/*.jsonl
           if-no-files-found: warn
-      - name: Summarize Draft-only outcome
+      - name: Summarize upstream goal outcome
         if: ${{ always() }}
+        env:
+          GOAL_OUTCOME: ${{ steps.goal.outcome }}
+          ARTIFACT_ID: ${{ steps.evidence.outputs.artifact-id || '0' }}
         run: |
-          {
-            echo '## Native upstream goal'
-            echo 'The bound PR remains Draft. This workflow has no ready or merge operation.'
-            echo 'See the exact-head checks and retained JSONL evidence; goal completion alone is not acceptance.'
-          } >> "${GITHUB_STEP_SUMMARY}"
+          set -euo pipefail
+          control="${RUNNER_TEMP}/protocolupgrade"
+          if [[ -x "${control}" ]]; then
+            "${control}" goal-summary -evidence-dir "${RUNNER_TEMP}" \
+              -repository "${GITHUB_REPOSITORY}" -goal-outcome "${GOAL_OUTCOME}" \
+              -run-id "${GITHUB_RUN_ID}" -artifact-id "${ARTIFACT_ID}" \
+              >> "${GITHUB_STEP_SUMMARY}"
+          else
+            {
+              echo '## Native upstream goal'
+              echo 'The trusted launcher was not built. The native goal did not start.'
+              echo "[Inspect setup steps](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})"
+            } >> "${GITHUB_STEP_SUMMARY}"
+          fi

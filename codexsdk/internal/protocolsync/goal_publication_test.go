@@ -114,6 +114,9 @@ func (f *goalPublicationFixture) Request(method, path string, body, result any) 
 			for i, name := range checkacceptance.RequiredNames() {
 				r := checkacceptance.Run{ID: int64(i + 1), Name: name, HeadSHA: head, Status: "completed", Conclusion: "success"}
 				r.App.Slug = "github-actions"
+				if f.state == checkacceptance.Pending {
+					r.Status, r.Conclusion = "in_progress", ""
+				}
 				if f.state == checkacceptance.Failed {
 					r.Conclusion = "failure"
 				}
@@ -128,6 +131,9 @@ func (f *goalPublicationFixture) Request(method, path string, body, result any) 
 		var runs []checkacceptance.WorkflowRun
 		if f.state != checkacceptance.Missing {
 			r := checkacceptance.WorkflowRun{ID: 9, HeadSHA: head, Attempt: 1, Status: "completed", Conclusion: "success"}
+			if f.state == checkacceptance.Pending {
+				r.Status, r.Conclusion = "in_progress", ""
+			}
 			if f.state == checkacceptance.Failed {
 				r.Conclusion = "failure"
 			}

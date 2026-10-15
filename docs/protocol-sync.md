@@ -52,6 +52,21 @@ start. Diagnostic files have a 16 MiB hard bound: overflow or incomplete output
 is explicitly incomplete, never a truncated successful report. The model sees
 only a file path; it reads records incrementally. Do not retain model transcripts.
 
+The upstream run uses native Actions steps for preparation, goal execution,
+evidence upload and its final summary. Within the single goal step, controller
+log groups show local verification, Draft publication, CI observation and final
+acceptance. CI progress is emitted only when the existing observation changes;
+it does not add polling, checks or retries. Intermediate failures remain in the
+log; a terminal launcher failure emits an Actions error annotation.
+
+`protocolupgrade goal-summary` renders the retained source, binding and result
+without network access. It reports the actual goal step outcome, native status,
+last controller stage, safe stopping reason and PR/CI/evidence links. Checks are
+shown only for the retained published head. Missing or incomplete files remain
+unavailable, and native completion is never promoted to acceptance. The summary
+is an end-of-run snapshot; live progress remains in the log and target PR checks.
+Model editing/generation phases are not inferred from its private transcript.
+
 Contract-grounded verifier changes belong with implementation in the same
 proposal. Legitimate evolution must pass and real defects must still fail;
 expectations derive from the exact source and accepted public contract. Source

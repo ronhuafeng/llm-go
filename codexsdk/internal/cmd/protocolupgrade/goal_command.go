@@ -20,7 +20,8 @@ import (
 
 // runNativeGoal is a trusted launch surface, not a model-callable command tool.
 // The model only receives verify_upstream's fixed empty argument schema.
-func runNativeGoal(args []string, stdout, stderr io.Writer) int {
+func runNativeGoal(args []string, stdout, stderr io.Writer) (code int) {
+	progress := &protocolsync.GoalProgress{Output: stderr, Actions: os.Getenv("GITHUB_ACTIONS") == "true"}
 	flags := flag.NewFlagSet("goal", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	root := flags.String("controller-root", "", "trusted accepted checkout")
@@ -44,9 +45,25 @@ func runNativeGoal(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	if *duration <= 0 || *duration > 6*time.Hour || *root == "" || *workspace == "" || *state == "" || *diagnostics == "" || *upstream == "" {
-		fmt.Fprintln(stderr, "goal: explicit trusted paths and finite lifetime required")
+		progress.Failure("Explicit trusted paths and finite lifetime required")
 		return 2
 	}
+	result := protocolsync.GoalFlowResult{Stage: "Goal preparation"}
+	fail := func(message string) int {
+		result.Failure = message
+		return 1
+	}
+	defer func() {
+		if code != 0 && result.Failure == "" {
+			result.Failure = "Goal incomplete; inspect retained JSONL diagnostics"
+		}
+		if err := json.NewEncoder(stdout).Encode(result); err != nil {
+			code = 1
+			progress.Failure("Could not retain the final goal result")
+		} else if code != 0 {
+			progress.Failure(result.Failure)
+		}
+	}()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	ctx, cancel := context.WithTimeout(ctx, *duration)
@@ -55,49 +72,42 @@ func runNativeGoal(args []string, stdout, stderr io.Writer) int {
 	binding := protocolsync.GoalPublicationRequest{RepoRoot: *root, Repository: *repository, Remote: "origin", BaseBranch: *baseBranch, Branch: *branch, BaseSHA: *base, ExpectedHead: *head, Number: *number, AppBotID: *actor, Target: target, API: protocolsync.NewGoalAPI(ctx, *root)}
 	app, err := newGoalAppCredentials(*repository, stderr)
 	if err != nil {
-		fmt.Fprintln(stderr, "goal: publication App credentials unavailable")
-		return 1
+		return fail("Publication App credentials unavailable")
 	}
 	binding.PublicationToken = app.token
 	acceptedHead, err := exec.CommandContext(ctx, "git", "-C", *root, "rev-parse", "HEAD").Output()
 	if err != nil || strings.TrimSpace(string(acceptedHead)) != *base || protocolsync.AssertClean(*root) != nil {
-		fmt.Fprintln(stderr, "goal: accepted checkout does not match fixed base")
-		return 1
+		return fail("Accepted checkout does not match fixed base")
 	}
 	// Validate all trusted identity values before any native model invocation.
 	if err := protocolsync.ValidateGoalBinding(ctx, binding); err != nil {
-		fmt.Fprintln(stderr, "goal: fixed Draft binding unavailable")
-		return 1
+		return fail("Fixed Draft binding unavailable")
 	}
 	prompt, err := os.ReadFile(filepath.Join(*root, ".agents/skills/codexsdk-sync-upstream/goal.txt"))
 	if err != nil {
-		fmt.Fprintln(stderr, "goal: accepted goal prompt unavailable")
-		return 1
+		return fail("Accepted goal prompt unavailable")
 	}
 	objective := strings.NewReplacer("${BASE_SHA}", *base, "${TARGET_REF}", *ref, "${TARGET_SHA}", *sha, "${PR_URL}", fmt.Sprintf("https://github.com/%s/pull/%d", *repository, *number), "${BRANCH}", *branch).Replace(string(prompt))
 	dirs, err := codexexec.NativeGoalRuntimePaths("codex")
 	if err != nil {
-		fmt.Fprintln(stderr, "goal: exact native runtime paths unavailable")
-		return 1
+		return fail("Exact native runtime paths unavailable")
 	}
 	dirs = append(dirs, splitRuntimeDirs(*runtimeDirs)...)
 	moduleCache, err := exec.CommandContext(ctx, "go", "env", "GOMODCACHE").Output()
 	if err != nil {
-		fmt.Fprintln(stderr, "goal: prepared module cache unavailable")
-		return 1
+		return fail("Prepared module cache unavailable")
 	}
 	executor, err := codexexec.New(ctx, codexexec.Config{Workspace: *workspace, StateDir: *state, Version: os.Getenv("CODEX_CLI_VERSION"), BaseURL: os.Getenv("CODEX_RESPONSES_API_ENDPOINT"), APIKey: os.Getenv("AZURE_OPENAI_API_KEY"), Model: "gpt-6.1-sol", Reasoning: "high", GoalSandbox: &codexexec.GoalSandboxConfig{RuntimeDirs: dirs, ModuleCache: strings.TrimSpace(string(moduleCache)), ReadOnlyDirs: []string{*diagnostics}}})
 	if err != nil {
-		fmt.Fprintln(stderr, "goal: native runtime preparation failed")
-		return 1
+		return fail("Native runtime preparation failed")
 	}
-	result, runErr := protocolsync.RunUpstreamGoal(ctx, protocolsync.GoalFlowRequest{Objective: objective, Local: protocolsync.GoalVerifyRequest{RepoRoot: *workspace, DiagnosticDir: *diagnostics, TrustedCacheRoot: filepath.Join(*root, "codexsdk/.cache"), BaseRoot: *root, CandidateDir: *upstream}, Publication: binding}, executor)
+	var runErr error
+	result, runErr = protocolsync.RunUpstreamGoal(ctx, protocolsync.GoalFlowRequest{Objective: objective, Local: protocolsync.GoalVerifyRequest{RepoRoot: *workspace, DiagnosticDir: *diagnostics, TrustedCacheRoot: filepath.Join(*root, "codexsdk/.cache"), BaseRoot: *root, CandidateDir: *upstream}, Publication: binding, Progress: progress}, executor)
 	closeErr := executor.Close()
-	if err = json.NewEncoder(stdout).Encode(result); err != nil {
-		return 1
+	if closeErr != nil {
+		result.Failure = "Native runtime cleanup failed"
 	}
 	if runErr != nil || closeErr != nil {
-		fmt.Fprintln(stderr, "goal: incomplete; inspect retained JSONL diagnostics")
 		return 1
 	}
 	return 0

@@ -13,6 +13,10 @@ changes may occur in minor releases.
 
 #### Added
 
+- Show native upstream goal progress in GitHub Actions log groups, report
+  terminal failures as annotations, and link retained PR/CI results and evidence
+  from the run summary without changing the single-goal acceptance flow.
+
 - Add `NewContext` for caller-bounded App Server validation/launch/initialize,
   and `CloseContext` with separate owned-process and unresolved callback facts.
   Process cleanup no longer waits indefinitely for callbacks or a blocked writer.

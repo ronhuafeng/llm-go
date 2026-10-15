@@ -29,6 +29,7 @@ type GoalPublicationRequest struct {
 	// PublicationToken obtains a fresh host-only token at the write boundary.
 	// The returned cleanup revokes it after that one Git operation.
 	PublicationToken func(context.Context) (string, func(), error)
+	Progress         *GoalProgress
 }
 
 // GoalPublication.Head is our Git-confirmed effect locator. It may accompany an
@@ -275,6 +276,7 @@ func ObserveGoalCI(ctx context.Context, req GoalPublicationRequest, head string,
 	if pollInterval <= 0 {
 		pollInterval = 5 * time.Second
 	}
+	lastProgress := ""
 	for {
 		if err := goalCurrent(ctx, req, head); err != nil {
 			return observation, err
@@ -286,6 +288,10 @@ func ObserveGoalCI(ctx context.Context, req GoalPublicationRequest, head string,
 		observation = next
 		if err := goalCurrent(ctx, req, head); err != nil {
 			return observation, err
+		}
+		if message := goalCIProgress(req.Repository, observation); message != lastProgress {
+			req.Progress.line(message)
+			lastProgress = message
 		}
 		switch observation.State {
 		case checkacceptance.Succeeded, checkacceptance.Failed, checkacceptance.Cancelled:

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -23,12 +24,16 @@ type GoalFlowRequest struct {
 	Objective   string
 	Local       GoalVerifyRequest
 	Publication GoalPublicationRequest
+	Progress    *GoalProgress
 }
 type GoalFlowResult struct {
 	ThreadID, Head, SnapshotDigest, DiagnosticPath string
 	NativeStatus                                   string
 	ChangedPaths                                   []string
 	Checks                                         checkacceptance.Observation
+	// Reporting facts, not a second acceptance state. Failure never includes the
+	// private native runtime error.
+	Stage, Failure string
 }
 
 // RunUpstreamGoal performs no client-authored repair turns. Every verification
@@ -58,14 +63,34 @@ func runUpstreamGoal(ctx context.Context, req GoalFlowRequest, runner GoalRunner
 		return result, err
 	}
 	var mu sync.Mutex
+	stage := func(name string) {
+		result.Stage = name
+		req.Progress.group(name)
+	}
+	stage("Native goal")
+	defer req.Progress.end()
+	req.Local.Progress = req.Progress
 	accepted := false
 	binding := req.Publication
+	binding.Progress = req.Progress
 	native, err := runner.RunGoal(ctx, req.Objective, func(call context.Context) (toolPath string, toolErr error) {
 		// Serial tool invocations cannot race publication of two snapshots. This is
 		// mutual exclusion, not an outer scheduler or repair state machine.
 		mu.Lock()
 		defer mu.Unlock()
 		accepted = false
+		result.Failure = ""
+		stage("Local verification")
+		defer func() {
+			if toolErr != nil {
+				if result.Failure == "" {
+					result.Failure = result.Stage + " failed; inspect retained verification diagnostics"
+				}
+				req.Progress.line(result.Failure)
+			}
+			req.Progress.end()
+			req.Progress.line("Verification returned to the same native goal")
+		}()
 		local, e := op.local(call, req.Local)
 		defer func() {
 			if cleanupErr := local.Close(); cleanupErr != nil {
@@ -97,6 +122,7 @@ func runUpstreamGoal(ctx context.Context, req GoalFlowRequest, runner GoalRunner
 		candidate := binding
 		candidate.CandidateDir = local.SnapshotRoot
 		candidate.SnapshotDigest = local.SnapshotDigest
+		stage("Draft publication")
 		published, e := op.publish(call, candidate)
 		// A confirmed Git push is an effect even if GitHub's PR projection is
 		// temporarily stale. Retain only the controller-returned exact head;
@@ -104,10 +130,12 @@ func runUpstreamGoal(ctx context.Context, req GoalFlowRequest, runner GoalRunner
 		if published.Head != "" && published.PreviousHead == binding.ExpectedHead && published.SnapshotDigest == local.SnapshotDigest {
 			binding.ExpectedHead = published.Head
 			result.Head = published.Head
+			result.SnapshotDigest = published.SnapshotDigest
 			result.ChangedPaths = published.ChangedPaths
 		}
 		if e != nil {
 			log.record("publication", "", map[string]any{"passed": false, "error": goalError(e)})
+			result.Failure = "Draft publication could not be confirmed; inspect retained publication diagnostics"
 			return finish(e)
 		}
 		binding.ExpectedHead = published.Head
@@ -115,11 +143,15 @@ func runUpstreamGoal(ctx context.Context, req GoalFlowRequest, runner GoalRunner
 		result.Head = published.Head
 		result.SnapshotDigest = local.SnapshotDigest
 		log.record("publication", "", map[string]any{"head": published.Head, "number": published.Number, "snapshot_sha256": local.SnapshotDigest, "changed_paths": published.ChangedPaths})
+		req.Progress.line(fmt.Sprintf("Draft PR https://github.com/%s/pull/%d; candidate %s", candidate.Repository, candidate.Number, published.Head))
+		stage("CI observation")
 		observation, e := op.observe(call, candidate, published.Head, 30*time.Second)
 		result.Checks = observation
 		log.record("ci_observation", "", map[string]any{"observation": observation})
 		if observation.WorkflowRunID > 0 {
+			req.Progress.line("Collecting diagnostics for the observed CI attempt")
 			if de := op.diagnostics(call, candidate, observation, log); de != nil {
+				result.Failure = "CI diagnostics unavailable or incomplete"
 				return finish(de)
 			}
 		}
@@ -127,38 +159,56 @@ func runUpstreamGoal(ctx context.Context, req GoalFlowRequest, runner GoalRunner
 			return finish(e)
 		}
 		if observation.State != checkacceptance.Succeeded {
+			result.Failure = "Exact-head CI has not passed: " + goalCheckState(observation.State)
 			return finish(errors.New("exact-head CI has not passed"))
 		}
 		// The goal may have concurrent tools. Never bind their later edits to checks
 		// of the earlier published bytes.
 		digest, de := goalSnapshot(call, req.Local.RepoRoot, "")
 		if de != nil || digest != local.SnapshotDigest {
+			result.Failure = "Candidate changed during CI verification"
 			return finish(errors.New("candidate changed during CI verification"))
 		}
 		path, e = finish(nil)
 		accepted = e == nil
+		if accepted {
+			req.Progress.line("Verification passed for the published snapshot; native goal completion is still required")
+		}
 		return path, e
 	})
 	result.ThreadID = native.ThreadID
 	result.NativeStatus = native.Status
 	if err != nil {
+		result.Failure = "Native goal stopped; inspect native status and the last verification diagnostics"
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			result.Failure = "Native goal reached its execution deadline"
+		} else if errors.Is(ctx.Err(), context.Canceled) {
+			result.Failure = "Native goal was cancelled"
+		}
 		return result, err
 	}
 	mu.Lock()
 	defer mu.Unlock()
 	if !accepted || native.Status != "complete" {
+		if result.Failure == "" {
+			result.Failure = "Native goal ended without exact-candidate acceptance"
+		}
 		return result, errors.New("native goal completed without exact-candidate acceptance")
 	}
+	stage("Final acceptance")
 	digest, err := goalSnapshot(ctx, req.Local.RepoRoot, "")
 	if err != nil || digest != result.SnapshotDigest {
+		result.Failure = "Candidate changed after accepted verification"
 		return result, errors.New("candidate changed after accepted verification")
 	}
 	finalBinding := binding
 	observation, err := op.observe(ctx, finalBinding, result.Head, 30*time.Second)
+	result.Checks = observation
 	if err != nil || observation.State != checkacceptance.Succeeded {
+		result.Failure = "Final exact-head CI observation is not successful"
 		return result, errors.New("final exact-head CI observation is not successful")
 	}
-	result.Checks = observation
+	req.Progress.line("Native goal complete; unchanged snapshot and final exact-head CI passed")
 	return result, nil
 }
 

@@ -24,7 +24,8 @@ func (f goalRunnerFunc) RunGoal(c context.Context, s string, v func(context.Cont
 }
 func TestGoalFlowRetainsNativeFailureStatusWithoutPrivateError(t *testing.T) {
 	fixture := newGoalPublicationFixture(t)
-	req := GoalFlowRequest{Objective: "one goal", Local: GoalVerifyRequest{DiagnosticDir: t.TempDir()}, Publication: fixture.request}
+	var progress bytes.Buffer
+	req := GoalFlowRequest{Objective: "one goal", Local: GoalVerifyRequest{DiagnosticDir: t.TempDir()}, Publication: fixture.request, Progress: &GoalProgress{Output: &progress, Actions: true}}
 	runtimeErr := errors.New("private provider error detail")
 	runner := goalRunnerFunc(func(context.Context, string, func(context.Context) (string, error)) (codexexec.GoalResult, error) {
 		return codexexec.GoalResult{ThreadID: "native-thread", Status: "goal_turn_failed"}, runtimeErr
@@ -46,12 +47,12 @@ func TestGoalFlowRetainsNativeFailureStatusWithoutPrivateError(t *testing.T) {
 	if retained["NativeStatus"] != "goal_turn_failed" {
 		t.Fatal("native failure status omitted from retained JSON", string(data))
 	}
-	if bytes.Contains(data, []byte(runtimeErr.Error())) {
+	if bytes.Contains(data, []byte(runtimeErr.Error())) || strings.Contains(progress.String(), runtimeErr.Error()) || result.Failure == "" {
 		t.Fatal("private runtime error retained")
 	}
 }
 func TestNativeGoalFlowRequiresActualAcceptance(t *testing.T) {
-	for _, scenario := range []string{"passes", "new_paths", "never_calls", "local_failure", "ci_failure", "mutates_after", "late_failed_tool", "blocked"} {
+	for _, scenario := range []string{"passes", "new_paths", "never_calls", "local_failure", "ci_failure", "mutates_after", "late_failed_tool", "blocked", "recovered_local_failure", "final_ci_failure"} {
 		t.Run(scenario, func(t *testing.T) {
 			fixture := newGoalPublicationFixture(t)
 			if scenario == "new_paths" {
@@ -71,13 +72,14 @@ func TestNativeGoalFlowRequiresActualAcceptance(t *testing.T) {
 			if err := os.WriteFile(localPath, []byte("{\"kind\":\"result\",\"passed\":true}\n"), 0600); err != nil {
 				t.Fatal(err)
 			}
-			req := GoalFlowRequest{Objective: "one goal", Local: GoalVerifyRequest{RepoRoot: fixture.request.RepoRoot, DiagnosticDir: diag}, Publication: fixture.request}
+			var progress bytes.Buffer
+			req := GoalFlowRequest{Objective: "one goal", Local: GoalVerifyRequest{RepoRoot: fixture.request.RepoRoot, DiagnosticDir: diag}, Publication: fixture.request, Progress: &GoalProgress{Output: &progress, Actions: true}}
 			count := 0
 			ops := goalFlowOperations{
 				local: func(context.Context, GoalVerifyRequest) (GoalVerifyResult, error) {
 					count++
 					r := GoalVerifyResult{SnapshotRoot: fixture.request.CandidateDir, SnapshotDigest: fixture.request.SnapshotDigest, DiagnosticPath: localPath}
-					if scenario == "local_failure" || scenario == "late_failed_tool" && count > 1 {
+					if scenario == "local_failure" || scenario == "late_failed_tool" && count > 1 || scenario == "recovered_local_failure" && count == 1 {
 						return r, errors.New("failed")
 					}
 					return r, nil
@@ -100,6 +102,14 @@ func TestNativeGoalFlowRequiresActualAcceptance(t *testing.T) {
 				if scenario == "late_failed_tool" {
 					_, _ = verify(ctx)
 				}
+				if scenario == "recovered_local_failure" {
+					if _, err := verify(ctx); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if scenario == "final_ci_failure" {
+					fixture.state = checkacceptance.Cancelled
+				}
 				if scenario == "mutates_after" {
 					goalTestWrite(t, req.Local.RepoRoot, "README.md", "changed after CI")
 				}
@@ -112,12 +122,18 @@ func TestNativeGoalFlowRequiresActualAcceptance(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			result, err := runUpstreamGoal(ctx, req, runner, ops)
-			wantPass := scenario == "passes" || scenario == "new_paths"
+			wantPass := scenario == "passes" || scenario == "new_paths" || scenario == "recovered_local_failure"
 			if (err == nil) != wantPass {
 				t.Fatalf("scenario %s got %v", scenario, err)
 			}
 			if wantPass && (result.Head == "" || result.Checks.State != checkacceptance.Succeeded) {
 				t.Fatalf("missing acceptance %+v", result)
+			}
+			if (result.Failure == "") != wantPass || strings.Count(progress.String(), "::group::") != strings.Count(progress.String(), "::endgroup::") || strings.Contains(progress.String(), "::error") {
+				t.Fatalf("misleading progress: %+v\n%s", result, progress.String())
+			}
+			if scenario == "final_ci_failure" && (result.Checks.State != checkacceptance.Cancelled || result.Stage != "Final acceptance") {
+				t.Fatal("final failure retained earlier green", result)
 			}
 			if scenario == "new_paths" {
 				data, err := os.ReadFile(result.DiagnosticPath)
