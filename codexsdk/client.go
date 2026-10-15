@@ -155,11 +155,12 @@ func (e *notificationEvidence) releaseReady() {
 }
 
 type acceptedNotification struct {
-	raw          *RawNotification
-	notification protocolv2.ServerNotification
-	evidence     *notificationEvidence
-	dispatched   chan struct{}
-	retained     *retentionLease
+	raw                 *RawNotification
+	notification        protocolv2.ServerNotification
+	evidence            *notificationEvidence
+	dispatched          chan struct{}
+	retained            *retentionLease
+	terminalCompletions []func()
 }
 
 // New uses a 15-second deadline for launch and initialize.
@@ -798,13 +799,16 @@ func (c *Client) routeNotification(notification rpcNotification) {
 	var terminalCompletions []func()
 	var evidence *notificationEvidence
 	defer func() {
-		dispatched, err := c.enqueueAcceptedNotification(acceptedNotification{notification: typed, evidence: evidence, raw: raw}, len(terminalCompletions) > 0)
-		if err != nil {
+		accepted := acceptedNotification{notification: typed, evidence: evidence, raw: raw}
+		if c.hasNotificationHandler() {
+			// The serial dispatcher owns this terminal fence. The transport reader
+			// must remain free to route RPC responses requested by callbacks.
+			accepted.terminalCompletions = terminalCompletions
+			terminalCompletions = nil
+		}
+		if _, err := c.enqueueAcceptedNotification(accepted, false); err != nil {
 			c.failClient(err)
 			return
-		}
-		if dispatched != nil && len(terminalCompletions) > 0 {
-			c.awaitDispatch(dispatched)
 		}
 		for _, complete := range terminalCompletions {
 			complete()
@@ -1062,8 +1066,12 @@ func (c *Client) attachExactStreamLocked(stream *exactRunState) {
 				if c.testBeforePendingTerminalFence != nil {
 					c.testBeforePendingTerminalFence()
 				}
-				c.awaitEvidenceHandler(notification)
-				notification.completeEvidenceTerminal()
+				// With callbacks, the dispatcher completes after observing ready
+				// and delivering this frame. Replay must not wait under the order
+				// gate, which the reader may need before an RPC response.
+				if !c.hasNotificationHandler() {
+					notification.completeEvidenceTerminal()
+				}
 			}
 		}
 		if err != nil {
@@ -1125,7 +1133,7 @@ func (n rpcNotification) resolvePendingEvidence() error {
 	// Failure snapshots and attachment replay traverse the same pending prefix
 	// in order. The evidence Once serializes each commit; the state mutex protects
 	// its contents. Do not acquire notificationOrderMu inside Once: attachment
-	// holds that mutex while replaying the same evidence (and waiting on dispatch).
+	// holds that mutex while replaying the same evidence.
 	return n.resolveEvidence(func(typed protocolv2.ServerNotification) (func(), error) {
 		return n.evidence.state.acceptRetainedBeforeTerminalCompletion(typed, n.retained)
 	})
@@ -1250,10 +1258,6 @@ func (c *Client) finishAttachingExactStream(stream *exactRunState, finishErr err
 		err := notification.resolveEvidence(func(typed protocolv2.ServerNotification) (func(), error) {
 			return stream.acceptRetainedBeforeTerminalCompletion(typed, notification.retained)
 		})
-		if completion := notification.evidenceCompletion(); completion != nil {
-			c.awaitEvidenceHandler(notification)
-			notification.completeEvidenceTerminal()
-		}
 		if deliveryErr == nil && err != nil {
 			deliveryErr = err
 		}
@@ -1263,6 +1267,12 @@ func (c *Client) finishAttachingExactStream(stream *exactRunState, finishErr err
 		stream.finish(deliveryErr)
 		c.failExactNotificationDelivery(stream, deliveryErr)
 		return
+	}
+	for _, notification := range pending {
+		if notification.evidenceCompletion() != nil {
+			c.awaitEvidenceHandler(notification)
+			notification.completeEvidenceTerminal()
+		}
 	}
 	stream.finish(finishErr)
 }

@@ -19,7 +19,7 @@ type liveArithmeticResult struct {
 }
 
 func TestLiveCodexStructuredCall(t *testing.T) {
-	client, fixture := newLiveCodexClient(t)
+	client, fixture := newLiveCodexClient(t, nil)
 	caller, err := codexcaller.New(liveApplicationOptions(client.ThreadRunner(), fixture))
 	if err != nil {
 		t.Fatal("cannot construct the composed caller")
@@ -58,7 +58,43 @@ func TestLiveCodexStructuredCall(t *testing.T) {
 }
 
 func TestLiveCodexThreadContinuation(t *testing.T) {
-	client, fixture := newLiveCodexClient(t)
+	type callbackRead struct {
+		threadID, turnID, readThreadID string
+		err                            error
+	}
+	readClient := make(chan *codexsdk.Client, 1)
+	readDone := make(chan callbackRead, 1)
+	releaseCallback := make(chan struct{}, 1)
+	// Release even when an assertion fails; callbacks must never call t.Fatal.
+	defer close(releaseCallback)
+	client, fixture := newLiveCodexClient(t, func(ctx context.Context, notification protocolv2.ServerNotification) error {
+		completed, ok := notification.AsTurnCompleted()
+		if !ok {
+			return nil
+		}
+		var client *codexsdk.Client
+		select {
+		case client = <-readClient:
+		default:
+			return nil
+		}
+		readCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+		defer cancel()
+		read, err := client.Threads().Read(readCtx, protocolv2.ThreadReadParams{ThreadID: completed.Params.ThreadID})
+		readDone <- callbackRead{
+			threadID: completed.Params.ThreadID, turnID: completed.Params.Turn.ID,
+			readThreadID: read.Thread.ID, err: err,
+		}
+		if err != nil {
+			return err
+		}
+		select {
+		case <-releaseCallback:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	})
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 	defer cancel()
 	runner := client.ThreadRunner()
@@ -91,7 +127,60 @@ func TestLiveCodexThreadContinuation(t *testing.T) {
 	t.Log("live_story.stage=persistent-start outcome=completed")
 
 	t.Log("live_story.stage=resume outcome=started")
-	resumed, err := runner.Resume(ctx, liveResumeRequest(fixture, parentID, "What is 4 + 5? Reply briefly."))
+	// Arm only the existing parent continuation, adding no model turn. The
+	// channel also publishes the initialized client to the callback safely.
+	readClient <- client
+	resumeStream, err := runner.ResumeStream(ctx, liveResumeRequest(fixture, parentID, "What is 4 + 5? Reply briefly."))
+	if err != nil {
+		reportLiveFailure(t, client, protocolv2.ThreadStartResponse{}, err)
+		t.Fatal("live Resume could not start; see typed failure facts")
+	}
+	defer resumeStream.Close()
+	type resumeOutcome struct {
+		run codexsdk.ResumedThreadRun
+		err error
+	}
+	resumeDone := make(chan resumeOutcome, 1)
+	go func() {
+		run, err := resumeStream.Wait(ctx)
+		resumeDone <- resumeOutcome{run: run, err: err}
+	}()
+	t.Log("live_story.stage=terminal-callback-read outcome=started")
+	var observed callbackRead
+	select {
+	case observed = <-readDone:
+	case outcome := <-resumeDone:
+		if outcome.err != nil {
+			reportLiveFailure(t, client, resumeFailureObservation(outcome.run.Resume), outcome.err)
+			t.Fatal("live Resume failed before callback Read; see typed failure facts")
+		}
+		failLiveAssertion(t, "Run succeeded before the terminal callback was released")
+	case <-ctx.Done():
+		reportLiveFailure(t, client, protocolv2.ThreadStartResponse{}, ctx.Err())
+		t.Fatal("live terminal callback did not finish its synchronous Read")
+	}
+	if observed.err != nil {
+		reportLiveFailure(t, client, protocolv2.ThreadStartResponse{}, observed.err)
+		t.Fatal("live terminal callback Read failed; see typed failure facts")
+	}
+	if observed.threadID != parentID || observed.readThreadID != parentID {
+		failLiveAssertion(t, "terminal callback Read did not return the intended parent thread")
+	}
+	// The successful synchronous Read proves the transport read loop advanced
+	// past turn/completed. A canceled caller-local Wait observes the terminal
+	// fence without a sleep or consuming/canceling the shared run.
+	waitCtx, stopWait := context.WithCancel(ctx)
+	stopWait()
+	pending, err := resumeStream.Wait(waitCtx)
+	if !errors.Is(err, context.Canceled) {
+		failLiveAssertion(t, "Run settled before the terminal callback was released")
+	}
+	if observed.turnID == "" || observed.turnID != pending.Run.Turn.ID {
+		failLiveAssertion(t, "terminal callback did not match the resumed turn")
+	}
+	releaseCallback <- struct{}{}
+	outcome := <-resumeDone
+	resumed, err := outcome.run, outcome.err
 	if err != nil {
 		reportLiveFailure(t, client, resumeFailureObservation(resumed.Resume), err)
 		t.Fatal("live Resume failed; see typed failure facts")
@@ -102,6 +191,7 @@ func TestLiveCodexThreadContinuation(t *testing.T) {
 	if err := liveTurnError(resumed.Run, started.Run.Turn.ID); err != nil {
 		failLiveAssertion(t, err.Error())
 	}
+	t.Log("live_story.stage=terminal-callback-read outcome=completed")
 	t.Log("live_story.stage=resume outcome=completed")
 
 	t.Log("live_story.stage=fork outcome=started")
@@ -144,7 +234,7 @@ func TestLiveCodexThreadContinuation(t *testing.T) {
 	t.Log("live_story.stage=fork-turn outcome=completed")
 }
 
-func newLiveCodexClient(t *testing.T) (*codexsdk.Client, livecodex.Fixture) {
+func newLiveCodexClient(t *testing.T, handler codexsdk.ServerNotificationHandler) (*codexsdk.Client, livecodex.Fixture) {
 	t.Helper()
 	if os.Getenv("LLMGO_LIVE_CODEX") != "1" {
 		t.Skip("use livecodex run to execute the real Codex stories")
@@ -157,6 +247,7 @@ func newLiveCodexClient(t *testing.T) (*codexsdk.Client, livecodex.Fixture) {
 	t.Setenv("CODEX_HOME", fixture.Home)
 	client, err := codexsdk.New(codexsdk.ClientOptions{
 		CWD: fixture.Workspace, Command: []string{"codex", "app-server", "--listen", "stdio://"},
+		ServerNotificationHandler: handler,
 	})
 	if err != nil {
 		t.Log("live_failure.stage=startup")

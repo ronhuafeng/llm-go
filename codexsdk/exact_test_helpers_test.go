@@ -1028,7 +1028,18 @@ func runFakeAppServer(mode string, extra []string) {
 				continue
 			}
 			send(map[string]any{"id": id, "result": map[string]any{}})
+		case "fixture/complete":
+			completeTurn("thread-1", "turn-1")
+			send(map[string]any{"id": id, "result": map[string]any{}})
 		case "thread/read":
+			if strings.HasPrefix(mode, "terminal-callback-rpc") {
+				// This frame precedes the response and must neither block pending
+				// replay's order gate nor alter the already admitted terminal.
+				n := tokenUsageNotification("thread-1", "turn-1")
+				send(map[string]any{"method": n.method, "params": n.params})
+				sendProtocolResult(id, protocolv2.ThreadReadResponse{Thread: facadeThread("thread-1", nil)})
+				continue
+			}
 			if mode == "facade" || mode == "direct-callback" {
 				params, _ := message["params"].(map[string]any)
 				threadID, _ := params["threadId"].(string)
@@ -1157,6 +1168,10 @@ func runFakeAppServer(mode string, extra []string) {
 				},
 			})
 			switch mode {
+			case "terminal-callback-rpc":
+				// The test attaches the run before asking fixture/complete.
+			case "terminal-callback-rpc-replay":
+				completeTurn(threadID, turnID)
 			case "exact-history-wait":
 				for index := 0; index < exactStreamHistoryContractNotifications; index++ {
 					sendExactReroute(threadID, turnID, "model-"+itoa(index), "model-"+itoa(index+1))

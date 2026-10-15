@@ -148,6 +148,17 @@ response for each requested piece of new work. Resume must continue the intended
 thread; Fork must yield a distinct thread, and subsequent work must actually
 use that returned identity. A Fork response containing only an ID is not enough.
 
+On the existing parent Resume turn, a typed `turn/completed` callback
+synchronously calls `Threads.Read` on the same client. The story requires a
+successful response with the intended thread identity, then holds that callback
+behind an explicit release barrier. A caller-local canceled `Stream.Wait` must
+still report cancellation while the callback is held; only after release may
+the Run succeed. This exercises read-loop progress and the terminal callback
+fence against installed Codex without an extra model turn. It uses the public
+Resume stream composition and preserves the continuation and usable-response
+assertions above. Callback failure and deadline paths also release owned work;
+no retries or fallback completion are introduced.
+
 Independent small arithmetic prompts are suitable. Do not depend on recalling
 an earlier token, inherited conversation content, branch-memory fidelity, or
 particular natural-language phrasing. Those are not the SDK integration
