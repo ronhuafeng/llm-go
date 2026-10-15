@@ -44,6 +44,7 @@ type exactRunState struct {
 	hasResult                        bool
 	err                              error
 	terminal                         bool
+	terminalAdmitted                 bool // freezes evidence while callback completion is pending
 	retained                         *retentionOwners
 }
 
@@ -485,7 +486,7 @@ func (s *exactRunState) acceptRetainedBeforeTerminalCompletion(notification prot
 	defer runtime.KeepAlive(s)
 	class, identity := attributionFor(notification)
 	s.mu.Lock()
-	if s.terminal || class == notificationAttributionUnsupported || !identity.matchesRun(s.threadID, s.turnID) {
+	if s.terminal || s.terminalAdmitted || class == notificationAttributionUnsupported || !identity.matchesRun(s.threadID, s.turnID) {
 		s.mu.Unlock()
 		return nil, nil
 	}
@@ -512,6 +513,7 @@ func (s *exactRunState) acceptRetainedBeforeTerminalCompletion(notification prot
 		}
 	})
 	terminal, terminalErr := s.applyTerminalLocked(cloned)
+	s.terminalAdmitted = terminal
 	close(s.updated)
 	s.updated = make(chan struct{})
 	s.mu.Unlock()

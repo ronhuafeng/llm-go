@@ -227,6 +227,12 @@ Exact Run successful terminal completion waits for preceding admitted callback
 work, including raw observation even if only raw-item methods were subscribed.
 Direct typed facade responses can arrive before asynchronous callbacks complete;
 their notifications do not require an Exact Run attachment or client closure.
+Notification callbacks may synchronously call typed facades such as `Threads.Read`
+on the same client. The transport reader keeps routing responses while ordered
+callback delivery owns the terminal fence. Start/Resume stream construction does
+not join callbacks; `Wait` and completed Run results still do. Once a matching
+terminal is admitted, later frames remain client-scoped observations without
+rewriting that run's terminal snapshot.
 Exact Run evidence must match its turn and any present thread identity; a
 conflicting frame remains a client-scoped observation without changing that run.
 `Close` joins admitted callback work within the finite shutdown grace described

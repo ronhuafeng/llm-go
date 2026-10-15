@@ -173,6 +173,12 @@ func (c *Client) dispatchAcceptedNotification(handler ServerNotificationHandler,
 	}
 	if err == nil {
 		accepted.releaseDispatchWaiter()
+		if accepted.evidence != nil && accepted.evidence.completion != nil {
+			accepted.evidence.completion()
+		}
+		for _, complete := range accepted.terminalCompletions {
+			complete()
+		}
 		return true
 	}
 	c.closeMu.Lock()

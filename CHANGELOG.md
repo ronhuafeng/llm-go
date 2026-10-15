@@ -52,6 +52,13 @@ changes may occur in minor releases.
   and lifecycle checks. Accept internal exec retries only after a valid completed
   turn and zero process exit, retaining bounded intermediate-error diagnostics.
 
+- Keep App Server response routing live while terminal notification callbacks
+  synchronously issue typed RPCs on the same client. Ordered callback delivery
+  still fences Exact Run completion, including pending attachment replay;
+  later frames cannot rewrite an admitted terminal snapshot. Extend the existing
+  persistent-thread live story with callback `Threads.Read` and release-barrier
+  assertions, without adding model turns.
+
 - Return JSON-RPC `-32601` for unavailable server-request methods and retain
   `-32602` for malformed known requests, without guessing run ownership or
   changing recovery behavior. Document tool-failure observation and the selected
