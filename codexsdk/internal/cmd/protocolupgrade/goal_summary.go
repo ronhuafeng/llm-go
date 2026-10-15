@@ -86,7 +86,7 @@ func runGoalSummary(args []string, stdout, stderr io.Writer) int {
 	if !matching {
 		fmt.Fprint(&b, "No retained CI observation for the published head. Earlier-head results are not shown as its checks.\n\n")
 	} else {
-		fmt.Fprintf(&b, "Head: %s. Aggregate: %s. Workflow attempt: %s.\n\n", goalSummaryCommit(baseURL, result.Checks.Head), goalSummaryText(string(result.Checks.State)), goalSummaryText(string(result.Checks.WorkflowState)))
+		fmt.Fprintf(&b, "Head: %s. Aggregate: %s. Workflow state: %s.\n\n", goalSummaryCommit(baseURL, result.Checks.Head), goalSummaryText(string(result.Checks.State)), goalSummaryText(string(result.Checks.WorkflowState)))
 		if result.Checks.WorkflowRunID > 0 {
 			fmt.Fprintf(&b, "[PR verification run](%s/actions/runs/%d), attempt %d.\n\n", baseURL, result.Checks.WorkflowRunID, result.Checks.WorkflowAttempt)
 		}
@@ -111,7 +111,7 @@ func runGoalSummary(args []string, stdout, stderr io.Writer) int {
 	if *runID > 0 {
 		fmt.Fprintf(&b, "[Upstream run and logs](%s/actions/runs/%d)", baseURL, *runID)
 		if *artifactID > 0 {
-			fmt.Fprintf(&b, " · [Complete verification evidence](%s/actions/runs/%d/artifacts/%d)", baseURL, *runID, *artifactID)
+			fmt.Fprintf(&b, " · [Retained verification evidence](%s/actions/runs/%d/artifacts/%d)", baseURL, *runID, *artifactID)
 		} else {
 			fmt.Fprint(&b, " · Evidence artifact link unavailable")
 		}
