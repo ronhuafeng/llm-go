@@ -304,3 +304,20 @@ permission overrides. Its writable positive control must execute successfully;
 the same read-only reviewer boundary must execute, deny the write and read the
 unchanged candidate. The fresh model reviewer then reads that candidate.
 This bounds the reviewer role's runtime guarantee; its prose is not acceptance.
+
+## Native compatibility controls
+
+The required source gate's `TestNativeGoalSandboxBoundary` also invokes two
+small controls against the same installed official CLI, without real provider
+requests: official goal RPCs must broadcast an unrelated goal update through
+the actual owned-goal observer without changing its state, and real `codex exec`
+must recover from one local Responses stream interruption before the executor
+accepts its completed turn and zero exit. Missing trigger observations fail the
+controls. The local endpoint is isolated test data, not a proxy for credentials
+or the configured live provider.
+
+These controls establish native event emission and Go interpretation. The
+complete parent-goal continuation, cleanup and failure controls remain
+deterministic process fixtures; the foreign-goal control does not claim a model
+created a persistent child. The normal real-model suite above remains required
+and separate. Its success alone does not establish either compatibility trigger.

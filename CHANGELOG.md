@@ -48,6 +48,10 @@ changes may occur in minor releases.
 
 #### Fixed
 
+- Ignore unrelated native goal broadcasts while preserving owned-goal identity
+  and lifecycle checks. Accept internal exec retries only after a valid completed
+  turn and zero process exit, retaining bounded intermediate-error diagnostics.
+
 - Return JSON-RPC `-32601` for unavailable server-request methods and retain
   `-32602` for malformed known requests, without guessing run ownership or
   changing recovery behavior. Document tool-failure observation and the selected

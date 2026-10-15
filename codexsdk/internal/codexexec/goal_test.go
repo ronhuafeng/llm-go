@@ -53,7 +53,7 @@ func TestRunGoalNativeLifecycle(t *testing.T) {
 		{"budgetLimited", "goal_budget_limited", 4 * time.Second},
 		{"failed-turn", "goal_turn_failed", 4 * time.Second},
 		{"interrupted-turn", "goal_turn_failed", 4 * time.Second},
-		{"wrong-thread", "goal_identity_invalid", 4 * time.Second},
+		{"foreign-goal-broadcasts", "complete", 4 * time.Second},
 		{"wrong-goal-thread", "goal_identity_invalid", 4 * time.Second},
 		{"wrong-objective", "goal_identity_invalid", 4 * time.Second},
 		{"wrong-turn", "goal_turn_sequence_invalid", 4 * time.Second},
@@ -95,12 +95,21 @@ func TestRunGoalNativeLifecycle(t *testing.T) {
 			if result.Status != tc.status || (err == nil) != (tc.status == "complete") {
 				t.Fatalf("result=%+v err=%v", result, err)
 			}
+			if result.ThreadID != testSession {
+				t.Fatalf("owned thread identity changed: %+v", result)
+			}
 			if err != nil && (err.Error() != result.Status || strings.Contains(err.Error(), "SECRET")) {
 				t.Fatalf("unsafe error: %v", err)
 			}
 			if tc.name == "complete-before-turn" {
 				if _, err := os.Stat(filepath.Join(e.config.Workspace, ".turn-completed")); err != nil {
 					t.Fatal("returned before the active turn completed")
+				}
+			}
+			if tc.name == "multi-turn" || tc.name == "foreign-goal-broadcasts" {
+				turns, err := os.ReadFile(filepath.Join(e.config.Workspace, ".goal-completed-turns"))
+				if err != nil || string(turns) != "one\ntwo\n" {
+					t.Fatalf("owned multi-turn lifecycle incomplete: turns=%q err=%v", turns, err)
 				}
 			}
 			pidData, err := os.ReadFile(filepath.Join(e.config.Workspace, ".goal-pid"))
@@ -125,6 +134,59 @@ func TestRunGoalNativeLifecycle(t *testing.T) {
 			}
 			if tc.name != "disconnect" && !strings.Contains(methods, "thread/archive\n") {
 				t.Fatalf("owned thread not archived: %s", methods)
+			}
+		})
+	}
+}
+
+func TestGoalObservationIgnoresForeignGoalUpdates(t *testing.T) {
+	const objective = "owned parent objective"
+	const child = "019a0000-1111-7222-8333-0123456789ac"
+	for _, stage := range []struct {
+		name, threadID, activeTurn string
+		status                     protocolv2.ThreadGoalStatus
+		completedTurn, verifying   bool
+	}{
+		{name: "before thread binding"},
+		{name: "before first turn", threadID: testSession, status: protocolv2.ThreadGoalStatusActive},
+		{name: "during first turn", threadID: testSession, activeTurn: "one", status: protocolv2.ThreadGoalStatusActive},
+		{name: "between turns", threadID: testSession, status: protocolv2.ThreadGoalStatusActive, completedTurn: true},
+		{name: "during verification", threadID: testSession, activeTurn: "two", status: protocolv2.ThreadGoalStatusActive, completedTurn: true, verifying: true},
+		{name: "after completion", threadID: testSession, status: protocolv2.ThreadGoalStatusComplete, completedTurn: true},
+	} {
+		t.Run(stage.name, func(t *testing.T) {
+			for _, status := range []protocolv2.ThreadGoalStatus{
+				protocolv2.ThreadGoalStatusActive, protocolv2.ThreadGoalStatusComplete,
+				protocolv2.ThreadGoalStatusBlocked, protocolv2.ThreadGoalStatusPaused,
+				protocolv2.ThreadGoalStatusUsageLimited, protocolv2.ThreadGoalStatusBudgetLimited,
+			} {
+				t.Run(string(status), func(t *testing.T) {
+					s := &goalObservation{
+						threadID: stage.threadID, objective: objective, activeTurn: stage.activeTurn,
+						status: stage.status, completedTurn: stage.completedTurn, verifying: stage.verifying,
+						changed: make(chan struct{}),
+					}
+					data, err := json.Marshal(protocolv2.NewServerNotificationThreadGoalUpdated(protocolv2.ServerNotificationThreadGoalUpdated{
+						Params: protocolv2.ThreadGoalUpdatedNotification{ThreadID: child, Goal: protocolv2.ThreadGoal{
+							ThreadID: child, Objective: "independent child objective", Status: status,
+						}},
+					}))
+					if err != nil {
+						t.Fatal(err)
+					}
+					// Exercise the generated decoder so the foreign update is a valid
+					// client-wide notification, rather than an unvalidated Go value.
+					var event protocolv2.ServerNotification
+					if err := json.Unmarshal(data, &event); err != nil {
+						t.Fatal(err)
+					}
+					if err := s.observe(context.Background(), event); err != nil {
+						t.Fatal(err)
+					}
+					if s.failure != "" || s.threadID != stage.threadID || s.objective != objective || s.activeTurn != stage.activeTurn || s.status != stage.status || s.completedTurn != stage.completedTurn || s.verifying != stage.verifying {
+						t.Fatalf("foreign goal changed owned lifecycle: thread=%q objective=%q turn=%q status=%q completed=%v verifying=%v failure=%q", s.threadID, s.objective, s.activeTurn, s.status, s.completedTurn, s.verifying, s.failure)
+					}
+				})
 			}
 		})
 	}
@@ -174,13 +236,24 @@ func TestGoalAppServerChild(t *testing.T) {
 	goalEvent := func(status protocolv2.ThreadGoalStatus) {
 		notify("thread/goal/updated", protocolv2.ThreadGoalUpdatedNotification{ThreadID: testSession, Goal: goal(status)})
 	}
+	foreignGoalEvent := func(status protocolv2.ThreadGoalStatus) {
+		if scenario == "foreign-goal-broadcasts" {
+			child := "019a0000-1111-7222-8333-0123456789ac"
+			notify("thread/goal/updated", protocolv2.ThreadGoalUpdatedNotification{ThreadID: child, Goal: protocolv2.ThreadGoal{ThreadID: child, Objective: "independent child objective", Status: status}})
+		}
+	}
 	turn := func(id string, status protocolv2.TurnStatus) protocolv2.Turn {
 		return protocolv2.Turn{ID: id, Status: status, Items: []protocolv2.ThreadItem{}}
 	}
 	startTurn := func(id string) {
 		notify("turn/started", protocolv2.TurnStartedNotification{ThreadID: testSession, Turn: turn(id, protocolv2.TurnStatusInProgress)})
 	}
+	completedTurns := ""
 	endTurn := func(id string, status protocolv2.TurnStatus) {
+		completedTurns += id + "\n"
+		if err := os.WriteFile(".goal-completed-turns", []byte(completedTurns), 0600); err != nil {
+			os.Exit(83)
+		}
 		notify("turn/completed", protocolv2.TurnCompletedNotification{ThreadID: testSession, Turn: turn(id, status)})
 	}
 	requests, _ := os.OpenFile(".goal-requests", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
@@ -248,6 +321,7 @@ func TestGoalAppServerChild(t *testing.T) {
 			if scenario == "unsafe-sandbox" {
 				policy = protocolv2.NewSandboxPolicyDangerFullAccess()
 			}
+			foreignGoalEvent(protocolv2.ThreadGoalStatusActive)
 			respond(protocolv2.ThreadStartResponse{ApprovalPolicy: protocolv2.NewAskForApprovalNever(), ApprovalsReviewer: protocolv2.ApprovalsReviewerUser, CWD: cwd, Model: "model", ModelProvider: "llm-go-exec", Sandbox: policy,
 				Thread: protocolv2.Thread{ID: testSession, SessionID: testSession, CWD: cwd, CliVersion: "0.160.0", ModelProvider: "llm-go-exec", Ephemeral: scenario == "ephemeral", Source: protocolv2.NewSessionSourceAppServer(), Status: protocolv2.NewThreadStatusIdle(), Turns: []protocolv2.Turn{}}})
 		case "thread/goal/set":
@@ -260,6 +334,7 @@ func TestGoalAppServerChild(t *testing.T) {
 				g.ThreadID = "SECRET-wrong"
 			}
 			respond(protocolv2.ThreadGoalSetResponse{Goal: g})
+			foreignGoalEvent(protocolv2.ThreadGoalStatusActive)
 			switch scenario {
 			case "disconnect":
 				fmt.Fprintln(os.Stderr, "SECRET private provider body")
@@ -285,8 +360,6 @@ func TestGoalAppServerChild(t *testing.T) {
 				goalEvent(protocolv2.ThreadGoalStatusComplete)
 			case "blocked", "paused", "usageLimited", "budgetLimited":
 				goalEvent(protocolv2.ThreadGoalStatus(scenario))
-			case "wrong-thread":
-				notify("thread/goal/updated", protocolv2.ThreadGoalUpdatedNotification{ThreadID: "SECRET-wrong", Goal: g})
 			case "wrong-goal-thread":
 				g.ThreadID = "SECRET-wrong"
 				notify("thread/goal/updated", protocolv2.ThreadGoalUpdatedNotification{ThreadID: testSession, Goal: g})
@@ -299,6 +372,7 @@ func TestGoalAppServerChild(t *testing.T) {
 				endTurn("one", protocolv2.TurnStatusCompleted)
 			default:
 				startTurn("one")
+				foreignGoalEvent(protocolv2.ThreadGoalStatusBlocked)
 				switch scenario {
 				case "cancel":
 				case "failed-turn":
@@ -311,9 +385,12 @@ func TestGoalAppServerChild(t *testing.T) {
 					goalEvent(protocolv2.ThreadGoalStatusComplete)
 				default:
 					endTurn("one", protocolv2.TurnStatusCompleted)
+					foreignGoalEvent(protocolv2.ThreadGoalStatusComplete)
 					startTurn("two")
+					foreignGoalEvent(protocolv2.ThreadGoalStatusUsageLimited)
 					goalEvent(protocolv2.ThreadGoalStatusComplete)
 					endTurn("two", protocolv2.TurnStatusCompleted)
+					foreignGoalEvent(protocolv2.ThreadGoalStatusPaused)
 				}
 			}
 			_ = os.WriteFile(".fixture-ready", []byte("ready"), 0600)
@@ -328,6 +405,11 @@ func TestGoalAppServerChild(t *testing.T) {
 				endTurn("one", protocolv2.TurnStatusCompleted)
 			}
 		case "thread/archive":
+			var params protocolv2.ThreadArchiveParams
+			if json.Unmarshal(request.Params, &params) != nil || params.ThreadID != testSession {
+				os.Exit(84)
+			}
+			foreignGoalEvent(protocolv2.ThreadGoalStatusBudgetLimited)
 			if scenario == "late-revocation" {
 				goalEvent(protocolv2.ThreadGoalStatusActive)
 			}

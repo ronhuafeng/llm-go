@@ -241,6 +241,10 @@ func main(){ var value map[string]any; if toml.Unmarshal([]byte("probe=1"), &val
 			}
 		}
 	})
+	// Reuse the installed official CLI and this required no-provider source
+	// entrypoint for bounded native emission/interpretation controls.
+	t.Run("foreign-goal-broadcast", TestNativeCodexForeignGoalBroadcast)
+	t.Run("recovered-exec-error", TestNativeCodexRecoveredExecRetry)
 }
 
 const goalParentCanary = "goal-parent-credential-canary"

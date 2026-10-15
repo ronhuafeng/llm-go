@@ -225,7 +225,11 @@ func (s *goalObservation) observe(_ context.Context, event protocolv2.ServerNoti
 	}
 	if value, ok := event.AsThreadGoalUpdated(); ok {
 		p := value.Params
-		if p.ThreadID != s.threadID || p.Goal.ThreadID != s.threadID {
+		// Goal updates are client-wide broadcasts, including child goals.
+		if p.ThreadID != s.threadID {
+			return nil
+		}
+		if p.Goal.ThreadID != s.threadID {
 			s.failure = "goal_identity_invalid"
 			return nil
 		}

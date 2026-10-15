@@ -33,6 +33,8 @@ type Config struct {
 type Result struct {
 	SessionID, Status, Diagnostic, FinalMessagePath string
 	ToolDiagnostic                                  string
+	// ErrorDiagnostic retains a bounded error observation, including recovery.
+	ErrorDiagnostic string
 }
 type Executor struct {
 	config Config
@@ -248,6 +250,7 @@ func (e *Executor) Run(ctx context.Context, prompt, sessionID string) (Result, e
 	_ = reader.Close()
 	result.SessionID = parsedResult.result.SessionID
 	result.ToolDiagnostic = parsedResult.result.ToolDiagnostic
+	result.ErrorDiagnostic = parsedResult.result.ErrorDiagnostic
 	if ctx.Err() != nil {
 		result.Status = "cancelled"
 		result.Diagnostic = "cancelled"
@@ -330,12 +333,12 @@ func parseEvents(r io.Reader, expected string) (Result, error) {
 	result := Result{Status: "failed", Diagnostic: "execution_failed"}
 	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 4096), 1024*1024)
-	started, completed, failed := false, false, false
+	started, turnStarted, completed, failed := false, false, false, false
 	for scanner.Scan() {
 		var event struct {
-			Type     string `json:"type"`
-			ThreadID string `json:"thread_id"`
-			Message  string `json:"message"`
+			Type     string  `json:"type"`
+			ThreadID string  `json:"thread_id"`
+			Message  *string `json:"message"`
 			Item     struct {
 				Type     string `json:"type"`
 				Status   string `json:"status"`
@@ -361,6 +364,14 @@ func parseEvents(r io.Reader, expected string) (Result, error) {
 				started = true
 				result.SessionID = event.ThreadID
 			}
+		case "turn.started":
+			// Nonterminal notifications may be dropped by official exec.
+			// Validate a start if received, but do not require its delivery.
+			if (!started || turnStarted || completed) && !failed {
+				failed = true
+				result.Diagnostic = "event_sequence_invalid"
+			}
+			turnStarted = true
 		case "item.completed":
 			if event.Item.Type == "command_execution" {
 				if event.Item.Status == "failed" || event.Item.Status == "declined" || (event.Item.ExitCode != nil && *event.Item.ExitCode != 0) {
@@ -386,9 +397,25 @@ func parseEvents(r io.Reader, expected string) (Result, error) {
 				result.Diagnostic = "event_sequence_invalid"
 			}
 			completed = true
-		case "turn.failed", "error":
+		case "error":
+			if event.Message == nil {
+				failed = true
+				result.Diagnostic = "event_decode_failed"
+				continue
+			}
+			// Official exec JSONL omits App Server willRetry. Retain the
+			// diagnostic, but only terminal/exit facts can decide recovery.
+			result.ErrorDiagnostic = classify(*event.Message)
 			if !failed {
-				result.Diagnostic = classify(event.Message + " " + event.Error.Message)
+				result.Diagnostic = result.ErrorDiagnostic
+				if !started || completed {
+					failed = true
+					result.Diagnostic = "event_sequence_invalid"
+				}
+			}
+		case "turn.failed":
+			if !failed {
+				result.Diagnostic = classify(event.Error.Message)
 			}
 			failed = true
 		}
