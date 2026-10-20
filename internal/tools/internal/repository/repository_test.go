@@ -1016,7 +1016,7 @@ func TestProtocolPublicationUsesRepositoryScopedApp(t *testing.T) {
 	if !ok {
 		t.Fatal("repository-scoped App identity missing")
 	}
-	for _, want := range []string{"actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1", "owner: ${{ github.repository_owner }}", "repositories: ${{ github.event.repository.name }}", "permission-contents: write", "permission-pull-requests: write"} {
+	for _, want := range []string{"actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510", "owner: ${{ github.repository_owner }}", "repositories: ${{ github.event.repository.name }}", "permission-contents: write", "permission-pull-requests: write"} {
 		if !strings.Contains(mint, want) {
 			t.Fatalf("App grant missing %s", want)
 		}
