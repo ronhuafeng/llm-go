@@ -216,6 +216,9 @@ func TestAutoForwardWorkflowOnlyFastForwardsVerifiedHead(t *testing.T) {
 	}
 	workflow := readWorkflow(t, root, "auto-forward.yml")
 	for _, want := range []string{
+		`test "\$remote_oid" = '${current_base}'`,
+		`test "\$local_oid" = '${HEAD_SHA}'`,
+		`test "\$count" -eq 1`,
 		"workflow_dispatch:",
 		"group: auto-forward-main",
 		"name: Verify auto-forwardable head",
@@ -225,7 +228,7 @@ func TestAutoForwardWorkflowOnlyFastForwardsVerifiedHead(t *testing.T) {
 		"AUTO_FORWARD_APP_CLIENT_ID",
 		"AUTO_FORWARD_APP_PRIVATE_KEY",
 		"permission-contents: write",
-		"git push origin",
+		`git -c core.hooksPath="${hooks}" push origin`,
 		"refs/heads/",
 		"main readback",
 		"Delete integrated head branch",

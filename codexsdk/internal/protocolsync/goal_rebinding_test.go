@@ -56,7 +56,7 @@ func TestResolveGoalRebindingUsesExactCommitMetadata(t *testing.T) {
 	if err := runGit(root, "add", "unrelated.txt"); err != nil {
 		t.Fatal(err)
 	}
-	if err := runGit(root, "commit", "-m", "unrelated main"); err != nil {
+	if err := runGit(root, "-c", "user.name=Protocol test", "-c", "user.email=protocol-test@example.invalid", "commit", "-m", "unrelated main"); err != nil {
 		t.Fatal(err)
 	}
 	current, err := gitOutput(root, "rev-parse", "HEAD")
@@ -83,7 +83,7 @@ func TestGoalRebindingChecksBothAcceptedBaselines(t *testing.T) {
 				if err := runGit(root, "add", "baseline-label"); err != nil {
 					t.Fatal(err)
 				}
-				if err := runGit(root, "commit", "-m", label); err != nil {
+				if err := runGit(root, "-c", "user.name=Protocol test", "-c", "user.email=protocol-test@example.invalid", "commit", "-m", label); err != nil {
 					t.Fatal(err)
 				}
 			}
