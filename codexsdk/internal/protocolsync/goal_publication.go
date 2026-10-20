@@ -22,10 +22,12 @@ type GoalPublicationRequest struct {
 	RepoRoot, Repository, Remote, BaseBranch, Branch, BaseSHA, ExpectedHead string
 	CandidateDir, SnapshotDigest                                            string
 	Number                                                                  int
-	AppBotID                                                                int64
-	Target                                                                  Target
-	API                                                                     PublicationAPI
-	Lookuper                                                                RemoteLookuper
+	// VerificationBaseSHA is M for one accepted-contract attempt; BaseSHA remains B.
+	VerificationBaseSHA string
+	AppBotID            int64
+	Target              Target
+	API                 PublicationAPI
+	Lookuper            RemoteLookuper
 	// PublicationToken obtains a fresh host-only token at the write boundary.
 	// The returned cleanup revokes it after that one Git operation.
 	PublicationToken func(context.Context) (string, func(), error)
@@ -175,7 +177,7 @@ func pushGoalDraft(ctx context.Context, r GoalPublicationRequest, head string) e
 }
 
 func goalBinding(r GoalPublicationRequest) error {
-	if r.API == nil || r.RepoRoot == "" || r.Number <= 0 || r.AppBotID <= 0 || !goalRepositoryPattern.MatchString(r.Repository) || !shaRE.MatchString(r.BaseSHA) || !shaRE.MatchString(r.ExpectedHead) || !shaRE.MatchString(r.Target.PeeledCommitSHA) {
+	if r.API == nil || r.RepoRoot == "" || r.Number <= 0 || r.AppBotID <= 0 || !goalRepositoryPattern.MatchString(r.Repository) || !shaRE.MatchString(r.BaseSHA) || !shaRE.MatchString(r.ExpectedHead) || !shaRE.MatchString(r.Target.PeeledCommitSHA) || (r.VerificationBaseSHA != "" && !shaRE.MatchString(r.VerificationBaseSHA)) {
 		return errors.New("incomplete trusted goal publication binding")
 	}
 	for _, ref := range []string{r.Branch, r.BaseBranch} {
@@ -234,7 +236,7 @@ func goalCurrent(ctx context.Context, r GoalPublicationRequest, head string) (re
 	}
 	// The PR head SHA can lag a confirmed push. Its fixed repository/ref identify
 	// the branch; the Git readback below owns its exact current head.
-	if pr.Number != r.Number || pr.State != "open" || !pr.Draft || pr.MergedAt != nil || pr.Head.Ref != r.Branch || pr.Head.Repo.FullName != r.Repository || pr.Base.Ref != r.BaseBranch || pr.Base.SHA != r.BaseSHA || pr.Base.Repo.FullName != r.Repository {
+	if pr.Number != r.Number || pr.State != "open" || !pr.Draft || pr.MergedAt != nil || pr.Head.Ref != r.Branch || pr.Head.Repo.FullName != r.Repository || pr.Base.Ref != r.BaseBranch || pr.Base.SHA != goalVerificationBase(r) || pr.Base.Repo.FullName != r.Repository {
 		return errors.New("draft PR identity changed")
 	}
 	if err := verifyAppActor(pr.User, r.AppBotID); err != nil {
@@ -245,8 +247,8 @@ func goalCurrent(ctx context.Context, r GoalPublicationRequest, head string) (re
 		return errors.New("draft PR head actor cannot be confirmed")
 	}
 	base, err := goalRemoteHead(ctx, r, r.BaseBranch)
-	if err != nil || base != r.BaseSHA {
-		return errors.New("main moved from bound base")
+	if err != nil || base != goalVerificationBase(r) {
+		return errors.New("main moved from verified accepted base")
 	}
 	actual, err := goalRemoteHead(ctx, r, r.Branch)
 	if err != nil || actual != head {
@@ -305,4 +307,11 @@ func ObserveGoalCI(ctx context.Context, req GoalPublicationRequest, head string,
 		case <-timer.C:
 		}
 	}
+}
+
+func goalVerificationBase(r GoalPublicationRequest) string {
+	if r.VerificationBaseSHA != "" {
+		return r.VerificationBaseSHA
+	}
+	return r.BaseSHA
 }

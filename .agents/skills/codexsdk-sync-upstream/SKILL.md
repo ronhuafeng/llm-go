@@ -52,7 +52,9 @@ alternative publication destination.
 
 The native workflow is deployed on main through PR #421. The operator reviews
 the complete prompt and authorizes the fixed-target run before launch. The
-target synchronization PR remains Draft, including after successful acceptance.
+target synchronization PR remains Draft throughout model execution. After trusted
+native completion and final acceptance, the controller may mark Ready and invoke
+existing Auto-forward; the model has no integration credentials or authority.
 
 The tool first freezes the current candidate, including intended untracked
 source, and runs the credential-free local checks in the existing isolation
@@ -98,7 +100,9 @@ publication and required-check decisions. Do not configure authentication, stage
 or commit in the proposal repository, push, mutate PRs or dispatch workflows
 yourself. Only the fixed
 verification tool may update the bound Draft PR after local checks pass. Keep
-that PR Draft. Do not merge, integrate or tag, even when all checks pass.
+that PR Draft while you work. Do not mark Ready, merge, integrate or tag, even
+when all checks pass. Successful native completion hands control back to the
+trusted workflow for its separately validated Ready and Auto-forward steps.
 
 Report a concrete blocked outcome for unavailable credentials/environment or an
 unresolved contract decision. Respect the supplied deadline; do not invent a new

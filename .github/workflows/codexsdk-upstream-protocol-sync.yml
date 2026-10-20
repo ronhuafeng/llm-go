@@ -239,6 +239,15 @@ jobs:
   sync:
     if: ${{ inputs.diagnostic_only != true && inputs.validation_only != true }}
     name: One native upstream goal
+    outputs:
+      pr_number: ${{ steps.ready.outputs.pr_number }}
+      expected_head: ${{ steps.ready.outputs.expected_head }}
+      verification_base: ${{ steps.ready.outputs.verification_base }}
+      original_base: ${{ steps.ready.outputs.original_base }}
+      target_ref: ${{ steps.ready.outputs.target_ref }}
+      target_kind: ${{ steps.ready.outputs.target_kind }}
+      target_sha: ${{ steps.ready.outputs.target_sha }}
+      deadline: ${{ steps.ready.outputs.deadline }}
     runs-on: ubuntu-latest
     timeout-minutes: 360
     permissions:
@@ -248,6 +257,7 @@ jobs:
       actions: read
     steps:
       - name: Require accepted main control
+        id: start
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
@@ -256,6 +266,7 @@ jobs:
           # Rerunning this job would allocate a new goal/deadline. Reconcile any
           # retained Draft binding explicitly instead of silently repeating it.
           test "${GITHUB_RUN_ATTEMPT}" = 1
+          echo "deadline=$(date -u -d '+350 minutes' +%Y-%m-%dT%H:%M:%SZ)" >> "${GITHUB_OUTPUT}"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
@@ -353,6 +364,7 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           CONTROL: ${{ steps.prepare.outputs.control }}
           CANDIDATE: ${{ steps.prepare.outputs.workspace }}
+          DEADLINE: ${{ steps.start.outputs.deadline }}
         run: |
           set -euo pipefail
           binding="${RUNNER_TEMP}/goal-binding.json"
@@ -365,7 +377,30 @@ jobs:
             -target-ref "$(jq -r .Target.RefName "${source}")" -target-kind "$(jq -r .Target.RefKind "${source}")" \
             -target-sha "$(jq -r .Target.PeeledCommitSHA "${source}")" \
             -candidate-dir "$(jq -r .CandidateDir "${source}")" -runtime-dirs "${RUNNER_TEMP}/goal-rust-tools" -timeout 300m \
+            -deadline "${DEADLINE}" -handoff-file "${RUNNER_TEMP}/goal-handoff.json" \
             > "${RUNNER_TEMP}/goal-result.json"
+      - name: Mint fresh Ready identity after trusted completion
+        id: ready_token
+        if: ${{ success() && steps.goal.outcome == 'success' }}
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.PROTOCOL_SYNC_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PROTOCOL_SYNC_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-pull-requests: write
+      - name: Revalidate accepted head and mark Ready
+        id: ready
+        if: ${{ success() && steps.goal.outcome == 'success' }}
+        env:
+          GH_TOKEN: ${{ steps.ready_token.outputs.token }}
+          GH_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CONTROL: ${{ steps.prepare.outputs.control }}
+        run: |
+          set -euo pipefail
+          "${CONTROL}" goal-ready -controller-root "${GITHUB_WORKSPACE}" \
+            -handoff-file "${RUNNER_TEMP}/goal-handoff.json" > "${RUNNER_TEMP}/goal-ready.json"
+          jq -r 'to_entries[] | select(.key == "pr_number" or .key == "expected_head" or .key == "original_base" or .key == "verification_base" or .key == "target_ref" or .key == "target_kind" or .key == "target_sha" or .key == "deadline") | "\(.key)=\(.value)"' "${RUNNER_TEMP}/goal-ready.json" >> "${GITHUB_OUTPUT}"
       - name: Preserve bounded goal evidence
         id: evidence
         if: ${{ always() }}
@@ -376,6 +411,8 @@ jobs:
             ${{ runner.temp }}/goal-source.json
             ${{ runner.temp }}/goal-binding.json
             ${{ runner.temp }}/goal-result.json
+            ${{ runner.temp }}/goal-handoff.json
+            ${{ runner.temp }}/goal-ready.json
             ${{ runner.temp }}/goal-diagnostics/*.jsonl
           if-no-files-found: warn
       - name: Summarize upstream goal outcome
@@ -398,3 +435,22 @@ jobs:
               echo "[Inspect setup steps](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})"
             } >> "${GITHUB_STEP_SUMMARY}"
           fi
+
+  integrate:
+    name: Integrate accepted native goal
+    needs: sync
+    if: ${{ needs.sync.result == 'success' && needs.sync.outputs.expected_head != '' }}
+    uses: ./.github/workflows/auto-forward.yml
+    with:
+      pr_number: ${{ fromJSON(needs.sync.outputs.pr_number) }}
+      expected_head: ${{ needs.sync.outputs.expected_head }}
+      verification_base: ${{ needs.sync.outputs.verification_base }}
+      original_base: ${{ needs.sync.outputs.original_base }}
+      target_ref: ${{ needs.sync.outputs.target_ref }}
+      target_kind: ${{ needs.sync.outputs.target_kind }}
+      target_sha: ${{ needs.sync.outputs.target_sha }}
+      deadline: ${{ needs.sync.outputs.deadline }}
+    secrets:
+      AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+      CODEX_RESPONSES_API_ENDPOINT: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
+      AUTO_FORWARD_APP_PRIVATE_KEY: ${{ secrets.AUTO_FORWARD_APP_PRIVATE_KEY }}

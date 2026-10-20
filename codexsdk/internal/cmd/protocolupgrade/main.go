@@ -23,6 +23,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	switch args[0] {
+	case "goal-integration-guard":
+		return runGoalIntegrationGuard(args[1:], stdout, stderr)
+	case "goal-ready":
+		return runGoalReady(args[1:], stdout, stderr)
 	case "goal-prepare":
 		return runGoalPrepare(args[1:], stdout, stderr)
 	case "goal":

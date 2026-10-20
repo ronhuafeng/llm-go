@@ -11,8 +11,10 @@ The native workflow is deployed on main through
 the actual target-upgrade acceptance are separate obligations in
 [#420](https://github.com/ronhuafeng/llm-go/issues/420). After review of the complete
 prompt and authorization of the fixed-target run, use the existing main entrypoint.
-The target synchronization PR remains Draft; a green workflow implementation
-does not establish a completed upgrade.
+The target synchronization PR remains Draft during the native goal. Only successful
+trusted completion and final exact-head acceptance permit the controller handoff
+to Ready and existing Auto-forward. A green workflow implementation alone does
+not establish a completed upgrade.
 
 ## One goal, one acceptance standard
 
@@ -101,8 +103,23 @@ Each later push obtains a fresh token with Contents write for this repository,
 then revokes it after the Git operation. The existing installation ID and App
 key stay in the trusted parent; a long goal does not reuse the one-hour seed
 token. Check/artifact observations use the read-only workflow identity. The separate
-Auto-forward App is not used by the goal. Neither the tool nor this workflow
-marks ready, merges, tags or releases.
+Auto-forward App is not used by the goal. The model and its verification tool
+never mark Ready or integrate. After successful command exit and runtime cleanup,
+the trusted launcher exports a minimal exact-head handoff. A fresh existing
+publication App token with Pull requests write marks that bound PR Ready after
+revalidating source, creator, head actor, remote branch, and all four latest CI
+contexts. Uncertain Ready responses receive one readback, not a repeated write.
+The same workflow then calls existing reusable Auto-forward with explicitly
+scoped secrets. The trusted integration controller may hold the integration App
+configuration and existing provider credentials. Any bounded repair uses the
+existing GoalFlow process isolation: the model sandbox receives only provider
+access, never App credentials, host process environments, or a host credential
+service. Effect tokens are minted and revoked by the trusted controller around
+validated writes. This FF-only foundation does not use provider credentials; the
+richer convergence controller owns repair. Publication credentials are not passed
+to Auto-forward.
+A deadline fixed at workflow start bounds the entire chain and is never reset
+after completion. No tags or releases are created.
 
 Native terminal-goal, idle-turn and observed-completed-turn conditions are all
 required. Blocked/paused/limit/cancellation/disconnect/cleanup errors cannot imply
@@ -274,8 +291,61 @@ the model cannot substitute the CI-only entrypoint to obtain host credentials.
 workflows. The latter rebuilds the checked-in exact source and never invokes an
 Agent, accepted-worktree Apply, commit, PR mutation, tag or release.
 
-Record actual base/target/head/PR/run and all four results. A stale base blocks
-publication or acceptance, and a late result cannot overwrite newer work.
-Current authorization stops at the verified Draft PR. Any future integration
-must use the normal protected exact-head fast-forward route described in
-[auto-forward.md](auto-forward.md), under separate applicable authorization.
+Record actual base/target/head/PR/run and all four results. A base moving during
+a verification attempt blocks that attempt; the same native goal can request
+fresh verification against current main while preserving original-baseline
+obligations. A late result cannot overwrite newer work. The trusted completion
+handoff uses the protected exact-head route in [auto-forward.md](auto-forward.md).
+Implementation tests do not authorize a production merge or establish rollout evidence.
+
+## Completion handoff and rollout evidence
+
+The success-only `goal-handoff.json` is written outside the model workspace after
+native status `complete`, final unchanged snapshot acceptance, successful exact-head
+checks and runtime cleanup. `goal-result.json` remains diagnostic output on both
+success and failure and is never itself authorization to mark Ready. Failed,
+blocked, cancelled, empty-seed, changed-head or changed-target results cannot
+produce a usable handoff. A repeated finalization of the same Ready head performs
+read-only reconciliation; it does not replay the mutation.
+
+Local mocked-API/isolated-Git fixtures prove these boundaries. A real production
+Ready → Auto-forward integration chain requires the reviewed workflow to land and
+an authorized upstream run; ordinary PR tests do not establish that rollout proof.
+
+## Rebinding a fixed target after main moves
+
+Original B, newly accepted main M, fixed upstream U and new candidate H′ remain
+separate identities. `ResolveGoalRebinding` reads immutable B/M baseline metadata
+and reuses the existing stable-target policy. Exact U already accepted is a no-op;
+a newer stable main supersedes U. Missing metadata, manual-track ambiguity,
+same-tag/different-SHA movement and downgrades fail closed.
+
+A controller constructing H′ must preserve U and pass both accepted checkouts:
+`BaseRoot=M` plus `OriginalBaseRoot=B` (`verify`/`verify-ci-gate` expose
+`-original-base-root`). The same provenance contract checker then executes both
+sets of immutable accepted regression obligations. Dropping tests from M cannot
+remove obligations promised at B, and B cannot hide new M regressions. This is
+additional input to the existing provenance gate, not another check context.
+Old H's results never certify H′; all four current exact-head CI contexts remain
+required after every candidate change. Classification alone never grants
+integration or claims either baseline's tests executed.
+
+During an active goal, each `verify_upstream` call refreshes an immutable accepted
+M checkout and evaluates its baseline against fixed U. If M advanced legitimately,
+local provenance checks both M and original B. The publication binding records M
+separately; moving main again invalidates that attempt and returns diagnostics to
+the same native goal. Neither the proposal nor B is silently rewritten. If main
+moves after native termination, final observation may hand off the unchanged
+accepted H/B/U only after monotonic-main and fixed-target policy checks. It does
+not claim the newer main contracts were verified on H. The handoff retains the
+last actually certified `verification_base`; integration must preserve its
+ancestry while obtaining current-main obligations on H′. A completed runtime is
+never resumed by this helper.
+
+The FF-only reusable foundation validates the inherited deadline, exact U at H,
+B/verified-M/current-M ancestry, and requires current main to equal the last
+actually verified baseline before writing main. A later M can still receive a
+legitimate completion/Ready handoff, but integration reports reconciliation
+required until the richer convergence implementation executes both immutable
+contract obligations and all four H′ checks. Branch cleanup also retains the
+same inherited deadline.

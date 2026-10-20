@@ -231,7 +231,7 @@ func TestAutoForwardWorkflowOnlyFastForwardsVerifiedHead(t *testing.T) {
 		"Delete integrated head branch",
 		"refusing to delete ref",
 		"another open PR still uses",
-		"git push origin --delete",
+		`git push origin --delete --force-with-lease="refs/heads/${HEAD_REF}:${HEAD_SHA}"`,
 	} {
 		if !strings.Contains(workflow, want) {
 			t.Fatalf("auto-forward workflow missing %q", want)
@@ -1107,6 +1107,36 @@ func TestCIGateLauncherPreservesNativeOwnerAndFailures(t *testing.T) {
 	for _, want := range []string{`"source", "generated", "provenance", "live"`, `"./codexsdk/internal/cmd/protocolupgrade", "verify-ci-gate"`, `"-gate", gate`, `"gate_launch_failure"`, `"passed": False`, "return status", "return status or 1", "path.parent == directory", "not path.is_symlink()"} {
 		if !strings.Contains(wrapper, want) {
 			t.Fatalf("CI gate launcher lost failure/identity boundary %q", want)
+		}
+	}
+}
+
+func TestCompletedNativeGoalHandoffKeepsCredentialAndAcceptanceBoundaries(t *testing.T) {
+	root, _ := filepath.Abs("../../../..")
+	workflow := readWorkflow(t, root, "codexsdk-upstream-protocol-sync.yml")
+	for _, want := range []string{"-handoff-file", "steps.goal.outcome == 'success'", "goal-ready", "permission-pull-requests: write", "uses: ./.github/workflows/auto-forward.yml", "expected_head:", "original_base:", "-deadline", "steps.start.outputs.deadline"} {
+		if !strings.Contains(workflow, want) {
+			t.Fatalf("trusted completion handoff missing %q", want)
+		}
+	}
+	if strings.Contains(workflow, "secrets: inherit") {
+		t.Fatal("handoff must explicitly scope integration secrets")
+	}
+	launcher := repositorySource(t, root, "codexsdk/internal/cmd/protocolupgrade/goal_command.go")
+	closeAt := strings.Index(launcher, "closeErr := executor.Close()")
+	handoffAt := strings.Index(launcher, "protocolsync.CompletedGoalHandoff(")
+	if closeAt < 0 || handoffAt < closeAt || !strings.Contains(launcher, "os.O_EXCL") {
+		t.Fatal("handoff must follow cleanup and exclusively create trusted output")
+	}
+	finalizer := repositorySource(t, root, "codexsdk/internal/protocolsync/goal_handoff.go")
+	for _, want := range []string{"checkacceptance.Observe", "goalRemoteHead", "publicationHeadActor", "decodeBaselineIdentity", "markPullRequestReadyForReview"} {
+		if !strings.Contains(finalizer, want) {
+			t.Fatalf("Ready missing native guard %q", want)
+		}
+	}
+	for _, bad := range []string{"git push", "workflow_dispatch", "mergePullRequest", "AutoForward"} {
+		if strings.Contains(finalizer, bad) {
+			t.Fatalf("Ready finalizer gained unrelated effect %q", bad)
 		}
 	}
 }

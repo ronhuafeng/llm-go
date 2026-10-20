@@ -21,7 +21,9 @@ import (
 // Gate means local source/generated/offline-provenance checks; Live belongs to CI. Diagnostics must live outside the candidate.
 type GoalVerifyRequest struct {
 	RepoRoot, DiagnosticDir, Gate, TrustedCacheRoot, BaseRoot, CandidateDir string
-	Progress                                                                *GoalProgress
+	// OriginalBaseRoot retains B when BaseRoot is rebound to current main M.
+	OriginalBaseRoot string
+	Progress         *GoalProgress
 }
 type GoalVerifyResult struct {
 	DiagnosticPath, SnapshotDigest, SnapshotRoot, Scope, Head string
@@ -1061,6 +1063,23 @@ type goalContractRunner func(context.Context, GoalContractRequest) error
 // The host chooses the accepted baseline and rebuilt official upstream facts.
 // Only sanitized disposable copies cross into candidate execution.
 func goalRunContracts(ctx context.Context, req GoalVerifyRequest, candidate, work string, log *goalDiagnostics, injected ...goalContractRunner) error {
+	if req.OriginalBaseRoot != "" && req.OriginalBaseRoot != req.BaseRoot {
+		original := req.OriginalBaseRoot
+		req.OriginalBaseRoot = ""
+		var failures []error
+		for i, base := range []string{req.BaseRoot, original} {
+			lane := filepath.Join(work, fmt.Sprintf("baseline-%d", i))
+			if err := os.MkdirAll(lane, 0700); err != nil {
+				return err
+			}
+			req.BaseRoot = base
+			if err := goalRunContracts(ctx, req, candidate, lane, log, injected...); err != nil {
+				failures = append(failures, fmt.Errorf("accepted baseline lane %d: %w", i, err))
+			}
+		}
+		return errors.Join(failures...)
+	}
+
 	root, err := filepath.Abs(req.RepoRoot)
 	if err != nil {
 		return err

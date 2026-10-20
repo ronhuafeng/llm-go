@@ -40,6 +40,8 @@ func runNativeGoal(args []string, stdout, stderr io.Writer) (code int) {
 	kind := flags.String("target-kind", "", "fixed upstream kind")
 	sha := flags.String("target-sha", "", "fixed upstream peeled SHA")
 	runtimeDirs := flags.String("runtime-dirs", "", "comma-separated exact trusted runtime directories")
+	deadlineText := flags.String("deadline", "", "UTC deadline fixed at workflow start")
+	handoffFile := flags.String("handoff-file", "", "trusted success-only handoff outside candidate")
 	duration := flags.Duration("timeout", 2*time.Hour, "finite native goal lifetime including verification")
 	if flags.Parse(args) != nil || flags.NArg() != 0 {
 		return 2
@@ -66,7 +68,17 @@ func runNativeGoal(args []string, stdout, stderr io.Writer) (code int) {
 	}()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	ctx, cancel := context.WithTimeout(ctx, *duration)
+	deadline := time.Now().Add(*duration)
+	if *deadlineText != "" {
+		fixed, err := time.Parse(time.RFC3339, *deadlineText)
+		if err != nil || !fixed.After(time.Now()) || fixed.After(time.Now().Add(6*time.Hour)) {
+			return fail("Invalid fixed workflow deadline")
+		}
+		if fixed.Before(deadline) {
+			deadline = fixed
+		}
+	}
+	ctx, cancel := context.WithDeadline(ctx, deadline)
 	defer cancel()
 	target := protocolsync.Target{RefName: *ref, RefKind: *kind, PeeledCommitSHA: *sha}
 	binding := protocolsync.GoalPublicationRequest{RepoRoot: *root, Repository: *repository, Remote: "origin", BaseBranch: *baseBranch, Branch: *branch, BaseSHA: *base, ExpectedHead: *head, Number: *number, AppBotID: *actor, Target: target, API: protocolsync.NewGoalAPI(ctx, *root)}
@@ -109,6 +121,26 @@ func runNativeGoal(args []string, stdout, stderr io.Writer) (code int) {
 	}
 	if runErr != nil || closeErr != nil {
 		return 1
+	}
+	if *handoffFile != "" {
+		deadline, _ := ctx.Deadline()
+		handoff, err := protocolsync.CompletedGoalHandoff(binding, result, deadline)
+		if err != nil {
+			return fail("Completed goal handoff validation failed")
+		}
+		data, err := json.Marshal(handoff)
+		if err != nil {
+			return fail("Cannot encode completed handoff")
+		}
+		file, err := os.OpenFile(*handoffFile, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+		if err != nil {
+			return fail("Cannot create exclusive completed handoff")
+		}
+		_, writeErr := file.Write(data)
+		closeErr := file.Close()
+		if writeErr != nil || closeErr != nil {
+			return fail("Completed handoff write failed")
+		}
 	}
 	return 0
 }

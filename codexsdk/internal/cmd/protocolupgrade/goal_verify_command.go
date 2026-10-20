@@ -22,6 +22,7 @@ func runGoalVerify(args []string, stdout, stderr io.Writer) int {
 	diagnostics := flags.String("diagnostic-dir", "", "controller-owned directory outside candidate")
 	cache := flags.String("trusted-cache-root", "", "launcher-prewarmed cache outside candidate")
 	base := flags.String("base-root", os.Getenv("LLMGO_GOAL_BASE_ROOT"), "accepted baseline checkout")
+	original := flags.String("original-base-root", "", "immutable original contract checkout when rebinding onto current base")
 	candidate := flags.String("candidate-dir", os.Getenv("LLMGO_GOAL_CANDIDATE_DIR"), "trusted freshly rebuilt upstream facts")
 	if err := flags.Parse(args); err != nil {
 		return 2
@@ -32,7 +33,7 @@ func runGoalVerify(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	result, err := protocolsync.VerifyGoal(ctx, protocolsync.GoalVerifyRequest{RepoRoot: *root, DiagnosticDir: *diagnostics, Gate: *gate, TrustedCacheRoot: *cache, BaseRoot: *base, CandidateDir: *candidate})
+	result, err := protocolsync.VerifyGoal(ctx, protocolsync.GoalVerifyRequest{RepoRoot: *root, DiagnosticDir: *diagnostics, Gate: *gate, TrustedCacheRoot: *cache, BaseRoot: *base, OriginalBaseRoot: *original, CandidateDir: *candidate})
 	defer result.Close()
 	if result.DiagnosticPath != "" {
 		fmt.Fprintln(stdout, result.DiagnosticPath)
@@ -70,6 +71,7 @@ func runCIGate(args []string, stdout, stderr io.Writer) int {
 	gate := flags.String("gate", "", "source, generated, provenance, or live")
 	dir := flags.String("diagnostic-dir", "", "diagnostics outside checkout")
 	base := flags.String("base-root", os.Getenv("LLMGO_GOAL_BASE_ROOT"), "exact accepted PR base checkout")
+	original := flags.String("original-base-root", "", "immutable original contract checkout when rebinding onto current base")
 	candidate := flags.String("candidate-dir", os.Getenv("LLMGO_GOAL_CANDIDATE_DIR"), "trusted freshly rebuilt upstream facts")
 	if err := flags.Parse(args); err != nil {
 		return 2
@@ -79,7 +81,7 @@ func runCIGate(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	result, err := protocolsync.VerifyCIGate(ctx, protocolsync.GoalVerifyRequest{RepoRoot: *root, Gate: *gate, DiagnosticDir: *dir, BaseRoot: *base, CandidateDir: *candidate})
+	result, err := protocolsync.VerifyCIGate(ctx, protocolsync.GoalVerifyRequest{RepoRoot: *root, Gate: *gate, DiagnosticDir: *dir, BaseRoot: *base, OriginalBaseRoot: *original, CandidateDir: *candidate})
 	if result.DiagnosticPath != "" {
 		fmt.Fprintln(stdout, result.DiagnosticPath)
 	}

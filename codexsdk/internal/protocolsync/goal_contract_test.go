@@ -109,6 +109,45 @@ func TestLiveRepairSandboxGoalContractsUseCandidateChecker(t *testing.T) {
 	if err := verify(); err != nil {
 		t.Fatalf("candidate checker: %v\n%s", err, diagnostics.String())
 	}
+	// Rebinding must retain both B's original assertion and a new assertion
+	// accepted on M. Candidate-owned test edits cannot remove either obligation.
+	current := filepath.Join(t.TempDir(), "current")
+	if _, err := goalSnapshot(context.Background(), base, current); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(current, "codexsdk/runtime_test.go")); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(current, "codexsdk/main_test.go"), "package codexsdk\nimport \"testing\"\nfunc TestCurrentMain(t *testing.T){if !NewMain(){t.Fatal(\"current main broken\")}}")
+	writeFile(t, filepath.Join(current, "codexsdk/main.go"), "package codexsdk\nfunc NewMain() bool{return true}\n")
+	if err := runGit(current, "add", "."); err != nil {
+		t.Fatal(err)
+	}
+	if err := runGit(current, "commit", "-m", "new main contract"); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(candidate, "codexsdk/main.go"), "package codexsdk\nfunc NewMain() bool{return true}\n")
+	rebound := func() error {
+		log, err := newGoalDiagnostics(t.TempDir())
+		if err != nil {
+			return err
+		}
+		defer log.file.Close()
+		return goalRunContracts(context.Background(), GoalVerifyRequest{RepoRoot: candidate, BaseRoot: current, OriginalBaseRoot: base, CandidateDir: upstream}, candidate, t.TempDir(), log)
+	}
+	if err := rebound(); err != nil {
+		t.Fatalf("legitimate rebinding: %v", err)
+	}
+	writeFile(t, filepath.Join(candidate, "codexsdk/main.go"), "package codexsdk\nfunc NewMain() bool{return false}\n")
+	if err := rebound(); err == nil || !strings.Contains(err.Error(), "current main broken") {
+		t.Fatalf("new main regression escaped: %v", err)
+	}
+	writeFile(t, filepath.Join(candidate, "codexsdk/main.go"), "package codexsdk\nfunc NewMain() bool{return true}\n")
+	writeFile(t, filepath.Join(candidate, "codexsdk/runtime.go"), "package codexsdk\nfunc Stable() bool{return false}\n")
+	if err := rebound(); err == nil || !strings.Contains(err.Error(), "baseline broken") {
+		t.Fatalf("original regression escaped rebinding: %v", err)
+	}
+	writeFile(t, filepath.Join(candidate, "codexsdk/runtime.go"), "package codexsdk\nfunc Stable() bool{return true}\n")
 	writeFile(t, filepath.Join(candidate, "codexsdk/protocolv2/runtime.go"), "package protocolv2\nfunc Wire() string{return `{}`}\n")
 	if err := verify(); err == nil || !strings.Contains(err.Error(), "missing target field") {
 		t.Fatalf("missing field escaped assertion: %v\n%s", err, diagnostics.String())

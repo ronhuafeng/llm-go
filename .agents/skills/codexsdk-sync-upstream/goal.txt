@@ -4,4 +4,4 @@
 
 调用提供的 verify_upstream 工具完成验收：它先执行无密钥本地检查，通过后只能正常更新已绑定的 Draft PR ${PR_URL} / 分支 ${BRANCH}，并等待该精确 head 的现有 CI（包括真实 Live）。读取工具返回的 JSONL 诊断文件，在这个 goal 内继续修复。不得绕过该入口自行操作 GitHub。
 
-保留无关改动，不更换目标或验收标准。只有本地检查及该最终 head 的四门 CI 都真实通过，才标记 complete 并简述改动、验证和 PR。不得合入；PR 保持 Draft。外部阻碍或必须由用户决定的契约冲突，报告具体证据并标记 blocked。
+保留无关改动，不更换目标或验收标准。只有本地检查及该最终 head 的四门 CI 都真实通过，才标记 complete 并简述改动、验证和 PR。不得自行标记 Ready 或合入；模型执行期间 PR 保持 Draft。成功 complete 后，由可信工作流独立验证并执行 Ready 和现有 Auto-forward；你不持有集成权限。外部阻碍或必须由用户决定的契约冲突，报告具体证据并标记 blocked。

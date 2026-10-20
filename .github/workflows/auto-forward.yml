@@ -2,6 +2,39 @@ name: Auto-forward PR
 run-name: "Auto-forward PR #${{ inputs.pr_number }}"
 
 on:
+  workflow_call:
+    inputs:
+      pr_number:
+        required: true
+        type: number
+      expected_head:
+        required: true
+        type: string
+      verification_base:
+        required: true
+        type: string
+      original_base:
+        required: true
+        type: string
+      target_ref:
+        required: true
+        type: string
+      target_kind:
+        required: true
+        type: string
+      target_sha:
+        required: true
+        type: string
+      deadline:
+        required: true
+        type: string
+    secrets:
+      AZURE_OPENAI_API_KEY:
+        required: false
+      CODEX_RESPONSES_API_ENDPOINT:
+        required: false
+      AUTO_FORWARD_APP_PRIVATE_KEY:
+        required: true
   workflow_dispatch:
     inputs:
       pr_number:
@@ -56,6 +89,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ inputs.pr_number }}
+          EXPECTED_HEAD: ${{ inputs.expected_head }}
+          VERIFICATION_BASE: ${{ inputs.verification_base }}
+          ORIGINAL_BASE: ${{ inputs.original_base }}
+          TARGET_REF: ${{ inputs.target_ref }}
+          TARGET_KIND: ${{ inputs.target_kind }}
+          TARGET_SHA: ${{ inputs.target_sha }}
+          DEADLINE: ${{ inputs.deadline }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           REPOSITORY: ${{ github.repository }}
         run: |
@@ -85,7 +125,18 @@ jobs:
             exit 1
           fi
 
+          if [[ -n "${EXPECTED_HEAD}" && "${head}" != "${EXPECTED_HEAD}" ]]; then
+            echo "PR head differs from trusted handoff" >&2
+            exit 1
+          fi
+
           git fetch --no-tags origin "${base}" "${head}"
+          if [[ -n "${EXPECTED_HEAD}" ]]; then
+            git fetch --no-tags origin "${ORIGINAL_BASE}" "${VERIFICATION_BASE}"
+            go run ./codexsdk/internal/cmd/protocolupgrade goal-integration-guard \
+              -original-base "${ORIGINAL_BASE}" -verification-base "${VERIFICATION_BASE}" -current-base "${base}" -expected-head "${head}" \
+              -target-ref "${TARGET_REF}" -target-kind "${TARGET_KIND}" -target-sha "${TARGET_SHA}" -deadline "${DEADLINE}"
+          fi
           if ! git merge-base --is-ancestor "${base}" "${head}"; then
             echo "PR #${PR_NUMBER} is stale: current main ${base} is not an ancestor of H ${head}" >&2
             exit 1
@@ -203,10 +254,24 @@ jobs:
           GH_TOKEN: ${{ steps.app_token.outputs.token }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           HEAD_SHA: ${{ needs.verify.outputs.head }}
+          HANDOFF_HEAD: ${{ inputs.expected_head }}
+          VERIFICATION_BASE: ${{ inputs.verification_base }}
+          ORIGINAL_BASE: ${{ inputs.original_base }}
+          TARGET_REF: ${{ inputs.target_ref }}
+          TARGET_KIND: ${{ inputs.target_kind }}
+          TARGET_SHA: ${{ inputs.target_sha }}
+          DEADLINE: ${{ inputs.deadline }}
         run: |
           set -euo pipefail
           gh auth setup-git
           git fetch --no-tags origin "${DEFAULT_BRANCH}" "${HEAD_SHA}"
+          if [[ -n "${HANDOFF_HEAD}" ]]; then
+            current_base="$(git ls-remote origin "refs/heads/${DEFAULT_BRANCH}" | awk '{print $1}')"
+            git fetch --no-tags origin "${ORIGINAL_BASE}" "${VERIFICATION_BASE}" "${current_base}"
+            go run ./codexsdk/internal/cmd/protocolupgrade goal-integration-guard \
+              -original-base "${ORIGINAL_BASE}" -verification-base "${VERIFICATION_BASE}" -current-base "${current_base}" -expected-head "${HEAD_SHA}" \
+              -target-ref "${TARGET_REF}" -target-kind "${TARGET_KIND}" -target-sha "${TARGET_SHA}" -deadline "${DEADLINE}"
+          fi
           git push origin "${HEAD_SHA}:refs/heads/${DEFAULT_BRANCH}"
           actual="$(git ls-remote origin "refs/heads/${DEFAULT_BRANCH}" | awk '{print $1}')"
           if [[ "${actual}" != "${HEAD_SHA}" ]]; then
@@ -225,6 +290,8 @@ jobs:
 
       - name: Delete integrated head branch
         env:
+          HANDOFF_HEAD: ${{ inputs.expected_head }}
+          DEADLINE: ${{ inputs.deadline }}
           APP_TOKEN: ${{ steps.app_token.outputs.token }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -279,7 +346,10 @@ jobs:
           fi
 
           GH_TOKEN="${APP_TOKEN}" gh auth setup-git
-          git push origin --delete "refs/heads/${HEAD_REF}"
+          if [[ -n "${HANDOFF_HEAD}" ]]; then
+            test "$(date -u +%s)" -lt "$(date -u -d "${DEADLINE}" +%s)"
+          fi
+          git push origin --delete --force-with-lease="refs/heads/${HEAD_REF}:${HEAD_SHA}" "refs/heads/${HEAD_REF}"
           left="$(git ls-remote "https://github.com/${REPOSITORY}.git" "refs/heads/${HEAD_REF}")"
           if [[ -n "${left}" ]]; then
             echo "head ref ${HEAD_REF} still exists after delete: ${left}" >&2

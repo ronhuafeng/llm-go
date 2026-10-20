@@ -29,6 +29,7 @@ type GoalFlowRequest struct {
 type GoalFlowResult struct {
 	ThreadID, Head, SnapshotDigest, DiagnosticPath string
 	NativeStatus                                   string
+	VerificationBaseSHA                            string
 	ChangedPaths                                   []string
 	Checks                                         checkacceptance.Observation
 	// Reporting facts, not a second acceptance state. Failure never includes the
@@ -39,14 +40,16 @@ type GoalFlowResult struct {
 // RunUpstreamGoal performs no client-authored repair turns. Every verification
 // and publication is requested by the same native goal, with immutable binding.
 func RunUpstreamGoal(ctx context.Context, req GoalFlowRequest, runner GoalRunner) (GoalFlowResult, error) {
-	return runUpstreamGoal(ctx, req, runner, goalFlowOperations{VerifyGoal, AppendGoalDraft, ObserveGoalCI, collectGoalCIDiagnostics})
+	return runUpstreamGoal(ctx, req, runner, goalFlowOperations{local: VerifyGoal, publish: AppendGoalDraft, observe: ObserveGoalCI, diagnostics: collectGoalCIDiagnostics, refresh: refreshGoalBase, finalObserve: observeCompletedGoalCI})
 }
 
 type goalFlowOperations struct {
-	local       func(context.Context, GoalVerifyRequest) (GoalVerifyResult, error)
-	publish     func(context.Context, GoalPublicationRequest) (GoalPublication, error)
-	observe     func(context.Context, GoalPublicationRequest, string, time.Duration) (checkacceptance.Observation, error)
-	diagnostics func(context.Context, GoalPublicationRequest, checkacceptance.Observation, *goalDiagnostics) error
+	finalObserve func(context.Context, GoalPublicationRequest, string, time.Duration) (checkacceptance.Observation, error)
+	refresh      func(context.Context, GoalVerifyRequest, GoalPublicationRequest) (GoalVerifyRequest, GoalPublicationRequest, func(), error)
+	local        func(context.Context, GoalVerifyRequest) (GoalVerifyResult, error)
+	publish      func(context.Context, GoalPublicationRequest) (GoalPublication, error)
+	observe      func(context.Context, GoalPublicationRequest, string, time.Duration) (checkacceptance.Observation, error)
+	diagnostics  func(context.Context, GoalPublicationRequest, checkacceptance.Observation, *goalDiagnostics) error
 }
 
 func runUpstreamGoal(ctx context.Context, req GoalFlowRequest, runner GoalRunner, op goalFlowOperations) (result GoalFlowResult, retErr error) {
@@ -91,7 +94,26 @@ func runUpstreamGoal(ctx context.Context, req GoalFlowRequest, runner GoalRunner
 			req.Progress.end()
 			req.Progress.line("Verification returned to the same native goal")
 		}()
-		local, e := op.local(call, req.Local)
+		localRequest := req.Local
+		if op.refresh != nil {
+			refreshedLocal, refreshedBinding, cleanup, refreshErr := op.refresh(call, localRequest, binding)
+			if refreshErr != nil {
+				result.Failure = "Current main cannot be rebound to the fixed goal target"
+				log, logErr := newGoalDiagnostics(req.Local.DiagnosticDir)
+				if logErr != nil {
+					return "", logErr
+				}
+				log.record("accepted_base", "", map[string]any{"passed": false, "error": goalError(refreshErr)})
+				closeErr := log.file.Close()
+				if log.err != nil || closeErr != nil {
+					return "", errors.New("accepted-base diagnostics incomplete")
+				}
+				return log.file.Name(), refreshErr
+			}
+			defer cleanup()
+			localRequest, binding = refreshedLocal, refreshedBinding
+		}
+		local, e := op.local(call, localRequest)
 		defer func() {
 			if cleanupErr := local.Close(); cleanupErr != nil {
 				accepted = false
@@ -172,6 +194,7 @@ func runUpstreamGoal(ctx context.Context, req GoalFlowRequest, runner GoalRunner
 		path, e = finish(nil)
 		accepted = e == nil
 		if accepted {
+			result.VerificationBaseSHA = goalVerificationBase(binding)
 			req.Progress.line("Verification passed for the published snapshot; native goal completion is still required")
 		}
 		return path, e
@@ -202,7 +225,11 @@ func runUpstreamGoal(ctx context.Context, req GoalFlowRequest, runner GoalRunner
 		return result, errors.New("candidate changed after accepted verification")
 	}
 	finalBinding := binding
-	observation, err := op.observe(ctx, finalBinding, result.Head, 30*time.Second)
+	finalObserve := op.finalObserve
+	if finalObserve == nil {
+		finalObserve = op.observe
+	}
+	observation, err := finalObserve(ctx, finalBinding, result.Head, 30*time.Second)
 	result.Checks = observation
 	if err != nil || observation.State != checkacceptance.Succeeded {
 		result.Failure = "Final exact-head CI observation is not successful"
