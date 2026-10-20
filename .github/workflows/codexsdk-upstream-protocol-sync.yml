@@ -2,6 +2,8 @@ name: Codex Upstream Protocol Sync
 run-name: "Native upstream goal ${{ inputs.upstream_ref || 'latest stable' }}"
 
 on:
+  schedule:
+    - cron: '0 10 * * 1-5'
   workflow_dispatch:
     inputs:
       upstream_ref:
@@ -276,7 +278,36 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
+      - name: Select target and avoid duplicate upstream goals
+        id: preflight
+        env:
+          REQUESTED_REF: ${{ inputs.upstream_ref || '' }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          APP_BOT_ID: ${{ vars.PROTOCOL_SYNC_APP_BOT_ID }}
+          GH_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOTOOLCHAIN: local
+        run: |
+          set -euo pipefail
+          control="${RUNNER_TEMP}/protocolupgrade"
+          go build -o "${control}" ./codexsdk/internal/cmd/protocolupgrade
+          args=(goal-preflight -controller-root "${GITHUB_WORKSPACE}"
+            -repository "${GITHUB_REPOSITORY}" -base-branch "${DEFAULT_BRANCH}"
+            -base-sha "${GITHUB_SHA}" -app-bot-id "${APP_BOT_ID}")
+          if [[ -n "${REQUESTED_REF}" ]]; then args+=(-upstream-ref "${REQUESTED_REF}"); fi
+          "${control}" "${args[@]}" > "${RUNNER_TEMP}/goal-preflight.json"
+          outcome="$(jq -er '.Outcome | select(. == "run" or . == "skip")' "${RUNNER_TEMP}/goal-preflight.json")"
+          echo "outcome=${outcome}" >> "${GITHUB_OUTPUT}"
+      - name: Summarize skipped upstream goal
+        if: ${{ steps.preflight.outputs.outcome == 'skip' }}
+        run: |
+          {
+            echo '## Upstream goal not started'
+            jq -r '.Reason, ("Selected target: " + .Target.RefName + " (" + .Target.PeeledCommitSHA + ")"),
+              (if .ExistingPRURL != "" then "Existing PR: " + .ExistingPRURL else empty end)' "${RUNNER_TEMP}/goal-preflight.json"
+            echo 'No schema build, model goal, or publication was invoked.'
+          } >> "${GITHUB_STEP_SUMMARY}"
       - name: Provision native build and sandbox prerequisites
+        if: ${{ steps.preflight.outputs.outcome == 'run' }}
         id: sandbox_host
         env:
           HOSTED_ENVIRONMENT: ${{ runner.environment }}
@@ -288,20 +319,28 @@ jobs:
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           rustup default stable
       - name: Set up official Codex latest once
+        if: ${{ steps.preflight.outputs.outcome == 'run' }}
         id: runtime
         uses: ./.github/actions/setup-codex
       - name: Build trusted launcher and warm exact source inputs
+        if: ${{ steps.preflight.outputs.outcome == 'run' }}
         id: prepare
         env:
-          REQUESTED_REF: ${{ inputs.upstream_ref }}
           GOTOOLCHAIN: local
         run: |
           set -euo pipefail
           control="${RUNNER_TEMP}/protocolupgrade"
-          go build -o "${control}" ./codexsdk/internal/cmd/protocolupgrade
-          args=(diagnose -repo-root "${GITHUB_WORKSPACE}" -module-root "${GITHUB_WORKSPACE}/codexsdk" -event-name workflow_dispatch -json)
-          if [[ -n "${REQUESTED_REF}" ]]; then args+=(-upstream-ref "${REQUESTED_REF}"); fi
+          selected="${RUNNER_TEMP}/goal-preflight.json"
+          args=(diagnose -repo-root "${GITHUB_WORKSPACE}" -module-root "${GITHUB_WORKSPACE}/codexsdk"
+            -event-name "${GITHUB_EVENT_NAME}" -upstream-ref "$(jq -er .Target.RefName "${selected}")" -json)
           "${control}" "${args[@]}" > "${RUNNER_TEMP}/goal-source.json"
+          # A moved tag/ref must not silently change this run's selected target.
+          jq -e --slurpfile selected "${selected}" '
+            .Target as $actual | $selected[0].Target as $expected |
+            $actual.RefName == $expected.RefName and
+            $actual.RefKind == $expected.RefKind and
+            $actual.PeeledCommitSHA == $expected.PeeledCommitSHA
+          ' "${RUNNER_TEMP}/goal-source.json" > /dev/null
           target_ref="$(jq -r .Target.RefName "${RUNNER_TEMP}/goal-source.json")"
           target_kind="$(jq -r .Target.RefKind "${RUNNER_TEMP}/goal-source.json")"
           if [[ "${target_kind}" == stable_rust_tag ]]; then
@@ -323,6 +362,7 @@ jobs:
           echo "control=${control}" >> "${GITHUB_OUTPUT}"
           echo "workspace=${workspace}" >> "${GITHUB_OUTPUT}"
       - name: Mint existing repository-scoped publication identity
+        if: ${{ steps.preflight.outputs.outcome == 'run' }}
         id: app_token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
@@ -333,6 +373,7 @@ jobs:
           permission-contents: write
           permission-pull-requests: write
       - name: Prepare and bind one Draft PR
+        if: ${{ steps.preflight.outputs.outcome == 'run' }}
         id: draft
         env:
           GH_TOKEN: ${{ steps.app_token.outputs.token }}
@@ -351,6 +392,7 @@ jobs:
             -target-sha "$(jq -r .Target.PeeledCommitSHA "${RUNNER_TEMP}/goal-source.json")" \
             > "${RUNNER_TEMP}/goal-binding.json"
       - name: Run the complete goal with its fixed verification tool
+        if: ${{ steps.preflight.outputs.outcome == 'run' }}
         id: goal
         env:
           GH_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -403,11 +445,12 @@ jobs:
           jq -r 'to_entries[] | select(.key == "pr_number" or .key == "expected_head" or .key == "original_base" or .key == "verification_base" or .key == "target_ref" or .key == "target_kind" or .key == "target_sha" or .key == "deadline") | "\(.key)=\(.value)"' "${RUNNER_TEMP}/goal-ready.json" >> "${GITHUB_OUTPUT}"
       - name: Preserve bounded goal evidence
         id: evidence
-        if: ${{ always() }}
+        if: ${{ always() && steps.preflight.outputs.outcome != 'skip' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: protocol-native-goal-${{ github.run_attempt }}
           path: |
+            ${{ runner.temp }}/goal-preflight.json
             ${{ runner.temp }}/goal-source.json
             ${{ runner.temp }}/goal-binding.json
             ${{ runner.temp }}/goal-result.json
@@ -416,7 +459,7 @@ jobs:
             ${{ runner.temp }}/goal-diagnostics/*.jsonl
           if-no-files-found: warn
       - name: Summarize upstream goal outcome
-        if: ${{ always() }}
+        if: ${{ always() && steps.preflight.outputs.outcome != 'skip' }}
         env:
           GOAL_OUTCOME: ${{ steps.goal.outcome }}
           ARTIFACT_ID: ${{ steps.evidence.outputs.artifact-id || '0' }}

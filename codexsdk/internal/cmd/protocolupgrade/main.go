@@ -19,7 +19,7 @@ func main() {
 
 func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "protocolupgrade: command is required: goal-prepare, goal, goal-summary, sync, diagnose, verify, verify-ci-gate, verify-provenance-offline, verify-candidate, compare, apply, check, scope, stage, or publish\n")
+		fmt.Fprintf(stderr, "protocolupgrade: command is required: goal-preflight, goal-prepare, goal, goal-summary, sync, diagnose, verify, verify-ci-gate, verify-provenance-offline, verify-candidate, compare, apply, check, scope, stage, or publish\n")
 		return 2
 	}
 	switch args[0] {
@@ -27,6 +27,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runGoalIntegrationGuard(args[1:], stdout, stderr)
 	case "goal-ready":
 		return runGoalReady(args[1:], stdout, stderr)
+	case "goal-preflight":
+		return runGoalPreflight(args[1:], stdout, stderr)
 	case "goal-prepare":
 		return runGoalPrepare(args[1:], stdout, stderr)
 	case "goal":

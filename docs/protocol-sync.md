@@ -16,6 +16,20 @@ trusted completion and final exact-head acceptance permit the controller handoff
 to Ready and existing Auto-forward. A green workflow implementation alone does
 not establish a completed upgrade.
 
+## Scheduled detection
+
+The accepted main workflow checks upstream on weekdays at 10:00 UTC and keeps
+its manual entrypoint. Before schema builds, Codex setup, or App-token creation,
+a read-only native preflight resolves the latest stable tag and peeled commit
+(or the explicit manual target). It skips an already accepted commit and an
+existing trusted open native sync PR. Repository, base, publishing App identity,
+and branch identity must be valid; unknown API results fail closed.
+
+Each new goal retains that selected target. Preparation checks that generation
+resolved the same ref, kind, and commit before publication. Detection never
+resumes an old goal, resets its deadline, marks a PR ready, or integrates it.
+A skipped or blocked detection is not an upstream acceptance result.
+
 ## One goal, one acceptance standard
 
 The trusted launcher fixes the accepted base, exact upstream ref/peeled SHA,
