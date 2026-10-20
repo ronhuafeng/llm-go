@@ -43,7 +43,7 @@ newline delimiter.
 
 ## Turn completion and partial snapshots
 
-At the selected Codex 0.162.1 source, [`turn/start`](https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/app-server/src/request_processors/turn_processor.rs#L652-L725)
+At the selected Codex 0.163.0 source, [`turn/start`](https://github.com/openai/codex/blob/83086188ae0614bd882818ff1aa23f3194962012/codex-rs/app-server/src/request_processors/turn_processor.rs#L661-L734)
 returns an `inProgress` Turn with empty items, including when input steers an
 existing turn. `turn/steer` returns a turn ID. Normal Exact Run completion comes
 from the matching `turn/completed` notification, whose status is `completed`,
@@ -75,7 +75,7 @@ turn. Failure to write the rejection is a client-global transport failure.
 After successful decoding, application-handler failures retain their existing
 typed, correlated Exact Run failure semantics.
 
-In Codex 0.162.1, a failed dynamic-tool RPC can become a failed tool result while
+In Codex 0.163.0, a failed dynamic-tool RPC can become a failed tool result while
 the model continues and the overall turn completes. These are compatible facts,
 not an automatic false success. Applications can observe emitted tool results
 through `ClientOptions.ServerNotificationHandler`: use `AsItemCompleted()` and
@@ -89,7 +89,7 @@ not server requests. Upstream may translate an RPC error into a generic tool
 failure before it reaches Core, so neither these notifications nor saved session
 files guarantee the original SDK rejection code or decode reason. Applications
 own whether observed tool failure is acceptable for their task. See the selected
-[dynamic-tool error handling](https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/app-server/src/dynamic_tools.rs#L18-L57).
+[dynamic-tool error handling](https://github.com/openai/codex/blob/83086188ae0614bd882818ff1aa23f3194962012/codex-rs/app-server/src/dynamic_tools.rs#L18-L57).
 
 ## Startup and shutdown deadlines
 

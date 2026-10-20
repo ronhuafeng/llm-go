@@ -1330,6 +1330,14 @@ func (f Threads) ItemsList(ctx context.Context, params protocolv2.ThreadItemsLis
 	return response, nil
 }
 
+func (f Threads) ItemsRead(ctx context.Context, params protocolv2.ThreadItemsReadParams) (protocolv2.ThreadItemsReadResponse, error) {
+	var response protocolv2.ThreadItemsReadResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadItemsRead, params, &response); err != nil {
+		return protocolv2.ThreadItemsReadResponse{}, err
+	}
+	return response, nil
+}
+
 func (f Threads) List(ctx context.Context, params protocolv2.ThreadListParams) (protocolv2.ThreadListResponse, error) {
 	var response protocolv2.ThreadListResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadList, params, &response); err != nil {
@@ -1430,6 +1438,14 @@ func (f Threads) Read(ctx context.Context, params protocolv2.ThreadReadParams) (
 	var response protocolv2.ThreadReadResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadRead, params, &response); err != nil {
 		return protocolv2.ThreadReadResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Threads) ReadStateUpdate(ctx context.Context, params protocolv2.ThreadReadStateUpdateParams) (protocolv2.ThreadReadStateUpdateResponse, error) {
+	var response protocolv2.ThreadReadStateUpdateResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadReadStateUpdate, params, &response); err != nil {
+		return protocolv2.ThreadReadStateUpdateResponse{}, err
 	}
 	return response, nil
 }

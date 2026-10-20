@@ -3,6 +3,7 @@ package codexsdk
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -426,7 +427,10 @@ func TestLifecycleCombinedIsolatedClientsRawReplayAndHighVolume(t *testing.T) {
 				return
 			}
 			defer c.Close()
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			// This checks complete high-volume replay, not throughput. Race
+			// instrumentation and concurrent repository tests can exhaust a
+			// short wall-clock budget even after all 1,282 observations arrive.
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			defer cancel()
 			facts, err := c.call(ctx, "fixture/environment", nil)
 			if err != nil {
@@ -458,7 +462,7 @@ func TestLifecycleCombinedIsolatedClientsRawReplayAndHighVolume(t *testing.T) {
 			}
 			result, err := c.ThreadRunner().Start(ctx, StartThreadRunRequest{Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}}})
 			if err != nil || result.Start.Thread.ID != identity || result.Run.Turn.ID != "turn-"+identity || result.Run.Turn.Status != protocolv2.TurnStatusCompleted || len(result.Run.Notifications) != 1282 {
-				failures <- "combined replay/history failed"
+				failures <- fmt.Sprintf("combined replay/history failed: err=%v thread_match=%t turn_match=%t status=%s notifications=%d", err, result.Start.Thread.ID == identity, result.Run.Turn.ID == "turn-"+identity, result.Run.Turn.Status, len(result.Run.Notifications))
 				return
 			}
 			callbackMu.Lock()

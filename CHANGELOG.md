@@ -13,6 +13,11 @@ changes may occur in minor releases.
 
 #### Added
 
+- Synchronize the App Server protocol with Codex `rust-v0.163.0`
+  (`83086188ae0614bd882818ff1aa23f3194962012`), adding thread item reads,
+  revision-guarded read-state updates and notifications, read-state projections,
+  output retention, and expanded realtime voice options.
+
 - Show native upstream goal progress in GitHub Actions log groups, report
   terminal failures as annotations, and link retained PR/CI results and evidence
   from the run summary without changing the single-goal acceptance flow.

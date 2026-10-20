@@ -221,6 +221,10 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"id":     {},
 		"params": {},
 	},
+	"ClientRequestThreadItemsRead": {
+		"id":     {},
+		"params": {},
+	},
 	"ClientRequestThreadMemoryModeSet": {
 		"id":     {},
 		"params": {},
@@ -250,6 +254,10 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"params": {},
 	},
 	"ClientRequestThreadQueueUpdate": {
+		"id":     {},
+		"params": {},
+	},
+	"ClientRequestThreadReadStateUpdate": {
 		"id":     {},
 		"params": {},
 	},
@@ -376,7 +384,9 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"text": {},
 	},
 	"ContentItemOutputText": {
-		"text": {},
+		"annotations": {},
+		"logprobs":    {},
+		"text":        {},
 	},
 	"CurrentTimeReadParams": {
 		"threadId": {},
@@ -402,11 +412,12 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"tools":       {},
 	},
 	"EnvironmentAddParams": {
-		"authBearerToken":  {},
-		"connectTimeoutMs": {},
-		"environmentId":    {},
-		"execServerUrl":    {},
-		"skills":           {},
+		"authBearerToken":    {},
+		"connectTimeoutMs":   {},
+		"environmentId":      {},
+		"execServerUrl":      {},
+		"skills":             {},
+		"websocketRequestId": {},
 	},
 	"EnvironmentInfoParams": {
 		"environmentId": {},
@@ -635,6 +646,7 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"defaultV2": {},
 		"v1":        {},
 		"v2":        {},
+		"v3":        {},
 	},
 	"ReasoningItemContentReasoningText": {
 		"text": {},
@@ -735,9 +747,10 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"internal_chat_message_metadata_passthrough": {},
 	},
 	"ResponseItemCustomToolCall": {
-		"call_id": {},
-		"id":      {},
-		"input":   {},
+		"call_id":           {},
+		"encrypted_content": {},
+		"id":                {},
+		"input":             {},
 		"internal_chat_message_metadata_passthrough": {},
 		"name":      {},
 		"namespace": {},
@@ -753,11 +766,13 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 	"ResponseItemFunctionCall": {
 		"arguments":               {},
 		"call_id":                 {},
+		"encrypted_content":       {},
 		"encrypted_function_args": {},
 		"id":                      {},
 		"internal_chat_message_metadata_passthrough": {},
 		"name":      {},
 		"namespace": {},
+		"status":    {},
 	},
 	"ResponseItemFunctionCallOutput": {
 		"call_id": {},
@@ -768,25 +783,29 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"output":    {},
 	},
 	"ResponseItemImageGenerationCall": {
-		"id": {},
+		"encrypted_content": {},
+		"id":                {},
 		"internal_chat_message_metadata_passthrough": {},
 		"result":         {},
 		"revised_prompt": {},
 		"status":         {},
 	},
 	"ResponseItemLocalShellCall": {
-		"action":  {},
-		"call_id": {},
-		"id":      {},
+		"action":            {},
+		"call_id":           {},
+		"encrypted_content": {},
+		"id":                {},
 		"internal_chat_message_metadata_passthrough": {},
 		"status": {},
 	},
 	"ResponseItemMessage": {
-		"content": {},
-		"id":      {},
+		"content":           {},
+		"encrypted_content": {},
+		"id":                {},
 		"internal_chat_message_metadata_passthrough": {},
-		"phase": {},
-		"role":  {},
+		"phase":  {},
+		"role":   {},
+		"status": {},
 	},
 	"ResponseItemReasoning": {
 		"content":           {},
@@ -796,10 +815,11 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"summary": {},
 	},
 	"ResponseItemToolSearchCall": {
-		"arguments": {},
-		"call_id":   {},
-		"execution": {},
-		"id":        {},
+		"arguments":         {},
+		"call_id":           {},
+		"encrypted_content": {},
+		"execution":         {},
+		"id":                {},
 		"internal_chat_message_metadata_passthrough": {},
 		"status": {},
 	},
@@ -812,8 +832,9 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"tools":  {},
 	},
 	"ResponseItemWebSearchCall": {
-		"action": {},
-		"id":     {},
+		"action":            {},
+		"encrypted_content": {},
+		"id":                {},
 		"internal_chat_message_metadata_passthrough": {},
 		"status": {},
 	},
@@ -896,11 +917,12 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"runtimeWorkspaceRoots": {},
 	},
 	"ThreadForkParams": {
-		"beforeTurnId":          {},
-		"deferGoalContinuation": {},
-		"path":                  {},
-		"permissions":           {},
-		"runtimeWorkspaceRoots": {},
+		"beforeTurnId":               {},
+		"deferGoalContinuation":      {},
+		"experimentalPredictionMode": {},
+		"path":                       {},
+		"permissions":                {},
+		"runtimeWorkspaceRoots":      {},
 	},
 	"ThreadForkResponse": {
 		"activePermissionProfile": {},
@@ -914,10 +936,21 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"count":  {},
 		"paused": {},
 	},
+	"ThreadItemsReadParams": {
+		"itemIds":  {},
+		"threadId": {},
+		"turnId":   {},
+	},
+	"ThreadItemsReadResponse": {
+		"data": {},
+	},
 	"ThreadListParams": {
 		"ancestorThreadId": {},
 		"parentThreadId":   {},
 		"projectId":        {},
+	},
+	"ThreadListResponse": {
+		"readStates": {},
 	},
 	"ThreadMemoryModeSetParams": {
 		"mode":     {},
@@ -973,6 +1006,17 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 	},
 	"ThreadQueueUpdateResponse": {
 		"queuedSubmission": {},
+	},
+	"ThreadReadResponse": {
+		"readState": {},
+	},
+	"ThreadReadStateUpdateParams": {
+		"expectedRevision": {},
+		"operation":        {},
+		"threadId":         {},
+	},
+	"ThreadReadStateUpdateResponse": {
+		"readState": {},
 	},
 	"ThreadRealtimeAppendAudioParams": {
 		"audio":    {},
@@ -1330,6 +1374,7 @@ var ExperimentalUnionValues = map[string]map[string]struct{}{
 		"thread/backgroundTerminals/terminate":      {},
 		"thread/decrement_elicitation":              {},
 		"thread/increment_elicitation":              {},
+		"thread/items/read":                         {},
 		"thread/memoryMode/set":                     {},
 		"thread/prediction/request":                 {},
 		"thread/queue/add":                          {},
@@ -1338,6 +1383,7 @@ var ExperimentalUnionValues = map[string]map[string]struct{}{
 		"thread/queue/reorder":                      {},
 		"thread/queue/start":                        {},
 		"thread/queue/update":                       {},
+		"thread/readState/update":                   {},
 		"thread/realtime/appendAudio":               {},
 		"thread/realtime/appendSpeech":              {},
 		"thread/realtime/appendText":                {},
@@ -1431,22 +1477,38 @@ var ExperimentalUnionValues = map[string]map[string]struct{}{
 		"alloy":   {},
 		"arbor":   {},
 		"ash":     {},
+		"aube":    {},
 		"ballad":  {},
 		"breeze":  {},
+		"bubbie":  {},
 		"cedar":   {},
 		"coral":   {},
 		"cove":    {},
 		"echo":    {},
 		"ember":   {},
+		"haetsal": {},
+		"hanul":   {},
+		"himari":  {},
 		"juniper": {},
+		"leher":   {},
 		"maple":   {},
 		"marin":   {},
+		"miko":    {},
+		"neer":    {},
+		"porto":   {},
+		"rindo":   {},
+		"rio":     {},
+		"rivage":  {},
 		"sage":    {},
+		"selva":   {},
 		"shimmer": {},
 		"sol":     {},
+		"sonna":   {},
 		"spruce":  {},
+		"tinta":   {},
 		"vale":    {},
 		"verse":   {},
+		"viola":   {},
 	},
 	"ReasoningItemContent": {
 		"reasoning_text": {},
@@ -1491,6 +1553,10 @@ var ExperimentalUnionValues = map[string]map[string]struct{}{
 	"ThreadMemoryMode": {
 		"disabled": {},
 		"enabled":  {},
+	},
+	"ThreadReadStateOperation": {
+		"read":   {},
+		"unread": {},
 	},
 	"ThreadRealtimeBemItemPresentation": {
 		"inlineMarkdown":      {},
@@ -2147,6 +2213,10 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"id":     "RequestId",
 		"params": "ThreadItemsListParams",
 	},
+	"ClientRequestThreadItemsRead": {
+		"id":     "RequestId",
+		"params": "ThreadItemsReadParams",
+	},
 	"ClientRequestThreadList": {
 		"id":     "RequestId",
 		"params": "ThreadListParams",
@@ -2198,6 +2268,10 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"ClientRequestThreadRead": {
 		"id":     "RequestId",
 		"params": "ThreadReadParams",
+	},
+	"ClientRequestThreadReadStateUpdate": {
+		"id":     "RequestId",
+		"params": "ThreadReadStateUpdateParams",
 	},
 	"ClientRequestThreadRealtimeAppendAudio": {
 		"id":     "RequestId",
@@ -2971,6 +3045,7 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"defaultV2": "RealtimeVoice",
 		"v1":        "RealtimeVoice",
 		"v2":        "RealtimeVoice",
+		"v3":        "RealtimeVoice",
 	},
 	"ReasoningEffortOption": {
 		"reasoningEffort": "ReasoningEffort",
@@ -3264,6 +3339,9 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"ServerNotificationThreadQueueChanged": {
 		"params": "ThreadQueueChangedNotification",
 	},
+	"ServerNotificationThreadReadStateChanged": {
+		"params": "ThreadReadStateChangedNotification",
+	},
 	"ServerNotificationThreadRealtimeClosed": {
 		"params": "ThreadRealtimeClosedNotification",
 	},
@@ -3540,6 +3618,9 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"ThreadItemsListResponse": {
 		"data": "ThreadItemEntry",
 	},
+	"ThreadItemsReadResponse": {
+		"data": "ThreadItemEntry",
+	},
 	"ThreadListParams": {
 		"cwd":           "ThreadListCwdFilter",
 		"sortDirection": "SortDirection",
@@ -3547,7 +3628,8 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"sourceKinds":   "ThreadSourceKind",
 	},
 	"ThreadListResponse": {
-		"data": "Thread",
+		"data":       "Thread",
+		"readStates": "ThreadReadState",
 	},
 	"ThreadMemoryModeSetParams": {
 		"mode": "ThreadMemoryMode",
@@ -3580,7 +3662,20 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"queuedSubmission": "QueuedSubmission",
 	},
 	"ThreadReadResponse": {
-		"thread": "Thread",
+		"readState": "ThreadReadState",
+		"thread":    "Thread",
+	},
+	"ThreadReadState": {
+		"firstUnread": "ThreadUnreadPosition",
+	},
+	"ThreadReadStateChangedNotification": {
+		"readState": "ThreadReadState",
+	},
+	"ThreadReadStateUpdateParams": {
+		"operation": "ThreadReadStateOperation",
+	},
+	"ThreadReadStateUpdateResponse": {
+		"readState": "ThreadReadState",
 	},
 	"ThreadRealtimeAppendAudioParams": {
 		"audio": "ThreadRealtimeAudioChunk",

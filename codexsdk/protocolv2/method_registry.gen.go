@@ -233,6 +233,7 @@ const (
 	MethodThreadIncrementElicitation              = "thread/increment_elicitation"
 	MethodThreadInjectItems                       = "thread/inject_items"
 	MethodThreadItemsList                         = "thread/items/list"
+	MethodThreadItemsRead                         = "thread/items/read"
 	MethodThreadList                              = "thread/list"
 	MethodThreadLoadedList                        = "thread/loaded/list"
 	MethodThreadMemoryModeSet                     = "thread/memoryMode/set"
@@ -250,6 +251,8 @@ const (
 	MethodThreadQueueStart                        = "thread/queue/start"
 	MethodThreadQueueUpdate                       = "thread/queue/update"
 	MethodThreadRead                              = "thread/read"
+	MethodThreadReadStateChanged                  = "thread/readState/changed"
+	MethodThreadReadStateUpdate                   = "thread/readState/update"
 	MethodThreadRealtimeAppendAudio               = "thread/realtime/appendAudio"
 	MethodThreadRealtimeAppendSpeech              = "thread/realtime/appendSpeech"
 	MethodThreadRealtimeAppendText                = "thread/realtime/appendText"
@@ -2412,6 +2415,17 @@ var methodRegistry = map[string]MethodInfo{
 		FacadeTarget:          "Threads().ItemsList",
 		Stability:             MethodStabilityStable,
 	},
+	MethodThreadItemsRead: {
+		Method:                MethodThreadItemsRead,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadItemsReadParams",
+		ResponseSchema:        "v2/ThreadItemsReadResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Threads().ItemsRead",
+		Stability:             MethodStabilityExperimental,
+	},
 	MethodThreadList: {
 		Method:                MethodThreadList,
 		Direction:             MethodDirectionClientToServer,
@@ -2598,6 +2612,28 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "Threads().Read",
 		Stability:             MethodStabilityStable,
+	},
+	MethodThreadReadStateChanged: {
+		Method:                MethodThreadReadStateChanged,
+		Direction:             MethodDirectionServerToClient,
+		Kind:                  MethodKindNotification,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadReadStateChangedNotification",
+		ResponseSchema:        "",
+		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
+		FacadeTarget:          "ServerNotifications().ThreadReadStateChanged",
+		Stability:             MethodStabilityStable,
+	},
+	MethodThreadReadStateUpdate: {
+		Method:                MethodThreadReadStateUpdate,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadReadStateUpdateParams",
+		ResponseSchema:        "v2/ThreadReadStateUpdateResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Threads().ReadStateUpdate",
+		Stability:             MethodStabilityExperimental,
 	},
 	MethodThreadRealtimeAppendAudio: {
 		Method:                MethodThreadRealtimeAppendAudio,
