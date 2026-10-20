@@ -15,15 +15,18 @@ func TestLiveResultIsRequiredBeforeEachIntegrationEffect(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	workflow := readWorkflow(t, root, "auto-forward.yml")
-	step, ok := workflowStepByID(workflow, "acceptance")
-	if !ok {
-		t.Fatal("acceptance step must have an executable test seam")
+	// Exercise the same native acceptance CLI used by the controller's observer,
+	// rather than a retired YAML shell anchor. Keep the full Live status matrix.
+	native := repositorySource(t, root, "codexsdk/internal/protocolsync/auto_forward_native.go")
+	if !strings.Contains(native, "checkacceptance.Observe(n.req.API, n.req.Repository, head)") {
+		t.Fatal("integration no longer consumes the shared acceptance policy")
 	}
-	script := workflowRunScript(t, step)
-	if !strings.Contains(workflow, "run: *require_acceptance") {
-		t.Fatal("write phase must recheck the same acceptance contract")
+	controller := repositorySource(t, root, "codexsdk/internal/protocolsync/auto_forward.go")
+	if strings.Count(controller, "op.Checks(ctx, result.Head)") < 2 {
+		t.Fatal("main write must recheck exact-head acceptance")
 	}
+	script := `go run ./codexsdk/internal/cmd/checkacceptance --repository "$REPOSITORY" --head "$HEAD_SHA"`
+
 	for _, test := range []struct {
 		name, status, conclusion  string
 		missing, oldSuccess, pass bool
@@ -174,6 +177,29 @@ func TestSandboxHostSetupIsBoundedToEphemeralHostedVM(t *testing.T) {
 		}
 		if strings.Contains(script, "|| true") || strings.Contains(script, "--share-net") {
 			t.Fatal(name, "sandbox prerequisite must fail closed")
+		}
+	}
+}
+
+func TestAutoForwardSandboxSetupRemainsEphemeral(t *testing.T) {
+	root, _ := filepath.Abs("../../../..")
+	workflow := readWorkflow(t, root, "auto-forward.yml")
+	for _, name := range []string{"Provision credential-free generic baseline proof", "Provision existing credential-free verification and repair sandbox"} {
+		start := strings.Index(workflow, "- name: "+name)
+		if start < 0 {
+			t.Fatalf("missing sandbox setup %s", name)
+		}
+		step := workflow[start:]
+		if end := strings.Index(step[1:], "\n      - name:"); end >= 0 {
+			step = step[:end+1]
+		}
+		guard := strings.Index(step, `test "${HOSTED_ENVIRONMENT}" = github-hosted`)
+		setting := strings.Index(step, "sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0")
+		if guard < 0 || setting < guard || !strings.Contains(step, "HOSTED_ENVIRONMENT: ${{ runner.environment }}") {
+			t.Fatalf("%s must retain ephemeral hosted-VM guard", name)
+		}
+		if strings.Contains(step, "APP_PRIVATE_KEY") || strings.Contains(step, "AZURE_OPENAI_API_KEY") {
+			t.Fatalf("%s must precede credentials", name)
 		}
 	}
 }

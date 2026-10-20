@@ -13,13 +13,19 @@ Keep the existing source, generated reproducibility, and protocol provenance
 contexts independent. Provenance reads the upstream identity from H and is
 read-only; unrelated changes complete its context as not applicable.
 
-Auto-forward may advance protected main only by a normal non-force fast-forward
-to H after the required checks and existing review policy are satisfied. It
-must not merge, rebase, squash, cherry-pick, create commits, force-push, or repair
-stale PRs. Revalidate the existing identity, ancestry, checks, and review
-conditions before the write. Git's non-fast-forward rejection remains final.
-Delete a head ref only after main readback and GitHub's merged-PR observation
-prove the existing deletion conditions.
+Auto-forward advances protected main only by a normal non-force fast-forward
+of exact H after all four current checks and existing review policy. Native
+fixed-target handoffs and explicitly bound manual ordinary-code proposals may reconcile an out-of-date proposal through a
+mechanical linear rebase. Only a fixed-target handoff may invoke a fresh isolated
+repair goal; generic semantic conflicts remain blocked. A replacement H must
+preserve immutable original/current baseline obligations and current-main gate
+control sources, publish only with an exact-old-H lease, then obtain fresh CI.
+Never force-update main, merge histories, choose ours/theirs automatically, reset
+the inherited deadline, or reuse old-H checks. Model processes receive provider
+access only through the existing sandbox, never repository credentials or an
+App socket/broker. Reobserve effects and stop on external head edits or unknown
+outcomes. Delete a head ref only after main readback and GitHub's merged-PR
+observation prove the existing deletion conditions.
 
 Live-test work reuses this machinery. Do not add a separate approval service,
 attestation ledger, candidate model, or extra SHA ceremony.

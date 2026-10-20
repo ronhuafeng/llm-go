@@ -33,14 +33,18 @@ type goalAppCredentials struct {
 }
 
 func newGoalAppCredentials(repository string, stderr io.Writer) (*goalAppCredentials, error) {
+	return newRepositoryAppCredentials("PROTOCOL_SYNC", repository, stderr)
+}
+
+func newRepositoryAppCredentials(prefix, repository string, stderr io.Writer) (*goalAppCredentials, error) {
 	owner, name, ok := strings.Cut(repository, "/")
-	clientID := os.Getenv("PROTOCOL_SYNC_APP_CLIENT_ID")
-	installationID := os.Getenv("PROTOCOL_SYNC_APP_INSTALLATION_ID")
+	clientID := os.Getenv(prefix + "_APP_CLIENT_ID")
+	installationID := os.Getenv(prefix + "_APP_INSTALLATION_ID")
 	id, err := strconv.ParseInt(installationID, 10, 64)
 	if !ok || owner == "" || name == "" || strings.Contains(name, "/") || clientID == "" || err != nil || id <= 0 {
 		return nil, errors.New("publication App binding unavailable")
 	}
-	block, _ := pem.Decode([]byte(strings.ReplaceAll(os.Getenv("PROTOCOL_SYNC_APP_PRIVATE_KEY"), `\n`, "\n")))
+	block, _ := pem.Decode([]byte(strings.ReplaceAll(os.Getenv(prefix+"_APP_PRIVATE_KEY"), `\n`, "\n")))
 	if block == nil {
 		return nil, errors.New("publication App key unavailable")
 	}
@@ -61,6 +65,10 @@ func newGoalAppCredentials(repository string, stderr io.Writer) (*goalAppCredent
 }
 
 func (a *goalAppCredentials) token(ctx context.Context) (string, func(), error) {
+	return a.tokenWithPermissions(ctx, map[string]string{"contents": "write"})
+}
+
+func (a *goalAppCredentials) tokenWithPermissions(ctx context.Context, permissions map[string]string) (string, func(), error) {
 	now := a.now()
 	claims, _ := json.Marshal(map[string]any{"iat": now.Add(-time.Minute).Unix(), "exp": now.Add(5 * time.Minute).Unix(), "iss": a.clientID})
 	unsigned := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256","typ":"JWT"}`)) + "." + base64.RawURLEncoding.EncodeToString(claims)
@@ -70,7 +78,7 @@ func (a *goalAppCredentials) token(ctx context.Context) (string, func(), error) 
 		return "", nil, errors.New("publication App signing failed")
 	}
 	jwt := unsigned + "." + base64.RawURLEncoding.EncodeToString(signature)
-	body, _ := json.Marshal(map[string]any{"repositories": []string{a.repository}, "permissions": map[string]string{"contents": "write"}})
+	body, _ := json.Marshal(map[string]any{"repositories": []string{a.repository}, "permissions": permissions})
 	response, err := a.request(ctx, http.MethodPost, "/app/installations/"+a.installationID+"/access_tokens", jwt, body)
 	if err != nil {
 		return "", nil, err

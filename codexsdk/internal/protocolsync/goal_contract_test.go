@@ -76,6 +76,7 @@ func TestLiveRepairSandboxGoalContractsUseCandidateChecker(t *testing.T) {
 	if os.Getenv("LLMGO_REPAIR_SANDBOX_TEST") != "1" {
 		t.Skip("required hosted sandbox integration")
 	}
+	t.Run("targetless forward baselines", testForwardBaselinesSandbox)
 	base, candidate, upstream := t.TempDir(), t.TempDir(), t.TempDir()
 	generated := "package protocolv2\ntype Payload struct { Old bool }\n"
 	for _, root := range []string{base, candidate} {

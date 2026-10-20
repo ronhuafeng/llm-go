@@ -55,7 +55,9 @@ permission to treat missing checks, skipped scenarios, failures, or cancellation
 as success. Protocol relevance and live-runtime relevance are different
 questions and must not be conflated.
 
-Integration creates no new candidate. The trusted effect remains a normal
+The final integration effect creates no new candidate. Native convergence may
+first create and independently verify a replacement exact H under the original
+deadline; every new H needs fresh four-check acceptance. The effect remains a normal
 non-force fast-forward of main to the verified H. Synthetic merge revisions,
 merge-time rebases, squash commits, and merge-queue candidates are not the
 acceptance identity. See [`auto-forward.md`](auto-forward.md).
@@ -153,9 +155,12 @@ CI must not silently rewrite committed dependency closure.
 
 ## Failure, staleness, and effects
 
-Changing H invalidates H-bound acceptance. If main moves so B is no longer an
-ancestor of H, the integrator stops; development rebases onto the new main and
-obtains new proofs. Integration does not repair the branch.
+Changing H invalidates H-bound acceptance. If main moves so it is no longer an
+ancestor of H, Auto-forward may reconcile an eligible bound proposal through the
+linear rebase and isolated fixed-target repair policy in `auto-forward.md`, within
+the original deadline. Every replacement H requires immutable baseline proofs
+and fresh four-check acceptance before the normal non-force integration effect.
+Unsupported or unprovable conflicts remain blocked.
 
 Concurrency settings may reduce redundant runs but do not establish correctness.
 Git rejects non-fast-forward updates. Repository-write credentials remain with

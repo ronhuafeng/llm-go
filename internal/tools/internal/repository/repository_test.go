@@ -210,55 +210,47 @@ func TestPRExactProtocolValidationIsIndependentReadOnlyProof(t *testing.T) {
 }
 
 func TestAutoForwardWorkflowOnlyFastForwardsVerifiedHead(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
+	root, err := filepath.Abs("../../../..")
 	if err != nil {
 		t.Fatal(err)
 	}
 	workflow := readWorkflow(t, root, "auto-forward.yml")
-	for _, want := range []string{
-		`test "\$remote_oid" = '${current_base}'`,
-		`test "\$local_oid" = '${HEAD_SHA}'`,
-		`test "\$count" -eq 1`,
-		"workflow_dispatch:",
-		"group: auto-forward-main",
-		"name: Verify auto-forwardable head",
-		"git merge-base --is-ancestor",
-		"go run ./codexsdk/internal/cmd/checkacceptance",
-		"name: Fast-forward verified head",
-		"AUTO_FORWARD_APP_CLIENT_ID",
-		"AUTO_FORWARD_APP_PRIVATE_KEY",
-		"permission-contents: write",
-		`git -c core.hooksPath="${hooks}" push origin`,
-		"refs/heads/",
-		"main readback",
-		"Delete integrated head branch",
-		"refusing to delete ref",
-		"another open PR still uses",
-		`git push origin --delete --force-with-lease="refs/heads/${HEAD_REF}:${HEAD_SHA}"`,
-	} {
+	for _, want := range []string{"workflow_dispatch:", "workflow_call:", "group: auto-forward-main", "cancel-in-progress: false", "persist-credentials: false", "ref: ${{ github.sha }}", "-expected-head", "-original-base", "-verification-base", "-deadline", "AUTO_FORWARD_APP_CLIENT_ID", "AUTO_FORWARD_APP_PRIVATE_KEY", "permission-contents: read", "protocolupgrade\" auto-forward"} {
 		if !strings.Contains(workflow, want) {
 			t.Fatalf("auto-forward workflow missing %q", want)
 		}
 	}
-	if strings.Index(workflow, "main readback") > strings.Index(workflow, "Delete integrated head branch") ||
-		strings.Index(workflow, "Delete integrated head branch") > strings.Index(workflow, "git push origin --delete") {
-		t.Fatal("head deletion must follow a successful main readback")
-	}
-	for _, forbidden := range []string{
-		"git merge ",
-		"git rebase ",
-		"git cherry-pick ",
-		"git commit ",
-		"git push --force",
-		"git push -f",
-		"merge_pull_request",
-	} {
+	for _, forbidden := range []string{"secrets: inherit", "contents: write", "git push --force", "git push -f", "merge_pull_request"} {
 		if strings.Contains(workflow, forbidden) {
-			t.Fatalf("auto-forward workflow contains forbidden integration mechanism %q", forbidden)
+			t.Fatalf("workflow bypasses trusted controller with %q", forbidden)
 		}
 	}
-	if !strings.Contains(workflow, "Require current-head checks and review policy") || !strings.Contains(workflow, "Reconfirm current-head checks and review policy") {
-		t.Fatal("auto-forward must check acceptance before and immediately before the write effect")
+	native := repositorySource(t, root, "codexsdk/internal/protocolsync/auto_forward_native.go")
+	forwardStart := strings.Index(native, "func (n *NativeForward) Forward(")
+	cleanupStart := strings.Index(native, "func (n *NativeForward) Cleanup(")
+	if forwardStart < 0 || cleanupStart < forwardStart {
+		t.Fatal("missing native integration effect boundaries")
+	}
+	forward := native[forwardStart:cleanupStart]
+	for _, want := range []string{"n.Read(ctx, head)", "n.Ancestor(ctx, main, head)", "n.Verify(ctx, main, head)", "n.Review(ctx)", "n.Checks(ctx, head)", "checks.Head != head", "checks.State != checkacceptance.Succeeded", "n.Policy(ctx, main, head)", `[]string{"push", "--porcelain", "origin", head + ":refs/heads/" + n.req.BaseBranch}`} {
+		if !strings.Contains(forward, want) {
+			t.Fatalf("main effect lost guard %q", want)
+		}
+	}
+	if strings.Contains(forward, "--force") || strings.Index(forward, "n.Checks(ctx, head)") > strings.Index(forward, "return n.write(") {
+		t.Fatal("main must normal-FF only after exact-head acceptance")
+	}
+	cleanup := native[cleanupStart:]
+	for _, want := range []string{"n.Ancestor(ctx, head, current.Main)", "current.Merged", "current.Head != head", "--force-with-lease=refs/heads/"} {
+		if !strings.Contains(cleanup, want) {
+			t.Fatalf("cleanup lost native readback/lease guard %q", want)
+		}
+	}
+	hook := repositorySource(t, root, "codexsdk/internal/protocolsync/auto_forward_effect.go")
+	for _, want := range []string{"remote_oid", "local_oid", "refs/heads/main", `test "$count" -eq 1`} {
+		if !strings.Contains(hook, want) {
+			t.Fatalf("main advertisement binding missing %q", want)
+		}
 	}
 }
 
@@ -1082,11 +1074,20 @@ func TestDraftGoalCannotTriggerAutomaticIntegration(t *testing.T) {
 			t.Fatalf("goal gained automatic integration route %q", bad)
 		}
 	}
-	for _, want := range []string{"workflow_dispatch:", "checkacceptance", "git merge-base --is-ancestor"} {
+	for _, want := range []string{"workflow_dispatch:", "workflow_call:", "-expected-head", "-deadline"} {
 		if !strings.Contains(forward, want) {
-			t.Fatalf("manual integration lost guard %q", want)
+			t.Fatalf("integration lost binding %q", want)
 		}
 	}
+	controller := repositorySource(t, root, "codexsdk/internal/protocolsync/auto_forward.go")
+	if !strings.Contains(controller, "!state.Ready") || !strings.Contains(controller, "checkacceptance.Succeeded") {
+		t.Fatal("native integration must reject Draft and unsuccessful exact-head checks")
+	}
+	dispatcher := readWorkflow(t, root, "auto-forward-dispatch.yml")
+	if !strings.Contains(dispatcher, "-goal-") {
+		t.Fatal("legacy dispatcher must exclude trusted native-goal handoffs")
+	}
+
 	prepare := repositorySource(t, root, "codexsdk/internal/protocolsync/goal_prepare.go")
 	for _, want := range []string{`"draft": true`, "tree != baseTree", "parents != req.BaseSHA"} {
 		if !strings.Contains(prepare, want) {

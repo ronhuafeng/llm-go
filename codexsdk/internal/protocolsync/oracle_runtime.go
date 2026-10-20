@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -26,6 +27,7 @@ type oracleRequest struct {
 	RepoRoot, ModuleRoot, CandidateDir string
 	BaseRoot                           string
 	Output                             io.Writer
+	ForwardRuntime                     bool
 }
 
 func (r oracleRequest) output() io.Writer {
@@ -231,12 +233,25 @@ func runBaselineOracle(ctx context.Context, req oracleRequest, targetSandbox ora
 	if out, err := oracleCommandOutput(req.Output, cmd); err != nil {
 		return fmt.Errorf("clone baseline regression: %w: %s", err, boundedRepairDiagnostic(string(out)))
 	}
-	expected, err := acceptedBaselineTests(filepath.Join(root, "codexsdk"))
+	packages := []string{".", "protocolv2", "internal/wirejson"}
+	if req.ForwardRuntime {
+		extra, e := forwardRuntimePackages(root)
+		if e != nil {
+			return e
+		}
+		packages = append(packages, extra...)
+	}
+	expected, err := selectedExecutableTests(filepath.Join(root, "codexsdk"), packages)
 	if err != nil {
 		return &oracleContractError{err}
 	}
 	if err = overlayGoalImplementation(root, req.RepoRoot); err != nil {
 		return err
+	}
+	if req.ForwardRuntime {
+		if err = overlayForwardRuntime(root, req.RepoRoot); err != nil {
+			return err
+		}
 	}
 	if err = os.MkdirAll(filepath.Join(root, "codexsdk/.cache/openai-codex"), 0700); err != nil {
 		return err
@@ -274,7 +289,11 @@ func runBaselineOracle(ctx context.Context, req oracleRequest, targetSandbox ora
 	if err != nil {
 		return err
 	}
-	cmd = sandbox.command(ctx, filepath.Join(sandbox.goroot, "bin", "go"), "test", "-count=1", "-json", ".", "./protocolv2", "./internal/wirejson")
+	args := []string{"test", "-count=1", "-json"}
+	for _, p := range packages {
+		args = append(args, "./"+filepath.ToSlash(p))
+	}
+	cmd = sandbox.command(ctx, filepath.Join(sandbox.goroot, "bin", "go"), args...)
 	events := baselineTestEvents{expected: expected, ran: map[string]bool{}, passed: map[string]bool{}}
 	cmd.Stdout = io.MultiWriter(&events, req.output())
 	var stderr repairOutput
@@ -322,7 +341,7 @@ func selectedExecutableTests(module string, packages []string) (map[string]bool,
 		}
 		packagePath := "github.com/ronhuafeng/llm-go/codexsdk"
 		if rel != "." {
-			packagePath += "/" + rel
+			packagePath = path.Join(packagePath, filepath.ToSlash(rel))
 		}
 		files := append(append([]string{}, pkg.TestGoFiles...), pkg.XTestGoFiles...)
 		for _, filename := range files {

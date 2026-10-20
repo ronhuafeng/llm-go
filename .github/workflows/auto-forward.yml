@@ -29,16 +29,16 @@ on:
         required: true
         type: string
     secrets:
+      AUTO_FORWARD_APP_PRIVATE_KEY:
+        required: true
       AZURE_OPENAI_API_KEY:
         required: false
       CODEX_RESPONSES_API_ENDPOINT:
         required: false
-      AUTO_FORWARD_APP_PRIVATE_KEY:
-        required: true
   workflow_dispatch:
     inputs:
       pr_number:
-        description: "Open same-repository PR to fast-forward into the default branch."
+        description: "Open same-repository PR to reconcile and fast-forward into main."
         required: true
         type: number
 
@@ -53,193 +53,122 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  verify:
-    name: Verify auto-forwardable head
+  integrate:
+    name: Bounded exact-head convergence
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    outputs:
-      pr_number: ${{ inputs.pr_number }}
-      head: ${{ steps.candidate.outputs.head }}
-      base: ${{ steps.candidate.outputs.base }}
-      head_ref: ${{ steps.candidate.outputs.head_ref }}
+    timeout-minutes: 360
     steps:
-      - name: Require trusted default-branch control
+      - name: Require trusted main and complete native handoff
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        run: |
-          set -euo pipefail
-          if [[ "${GITHUB_REF_NAME}" != "${DEFAULT_BRANCH}" ]]; then
-            echo "auto-forward must be dispatched from ${DEFAULT_BRANCH}, got ${GITHUB_REF_NAME}" >&2
-            exit 1
-          fi
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.sha }}
-          fetch-depth: 0
-          persist-credentials: false
-
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          cache: false
-
-      - name: Resolve exact candidate
-        id: candidate
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ inputs.pr_number }}
-          EXPECTED_HEAD: ${{ inputs.expected_head }}
-          VERIFICATION_BASE: ${{ inputs.verification_base }}
+          HEAD: ${{ inputs.expected_head }}
           ORIGINAL_BASE: ${{ inputs.original_base }}
+          VERIFICATION_BASE: ${{ inputs.verification_base }}
           TARGET_REF: ${{ inputs.target_ref }}
           TARGET_KIND: ${{ inputs.target_kind }}
           TARGET_SHA: ${{ inputs.target_sha }}
           DEADLINE: ${{ inputs.deadline }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          pr="$(gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}")"
-          state="$(jq -r '.state' <<<"${pr}")"
-          draft="$(jq -r '.draft' <<<"${pr}")"
-          base_ref="$(jq -r '.base.ref' <<<"${pr}")"
-          head_ref="$(jq -r '.head.ref' <<<"${pr}")"
-          head_repo="$(jq -r '.head.repo.full_name // empty' <<<"${pr}")"
-
-          if [[ "${state}" != open || "${draft}" != false || "${base_ref}" != "${DEFAULT_BRANCH}" ]]; then
-            echo "PR #${PR_NUMBER} is not an open non-draft PR against ${DEFAULT_BRANCH}" >&2
-            exit 1
+          test "${GITHUB_REF_NAME}" = "${DEFAULT_BRANCH}"
+          if [[ -n "${HEAD}${ORIGINAL_BASE}${VERIFICATION_BASE}${TARGET_REF}${TARGET_KIND}${TARGET_SHA}${DEADLINE}" ]]; then
+            test -n "${HEAD}" && test -n "${ORIGINAL_BASE}" && test -n "${VERIFICATION_BASE}"
+            test -n "${TARGET_REF}" && test -n "${TARGET_KIND}" && test -n "${TARGET_SHA}" && test -n "${DEADLINE}"
+            test "$(date -u -d "${DEADLINE}" +%s)" -gt "$(date -u +%s)"
           fi
-          if [[ "${head_repo}" != "${REPOSITORY}" || -z "${head_ref}" ]]; then
-            echo "auto-forward currently requires a same-repository PR head" >&2
-            exit 1
-          fi
-
-          head_line="$(git ls-remote "https://github.com/${REPOSITORY}.git" "refs/heads/${head_ref}")"
-          base_line="$(git ls-remote "https://github.com/${REPOSITORY}.git" "refs/heads/${DEFAULT_BRANCH}")"
-          head="$(awk '{print $1}' <<<"${head_line}")"
-          base="$(awk '{print $1}' <<<"${base_line}")"
-          if [[ ! "${head}" =~ ^[0-9a-f]{40}$ || ! "${base}" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "failed to resolve exact PR/main Git refs" >&2
-            exit 1
-          fi
-
-          if [[ -n "${EXPECTED_HEAD}" && "${head}" != "${EXPECTED_HEAD}" ]]; then
-            echo "PR head differs from trusted handoff" >&2
-            exit 1
-          fi
-
-          git fetch --no-tags origin "${base}" "${head}"
-          if [[ -n "${EXPECTED_HEAD}" ]]; then
-            git fetch --no-tags origin "${ORIGINAL_BASE}" "${VERIFICATION_BASE}"
-            go run ./codexsdk/internal/cmd/protocolupgrade goal-integration-guard \
-              -original-base "${ORIGINAL_BASE}" -verification-base "${VERIFICATION_BASE}" -current-base "${base}" -expected-head "${head}" \
-              -target-ref "${TARGET_REF}" -target-kind "${TARGET_KIND}" -target-sha "${TARGET_SHA}" -deadline "${DEADLINE}"
-          fi
-          if ! git merge-base --is-ancestor "${base}" "${head}"; then
-            echo "PR #${PR_NUMBER} is stale: current main ${base} is not an ancestor of H ${head}" >&2
-            exit 1
-          fi
-
-          {
-            echo "head=${head}"
-            echo "base=${base}"
-            echo "head_ref=${head_ref}"
-          } >> "${GITHUB_OUTPUT}"
-
-      - name: Require current-head checks and review policy
-        id: acceptance
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ inputs.pr_number }}
-          REPOSITORY: ${{ github.repository }}
-          HEAD_SHA: ${{ steps.candidate.outputs.head }}
-        run: &require_acceptance |
-          set -euo pipefail
-          go run ./codexsdk/internal/cmd/checkacceptance --repository "${REPOSITORY}" --head "${HEAD_SHA}"
-
-          decision="$(gh pr view "${PR_NUMBER}" --repo "${REPOSITORY}" --json reviewDecision --jq '.reviewDecision // ""')"
-          case "${decision}" in
-            CHANGES_REQUESTED|REVIEW_REQUIRED)
-              echo "review policy is not satisfied for current H ${HEAD_SHA}: ${decision}" >&2
-              exit 1
-              ;;
-          esac
-
-  forward:
-    name: Fast-forward verified head
-    needs: verify
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      pull-requests: read
-      checks: read
-      actions: read
-    steps:
-      - name: Check integration App configuration
-        env:
-          APP_CONFIGURED: ${{ vars.AUTO_FORWARD_APP_CLIENT_ID != '' && secrets.AUTO_FORWARD_APP_PRIVATE_KEY != '' }}
-        run: |
-          set -euo pipefail
-          if [[ "${APP_CONFIGURED}" != true ]]; then
-            echo "::error::Configure AUTO_FORWARD_APP_CLIENT_ID and AUTO_FORWARD_APP_PRIVATE_KEY for a repository-scoped GitHub App allowed to fast-forward protected main with Contents: write." >&2
-            exit 1
-          fi
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
-
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
           cache: false
-
-      - name: Revalidate current candidate
+      - name: Bind existing candidate and original deadline
+        id: binding
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ needs.verify.outputs.pr_number }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          REPOSITORY: ${{ github.repository }}
-          EXPECTED_HEAD: ${{ needs.verify.outputs.head }}
-          EXPECTED_HEAD_REF: ${{ needs.verify.outputs.head_ref }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          HEAD: ${{ inputs.expected_head }}
+          DEADLINE: ${{ inputs.deadline }}
+          ORIGINAL_BASE: ${{ inputs.original_base }}
+          VERIFICATION_BASE: ${{ inputs.verification_base }}
         run: |
           set -euo pipefail
-          pr="$(gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}")"
-          if [[ "$(jq -r '.state' <<<"${pr}")" != open ||
-                "$(jq -r '.draft' <<<"${pr}")" != false ||
-                "$(jq -r '.base.ref' <<<"${pr}")" != "${DEFAULT_BRANCH}" ||
-                "$(jq -r '.head.repo.full_name // empty' <<<"${pr}")" != "${REPOSITORY}" ||
-                "$(jq -r '.head.ref' <<<"${pr}")" != "${EXPECTED_HEAD_REF}" ]]; then
-            echo "PR identity changed after verification" >&2
-            exit 1
+          if [[ -z "${HEAD}" ]]; then HEAD="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .head.sha)"; fi
+          # Only legacy manual FF gets a new bounded execution at first entry.
+          if [[ -z "${DEADLINE}" ]]; then DEADLINE="$(date -u -d '+30 minutes' +%Y-%m-%dT%H:%M:%SZ)"; fi
+          test "$(date -u -d "${DEADLINE}" +%s)" -gt "$(date -u +%s)"
+          if [[ -z "${ORIGINAL_BASE}" ]]; then
+            ORIGINAL_BASE="$(git ls-remote origin refs/heads/main | cut -f1)"
+            [[ "${ORIGINAL_BASE}" =~ ^[0-9a-f]{40}$ ]]
+            VERIFICATION_BASE="${ORIGINAL_BASE}"
           fi
-
-          current_head="$(git ls-remote "https://github.com/${REPOSITORY}.git" "refs/heads/${EXPECTED_HEAD_REF}" | awk '{print $1}')"
-          current_base="$(git ls-remote "https://github.com/${REPOSITORY}.git" "refs/heads/${DEFAULT_BRANCH}" | awk '{print $1}')"
-          if [[ "${current_head}" != "${EXPECTED_HEAD}" ]]; then
-            echo "PR head changed from verified H ${EXPECTED_HEAD} to ${current_head}" >&2
-            exit 1
-          fi
-          git fetch --no-tags origin "${current_base}" "${EXPECTED_HEAD}"
-          if ! git merge-base --is-ancestor "${current_base}" "${EXPECTED_HEAD}"; then
-            echo "PR became stale: current main ${current_base} is not an ancestor of H ${EXPECTED_HEAD}" >&2
-            exit 1
-          fi
-
-      - name: Reconfirm current-head checks and review policy
+          {
+            echo "original_base=${ORIGINAL_BASE}"
+            echo "verification_base=${VERIFICATION_BASE}"
+            echo "head=${HEAD}"
+            echo "deadline=${DEADLINE}"
+          } >> "${GITHUB_OUTPUT}"
+          go build -o "${RUNNER_TEMP}/protocolupgrade" ./codexsdk/internal/cmd/protocolupgrade
+      - name: Provision credential-free generic baseline proof
+        if: inputs.target_sha == ''
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ needs.verify.outputs.pr_number }}
-          REPOSITORY: ${{ github.repository }}
-          HEAD_SHA: ${{ needs.verify.outputs.head }}
-        run: *require_acceptance
-
-      - name: Mint auto-forward token
+          HOSTED_ENVIRONMENT: ${{ runner.environment }}
+          DEADLINE: ${{ steps.binding.outputs.deadline }}
+        run: |
+          set -euo pipefail
+          test "${HOSTED_ENVIRONMENT}" = github-hosted
+          test "$(date -u -d "${DEADLINE}" +%s)" -gt "$(date -u +%s)"
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          go mod download
+      - name: Provision existing credential-free verification and repair sandbox
+        if: inputs.target_sha != ''
+        env:
+          HOSTED_ENVIRONMENT: ${{ runner.environment }}
+          DEADLINE: ${{ steps.binding.outputs.deadline }}
+        run: |
+          set -euo pipefail
+          test "${HOSTED_ENVIRONMENT}" = github-hosted
+          test "$(date -u -d "${DEADLINE}" +%s)" -gt "$(date -u +%s)"
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap clang cmake libasound2-dev libssl-dev pkg-config protobuf-compiler
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          rustup default stable
+          mkdir -p "${RUNNER_TEMP}/repair-rust-tools"
+          cp "$(command -v rustup)" "${RUNNER_TEMP}/repair-rust-tools/rustup"
+          for tool in cargo rustc rustdoc; do ln -s rustup "${RUNNER_TEMP}/repair-rust-tools/${tool}"; done
+      - name: Resolve official repair runtime once
+        if: inputs.target_sha != ''
+        id: runtime
+        uses: ./.github/actions/setup-codex
+      - name: Prewarm fixed upstream inputs before any App/provider credential
+        if: inputs.target_sha != ''
+        env:
+          TARGET_REF: ${{ inputs.target_ref }}
+          TARGET_KIND: ${{ inputs.target_kind }}
+          TARGET_SHA: ${{ inputs.target_sha }}
+          DEADLINE: ${{ steps.binding.outputs.deadline }}
+        run: |
+          set -euo pipefail
+          remaining=$(( $(date -u -d "${DEADLINE}" +%s) - $(date -u +%s) ))
+          test "${remaining}" -gt 0
+          timeout --signal=TERM "${remaining}s" "${RUNNER_TEMP}/protocolupgrade" diagnose \
+            -repo-root "${GITHUB_WORKSPACE}" -module-root "${GITHUB_WORKSPACE}/codexsdk" \
+            -upstream-ref "${TARGET_REF}" -json > "${RUNNER_TEMP}/forward-source.json"
+          jq -e --arg ref "${TARGET_REF}" --arg kind "${TARGET_KIND}" --arg sha "${TARGET_SHA}" \
+            '.Target.RefName == $ref and .Target.RefKind == $kind and .Target.PeeledCommitSHA == $sha' \
+            "${RUNNER_TEMP}/forward-source.json" > /dev/null
+          if [[ "${TARGET_KIND}" == stable_rust_tag ]]; then
+            git -C codexsdk/.cache/openai-codex fetch --no-tags origin "refs/tags/${TARGET_REF}:refs/tags/${TARGET_REF}"
+          fi
+          go mod tidy -diff
+          go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          git diff --exit-code
+      - name: Resolve existing repository-scoped integration identity
         id: app_token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
@@ -247,137 +176,67 @@ jobs:
           private-key: ${{ secrets.AUTO_FORWARD_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
-          permission-contents: write
-
-      - name: Fast-forward main
+          permission-contents: read
+      - name: Bind actual integration App actor
+        id: identity
         env:
-          GH_TOKEN: ${{ steps.app_token.outputs.token }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          HEAD_SHA: ${{ needs.verify.outputs.head }}
-          HANDOFF_HEAD: ${{ inputs.expected_head }}
-          VERIFICATION_BASE: ${{ inputs.verification_base }}
-          ORIGINAL_BASE: ${{ inputs.original_base }}
+          GH_TOKEN: ${{ github.token }}
+          APP_SLUG: ${{ steps.app_token.outputs.app-slug }}
+        run: |
+          set -euo pipefail
+          actor="$(gh api "users/${APP_SLUG}[bot]" --jq .id)"
+          [[ "${actor}" =~ ^[1-9][0-9]*$ ]]
+          echo "actor=${actor}" >> "${GITHUB_OUTPUT}"
+      - name: Reconcile, prove each M/H, require four checks, and fast-forward
+        id: forward
+        env:
+          GH_READ_TOKEN: ${{ github.token }}
+          AUTO_FORWARD_APP_CLIENT_ID: ${{ vars.AUTO_FORWARD_APP_CLIENT_ID }}
+          AUTO_FORWARD_APP_INSTALLATION_ID: ${{ steps.app_token.outputs.installation-id }}
+          AUTO_FORWARD_APP_PRIVATE_KEY: ${{ secrets.AUTO_FORWARD_APP_PRIVATE_KEY }}
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          CODEX_RESPONSES_API_ENDPOINT: ${{ secrets.CODEX_RESPONSES_API_ENDPOINT }}
+          CODEX_CLI_VERSION: ${{ steps.runtime.outputs.version }}
+          AUTO_FORWARD_DIAGNOSTICS: ${{ runner.temp }}/forward-diagnostics
+          AUTO_FORWARD_SOURCE: ${{ runner.temp }}/forward-source.json
+          AUTO_FORWARD_RUST_TOOLS: ${{ runner.temp }}/repair-rust-tools
+          PUBLICATION_ACTOR: ${{ vars.PROTOCOL_SYNC_APP_BOT_ID }}
+          INTEGRATION_ACTOR: ${{ steps.identity.outputs.actor }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          HEAD: ${{ steps.binding.outputs.head }}
+          ORIGINAL_BASE: ${{ steps.binding.outputs.original_base }}
+          VERIFICATION_BASE: ${{ steps.binding.outputs.verification_base }}
           TARGET_REF: ${{ inputs.target_ref }}
           TARGET_KIND: ${{ inputs.target_kind }}
           TARGET_SHA: ${{ inputs.target_sha }}
-          DEADLINE: ${{ inputs.deadline }}
+          DEADLINE: ${{ steps.binding.outputs.deadline }}
         run: |
           set -euo pipefail
-          gh auth setup-git
-          git fetch --no-tags origin "${DEFAULT_BRANCH}" "${HEAD_SHA}"
-          current_base="$(git ls-remote origin "refs/heads/${DEFAULT_BRANCH}" | awk '{print $1}')"
-          if [[ -n "${HANDOFF_HEAD}" ]]; then
-            git fetch --no-tags origin "${ORIGINAL_BASE}" "${VERIFICATION_BASE}" "${current_base}"
-            go run ./codexsdk/internal/cmd/protocolupgrade goal-integration-guard \
-              -original-base "${ORIGINAL_BASE}" -verification-base "${VERIFICATION_BASE}" -current-base "${current_base}" -expected-head "${HEAD_SHA}" \
-              -target-ref "${TARGET_REF}" -target-kind "${TARGET_KIND}" -target-sha "${TARGET_SHA}" -deadline "${DEADLINE}"
-          fi
-          # Bind the server advertisement to the proved base. Git's ordinary
-          # non-force push then protects subsequent movement through server CAS.
-          [[ "${HEAD_SHA}" =~ ^[0-9a-f]{40}$ && "${current_base}" =~ ^[0-9a-f]{40}$ ]]
-          test "${DEFAULT_BRANCH}" = main
-          hooks="$(mktemp -d)"
-          trap 'rm -rf "${hooks}"' EXIT
-          cat > "${hooks}/pre-push" <<EOF
-          #!/bin/sh
-          set -eu
-          count=0
-          while read -r local_ref local_oid remote_ref remote_oid; do
-            test "\$local_ref" = '${HEAD_SHA}'
-            test "\$local_oid" = '${HEAD_SHA}'
-            test "\$remote_ref" = refs/heads/main
-            test "\$remote_oid" = '${current_base}'
-            count=\$((count + 1))
-          done
-          test "\$count" -eq 1
-          EOF
-          chmod 700 "${hooks}/pre-push"
-          git -c core.hooksPath="${hooks}" push origin "${HEAD_SHA}:refs/heads/${DEFAULT_BRANCH}"
-          actual="$(git ls-remote origin "refs/heads/${DEFAULT_BRANCH}" | awk '{print $1}')"
-          if [[ "${actual}" != "${HEAD_SHA}" ]]; then
-            echo "main readback ${actual} does not equal verified H ${HEAD_SHA}" >&2
-            exit 1
-          fi
-          {
-            echo '## Auto-forward result'
-            echo
-            echo "- PR: #${{ needs.verify.outputs.pr_number }}"
-            echo "- Verified/integrated H: ${HEAD_SHA}"
-            echo "- New ${DEFAULT_BRANCH}: ${actual}"
-            echo "- Integration: non-force fast-forward"
-            echo "- New commit created during integration: no"
-          } >> "${GITHUB_STEP_SUMMARY}"
-
-      - name: Delete integrated head branch
+          # Keys stay in this trusted parent. Existing GoalSandbox exposes only
+          # provider access to the fresh runtime; no App sockets/brokers exist.
+          # Each branch/main write mints and revokes its own narrow App token.
+          "${RUNNER_TEMP}/protocolupgrade" auto-forward \
+            -controller-root "${GITHUB_WORKSPACE}" -repository "${GITHUB_REPOSITORY}" \
+            -pr-number "${PR_NUMBER}" -expected-head "${HEAD}" -deadline "${DEADLINE}" \
+            -original-base "${ORIGINAL_BASE}" -verification-base "${VERIFICATION_BASE}" \
+            -target-ref "${TARGET_REF}" -target-kind "${TARGET_KIND}" -target-sha "${TARGET_SHA}" \
+            -publication-app-bot-id "${PUBLICATION_ACTOR:-0}" -integration-app-bot-id "${INTEGRATION_ACTOR}" \
+            | tee "${RUNNER_TEMP}/forward-result.json"
+      - name: Retain safe integration observation
+        if: always()
         env:
-          HANDOFF_HEAD: ${{ inputs.expected_head }}
-          DEADLINE: ${{ inputs.deadline }}
-          APP_TOKEN: ${{ steps.app_token.outputs.token }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          HEAD_SHA: ${{ needs.verify.outputs.head }}
-          HEAD_REF: ${{ needs.verify.outputs.head_ref }}
-          PR_NUMBER: ${{ needs.verify.outputs.pr_number }}
-          REPOSITORY: ${{ github.repository }}
+          RESULT: ${{ runner.temp }}/forward-result.json
         run: |
-          set -euo pipefail
-          if [[ -z "${HEAD_REF}" || "${HEAD_REF}" == "${DEFAULT_BRANCH}" || "${HEAD_REF}" == -* || "${HEAD_REF}" == *..* || "${HEAD_REF}" == *" "* || "${HEAD_REF}" == *"@"* ]]; then
-            echo "refusing to delete ref ${HEAD_REF}" >&2
-            exit 1
+          if [[ -f "${RESULT}" ]]; then
+            { echo '## Exact-head Auto-forward'; jq -r '"- Status: \(.status)\n- H: \(.head)\n- Main: \(.main)\n- Reason: \(.reason // "")"' "${RESULT}"; } >> "${GITHUB_STEP_SUMMARY}"
           fi
-
-          merged=no
-          for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
-            read -r state merged_at ref_name < <(gh pr view "${PR_NUMBER}" --repo "${REPOSITORY}" --json state,mergedAt,headRefName --jq '[.state, (.mergedAt // "-"), .headRefName] | @tsv')
-            if [[ "${state}" == "MERGED" && "${merged_at}" != "-" && "${ref_name}" == "${HEAD_REF}" ]]; then
-              merged=yes
-              break
-            fi
-            sleep 5
-          done
-          if [[ "${merged}" != yes ]]; then
-            echo "PR #${PR_NUMBER} is not merged at ${HEAD_REF}; not deleting the branch" >&2
-            exit 1
-          fi
-
-          open_count="$(gh pr list --repo "${REPOSITORY}" --head "${HEAD_REF}" --state open --json number --jq 'length')"
-          if [[ "${open_count}" != 0 ]]; then
-            echo "another open PR still uses ${HEAD_REF}; not deleting it" >&2
-            exit 1
-          fi
-
-          main_now="$(git ls-remote "https://github.com/${REPOSITORY}.git" "refs/heads/${DEFAULT_BRANCH}" | awk '{print $1}')"
-          if [[ "${main_now}" != "${HEAD_SHA}" ]]; then
-            git fetch --no-tags origin "${main_now}"
-            if ! git merge-base --is-ancestor "${HEAD_SHA}" "${main_now}"; then
-              echo "integrated H ${HEAD_SHA} is not contained in current ${DEFAULT_BRANCH} ${main_now}; not deleting ${HEAD_REF}" >&2
-              exit 1
-            fi
-          fi
-
-          current="$(git ls-remote "https://github.com/${REPOSITORY}.git" "refs/heads/${HEAD_REF}" | awk '{print $1}')"
-          if [[ -z "${current}" ]]; then
-            echo "head ref ${HEAD_REF} is already absent"
-            exit 0
-          fi
-          if [[ "${current}" != "${HEAD_SHA}" ]]; then
-            echo "head ref ${HEAD_REF} is ${current}, not integrated H ${HEAD_SHA}; not deleting" >&2
-            exit 1
-          fi
-
-          GH_TOKEN="${APP_TOKEN}" gh auth setup-git
-          if [[ -n "${HANDOFF_HEAD}" ]]; then
-            test "$(date -u +%s)" -lt "$(date -u -d "${DEADLINE}" +%s)"
-          fi
-          git push origin --delete --force-with-lease="refs/heads/${HEAD_REF}:${HEAD_SHA}" "refs/heads/${HEAD_REF}"
-          left="$(git ls-remote "https://github.com/${REPOSITORY}.git" "refs/heads/${HEAD_REF}")"
-          if [[ -n "${left}" ]]; then
-            echo "head ref ${HEAD_REF} still exists after delete: ${left}" >&2
-            exit 1
-          fi
-          {
-            echo '## Integrated head branch'
-            echo
-            echo "- Deleted ref: refs/heads/${HEAD_REF}"
-            echo "- Ref still pointed at integrated H: ${HEAD_SHA}"
-          } >> "${GITHUB_STEP_SUMMARY}"
+      - name: Retain safe verifier diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: auto-forward-${{ inputs.pr_number }}-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/forward-result.json
+            ${{ runner.temp }}/forward-diagnostics/**/*.jsonl
+          if-no-files-found: ignore
+          retention-days: 7

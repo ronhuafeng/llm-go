@@ -27,6 +27,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runGoalIntegrationGuard(args[1:], stdout, stderr)
 	case "goal-ready":
 		return runGoalReady(args[1:], stdout, stderr)
+	case "auto-forward":
+		return runAutoForward(args[1:], stdout, stderr)
 	case "goal-preflight":
 		return runGoalPreflight(args[1:], stdout, stderr)
 	case "goal-prepare":
