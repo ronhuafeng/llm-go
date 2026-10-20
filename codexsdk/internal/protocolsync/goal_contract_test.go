@@ -123,7 +123,7 @@ func TestLiveRepairSandboxGoalContractsUseCandidateChecker(t *testing.T) {
 	if err := runGit(current, "add", "."); err != nil {
 		t.Fatal(err)
 	}
-	if err := runGit(current, "commit", "-m", "new main contract"); err != nil {
+	if err := runGit(current, "-c", "user.name=Protocol test", "-c", "user.email=protocol-test@example.invalid", "commit", "-m", "new main contract"); err != nil {
 		t.Fatal(err)
 	}
 	writeFile(t, filepath.Join(candidate, "codexsdk/main.go"), "package codexsdk\nfunc NewMain() bool{return true}\n")
