@@ -19,6 +19,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ronhuafeng/llm-go/codexsdk/internal/protocolsync"
 )
 
 // A goal can outlive an installation token. Only the trusted publisher holds
@@ -75,7 +77,7 @@ func (a *goalAppCredentials) tokenWithPermissions(ctx context.Context, permissio
 	digest := sha256.Sum256([]byte(unsigned))
 	signature, err := rsa.SignPKCS1v15(rand.Reader, a.key, crypto.SHA256, digest[:])
 	if err != nil {
-		return "", nil, errors.New("publication App signing failed")
+		return "", nil, &protocolsync.AppTokenError{Failure: protocolsync.AppTokenSigningFailed}
 	}
 	jwt := unsigned + "." + base64.RawURLEncoding.EncodeToString(signature)
 	body, _ := json.Marshal(map[string]any{"repositories": []string{a.repository}, "permissions": permissions})
@@ -84,12 +86,22 @@ func (a *goalAppCredentials) tokenWithPermissions(ctx context.Context, permissio
 		return "", nil, err
 	}
 	defer response.Body.Close()
+	if response.StatusCode != http.StatusCreated {
+		return "", nil, &protocolsync.AppTokenError{Failure: protocolsync.AppTokenHTTPRejected, HTTPStatus: response.StatusCode}
+	}
 	var value struct {
 		Token     string    `json:"token"`
 		ExpiresAt time.Time `json:"expires_at"`
 	}
-	if response.StatusCode != http.StatusCreated || json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&value) != nil || value.Token == "" || !value.ExpiresAt.After(now.Add(time.Minute)) {
-		return "", nil, errors.New("fresh publication token unavailable")
+	decoder := json.NewDecoder(io.LimitReader(response.Body, 1<<20))
+	if decoder.Decode(&value) != nil || decoder.Decode(new(any)) != io.EOF {
+		return "", nil, &protocolsync.AppTokenError{Failure: protocolsync.AppTokenResponseMalformed, HTTPStatus: response.StatusCode}
+	}
+	if value.Token == "" {
+		return "", nil, &protocolsync.AppTokenError{Failure: protocolsync.AppTokenMissing, HTTPStatus: response.StatusCode}
+	}
+	if !value.ExpiresAt.After(now.Add(time.Minute)) {
+		return "", nil, &protocolsync.AppTokenError{Failure: protocolsync.AppTokenExpiryInsufficient, HTTPStatus: response.StatusCode}
 	}
 	return value.Token, func() {
 		// Cleanup still runs after cancellation; the token never enters candidate
@@ -109,7 +121,7 @@ func (a *goalAppCredentials) tokenWithPermissions(ctx context.Context, permissio
 func (a *goalAppCredentials) request(ctx context.Context, method, path, token string, body []byte) (*http.Response, error) {
 	request, err := http.NewRequestWithContext(ctx, method, "https://api.github.com"+path, bytes.NewReader(body))
 	if err != nil {
-		return nil, errors.New("publication authentication request invalid")
+		return nil, &protocolsync.AppTokenError{Failure: protocolsync.AppTokenRequestInvalid}
 	}
 	request.Header.Set("Authorization", "Bearer "+token)
 	request.Header.Set("Accept", "application/vnd.github+json")
@@ -117,7 +129,7 @@ func (a *goalAppCredentials) request(ctx context.Context, method, path, token st
 	request.Header.Set("X-GitHub-Api-Version", "2026-03-10")
 	response, err := a.client.Do(request)
 	if err != nil {
-		return nil, errors.New("publication authentication request failed")
+		return nil, &protocolsync.AppTokenError{Failure: protocolsync.AppTokenTransportFailed}
 	}
 	return response, nil
 }

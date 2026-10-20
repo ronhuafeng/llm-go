@@ -53,6 +53,10 @@ changes may occur in minor releases.
 
 #### Fixed
 
+- Request only Contents write for Auto-forward's final fast-forward to an
+  already-published exact head, retaining workflow scope for workflow-changing
+  candidate publication and reporting secret-safe token failure categories.
+
 - Ignore unrelated native goal broadcasts while preserving owned-goal identity
   and lifecycle checks. Accept internal exec retries only after a valid completed
   turn and zero process exit, retaining bounded intermediate-error diagnostics.

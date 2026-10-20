@@ -375,7 +375,12 @@ func (n *NativeForward) write(ctx context.Context, args []string, workflows bool
 	}
 	token, release, e := n.req.Token(ctx, workflows)
 	if e != nil {
-		return errors.New("integration App lacks required existing Contents/Workflows write grant; ask an administrator, do not expand grants automatically")
+		var failure *AppTokenError
+		if errors.As(e, &failure) && failure != nil {
+			// Retain only safe typed facts, never an arbitrary callback wrapper.
+			return fmt.Errorf("integration %w", failure)
+		}
+		return errors.New("integration App token preparation failed")
 	}
 	defer release()
 	cmd := exec.CommandContext(ctx, "git", append([]string{"-c", "core.hooksPath=" + hooks, "-c", "core.fsmonitor=false", "-c", "credential.helper=", "-c", "credential.helper=!gh auth git-credential", "-C", n.req.RepoRoot}, args...)...)
@@ -456,11 +461,10 @@ func (n *NativeForward) Forward(ctx context.Context, head, main string) error {
 	if decision != "run" {
 		return errors.New("target no longer eligible before main write")
 	}
-	workflows, e := n.needsWorkflows(ctx, main, head)
-	if e != nil {
-		return e
-	}
-	return n.write(ctx, []string{"push", "--porcelain", "origin", head + ":refs/heads/" + n.req.BaseBranch}, workflows, head, main)
+	// H is already published in this repository and has been reobserved above.
+	// This effect only advances main to that exact H; it creates no workflow
+	// content. Request Contents write only and fail closed if Git rejects it.
+	return n.write(ctx, []string{"push", "--porcelain", "origin", head + ":refs/heads/" + n.req.BaseBranch}, false, head, main)
 }
 func (n *NativeForward) Cleanup(ctx context.Context, head string) error {
 	for {

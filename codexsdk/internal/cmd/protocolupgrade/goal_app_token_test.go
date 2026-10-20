@@ -11,12 +11,15 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/ronhuafeng/llm-go/codexsdk/internal/protocolsync"
 )
 
 type goalTokenTransport func(*http.Request) (*http.Response, error)
@@ -131,5 +134,102 @@ func TestGoalAppTokenFailureDoesNotDiscloseAuthentication(t *testing.T) {
 	release()
 	if output.Len() == 0 || strings.Contains(output.String(), "private-response-token") {
 		t.Fatal("revocation warning missing or disclosed a token")
+	}
+}
+
+func TestGoalAppTokenFailureCategoriesAndHTTPStatus(t *testing.T) {
+	app := goalAppFixture(t)
+	now := time.Date(2026, 10, 20, 0, 0, 0, 0, time.UTC)
+	app.now = func() time.Time { return now }
+	const marker = "private-token-body-header-transport-marker"
+	var jwt string
+	tests := []struct {
+		name    string
+		status  int
+		body    string
+		failure protocolsync.AppTokenFailure
+	}{
+		{"malformed", 201, marker, protocolsync.AppTokenResponseMalformed},
+		{"malformed expiry", 201, `{"token":"` + marker + `","expires_at":"` + marker + `"}`, protocolsync.AppTokenResponseMalformed},
+		{"trailing data", 201, fmt.Sprintf(`{"token":%q,"expires_at":%q} %s`, marker, now.Add(time.Hour).Format(time.RFC3339), marker), protocolsync.AppTokenResponseMalformed},
+		{"missing token", 201, fmt.Sprintf(`{"expires_at":%q}`, now.Add(time.Hour).Format(time.RFC3339)), protocolsync.AppTokenMissing},
+		{"missing expiry", 201, `{"token":"` + marker + `"}`, protocolsync.AppTokenExpiryInsufficient},
+		{"expired", 201, fmt.Sprintf(`{"token":%q,"expires_at":%q}`, marker, now.Add(-time.Minute).Format(time.RFC3339)), protocolsync.AppTokenExpiryInsufficient},
+		{"too short", 201, fmt.Sprintf(`{"token":%q,"expires_at":%q}`, marker, now.Add(time.Minute).Format(time.RFC3339)), protocolsync.AppTokenExpiryInsufficient},
+		{"transport", 0, "", protocolsync.AppTokenTransportFailed},
+	}
+	for _, status := range []int{200, 302, 401, 403, 404, 422, 429, 500, 502, 503} {
+		tests = append(tests, struct {
+			name    string
+			status  int
+			body    string
+			failure protocolsync.AppTokenFailure
+		}{fmt.Sprintf("HTTP %d", status), status, marker, protocolsync.AppTokenHTTPRejected})
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			app.client.Transport = goalTokenTransport(func(r *http.Request) (*http.Response, error) {
+				jwt = strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+				if tc.status == 0 {
+					return nil, errors.New(marker)
+				}
+				return &http.Response{StatusCode: tc.status, Body: io.NopCloser(strings.NewReader(tc.body)), Header: http.Header{"X-Private": {marker}}}, nil
+			})
+			token, release, err := app.token(context.Background())
+			var failure *protocolsync.AppTokenError
+			if !errors.As(err, &failure) || failure.Failure != tc.failure || failure.HTTPStatus != tc.status || token != "" || release != nil {
+				t.Fatalf("unexpected token failure facts: %+v", err)
+			}
+			if errors.Unwrap(err) != nil {
+				t.Fatal("token failure retained a potentially private underlying error")
+			}
+			for _, diagnostic := range []string{err.Error(), fmt.Sprintf("%+v", err), fmt.Sprintf("%#v", err)} {
+				if strings.Contains(diagnostic, marker) || strings.Contains(diagnostic, jwt) {
+					t.Fatal("token diagnostic disclosed private response, transport data or JWT")
+				}
+			}
+			if tc.status != 0 && !strings.Contains(err.Error(), fmt.Sprintf("HTTP %d", tc.status)) {
+				t.Fatal("token diagnostic omitted observed HTTP status")
+			}
+		})
+	}
+	_, err := app.request(context.Background(), "invalid\n"+marker, "/installation/token", marker, nil)
+	var failure *protocolsync.AppTokenError
+	if !errors.As(err, &failure) || failure.Failure != protocolsync.AppTokenRequestInvalid || failure.HTTPStatus != 0 || strings.Contains(err.Error(), marker) {
+		t.Fatal("invalid request did not retain safe typed facts")
+	}
+}
+
+func TestGoalAppTokenRequestsOnlyExplicitPermissions(t *testing.T) {
+	app := goalAppFixture(t)
+	for _, workflows := range []bool{false, true} {
+		permissions := map[string]string{"contents": "write"}
+		if workflows {
+			permissions["workflows"] = "write"
+		}
+		app.client.Transport = goalTokenTransport(func(r *http.Request) (*http.Response, error) {
+			if r.Method == http.MethodDelete {
+				return &http.Response{StatusCode: 204, Body: http.NoBody}, nil
+			}
+			var grant struct {
+				Repositories []string
+				Permissions  map[string]string
+			}
+			if json.NewDecoder(r.Body).Decode(&grant) != nil || len(grant.Repositories) != 1 || grant.Repositories[0] != "repo" || len(grant.Permissions) != len(permissions) {
+				t.Fatal("token request broadened repository or permission scope")
+			}
+			for name, level := range permissions {
+				if grant.Permissions[name] != level {
+					t.Fatal("token request changed explicitly requested permission")
+				}
+			}
+			body := fmt.Sprintf(`{"token":"fixture","expires_at":%q}`, time.Now().Add(time.Hour).Format(time.RFC3339))
+			return &http.Response{StatusCode: 201, Body: io.NopCloser(strings.NewReader(body))}, nil
+		})
+		_, release, err := app.tokenWithPermissions(context.Background(), permissions)
+		if err != nil {
+			t.Fatal(err)
+		}
+		release()
 	}
 }

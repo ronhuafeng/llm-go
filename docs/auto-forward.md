@@ -78,9 +78,12 @@ only around individual effects. Provider networking remains available; therefore
 may be exposed on host TCP or abstract sockets.
 
 The trusted host alone owns `AUTO_FORWARD_APP_PRIVATE_KEY` and mints/revokes a
-repository-scoped token around each effect. Contents write is existing authority;
-a workflow-changing branch update may additionally require existing Workflows
-write. A denial blocks with an actionable error; the controller grants nothing.
+repository-scoped token around each effect. The final exact-existing-H
+fast-forward requests Contents write only. Publishing a newly created or
+rewritten candidate with workflow changes still requests existing Workflows write.
+GitHub rejection remains a blocker; the controller grants nothing. Token failures
+report only a bounded category and numeric HTTP status when available, without
+response bodies or a claim that every failure means a missing App grant.
 Provider secrets are explicitly mapped, never inherited wholesale. Safe verifier
 diagnostics remain separate from private runtime state and raw transcripts.
 
