@@ -483,6 +483,11 @@ jobs:
     name: Integrate accepted native goal
     needs: sync
     if: ${{ needs.sync.result == 'success' && needs.sync.outputs.expected_head != '' }}
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+      pull-requests: read
     uses: ./.github/workflows/auto-forward.yml
     with:
       pr_number: ${{ fromJSON(needs.sync.outputs.pr_number) }}
