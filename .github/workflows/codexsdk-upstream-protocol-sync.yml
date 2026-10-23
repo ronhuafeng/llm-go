@@ -1,5 +1,5 @@
 name: Codex Upstream Protocol Sync
-run-name: "Native upstream goal ${{ inputs.upstream_ref || 'latest stable' }}"
+run-name: "Native upstream ${{ inputs.recovery_run_id && format('recovery of run {0}', inputs.recovery_run_id) || format('goal {0}', inputs.upstream_ref || 'latest stable') }}"
 
 on:
   schedule:
@@ -24,6 +24,26 @@ on:
         default: false
       validation_only:
         description: "Read-only exact baseline rebuild; requires force_compare."
+        type: boolean
+        default: false
+      recovery_run_id:
+        description: "Explicit prior failed upstream run to authenticate for same-PR recovery."
+        type: string
+        required: false
+      recovery_pr_number:
+        description: "Existing Draft PR number; requires recovery_run_id and recovery_expected_head."
+        type: string
+        required: false
+      recovery_expected_head:
+        description: "Exact current head of the existing Draft PR to recover."
+        type: string
+        required: false
+      authorize_new_bounded_execution:
+        description: "Explicitly authorize a fresh bounded execution, not renewal of the prior attempt."
+        type: boolean
+        default: false
+      regenerate_empty_seed:
+        description: "Explicitly allow regeneration only for the authenticated unchanged empty seed."
         type: boolean
         default: false
 
@@ -55,8 +75,17 @@ jobs:
           DIAGNOSTIC_ONLY: ${{ inputs.diagnostic_only == true }}
           VALIDATION_ONLY: ${{ inputs.validation_only == true }}
           FORCE_COMPARE: ${{ inputs.force_compare == true }}
+          RECOVERY_RUN_ID: ${{ inputs.recovery_run_id || '' }}
+          RECOVERY_PR_NUMBER: ${{ inputs.recovery_pr_number || '' }}
+          RECOVERY_EXPECTED_HEAD: ${{ inputs.recovery_expected_head || '' }}
+          NEW_EXECUTION: ${{ inputs.authorize_new_bounded_execution == true }}
+          REGENERATE_EMPTY_SEED: ${{ inputs.regenerate_empty_seed == true }}
         run: |
           set -euo pipefail
+          if [[ -n "${RECOVERY_RUN_ID}${RECOVERY_PR_NUMBER}${RECOVERY_EXPECTED_HEAD}" || "${NEW_EXECUTION}" == "true" || "${REGENERATE_EMPTY_SEED}" == "true" ]]; then
+            echo 'Recovery cannot be combined with read-only diagnosis or validation.' >&2
+            exit 1
+          fi
           if [[ "${DIAGNOSTIC_ONLY}" == "true" && "${VALIDATION_ONLY}" == "true" ]]; then
             echo 'diagnostic_only and validation_only are mutually exclusive.' >&2
             exit 1
@@ -262,13 +291,34 @@ jobs:
         id: start
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          RECOVERY_RUN_ID: ${{ inputs.recovery_run_id || '' }}
+          RECOVERY_PR_NUMBER: ${{ inputs.recovery_pr_number || '' }}
+          RECOVERY_EXPECTED_HEAD: ${{ inputs.recovery_expected_head || '' }}
+          NEW_EXECUTION: ${{ inputs.authorize_new_bounded_execution == true }}
+          REGENERATE_EMPTY_SEED: ${{ inputs.regenerate_empty_seed == true }}
+          REQUESTED_REF: ${{ inputs.upstream_ref || '' }}
+          ALLOW_DOWNGRADE: ${{ inputs.allow_downgrade == true }}
+          FORCE_COMPARE: ${{ inputs.force_compare == true }}
         run: |
           set -euo pipefail
           test "${GITHUB_REF_NAME}" = "${DEFAULT_BRANCH}"
-          # Rerunning this job would allocate a new goal/deadline. Reconcile any
-          # retained Draft binding explicitly instead of silently repeating it.
+          # A rerun cannot silently allocate a replacement goal or deadline.
           test "${GITHUB_RUN_ATTEMPT}" = 1
-          echo "deadline=$(date -u -d '+350 minutes' +%Y-%m-%dT%H:%M:%SZ)" >> "${GITHUB_OUTPUT}"
+          recovery=false
+          if [[ -n "${RECOVERY_RUN_ID}${RECOVERY_PR_NUMBER}${RECOVERY_EXPECTED_HEAD}" || "${NEW_EXECUTION}" == "true" || "${REGENERATE_EMPTY_SEED}" == "true" ]]; then
+            test "${GITHUB_EVENT_NAME}" = workflow_dispatch
+            [[ "${RECOVERY_RUN_ID}" =~ ^[1-9][0-9]*$ ]]
+            [[ "${RECOVERY_PR_NUMBER}" =~ ^[1-9][0-9]*$ ]]
+            [[ "${RECOVERY_EXPECTED_HEAD}" =~ ^[0-9a-f]{40}$ ]]
+            test -z "${REQUESTED_REF}"
+            test "${ALLOW_DOWNGRADE}" = false
+            test "${FORCE_COMPARE}" = false
+            recovery=true
+          fi
+          echo "recovery=${recovery}" >> "${GITHUB_OUTPUT}"
+          if [[ "${recovery}" == false || "${NEW_EXECUTION}" == true ]]; then
+            echo "deadline=$(date -u -d '+300 minutes' +%Y-%m-%dT%H:%M:%SZ)" >> "${GITHUB_OUTPUT}"
+          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
@@ -280,6 +330,7 @@ jobs:
           cache: false
       - name: Select target and avoid duplicate upstream goals
         id: preflight
+        if: ${{ steps.start.outputs.recovery != 'true' }}
         env:
           REQUESTED_REF: ${{ inputs.upstream_ref || '' }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -295,19 +346,70 @@ jobs:
             -base-sha "${GITHUB_SHA}" -app-bot-id "${APP_BOT_ID}")
           if [[ -n "${REQUESTED_REF}" ]]; then args+=(-upstream-ref "${REQUESTED_REF}"); fi
           "${control}" "${args[@]}" > "${RUNNER_TEMP}/goal-preflight.json"
-          outcome="$(jq -er '.Outcome | select(. == "run" or . == "skip")' "${RUNNER_TEMP}/goal-preflight.json")"
+          outcome="$(jq -er '.Outcome | select(. == "run" or . == "skip" or . == "needs_recovery")' "${RUNNER_TEMP}/goal-preflight.json")"
           echo "outcome=${outcome}" >> "${GITHUB_OUTPUT}"
-      - name: Summarize skipped upstream goal
-        if: ${{ steps.preflight.outputs.outcome == 'skip' }}
+      - name: Admit explicit same-PR recovery without write authority
+        id: recovery
+        if: ${{ steps.start.outputs.recovery == 'true' }}
+        env:
+          GH_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOTOOLCHAIN: local
+          APP_BOT_ID: ${{ vars.PROTOCOL_SYNC_APP_BOT_ID }}
+          PRIOR_RUN_ID: ${{ inputs.recovery_run_id }}
+          PR_NUMBER: ${{ inputs.recovery_pr_number }}
+          EXPECTED_HEAD: ${{ inputs.recovery_expected_head }}
+          NEW_EXECUTION: ${{ inputs.authorize_new_bounded_execution == true }}
+          REGENERATE_EMPTY_SEED: ${{ inputs.regenerate_empty_seed == true }}
+          NEW_DEADLINE: ${{ steps.start.outputs.deadline }}
+        run: |
+          set -euo pipefail
+          control="${RUNNER_TEMP}/protocolupgrade"
+          go build -o "${control}" ./codexsdk/internal/cmd/protocolupgrade
+          args=(goal-recover -controller-root "${GITHUB_WORKSPACE}"
+            -output-dir "${RUNNER_TEMP}/goal-recovered" -repository "${GITHUB_REPOSITORY}"
+            -current-base-sha "${GITHUB_SHA}" -app-bot-id "${APP_BOT_ID}"
+            -prior-run-id "${PRIOR_RUN_ID}" -pr-number "${PR_NUMBER}" -expected-head "${EXPECTED_HEAD}")
+          if [[ "${NEW_EXECUTION}" == true ]]; then
+            args+=(-authorize-new-bounded-execution -new-execution-deadline "${NEW_DEADLINE}")
+          fi
+          if [[ "${REGENERATE_EMPTY_SEED}" == true ]]; then args+=(-regenerate-empty-seed); fi
+          "${control}" "${args[@]}" > "${RUNNER_TEMP}/goal-recovery.json"
+          jq -e '.outcome == "admitted" and (.candidate_dir | length > 0) and (.binding_file | length > 0)' "${RUNNER_TEMP}/goal-recovery.json" > /dev/null
+          adopted="$(jq -r '.adopted_evidence_dir // empty' "${RUNNER_TEMP}/goal-recovery.json")"
+          if [[ -n "${adopted}" ]]; then
+            # Keep the old receipt immutable and separate from new write intent.
+            mkdir -m 700 "${RUNNER_TEMP}/goal-adopted-publication"
+            cp "${adopted}/publication-intent.json" "${RUNNER_TEMP}/goal-adopted-publication/"
+            cp "${adopted}/candidate.bundle" "${RUNNER_TEMP}/goal-adopted-publication/"
+          fi
+          jq -r '"outcome=" + .outcome, "candidate_dir=" + .candidate_dir,
+            "binding_file=" + .binding_file, "deadline=" + .execution_deadline' "${RUNNER_TEMP}/goal-recovery.json" >> "${GITHUB_OUTPUT}"
+      - name: Summarize upstream goal not started
+        if: ${{ steps.preflight.outputs.outcome == 'skip' || steps.preflight.outputs.outcome == 'needs_recovery' }}
         run: |
           {
             echo '## Upstream goal not started'
-            jq -r '.Reason, ("Selected target: " + .Target.RefName + " (" + .Target.PeeledCommitSHA + ")"),
-              (if .ExistingPRURL != "" then "Existing PR: " + .ExistingPRURL else empty end)' "${RUNNER_TEMP}/goal-preflight.json"
+            jq -r '.Outcome, .Reason, ("Selected target: " + .Target.RefName + " (" + .Target.PeeledCommitSHA + ")"),
+              (if .ExistingPRURL != "" then "Existing PR: " + .ExistingPRURL else empty end),
+              (if .ExistingHead != "" then "Expected head: " + .ExistingHead else empty end)' "${RUNNER_TEMP}/goal-preflight.json"
             echo 'No schema build, model goal, or publication was invoked.'
+            echo 'Recovery requires an explicit prior run, existing PR, and exact expected head; detection never resumes it.'
+          } >> "${GITHUB_STEP_SUMMARY}"
+      - name: Summarize recovery admission
+        if: ${{ always() && steps.start.outputs.recovery == 'true' }}
+        run: |
+          {
+            echo '## Explicit same-PR recovery admission'
+            if [[ -s "${RUNNER_TEMP}/goal-recovery.json" ]]; then
+              jq -r '.outcome, .reason, ("Classification: " + .classification),
+                ("Prior deadline (unchanged historical fact): " + .prior_deadline),
+                ("Selected execution deadline: " + .execution_deadline)' "${RUNNER_TEMP}/goal-recovery.json"
+            else
+              echo 'Recovery admission unavailable; no model or publication was authorized.'
+            fi
           } >> "${GITHUB_STEP_SUMMARY}"
       - name: Provision native build and sandbox prerequisites
-        if: ${{ steps.preflight.outputs.outcome == 'run' }}
+        if: ${{ steps.preflight.outputs.outcome == 'run' || steps.recovery.outputs.outcome == 'admitted' }}
         id: sandbox_host
         env:
           HOSTED_ENVIRONMENT: ${{ runner.environment }}
@@ -319,18 +421,23 @@ jobs:
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           rustup default stable
       - name: Set up official Codex latest once
-        if: ${{ steps.preflight.outputs.outcome == 'run' }}
+        if: ${{ steps.preflight.outputs.outcome == 'run' || steps.recovery.outputs.outcome == 'admitted' }}
         id: runtime
         uses: ./.github/actions/setup-codex
       - name: Build trusted launcher and warm exact source inputs
-        if: ${{ steps.preflight.outputs.outcome == 'run' }}
+        if: ${{ steps.preflight.outputs.outcome == 'run' || steps.recovery.outputs.outcome == 'admitted' }}
         id: prepare
         env:
           GOTOOLCHAIN: local
+          RECOVERED_CANDIDATE: ${{ steps.recovery.outputs.candidate_dir }}
         run: |
           set -euo pipefail
           control="${RUNNER_TEMP}/protocolupgrade"
           selected="${RUNNER_TEMP}/goal-preflight.json"
+          if [[ -n "${RECOVERED_CANDIDATE}" ]]; then
+            selected="${RUNNER_TEMP}/goal-selected.json"
+            jq '{Target: .target}' "${RUNNER_TEMP}/goal-recovery.json" > "${selected}"
+          fi
           args=(diagnose -repo-root "${GITHUB_WORKSPACE}" -module-root "${GITHUB_WORKSPACE}/codexsdk"
             -event-name "${GITHUB_EVENT_NAME}" -upstream-ref "$(jq -er .Target.RefName "${selected}")" -json)
           "${control}" "${args[@]}" > "${RUNNER_TEMP}/goal-source.json"
@@ -351,18 +458,24 @@ jobs:
           go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=normal)"
-          workspace="${RUNNER_TEMP}/goal-candidate"
-          git clone --no-hardlinks --no-local "${GITHUB_WORKSPACE}" "${workspace}"
-          git -C "${workspace}" checkout --detach "${GITHUB_SHA}"
-          git -C "${workspace}" remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          workspace="${RECOVERED_CANDIDATE}"
+          if [[ -z "${workspace}" ]]; then
+            workspace="${RUNNER_TEMP}/goal-candidate"
+            git clone --no-hardlinks --no-local "${GITHUB_WORKSPACE}" "${workspace}"
+            git -C "${workspace}" checkout --detach "${GITHUB_SHA}"
+            git -C "${workspace}" remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          else
+            git -C "${workspace}" remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          fi
           cp -a codexsdk/.cache "${workspace}/codexsdk/"
           mkdir -p "${RUNNER_TEMP}/goal-diagnostics" "${RUNNER_TEMP}/goal-state" "${RUNNER_TEMP}/goal-rust-tools"
+          mkdir -m 700 "${RUNNER_TEMP}/goal-publication"
           cp "$(command -v rustup)" "${RUNNER_TEMP}/goal-rust-tools/rustup"
           for tool in cargo rustc rustdoc; do ln -s rustup "${RUNNER_TEMP}/goal-rust-tools/${tool}"; done
           echo "control=${control}" >> "${GITHUB_OUTPUT}"
           echo "workspace=${workspace}" >> "${GITHUB_OUTPUT}"
       - name: Mint existing repository-scoped publication identity
-        if: ${{ steps.preflight.outputs.outcome == 'run' }}
+        if: ${{ steps.preflight.outputs.outcome == 'run' || steps.recovery.outputs.outcome == 'admitted' }}
         id: app_token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
@@ -372,7 +485,7 @@ jobs:
           repositories: ${{ github.event.repository.name }}
           permission-contents: write
           permission-pull-requests: write
-      - name: Prepare and bind one Draft PR
+      - name: Prepare one new Draft PR only for a new goal
         if: ${{ steps.preflight.outputs.outcome == 'run' }}
         id: draft
         env:
@@ -390,9 +503,36 @@ jobs:
             -target-ref "$(jq -r .Target.RefName "${RUNNER_TEMP}/goal-source.json")" \
             -target-kind "$(jq -r .Target.RefKind "${RUNNER_TEMP}/goal-source.json")" \
             -target-sha "$(jq -r .Target.PeeledCommitSHA "${RUNNER_TEMP}/goal-source.json")" \
-            > "${RUNNER_TEMP}/goal-binding.json"
+            > "${RUNNER_TEMP}/goal-prepared.json"
+      - name: Retain the fresh execution binding before model access
+        id: binding
+        if: ${{ steps.preflight.outputs.outcome == 'run' || steps.recovery.outputs.outcome == 'admitted' }}
+        env:
+          APP_BOT_ID: ${{ vars.PROTOCOL_SYNC_APP_BOT_ID }}
+          RECOVERED_BINDING: ${{ steps.recovery.outputs.binding_file }}
+          EXECUTION_DEADLINE: ${{ steps.recovery.outputs.deadline || steps.start.outputs.deadline }}
+        run: |
+          set -euo pipefail
+          original="${RUNNER_TEMP}/goal-prepared.json"
+          if [[ -n "${RECOVERED_BINDING}" ]]; then original="${RECOVERED_BINDING}"; fi
+          jq --arg repository "${GITHUB_REPOSITORY}" --argjson run_id "${GITHUB_RUN_ID}" \
+            --argjson run_attempt "${GITHUB_RUN_ATTEMPT}" --arg controller_sha "${GITHUB_SHA}" \
+            --argjson app_bot_id "${APP_BOT_ID}" --arg deadline "${EXECUTION_DEADLINE}" \
+            --slurpfile source "${RUNNER_TEMP}/goal-source.json" \
+            '. + {schema: 1, repository: $repository, run_id: $run_id, run_attempt: $run_attempt,
+              controller_sha: $controller_sha, app_bot_id: $app_bot_id, deadline: $deadline,
+              target_ref: $source[0].Target.RefName, target_kind: $source[0].Target.RefKind,
+              target_sha: $source[0].Target.PeeledCommitSHA}' "${original}" > "${RUNNER_TEMP}/goal-binding.json"
+          if [[ -n "${RECOVERED_BINDING}" ]]; then
+            jq --slurpfile recovery "${RUNNER_TEMP}/goal-recovery.json" \
+              '.head = $recovery[0].expected_head' "${RUNNER_TEMP}/goal-binding.json" > "${RUNNER_TEMP}/goal-binding.tmp"
+            mv "${RUNNER_TEMP}/goal-binding.tmp" "${RUNNER_TEMP}/goal-binding.json"
+          fi
+          jq -e '.schema == 1 and .confirmed == true and (.base | length == 40) and (.head | length == 40) and (.deadline | length > 0)' "${RUNNER_TEMP}/goal-binding.json" > /dev/null
+          printf '%s\n' '{"Stage":"Goal preparation","Failure":"Native goal not started"}' > "${RUNNER_TEMP}/goal-result.json"
+          echo "binding_file=${RUNNER_TEMP}/goal-binding.json" >> "${GITHUB_OUTPUT}"
       - name: Run the complete goal with its fixed verification tool
-        if: ${{ steps.preflight.outputs.outcome == 'run' }}
+        if: ${{ steps.preflight.outputs.outcome == 'run' || steps.recovery.outputs.outcome == 'admitted' }}
         id: goal
         env:
           GH_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -406,20 +546,21 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           CONTROL: ${{ steps.prepare.outputs.control }}
           CANDIDATE: ${{ steps.prepare.outputs.workspace }}
-          DEADLINE: ${{ steps.start.outputs.deadline }}
+          BINDING_FILE: ${{ steps.binding.outputs.binding_file }}
         run: |
           set -euo pipefail
-          binding="${RUNNER_TEMP}/goal-binding.json"
+          binding="${BINDING_FILE}"
           source="${RUNNER_TEMP}/goal-source.json"
           "${CONTROL}" goal -controller-root "${GITHUB_WORKSPACE}" -workspace "${CANDIDATE}" \
             -state-dir "${RUNNER_TEMP}/goal-state" -diagnostic-dir "${RUNNER_TEMP}/goal-diagnostics" \
-            -repository "${GITHUB_REPOSITORY}" -base-branch "${DEFAULT_BRANCH}" -base-sha "${GITHUB_SHA}" \
+            -publication-state-dir "${RUNNER_TEMP}/goal-publication" \
+            -repository "${GITHUB_REPOSITORY}" -base-branch "${DEFAULT_BRANCH}" -base-sha "$(jq -r .base "${binding}")" \
             -pr-number "$(jq -r .number "${binding}")" -branch "$(jq -r .branch "${binding}")" \
             -expected-head "$(jq -r .head "${binding}")" -app-bot-id "${APP_BOT_ID}" \
-            -target-ref "$(jq -r .Target.RefName "${source}")" -target-kind "$(jq -r .Target.RefKind "${source}")" \
-            -target-sha "$(jq -r .Target.PeeledCommitSHA "${source}")" \
+            -target-ref "$(jq -r .target_ref "${binding}")" -target-kind "$(jq -r .target_kind "${binding}")" \
+            -target-sha "$(jq -r .target_sha "${binding}")" \
             -candidate-dir "$(jq -r .CandidateDir "${source}")" -runtime-dirs "${RUNNER_TEMP}/goal-rust-tools" -timeout 300m \
-            -deadline "${DEADLINE}" -handoff-file "${RUNNER_TEMP}/goal-handoff.json" \
+            -deadline "$(jq -r .deadline "${binding}")" -handoff-file "${RUNNER_TEMP}/goal-handoff.json" \
             > "${RUNNER_TEMP}/goal-result.json"
       - name: Mint fresh Ready identity after trusted completion
         id: ready_token
@@ -445,21 +586,27 @@ jobs:
           jq -r 'to_entries[] | select(.key == "pr_number" or .key == "expected_head" or .key == "original_base" or .key == "verification_base" or .key == "target_ref" or .key == "target_kind" or .key == "target_sha" or .key == "deadline") | "\(.key)=\(.value)"' "${RUNNER_TEMP}/goal-ready.json" >> "${GITHUB_OUTPUT}"
       - name: Preserve bounded goal evidence
         id: evidence
-        if: ${{ always() && steps.preflight.outputs.outcome != 'skip' }}
+        if: ${{ always() && steps.preflight.outputs.outcome != 'skip' && steps.preflight.outputs.outcome != 'needs_recovery' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: protocol-native-goal-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/goal-preflight.json
             ${{ runner.temp }}/goal-source.json
+            ${{ runner.temp }}/goal-recovery.json
+            ${{ runner.temp }}/goal-prepared.json
             ${{ runner.temp }}/goal-binding.json
+            ${{ runner.temp }}/goal-publication/publication-intent.json
+            ${{ runner.temp }}/goal-publication/candidate.bundle
+            ${{ runner.temp }}/goal-adopted-publication/publication-intent.json
+            ${{ runner.temp }}/goal-adopted-publication/candidate.bundle
             ${{ runner.temp }}/goal-result.json
             ${{ runner.temp }}/goal-handoff.json
             ${{ runner.temp }}/goal-ready.json
             ${{ runner.temp }}/goal-diagnostics/*.jsonl
           if-no-files-found: warn
       - name: Summarize upstream goal outcome
-        if: ${{ always() && steps.preflight.outputs.outcome != 'skip' }}
+        if: ${{ always() && steps.preflight.outputs.outcome != 'skip' && steps.preflight.outputs.outcome != 'needs_recovery' }}
         env:
           GOAL_OUTCOME: ${{ steps.goal.outcome }}
           ARTIFACT_ID: ${{ steps.evidence.outputs.artifact-id || '0' }}

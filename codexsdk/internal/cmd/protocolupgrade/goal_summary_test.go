@@ -136,9 +136,22 @@ func TestNativeGoalLaunchFailureRetainsSafeSummaryResult(t *testing.T) {
 	t.Setenv("PROTOCOL_SYNC_APP_CLIENT_ID", "")
 	var out, err bytes.Buffer
 	dir := t.TempDir()
-	code := run([]string{"goal", "-controller-root", dir, "-workspace", dir, "-state-dir", dir, "-diagnostic-dir", dir, "-candidate-dir", dir}, &out, &err)
+	code := run([]string{"goal", "-controller-root", dir, "-workspace", dir, "-state-dir", dir, "-publication-state-dir", dir, "-diagnostic-dir", dir, "-candidate-dir", dir}, &out, &err)
 	var result protocolsync.GoalFlowResult
-	if code != 1 || json.Unmarshal(out.Bytes(), &result) != nil || result.Stage != "Goal preparation" || result.Failure != "Publication App credentials unavailable" || !strings.Contains(err.String(), "::error title=") {
+	if code != 1 || json.Unmarshal(out.Bytes(), &result) != nil || result.Stage != "Goal preparation" || result.Failure != "Accepted controller cannot preserve original and current baseline contracts" || !strings.Contains(err.String(), "::error title=") {
 		t.Fatalf("stdout=%q stderr=%q", &out, &err)
+	}
+}
+
+func TestGoalSummarySeparatesCurrentControllerFromOriginalBase(t *testing.T) {
+	dir, result := summaryFixture(t)
+	original, controller := strings.Repeat("b", 40), strings.Repeat("e", 40)
+	writeSummaryJSON(t, dir, "goal-binding.json", map[string]any{"number": 7, "base": original, "controller_sha": controller, "confirmed": true})
+	writeSummaryJSON(t, dir, "goal-result.json", result)
+	out := renderSummary(t, dir, "failure")
+	for _, line := range []string{"- Control commit: " + goalSummaryCommit("https://github.com/owner/repo", controller), "- Original compatibility base: " + goalSummaryCommit("https://github.com/owner/repo", original)} {
+		if !strings.Contains(out, line) {
+			t.Fatal("recovery conflated B and executing M", out)
+		}
 	}
 }

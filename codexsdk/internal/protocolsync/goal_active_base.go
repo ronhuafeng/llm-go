@@ -60,7 +60,9 @@ func refreshGoalBase(ctx context.Context, local GoalVerifyRequest, binding GoalP
 		cleanup()
 		return local, binding, noop, err
 	}
-	local.OriginalBaseRoot = local.BaseRoot
+	if local.OriginalBaseRoot == "" {
+		local.OriginalBaseRoot = local.BaseRoot
+	}
 	local.BaseRoot = root
 	binding.VerificationBaseSHA = current
 	return local, binding, cleanup, nil

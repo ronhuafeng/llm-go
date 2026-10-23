@@ -96,14 +96,14 @@ func TestGoalPreflightSameBaselineSkipsWithoutPRReads(t *testing.T) {
 		t.Fatalf("%+v %v calls=%d", got, err, f.calls)
 	}
 }
-func TestGoalPreflightTrustedPendingSkipsAcrossBaseAndTarget(t *testing.T) {
+func TestGoalPreflightTrustedPendingNeedsExplicitRecoveryAcrossBaseAndTarget(t *testing.T) {
 	req, f := preflightFixture(t)
 	p := preflightPR(req, f, 1)
 	p.Head.Ref = syncBranchName("rust-v0.100.1", oldSHA, oldSHA) + "-goal-0123456789abcdef"
 	p.Head.SHA = oldSHA // PR projection may lag the authoritative ref.
 	f.prs = []publicationPR{p}
 	got, err := GoalPreflight(context.Background(), req)
-	if err != nil || got.Outcome != "skip" || got.ExistingPRURL != p.URL || f.calls != 3 {
+	if err != nil || got.Outcome != "needs_recovery" || got.ExistingPRNumber != p.Number || got.ExistingHead != f.head || got.ExistingBranch != p.Head.Ref || got.ExistingPRURL != p.URL || f.calls != 3 {
 		t.Fatalf("%+v %v calls=%d", got, err, f.calls)
 	}
 }
@@ -148,7 +148,7 @@ func TestGoalPreflightReadsAllPages(t *testing.T) {
 	}
 	f.prs = append(f.prs, preflightPR(req, f, 101))
 	got, err := GoalPreflight(context.Background(), req)
-	if err != nil || got.Outcome != "skip" || f.calls != 4 {
+	if err != nil || got.Outcome != "needs_recovery" || f.calls != 4 {
 		t.Fatalf("%+v %v calls=%d", got, err, f.calls)
 	}
 }

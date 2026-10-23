@@ -21,10 +21,13 @@ type GoalPreflightRequest struct {
 // GoalPreflightResult is coordination, never acceptance or permission to reuse
 // another goal's candidate. Target is the exact newly resolved upstream identity.
 type GoalPreflightResult struct {
-	Outcome       string
-	Reason        string
-	Target        Target
-	ExistingPRURL string
+	Outcome          string
+	Reason           string
+	Target           Target
+	ExistingPRURL    string
+	ExistingPRNumber int
+	ExistingHead     string
+	ExistingBranch   string
 }
 
 var nativeGoalBranch = regexp.MustCompile(`^codex/sync-upstream-[A-Za-z0-9._-]{1,64}-[0-9a-f]{12}-base-[0-9a-f]{12}-goal-[0-9a-f]{16}$`)
@@ -122,9 +125,12 @@ func GoalPreflight(ctx context.Context, req GoalPreflightRequest) (result GoalPr
 		if e != nil || verifyAppActor(actor, req.AppBotID) != nil {
 			return result, errors.New("cannot confirm native goal head actor")
 		}
-		result.Outcome = "skip"
-		result.Reason = "existing trusted native goal PR requires review or continuation"
+		result.Outcome = "needs_recovery"
+		result.Reason = "existing trusted native goal PR blocks a new goal; inspect its prior run and use explicit authenticated recovery, never scheduled resume or deadline renewal"
 		result.ExistingPRURL = pr.URL
+		result.ExistingPRNumber = pr.Number
+		result.ExistingHead = ref.Object.SHA
+		result.ExistingBranch = pr.Head.Ref
 		return result, nil
 	}
 	result.Outcome = "run"

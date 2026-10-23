@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -28,6 +29,7 @@ func runNativeGoal(args []string, stdout, stderr io.Writer) (code int) {
 	upstream := flags.String("candidate-dir", "", "trusted freshly rebuilt upstream schema and common source")
 	workspace := flags.String("workspace", "", "isolated prepared candidate checkout")
 	state := flags.String("state-dir", "", "private native runtime state")
+	publicationState := flags.String("publication-state-dir", "", "private durable publication evidence outside candidate and native runtime")
 	diagnostics := flags.String("diagnostic-dir", "", "dedicated read-only-to-model JSONL directory")
 	repository := flags.String("repository", "", "fixed repository")
 	branch := flags.String("branch", "", "fixed existing Draft branch")
@@ -46,7 +48,7 @@ func runNativeGoal(args []string, stdout, stderr io.Writer) (code int) {
 	if flags.Parse(args) != nil || flags.NArg() != 0 {
 		return 2
 	}
-	if *duration <= 0 || *duration > 6*time.Hour || *root == "" || *workspace == "" || *state == "" || *diagnostics == "" || *upstream == "" {
+	if *duration <= 0 || *duration > 6*time.Hour || *root == "" || *workspace == "" || *state == "" || *publicationState == "" || *diagnostics == "" || *upstream == "" {
 		progress.Failure("Explicit trusted paths and finite lifetime required")
 		return 2
 	}
@@ -74,27 +76,36 @@ func runNativeGoal(args []string, stdout, stderr io.Writer) (code int) {
 		if err != nil || !fixed.After(time.Now()) || fixed.After(time.Now().Add(6*time.Hour)) {
 			return fail("Invalid fixed workflow deadline")
 		}
-		if fixed.Before(deadline) {
-			deadline = fixed
-		}
+		// A fixed execution deadline is an immutable identity, not a fresh
+		// timeout relative to this launcher invocation.
+		deadline = fixed
 	}
 	ctx, cancel := context.WithDeadline(ctx, deadline)
 	defer cancel()
 	target := protocolsync.Target{RefName: *ref, RefKind: *kind, PeeledCommitSHA: *sha}
-	binding := protocolsync.GoalPublicationRequest{RepoRoot: *root, Repository: *repository, Remote: "origin", BaseBranch: *baseBranch, Branch: *branch, BaseSHA: *base, ExpectedHead: *head, Number: *number, AppBotID: *actor, Target: target, API: protocolsync.NewGoalAPI(ctx, *root)}
+	binding := protocolsync.GoalPublicationRequest{RepoRoot: *root, Repository: *repository, Remote: "origin", BaseBranch: *baseBranch, Branch: *branch, BaseSHA: *base, ExpectedHead: *head, Number: *number, AppBotID: *actor, Target: target, StateDir: *publicationState, CandidateDir: *workspace, Deadline: deadline, API: protocolsync.NewGoalAPI(ctx, *root)}
+	originalRoot, cleanup, err := prepareGoalControllerBases(ctx, &binding)
+	if err != nil {
+		return fail("Accepted controller cannot preserve original and current baseline contracts")
+	}
+	defer cleanup()
+	// Discover a prior effect before validating the starting head. An intent
+	// never authorizes another push or a new model execution after its deadline.
+	observed, err := protocolsync.ReconcileGoalPublication(ctx, binding)
+	if err != nil {
+		return fail("Publication outcome unresolved; inspect retained intent before continuation")
+	}
+	if observed.EffectState == protocolsync.GoalPublicationObserved {
+		binding.ExpectedHead = observed.Head
+	}
+	if err := protocolsync.ValidateGoalBinding(ctx, binding); err != nil {
+		return fail("Fixed Draft binding unavailable")
+	}
 	app, err := newGoalAppCredentials(*repository, stderr)
 	if err != nil {
 		return fail("Publication App credentials unavailable")
 	}
 	binding.PublicationToken = app.token
-	acceptedHead, err := exec.CommandContext(ctx, "git", "-C", *root, "rev-parse", "HEAD").Output()
-	if err != nil || strings.TrimSpace(string(acceptedHead)) != *base || protocolsync.AssertClean(*root) != nil {
-		return fail("Accepted checkout does not match fixed base")
-	}
-	// Validate all trusted identity values before any native model invocation.
-	if err := protocolsync.ValidateGoalBinding(ctx, binding); err != nil {
-		return fail("Fixed Draft binding unavailable")
-	}
 	prompt, err := os.ReadFile(filepath.Join(*root, ".agents/skills/codexsdk-sync-upstream/goal.txt"))
 	if err != nil {
 		return fail("Accepted goal prompt unavailable")
@@ -114,7 +125,7 @@ func runNativeGoal(args []string, stdout, stderr io.Writer) (code int) {
 		return fail("Native runtime preparation failed")
 	}
 	var runErr error
-	result, runErr = protocolsync.RunUpstreamGoal(ctx, protocolsync.GoalFlowRequest{Objective: objective, Local: protocolsync.GoalVerifyRequest{RepoRoot: *workspace, DiagnosticDir: *diagnostics, TrustedCacheRoot: filepath.Join(*root, "codexsdk/.cache"), BaseRoot: *root, CandidateDir: *upstream}, Publication: binding, Progress: progress}, executor)
+	result, runErr = protocolsync.RunUpstreamGoal(ctx, protocolsync.GoalFlowRequest{Objective: objective, Local: protocolsync.GoalVerifyRequest{RepoRoot: *workspace, DiagnosticDir: *diagnostics, TrustedCacheRoot: filepath.Join(*root, "codexsdk/.cache"), BaseRoot: *root, OriginalBaseRoot: originalRoot, CandidateDir: *upstream}, Publication: binding, Progress: progress}, executor)
 	closeErr := executor.Close()
 	if closeErr != nil {
 		result.Failure = "Native runtime cleanup failed"
@@ -152,4 +163,38 @@ func splitRuntimeDirs(s string) []string {
 		}
 	}
 	return dirs
+}
+
+// The executing controller is current accepted M, while compatibility still
+// owes the immutable original B. Recovery must never execute an old controller
+// merely to satisfy B == HEAD, nor silently replace B with M.
+func prepareGoalControllerBases(ctx context.Context, binding *protocolsync.GoalPublicationRequest) (string, func(), error) {
+	noop := func() {}
+	data, err := exec.CommandContext(ctx, "git", "-C", binding.RepoRoot, "rev-parse", "HEAD").Output()
+	current := strings.TrimSpace(string(data))
+	if err != nil || protocolsync.AssertClean(binding.RepoRoot) != nil {
+		return "", noop, errors.New("accepted controller checkout unavailable")
+	}
+	if err = exec.CommandContext(ctx, "git", "-C", binding.RepoRoot, "merge-base", "--is-ancestor", binding.BaseSHA, current).Run(); err != nil {
+		return "", noop, errors.New("current controller does not descend from original base")
+	}
+	binding.VerificationBaseSHA = current
+	if current == binding.BaseSHA {
+		return binding.RepoRoot, noop, nil
+	}
+	decision, err := protocolsync.ResolveGoalRebinding(binding.RepoRoot, binding.BaseSHA, current, protocolsync.BaselineIdentity{SourceCommit: binding.Target.PeeledCommitSHA, SourceRefName: binding.Target.RefName, SourceRefKind: binding.Target.RefKind})
+	if err != nil || decision.Decision != protocolsync.GoalRebindingRun {
+		return "", noop, errors.New("current controller cannot preserve fixed goal target")
+	}
+	work, err := os.MkdirTemp("", "goal-original-base-")
+	if err != nil {
+		return "", noop, err
+	}
+	cleanup := func() { _ = os.RemoveAll(work) }
+	original, err := detachedForwardRoot(ctx, binding.RepoRoot, work, binding.BaseSHA)
+	if err != nil {
+		cleanup()
+		return "", noop, err
+	}
+	return original, cleanup, nil
 }

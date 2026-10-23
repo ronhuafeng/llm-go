@@ -247,7 +247,7 @@ func TestAutoForwardWorkflowOnlyFastForwardsVerifiedHead(t *testing.T) {
 		}
 	}
 	hook := repositorySource(t, root, "codexsdk/internal/protocolsync/auto_forward_effect.go")
-	for _, want := range []string{"remote_oid", "local_oid", "refs/heads/main", `test "$count" -eq 1`} {
+	for _, want := range []string{`return prepareExactRefHook(head, main, "main")`, `func prepareExactRefHook(head, previous, branch string)`, `"refs/heads/"+branch`, "remote_oid", "local_oid", `test "$count" -eq 1`} {
 		if !strings.Contains(hook, want) {
 			t.Fatalf("main advertisement binding missing %q", want)
 		}

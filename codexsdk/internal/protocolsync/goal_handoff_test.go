@@ -155,3 +155,17 @@ func TestReadyGoalRejectsChangedIdentityAndFailedLatestCI(t *testing.T) {
 		})
 	}
 }
+
+func TestCompletedGoalHandoffAllowsReAdoptedExactCandidateButNotCoherentSeed(t *testing.T) {
+	f, _, result := completedHandoffFixture(t)
+	binding := f.request
+	binding.ExpectedHead = result.Head
+	if _, err := CompletedGoalHandoff(binding, result, time.Now().Add(time.Minute)); err != nil {
+		t.Fatal("freshly accepted unchanged re-adopted head rejected", err)
+	}
+	result.Head = f.request.ExpectedHead
+	result.Checks.Head = result.Head
+	if _, err := CompletedGoalHandoff(f.request, result, time.Now().Add(time.Minute)); err == nil {
+		t.Fatal("seed accepted merely because its checks were green")
+	}
+}

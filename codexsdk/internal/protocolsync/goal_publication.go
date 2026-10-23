@@ -21,7 +21,11 @@ import (
 type GoalPublicationRequest struct {
 	RepoRoot, Repository, Remote, BaseBranch, Branch, BaseSHA, ExpectedHead string
 	CandidateDir, SnapshotDigest                                            string
-	Number                                                                  int
+	// StateDir is private host-owned durable evidence, outside the candidate.
+	StateDir string
+	// Deadline is the original goal deadline, never reset during recovery.
+	Deadline time.Time
+	Number   int
 	// VerificationBaseSHA is M for one accepted-contract attempt; BaseSHA remains B.
 	VerificationBaseSHA string
 	AppBotID            int64
@@ -37,11 +41,13 @@ type GoalPublicationRequest struct {
 // GoalPublication.Head is our Git-confirmed effect locator. It may accompany an
 // error when later PR/base checks fail; a nonempty Head alone is not acceptance.
 type GoalPublication struct {
-	Number         int      `json:"number"`
-	Head           string   `json:"head"`
-	PreviousHead   string   `json:"previous_head"`
-	SnapshotDigest string   `json:"snapshot_sha256"`
-	ChangedPaths   []string `json:"changed_paths"`
+	Number         int                    `json:"number"`
+	Head           string                 `json:"head"`
+	PreviousHead   string                 `json:"previous_head"`
+	SnapshotDigest string                 `json:"snapshot_sha256"`
+	ChangedPaths   []string               `json:"changed_paths"`
+	Intent         *GoalPublicationIntent `json:"intent,omitempty"`
+	EffectState    GoalPublicationEffect  `json:"effect_state,omitempty"`
 }
 
 type goalDraftPR struct {
@@ -61,8 +67,22 @@ func AppendGoalDraft(ctx context.Context, req GoalPublicationRequest) (GoalPubli
 }
 func appendGoalDraft(ctx context.Context, req GoalPublicationRequest, push goalPush) (GoalPublication, error) {
 	var result GoalPublication
+	if !req.Deadline.IsZero() {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithDeadline(ctx, req.Deadline)
+		defer cancel()
+	}
 	if err := goalBinding(req); err != nil {
 		return result, err
+	}
+	// A retained intent has consumed this write attempt even when its readback
+	// failed. Only an observed own intended head can advance the binding.
+	prior, err := ReconcileGoalPublication(ctx, req)
+	if err != nil {
+		return prior, err
+	}
+	if prior.Intent != nil && req.ExpectedHead != prior.Head {
+		return prior, nil
 	}
 	if err := goalCurrent(ctx, req, req.ExpectedHead); err != nil {
 		return result, err
@@ -110,7 +130,7 @@ func appendGoalDraft(ctx context.Context, req GoalPublicationRequest, push goalP
 		if err := goalCurrent(ctx, req, req.ExpectedHead); err != nil {
 			return result, err
 		}
-		return GoalPublication{Number: req.Number, Head: req.ExpectedHead, PreviousHead: req.ExpectedHead, SnapshotDigest: req.SnapshotDigest, ChangedPaths: paths}, nil
+		return GoalPublication{Number: req.Number, Head: req.ExpectedHead, PreviousHead: req.ExpectedHead, SnapshotDigest: req.SnapshotDigest, ChangedPaths: paths, Intent: prior.Intent, EffectState: GoalPublicationObserved}, nil
 	}
 	digest, err = goalSnapshot(ctx, req.CandidateDir, "")
 	if err != nil || digest != req.SnapshotDigest {
@@ -124,56 +144,176 @@ func appendGoalDraft(ctx context.Context, req GoalPublicationRequest, push goalP
 		return result, err
 	}
 	if push == nil {
-		push = pushGoalDraft
+		// Preparation cannot update Git refs. Do not consume an intent merely
+		// because a fresh token is unavailable. Credentials stay in this private
+		// closure, never in the retained bundle or binding.
+		execute, cleanup, prepareErr := prepareGoalDraftPush(ctx, req, head)
+		if prepareErr != nil {
+			return result, prepareErr
+		}
+		defer cleanup()
+		push = func(context.Context, GoalPublicationRequest, string) error { return execute() }
 	}
-	pushErr := push(ctx, req, head)
+	intent, err := writeGoalPublicationIntent(ctx, req, snapshot, head, tree)
+	if err != nil {
+		return result, err
+	}
+	result = goalIntentResult(intent)
+	result.ChangedPaths = paths
+	pushErr := safeGoalPublicationError("push", push(ctx, req, head))
 	// Even if cancellation interrupted push, one bounded readback establishes
 	// whether the effect happened. It cannot initiate another write.
 	readCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 	defer cancel()
 	actual, readErr := goalRemoteHead(readCtx, req, req.Branch)
 	if readErr != nil {
-		return result, errors.New("publication outcome unknown; readback failed")
+		return result, goalPublicationOutcomeError("readback", "unknown", errors.Join(pushErr, readErr))
 	}
 	if actual != head {
 		if pushErr != nil {
-			return result, errors.New("publication push unconfirmed; retained remote head differs")
+			return result, goalPublicationOutcomeError("readback", "unconfirmed", pushErr)
 		}
-		return result, errors.New("publication head changed during push")
+		return result, goalPublicationOutcomeError("readback", "head_changed", nil)
 	}
 	// Exact Git readback confirms our own effect even if the PR projection lags.
 	// Preserve its locator on postcondition failure; this is not acceptance and
 	// never adopts an arbitrary remote head.
-	result = GoalPublication{Number: req.Number, Head: head, PreviousHead: req.ExpectedHead, SnapshotDigest: req.SnapshotDigest, ChangedPaths: paths}
+	if err = goalCurrentAuthority(readCtx, req, head, false); err != nil {
+		return result, err
+	}
+	result.Head = head
+	result.EffectState = GoalPublicationObserved
 	if err = goalCurrent(readCtx, req, head); err != nil {
 		return result, err
 	}
 	return result, nil
 }
 
-func pushGoalDraft(ctx context.Context, r GoalPublicationRequest, head string) error {
-	if r.PublicationToken == nil {
-		_, err := goalGit(ctx, r.RepoRoot, "push", "--porcelain", goalRemote(r), head+":refs/heads/"+r.Branch)
-		return err
+// GoalPublicationError carries only closed diagnostics. Raw Git output,
+// credential command errors and token transport responses never escape here.
+type GoalPublicationError struct {
+	Stage    string
+	Category string
+	ExitCode int
+	Token    *AppTokenError
+	Cause    *GoalPublicationError
+}
+
+func (e *GoalPublicationError) Error() string {
+	stage, category := "unknown", "operation_failed"
+	switch e.Stage {
+	case "token", "push", "git", "readback":
+		stage = e.Stage
 	}
-	token, release, err := r.PublicationToken(ctx)
-	if err != nil {
-		return errors.New("publication token unavailable")
+	switch e.Category {
+	case "token_unavailable", "git_failed", "unknown", "unconfirmed", "head_changed":
+		category = e.Category
 	}
-	defer release()
-	cmd := exec.CommandContext(ctx, "git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false",
-		"-c", "credential.helper=", "-c", "credential.helper=!gh auth git-credential",
-		"-C", r.RepoRoot, "push", "--porcelain", goalRemote(r), head+":refs/heads/"+r.Branch)
-	for _, entry := range os.Environ() {
-		if !strings.HasPrefix(entry, "GH_TOKEN=") {
-			cmd.Env = append(cmd.Env, entry)
-		}
+	message := fmt.Sprintf("publication %s: %s", stage, category)
+	if e.ExitCode > 0 {
+		message += fmt.Sprintf(" (exit %d)", e.ExitCode)
 	}
-	cmd.Env = append(cmd.Env, "GH_TOKEN="+token)
-	if err := cmd.Run(); err != nil {
-		return errors.New("trusted publication git operation failed")
+	if e.Token != nil {
+		message += ": " + e.Token.Error()
+	}
+	if e.Cause != nil {
+		message += "; " + e.Cause.Error()
+	}
+	return message
+}
+func (e *GoalPublicationError) Unwrap() error {
+	if e.Token != nil {
+		return e.Token
+	}
+	if e.Cause != nil {
+		return e.Cause
 	}
 	return nil
+}
+func safeGoalPublicationError(stage string, err error) error {
+	if err == nil {
+		return nil
+	}
+	var publication *GoalPublicationError
+	if errors.As(err, &publication) {
+		return publication
+	}
+	failure := &GoalPublicationError{Stage: stage, Category: "git_failed"}
+	if stage == "token" {
+		failure.Category = "token_unavailable"
+	}
+	var token *AppTokenError
+	if errors.As(err, &token) {
+		failure.Stage, failure.Category = "token", "token_unavailable"
+		copy := *token
+		failure.Token = &copy
+	}
+	var exit *exec.ExitError
+	if errors.As(err, &exit) {
+		failure.ExitCode = exit.ExitCode()
+	}
+	return failure
+}
+func goalPublicationOutcomeError(stage, category string, cause error) error {
+	failure := &GoalPublicationError{Stage: stage, Category: category}
+	if cause != nil {
+		errors.As(safeGoalPublicationError("push", cause), &failure.Cause)
+	}
+	return failure
+}
+
+func pushGoalDraft(ctx context.Context, r GoalPublicationRequest, head string) error {
+	execute, cleanup, err := prepareGoalDraftPush(ctx, r, head)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+	return execute()
+}
+
+// prepareGoalDraftPush performs no Git ref update. Successful preparation owns
+// exactly one private token/hook lifetime; callers retain intent before execute.
+func prepareGoalDraftPush(ctx context.Context, r GoalPublicationRequest, head string) (execute func() error, cleanup func(), err error) {
+	hooks, removeHook, err := prepareExactRefHook(head, r.ExpectedHead, r.Branch)
+	if err != nil {
+		return nil, nil, safeGoalPublicationError("push", err)
+	}
+	cleanup = removeHook
+	args := []string{"-c", "core.hooksPath=" + hooks, "-c", "core.fsmonitor=false"}
+	var token string
+	if r.PublicationToken != nil {
+		var release func()
+		token, release, err = r.PublicationToken(ctx)
+		cleanup = func() {
+			if release != nil {
+				release()
+			}
+			removeHook()
+		}
+		if err != nil {
+			cleanup()
+			return nil, nil, safeGoalPublicationError("token", err)
+		}
+		if token == "" {
+			cleanup()
+			return nil, nil, safeGoalPublicationError("token", &AppTokenError{Failure: AppTokenMissing})
+		}
+		args = append(args, "-c", "credential.helper=", "-c", "credential.helper=!gh auth git-credential")
+	}
+	args = append(args, "-C", r.RepoRoot, "push", "--porcelain", goalRemote(r), head+":refs/heads/"+r.Branch)
+	execute = func() error {
+		cmd := exec.CommandContext(ctx, "git", args...)
+		for _, entry := range os.Environ() {
+			if token == "" || !strings.HasPrefix(entry, "GH_TOKEN=") {
+				cmd.Env = append(cmd.Env, entry)
+			}
+		}
+		if token != "" {
+			cmd.Env = append(cmd.Env, "GH_TOKEN="+token)
+		}
+		return safeGoalPublicationError("push", cmd.Run())
+	}
+	return execute, cleanup, nil
 }
 
 func goalBinding(r GoalPublicationRequest) error {
@@ -209,19 +349,26 @@ func goalGit(ctx context.Context, root string, args ...string) (string, error) {
 	fixed := []string{"-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-C", root}
 	out, err := exec.CommandContext(ctx, "git", append(fixed, args...)...).Output()
 	if err != nil {
-		return "", errors.New("trusted publication git operation failed")
+		return "", safeGoalPublicationError("git", err)
 	}
 	return strings.TrimSpace(string(out)), nil
 }
 func goalRemoteHead(ctx context.Context, r GoalPublicationRequest, branch string) (string, error) {
 	out, err := goalGit(ctx, r.RepoRoot, "ls-remote", goalRemote(r), "refs/heads/"+branch)
+	if err != nil {
+		return "", fmt.Errorf("bound remote ref cannot be confirmed: %w", err)
+	}
 	fields := strings.Fields(out)
-	if err != nil || len(fields) != 2 || fields[1] != "refs/heads/"+branch || !shaRE.MatchString(fields[0]) {
+	if len(fields) != 2 || fields[1] != "refs/heads/"+branch || !shaRE.MatchString(fields[0]) {
 		return "", errors.New("bound remote ref cannot be confirmed")
 	}
 	return fields[0], nil
 }
-func goalCurrent(ctx context.Context, r GoalPublicationRequest, head string) (resultErr error) {
+func goalCurrent(ctx context.Context, r GoalPublicationRequest, head string) error {
+	return goalCurrentAuthority(ctx, r, head, true)
+}
+
+func goalCurrentAuthority(ctx context.Context, r GoalPublicationRequest, head string, requireMain bool) (resultErr error) {
 	defer func() {
 		if err := ctx.Err(); err != nil {
 			resultErr = err
@@ -234,9 +381,9 @@ func goalCurrent(ctx context.Context, r GoalPublicationRequest, head string) (re
 	if err := r.API.Request("GET", fmt.Sprintf("repos/%s/pulls/%d", r.Repository, r.Number), nil, &pr); err != nil {
 		return errors.New("cannot read bound draft PR")
 	}
-	// The PR head SHA can lag a confirmed push. Its fixed repository/ref identify
-	// the branch; the Git readback below owns its exact current head.
-	if pr.Number != r.Number || pr.State != "open" || !pr.Draft || pr.MergedAt != nil || pr.Head.Ref != r.Branch || pr.Head.Repo.FullName != r.Repository || pr.Base.Ref != r.BaseBranch || pr.Base.SHA != goalVerificationBase(r) || pr.Base.Repo.FullName != r.Repository {
+	// PR head/base SHA projections can lag. Their fixed repository/ref pairs
+	// identify the branches; exact live Git refs own H and the current main M.
+	if pr.Number != r.Number || pr.State != "open" || !pr.Draft || pr.MergedAt != nil || pr.Head.Ref != r.Branch || pr.Head.Repo.FullName != r.Repository || pr.Base.Ref != r.BaseBranch || pr.Base.Repo.FullName != r.Repository {
 		return errors.New("draft PR identity changed")
 	}
 	if err := verifyAppActor(pr.User, r.AppBotID); err != nil {
@@ -246,12 +393,20 @@ func goalCurrent(ctx context.Context, r GoalPublicationRequest, head string) (re
 	if err != nil || verifyAppActor(actor, r.AppBotID) != nil {
 		return errors.New("draft PR head actor cannot be confirmed")
 	}
-	base, err := goalRemoteHead(ctx, r, r.BaseBranch)
-	if err != nil || base != goalVerificationBase(r) {
-		return errors.New("main moved from verified accepted base")
+	if requireMain {
+		base, err := goalRemoteHead(ctx, r, r.BaseBranch)
+		if err != nil {
+			return fmt.Errorf("main cannot be confirmed: %w", err)
+		}
+		if base != goalVerificationBase(r) {
+			return errors.New("main moved from verified accepted base")
+		}
 	}
 	actual, err := goalRemoteHead(ctx, r, r.Branch)
-	if err != nil || actual != head {
+	if err != nil {
+		return fmt.Errorf("draft branch cannot be confirmed: %w", err)
+	}
+	if actual != head {
 		return errors.New("draft branch moved from bound head")
 	}
 	target, err := ResolveUpstream(ResolveRequest{UpstreamRef: r.Target.RefName, Lookuper: goalLookupContext(ctx, r.Lookuper)})

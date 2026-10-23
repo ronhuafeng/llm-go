@@ -29,8 +29,19 @@ type GoalHandoff struct {
 // CompletedGoalHandoff must be called by the launcher only after successful
 // runtime cleanup. Failed command results are never exported as handoffs.
 func CompletedGoalHandoff(binding GoalPublicationRequest, result GoalFlowResult, deadline time.Time) (GoalHandoff, error) {
-	if goalBinding(binding) != nil || result.NativeStatus != "complete" || result.Failure != "" || result.Stage != "Final acceptance" || !shaRE.MatchString(result.Head) || result.Head == binding.ExpectedHead || result.SnapshotDigest == "" || !goalSuccessfulChecks(result.Checks, result.Head) || !deadline.After(time.Now()) {
+	if goalBinding(binding) != nil || result.NativeStatus != "complete" || result.Failure != "" || result.Stage != "Final acceptance" || !shaRE.MatchString(result.Head) || result.SnapshotDigest == "" || !goalSuccessfulChecks(result.Checks, result.Head) || !deadline.After(time.Now()) {
 		return GoalHandoff{}, errors.New("goal has no completed exact-head handoff")
+	}
+	// A re-adopted, unchanged candidate may equal the starting head. Reject a
+	// seed semantically instead of using commit inequality as a proxy.
+	identity, err := gitBaselineIdentity(binding.RepoRoot, result.Head)
+	if err != nil || identity.SourceCommit != binding.Target.PeeledCommitSHA || identity.SourceRefName != binding.Target.RefName || identity.SourceRefKind != binding.Target.RefKind {
+		return GoalHandoff{}, errors.New("goal handoff is an empty seed or different target")
+	}
+	baseTree, baseErr := goalGit(context.Background(), binding.RepoRoot, "rev-parse", binding.BaseSHA+"^{tree}")
+	headTree, headErr := goalGit(context.Background(), binding.RepoRoot, "rev-parse", result.Head+"^{tree}")
+	if baseErr != nil || headErr != nil || baseTree == headTree {
+		return GoalHandoff{}, errors.New("goal handoff has no change from original base")
 	}
 	verifiedBase := result.VerificationBaseSHA
 	if verifiedBase == "" {

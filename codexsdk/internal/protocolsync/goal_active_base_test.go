@@ -22,7 +22,7 @@ func TestActiveGoalRefreshesCurrentBaseWithoutReplacingOriginalPromise(t *testin
 	current := goalTestGit(t, f.request.RepoRoot, "rev-parse", "HEAD")
 	goalTestGit(t, f.request.RepoRoot, "push", "origin", "HEAD:refs/heads/main")
 	goalTestGit(t, f.request.RepoRoot, "checkout", "--detach", original)
-	f.pr.Base.SHA = current
+	// The PR base projection deliberately remains original B.
 	if err := goalCurrent(context.Background(), f.request, f.request.ExpectedHead); err == nil {
 		t.Fatal("unverified main movement accepted")
 	}

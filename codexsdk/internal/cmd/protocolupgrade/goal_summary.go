@@ -32,9 +32,10 @@ func runGoalSummary(args []string, stdout, stderr io.Writer) int {
 	}
 	var source struct{ Target protocolsync.Target }
 	var binding struct {
-		Number    int
-		Base      string
-		Confirmed bool
+		Number        int
+		ControllerSHA string `json:"controller_sha"`
+		Base          string
+		Confirmed     bool
 	}
 	var result protocolsync.GoalFlowResult
 	inputs := []struct {
@@ -63,7 +64,12 @@ func runGoalSummary(args []string, stdout, stderr io.Writer) int {
 	}
 	baseURL := "https://github.com/" + *repo
 	fmt.Fprintf(&b, "- Target: %s · upstream commit %s\n", goalSummaryText(source.Target.RefName), goalSummaryCommit("https://github.com/openai/codex", source.Target.PeeledCommitSHA))
-	fmt.Fprintf(&b, "- Control commit: %s\n", goalSummaryCommit(baseURL, binding.Base))
+	controller := binding.ControllerSHA
+	if controller == "" {
+		controller = binding.Base
+	} // legacy diagnostic evidence only
+	fmt.Fprintf(&b, "- Control commit: %s\n", goalSummaryCommit(baseURL, controller))
+	fmt.Fprintf(&b, "- Original compatibility base: %s\n", goalSummaryCommit(baseURL, binding.Base))
 	if binding.Number > 0 {
 		state := "binding unconfirmed"
 		if binding.Confirmed {
@@ -117,7 +123,7 @@ func runGoalSummary(args []string, stdout, stderr io.Writer) int {
 		}
 		fmt.Fprint(&b, "\n\n")
 	}
-	fmt.Fprintln(&b, "These are observations retained by this run; follow the links for current PR/CI state. Native goal completion alone is not acceptance. This workflow publishes only to the bound Draft PR; it does not mark ready or merge.")
+	fmt.Fprintln(&b, "These are observations retained by this run; follow the links for current PR/CI state. Native goal completion alone is not acceptance. This summary grants no publication, Ready or integration authority.")
 	if _, err := io.WriteString(stdout, b.String()); err != nil {
 		fmt.Fprintln(stderr, "goal-summary: cannot write summary")
 		return 1

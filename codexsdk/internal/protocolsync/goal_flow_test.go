@@ -227,3 +227,83 @@ func TestGoalDiagnosticImportsPreserveJSONNumbers(t *testing.T) {
 		}
 	}
 }
+
+// These are concrete effect-boundary traces, not mocked "push succeeded"
+// booleans: a local bare Git remote and the real intent reader own observation.
+func TestGoalFlowReconcilesBeforeVerificationWithoutReusingAcceptance(t *testing.T) {
+	for _, scenario := range []string{"observed", "fresh_ci_failed", "unresolved", "never_verified"} {
+		t.Run(scenario, func(t *testing.T) {
+			f := newGoalPublicationFixture(t)
+			writes := 0
+			first, err := appendGoalDraft(context.Background(), f.request, func(ctx context.Context, r GoalPublicationRequest, head string) error {
+				writes++
+				if scenario == "unresolved" {
+					return errors.New("unknown outcome")
+				}
+				if err := pushGoalDraft(ctx, r, head); err != nil {
+					return err
+				}
+				f.failPRRead = true
+				return errors.New("lost response")
+			})
+			if err == nil || first.Intent == nil || first.Head != "" {
+				t.Fatalf("missing unknown intent: %+v %v", first, err)
+			}
+			f.failPRRead = false
+			if scenario == "fresh_ci_failed" {
+				f.state = checkacceptance.Failed
+			}
+			dir := t.TempDir()
+			path := filepath.Join(dir, "local.jsonl")
+			if err := os.WriteFile(path, []byte("{\"passed\":true}\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			localCalls, ciCalls := 0, 0
+			op := goalFlowOperations{reconcile: ReconcileGoalPublication,
+				local: func(context.Context, GoalVerifyRequest) (GoalVerifyResult, error) {
+					localCalls++
+					return GoalVerifyResult{SnapshotRoot: f.request.CandidateDir, SnapshotDigest: f.request.SnapshotDigest, DiagnosticPath: path}, nil
+				}, publish: func(ctx context.Context, r GoalPublicationRequest) (GoalPublication, error) {
+					if r.ExpectedHead != first.Intent.IntendedHead {
+						t.Fatal("own locator not adopted before verification/publication")
+					}
+					return appendGoalDraft(ctx, r, func(context.Context, GoalPublicationRequest, string) error {
+						writes++
+						t.Fatal("same write replayed")
+						return nil
+					})
+				}, observe: func(ctx context.Context, r GoalPublicationRequest, h string, delay time.Duration) (checkacceptance.Observation, error) {
+					ciCalls++
+					return ObserveGoalCI(ctx, r, h, delay)
+				}, diagnostics: func(context.Context, GoalPublicationRequest, checkacceptance.Observation, *goalDiagnostics) error {
+					return nil
+				},
+			}
+			runner := goalRunnerFunc(func(ctx context.Context, _ string, verify func(context.Context) (string, error)) (codexexec.GoalResult, error) {
+				if scenario != "never_verified" {
+					_, _ = verify(ctx)
+					if scenario == "unresolved" {
+						_, _ = verify(ctx)
+					}
+				}
+				return codexexec.GoalResult{Status: "complete"}, nil
+			})
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+			defer cancel()
+			result, err := runUpstreamGoal(ctx, GoalFlowRequest{Objective: "fresh bounded goal", Publication: f.request, Local: GoalVerifyRequest{RepoRoot: f.request.CandidateDir, DiagnosticDir: dir}}, runner, op)
+			if (err == nil) != (scenario == "observed") || writes != 1 {
+				t.Fatalf("acceptance or write replay: %+v %v writes=%d", result, err, writes)
+			}
+			if scenario != "never_verified" && result.PublicationIntentHead != first.Intent.IntendedHead {
+				t.Fatal("persisted intent fact disappeared behind unconfirmed Head", result)
+			}
+			if scenario == "unresolved" || scenario == "never_verified" {
+				if localCalls != 0 || ciCalls != 0 {
+					t.Fatal("unresolved/unused locator acquired verification")
+				}
+			} else if localCalls != 1 || ciCalls == 0 {
+				t.Fatal("old acceptance reused")
+			}
+		})
+	}
+}

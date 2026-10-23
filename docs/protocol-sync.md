@@ -21,8 +21,9 @@ not establish a completed upgrade.
 The accepted main workflow checks upstream on weekdays at 10:00 UTC and keeps
 its manual entrypoint. Before schema builds, Codex setup, or App-token creation,
 a read-only native preflight resolves the latest stable tag and peeled commit
-(or the explicit manual target). It skips an already accepted commit and an
-existing trusted open native sync PR. Repository, base, publishing App identity,
+(or the explicit manual target). It skips an already accepted commit. An existing trusted open native sync PR
+returns actionable `needs_recovery` with its exact identity instead of silently
+skipping forever or allocating a second PR. Repository, base, publishing App identity,
 and branch identity must be valid; unknown API results fail closed.
 
 Each new goal retains that selected target. Preparation checks that generation
@@ -55,8 +56,9 @@ The fixed no-argument `verify_upstream` tool:
    original base, exact target and snapshot. It appends one normal commit
    to the observed head. Identical content reuses the same head. Uncertain effects
    are read back; another remote head is not silently adopted. The remote Git ref
-   owns the exact head; a lagging PR head projection does not invalidate that
-   confirmed ref.
+   owns the exact head and accepted main SHA; lagging PR head/base SHA
+   projections do not invalidate those refs. The PR still owns repository,
+   ref name, number, open/Draft state and creator identity.
 3. Waits for that exact head's latest trusted PR-verification attempt, including
    the existing real Live job. It does not dispatch retries. The same goal reads
    the complete diagnostic JSONL path and repairs a failed candidate.
@@ -139,6 +141,74 @@ Native terminal-goal, idle-turn and observed-completed-turn conditions are all
 required. Blocked/paused/limit/cancellation/disconnect/cleanup errors cannot imply
 acceptance. The launcher supplies one finite deadline, including verification
 and CI wait. It never resets the old pipeline's exhausted checkpoint or budget.
+
+## Publication intent and explicit same-PR recovery
+
+Publication has three different facts: intended effect, observed effect, and
+accepted candidate. None substitutes for the next. The controller first
+prepares its private push credentials and exact-ref hook. Before executing Git,
+it retains a bounded `publication-intent.json` and minimal parentless
+`candidate.bundle` using synced, atomic file installation in its private
+publication directory. An interrupted, incomplete pair fails closed. The intent fixes
+repository/PR/ref/actor, original B, verified M, U, previous H, intended H′,
+whole-tree digest and the unchanged execution deadline. The trusted pre-push
+hook compares the server-advertised old ref with exact H; the normal push is
+never force-enabled. Preparation failure consumes no effect attempt. Once Git
+execution starts, an error or a read of old H is not proof that no write occurred.
+
+A lost response is reconciled by reading Git and the same PR identity. Only the
+exact intended H′ with the recorded parent/tree can become a locator. Missing
+readback, old H or a foreign head blocks further writes; no retry/fallback is
+inferred. Reconciliation runs before the next local check and before a launcher
+starts a model. Discovering H′ still requires fresh local checks, unchanged
+candidate bytes, the latest exact-head four CI contexts and native completion.
+An unchanged re-adopted candidate is valid; an empty seed with green CI is not.
+Safe diagnostics preserve token failure category/status and Git exit status,
+never raw credential-helper output, provider text or token values.
+
+The workflow retains the enriched launch binding, intent and bundle with its
+existing evidence. The result separately records the last intended SHA so a
+missing or stale active pair cannot masquerade as an unattempted write. A
+re-adopted source pair is retained separately from the new execution's active
+intent, preserving recovery continuity without renewing the old receipt. This is host-local durability until artifact upload succeeds,
+not a guarantee across runner death. Missing or incomplete retained source is a
+blocker, not permission to recreate or attest a vanished candidate.
+
+Recovery is an explicit manual request, not a rerun or a scheduled model retry.
+Supply `recovery_run_id`, `recovery_pr_number` and `recovery_expected_head` to the
+accepted main workflow. `goal-recover` authenticates the terminal unsuccessful
+run/latest attempt and its uniquely named artifact, including its digest, and
+recovers B/U/PR/deadline from those records rather than operator guesses. It
+checks the current App-owned Draft and exact head, fixed target, accepted main
+and linear fast-forward ancestry before any schema build, credentials or model
+execution. The current accepted controller M executes; original B remains a
+separate immutable compatibility input. Fresh launch records preserve that B/U
+and use the admitted existing PR, never `goal-prepare` to allocate another one.
+
+An expired attempt requires explicit `authorize_new_bounded_execution`; its new bounded
+execution does not renew the old intent or resume a private native thread.
+`regenerate_empty_seed` separately permits a new candidate only for a proven
+unchanged empty seed with no retained publication intent. A retained candidate
+must use its authenticated bundle and observed intended head. Every new execution
+starts fresh verification; prior checks and goal status are diagnostic only.
+
+Recovery deliberately stops when current M is not an ancestor of retained H.
+Appending single-parent commits cannot repair that graph. It requires a separate
+authorization decision for an exact-lease rewrite or replacement, not automatic
+force-push, merge commit, new PR or relaxed integration policy. Legacy artifacts
+without complete launch identity/deadline also fail closed. In particular, the
+old #464 seed cannot be claimed resumed: its candidate was not retained, its old
+binding is incomplete, and its branch diverges from current main. Controller
+repair delivery uses an independent development PR, leaving that upgrade binding
+untouched for an explicit later recovery decision.
+
+Offline regression ownership: `goal_publication_intent_test.go` exercises actual
+local-Git unknown-effect traces and bounded reconciliation combinations;
+`goal_flow_test.go` proves fresh verification after locator discovery;
+`goal_recovery_test.go` covers authenticated admission, missing source, expired
+execution and graph blockers; `goal_controller_test.go` preserves B/M separation.
+These tests do not dispatch a workflow or prove a production upgrade. No TLC run
+or production recovery is implied by their success.
 
 ## Fresh wire facts
 

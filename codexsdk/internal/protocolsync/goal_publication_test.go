@@ -23,6 +23,7 @@ type goalPublicationFixture struct {
 	state           checkacceptance.State
 	pendingAttempt  bool
 	apiCalls        int
+	ciCalls         int
 	staleProjection string
 	failPRRead      bool
 	onRead          func()
@@ -34,12 +35,12 @@ func TestGoalPushObtainsFreshTokenForEachPublication(t *testing.T) {
 	// this publication, including a second publication after a long repair.
 	t.Setenv("GH_TOKEN", "expired-launch-token")
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
-	script := "#!/bin/sh\ntest \"$GH_TOKEN\" = \"$EXPECTED_PUSH_TOKEN\" && test -z \"$PUSH_FAIL\"\n"
+	script := "#!/bin/sh\nif test \"$1\" = check-ref-format; then exit 0; fi\ntest \"$GH_TOKEN\" = \"$EXPECTED_PUSH_TOKEN\" && test -z \"$PUSH_FAIL\"\n"
 	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}
 	issued, revoked := 0, 0
-	r := GoalPublicationRequest{RepoRoot: t.TempDir(), Branch: "codex/sync-upstream-fixture"}
+	r := GoalPublicationRequest{RepoRoot: t.TempDir(), Branch: "codex/sync-upstream-fixture", ExpectedHead: strings.Repeat("b", 40)}
 	r.PublicationToken = func(context.Context) (string, func(), error) {
 		issued++
 		return fmt.Sprintf("fresh-publication-%d", issued), func() { revoked++ }, nil
@@ -109,6 +110,7 @@ func (f *goalPublicationFixture) Request(method, path string, body, result any) 
 	case strings.Contains(path, "/activity?"):
 		data = []any{map[string]any{"ref": "refs/heads/" + f.request.Branch, "after": head, "actor": f.actor}}
 	case strings.Contains(path, "/check-runs"):
+		f.ciCalls++
 		var runs []checkacceptance.Run
 		if f.state != checkacceptance.Missing {
 			for i, name := range checkacceptance.RequiredNames() {
@@ -128,6 +130,7 @@ func (f *goalPublicationFixture) Request(method, path string, body, result any) 
 		}
 		data = map[string]any{"total_count": len(runs), "check_runs": runs}
 	case strings.Contains(path, "/actions/workflows/"):
+		f.ciCalls++
 		var runs []checkacceptance.WorkflowRun
 		if f.state != checkacceptance.Missing {
 			r := checkacceptance.WorkflowRun{ID: 9, HeadSHA: head, Attempt: 1, Status: "completed", Conclusion: "success"}
@@ -186,7 +189,7 @@ func newGoalPublicationFixture(t *testing.T) *goalPublicationFixture {
 		t.Fatal(err)
 	}
 	f := &goalPublicationFixture{t: t, state: checkacceptance.Succeeded, actor: publicationUser{ID: 42, Login: "sync[bot]", Type: "Bot"}}
-	f.request = GoalPublicationRequest{RepoRoot: root, Repository: "owner/repo", Number: 7, AppBotID: 42, BaseBranch: "main", Branch: branch, BaseSHA: base, ExpectedHead: base, Target: target, CandidateDir: snapshot, SnapshotDigest: digest, API: f, Lookuper: goalLookup{target}}
+	f.request = GoalPublicationRequest{RepoRoot: root, Repository: "owner/repo", Number: 7, AppBotID: 42, BaseBranch: "main", Branch: branch, BaseSHA: base, ExpectedHead: base, Target: target, CandidateDir: snapshot, SnapshotDigest: digest, StateDir: filepath.Join(t.TempDir(), "publication"), Deadline: time.Now().UTC().Add(time.Hour), API: f, Lookuper: goalLookup{target}}
 	f.pr = goalDraftPR{publicationPR: publicationPR{Number: 7, State: "open", User: f.actor}, Draft: true}
 	f.pr.Head.Ref = branch
 	f.pr.Head.Repo.FullName = "owner/repo"
@@ -233,7 +236,7 @@ func TestGoalDraftAppendsFrozenTreeAndReusesIdenticalHead(t *testing.T) {
 }
 func TestGoalDraftRejectsChangedBindingBeforePush(t *testing.T) {
 	cases := map[string]func(*goalPublicationFixture){
-		"ready": func(f *goalPublicationFixture) { f.pr.Draft = false }, "closed": func(f *goalPublicationFixture) { f.pr.State = "closed" }, "foreign repo": func(f *goalPublicationFixture) { f.pr.Head.Repo.FullName = "other/repo" }, "foreign creator": func(f *goalPublicationFixture) { f.pr.User.ID++ }, "foreign actor": func(f *goalPublicationFixture) { f.actor.ID++ }, "wrong base": func(f *goalPublicationFixture) { f.pr.Base.SHA = strings.Repeat("c", 40) }, "namespace": func(f *goalPublicationFixture) { f.request.Branch = "feature/anything" }, "zero PR": func(f *goalPublicationFixture) { f.request.Number = 0 }, "digest": func(f *goalPublicationFixture) { f.request.SnapshotDigest = strings.Repeat("0", 64) },
+		"ready": func(f *goalPublicationFixture) { f.pr.Draft = false }, "closed": func(f *goalPublicationFixture) { f.pr.State = "closed" }, "foreign repo": func(f *goalPublicationFixture) { f.pr.Head.Repo.FullName = "other/repo" }, "foreign creator": func(f *goalPublicationFixture) { f.pr.User.ID++ }, "foreign actor": func(f *goalPublicationFixture) { f.actor.ID++ }, "wrong base ref": func(f *goalPublicationFixture) { f.pr.Base.Ref = "elsewhere" }, "namespace": func(f *goalPublicationFixture) { f.request.Branch = "feature/anything" }, "zero PR": func(f *goalPublicationFixture) { f.request.Number = 0 }, "digest": func(f *goalPublicationFixture) { f.request.SnapshotDigest = strings.Repeat("0", 64) },
 		"source": func(f *goalPublicationFixture) { f.request.Target.PeeledCommitSHA = strings.Repeat("c", 40) },
 	}
 	for name, mutate := range cases {
@@ -386,11 +389,18 @@ func TestGoalDraftRetainsConfirmedHeadWhenPRReadbackLags(t *testing.T) {
 				t.Fatal("unavailable PR identity became acceptance")
 			}
 			actual, readErr := goalRemoteHead(context.Background(), f.request, f.request.Branch)
-			if readErr != nil || got.Head == "" || got.Head != actual || got.PreviousHead != f.request.ExpectedHead || got.Number != f.request.Number || got.SnapshotDigest != f.request.SnapshotDigest {
-				t.Fatalf("confirmed effect lost: %+v %v", got, readErr)
+			if readErr != nil || got.Intent == nil || got.Intent.IntendedHead != actual || got.PreviousHead != f.request.ExpectedHead || got.Number != f.request.Number || got.SnapshotDigest != f.request.SnapshotDigest {
+				t.Fatalf("retained effect lost: %+v %v", got, readErr)
+			}
+			if mode == "read failure" && got.Head != "" {
+				t.Fatal("unvalidated PR identity became an adoptable locator")
+			}
+			f.failPRRead = false
+			got, err = ReconcileGoalPublication(context.Background(), f.request)
+			if err != nil || got.Head != actual || got.EffectState != GoalPublicationObserved {
+				t.Fatalf("reconcile: %+v %v", got, err)
 			}
 			f.request.ExpectedHead = got.Head
-			f.failPRRead = false
 			if mode == "stale projection" {
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 				defer cancel()
@@ -421,5 +431,26 @@ func TestGoalDraftNeverAdoptsForeignPushReadback(t *testing.T) {
 	})
 	if err == nil || got.Head != "" {
 		t.Fatalf("foreign effect adopted: %+v %v", got, err)
+	}
+}
+
+func TestGoalDraftStalePRBaseProjectionDoesNotOverrideLiveGitMain(t *testing.T) {
+	f := newGoalPublicationFixture(t)
+	tree := goalTestGit(t, f.request.RepoRoot, "rev-parse", f.request.BaseSHA+"^{tree}")
+	main := goalTestGit(t, f.request.RepoRoot, "commit-tree", tree, "-p", f.request.BaseSHA, "-m", "fresh accepted main")
+	goalTestGit(t, f.request.RepoRoot, "push", "origin", main+":refs/heads/main")
+	f.request.VerificationBaseSHA = main
+	// Both SHA projections may lag; their repository/ref binding may not.
+	f.pr.Base.SHA = f.request.BaseSHA
+	f.staleProjection = f.request.ExpectedHead
+	got, err := AppendGoalDraft(context.Background(), f.request)
+	if err != nil || got.Head == "" || got.EffectState != GoalPublicationObserved {
+		t.Fatalf("stale PR base overrode exact Git main: %+v %v", got, err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	observation, err := ObserveGoalCI(ctx, f.request, got.Head, time.Millisecond)
+	if err != nil || observation.State != checkacceptance.Succeeded {
+		t.Fatalf("stale projection blocked exact-head CI: %+v %v", observation, err)
 	}
 }

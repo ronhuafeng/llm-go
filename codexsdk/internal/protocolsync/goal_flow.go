@@ -29,9 +29,11 @@ type GoalFlowRequest struct {
 type GoalFlowResult struct {
 	ThreadID, Head, SnapshotDigest, DiagnosticPath string
 	NativeStatus                                   string
-	VerificationBaseSHA                            string
-	ChangedPaths                                   []string
-	Checks                                         checkacceptance.Observation
+	// PublicationIntentHead is a write fact, never a confirmed effect or acceptance.
+	PublicationIntentHead string
+	VerificationBaseSHA   string
+	ChangedPaths          []string
+	Checks                checkacceptance.Observation
 	// Reporting facts, not a second acceptance state. Failure never includes the
 	// private native runtime error.
 	Stage, Failure string
@@ -40,10 +42,11 @@ type GoalFlowResult struct {
 // RunUpstreamGoal performs no client-authored repair turns. Every verification
 // and publication is requested by the same native goal, with immutable binding.
 func RunUpstreamGoal(ctx context.Context, req GoalFlowRequest, runner GoalRunner) (GoalFlowResult, error) {
-	return runUpstreamGoal(ctx, req, runner, goalFlowOperations{local: VerifyGoal, publish: AppendGoalDraft, observe: ObserveGoalCI, diagnostics: collectGoalCIDiagnostics, refresh: refreshGoalBase, finalObserve: observeCompletedGoalCI})
+	return runUpstreamGoal(ctx, req, runner, goalFlowOperations{reconcile: ReconcileGoalPublication, local: VerifyGoal, publish: AppendGoalDraft, observe: ObserveGoalCI, diagnostics: collectGoalCIDiagnostics, refresh: refreshGoalBase, finalObserve: observeCompletedGoalCI})
 }
 
 type goalFlowOperations struct {
+	reconcile    func(context.Context, GoalPublicationRequest) (GoalPublication, error)
 	finalObserve func(context.Context, GoalPublicationRequest, string, time.Duration) (checkacceptance.Observation, error)
 	refresh      func(context.Context, GoalVerifyRequest, GoalPublicationRequest) (GoalVerifyRequest, GoalPublicationRequest, func(), error)
 	local        func(context.Context, GoalVerifyRequest) (GoalVerifyResult, error)
@@ -94,6 +97,34 @@ func runUpstreamGoal(ctx context.Context, req GoalFlowRequest, runner GoalRunner
 			req.Progress.end()
 			req.Progress.line("Verification returned to the same native goal")
 		}()
+		// Reconcile a possibly completed write before spending another local check
+		// or publishing. This is effect discovery, not acceptance or a retry.
+		if op.reconcile != nil {
+			observed, reconcileErr := op.reconcile(call, binding)
+			if observed.Intent != nil {
+				result.PublicationIntentHead = observed.Intent.IntendedHead
+			}
+			if observed.EffectState == GoalPublicationObserved && observed.Head != "" {
+				binding.ExpectedHead = observed.Head
+				result.Head = observed.Head
+				result.SnapshotDigest = observed.SnapshotDigest
+			}
+			if reconcileErr != nil {
+				stage("Publication reconciliation")
+				result.Failure = "Publication outcome unresolved; no write was replayed"
+				log, logErr := newGoalDiagnostics(req.Local.DiagnosticDir)
+				if logErr != nil {
+					return "", logErr
+				}
+				log.record("publication_reconciliation", "", map[string]any{"passed": false, "effect_state": observed.EffectState, "intent": observed.Intent, "error": goalError(reconcileErr)})
+				closeErr := log.file.Close()
+				if log.err != nil || closeErr != nil {
+					return "", errors.New("publication reconciliation diagnostics incomplete")
+				}
+				result.DiagnosticPath = log.file.Name()
+				return result.DiagnosticPath, reconcileErr
+			}
+		}
 		localRequest := req.Local
 		if op.refresh != nil {
 			refreshedLocal, refreshedBinding, cleanup, refreshErr := op.refresh(call, localRequest, binding)
@@ -146,17 +177,20 @@ func runUpstreamGoal(ctx context.Context, req GoalFlowRequest, runner GoalRunner
 		candidate.SnapshotDigest = local.SnapshotDigest
 		stage("Draft publication")
 		published, e := op.publish(call, candidate)
+		if published.Intent != nil {
+			result.PublicationIntentHead = published.Intent.IntendedHead
+		}
 		// A confirmed Git push is an effect even if GitHub's PR projection is
 		// temporarily stale. Retain only the controller-returned exact head;
 		// it still requires fresh validation and CI before acceptance.
-		if published.Head != "" && published.PreviousHead == binding.ExpectedHead && published.SnapshotDigest == local.SnapshotDigest {
+		if published.EffectState == GoalPublicationObserved && published.Head != "" && published.PreviousHead == binding.ExpectedHead && published.SnapshotDigest == local.SnapshotDigest {
 			binding.ExpectedHead = published.Head
 			result.Head = published.Head
 			result.SnapshotDigest = published.SnapshotDigest
 			result.ChangedPaths = published.ChangedPaths
 		}
 		if e != nil {
-			log.record("publication", "", map[string]any{"passed": false, "error": goalError(e)})
+			log.record("publication", "", map[string]any{"passed": false, "effect_state": published.EffectState, "intent": published.Intent, "error": goalError(e)})
 			result.Failure = "Draft publication could not be confirmed; inspect retained publication diagnostics"
 			return finish(e)
 		}
