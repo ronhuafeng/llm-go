@@ -122,13 +122,14 @@ func TestProtocolRecoveryDispatchGuardDoesNotRenewImplicitly(t *testing.T) {
 	step, _ := workflowStepByID(job, "start")
 	script := workflowRunScript(t, step)
 	for _, tc := range []struct {
-		name                                    string
-		env                                     map[string]string
-		wantRecovery, wantDeadline, wantFailure bool
+		name                      string
+		env                       map[string]string
+		wantRecovery, wantFailure bool
+		wantDeadline              string
 	}{
-		{name: "scheduled new goal", env: map[string]string{"GITHUB_EVENT_NAME": "schedule"}, wantDeadline: true},
+		{name: "scheduled new goal", env: map[string]string{"GITHUB_EVENT_NAME": "schedule"}, wantDeadline: "2030-01-01T05:50:00Z"},
 		{name: "inherited recovery deadline", env: map[string]string{"RECOVERY_RUN_ID": "100", "RECOVERY_PR_NUMBER": "20", "RECOVERY_EXPECTED_HEAD": strings.Repeat("a", 40)}, wantRecovery: true},
-		{name: "explicit new recovery deadline", env: map[string]string{"RECOVERY_RUN_ID": "100", "RECOVERY_PR_NUMBER": "20", "RECOVERY_EXPECTED_HEAD": strings.Repeat("a", 40), "NEW_EXECUTION": "true"}, wantRecovery: true, wantDeadline: true},
+		{name: "explicit new recovery deadline", env: map[string]string{"RECOVERY_RUN_ID": "100", "RECOVERY_PR_NUMBER": "20", "RECOVERY_EXPECTED_HEAD": strings.Repeat("a", 40), "NEW_EXECUTION": "true"}, wantRecovery: true, wantDeadline: "2030-01-01T05:00:00Z"},
 		{name: "rerun", env: map[string]string{"GITHUB_RUN_ATTEMPT": "2"}, wantFailure: true},
 		{name: "non-main", env: map[string]string{"GITHUB_REF_NAME": "proposal"}, wantFailure: true},
 		{name: "missing exact head", env: map[string]string{"RECOVERY_RUN_ID": "100", "RECOVERY_PR_NUMBER": "20"}, wantFailure: true},
@@ -139,12 +140,28 @@ func TestProtocolRecoveryDispatchGuardDoesNotRenewImplicitly(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
 			output := filepath.Join(dir, "output")
+			bin, calls := filepath.Join(dir, "bin"), filepath.Join(dir, "date-calls")
+			if err := os.Mkdir(bin, 0700); err != nil {
+				t.Fatal(err)
+			}
+			date := `#!/bin/sh
+set -eu
+printf x >> "$FIXTURE_DATE_CALLS"
+case "$*" in
+  '-u -d +350 minutes +%Y-%m-%dT%H:%M:%SZ') printf '2030-01-01T05:50:00Z\n' ;;
+  '-u -d +300 minutes +%Y-%m-%dT%H:%M:%SZ') printf '2030-01-01T05:00:00Z\n' ;;
+  *) exit 91 ;;
+esac
+`
+			if err := os.WriteFile(filepath.Join(bin, "date"), []byte(date), 0700); err != nil {
+				t.Fatal(err)
+			}
 			env := map[string]string{"DEFAULT_BRANCH": "main", "GITHUB_REF_NAME": "main", "GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_RUN_ATTEMPT": "1", "RECOVERY_RUN_ID": "", "RECOVERY_PR_NUMBER": "", "RECOVERY_EXPECTED_HEAD": "", "NEW_EXECUTION": "false", "REGENERATE_EMPTY_SEED": "false", "REQUESTED_REF": "", "ALLOW_DOWNGRADE": "false", "FORCE_COMPARE": "false", "GITHUB_OUTPUT": output}
 			for key, value := range tc.env {
 				env[key] = value
 			}
 			cmd := exec.Command("bash", "-c", script)
-			cmd.Env = os.Environ()
+			cmd.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), "FIXTURE_DATE_CALLS="+calls)
 			for key, value := range env {
 				cmd.Env = append(cmd.Env, key+"="+value)
 			}
@@ -159,8 +176,16 @@ func TestProtocolRecoveryDispatchGuardDoesNotRenewImplicitly(t *testing.T) {
 				}
 				return
 			}
-			if strings.Contains(string(data), "recovery=true") != tc.wantRecovery || strings.Contains(string(data), "deadline=") != tc.wantDeadline {
+			if strings.Contains(string(data), "recovery=true") != tc.wantRecovery || strings.Contains(string(data), "deadline=") != (tc.wantDeadline != "") {
 				t.Fatalf("unexpected selected execution: %s", data)
+			}
+			dateCalls, _ := os.ReadFile(calls)
+			if tc.wantDeadline == "" {
+				if len(dateCalls) != 0 {
+					t.Fatal("inherited recovery allocated a new deadline")
+				}
+			} else if !strings.Contains(string(data), "deadline="+tc.wantDeadline+"\n") || string(dateCalls) != "x" {
+				t.Fatalf("deadline must be allocated once with the original execution budget: %s, date calls=%q", data, dateCalls)
 			}
 		})
 	}
@@ -172,9 +197,30 @@ func TestProtocolExecutionBindingPreservesOriginalBaseAndFreshRun(t *testing.T) 
 	job, _ := workflowJobByID(workflow, "sync")
 	step, _ := workflowStepByID(job, "binding")
 	script := workflowRunScript(t, step)
-	for _, recovered := range []bool{false, true} {
-		t.Run(map[bool]string{false: "new", true: "recovery"}[recovered], func(t *testing.T) {
+	for _, tc := range []struct {
+		name, admittedDeadline, nativeDeadline, wantDeadline string
+		recovered                                            bool
+	}{
+		{name: "early warmup keeps full native budget", admittedDeadline: "2030-01-01T05:50:00Z", nativeDeadline: "2030-01-01T05:20:00Z", wantDeadline: "2030-01-01T05:20:00Z"},
+		{name: "late warmup caps at overall deadline", admittedDeadline: "2030-01-01T05:50:00Z", nativeDeadline: "2030-01-01T06:00:00Z", wantDeadline: "2030-01-01T05:50:00Z"},
+		{name: "admitted recovery deadline unchanged", recovered: true, admittedDeadline: "2030-01-01T06:00:00Z", nativeDeadline: "2030-01-01T05:20:00Z", wantDeadline: "2030-01-01T06:00:00Z"},
+		{name: "short remaining recovery deadline unchanged", recovered: true, admittedDeadline: "2030-01-01T00:21:00Z", nativeDeadline: "2030-01-01T05:20:00Z", wantDeadline: "2030-01-01T00:21:00Z"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
+			bin, calls := filepath.Join(dir, "bin"), filepath.Join(dir, "date-calls")
+			if err := os.Mkdir(bin, 0700); err != nil {
+				t.Fatal(err)
+			}
+			date := `#!/bin/sh
+set -eu
+test "$*" = '-u -d +300 minutes +%Y-%m-%dT%H:%M:%SZ'
+printf x >> "$FIXTURE_DATE_CALLS"
+printf '%s\n' "$FIXTURE_NATIVE_DEADLINE"
+`
+			if err := os.WriteFile(filepath.Join(bin, "date"), []byte(date), 0700); err != nil {
+				t.Fatal(err)
+			}
 			base, oldHead, head, controller, upstream := strings.Repeat("b", 40), strings.Repeat("a", 40), strings.Repeat("c", 40), strings.Repeat("d", 40), strings.Repeat("e", 40)
 			original := map[string]any{"base": base, "head": oldHead, "branch": "codex/sync-upstream-fixture", "number": 20, "confirmed": true, "url": "https://github.com/example/repo/pull/20", "deadline": "2020-01-01T00:00:00Z", "controller_sha": base, "run_id": 99}
 			writeJSON := func(name string, value any) {
@@ -192,13 +238,13 @@ func TestProtocolExecutionBindingPreservesOriginalBaseAndFreshRun(t *testing.T) 
 			writeJSON("goal-source.json", map[string]any{"Target": map[string]any{"RefName": "rust-v0.200.0", "RefKind": "stable_rust_tag", "PeeledCommitSHA": upstream}})
 			writeJSON("goal-recovery.json", map[string]any{"expected_head": head, "prior_deadline": "2020-01-01T00:00:00Z"})
 			bindingFile := ""
-			if recovered {
+			if tc.recovered {
 				bindingFile = filepath.Join(dir, "recovered-binding.json")
 			} else {
 				head = oldHead
 			}
 			cmd := exec.Command("bash", "-c", script)
-			cmd.Env = append(os.Environ(), "RUNNER_TEMP="+dir, "GITHUB_REPOSITORY=example/repo", "GITHUB_RUN_ID=100", "GITHUB_RUN_ATTEMPT=1", "GITHUB_SHA="+controller, "APP_BOT_ID=123", "EXECUTION_DEADLINE=2030-01-01T01:00:00Z", "RECOVERED_BINDING="+bindingFile, "GITHUB_OUTPUT="+filepath.Join(dir, "output"))
+			cmd.Env = append(os.Environ(), "RUNNER_TEMP="+dir, "GITHUB_REPOSITORY=example/repo", "GITHUB_RUN_ID=100", "GITHUB_RUN_ATTEMPT=1", "GITHUB_SHA="+controller, "APP_BOT_ID=123", "EXECUTION_DEADLINE="+tc.admittedDeadline, "RECOVERED_BINDING="+bindingFile, "GITHUB_OUTPUT="+filepath.Join(dir, "output"), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), "FIXTURE_DATE_CALLS="+calls, "FIXTURE_NATIVE_DEADLINE="+tc.nativeDeadline)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				t.Fatalf("binding script: %v: %s", err, out)
 			}
@@ -210,10 +256,18 @@ func TestProtocolExecutionBindingPreservesOriginalBaseAndFreshRun(t *testing.T) 
 			if err = json.Unmarshal(data, &actual); err != nil {
 				t.Fatal(err)
 			}
-			for key, want := range map[string]any{"schema": float64(1), "repository": "example/repo", "run_id": float64(100), "run_attempt": float64(1), "controller_sha": controller, "base": base, "head": head, "app_bot_id": float64(123), "number": float64(20), "branch": "codex/sync-upstream-fixture", "deadline": "2030-01-01T01:00:00Z", "target_ref": "rust-v0.200.0", "target_kind": "stable_rust_tag", "target_sha": upstream, "confirmed": true, "url": "https://github.com/example/repo/pull/20"} {
+			for key, want := range map[string]any{"schema": float64(1), "repository": "example/repo", "run_id": float64(100), "run_attempt": float64(1), "controller_sha": controller, "base": base, "head": head, "app_bot_id": float64(123), "number": float64(20), "branch": "codex/sync-upstream-fixture", "deadline": tc.wantDeadline, "target_ref": "rust-v0.200.0", "target_kind": "stable_rust_tag", "target_sha": upstream, "confirmed": true, "url": "https://github.com/example/repo/pull/20"} {
 				if actual[key] != want {
 					t.Fatalf("binding %s=%v, want %v", key, actual[key], want)
 				}
+			}
+			dateCalls, _ := os.ReadFile(calls)
+			if tc.recovered {
+				if len(dateCalls) != 0 {
+					t.Fatal("recovery recomputed or renewed its admitted execution deadline")
+				}
+			} else if string(dateCalls) != "x" {
+				t.Fatalf("new-goal native deadline must be selected exactly once after warmup, got %q", dateCalls)
 			}
 			result, err := os.ReadFile(filepath.Join(dir, "goal-result.json"))
 			if err != nil || !strings.Contains(string(result), "Native goal not started") {

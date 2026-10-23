@@ -316,7 +316,9 @@ jobs:
             recovery=true
           fi
           echo "recovery=${recovery}" >> "${GITHUB_OUTPUT}"
-          if [[ "${recovery}" == false || "${NEW_EXECUTION}" == true ]]; then
+          if [[ "${recovery}" == false ]]; then
+            echo "deadline=$(date -u -d '+350 minutes' +%Y-%m-%dT%H:%M:%SZ)" >> "${GITHUB_OUTPUT}"
+          elif [[ "${NEW_EXECUTION}" == true ]]; then
             echo "deadline=$(date -u -d '+300 minutes' +%Y-%m-%dT%H:%M:%SZ)" >> "${GITHUB_OUTPUT}"
           fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -514,7 +516,16 @@ jobs:
         run: |
           set -euo pipefail
           original="${RUNNER_TEMP}/goal-prepared.json"
-          if [[ -n "${RECOVERED_BINDING}" ]]; then original="${RECOVERED_BINDING}"; fi
+          if [[ -n "${RECOVERED_BINDING}" ]]; then
+            original="${RECOVERED_BINDING}"
+          else
+            # Select once after warmup: the native lifetime cannot exceed either
+            # 300 minutes from launch or the original 350-minute overall window.
+            native_deadline="$(date -u -d '+300 minutes' +%Y-%m-%dT%H:%M:%SZ)"
+            if [[ "${native_deadline}" < "${EXECUTION_DEADLINE}" ]]; then
+              EXECUTION_DEADLINE="${native_deadline}"
+            fi
+          fi
           jq --arg repository "${GITHUB_REPOSITORY}" --argjson run_id "${GITHUB_RUN_ID}" \
             --argjson run_attempt "${GITHUB_RUN_ATTEMPT}" --arg controller_sha "${GITHUB_SHA}" \
             --argjson app_bot_id "${APP_BOT_ID}" --arg deadline "${EXECUTION_DEADLINE}" \
