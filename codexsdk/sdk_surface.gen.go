@@ -682,6 +682,14 @@ func (f FS) WriteFile(ctx context.Context, params protocolv2.FsWriteFileParams) 
 	return response, nil
 }
 
+func (f Feedback) Save(ctx context.Context, params protocolv2.FeedbackSaveParams) (protocolv2.FeedbackSaveResponse, error) {
+	var response protocolv2.FeedbackSaveResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodFeedbackSave, params, &response); err != nil {
+		return protocolv2.FeedbackSaveResponse{}, err
+	}
+	return response, nil
+}
+
 func (f Feedback) Upload(ctx context.Context, params protocolv2.FeedbackUploadParams) (protocolv2.FeedbackUploadResponse, error) {
 	var response protocolv2.FeedbackUploadResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodFeedbackUpload, params, &response); err != nil {
@@ -1510,6 +1518,22 @@ func (f Threads) Revert(ctx context.Context, params protocolv2.ThreadRevertParam
 	var response protocolv2.ThreadRevertResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadRevert, params, &response); err != nil {
 		return protocolv2.ThreadRevertResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Threads) Sample(ctx context.Context, params protocolv2.ThreadSampleParams) (protocolv2.ThreadSampleResponse, error) {
+	var response protocolv2.ThreadSampleResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadSample, params, &response); err != nil {
+		return protocolv2.ThreadSampleResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Threads) SampleCancel(ctx context.Context, params protocolv2.ThreadSampleCancelParams) (protocolv2.ThreadSampleCancelResponse, error) {
+	var response protocolv2.ThreadSampleCancelResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadSampleCancel, params, &response); err != nil {
+		return protocolv2.ThreadSampleCancelResponse{}, err
 	}
 	return response, nil
 }

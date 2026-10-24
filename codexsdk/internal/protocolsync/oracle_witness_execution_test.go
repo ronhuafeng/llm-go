@@ -144,7 +144,7 @@ func(p Payload)MarshalJSON()([]byte,error){return p.raw,nil}
 	for _, compact := range []bool{false, true} {
 		source := string(generated)
 		if !compact {
-			source = strings.Replace(source, "i, frozen.Diagnostics[p.Diagnostic])", "i, p.JSON[:min(len(p.JSON),2048)])", 1)
+			source = strings.Replace(source, "i, frozen.Diagnostics[p.Diagnostic])", "i, wire[:min(len(wire),2048)])", 1)
 			if source == string(generated) {
 				t.Fatal("legacy fixture replacement failed")
 			}

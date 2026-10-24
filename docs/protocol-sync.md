@@ -264,10 +264,12 @@ satisfies the standalone strict record's rejection contract. Role-specific
 regressions separately prove observation tolerance and action-bearing rejection;
 the standalone oracle does not certify a lossless observation/relay API.
 
-Frozen diagnostic strings and source-location objects share immutable storage
-across the complete target graph. The controller counts unique retained metadata
-plus per-probe references against the same 128 MiB corpus limit. The child wire
-stores JSON values verbatim and references a diagnostic string table; controller
+Frozen JSON values, diagnostic strings and source-location objects share
+immutable storage across the complete target graph. The controller counts unique
+retained metadata and JSON payloads plus per-probe references against the same
+128 MiB corpus limit.
+The child wire stores JSON values verbatim in a shared table; each independent
+probe references that value and a diagnostic string table. Controller
 source locations remain available in failure JSONL rather than being duplicated
 in an unused child field. This representation does not merge target obligations
 or change the 8 MiB compressed bound. Candidate decoders receive fresh input

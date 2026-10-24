@@ -300,6 +300,18 @@ recorder and changes no application acceptance or server-request authority.
 
 ## Compatibility and evidence
 
+At the `rust-v0.164.0` protocol baseline, `ThreadItemImageGeneration` accepts
+either a string `result` or a string `fileId`. Each alternative leaves the other
+field open, so `Result` is now `*protocolv2.JSONValue` instead of `string`, and
+`FileID` uses the same representation. To construct a result, use
+`result := protocolv2.JSONString("...")` and set `Result: &result`. To read it,
+check for nil and call `Result.AsString()`; nil means absent, while a present
+value can have another JSON kind when the `fileId` branch matches. Encoding and
+decoding require at least one string branch and preserve both fields, including
+null and mixed types. Optional `InputImages` records the local inputs observed
+for that image-generation request. This public type migration follows the
+source schema and does not expand the live scenario guarantee.
+
 The generated surface follows the selected source in
 [`baseline_metadata.json`](internal/protocolschema/appserver/v2/baseline_metadata.json).
 Live verification resolves the official latest Codex CLI once per execution and

@@ -19,12 +19,13 @@ import (
 )
 
 type testWireProbe struct {
-	JSON       json.RawMessage
+	JSON       int
 	Valid      bool
 	Diagnostic int
 }
 type testWireCorpus struct {
 	Targets     [][]testWireProbe
+	Values      []json.RawMessage
 	Diagnostics []string
 }
 
@@ -47,14 +48,21 @@ func assertWireProbes(t *testing.T, targets []Target, c testWireCorpus) {
 		}
 		for j, p := range target.Probes {
 			q := c.Targets[i][j]
-			if q.Diagnostic < 0 || q.Diagnostic >= len(c.Diagnostics) || string(q.JSON) != p.JSON || q.Valid != p.Valid || c.Diagnostics[q.Diagnostic] != p.Diagnostic {
+			if q.JSON < 0 || q.JSON >= len(c.Values) || q.Diagnostic < 0 || q.Diagnostic >= len(c.Diagnostics) || string(c.Values[q.JSON]) != p.JSON || q.Valid != p.Valid || c.Diagnostics[q.Diagnostic] != p.Diagnostic {
 				t.Fatalf("wire changed %s probe %d", target.Schema, j)
 			}
 		}
 	}
 }
 func TestFullTargetCorpusBudgetAndIdentity(t *testing.T) {
-	f, err := os.Open("testdata/rust-v0.162.1-full-target.json.gz")
+	testFullTargetCorpusBudgetAndIdentity(t, "rust-v0.162.1", 128968,
+		"c74c50d65f5e74a1e17cc448fec276d5465eac447a807c95c4b3a139c16aa389",
+		"040fc52c499408681c6d76ae42fdaa148ed804c4ca4ef2a6df863c33045c3f7f")
+}
+
+func testFullTargetCorpusBudgetAndIdentity(t *testing.T, version string, wantProbes int, wantSequence, wantMetadata string) {
+	t.Helper()
+	f, err := os.Open("testdata/" + version + "-full-target.json.gz")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +123,7 @@ func TestFullTargetCorpusBudgetAndIdentity(t *testing.T) {
 	count := 0
 	for i, target := range targets {
 		for _, p := range corpus.Targets[i] {
-			fmt.Fprintf(sequence, "%s\x00%t\x00%s\n", target.Schema, p.Valid, p.JSON)
+			fmt.Fprintf(sequence, "%s\x00%t\x00%s\n", target.Schema, p.Valid, corpus.Values[p.JSON])
 			count++
 		}
 		target.Probes = nil
@@ -123,13 +131,13 @@ func TestFullTargetCorpusBudgetAndIdentity(t *testing.T) {
 		metadata.Write(b)
 		metadata.Write([]byte("\n"))
 	}
-	if len(targets) != 65 || count != 128968 {
+	if len(targets) != 65 || count != wantProbes {
 		t.Fatalf("coverage changed: %d targets %d probes", len(targets), count)
 	}
-	if got := fmt.Sprintf("%x", sequence.Sum(nil)); got != "c74c50d65f5e74a1e17cc448fec276d5465eac447a807c95c4b3a139c16aa389" {
+	if got := fmt.Sprintf("%x", sequence.Sum(nil)); got != wantSequence {
 		t.Fatal("original input/verdict/order changed", got)
 	}
-	if got := fmt.Sprintf("%x", metadata.Sum(nil)); got != "040fc52c499408681c6d76ae42fdaa148ed804c4ca4ef2a6df863c33045c3f7f" {
+	if got := fmt.Sprintf("%x", metadata.Sum(nil)); got != wantMetadata {
 		t.Fatal("target bindings or acceptance metadata changed", got)
 	}
 	t.Logf("targets=%d probes=%d serialized=%d compressed=%d", len(targets), count, len(raw), len(compressed))
@@ -176,12 +184,25 @@ func TestRawCorpusCannotBeMutatedByCandidateDecoder(t *testing.T) {
 }
 
 func TestGeneratedCorpusRejectsInvalidDiagnosticReference(t *testing.T) {
+	testGeneratedCorpusRejectsInvalidReference(t, "Diagnostic", "len(frozen.Diagnostics)", "frozen diagnostic reference out of range")
+}
+
+func TestGeneratedCorpusRejectsInvalidJSONReference(t *testing.T) {
+	for _, invalid := range []string{"len(frozen.Values)", "-1"} {
+		t.Run(invalid, func(t *testing.T) {
+			testGeneratedCorpusRejectsInvalidReference(t, "JSON", invalid, "frozen JSON reference out of range")
+		})
+	}
+}
+
+func testGeneratedCorpusRejectsInvalidReference(t *testing.T, field, value, message string) {
+	t.Helper()
 	source, err := Generate(request(`{"type":"string"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
 	original := string(source)
-	changed := strings.Replace(original, "for i, p := range probes {", "for i, p := range probes { p.Diagnostic = len(frozen.Diagnostics)", 1)
+	changed := strings.Replace(original, "for i, p := range probes {", "for i, p := range probes { p."+field+" = "+value, 1)
 	if changed == original {
 		t.Fatal("fixture mutation failed")
 	}
@@ -194,7 +215,47 @@ func TestGeneratedCorpusRejectsInvalidDiagnosticReference(t *testing.T) {
 	cmd := exec.Command("go", "test", "-count=1", ".")
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
-	if err == nil || !bytes.Contains(out, []byte("frozen diagnostic reference out of range")) {
-		t.Fatalf("bad diagnostic index was not rejected: %v %s", err, out)
+	if err == nil || !bytes.Contains(out, []byte(message)) {
+		t.Fatalf("bad %s index was not rejected: %v %s", field, err, out)
+	}
+}
+
+func TestBuildSharesWireValuesAcrossIndependentTargets(t *testing.T) {
+	targets, err := Build(Request{
+		Schemas:  map[string][]byte{"A.json": []byte(`{"type":"boolean"}`), "B.json": []byte(`{"type":"boolean"}`)},
+		Bindings: map[string]string{"A.json": "A", "B.json": "B"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(targets) != 2 || len(targets[0].Probes) == 0 || len(targets[0].Probes) != len(targets[1].Probes) {
+		t.Fatal("independent target obligations lost")
+	}
+	for i, a := range targets[0].Probes {
+		b := targets[1].Probes[i]
+		if a.JSON != b.JSON || unsafe.StringData(a.JSON) != unsafe.StringData(b.JSON) {
+			t.Fatal("identical wire bytes were discounted without sharing storage")
+		}
+	}
+}
+
+func TestWireValueTablePreservesIndependentVerdicts(t *testing.T) {
+	targets := []Target{
+		{Schema: "A", Probes: []Probe{{JSON: `true`, Valid: true}, {JSON: `true`, Valid: false, Diagnostic: "invalid A"}}},
+		{Schema: "B", Probes: []Probe{{JSON: `true`, Valid: false, Diagnostic: "invalid B"}}},
+	}
+	compressed, err := compressCorpus(context.Background(), targets)
+	if err != nil {
+		t.Fatal(err)
+	}
+	z, err := gzip.NewReader(bytes.NewReader(compressed))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer z.Close()
+	corpus := decodeWireCorpus(t, z)
+	assertWireProbes(t, targets, corpus)
+	if len(corpus.Values) != 1 || string(corpus.Values[0]) != "true" {
+		t.Fatal("wire bytes were not shared")
 	}
 }

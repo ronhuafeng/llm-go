@@ -96,6 +96,7 @@ const (
 	MethodExternalAgentConfigImportProgress       = "externalAgentConfig/import/progress"
 	MethodExternalAgentConfigImportReadHistories  = "externalAgentConfig/import/readHistories"
 	MethodExternalAgentConfigImportRecordHistory  = "externalAgentConfig/import/recordHistory"
+	MethodFeedbackSave                            = "feedback/save"
 	MethodFeedbackUpload                          = "feedback/upload"
 	MethodFSChanged                               = "fs/changed"
 	MethodFSCopy                                  = "fs/copy"
@@ -273,6 +274,8 @@ const (
 	MethodThreadResume                            = "thread/resume"
 	MethodThreadRevert                            = "thread/revert"
 	MethodThreadReverted                          = "thread/reverted"
+	MethodThreadSample                            = "thread/sample"
+	MethodThreadSampleCancel                      = "thread/sample/cancel"
 	MethodThreadSearch                            = "thread/search"
 	MethodThreadSearchOccurrences                 = "thread/searchOccurrences"
 	MethodThreadSectionMove                       = "thread/section/move"
@@ -906,6 +909,17 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchema:        "v2/ExternalAgentConfigImportHistoryRecordResponse.json",
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "ExternalAgentConfigs().ImportRecordHistory",
+		Stability:             MethodStabilityStable,
+	},
+	MethodFeedbackSave: {
+		Method:                MethodFeedbackSave,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "feedback",
+		ParamsOrPayloadSchema: "FeedbackSaveParams",
+		ResponseSchema:        "v2/FeedbackSaveResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Feedback().Save",
 		Stability:             MethodStabilityStable,
 	},
 	MethodFeedbackUpload: {
@@ -2854,6 +2868,28 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
 		FacadeTarget:          "ServerNotifications().ThreadReverted",
 		Stability:             MethodStabilityStable,
+	},
+	MethodThreadSample: {
+		Method:                MethodThreadSample,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadSampleParams",
+		ResponseSchema:        "v2/ThreadSampleResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Threads().Sample",
+		Stability:             MethodStabilityExperimental,
+	},
+	MethodThreadSampleCancel: {
+		Method:                MethodThreadSampleCancel,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadSampleCancelParams",
+		ResponseSchema:        "v2/ThreadSampleCancelResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Threads().SampleCancel",
+		Stability:             MethodStabilityExperimental,
 	},
 	MethodThreadSearch: {
 		Method:                MethodThreadSearch,

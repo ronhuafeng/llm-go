@@ -13,6 +13,14 @@ changes may occur in minor releases.
 
 #### Added
 
+- Synchronize the App Server protocol with Codex `rust-v0.164.0`
+  (`6aaac694803004a63c6f393d153c96d22521a6b9`), adding feedback ZIP saves,
+  thread sampling and cancellation, turn metadata patches, application storage
+  requirements, and expanded hook, plan and realtime fields.
+  `ThreadItemImageGeneration.Result` changes from `string` to `*JSONValue`,
+  alongside `FileID` and observed `InputImages`, to preserve the upstream open
+  `anyOf` alternatives. See the SDK README for migration.
+
 - Synchronize the App Server protocol with Codex `rust-v0.163.0`
   (`83086188ae0614bd882818ff1aa23f3194962012`), adding thread item reads,
   revision-guarded read-state updates and notifications, read-state projections,
@@ -52,6 +60,11 @@ changes may occur in minor releases.
   their existing ignore policy; fixture evidence does not claim runtime emission.
 
 #### Fixed
+
+- Share immutable JSON probes across protocol-oracle targets to fit expanded
+  upstream contracts within the existing corpus limits. Preserve every target,
+  probe, verdict, diagnostic and round-trip assertion; reject invalid table
+  references and candidate attempts to mutate frozen inputs.
 
 - Request only Contents write for Auto-forward's final fast-forward to an
   already-published exact head, retaining workflow scope for workflow-changing

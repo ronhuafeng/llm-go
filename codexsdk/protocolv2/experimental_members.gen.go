@@ -22,6 +22,11 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 	},
 	"ApplicationRequirements": {
 		"network": {},
+		"storage": {},
+	},
+	"ApplicationStorageRequirements": {
+		"defaultProjectParent":     {},
+		"projectlessWorkspaceRoot": {},
 	},
 	"AppsConfig": {
 		"_default": {},
@@ -285,6 +290,14 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"id":     {},
 		"params": {},
 	},
+	"ClientRequestThreadSample": {
+		"id":     {},
+		"params": {},
+	},
+	"ClientRequestThreadSampleCancel": {
+		"id":     {},
+		"params": {},
+	},
 	"ClientRequestThreadSearch": {
 		"id":     {},
 		"params": {},
@@ -468,8 +481,10 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"Interrupt":         {},
 		"PermissionRequest": {},
 		"PostCompact":       {},
+		"PostModelRequest":  {},
 		"PostToolUse":       {},
 		"PreCompact":        {},
+		"PreModelRequest":   {},
 		"PreToolUse":        {},
 		"SessionEnd":        {},
 		"SessionStart":      {},
@@ -917,12 +932,13 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"runtimeWorkspaceRoots": {},
 	},
 	"ThreadForkParams": {
-		"beforeTurnId":               {},
-		"deferGoalContinuation":      {},
-		"experimentalPredictionMode": {},
-		"path":                       {},
-		"permissions":                {},
-		"runtimeWorkspaceRoots":      {},
+		"beforeTurnId":                     {},
+		"deferGoalContinuation":            {},
+		"experimentalDisablePredictionMcp": {},
+		"experimentalPredictionMode":       {},
+		"path":                             {},
+		"permissions":                      {},
+		"runtimeWorkspaceRoots":            {},
 	},
 	"ThreadForkResponse": {
 		"activePermissionProfile": {},
@@ -1078,6 +1094,7 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"transport":                           {},
 		"version":                             {},
 		"voice":                               {},
+		"voiceSessionId":                      {},
 	},
 	"ThreadRealtimeStartTransportExistingCall": {
 		"callId": {},
@@ -1105,6 +1122,26 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"initialTurnsPage":        {},
 		"multiAgentMode":          {},
 		"runtimeWorkspaceRoots":   {},
+	},
+	"ThreadSampleCancelParams": {
+		"requestId": {},
+	},
+	"ThreadSampleParams": {
+		"disableMcp":                 {},
+		"effort":                     {},
+		"expectedTurnId":             {},
+		"prompt":                     {},
+		"responsesapiClientMetadata": {},
+		"threadId":                   {},
+		"turnTrigger":                {},
+	},
+	"ThreadSampleResponse": {
+		"cachedInputTokens": {},
+		"inputTokens":       {},
+		"outputTokens":      {},
+		"responseId":        {},
+		"sourceTurnId":      {},
+		"text":              {},
 	},
 	"ThreadSearchOccurrence": {
 		"itemId":            {},
@@ -1234,18 +1271,20 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"status": {},
 	},
 	"TurnStartParams": {
-		"additionalContext":          {},
-		"collaborationMode":          {},
-		"cyberAccessProgram":         {},
-		"environments":               {},
-		"multiAgentMode":             {},
-		"permissions":                {},
-		"responsesapiClientMetadata": {},
-		"runtimeWorkspaceRoots":      {},
+		"additionalContext":               {},
+		"collaborationMode":               {},
+		"cyberAccessProgram":              {},
+		"environments":                    {},
+		"multiAgentMode":                  {},
+		"permissions":                     {},
+		"responsesapiClientMetadata":      {},
+		"responsesapiClientMetadataPatch": {},
+		"runtimeWorkspaceRoots":           {},
 	},
 	"TurnSteerParams": {
-		"additionalContext":          {},
-		"responsesapiClientMetadata": {},
+		"additionalContext":               {},
+		"responsesapiClientMetadata":      {},
+		"responsesapiClientMetadataPatch": {},
 	},
 	"TurnsPage": {
 		"backwardsCursor": {},
@@ -1390,6 +1429,8 @@ var ExperimentalUnionValues = map[string]map[string]struct{}{
 		"thread/realtime/listVoices":                {},
 		"thread/realtime/start":                     {},
 		"thread/realtime/stop":                      {},
+		"thread/sample":                             {},
+		"thread/sample/cancel":                      {},
 		"thread/search":                             {},
 		"thread/searchOccurrences":                  {},
 		"thread/settings/update":                    {},
@@ -1666,6 +1707,7 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	},
 	"ApplicationRequirements": {
 		"network": "ApplicationNetworkRequirements",
+		"storage": "ApplicationStorageRequirements",
 	},
 	"ApplyPatchApprovalParams": {
 		"fileChanges": "FileChange",
@@ -1903,6 +1945,10 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"ClientRequestFSWriteFile": {
 		"id":     "RequestId",
 		"params": "FsWriteFileParams",
+	},
+	"ClientRequestFeedbackSave": {
+		"id":     "RequestId",
+		"params": "FeedbackSaveParams",
 	},
 	"ClientRequestFeedbackUpload": {
 		"id":     "RequestId",
@@ -2304,6 +2350,14 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"ClientRequestThreadRevert": {
 		"id":     "RequestId",
 		"params": "ThreadRevertParams",
+	},
+	"ClientRequestThreadSample": {
+		"id":     "RequestId",
+		"params": "ThreadSampleParams",
+	},
+	"ClientRequestThreadSampleCancel": {
+		"id":     "RequestId",
+		"params": "ThreadSampleCancelParams",
 	},
 	"ClientRequestThreadSearch": {
 		"id":     "RequestId",
@@ -2778,8 +2832,10 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"Interrupt":         "ConfiguredHookMatcherGroup",
 		"PermissionRequest": "ConfiguredHookMatcherGroup",
 		"PostCompact":       "ConfiguredHookMatcherGroup",
+		"PostModelRequest":  "ConfiguredHookMatcherGroup",
 		"PostToolUse":       "ConfiguredHookMatcherGroup",
 		"PreCompact":        "ConfiguredHookMatcherGroup",
+		"PreModelRequest":   "ConfiguredHookMatcherGroup",
 		"PreToolUse":        "ConfiguredHookMatcherGroup",
 		"SessionEnd":        "ConfiguredHookMatcherGroup",
 		"SessionStart":      "ConfiguredHookMatcherGroup",
@@ -3592,7 +3648,8 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"fragments": "HookPromptFragment",
 	},
 	"ThreadItemImageGeneration": {
-		"failure": "ImageGenerationFailure",
+		"failure":     "ImageGenerationFailure",
+		"inputImages": "ImageGenerationInputImage",
 	},
 	"ThreadItemMCPToolCall": {
 		"appContext": "McpToolCallAppContext",
@@ -3737,6 +3794,12 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	},
 	"ThreadRevertResponse": {
 		"thread": "Thread",
+	},
+	"ThreadSampleCancelParams": {
+		"requestId": "RequestId",
+	},
+	"ThreadSampleParams": {
+		"effort": "ReasoningEffort",
 	},
 	"ThreadSearchOccurrence": {
 		"snippetMatchRange": "ThreadSearchTextRange",
