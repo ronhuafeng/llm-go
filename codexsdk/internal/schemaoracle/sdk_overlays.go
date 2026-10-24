@@ -11,9 +11,16 @@ import (
 // These public overlays predate this upgrade. Their owners are
 // protocolgen/type_plan.go and protocolv2/protocol_types_test.go (nonempty
 // CommandExecParams.command, JSONValue realtime notification items, and the
-// exclusive closed ResourceContent records).
+// exclusive closed ResourceContent records and opaque MCP elicitation properties).
 // Change only the validation document: keep every source witness and mutation.
-func sdkContractDocument(doc any, fragment, name string) (any, bool, error) {
+// ContractDocument applies overlays for validation and typed reachability.
+func ContractDocument(doc any, fragment, name string) (any, bool, error) {
+	if fragment == "" {
+		fragment = "#"
+	} else if !strings.HasPrefix(fragment, "#") {
+		fragment = "#" + fragment
+	}
+
 	raw, err := json.Marshal(doc)
 	if err != nil {
 		return nil, false, err
@@ -40,6 +47,15 @@ func sdkContractDocument(doc any, fragment, name string) (any, bool, error) {
 			return location == "#/definitions/"+record || location == "#/$defs/"+record || location == "#" && path.Base(name) == record+".json"
 		}
 		props, _ := m["properties"].(map[string]any)
+		if isRecord("McpElicitationSchema") {
+			properties, _ := props["properties"].(map[string]any)
+			values, _ := properties["additionalProperties"].(map[string]any)
+			if properties["type"] != "object" || len(values) != 1 || values["$ref"] != "#/definitions/McpElicitationPrimitiveSchema" {
+				return fmt.Errorf("unsupported elicitation properties overlay shape")
+			}
+			properties["additionalProperties"] = true
+			changed = true
+		}
 		if isRecord("ResourceContent") {
 			branches, _ := m["anyOf"].([]any)
 			if len(branches) != 2 {

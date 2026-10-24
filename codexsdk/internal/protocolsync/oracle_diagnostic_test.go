@@ -34,7 +34,6 @@ func TestTrustedSchemaOracle(t *testing.T){
 	if len(out) < 65536 {
 		t.Fatalf("fixture lacks truncation pressure: %d", len(out))
 	}
-	var target oracleTestEvents
 	baseline := baselineTestEvents{expected: map[string]bool{pkg + "/TestTrustedSchemaOracle": true}, ran: map[string]bool{}, passed: map[string]bool{}}
 	var legacy repairOutput
 	for _, line := range bytes.Split(out, []byte{'\n'}) {
@@ -49,16 +48,15 @@ func TestTrustedSchemaOracle(t *testing.T){
 			legacy.Write([]byte(e.Output))
 		}
 		framed := append(append([]byte(nil), line...), '\n')
-		target.Write(framed)
 		baseline.Write(framed)
 	}
 	if strings.Contains(boundedRepairDiagnostic(legacy.String()), cause) {
 		t.Fatal("fixture did not reproduce old lost-cause bug")
 	}
-	if !target.started || !target.failed || target.passed || baseline.verify() == nil {
+	if baseline.verify() == nil {
 		t.Fatal("failing evidence accepted")
 	}
-	for name, text := range map[string]string{"target": target.diagnostic.String(), "baseline": baseline.diagnostic.String()} {
+	for name, text := range map[string]string{"baseline": baseline.diagnostic.String()} {
 		retained := boundedRepairDiagnostic("outer repair: " + boundedRepairDiagnostic("inner oracle: "+text))
 		if !strings.Contains(retained, cause) || !strings.Contains(retained, "early_failure") || !strings.Contains(retained, "contract_test.go:") {
 			t.Fatalf("%s lost source cause: %s", name, retained)
@@ -125,14 +123,12 @@ func TestTrustedSchemaOracle(t *testing.T){t.Log(strings.Repeat("earlier panic c
 			if err == nil {
 				t.Fatal("process unexpectedly passed")
 			}
-			var target oracleTestEvents
-			target.Write(out)
 			baseline := baselineTestEvents{expected: map[string]bool{pkg + "/TestTrustedSchemaOracle": true}, ran: map[string]bool{}, passed: map[string]bool{}}
 			baseline.Write(out)
-			if target.passed || baseline.verify() == nil {
+			if baseline.verify() == nil {
 				t.Fatal("crash supplied proof")
 			}
-			for _, text := range []string{target.diagnostic.String(), baseline.diagnostic.String()} {
+			for _, text := range []string{baseline.diagnostic.String()} {
 				if !strings.Contains(boundedRepairDiagnostic(text), tc.cause) {
 					t.Fatalf("lost process cause: %s; raw=%s", text, out)
 				}
@@ -170,15 +166,14 @@ func TestOracleDiagnosticSeparatesBuildAndTestContexts(t *testing.T) {
 }
 
 func TestOracleMalformedOutputRetainsCoarseFailure(t *testing.T) {
-	var target oracleTestEvents
 	baseline := baselineTestEvents{expected: map[string]bool{}, ran: map[string]bool{}, passed: map[string]bool{}}
-	for _, write := range []func([]byte) (int, error){target.Write, baseline.Write} {
+	for _, write := range []func([]byte) (int, error){baseline.Write} {
 		write([]byte("launcher: UNKNOWN_ROOT_CAUSE\n"))
 	}
-	if !target.invalid || baseline.verify() == nil {
+	if baseline.verify() == nil {
 		t.Fatal("malformed output supplied proof")
 	}
-	for _, text := range []string{target.diagnostic.String(), baseline.diagnostic.String()} {
+	for _, text := range []string{baseline.diagnostic.String()} {
 		if !strings.Contains(text, "unparsed go test output: launcher: UNKNOWN_ROOT_CAUSE") {
 			t.Fatal(text)
 		}
@@ -192,18 +187,17 @@ func TestOracleUnfinishedOmissionAndIncompleteFramingAreExplicit(t *testing.T) {
 	if !strings.Contains(d.String(), "additional unfinished-test output omitted") {
 		t.Fatal("unfinished omission not disclosed")
 	}
-	var target oracleTestEvents
 	baseline := baselineTestEvents{expected: map[string]bool{}, ran: map[string]bool{}, passed: map[string]bool{}}
 	fragment := []byte(`{"Action":"output","Output":"INCOMPLETE_ROOT_CAUSE`)
-	target.Write(fragment)
 	baseline.Write(fragment)
-	if target.pending == "" || baseline.verify() == nil || target.passed {
+	baseline.Write(fragment)
+	if baseline.verify() == nil {
 		t.Fatal("incomplete JSON supplied proof")
 	}
 	// The process-finalization path preserves this still-invalid fragment as
 	// coarse context; it is never parsed into a synthetic test verdict.
-	target.diagnostic.Write([]byte("incomplete go test output: " + target.pending))
-	if !strings.Contains(target.diagnostic.String(), "INCOMPLETE_ROOT_CAUSE") {
+	baseline.diagnostic.Write([]byte("incomplete go test output: " + baseline.pending))
+	if !strings.Contains(baseline.diagnostic.String(), "INCOMPLETE_ROOT_CAUSE") {
 		t.Fatal("incomplete context lost")
 	}
 }

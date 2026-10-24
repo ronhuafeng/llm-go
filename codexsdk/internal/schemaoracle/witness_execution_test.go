@@ -28,14 +28,8 @@ func TestIndependentWitnessFailuresExecuteTogether(t *testing.T) {
 			t.Errorf("missing executed witness %s in one process:\n%s", witness, out)
 		}
 	}
-	// Count the distinct failed probe tests, so echoed fixture data or a
-	// contract-level summary cannot stand in for executed independent evidence.
-	failures := 0
-	for _, line := range strings.Split(string(out), "\n") {
-		if strings.Contains(line, "--- FAIL:") && strings.Contains(line, "/probe_") {
-			failures++
-		}
-	}
+	failures := strings.Count(string(out), `"Kind":"schema_contract_failure"`)
+
 	if failures != 3 {
 		t.Fatalf("executed failed probes=%d, want 3:\n%s", failures, out)
 	}

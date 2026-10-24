@@ -3,11 +3,8 @@ package protocolsync
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
-	"github.com/ronhuafeng/llm-go/codexsdk/internal/schemaoracle"
 	"io"
 	"os/exec"
-	"strconv"
 	"strings"
 	"sync"
 )
@@ -48,36 +45,6 @@ func oracleCommandOutput(output io.Writer, cmd *exec.Cmd) ([]byte, error) {
 	cmd.Stderr = combined
 	err := cmd.Run()
 	return []byte(b.String()), err
-}
-
-// A failed subtest name selects a source-derived expectation, never a claimed
-// actual value. The event parser retains failures and execution summaries.
-func writeTargetOracleProbe(output io.Writer, targets []schemaoracle.Target, test string) error {
-	prefix, indexText, ok := strings.Cut(test, "/probe_")
-	if !ok {
-		return nil
-	}
-	index, err := strconv.Atoi(indexText)
-	if err != nil {
-		return nil
-	}
-	for _, target := range targets {
-		if prefix != "TestTrustedSchemaOracle/"+target.Schema || index < 0 || index >= len(target.Probes) {
-			continue
-		}
-		p := target.Probes[index]
-		return json.NewEncoder(output).Encode(struct {
-			Kind       string                           `json:"kind"`
-			Trust      string                           `json:"trust"`
-			Schema     string                           `json:"schema"`
-			Index      int                              `json:"index"`
-			Valid      bool                             `json:"expected_valid"`
-			Constraint string                           `json:"constraint"`
-			Location   *schemaoracle.DiagnosticLocation `json:"location,omitempty"`
-			Input      json.RawMessage                  `json:"input"`
-		}{"schema_probe_expectation", "source-derived", target.Schema, index, p.Valid, p.Diagnostic, p.Location, json.RawMessage(p.JSON)})
-	}
-	return nil
 }
 
 type serializedOracleOutput struct {

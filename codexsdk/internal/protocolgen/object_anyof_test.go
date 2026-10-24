@@ -1,6 +1,10 @@
 package protocolgen
 
 import (
+	"bufio"
+	"bytes"
+	"context"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -24,10 +28,7 @@ func runGeneratedUnionOracle(t *testing.T, schema, name string, plan ProtocolTyp
 	if err != nil {
 		t.Fatal(err)
 	}
-	oracle, err := schemaoracle.Generate(schemaoracle.Request{Schemas: map[string][]byte{name + ".json": []byte(schema)}, Bindings: map[string]string{name + ".json": name}, Package: "protocolv2", CloseObjects: true})
-	if err != nil {
-		t.Fatal(err)
-	}
+	spec := schemaoracle.Request{Schemas: map[string][]byte{name + ".json": []byte(schema)}, Bindings: map[string]string{name + ".json": name}, CloseObjects: true}
 	repo, err := filepath.Abs("../../..")
 	if err != nil {
 		t.Fatal(err)
@@ -37,7 +38,7 @@ func runGeneratedUnionOracle(t *testing.T, schema, name string, plan ProtocolTyp
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { os.RemoveAll(pkg) })
-	files := map[string][]byte{"protocol_types.gen.go": generated, "oracle_test.go": oracle}
+	files := map[string][]byte{"protocol_types.gen.go": generated}
 	for _, name := range []string{"nullable.go", "json_value.go"} {
 		raw, err := os.ReadFile(filepath.Join(repo, "codexsdk", "protocolv2", name))
 		if err != nil {
@@ -50,11 +51,56 @@ func runGeneratedUnionOracle(t *testing.T, schema, name string, plan ProtocolTyp
 			t.Fatal(err)
 		}
 	}
-	cmd := exec.Command("go", "test", "-count=1", "./codexsdk/"+filepath.Base(pkg))
+	spec.ImportPath = "github.com/ronhuafeng/llm-go/codexsdk/" + filepath.Base(pkg)
+	source, err := schemaoracle.Harness(spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	probe := filepath.Join(pkg, "probe")
+	if err = os.Mkdir(probe, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(filepath.Join(probe, "main.go"), source, 0600); err != nil {
+		t.Fatal(err)
+	}
+	binary := filepath.Join(pkg, "decoder")
+	cmd := exec.Command("go", "build", "-o", binary, "./codexsdk/"+filepath.Base(pkg)+"/probe")
 	cmd.Dir = repo
 	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("generated object anyOf: %v\n%s", err, out)
+		t.Fatalf("compile generated decoder: %v %s", err, out)
 	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cmd = exec.CommandContext(ctx, binary)
+	input, _ := cmd.StdinPipe()
+	output, _ := cmd.StdoutPipe()
+	var diagnostics, stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err = cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	reader, writer := io.Pipe()
+	done := make(chan error, 1)
+	go func() { err := schemaoracle.Write(spec, writer); writer.CloseWithError(err); done <- err }()
+	stream := bufio.NewReader(reader)
+	var header schemaoracle.Header
+	err = schemaoracle.ReadFrame(stream, &header)
+	if err == nil {
+		err = schemaoracle.Check(ctx, header, stream, input, output, &diagnostics)
+	}
+	input.Close()
+	output.Close()
+	reader.Close()
+	if err != nil {
+		cancel()
+	}
+	runErr := cmd.Wait()
+	diagnostics.Write(stderr.Bytes())
+	generationErr := <-done
+	if err != nil || runErr != nil || generationErr != nil {
+		t.Fatalf("generated contracts: check=%v process=%v expectations=%v\n%s", err, runErr, generationErr, diagnostics.Bytes())
+	}
+
 }
 
 func TestObjectAnyOfRejectsUnrepresentedConstraints(t *testing.T) {

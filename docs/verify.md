@@ -94,9 +94,9 @@ isolated state. It is read-only and has no Agent/publication authority.
 The same gate also checks accepted-base behavior and target-schema contracts
 against the frozen candidate. Contract-grounded checker changes belong to the
 same reviewed proposal; source identity and publication controls stay fixed.
-An empty target selection is accepted only when the upstream commit, raw schema
-JSON tree and public generated tree are unchanged; real drift cannot silently
-skip target checks. Unrelated PRs complete the context successfully as not applicable.
+Current reachable contracts run even when source schemas are unchanged. An
+empty selection or incomplete decoder observations cannot certify implementation
+changes. Unrelated PRs complete the context successfully as not applicable.
 
 See [`protocol-sync.md`](protocol-sync.md) for source, generation, and publication
 boundaries. A source build for this proof is not the installed runtime fixture

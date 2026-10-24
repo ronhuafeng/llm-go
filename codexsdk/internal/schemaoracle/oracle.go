@@ -1,15 +1,13 @@
-// Package schemaoracle freezes schema-derived wire probes in the trusted
-// controller. It never imports the generator or inspects candidate runtime values.
+// Package schemaoracle derives standalone wire obligations from source schemas.
+// It never imports the generator or candidate runtime types.
 package schemaoracle
 
 import (
 	"bytes"
-	"compress/gzip"
 	"context"
-	"encoding/base64"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"go/format"
 	"go/token"
 	"io"
 	"sort"
@@ -20,7 +18,7 @@ import (
 )
 
 // Request binds independently selected exact schema documents to Go identifiers.
-// Bindings select independently determined changed targets, including optional
+// Bindings select independently determined reachable targets, including optional
 // #/definitions/... fragments. Schemas includes their full owning documents.
 // Candidate declarations may supply names only, never select this target set.
 // CloseObjects is the standalone public json.Unmarshal overlay: property-bearing objects
@@ -31,15 +29,9 @@ type Request struct {
 	Context      context.Context
 	Schemas      map[string][]byte
 	Bindings     map[string]string
-	Package      string
 	ImportPath   string
 	CloseObjects bool
 }
-
-const (
-	maxCorpusBytes     = 128 << 20
-	maxCompressedBytes = 8 << 20
-)
 
 type Probe struct {
 	JSON       string
@@ -49,7 +41,6 @@ type Probe struct {
 }
 type Target struct {
 	Schema, GoType string
-	Probes         []Probe
 	Fields         []string
 	CheckFields    bool
 	// Only the source-selected ClientRequest envelope may canonically omit
@@ -57,88 +48,83 @@ type Target struct {
 	ParameterlessMethods []string
 }
 
-// Build computes all expectations before candidate code is compiled or run.
-// Bounds are deliberate: unsupported schema drift is a concrete controller
-// error, never silently reduced coverage or candidate self-certification.
-func Build(req Request) ([]Target, error) {
+// Walk derives and consumes obligations one at a time. A nil probe starts a target.
+// Bounds reject incomplete work; they never sample or truncate coverage.
+func Walk(req Request, yield func(Target, *Probe) error) error {
 	ctx := req.Context
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return err
 	}
 	if len(req.Bindings) == 0 {
-		return nil, fmt.Errorf("schema oracle: no target schemas")
+		return fmt.Errorf("schema oracle: no target schemas")
 	}
 	if len(req.Bindings) > 2048 {
-		return nil, fmt.Errorf("schema oracle: target count exceeds 2048")
+		return fmt.Errorf("schema oracle: target count exceeds 2048")
 	}
-	var result []Target
-	totalJSONBytes, totalProbes := 0, 0
-	metadata := newDiagnosticPool()
-	// Share identical immutable wire values across targets without merging
-	// their independent validation verdicts, diagnostics or test obligations.
-	jsonValues := map[string]string{}
+	totalProbes := 0
+	var totalBytes int64
 	var budgetErr error
 	for _, name := range keys(req.Bindings) {
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return err
 		}
 		binding := req.Bindings[name]
 		if !token.IsIdentifier(binding) || token.Lookup(binding).IsKeyword() {
-			return nil, fmt.Errorf("schema oracle %s: missing or invalid Go binding %q", name, binding)
+			return fmt.Errorf("schema oracle %s: missing or invalid Go binding %q", name, binding)
 		}
 		docName, fragment, _ := strings.Cut(name, "#")
 		fragment = "#" + fragment
 		raw, exists := req.Schemas[docName]
 		if !exists {
-			return nil, fmt.Errorf("schema oracle %s: missing schema document", name)
+			return fmt.Errorf("schema oracle %s: missing schema document", name)
 		}
 		if len(raw) > 16<<20 {
-			return nil, fmt.Errorf("schema oracle %s: document exceeds 16 MiB", name)
+			return fmt.Errorf("schema oracle %s: document exceeds 16 MiB", name)
 		}
 		var doc any
 		dec := json.NewDecoder(bytes.NewReader(raw))
 		dec.UseNumber()
 		if err := dec.Decode(&doc); err != nil {
-			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
+			return fmt.Errorf("schema oracle %s: %w", name, err)
 		}
 		if err := dec.Decode(new(any)); err != io.EOF {
-			return nil, fmt.Errorf("schema oracle %s: trailing JSON data", name)
+			return fmt.Errorf("schema oracle %s: trailing JSON data", name)
 		}
 		var original any
 		originalDecoder := json.NewDecoder(bytes.NewReader(raw))
 		originalDecoder.UseNumber()
 		if err := originalDecoder.Decode(&original); err != nil {
-			return nil, err
+			return err
 		}
 		root, err := pointer(doc, fragment)
 		if err != nil {
-			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
+			return fmt.Errorf("schema oracle %s: %w", name, err)
 		}
 		parameterlessMethods := parameterlessRequestMethods(root, docName, fragment)
 		if err := prepareReachable(doc, root, fragment, req.CloseObjects, map[string]bool{}); err != nil {
-			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
+			return fmt.Errorf("schema oracle %s: %w", name, err)
 		}
 		c := validator.NewCompiler()
 		c.UseLoader(denyLoader{})
 		const url = "https://schema-oracle.invalid/target.json"
 		if err := c.AddResource(url, doc); err != nil {
-			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
+			return fmt.Errorf("schema oracle %s: %w", name, err)
 		}
 		compiled, err := c.Compile(url + fragment)
 		if err != nil {
-			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
+			return fmt.Errorf("schema oracle %s: %w", name, err)
 		}
 		sourceSchema := compiled
 		hasOutputSchema, err := applyOutputSchemaOverlay(doc, root, fragment, docName)
 		if err != nil {
-			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
+			return fmt.Errorf("schema oracle %s: %w", name, err)
 		}
-		contractDoc, hasSDKOverlay, err := sdkContractDocument(doc, fragment, docName)
+		contractDoc, hasSDKOverlay, err := ContractDocument(doc, fragment, docName)
 		if err != nil {
-			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
+			return fmt.Errorf("schema oracle %s: %w", name, err)
 		}
 		if hasOutputSchema || hasSDKOverlay {
 			c = validator.NewCompiler()
@@ -146,25 +132,29 @@ func Build(req Request) ([]Target, error) {
 			c.RegisterVocabulary(outputSchemaVocabulary())
 			c.AssertVocabs()
 			if err := c.AddResource(url, contractDoc); err != nil {
-				return nil, err
+				return err
 			}
 			compiled, err = c.Compile(url + fragment)
 			if err != nil {
-				return nil, fmt.Errorf("schema oracle %s: %w", name, err)
+				return fmt.Errorf("schema oracle %s: %w", name, err)
 			}
 		}
 		w := witnesses{doc: doc}
 		values, err := w.make(root, fragment, 0)
 		if err != nil {
-			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
+			return fmt.Errorf("schema oracle %s: %w", name, err)
 		}
 		target := Target{Schema: name, GoType: binding}
 		target.ParameterlessMethods = parameterlessMethods
 		target.Fields, target.CheckFields, err = objectFields(doc, root, 0)
 		if err != nil {
-			return nil, fmt.Errorf("schema oracle %s: %w", name, err)
+			return fmt.Errorf("schema oracle %s: %w", name, err)
 		}
-		seen := map[string]bool{}
+		if err := yield(target, nil); err != nil {
+			return err
+		}
+		seen := map[[32]byte]bool{}
+		probeCount := 0
 		add := func(v any, mutationPath string) {
 			if err := ctx.Err(); err != nil {
 				budgetErr = err
@@ -174,33 +164,29 @@ func Build(req Request) ([]Target, error) {
 				return
 			}
 			b, _ := json.Marshal(v)
-			s := string(b)
-			if !seen[s] {
-				if canonical, ok := jsonValues[s]; ok {
-					s = canonical
-				} else {
-					jsonValues[s] = s
-					totalJSONBytes += len(s)
-				}
-				totalJSONBytes += 24 // string and location references retained per probe
+			if len(b) > maxValueBytes {
+				budgetErr = fmt.Errorf("schema oracle %s: value framing bound exceeded", name)
+				return
+			}
+			hash := sha256.Sum256(b)
+			if !seen[hash] {
+				seen[hash] = true
 				totalProbes++
-				if totalJSONBytes > maxCorpusBytes || totalProbes > 200000 {
-					budgetErr = fmt.Errorf("schema oracle %s: total corpus byte/probe bound exceeded (bytes=%d probes=%d)", name, totalJSONBytes, totalProbes)
+				probeCount++
+				totalBytes += int64(len(b))
+				// Total serialized work, not an RSS limit. Retained witnesses and
+				// mutation traversal have their own recursion/work bounds.
+				if totalProbes > maxProbes || probeCount > maxTargetProbes || totalBytes > maxWorkBytes {
+					budgetErr = fmt.Errorf("schema oracle %s: total work bound exceeded", name)
 					return
 				}
-				seen[s] = true
 				validationErr := compiled.Validate(v)
-				p := Probe{JSON: s, Valid: validationErr == nil}
+				p := Probe{JSON: string(b), Valid: validationErr == nil}
 				if validationErr != nil {
 					p.Location = &DiagnosticLocation{}
 					p.Diagnostic = invalidDiagnostic(original, docName, v, mutationPath, validationErr, p.Location)
 				}
-				totalJSONBytes += metadata.intern(&p)
-				if totalJSONBytes > maxCorpusBytes {
-					budgetErr = fmt.Errorf("schema oracle %s: total corpus byte/probe bound exceeded", name)
-					return
-				}
-				target.Probes = append(target.Probes, p)
+				budgetErr = yield(target, &p)
 			}
 		}
 		valid := 0
@@ -209,10 +195,10 @@ func Build(req Request) ([]Target, error) {
 		nestedDiscriminators := allDiscriminators(doc, root, map[string]bool{}, 0)
 		for _, v := range values {
 			if err := ctx.Err(); err != nil {
-				return nil, err
+				return err
 			}
 			if sourceSchema.Validate(v) != nil {
-				return nil, fmt.Errorf("schema oracle %s: cannot construct valid witness at root: %v", name, sourceSchema.Validate(v))
+				return fmt.Errorf("schema oracle %s: cannot construct valid witness at root: %v", name, sourceSchema.Validate(v))
 			}
 			if compiled.Validate(v) == nil {
 				valid++
@@ -228,220 +214,25 @@ func Build(req Request) ([]Target, error) {
 					context += "/" + strconv.Quote(key) + ":" + string(value)
 				}
 			}
-			if target.CheckFields {
+			if target.CheckFields || len(target.Fields) > 0 {
 				context = "object"
 			}
 			mutations, err := mutations(v, context, mutated, nestedDiscriminators)
 			if err != nil {
-				return nil, fmt.Errorf("schema oracle %s: %w", name, err)
+				return fmt.Errorf("schema oracle %s: %w", name, err)
 			}
 			for _, mutation := range mutations {
 				add(mutation.Value, mutation.Path)
 			}
 			if budgetErr != nil {
-				return nil, budgetErr
+				return budgetErr
 			}
 		}
 		if valid == 0 {
-			return nil, fmt.Errorf("schema oracle %s: no valid witness", name)
-		}
-		if len(target.Probes) > 40000 {
-			return nil, fmt.Errorf("schema oracle %s: probe bound exceeded (%d)", name, len(target.Probes))
-		}
-		result = append(result, target)
-	}
-	return result, nil
-}
-
-// Generate renders a stdlib-only test. Candidate tests cannot select the corpus
-// or decide which mutations are valid. Decode success also requires lossless
-// JSON roundtrip, including optional absence, null, and distinct field values,
-// except the established parameterless ClientRequest canonical encoding.
-func Generate(req Request) ([]byte, error) {
-	if req.Context == nil {
-		req.Context = context.Background()
-	}
-	targets, err := Build(req)
-	if err != nil {
-		return nil, err
-	}
-	return Render(req, targets)
-}
-
-// Render uses the exact corpus already frozen by Build; the trusted controller
-// also retains it for diagnostic attribution without revalidating every probe.
-func Render(req Request, targets []Target) ([]byte, error) {
-	if req.Context == nil {
-		req.Context = context.Background()
-	}
-	pkg := req.Package
-	if pkg == "" {
-		pkg = "protocolv2"
-	}
-	if !token.IsIdentifier(pkg) {
-		return nil, fmt.Errorf("schema oracle: invalid package")
-	}
-	compressed, err := compressCorpus(req.Context, targets)
-	if err != nil {
-		return nil, err
-	}
-	var b strings.Builder
-	typePrefix := ""
-	fmt.Fprintf(&b, "package %s\nimport (\"encoding/json\";\"bytes\";\"reflect\";\"testing\";\"sort\";\"strings\";\"strconv\";\"compress/gzip\";\"encoding/base64\";\"io\";\"math/big\")\n", pkg)
-	if req.ImportPath != "" {
-		fmt.Fprintf(&b, "import subject %s\n", strconv.Quote(req.ImportPath))
-		typePrefix = "subject."
-	}
-	fmt.Fprintf(&b, "const frozenCorpus = %s\nconst maxFrozenCorpusBytes = %d\nconst maxFrozenCompressedBytes = %d\nconst frozenTargetCount = %d\n", strconv.Quote(base64.StdEncoding.EncodeToString(compressed)), maxCorpusBytes, maxCompressedBytes, len(targets))
-	b.WriteString(`func TestTrustedSchemaOracle(t *testing.T) {
- type probe struct { JSON int; Valid bool; Diagnostic int }
- if len(frozenCorpus)>((maxFrozenCompressedBytes+2)/3)*4{t.Fatal("compressed corpus bound exceeded")}
- encoded,err:=base64.StdEncoding.DecodeString(frozenCorpus);if err!=nil{t.Fatal(err)};if len(encoded)>maxFrozenCompressedBytes{t.Fatal("compressed corpus bound exceeded")}
- reader,err:=gzip.NewReader(bytes.NewReader(encoded));if err!=nil{t.Fatal(err)}
- raw,err:=io.ReadAll(io.LimitReader(reader,maxFrozenCorpusBytes+1));closeErr:=reader.Close();if err!=nil{t.Fatal(err)};if closeErr!=nil{t.Fatal(closeErr)};if len(raw)>maxFrozenCorpusBytes{t.Fatal("decompressed corpus bound exceeded")}
- var frozen struct { Targets [][]probe; Values []json.RawMessage; Diagnostics []string };if err:=json.Unmarshal(raw,&frozen);err!=nil{t.Fatal(err)};corpus:=frozen.Targets;if len(corpus)!=frozenTargetCount{t.Fatal("frozen target count mismatch")}
- var equal func(any,any)bool
- equal=func(a,b any)bool{switch x:=a.(type){case json.Number:y,ok:=b.(json.Number);if !ok{return false};r,ok:=new(big.Rat).SetString(string(x));if !ok{return false};s,ok:=new(big.Rat).SetString(string(y));return ok&&r.Cmp(s)==0;case map[string]any:y,ok:=b.(map[string]any);if !ok||len(x)!=len(y){return false};for k,v:=range x{other,exists:=y[k];if !exists||!equal(v,other){return false}};return true;case []any:y,ok:=b.([]any);if !ok||len(x)!=len(y){return false};for i,v:=range x{if !equal(v,y[i]){return false}};return true;default:return reflect.DeepEqual(a,b)}}
- check := func(t *testing.T, factory func() any, fields []string, checkFields bool, probes []probe, parameterlessMethods []string) {
-  if checkFields { t.Run("fields",func(t *testing.T){typ:=reflect.TypeOf(factory()).Elem();if typ.Kind()!=reflect.Struct{t.Fatalf("schema object must bind struct, got %s",typ)};actual:=[]string{};for i:=0;i<typ.NumField();i++ {f:=typ.Field(i);if f.PkgPath!=""{continue};tag:=strings.Split(f.Tag.Get("json"),",")[0];if tag=="-"{continue};if tag==""{tag=f.Name};actual=append(actual,tag)};sort.Strings(actual);if !reflect.DeepEqual(actual,fields){t.Fatalf("schema fields=%v Go JSON fields=%v",fields,actual)} }) }
-
-  for i, p := range probes {
-   t.Run("probe_"+strconv.Itoa(i),func(t *testing.T){
-   if p.Diagnostic<0||p.Diagnostic>=len(frozen.Diagnostics){t.Fatal("frozen diagnostic reference out of range")}
-   if p.JSON<0||p.JSON>=len(frozen.Values){t.Fatal("frozen JSON reference out of range")}
-   wire:=frozen.Values[p.JSON]
-   target := factory(); err := json.Unmarshal(bytes.Clone(wire),target)
-   if !p.Valid { if err == nil { t.Fatalf("probe %d: schema-invalid input accepted: %s",i,frozen.Diagnostics[p.Diagnostic]) }; return }
-   if err != nil { t.Fatalf("probe %d: schema-valid input rejected: %s: %v",i,wire,err) }
-   actual,err:=json.Marshal(target);if err!=nil{t.Fatal(err)}
-   decode:=func(raw []byte) any { var v any; d:=json.NewDecoder(bytes.NewReader(raw));d.UseNumber();if err:=d.Decode(&v);err!=nil{t.Fatal(err)};return v }
-   expected,observed:=decode(wire),decode(actual)
-   // This is directional canonical omission, not absent/null equivalence.
-   // The method list was frozen from the exact top-level source branches.
-   input,inObject:=expected.(map[string]any);output,outObject:=observed.(map[string]any)
-   if inObject&&outObject {
-    params,present:=input["params"];_,outputPresent:=output["params"]
-    method,inMethod:=input["method"].(string);outputMethod,outMethod:=output["method"].(string)
-    if present&&params==nil&&!outputPresent&&inMethod&&outMethod&&method==outputMethod {
-     for _,allowed:=range parameterlessMethods {if method==allowed {delete(input,"params");break}}
-    }
-   }
-   if !equal(expected,observed){t.Fatalf("probe %d: wire value lost: input=%s output=%s",i,wire,string(actual))}
-   })
-  }
- }
-`)
-	for i, t := range targets {
-		fmt.Fprintf(&b, "t.Run(%s,func(t *testing.T){check(t,func() any{return new(%s)},[]string{", strconv.Quote(t.Schema), typePrefix+t.GoType)
-		for _, field := range t.Fields {
-			fmt.Fprintf(&b, "%s,", strconv.Quote(field))
-		}
-		fmt.Fprintf(&b, "},%t,corpus[%d],[]string{", t.CheckFields, i)
-		for _, method := range t.ParameterlessMethods {
-			fmt.Fprintf(&b, "%s,", strconv.Quote(method))
-		}
-		b.WriteString("})})\n")
-	}
-	b.WriteString("}\n")
-	if b.Len() > 12<<20 {
-		return nil, fmt.Errorf("schema oracle: generated source exceeds 12 MiB")
-	}
-	return format.Source([]byte(b.String()))
-}
-
-// Stream the exact frozen JSON representation into gzip. Holding a second
-// complete escaped corpus would unnecessarily duplicate hundreds of MiB.
-func compressCorpus(ctx context.Context, targets []Target) ([]byte, error) {
-	var compressed bytes.Buffer
-	zip := gzip.NewWriter(&compressed)
-	total := 0
-	var writeErr error
-	write := func(data []byte) {
-		if writeErr != nil {
-			return
-		}
-		if writeErr = ctx.Err(); writeErr != nil {
-			return
-		}
-		total += len(data)
-		if total > maxCorpusBytes {
-			writeErr = fmt.Errorf("schema oracle: corpus exceeds %d decompressed bytes", maxCorpusBytes)
-			return
-		}
-		_, writeErr = zip.Write(data)
-		if compressed.Len() > maxCompressedBytes {
-			writeErr = fmt.Errorf("schema oracle: corpus exceeds %d compressed bytes", maxCompressedBytes)
+			return fmt.Errorf("schema oracle %s: no valid witness", name)
 		}
 	}
-	write([]byte(`{"Targets":[`))
-	diagnostics := []string{}
-	diagnosticIndex := map[string]int{}
-	values := []string{}
-	valueIndex := map[string]int{}
-	for i, target := range targets {
-		if i > 0 {
-			write([]byte(","))
-		}
-		if target.Probes == nil {
-			write([]byte("null"))
-			continue
-		}
-		write([]byte("["))
-		for j, probe := range target.Probes {
-			if writeErr != nil {
-				return nil, writeErr
-			}
-			if j > 0 {
-				write([]byte(","))
-			}
-			index, exists := diagnosticIndex[probe.Diagnostic]
-			if !exists {
-				index = len(diagnostics)
-				diagnosticIndex[probe.Diagnostic] = index
-				diagnostics = append(diagnostics, probe.Diagnostic)
-			}
-			value, exists := valueIndex[probe.JSON]
-			if !exists {
-				value = len(values)
-				valueIndex[probe.JSON] = value
-				values = append(values, probe.JSON)
-			}
-			write([]byte(`{"JSON":` + strconv.Itoa(value)))
-			write([]byte(`,"Valid":` + strconv.FormatBool(probe.Valid) + `,"Diagnostic":` + strconv.Itoa(index) + `}`))
-		}
-		write([]byte("]"))
-	}
-	write([]byte(`],"Values":[`))
-	for i, value := range values {
-		if i > 0 {
-			write([]byte(","))
-		}
-		// Build froze valid JSON bytes. Insert them verbatim without escaping
-		// or normalization, preserving number tokens and string spellings.
-		write([]byte(value))
-	}
-	write([]byte(`],"Diagnostics":[`))
-	for i, diagnostic := range diagnostics {
-		if i > 0 {
-			write([]byte(","))
-		}
-		data, err := json.Marshal(diagnostic)
-		if err != nil {
-			return nil, err
-		}
-		write(data)
-	}
-	write([]byte("]}"))
-	if writeErr != nil {
-		return nil, writeErr
-	}
-	if err := zip.Close(); err != nil {
-		return nil, err
-	}
-	if compressed.Len() > maxCompressedBytes {
-		return nil, fmt.Errorf("schema oracle: corpus exceeds %d compressed bytes", maxCompressedBytes)
-	}
-	return compressed.Bytes(), nil
+	return nil
 }
 
 func keys[V any](m map[string]V) []string {
@@ -547,13 +338,17 @@ func objectFields(doc, node any, depth int) ([]string, bool, error) {
 	if !ok {
 		return nil, false, nil
 	}
-	if len(p) == 0 {
-		if extra, exists := m["additionalProperties"]; exists {
-			if closed, isBool := extra.(bool); !isBool || closed {
-				return nil, false, nil
+	// Open records may carry dynamic properties in a custom marshaler. Their
+	// actual wire fields are checked by classified round trips, not struct layout.
+	if extra, exists := m["additionalProperties"]; exists {
+		if closed, isBool := extra.(bool); !isBool || closed {
+			if len(p) > 0 {
+				return keys(p), false, nil
 			}
+			return nil, false, nil
 		}
 	}
+
 	return keys(p), true, nil
 }
 

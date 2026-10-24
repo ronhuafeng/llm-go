@@ -146,7 +146,7 @@ func TestLiveRepairSandboxSchemaEvolution(t *testing.T) {
 	root := t.TempDir()
 	module := filepath.Join(root, "codexsdk")
 	writeFile(t, filepath.Join(root, "go.mod"), "module github.com/ronhuafeng/llm-go\ngo 1.26.8\n")
-	writeFile(t, filepath.Join(module, "internal/protocolschema/appserver/v2/v2/Payload.json"), `{"title":"Payload","type":"object","properties":{"retired":{"type":"boolean"}},"required":["retired"]}`)
+	writeFile(t, filepath.Join(module, "internal/protocolschema/appserver/v2/Payload.json"), `{"title":"Payload","type":"object","properties":{"retired":{"type":"boolean"}},"required":["retired"]}`)
 	subject := filepath.Join(module, "protocolv2/fixture.go")
 	good := `package protocolv2
 import("bytes";"encoding/json";"fmt")
@@ -157,26 +157,33 @@ func(p *Payload) UnmarshalJSON(b []byte) error { var m map[string]json.RawMessag
 type ServerNotification struct { Method string ` + "`json:\"method\"`" + `; Params Payload ` + "`json:\"params\"`" + ` }
 func(p *ServerNotification) UnmarshalJSON(b []byte) error { var m map[string]json.RawMessage;if e:=json.Unmarshal(b,&m);e!=nil{return e};if len(m)!=2||m["method"]==nil||m["params"]==nil||bytes.Equal(m["params"],[]byte("null")){return fmt.Errorf("invalid")};type plain ServerNotification;if e:=json.Unmarshal(b,(*plain)(p));e!=nil{return e};if p.Method!="notice"{return fmt.Errorf("invalid")};return nil }
 `
-	writeFile(t, subject, good+notification)
+	extra := ""
+	for _, name := range []string{"ClientRequest", "ClientNotification", "ServerRequest"} {
+		extra += strings.ReplaceAll(strings.ReplaceAll(notification, "ServerNotification", name), "notice", name)
+	}
+	writeFile(t, subject, good+notification+extra)
 	writeFile(t, filepath.Join(module, "protocolv2/fixture_test.go"), "package protocolv2\nimport(\"os\";\"testing\")\nfunc TestMain(m *testing.M){os.Exit(0)}\n")
 	runGitInit(t, root)
 	if e := os.MkdirAll(filepath.Join(module, ".cache/openai-codex"), 0700); e != nil {
 		t.Fatal(e)
 	}
 	candidate := t.TempDir()
-	writeFile(t, filepath.Join(candidate, "schema/v2/Payload.json"), `{"title":"Payload","type":"object","properties":{"current":{"type":"boolean"}},"required":["current"]}`)
+	writeFile(t, filepath.Join(candidate, "schema/Payload.json"), `{"title":"Payload","type":"object","properties":{"current":{"type":"boolean"}},"required":["current"]}`)
 	for _, schemaRoot := range []string{filepath.Join(module, "internal/protocolschema/appserver/v2"), filepath.Join(candidate, "schema")} {
-		for _, name := range []string{"ClientRequest", "ServerRequest", "ClientNotification"} {
-			writeFile(t, filepath.Join(schemaRoot, name+".json"), `{"title":"`+name+`","oneOf":[]}`)
-		}
-		payload, err := os.ReadFile(filepath.Join(schemaRoot, "v2/Payload.json"))
+
+		payload, err := os.ReadFile(filepath.Join(schemaRoot, "Payload.json"))
 		if err != nil {
 			t.Fatal(err)
 		}
 		writeFile(t, filepath.Join(schemaRoot, "ServerNotification.json"), `{"title":"ServerNotification","oneOf":[{"type":"object","properties":{"method":{"type":"string","enum":["notice"]},"params":{"$ref":"#/definitions/Payload"}},"required":["method","params"]}],"definitions":{"Payload":`+string(payload)+`}}`)
+		for _, name := range []string{"ClientRequest", "ClientNotification", "ServerRequest"} {
+			wire := `{"title":"` + name + `","oneOf":[{"type":"object","properties":{"method":{"type":"string","enum":["` + name + `"]},"params":{"$ref":"#/definitions/Payload"}},"required":["method","params"]}],"definitions":{"Payload":` + string(payload) + `}}`
+			writeFile(t, filepath.Join(schemaRoot, name+".json"), wire)
+		}
+
 	}
-	writeOracleAcceptedManifest(t, filepath.Join(module, "internal/protocolschema/appserver/v2"), nil)
-	writeFile(t, filepath.Join(candidate, "common.rs"), "client_request_definitions! {\n}\nserver_request_definitions! {\n}\n")
+	writeOracleAcceptedManifest(t, filepath.Join(module, "internal/protocolschema/appserver/v2"), map[string]string{"ClientRequest": "Payload", "ServerRequest": "Payload"})
+	writeFile(t, filepath.Join(candidate, "common.rs"), "client_request_definitions! {\n Read => \"ClientRequest\" {\n response: Payload,\n },\n}\nserver_request_definitions! {\n Read => \"ServerRequest\" {\n response: Payload,\n },\n}\n")
 	writeFile(t, filepath.Join(candidate, "schema/v2/InternalNotification.json"), `{"title":"InternalNotification","type":"object","properties":{"private":{"type":"string"}}}`)
 	sandbox, e := newOracleSandbox(context.Background(), root, candidate)
 	if e != nil {
@@ -191,7 +198,7 @@ func(p *ServerNotification) UnmarshalJSON(b []byte) error { var m map[string]jso
 		{"candidate_init_bypasses_test", "package protocolv2\nimport \"os\"\ntype Payload struct{Current bool `json:\"current\"`}\nfunc init(){os.Exit(0)}\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			writeFile(t, subject, tc.code+"\ntype ServerNotification struct{ Params Payload `json:\"params\"`; Method string `json:\"method\"` }\n")
+			writeFile(t, subject, tc.code+"\ntype ServerNotification struct{ Params Payload `json:\"params\"`; Method string `json:\"method\"` };type ClientRequest=ServerNotification;type ClientNotification=ServerNotification;type ServerRequest=ServerNotification\n")
 			if e := runTargetOracle(context.Background(), req, root, sandbox); e == nil {
 				t.Fatal("invalid implementation acquired independent proof")
 			}

@@ -1,8 +1,10 @@
 package protocolsync
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/build"
@@ -14,7 +16,6 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -23,7 +24,6 @@ import (
 )
 
 type oracleRequest struct {
-	failure                            func(string) error
 	RepoRoot, ModuleRoot, CandidateDir string
 	BaseRoot                           string
 	Output                             io.Writer
@@ -43,41 +43,51 @@ type oracleIntegrityError struct{ error }
 func (e *oracleContractError) Unwrap() error  { return e.error }
 func (e *oracleIntegrityError) Unwrap() error { return e.error }
 
-// runTargetOracle keeps expectations out of the candidate's test package. The
-// controller derives source coverage and compiles a separate immutable probe;
-// candidate TestMain functions cannot skip it or supply its expected values.
+// runTargetOracle uses the same incremental checker as the goal-contract path.
 func runTargetOracle(ctx context.Context, req oracleRequest, root string, sandbox oracleSandbox) error {
-	req.Output = &serializedOracleOutput{writer: req.output()}
-	baseline := filepath.Join(req.ModuleRoot, "internal/protocolschema/appserver/v2")
-	specification, err := schemaOraclePublicRequest(baseline, filepath.Join(req.CandidateDir, "schema"), filepath.Join(root, "codexsdk/protocolv2"), filepath.Join(req.CandidateDir, "common.rs"))
+	spec, err := schemaOraclePublicRequest(filepath.Join(req.ModuleRoot, "internal/protocolschema/appserver/v2"), filepath.Join(req.CandidateDir, "schema"), filepath.Join(root, "codexsdk/protocolv2"), filepath.Join(req.CandidateDir, "common.rs"))
 	if err != nil {
 		return err
 	}
-	if len(specification.Bindings) == 0 {
-		return nil
-	} // no changed wire contracts; baseline regression still runs
-	specification.Context = ctx
-	targets, err := schemaoracle.Build(specification)
-	if err != nil {
-		return &oracleContractError{err}
+	spec.Context = ctx
+	reader, writer := io.Pipe()
+	local, cancel := context.WithCancel(ctx)
+	defer cancel()
+	spec.Context = local
+	generated := make(chan error, 1)
+	go func() { err := schemaoracle.Write(spec, writer); writer.CloseWithError(err); generated <- err }()
+	defer reader.Close()
+	stream := bufio.NewReader(reader)
+	var header schemaoracle.Header
+	if err = schemaoracle.ReadFrame(stream, &header); err == nil {
+		err = executeTargetOracle(local, req, root, sandbox, header, stream)
 	}
-	source, err := schemaoracle.Render(specification, targets)
-	if err != nil {
-		return &oracleContractError{err}
+	cancel()
+	reader.Close()
+	generationErr := <-generated
+	if generationErr != nil && !errors.Is(generationErr, io.ErrClosedPipe) && !errors.Is(generationErr, context.Canceled) && !errors.Is(generationErr, context.DeadlineExceeded) {
+		return &oracleContractError{generationErr}
 	}
-	return executeTargetOracle(ctx, req, root, sandbox, source, targets)
+	if err != nil {
+		return err
+	}
+	return generationErr
 }
 
-func executeTargetOracle(ctx context.Context, req oracleRequest, root string, sandbox oracleSandbox, source []byte, targets []schemaoracle.Target) error {
+// Only the compiled decoder runs candidate runtime code. Expectations remain in
+// the verifier, and every process is joined before disposing its sandbox.
+func executeTargetOracle(ctx context.Context, req oracleRequest, root string, sandbox oracleSandbox, header schemaoracle.Header, expectations *bufio.Reader) error {
 	req.Output = &serializedOracleOutput{writer: req.output()}
-	var err error
+	source, err := schemaoracle.Harness(schemaoracle.Request{Bindings: header.Bindings, ImportPath: "github.com/ronhuafeng/llm-go/codexsdk/protocolv2"})
+	if err != nil {
+		return err
+	}
 	dir := filepath.Join(root, "codexsdk/internal/schemaoracleprobe")
 	if err = os.Mkdir(dir, 0700); err != nil {
-		return fmt.Errorf("create independent probe: %w", err)
+		return err
 	}
 	defer os.RemoveAll(dir)
-	path := filepath.Join(dir, "contract_test.go")
-	if err = os.WriteFile(path, source, 0600); err != nil {
+	if err = os.WriteFile(filepath.Join(dir, "main.go"), source, 0600); err != nil {
 		return err
 	}
 	sandbox.readonly = append(sandbox.readonly, dir)
@@ -85,22 +95,19 @@ func executeTargetOracle(ctx context.Context, req oracleRequest, root string, sa
 	if err != nil {
 		return err
 	}
-	cmd := sandbox.command(ctx, filepath.Join(sandbox.goroot, "bin", "go"), "test", "-count=1", "-json", "./internal/schemaoracleprobe")
-	var events oracleTestEvents
-	events.output = req.output()
-	events.failure = req.failure
-	if events.failure == nil {
-		events.failure = func(test string) error { return writeTargetOracleProbe(req.output(), targets, test) }
+	binary := filepath.Join(sandbox.work, "schema-decoder")
+	cmd := sandbox.command(ctx, filepath.Join(sandbox.goroot, "bin/go"), "build", "-o", binary, "./internal/schemaoracleprobe")
+	out, buildErr := oracleCommandOutput(req.output(), cmd)
+	var checkErr error
+	if buildErr != nil {
+		checkErr = fmt.Errorf("compile schema decoder: %w: %s", buildErr, boundedRepairDiagnostic(string(out)))
+	} else {
+		local, cancel := context.WithCancel(ctx)
+		defer cancel()
+		sandbox.readonly = append(sandbox.readonly, binary)
+		cmd = sandbox.command(local, binary)
+		checkErr = checkDecoderProcess(local, cmd, header, expectations, req.output())
 	}
-	cmd.Stdout = &events
-	var stderr repairOutput
-	cmd.Stderr = io.MultiWriter(&stderr, req.output())
-	runErr := cmd.Run()
-	if events.pending != "" {
-		_, _ = io.WriteString(req.output(), events.pending)
-		_, _ = events.diagnostic.Write([]byte("incomplete go test output: " + events.pending))
-	}
-	_, _ = events.diagnostic.Write([]byte(stderr.String()))
 	after, err := repairPatch(root)
 	if err != nil {
 		return err
@@ -108,109 +115,40 @@ func executeTargetOracle(ctx context.Context, req oracleRequest, root string, sa
 	if repairDigest(before) != repairDigest(after) {
 		return &oracleIntegrityError{fmt.Errorf("independent probe execution changed candidate bytes")}
 	}
-	if runErr != nil || !events.started || !events.passed || events.failed || events.invalid || events.pending != "" {
-		return fmt.Errorf("independent schema contract: %v (started=%t passed=%t failed=%t): %s", runErr, events.started, events.passed, events.failed, boundedRepairDiagnostic(events.diagnostic.String()))
+	return checkErr
+}
+
+// The process transport is shared by production and deliberately defective
+// native fixtures. A clean exit cannot replace complete observations.
+func checkDecoderProcess(ctx context.Context, cmd *exec.Cmd, header schemaoracle.Header, expectations *bufio.Reader, output io.Writer) error {
+	output = &serializedOracleOutput{writer: output}
+	input, err := cmd.StdinPipe()
+	if err != nil {
+		return err
+	}
+	observed, err := cmd.StdoutPipe()
+	if err != nil {
+		input.Close()
+		return err
+	}
+	var stderr repairOutput
+	cmd.Stderr = io.MultiWriter(&stderr, output)
+	if err = cmd.Start(); err != nil {
+		input.Close()
+		observed.Close()
+		return err
+	}
+	err = schemaoracle.Check(ctx, header, expectations, input, observed, output)
+	input.Close()
+	observed.Close()
+	if err != nil && cmd.Process != nil {
+		_ = cmd.Process.Kill()
+	}
+	runErr := cmd.Wait()
+	if err != nil || runErr != nil {
+		return fmt.Errorf("independent schema contract: checking=%v process=%v: %s", err, runErr, boundedRepairDiagnostic(stderr.String()))
 	}
 	return nil
-}
-
-type oracleTestEvents struct {
-	failure                          func(string) error
-	output                           io.Writer
-	pending                          string
-	started, passed, failed, invalid bool
-	diagnostic                       oracleDiagnostic
-}
-
-func (w *oracleTestEvents) Write(p []byte) (int, error) {
-	n := len(p)
-	w.pending += string(p)
-	for {
-		line, rest, ok := strings.Cut(w.pending, "\n")
-		if !ok {
-			break
-		}
-		w.pending = rest
-		var e struct{ Action, Test, Package, ImportPath, Output string }
-		parseErr := json.Unmarshal([]byte(line), &e)
-		// The verdict parser still receives every event. Only repetitive passing
-		// probe status is omitted from retained text; failures and root events stay.
-		if w.output != nil && (parseErr != nil || !oraclePassingProbeStatus(e.Action, e.Package, e.Test, e.Output)) {
-			if _, err := io.WriteString(w.output, line+"\n"); err != nil {
-				return n, err
-			}
-		}
-		if parseErr != nil {
-			w.invalid = true
-			_, _ = w.diagnostic.Write([]byte("unparsed go test output: " + line + "\n"))
-			continue
-		}
-		// Modern go test -json interleaves BuildEvents with TestEvents.
-		// Build diagnostics have ImportPath, not Package; retain them without
-		// treating any build event as evidence that a test executed.
-		diagnosticPackage := e.Package
-		if e.ImportPath != "" && strings.HasPrefix(e.Action, "build-") {
-			diagnosticPackage = e.ImportPath
-		}
-		w.diagnostic.event(e.Action, diagnosticPackage, e.Test, e.Output)
-		if e.Action == "fail" && e.Package == "github.com/ronhuafeng/llm-go/codexsdk/internal/schemaoracleprobe" && w.failure != nil {
-			if err := w.failure(e.Test); err != nil {
-				w.invalid = true
-				return n, err
-			}
-		}
-		if e.Package != "github.com/ronhuafeng/llm-go/codexsdk/internal/schemaoracleprobe" || e.Test != "TestTrustedSchemaOracle" {
-			continue
-		}
-		switch e.Action {
-		case "run":
-			w.started = true
-		case "pass":
-			if !w.started {
-				w.invalid = true
-			}
-			w.passed = true
-		case "fail", "skip":
-			w.failed = true
-		}
-	}
-	if len(w.pending) > 4<<20 {
-		w.invalid = true
-		_, _ = w.diagnostic.Write([]byte("go test event omitted: framing bound exceeded\n"))
-		if w.output != nil {
-			if _, err := io.WriteString(w.output, w.pending); err != nil {
-				return n, err
-			}
-		}
-		w.pending = ""
-	}
-	return n, nil
-}
-
-func oraclePassingProbeStatus(action, pkg, test, output string) bool {
-	if pkg != "github.com/ronhuafeng/llm-go/codexsdk/internal/schemaoracleprobe" || !strings.HasPrefix(test, "TestTrustedSchemaOracle/") {
-		return false
-	}
-	_, index, ok := strings.Cut(test, "/probe_")
-	n, err := strconv.Atoi(index)
-	if !ok || err != nil || n < 0 {
-		return false
-	}
-	if action == "run" || action == "pass" {
-		return output == ""
-	}
-	if action != "output" {
-		return false
-	}
-	if output == "=== RUN   "+test+"\n" {
-		return true
-	}
-	prefix := "--- PASS: " + test + " ("
-	if !strings.HasPrefix(output, prefix) || !strings.HasSuffix(output, "s)\n") {
-		return false
-	}
-	seconds, err := strconv.ParseFloat(strings.TrimSuffix(strings.TrimPrefix(output, prefix), "s)\n"), 64)
-	return err == nil && seconds >= 0
 }
 
 // runBaselineOracle exercises proposed handwritten implementation using the

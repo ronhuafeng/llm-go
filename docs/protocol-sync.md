@@ -264,23 +264,30 @@ satisfies the standalone strict record's rejection contract. Role-specific
 regressions separately prove observation tolerance and action-bearing rejection;
 the standalone oracle does not certify a lossless observation/relay API.
 
-Frozen JSON values, diagnostic strings and source-location objects share
-immutable storage across the complete target graph. The controller counts unique
-retained metadata and JSON payloads plus per-probe references against the same
-128 MiB corpus limit.
-The child wire stores JSON values verbatim in a shared table; each independent
-probe references that value and a diagnostic string table. Controller
-source locations remain available in failure JSONL rather than being duplicated
-in an unused child field. This representation does not merge target obligations
-or change the 8 MiB compressed bound. Candidate decoders receive fresh input
-bytes so they cannot mutate the frozen expected value.
+The oracle derives current reachable contracts from exact source schemas and
+`common.rs`, including when only the generator or runtime implementation changed.
+Accepted old/new facts still protect removed public surface and handwritten
+transport envelopes; immutable accepted tests remain a separate regression lane.
+Inline aliases are exercised through selected owners. Explicit JSONValue overlays,
+including MCP elicitation properties and realtime items, end typed traversal.
+Missing, ambiguous or unsupported bindings fail closed.
 
-The oracle checks each wire witness in its own Go subtest, independently of the
-declared-field check. An assertion failure does not suppress later witnesses for
-the same contract. Operator console summaries still use the existing diagnostic
-bounds and mark omitted output; the repair file retains complete failure records
-within its explicit file limit. Compiler errors, panics, skipped or missing trusted tests remain
-failed or unavailable evidence.
+The candidate source selector and schema interpreter run inside the existing
+no-network sandbox. They stream independently classified obligations with exact
+source digests; the controller never imports candidate code. A separate sandbox
+compiles one decoder containing only selected Go type factories. It receives fresh
+input bytes and returns decode/marshal observations. The verifier compares those
+observations directly, retaining each failure's full input, output and source
+location within the existing diagnostic file limit. Passing probes emit no status
+stream. Open records use wire evidence rather than assuming custom marshaler
+storage fields equal their declared schema properties.
+
+Construction and decoding have separate writable process state; source and
+accepted expectations remain read-only. Value framing, schema/witness recursion,
+mutation traversal, total work and the inherited deadline are bounded. These are
+work and framing bounds, not RSS protection. Incomplete, duplicate, trailing or
+missing observations, zero execution, compiler errors, panics, cancellation and
+process failures cannot certify a contract. Every owned process is reaped.
 
 Round trips preserve JSON member presence except the accepted parameterless
 `ClientRequest` canonical encoding. At that source document's top-level envelope,

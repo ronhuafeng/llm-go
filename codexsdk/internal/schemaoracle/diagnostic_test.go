@@ -10,7 +10,7 @@ import (
 
 func TestInvalidDiagnosticSharedConstraintAndUnionAmbiguity(t *testing.T) {
 	req := Request{Schemas: map[string][]byte{"Request.json": []byte(`{"definitions":{"Effort":{"type":"string","minLength":1}},"anyOf":[{"type":"null"},{"type":"object","properties":{"a/b":{"$ref":"#/definitions/Effort"},"~effort":{"$ref":"#/definitions/Effort"}},"required":["a/b","~effort"]}]}`)}, Bindings: map[string]string{"Request.json": "Payload"}, CloseObjects: true}
-	targets, err := Build(req)
+	targets, err := collectTargets(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +34,7 @@ func TestInvalidDiagnosticSharedConstraintAndUnionAmbiguity(t *testing.T) {
 }
 
 func TestInvalidDiagnosticLabelsLocalOverlay(t *testing.T) {
-	targets, err := Build(Request{Schemas: map[string][]byte{"Record.json": []byte(`{"type":"object","properties":{"field":{"type":"string"}}}`)}, Bindings: map[string]string{"Record.json": "Payload"}, CloseObjects: true})
+	targets, err := collectTargets(Request{Schemas: map[string][]byte{"Record.json": []byte(`{"type":"object","properties":{"field":{"type":"string"}}}`)}, Bindings: map[string]string{"Record.json": "Payload"}, CloseObjects: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestDiagnosticValueOmitsURLAndBody(t *testing.T) {
 }
 
 func TestDiagnosticArrayAndBranchPointers(t *testing.T) {
-	targets, err := Build(Request{Schemas: map[string][]byte{"Array.json": []byte(`{"anyOf":[{"type":"null"},{"type":"array","items":{"type":"string","minLength":1},"minItems":1}]}`)}, Bindings: map[string]string{"Array.json": "Payload"}})
+	targets, err := collectTargets(Request{Schemas: map[string][]byte{"Array.json": []byte(`{"anyOf":[{"type":"null"},{"type":"array","items":{"type":"string","minLength":1},"minItems":1}]}`)}, Bindings: map[string]string{"Array.json": "Payload"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestDiagnosticNativeMessagesOmitURLAndBody(t *testing.T) {
 func TestDiagnosticSnapshotPreservesJSONNumbers(t *testing.T) {
 	// Annotation numbers need not fit float64. The diagnostic snapshot must not
 	// narrow the authoritative UseNumber decode or change probe acceptance.
-	targets, err := Build(Request{Schemas: map[string][]byte{"Number.json": []byte(`{"type":"string","default":1e400}`)}, Bindings: map[string]string{"Number.json": "Payload"}})
+	targets, err := collectTargets(Request{Schemas: map[string][]byte{"Number.json": []byte(`{"type":"string","default":1e400}`)}, Bindings: map[string]string{"Number.json": "Payload"}})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ronhuafeng/llm-go/codexsdk/internal/schemaoracle"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/ronhuafeng/llm-go/codexsdk/internal/schemaoracle"
 )
 
 func TestOracleCoverageFollowsSourceChangesAndReferences(t *testing.T) {
@@ -53,25 +54,6 @@ func TestOracleRejectsRemovedGeneratedType(t *testing.T) {
 	writeFile(t, filepath.Join(generated, "protocol_types.gen.go"), "package sample\ntype Removed struct { Old bool }\n")
 	if _, err := schemaOracleRequest(old, next, generated); err == nil || !strings.Contains(err.Error(), "removed source type") {
 		t.Fatalf("got %v", err)
-	}
-}
-
-func TestOracleTestCompletionCannotBeReplacedByExitZero(t *testing.T) {
-	for _, tc := range []struct {
-		events string
-		want   bool
-	}{
-		{`{"Action":"pass","Package":"github.com/ronhuafeng/llm-go/codexsdk/internal/schemaoracleprobe"}` + "\n", false},
-		{`{"Action":"run","Package":"github.com/ronhuafeng/llm-go/codexsdk/internal/schemaoracleprobe","Test":"TestTrustedSchemaOracle"}` + "\n" + `{"Action":"pass","Package":"github.com/ronhuafeng/llm-go/codexsdk/internal/schemaoracleprobe","Test":"TestTrustedSchemaOracle"}` + "\n", true},
-		{`{"Action":"output","Package":"github.com/ronhuafeng/llm-go/codexsdk/internal/schemaoracleprobe","Output":"--- PASS: TestTrustedSchemaOracle"}` + "\n", false},
-	} {
-		var events oracleTestEvents
-		for _, p := range []byte(tc.events) {
-			_, _ = events.Write([]byte{p})
-		}
-		if got := events.started && events.passed && !events.failed && !events.invalid; got != tc.want {
-			t.Fatalf("completion=%t want=%t", got, tc.want)
-		}
 	}
 }
 
@@ -237,7 +219,7 @@ func TestOraclePublicReachabilityCompilesAndRetainsMissingBinding(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]string{"ReadResponse.json": "ReadResponse", "ReadResponse.json#/definitions/RequestHeader": "RequestHeader"}
+	want := map[string]string{"ReadResponse.json": "ReadResponse", "ReadResponse.json#/definitions/RequestHeader": "RequestHeader", "ClientRequest.json": "ClientRequest", "ClientRequest.json#/definitions/Payload": "Payload", "ClientNotification.json": "ClientNotification", "ServerRequest.json": "ServerRequest", "ServerNotification.json": "ServerNotification"}
 	if !reflect.DeepEqual(request.Bindings, want) {
 		t.Fatalf("public bindings=%v", request.Bindings)
 	}
@@ -251,19 +233,18 @@ func TestOraclePublicReachabilityCompilesAndRetainsMissingBinding(t *testing.T) 
 	compile := func(req schemaoracle.Request, header bool) ([]byte, error) {
 		dir := t.TempDir()
 		writeFile(t, filepath.Join(dir, "go.mod"), "module fixture\n\ngo 1.26.8\n")
-		types := "package subject\ntype ReadResponse struct{}\n"
+		types := "package subject\ntype ReadResponse struct{}\ntype ClientRequest struct{};type Payload struct{};type ClientNotification struct{};type ServerRequest struct{};type ServerNotification struct{}\n"
 		if header {
 			types += "type RequestHeader struct{}\n"
 		}
 		writeFile(t, filepath.Join(dir, "subject", "types.go"), types)
-		req.Package = "probe"
 		req.ImportPath = "fixture/subject"
-		source, err := schemaoracle.Generate(req)
+		source, err := schemaoracle.Harness(req)
 		if err != nil {
 			t.Fatal(err)
 		}
-		writeFile(t, filepath.Join(dir, "probe", "contract_test.go"), string(source))
-		cmd := exec.Command("go", "test", "-c", "-o", filepath.Join(dir, "probe.test"), "./probe")
+		writeFile(t, filepath.Join(dir, "probe", "main.go"), string(source))
+		cmd := exec.Command("go", "build", "-o", filepath.Join(dir, "decoder"), "./probe")
 		cmd.Dir = dir
 		return cmd.CombinedOutput()
 	}
@@ -427,7 +408,7 @@ func TestOraclePublicExposureTransitions(t *testing.T) {
 					t.Fatalf("newly public unchanged schema lost: %v", req.Bindings)
 				}
 			}
-			if transition == "deleted_internal_scalar" && len(req.Bindings) != 0 {
+			if transition == "deleted_internal_scalar" && req.Bindings["InternalScalar.json"] != "" {
 				t.Fatalf("internal scalar became obligation: %v", req.Bindings)
 			}
 			if transition == "becomes_internal" {
@@ -500,5 +481,34 @@ func TestOracleAcceptedResponseAssociationsAreBoundToSource(t *testing.T) {
 				t.Fatalf("untrusted accepted association admitted: %v", err)
 			}
 		})
+	}
+}
+
+func TestCurrentGraphChecksSameSchemaImplementationChanges(t *testing.T) {
+	old, next := t.TempDir(), t.TempDir()
+	raw := `{"title":"Payload","type":"object","properties":{"first":{"type":"string"},"second":{"type":"string"}},"required":["first","second"]}`
+	for _, root := range []string{old, next} {
+		writeFile(t, filepath.Join(root, "Payload.json"), raw)
+	}
+	req, err := schemaOracleScopedRequest(old, next, t.TempDir(), map[string]bool{"Payload": true}, map[string]bool{"Payload": true})
+	if err != nil || req.Bindings["Payload.json"] != "Payload" {
+		t.Fatalf("unchanged contract lost: %v %v", req.Bindings, err)
+	}
+	err, out := decoderFixture(t, req, `package subject
+import("encoding/json";"fmt")
+type Payload struct{First string `+"`json:\"first\"`"+`;Second string `+"`json:\"second\"`"+`}
+func(p *Payload)UnmarshalJSON(b []byte)error{var m map[string]any;if json.Unmarshal(b,&m)!=nil||len(m)!=2{return fmt.Errorf("fields")};a,ok:=m["first"].(string);if !ok{return fmt.Errorf("first")};bvalue,ok:=m["second"].(string);if !ok{return fmt.Errorf("second")};p.First=bvalue;p.Second=a;return nil}`)
+	if err == nil || !strings.Contains(out, "wire value lost") {
+		t.Fatalf("same-schema field swap escaped: %v %s", err, out)
+	}
+}
+
+func TestTypedGraphTerminatesAtAcceptedJSONValueOverlay(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "v2/ThreadRealtimeItemStartedNotification.json"), `{"title":"ThreadRealtimeItemStartedNotification","type":"object","properties":{"item":{"$ref":"#/definitions/ThreadRealtimeItem"}},"required":["item"],"definitions":{"ThreadRealtimeItem":{"type":"object","properties":{"unused":{"$ref":"#/definitions/OpaqueChild"}}},"OpaqueChild":{"type":"string"}}}`)
+	roots := map[string]bool{"ThreadRealtimeItemStartedNotification": true}
+	req, err := schemaOracleScopedRequest(root, root, t.TempDir(), roots, roots)
+	if err != nil || len(req.Bindings) != 1 || req.Bindings["v2/ThreadRealtimeItemStartedNotification.json"] != "ThreadRealtimeItemStartedNotification" {
+		t.Fatalf("opaque traversal failed: %v %v", req.Bindings, err)
 	}
 }

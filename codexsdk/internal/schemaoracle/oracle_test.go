@@ -1,24 +1,16 @@
 package schemaoracle
 
 import (
-	"bytes"
-	"compress/gzip"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 )
 
 func request(schema string) Request {
-	return Request{Schemas: map[string][]byte{"target.json": []byte(schema)}, Bindings: map[string]string{"target.json": "Payload"}, Package: "fixture", CloseObjects: true}
+	return Request{Schemas: map[string][]byte{"target.json": []byte(schema)}, Bindings: map[string]string{"target.json": "Payload"}, CloseObjects: true}
 }
 
 func TestLegalFieldRemovalAndAddition(t *testing.T) {
@@ -34,20 +26,11 @@ func(p *Payload) UnmarshalJSON(b []byte)error {var m map[string]json.RawMessage;
 		wantPass     bool
 	}{{"stale_oracle_rejects_legal_candidate", old, false}, {"candidate_schema_oracle_accepts_legal_candidate", current, true}} {
 		t.Run(tt.name, func(t *testing.T) {
-			source, e := Generate(request(tt.schema))
+			_, e := collectTargets(request(tt.schema))
 			if e != nil {
 				t.Fatal(e)
 			}
-			dir := t.TempDir()
-			for name, body := range map[string]string{"go.mod": "module fixture\ngo 1.26.8\n", "payload.go": candidate, "oracle_test.go": string(source)} {
-				if e := os.WriteFile(filepath.Join(dir, name), []byte(body), 0600); e != nil {
-					t.Fatal(e)
-				}
-			}
-			cmd := exec.Command("go", "test", "-count=1", ".")
-			cmd.Dir = dir
-			out, e := cmd.CombinedOutput()
-			requireOracleOutcome(t, out, e, tt.wantPass)
+			runOracleFixture(t, request(tt.schema), candidate, tt.wantPass)
 		})
 	}
 }
@@ -55,7 +38,7 @@ func(p *Payload) UnmarshalJSON(b []byte)error {var m map[string]json.RawMessage;
 func TestOpenUnionClassifiesMutationsWithWholeSchema(t *testing.T) {
 	req := request(`{"definitions":{"Error":{"anyOf":[{"type":"object","properties":{"known":{"type":"integer"}},"required":["known"],"additionalProperties":false},{"type":["object","string"]}]}},"type":"null"}`)
 	req.Bindings = map[string]string{"target.json#/definitions/Error": "Payload"}
-	got, e := Build(req)
+	got, e := collectTargets(req)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -79,7 +62,7 @@ func TestClosedObjectOverlayIsExplicit(t *testing.T) {
 	r := request(`{"type":"object","properties":{"value":{"type":"string"}}}`)
 	for _, closed := range []bool{false, true} {
 		r.CloseObjects = closed
-		ts, e := Build(r)
+		ts, e := collectTargets(r)
 		if e != nil {
 			t.Fatal(e)
 		}
@@ -99,30 +82,30 @@ func TestClosedObjectOverlayIsExplicit(t *testing.T) {
 }
 func TestBindingAndUnsupportedFailClosed(t *testing.T) {
 	for _, schema := range []string{`{"$ref":"https://example.com/network"}`, `{"type":"string","pattern":"a+"}`, `{"allOf":[{"type":"object"},{"type":"object"}]}`, `{"$id":"https://example.com/base","type":"null"}`} {
-		if _, e := Generate(request(schema)); e == nil {
+		if _, e := collectStream(request(schema)); e == nil {
 			t.Fatalf("accepted unsupported %s", schema)
 		}
 	}
 	r := request(`{"type":"null"}`)
 	r.Bindings["target.json"] = ""
-	if _, e := Generate(r); e == nil {
+	if _, e := collectStream(r); e == nil {
 		t.Fatal("missing binding accepted")
 	}
 }
 func TestDistinctFieldsAndDeterminism(t *testing.T) {
 	r := request(`{"type":"object","properties":{"first":{"type":"string"},"second":{"type":"string"}},"required":["first","second"]}`)
-	a, e := Generate(r)
+	a, e := collectStream(r)
 	if e != nil {
 		t.Fatal(e)
 	}
-	b, e := Generate(r)
+	b, e := collectStream(r)
 	if e != nil {
 		t.Fatal(e)
 	}
 	if string(a) != string(b) {
 		t.Fatal("nondeterministic oracle")
 	}
-	ts, _ := Build(r)
+	ts, _ := collectTargets(r)
 	var obj map[string]any
 	_ = json.Unmarshal([]byte(ts[0].Probes[0].JSON), &obj)
 	if obj["first"] == obj["second"] {
@@ -131,13 +114,9 @@ func TestDistinctFieldsAndDeterminism(t *testing.T) {
 }
 
 // Execute only locally authored fixtures. A candidate's vacuous own test cannot
-// neutralize the independently frozen corpus. No archived candidate is run.
-func TestFrozenRuntimeDetectsLostFieldsAndWeakValidation(t *testing.T) {
+// neutralize independently derived obligations. No archived candidate is run.
+func TestRuntimeDetectsLostFieldsAndWeakValidation(t *testing.T) {
 	r := request(`{"type":"object","properties":{"first":{"type":"string"},"second":{"type":"string"}},"required":["first","second"]}`)
-	test, e := Generate(r)
-	if e != nil {
-		t.Fatal(e)
-	}
 	good := `package fixture
 import("bytes";"encoding/json";"fmt")
 type Payload struct{ First string ` + "`json:\"first\"`" + `;Second string ` + "`json:\"second\"`" + ` }
@@ -148,16 +127,7 @@ func(p *Payload) UnmarshalJSON(b []byte)error {var m map[string]json.RawMessage;
 		pass       bool
 	}{{"valid", good, true}, {"drop_added_field", strings.Replace(good, "type plain Payload;return json.Unmarshal(b,(*plain)(p))", "type plain Payload;err:=json.Unmarshal(b,(*plain)(p));p.Second=\"\";return err", 1), false}, {"weak_decoder", `package fixture;type Payload map[string]any`, false}} {
 		t.Run(tt.name, func(t *testing.T) {
-			dir := t.TempDir()
-			for name, b := range map[string][]byte{"go.mod": []byte("module fixture\ngo 1.26.8\n"), "payload.go": []byte(tt.code), "oracle_test.go": test, "weak_test.go": []byte("package fixture;import \"testing\";func TestCandidateClaim(t *testing.T){}")} {
-				if e := os.WriteFile(filepath.Join(dir, name), b, 0600); e != nil {
-					t.Fatal(e)
-				}
-			}
-			cmd := exec.Command("go", "test", "-count=1", ".")
-			cmd.Dir = dir
-			out, e := cmd.CombinedOutput()
-			requireOracleOutcome(t, out, e, tt.pass)
+			runOracleFixture(t, r, tt.code, tt.pass)
 		})
 	}
 }
@@ -167,39 +137,20 @@ func TestCompoundObjectAndRecursiveBaseCases(t *testing.T) {
 		`{"type":"object","properties":{"type":{"const":"image"},"detail":{"type":["string","null"]}},"required":["type"],"anyOf":[{"type":"object","properties":{"url":{"type":"string"}},"required":["url"]},{"type":"object","properties":{"fileId":{"type":"string"}},"required":["fileId"]}]}`,
 		`{"$ref":"#/definitions/Node","definitions":{"Node":{"type":"object","properties":{"name":{"type":"string"},"children":{"type":"array","items":{"$ref":"#/definitions/Node"}}},"required":["name","children"]}}}`,
 	} {
-		if _, e := Build(request(schema)); e != nil {
+		if _, e := collectTargets(request(schema)); e != nil {
 			t.Fatal(e)
 		}
 	}
-	if _, e := Build(request(`{"$ref":"#/definitions/Node","definitions":{"Node":{"type":"object","properties":{"child":{"$ref":"#/definitions/Node"}},"required":["child"]}}}`)); e == nil {
+	if _, e := collectTargets(request(`{"$ref":"#/definitions/Node","definitions":{"Node":{"type":"object","properties":{"child":{"$ref":"#/definitions/Node"}},"required":["child"]}}}`)); e == nil {
 		t.Fatal("uninhabited required recursive shape accepted")
 	}
 }
 
 func TestExternalProbeCannotBeSuppressedByCandidateTestMain(t *testing.T) {
 	r := request(`{"type":"object","properties":{"value":{"type":"string"}},"required":["value"]}`)
-	r.Package = "schemaoracleprobe"
-	r.ImportPath = "fixture/subject"
-	source, e := Generate(r)
-	if e != nil {
-		t.Fatal(e)
-	}
-	dir := t.TempDir()
-	for _, p := range []string{"subject", "probe"} {
-		if e := os.Mkdir(filepath.Join(dir, p), 0700); e != nil {
-			t.Fatal(e)
-		}
-	}
-	for name, body := range map[string]string{"go.mod": "module fixture\ngo 1.26.8\n", "subject/payload.go": "package subject;type Payload struct { Value string `json:\"value\"`;Stale string `json:\"removed,omitempty\"` }", "subject/payload_test.go": "package subject;import(\"testing\";\"os\");func TestMain(m *testing.M){os.Exit(0)}", "probe/oracle_test.go": string(source)} {
-		if e := os.WriteFile(filepath.Join(dir, name), []byte(body), 0600); e != nil {
-			t.Fatal(e)
-		}
-	}
-	cmd := exec.Command("go", "test", "-count=1", "./probe")
-	cmd.Dir = dir
-	out, e := cmd.CombinedOutput()
-	if e == nil || !strings.Contains(string(out), "Go JSON fields=[removed value]") {
-		t.Fatalf("external frozen field proof suppressed or failed incorrectly: %v\n%s", e, out)
+	out := runOracleFixture(t, r, "package fixture;type Payload struct { Value string `json:\"value\"`;Stale string `json:\"removed,omitempty\"` }", false)
+	if !strings.Contains(string(out), "Go JSON fields=[removed value]") {
+		t.Fatal(string(out))
 	}
 }
 
@@ -212,7 +163,7 @@ func TestMutationsAreBoundedByFieldCoverageNotSiblingProducts(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	targets, e := Build(request(string(raw)))
+	targets, e := collectTargets(request(string(raw)))
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -235,7 +186,7 @@ func TestMutationsAreBoundedByFieldCoverageNotSiblingProducts(t *testing.T) {
 
 func TestNegativeCoverageKeepsSameShapeTaggedBranches(t *testing.T) {
 	r := request(`{"oneOf":[{"type":"object","properties":{"tag":{"const":"first"},"value":{"type":"string"}},"required":["tag","value"]},{"type":"object","properties":{"tag":{"const":"second"},"value":{"type":"string"}},"required":["tag","value"]}]}`)
-	targets, e := Build(r)
+	targets, e := collectTargets(r)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -252,59 +203,11 @@ func TestNegativeCoverageKeepsSameShapeTaggedBranches(t *testing.T) {
 	}
 }
 
-func TestCompressedCorpusPreservesEveryProbe(t *testing.T) {
-	r := request(`{"type":"object","properties":{"first":{"type":"string"},"second":{"anyOf":[{"type":"integer"},{"type":"null"}]}},"required":["first"]}`)
-	targets, e := Build(r)
-	if e != nil {
-		t.Fatal(e)
-	}
-	source, e := Generate(r)
-	if e != nil {
-		t.Fatal(e)
-	}
-	line := strings.SplitN(strings.SplitN(string(source), "const frozenCorpus = ", 2)[1], "\n", 2)[0]
-	encoded, e := strconv.Unquote(line)
-	if e != nil {
-		t.Fatal(e)
-	}
-	compressed, e := base64.StdEncoding.DecodeString(encoded)
-	if e != nil {
-		t.Fatal(e)
-	}
-	reader, e := gzip.NewReader(bytes.NewReader(compressed))
-	if e != nil {
-		t.Fatal(e)
-	}
-	defer reader.Close()
-	corpus := decodeWireCorpus(t, reader)
-	assertWireProbes(t, targets, corpus)
-
-}
-
 func TestCompoundRootPreservesLocalDefinitionResources(t *testing.T) {
 	r := request(`{"$schema":"http://json-schema.org/draft-07/schema#","definitions":{"Payload":{"type":"object","properties":{"message":{"type":"string"}},"required":["message"]}},"properties":{"emittedAt":{"type":"integer"}},"oneOf":[{"type":"object","properties":{"method":{"const":"event"},"params":{"$ref":"#/definitions/Payload"}},"required":["method","params"]}]}`)
-	if _, err := Build(r); err != nil {
+	if _, err := collectTargets(r); err != nil {
 		t.Fatal(err)
 	}
-}
-
-func runOracleFixture(t *testing.T, r Request, implementation string, wantPass bool) []byte {
-	t.Helper()
-	source, err := Generate(r)
-	if err != nil {
-		t.Fatal(err)
-	}
-	dir := t.TempDir()
-	for name, body := range map[string]string{"go.mod": "module fixture\ngo 1.26.8\n", "payload.go": implementation, "oracle_test.go": string(source)} {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0600); err != nil {
-			t.Fatal(err)
-		}
-	}
-	cmd := exec.Command("go", "test", "-count=1", ".")
-	cmd.Dir = dir
-	output, err := cmd.CombinedOutput()
-	requireOracleOutcome(t, output, err, wantPass)
-	return output
 }
 
 func TestDeepRequiredAndTypeMutationsExecuteAgainstWeakDecoder(t *testing.T) {
@@ -323,7 +226,7 @@ func(p *Payload)UnmarshalJSON(b []byte)error{var root map[string]json.RawMessage
 
 func TestExactNumericWitnessesAndSemanticRoundtrip(t *testing.T) {
 	for _, schema := range []string{`{"type":"number","minimum":0.1,"maximum":0.2}`, `{"type":"integer","minimum":9007199254740993,"maximum":9007199254740993}`, `{"type":"integer","minimum":-2.7,"maximum":-1.2}`} {
-		if _, err := Build(request(schema)); err != nil {
+		if _, err := collectTargets(request(schema)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -337,7 +240,7 @@ func(p Payload)MarshalJSON()([]byte,error){return []byte("1.0"),nil}
 
 func TestTypedAdditionalPropertiesHavePositiveAndNegativeEvidence(t *testing.T) {
 	r := request(`{"type":"object","properties":{"known":{"type":"string"}},"required":["known"],"additionalProperties":{"type":"string"}}`)
-	targets, err := Build(r)
+	targets, err := collectTargets(r)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -391,7 +294,7 @@ func TestAggregateUnionKeepsEveryBoundedBranch(t *testing.T) {
 		branches = append(branches, map[string]any{"const": fmt.Sprintf("branch_%d", i)})
 	}
 	raw, _ := json.Marshal(map[string]any{"anyOf": branches})
-	targets, err := Build(request(string(raw)))
+	targets, err := collectTargets(request(string(raw)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -429,103 +332,10 @@ func TestConstructionHonorsExistingRepairCancellation(t *testing.T) {
 			cancel()
 			req.Context = ctx
 		}
-		_, err := Generate(req)
+		_, err := collectStream(req)
 		cancel()
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("during=%t: cancelled construction returned %v", during, err)
 		}
-	}
-}
-
-func TestGeneratedCasesStayInsideOneContractTest(t *testing.T) {
-	req := request(`{"type":"object","properties":{"one":{"type":"string"},"two":{"type":"boolean"}},"required":["one"]}`)
-	targets, err := Build(req)
-	if err != nil || len(targets[0].Probes) < 10 {
-		t.Fatalf("corpus %v", err)
-	}
-	source, err := Generate(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Keep a single trusted parent per source contract, but execute each
-	// witness independently. Text counts cannot establish actual execution.
-	implementation := `package fixture
-import("bytes";"encoding/json";"fmt")
-type Payload struct{One string ` + "`json:\"one\"`" + `;Two *bool ` + "`json:\"two,omitempty\"`" + `}
-func(p *Payload)UnmarshalJSON(b []byte)error{var root map[string]json.RawMessage;if json.Unmarshal(b,&root)!=nil||root["one"]==nil{return fmt.Errorf("one required")};for key,value:=range root{if key!="one"&&key!="two"||bytes.Equal(value,[]byte("null")){return fmt.Errorf("field")}};type plain Payload;return json.Unmarshal(b,(*plain)(p))}
-`
-	dir := t.TempDir()
-	for name, body := range map[string]string{"go.mod": "module fixture\ngo 1.26.8\n", "payload.go": implementation, "oracle_test.go": string(source)} {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0600); err != nil {
-			t.Fatal(err)
-		}
-	}
-	cmd := exec.Command("go", "test", "-count=1", "-json", ".")
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	requireOracleOutcome(t, out, err, true)
-	ran, passed := map[string]int{}, map[string]int{}
-	for _, line := range bytes.Split(out, []byte("\n")) {
-		if len(line) == 0 {
-			continue
-		}
-		var event struct{ Action, Test string }
-		if err := json.Unmarshal(line, &event); err != nil {
-			t.Fatal(err)
-		}
-		switch event.Action {
-		case "run":
-			ran[event.Test]++
-		case "pass":
-			if event.Test != "" {
-				passed[event.Test]++
-			}
-		}
-	}
-	parent := "TestTrustedSchemaOracle/target.json"
-	names := []string{"TestTrustedSchemaOracle", parent, parent + "/fields"}
-	for i := range targets[0].Probes {
-		names = append(names, parent+"/probe_"+strconv.Itoa(i))
-	}
-	if len(ran) != len(names) || len(passed) != len(names) {
-		t.Fatalf("executed tests=%d passed=%d expected=%d", len(ran), len(passed), len(names))
-	}
-	for _, name := range names {
-		if ran[name] != 1 || passed[name] != 1 {
-			t.Errorf("%s executed=%d passed=%d, want once each", name, ran[name], passed[name])
-		}
-	}
-}
-
-func TestStreamingCorpusMatchesOriginalBytes(t *testing.T) {
-	targets := []Target{{Probes: []Probe{{JSON: `{"text":"<quoted>\\\""}`, Valid: true}, {JSON: `null`, Valid: false}}}, {Probes: nil}, {Probes: []Probe{}}}
-	compressed, err := compressCorpus(context.Background(), targets)
-	if err != nil {
-		t.Fatal(err)
-	}
-	reader, err := gzip.NewReader(bytes.NewReader(compressed))
-	if err != nil {
-		t.Fatal(err)
-	}
-	raw, err := io.ReadAll(reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	reader.Close()
-	corpus := decodeWireCorpus(t, bytes.NewReader(raw))
-	assertWireProbes(t, targets, corpus)
-	if corpus.Targets[1] != nil || corpus.Targets[2] == nil {
-		t.Fatal("nil/empty target changed")
-	}
-
-}
-
-func requireOracleOutcome(t *testing.T, output []byte, err error, wantPass bool) {
-	t.Helper()
-	if (err == nil) != wantPass {
-		t.Fatalf("wantPass=%t err=%v\n%s", wantPass, err, output)
-	}
-	if !wantPass && !bytes.Contains(output, []byte("--- FAIL: TestTrustedSchemaOracle")) {
-		t.Fatalf("negative fixture did not reach a contract assertion: %v\n%s", err, output)
 	}
 }

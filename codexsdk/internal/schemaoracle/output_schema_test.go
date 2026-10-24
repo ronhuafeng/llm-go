@@ -1,15 +1,9 @@
 package schemaoracle
 
 import (
-	"bytes"
 	"encoding/json"
-	"go/ast"
-	"go/parser"
-	"go/token"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -34,7 +28,7 @@ func TestOutputSchemaOverlaySourceLocations(t *testing.T) {
 				schema = `{"definitions":{"TurnStartParams":` + outputSchemaRecord + `},"type":"object","properties":{"params":{"$ref":"#/definitions/TurnStartParams"}},"required":["params"]}`
 			}
 			r := Request{Schemas: map[string][]byte{name: []byte(schema)}, Bindings: map[string]string{name + fragment: "ArbitraryBinding"}, CloseObjects: true}
-			targets, err := Build(r)
+			targets, err := collectTargets(r)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -69,7 +63,7 @@ func TestOutputSchemaOverlaySourceLocations(t *testing.T) {
 
 func TestOutputSchemaOverlayDoesNotGeneralizeFieldOrBindingNames(t *testing.T) {
 	r := Request{Schemas: map[string][]byte{"Tool.json": []byte(outputSchemaRecord)}, Bindings: map[string]string{"Tool.json": "TurnStartParams"}, CloseObjects: true}
-	targets, err := Build(r)
+	targets, err := collectTargets(r)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +78,7 @@ func TestOutputSchemaOverlayDoesNotGeneralizeFieldOrBindingNames(t *testing.T) {
 	}
 	for _, field := range []string{`{"type":"string"}`, `false`, `{"__oracle_output_schema__":true}`} {
 		r = Request{Schemas: map[string][]byte{"TurnStartParams.json": []byte(strings.Replace(outputSchemaRecord, `{"description":"Optional JSON Schema"}`, field, 1))}, Bindings: map[string]string{"TurnStartParams.json": "Payload"}, CloseObjects: true}
-		if _, err := Build(r); err == nil {
+		if _, err := collectTargets(r); err == nil {
 			t.Fatalf("source constraint or private keyword accepted: %s", field)
 		}
 	}
@@ -93,7 +87,7 @@ func TestOutputSchemaOverlayDoesNotGeneralizeFieldOrBindingNames(t *testing.T) {
 func TestOutputSchemaOverlayKeepsOtherAggregateBranchesUnconstrained(t *testing.T) {
 	schema := `{"definitions":{"TurnStartParams":` + outputSchemaRecord + `},"oneOf":[{"type":"object","properties":{"method":{"const":"turn/start"},"params":{"$ref":"#/definitions/TurnStartParams"}},"required":["method","params"]},{"type":"object","properties":{"method":{"const":"other"},"params":{"type":"object","properties":{"outputSchema":{}}}},"required":["method","params"]}]}`
 	r := Request{Schemas: map[string][]byte{"ClientRequest.json": []byte(schema)}, Bindings: map[string]string{"ClientRequest.json": "Request"}, CloseObjects: true}
-	targets, err := Build(r)
+	targets, err := collectTargets(r)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,121 +105,57 @@ func TestOutputSchemaOverlayKeepsOtherAggregateBranchesUnconstrained(t *testing.
 	}
 }
 
-// Execute the frozen accepted field graph rather than duplicating a tiny wrapper.
-// Contract locations: protocolv2/output_schema.go:17-30,61-73;
-// protocolv2/output_schema_test.go:9-79; v2/TurnStartParams.json:872-874.
-// These fixtures implement rust-v0.160.0, so their schema must stay at that
-// version even when the selected source gains or removes fields. Target wire
-// coverage remains owned by Generate with the independently selected source.
-func TestAcceptedOutputSchemaRuntimeContract(t *testing.T) {
-	raw := []byte(acceptedTurnStartSchema)
-	r := Request{Schemas: map[string][]byte{"v2/TurnStartParams.json": raw}, Bindings: map[string]string{"v2/TurnStartParams.json": "TurnStartParams"}, Package: "verifierfixture", CloseObjects: true}
-	source, err := Generate(r)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, tt := range []struct {
-		fixture string
-		pass    bool
-	}{{"good", true}, {"permissive", false}, {"object_only", false}, {"lossy", false}, {"shape_unchecked", false}} {
-		t.Run(tt.fixture, func(t *testing.T) {
-			dir := t.TempDir()
-			for name, from := range map[string]string{"go.mod": "../../../go.mod", "go.sum": "../../../go.sum", "fixture.go": "testdata/verifier-proof/output_schema_" + tt.fixture + ".go"} {
-				body, err := os.ReadFile(from)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if err := os.WriteFile(filepath.Join(dir, name), body, 0600); err != nil {
-					t.Fatal(err)
-				}
-			}
-			if err := os.WriteFile(filepath.Join(dir, "oracle_test.go"), source, 0600); err != nil {
-				t.Fatal(err)
-			}
-			cmd := exec.Command("go", "test", "-count=1", ".")
-			cmd.Dir = dir
-			out, err := cmd.CombinedOutput()
-			requireOracleOutcome(t, out, err, tt.pass)
-		})
+// A minimal counterexample keeps the independently classified semantic rule
+// separate from the real selected-type integration below.
+func TestOutputSchemaRuntimeDefects(t *testing.T) {
+	const schema = `{"type":"object","properties":{"outputSchema":{"description":"Optional JSON Schema"}}}`
+	r := request(schema)
+	r.Schemas = map[string][]byte{"v2/TurnStartParams.json": []byte(schema)}
+	r.Bindings = map[string]string{"v2/TurnStartParams.json": "Payload"}
+	const code = `package fixture
+ import("encoding/json";"fmt";p "github.com/ronhuafeng/llm-go/codexsdk/protocolv2")
+ type Payload struct{OutputSchema json.RawMessage ` + "`json:\"outputSchema,omitempty\"`" + `}
+ func(v *Payload)UnmarshalJSON(b []byte)error{var fields map[string]json.RawMessage;if json.Unmarshal(b,&fields)!=nil||fields==nil||len(fields)>1{return fmt.Errorf("fields")};for key,raw:=range fields{if key!="outputSchema"{return fmt.Errorf("unknown")};CHECK;v.OutputSchema=raw};return nil}
+ `
+	checks := map[string]string{"good": `if _,err:=p.OutputSchemaFromJSON(raw);err!=nil{return err}`, "permissive": `_ = p.OutputSchema{} `, "object_only": `if len(raw)==0||raw[0]!='{'{return fmt.Errorf("object")};if _,err:=p.OutputSchemaFromJSON(raw);err!=nil{return err}`, "shape_unchecked": `if string(raw)!="true"&&string(raw)!="false"&&(len(raw)==0||raw[0]!='{'){return fmt.Errorf("shape")};_ = p.OutputSchema{}`}
+	for name, check := range checks {
+		t.Run(name, func(t *testing.T) { runOracleFixture(t, r, strings.Replace(code, "CHECK", check, 1), name == "good") })
 	}
 }
 
-// Keep every frozen decoder paired with the same source-derived schema, including
-// the standalone record overlay in docs/protocol-sync.md. This compares schema
-// data, not candidate Go fields or the decoder's acceptance decisions.
-func TestOutputSchemaFrozenFixtureContracts(t *testing.T) {
-	decode := func(raw []byte) any {
-		t.Helper()
-		var doc any
-		d := json.NewDecoder(bytes.NewReader(raw))
-		d.UseNumber()
-		if err := d.Decode(&doc); err != nil {
+func TestCurrentSelectedTypesAgainstIndependentSchemas(t *testing.T) {
+	schemas := map[string][]byte{}
+	bindings := map[string]string{}
+	for _, path := range []string{"v2/TurnStartParams.json", "v2/ThreadRealtimeItemStartedNotification.json", "v2/McpResourceReadResponse.json", "McpServerElicitationRequestParams.json"} {
+		name := strings.TrimSuffix(filepath.Base(path), ".json")
+		raw, err := os.ReadFile(filepath.Join("../protocolschema/appserver/v2", path))
+		if err != nil {
 			t.Fatal(err)
 		}
-		return doc
+		schemas[path] = raw
+		bindings[path] = name
 	}
-	want := decode([]byte(acceptedTurnStartSchema))
-	if err := prepareReachable(want, want, "#", true, map[string]bool{}); err != nil {
+	r := Request{Schemas: schemas, Bindings: bindings, CloseObjects: true, ImportPath: "github.com/ronhuafeng/llm-go/codexsdk/protocolv2"}
+	runCurrentTypes(t, r)
+}
+
+func runCurrentTypes(t *testing.T, r Request) {
+	t.Helper()
+	dir := t.TempDir()
+	root, err := filepath.Abs("../../..")
+	if err != nil {
 		t.Fatal(err)
 	}
-	// The existing frozen fixtures preserve branch titles when flattening
-	// compound object alternatives. Titles are annotations, not wire constraints.
-	var removeTitles func(any)
-	removeTitles = func(node any) {
-		m, ok := node.(map[string]any)
-		if !ok {
-			return
-		}
-		delete(m, "title")
-		for _, key := range []string{"definitions", "$defs", "properties"} {
-			if children, ok := m[key].(map[string]any); ok {
-				for _, child := range children {
-					removeTitles(child)
-				}
-			}
-		}
-		for _, key := range []string{"items", "additionalProperties"} {
-			removeTitles(m[key])
-		}
-		for _, key := range []string{"anyOf", "oneOf", "allOf"} {
-			if children, ok := m[key].([]any); ok {
-				for _, child := range children {
-					removeTitles(child)
-				}
-			}
-		}
+	mod := "module fixture\ngo 1.26.8\nrequire github.com/ronhuafeng/llm-go v0.0.0\nreplace github.com/ronhuafeng/llm-go => " + strconv.Quote(root) + "\n"
+	if err = os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0600); err != nil {
+		t.Fatal(err)
 	}
-	removeTitles(want)
-	for _, fixture := range []string{"good", "permissive", "object_only", "lossy", "shape_unchecked"} {
-		t.Run(fixture, func(t *testing.T) {
-			file, err := parser.ParseFile(token.NewFileSet(), "testdata/verifier-proof/output_schema_"+fixture+".go", nil, 0)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var frozen string
-			ast.Inspect(file, func(n ast.Node) bool {
-				spec, ok := n.(*ast.ValueSpec)
-				if !ok || len(spec.Names) != 1 || spec.Names[0].Name != "frozenSource" || len(spec.Values) != 1 {
-					return true
-				}
-				literal, ok := spec.Values[0].(*ast.BasicLit)
-				if !ok || literal.Kind != token.STRING {
-					t.Fatal("fixture schema must be a frozen string literal")
-				}
-				frozen, err = strconv.Unquote(literal.Value)
-				if err != nil {
-					t.Fatal(err)
-				}
-				return false
-			})
-			if frozen == "" {
-				t.Fatal("missing frozen fixture schema")
-			}
-			got := decode([]byte(frozen))
-			removeTitles(got)
-			if !reflect.DeepEqual(got, want) {
-				t.Fatal("fixture schema differs from frozen accepted source with standalone overlay")
-			}
-		})
+	sum, err := os.ReadFile(filepath.Join(root, "go.sum"))
+	if err != nil {
+		t.Fatal(err)
 	}
+	if err = os.WriteFile(filepath.Join(dir, "go.sum"), sum, 0600); err != nil {
+		t.Fatal(err)
+	}
+	runCompiledFixture(t, r, dir, true)
 }
