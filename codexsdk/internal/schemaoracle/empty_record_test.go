@@ -63,7 +63,7 @@ func TestNamedEmptyRecordOverlayUsesSchemaRole(t *testing.T) {
 			if tc.fragment != "" {
 				r.Bindings = map[string]string{"target.json" + tc.fragment: "Payload"}
 			}
-			targets, err := Build(r)
+			targets, err := collectTargets(r)
 			if err != nil {
 				t.Fatal(err)
 			}

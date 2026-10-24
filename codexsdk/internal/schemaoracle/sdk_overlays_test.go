@@ -67,7 +67,7 @@ func(p *Payload)UnmarshalJSON(b []byte)error{
 	t.Run("lost_item_defect", func(t *testing.T) {
 		runOracleFixture(t, r, strings.Replace(code, "return json.Unmarshal(b,(*wire)(p))", "err:=json.Unmarshal(b,(*wire)(p));p.Item=json.RawMessage(`{}`);return err", 1), false)
 	})
-	targets, err := Build(r)
+	targets, err := collectTargets(r)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,4 +79,17 @@ func(p *Payload)UnmarshalJSON(b []byte)error{
 	if !sourceFieldProbe || !outerDefect {
 		t.Fatalf("source=%v outer=%v", sourceFieldProbe, outerDefect)
 	}
+}
+
+func TestElicitationJSONValueOverlayKeepsSourceAndOuterConstraints(t *testing.T) {
+	const schema = `{"title":"McpElicitationSchema","type":"object","properties":{"properties":{"type":"object","additionalProperties":{"$ref":"#/definitions/McpElicitationPrimitiveSchema"}}},"required":["properties"],"definitions":{"McpElicitationPrimitiveSchema":{"type":"object","properties":{"type":{"const":"string"}},"required":["type"]}}}`
+	r := Request{Schemas: map[string][]byte{"McpElicitationSchema.json": []byte(schema)}, Bindings: map[string]string{"McpElicitationSchema.json": "Payload"}, CloseObjects: true}
+	const code = `package fixture
+import("encoding/json";"fmt")
+type Payload struct{Properties map[string]json.RawMessage ` + "`json:\"properties\"`" + `}
+func(p *Payload)UnmarshalJSON(b []byte)error{var m map[string]json.RawMessage;if json.Unmarshal(b,&m)!=nil||len(m)!=1||m["properties"]==nil||string(m["properties"])=="null"{return fmt.Errorf("fields")};return json.Unmarshal(m["properties"],&p.Properties)}
+`
+	runOracleFixture(t, r, code, true)
+	// A custom decoder dropping an opaque value still violates round-trip ownership.
+	runOracleFixture(t, r, strings.Replace(code, `return json.Unmarshal(m["properties"],&p.Properties)`, `if err:=json.Unmarshal(m["properties"],&p.Properties);err!=nil{return err};for key:=range p.Properties{delete(p.Properties,key)};return nil`, 1), false)
 }

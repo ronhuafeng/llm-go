@@ -61,10 +61,10 @@ changes may occur in minor releases.
 
 #### Fixed
 
-- Share immutable JSON probes across protocol-oracle targets to fit expanded
-  upstream contracts within the existing corpus limits. Preserve every target,
-  probe, verdict, diagnostic and round-trip assertion; reject invalid table
-  references and candidate attempts to mutate frozen inputs.
+- Stream source-derived protocol obligations through a separately compiled Go
+  decoder and compare observations directly. Verify the current reachable graph
+  for implementation changes too, retain attributable bounded failure evidence,
+  and remove version-pinned corpus snapshots and per-probe test-event transport.
 
 - Request only Contents write for Auto-forward's final fast-forward to an
   already-published exact head, retaining workflow scope for workflow-changing

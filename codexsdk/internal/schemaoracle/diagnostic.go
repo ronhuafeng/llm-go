@@ -18,38 +18,6 @@ type DiagnosticLocation struct {
 	Attribution string `json:"attribution"`
 }
 
-// diagnosticPool shares immutable metadata across the complete target graph.
-// Its byte ledger counts each retained payload once; Build additionally charges
-// every probe for its string/pointer references. Probe obligations are never
-// deduplicated, and controller-only locations remain available to JSONL feedback.
-type diagnosticPool struct {
-	diagnostics map[string]string
-	locations   map[DiagnosticLocation]*DiagnosticLocation
-}
-
-func newDiagnosticPool() *diagnosticPool {
-	return &diagnosticPool{map[string]string{}, map[DiagnosticLocation]*DiagnosticLocation{}}
-}
-func (pool *diagnosticPool) intern(p *Probe) int {
-	added := 0
-	if canonical, ok := pool.diagnostics[p.Diagnostic]; ok {
-		p.Diagnostic = canonical
-	} else {
-		pool.diagnostics[p.Diagnostic] = p.Diagnostic
-		added += len(p.Diagnostic)
-	}
-	if p.Location != nil {
-		if canonical, ok := pool.locations[*p.Location]; ok {
-			p.Location = canonical
-		} else {
-			pool.locations[*p.Location] = p.Location
-			b, _ := json.Marshal(p.Location)
-			added += len(b)
-		}
-	}
-	return added
-}
-
 // Freeze only a compact explanation, never the validator's potentially wide
 // union error tree. This is feedback, not an additional acceptance decision.
 func invalidDiagnostic(original any, name string, value any, mutationPath string, err error, locations ...*DiagnosticLocation) string {

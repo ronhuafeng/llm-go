@@ -17,7 +17,7 @@ func(p Payload)MarshalJSON()([]byte,error){out:=map[string]any{};for key,value:=
 `
 
 func parameterlessFixtureRequest(schema string) Request {
-	return Request{Schemas: map[string][]byte{"ClientRequest.json": []byte(schema)}, Bindings: map[string]string{"ClientRequest.json": "Payload"}, Package: "fixture", CloseObjects: true}
+	return Request{Schemas: map[string][]byte{"ClientRequest.json": []byte(schema)}, Bindings: map[string]string{"ClientRequest.json": "Payload"}, CloseObjects: true}
 }
 
 func TestParameterlessRequestCanonicalOmissionExecutes(t *testing.T) {
@@ -28,7 +28,7 @@ func TestParameterlessRequestCanonicalOmissionExecutes(t *testing.T) {
 	// on exactly the same schema and compiled decoder, without rewriting probes.
 	old := request(parameterlessFixtureSchema)
 	out := runOracleFixture(t, old, good, false)
-	if !strings.Contains(string(out), "wire value lost:") || !strings.Contains(string(out), `"params":null`) {
+	if !strings.Contains(string(out), "wire value lost:") || !strings.Contains(string(out), `\"params\":null`) {
 		t.Fatalf("old rule did not reject canonical null omission:\n%s", out)
 	}
 }
@@ -61,7 +61,7 @@ func TestParameterlessRequestOmissionStaysAtEnvelopeBoundary(t *testing.T) {
 	good := strings.Replace(parameterlessFixtureDecoder, "MUTATION", "", 1)
 	for _, name := range []string{"Tool.json", "ServerRequest.json", "ServerNotification.json"} {
 		t.Run(name, func(t *testing.T) {
-			r := Request{Schemas: map[string][]byte{name: []byte(parameterlessFixtureSchema)}, Bindings: map[string]string{name: "Payload"}, Package: "fixture", CloseObjects: true}
+			r := Request{Schemas: map[string][]byte{name: []byte(parameterlessFixtureSchema)}, Bindings: map[string]string{name: "Payload"}, CloseObjects: true}
 			out := runOracleFixture(t, r, good, false)
 			if !strings.Contains(string(out), "wire value lost:") {
 				t.Fatalf("non-client envelope lost exact equality:\n%s", out)
@@ -95,7 +95,7 @@ func TestParameterlessRequestOmissionStaysAtEnvelopeBoundary(t *testing.T) {
 		// Existing witness construction cannot satisfy this compound parent
 		// requiredness. Preserve its fail-closed construction error; do not
 		// manufacture compiled proof from an unconstructed source contract.
-		if _, err := Generate(r); err == nil || !strings.Contains(err.Error(), "missing property 'params'") {
+		if _, err := collectStream(r); err == nil || !strings.Contains(err.Error(), "missing property 'params'") {
 			t.Fatalf("compound requiredness did not fail closed: %v", err)
 		}
 	})

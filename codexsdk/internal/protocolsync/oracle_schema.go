@@ -19,10 +19,9 @@ import (
 )
 
 type oracleSchemaFact struct {
-	key, name string
-	shape     string
-	refs      map[string]bool
-	inline    bool
+	key, shape string
+	refs       map[string]bool
+	inline     bool
 }
 
 // schemaOraclePublicRequest scopes expectations to upstream public entrypoints.
@@ -39,7 +38,7 @@ func schemaOraclePublicRequest(baseline, candidate, generated, commonRS string) 
 	return schemaOracleScopedRequest(baseline, candidate, generated, oldRoots, roots)
 }
 
-// schemaOracleRequest is the unscoped shape-comparison seam for focused tests.
+// schemaOracleRequest is the unscoped current-graph seam for focused tests.
 func schemaOracleRequest(baseline, candidate, generated string) (schemaoracle.Request, error) {
 	return schemaOracleScopedRequest(baseline, candidate, generated, nil, nil)
 }
@@ -62,87 +61,54 @@ func schemaOracleScopedRequest(baseline, candidate, generated string, oldRoots, 
 		}
 	}
 
-	changed := map[string]bool{}
-	for name, fact := range next {
-		if prior, ok := old[name]; !ok || prior.shape != fact.shape {
-			changed[name] = true
-		}
-	}
-	for name := range old {
-		if _, ok := next[name]; !ok {
-			changed[name] = true
-		}
-	}
-	// Referenced contract changes affect their enclosing typed wire values too.
-	for progress := true; progress; {
-		progress = false
-		for name, fact := range next {
-			if changed[name] {
-				continue
+	// Old facts protect removed public surface and handwritten envelopes only.
+	// Current reachability, including unchanged schemas, selects runtime targets.
+	for name, prior := range old {
+		if _, exists := next[name]; !exists && !prior.inline && !oracleEnvelopeName(name) {
+			found, e := oracleDeclaredType(generated, name)
+			if e != nil {
+				return schemaoracle.Request{}, &oracleContractError{e}
 			}
-			for ref := range fact.refs {
-				if changed[ref] {
-					changed[name] = true
-					progress = true
-					break
-				}
+			if found {
+				return schemaoracle.Request{}, fmt.Errorf("schema oracle: removed source type %s remains generated", name)
 			}
 		}
 	}
 	bindings := map[string]string{}
-	for name := range changed {
-		fact, exists := next[name]
-		if !exists {
-			if !old[name].inline {
-				found, e := oracleDeclaredType(generated, name)
-				if e != nil {
-					return schemaoracle.Request{}, &oracleContractError{e}
-				}
-				if found {
-					return schemaoracle.Request{}, fmt.Errorf("schema oracle: removed source type %s remains generated", name)
-				}
-			}
-			continue
-		}
+	for name, fact := range next {
 		if fact.inline {
 			continue
 		} // Verified through selected owners below.
-		if strings.HasPrefix(name, "Nullable_") {
-			return schemaoracle.Request{}, &oracleContractError{fmt.Errorf("schema oracle: changed nullable root %s needs an explicit binding rule", fact.key)}
-		}
+
 		if !token.IsIdentifier(name) || token.Lookup(name).IsKeyword() || !ast.IsExported(name) {
 			return schemaoracle.Request{}, &oracleContractError{fmt.Errorf("schema oracle: source %s has unsupported Go binding %q", fact.key, name)}
 		}
 		if oracleEnvelopeName(name) {
-			return schemaoracle.Request{}, &oracleContractError{fmt.Errorf("schema oracle: changed handwritten transport contract %s needs an explicit probe binding", fact.key)}
+			prior, exists := old[name]
+			if !exists || prior.shape != fact.shape {
+				return schemaoracle.Request{}, &oracleContractError{fmt.Errorf("schema oracle: changed handwritten transport contract %s needs an explicit probe binding", fact.key)}
+			}
+			continue // Immutable accepted transport regressions own these six roles.
 		}
 		bindings[fact.key] = name
 	}
-	// An inline scalar change is covered only through a selected owner. An
-	// unattached alias cannot disappear into a zero-target successful verdict.
-	for name := range changed {
-		fact, exists := next[name]
-		if !exists {
-			fact = old[name]
-		}
+	// Inline aliases must be exercised through a real selected owner.
+	for name, fact := range next {
 		if !fact.inline {
 			continue
 		}
 		covered := false
-		for owner := range changed {
-			if owner == name {
-				continue
-			}
-			if current, ok := next[owner]; ok && !current.inline && (oracleFactReferences(next, owner, name, map[string]bool{}) || oracleFactReferences(old, owner, name, map[string]bool{})) {
+		for owner, current := range next {
+			if !current.inline && !oracleEnvelopeName(owner) && oracleFactReferences(next, owner, name, map[string]bool{}) {
 				covered = true
 				break
 			}
 		}
 		if !covered {
-			return schemaoracle.Request{}, &oracleContractError{fmt.Errorf("schema oracle: changed inline source %s has no independently selected probe owner", fact.key)}
+			return schemaoracle.Request{}, &oracleContractError{fmt.Errorf("schema oracle: inline source %s has no independently selected probe owner", fact.key)}
 		}
 	}
-	return schemaoracle.Request{Schemas: documents, Bindings: bindings, Package: "schemaoracleprobe", ImportPath: "github.com/ronhuafeng/llm-go/codexsdk/protocolv2", CloseObjects: true}, nil
+	return schemaoracle.Request{Schemas: documents, Bindings: bindings, ImportPath: "github.com/ronhuafeng/llm-go/codexsdk/protocolv2", CloseObjects: true}, nil
 }
 
 func oracleSchemaFacts(root string) (facts map[string]oracleSchemaFact, documents map[string][]byte, err error) {
@@ -215,6 +181,10 @@ func oracleSchemaFacts(root string) (facts map[string]oracleSchemaFact, document
 			return nil, nil, err
 		}
 		documents[key] = raw
+		typed, _, err := schemaoracle.ContractDocument(doc, "#", key)
+		if err != nil {
+			return nil, nil, err
+		}
 		name, _ := doc["title"].(string)
 		if name == "" {
 			name = strings.TrimSuffix(filepath.Base(path), ".json")
@@ -265,11 +235,15 @@ func oracleSchemaFacts(root string) (facts map[string]oracleSchemaFact, document
 				return nil, nil, err
 			}
 			refs := map[string]bool{}
-			oracleRefs(node, refs)
+			typedNode, err := oracleNode(typed, strings.TrimPrefix(pointer, key))
+			if err != nil {
+				return nil, nil, err
+			}
+			oracleRefs(typedNode, refs)
 			schema, _ := node.(map[string]any)
 			kind, _ := schema["type"].(string)
 			inline := kind != "" && kind != "object" && kind != "array" && schema["enum"] == nil && schema["oneOf"] == nil && schema["anyOf"] == nil && schema["allOf"] == nil
-			fact := oracleSchemaFact{key: pointer, name: n, shape: string(shape), refs: refs, inline: inline}
+			fact := oracleSchemaFact{key: pointer, shape: string(shape), refs: refs, inline: inline}
 			if prior, ok := facts[n]; ok {
 				if prior.shape != fact.shape {
 					return nil, nil, fmt.Errorf("schema oracle: ambiguous source type %s in %s and %s", n, prior.key, pointer)
@@ -525,4 +499,23 @@ func oracleScopeFacts(facts map[string]oracleSchemaFact, roots map[string]bool) 
 		}
 	}
 	return nil
+}
+
+func oracleNode(doc any, fragment string) (any, error) {
+	if fragment == "" || fragment == "#" {
+		return doc, nil
+	}
+	node := doc
+	for _, part := range strings.Split(strings.TrimPrefix(fragment, "#/"), "/") {
+		m, ok := node.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("invalid schema pointer %s", fragment)
+		}
+		var exists bool
+		node, exists = m[strings.ReplaceAll(strings.ReplaceAll(part, "~1", "/"), "~0", "~")]
+		if !exists {
+			return nil, fmt.Errorf("missing schema pointer %s", fragment)
+		}
+	}
+	return node, nil
 }

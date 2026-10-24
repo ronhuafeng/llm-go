@@ -125,7 +125,7 @@ func isVerifierProposalPath(p string) bool {
 		return false
 	}
 	rel := strings.TrimPrefix(p, root)
-	return !strings.Contains(rel, "/") || strings.HasPrefix(rel, "testdata/verifier-proof/")
+	return !strings.Contains(rel, "/")
 }
 
 func isMechanicalPath(p string) bool {

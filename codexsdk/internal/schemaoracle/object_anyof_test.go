@@ -28,7 +28,7 @@ func TestObjectAnyOfOraclePreservesBranchOpenness(t *testing.T) {
 	for _, close := range []bool{false, true} {
 		r := request(imageObjectProduct)
 		r.CloseObjects = close
-		targets, err := Build(r)
+		targets, err := collectTargets(r)
 		if err != nil {
 			t.Fatal(err)
 		}
