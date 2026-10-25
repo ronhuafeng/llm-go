@@ -30,6 +30,9 @@ func (c *Client) handleServerRequest(message map[string]any) {
 	c.handleExactServerRequest(id, typed)
 }
 
+// decodeProtocolServerRequest admits the selected request projection, after
+// envelope decoding has removed Rust-ignored metadata (including trace). The
+// generated action-bearing decoder still validates params recursively.
 func decodeProtocolServerRequest(message map[string]any) (protocolv2.ServerRequest, error) {
 	raw, err := json.Marshal(message)
 	if err != nil {

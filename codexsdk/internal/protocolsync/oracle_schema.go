@@ -61,6 +61,17 @@ func schemaOracleScopedRequest(baseline, candidate, generated string, oldRoots, 
 		}
 	}
 
+	// A generated child decoder cannot certify its handwritten transport
+	// consumer. Guard the entire accepted reference closure, including removal.
+	for name, prior := range old {
+		if !oracleEnvelopeName(name) {
+			continue
+		}
+		if dependency := changedTransportDependency(old, next, name, map[string]bool{}); dependency != "" {
+			return schemaoracle.Request{}, &oracleContractError{fmt.Errorf("schema oracle: changed handwritten transport contract %s (dependency %s) needs an explicit probe binding", prior.key, dependency)}
+		}
+	}
+
 	// Old facts protect removed public surface and handwritten envelopes only.
 	// Current reachability, including unchanged schemas, selects runtime targets.
 	for name, prior := range old {
@@ -84,11 +95,10 @@ func schemaOracleScopedRequest(baseline, candidate, generated string, oldRoots, 
 			return schemaoracle.Request{}, &oracleContractError{fmt.Errorf("schema oracle: source %s has unsupported Go binding %q", fact.key, name)}
 		}
 		if oracleEnvelopeName(name) {
-			prior, exists := old[name]
-			if !exists || prior.shape != fact.shape {
-				return schemaoracle.Request{}, &oracleContractError{fmt.Errorf("schema oracle: changed handwritten transport contract %s needs an explicit probe binding", fact.key)}
+			if _, exists := old[name]; !exists {
+				return schemaoracle.Request{}, &oracleContractError{fmt.Errorf("schema oracle: new handwritten transport contract %s needs an explicit probe binding", fact.key)}
 			}
-			continue // Immutable accepted transport regressions own these six roles.
+			continue // Closure guard above plus immutable accepted regressions.
 		}
 		bindings[fact.key] = name
 	}
@@ -348,6 +358,26 @@ func oracleRefs(v any, refs map[string]bool) {
 		}
 	}
 }
+
+// Only handwritten envelope exemptions need dependency drift propagation.
+func changedTransportDependency(old, next map[string]oracleSchemaFact, name string, seen map[string]bool) string {
+	if seen[name] {
+		return ""
+	}
+	seen[name] = true
+	prior, existed := old[name]
+	current, exists := next[name]
+	if !existed || !exists || prior.shape != current.shape {
+		return name
+	}
+	for ref := range prior.refs {
+		if changed := changedTransportDependency(old, next, ref, seen); changed != "" {
+			return changed
+		}
+	}
+	return ""
+}
+
 func oracleEnvelopeName(name string) bool {
 	switch name {
 	case "JSONRPCRequest", "JSONRPCResponse", "JSONRPCNotification", "JSONRPCMessage", "JSONRPCError", "JSONRPCErrorError":

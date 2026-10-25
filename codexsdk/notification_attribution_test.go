@@ -438,12 +438,12 @@ func TestThreadStartedIsPreservedAcrossAttachRegistrationRace(t *testing.T) {
 		done <- stream
 	}()
 	startID := waitForWrittenRequest(t, c.stdin.(*recordingWriteCloser), protocolv2.MethodThreadStart, 1)
-	c.routeResponse(map[string]any{
+	ingestTestJSONRPC(t, c, map[string]any{
 		"id":     startID,
 		"result": protocolResultMap(t, facadeThreadStartResponse("thread-nested", "model")),
 	})
 	turnID := waitForWrittenRequest(t, c.stdin.(*recordingWriteCloser), protocolv2.MethodTurnStart, 1)
-	c.routeResponse(map[string]any{
+	ingestTestJSONRPC(t, c, map[string]any{
 		"id": turnID,
 		"result": protocolResultMap(t, protocolv2.TurnStartResponse{Turn: protocolv2.Turn{
 			ID: "turn-nested", Items: []protocolv2.ThreadItem{}, Status: protocolv2.TurnStatusInProgress,

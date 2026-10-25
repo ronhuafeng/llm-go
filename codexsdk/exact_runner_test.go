@@ -68,7 +68,7 @@ func TestExactRunnerRejectsOverlappingSameThreadAttachment(t *testing.T) {
 	}()
 
 	firstResumeID := waitForWrittenRequest(t, root.stdin.(*recordingWriteCloser), protocolv2.MethodThreadResume, 1)
-	root.routeResponse(map[string]any{
+	ingestTestJSONRPC(t, root, map[string]any{
 		"id":     firstResumeID,
 		"result": protocolResultMap(t, facadeThreadResumeResponse("thread-shared", "model-first")),
 	})
@@ -82,7 +82,7 @@ func TestExactRunnerRejectsOverlappingSameThreadAttachment(t *testing.T) {
 		secondErr <- err
 	}()
 	secondResumeID := waitForWrittenRequest(t, root.stdin.(*recordingWriteCloser), protocolv2.MethodThreadResume, 2)
-	root.routeResponse(map[string]any{
+	ingestTestJSONRPC(t, root, map[string]any{
 		"id":     secondResumeID,
 		"result": protocolResultMap(t, facadeThreadResumeResponse("thread-shared", "model-second")),
 	})
@@ -103,7 +103,7 @@ func TestExactRunnerRejectsOverlappingSameThreadAttachment(t *testing.T) {
 		t.Fatalf("turn/start writes = %d, want only the first attachment", got)
 	}
 
-	root.routeResponse(map[string]any{
+	ingestTestJSONRPC(t, root, map[string]any{
 		"id": firstTurnID,
 		"result": protocolResultMap(t, protocolv2.TurnStartResponse{Turn: protocolv2.Turn{
 			ID: "turn-first", Items: []protocolv2.ThreadItem{}, Status: protocolv2.TurnStatusInProgress,
@@ -127,7 +127,7 @@ func TestExactRunnerRejectsOverlappingSameThreadAttachment(t *testing.T) {
 		thirdErr <- err
 	}()
 	thirdResumeID := waitForWrittenRequest(t, root.stdin.(*recordingWriteCloser), protocolv2.MethodThreadResume, 3)
-	root.routeResponse(map[string]any{
+	ingestTestJSONRPC(t, root, map[string]any{
 		"id":     thirdResumeID,
 		"result": protocolResultMap(t, facadeThreadResumeResponse("thread-shared", "model-third")),
 	})
@@ -135,7 +135,7 @@ func TestExactRunnerRejectsOverlappingSameThreadAttachment(t *testing.T) {
 	if got := writtenMethodCount(t, root.stdin.(*recordingWriteCloser), protocolv2.MethodTurnStart); got != 2 {
 		t.Fatalf("turn/start writes after attachment = %d, want a later same-thread turn", got)
 	}
-	root.routeResponse(map[string]any{
+	ingestTestJSONRPC(t, root, map[string]any{
 		"id": thirdTurnID,
 		"result": protocolResultMap(t, protocolv2.TurnStartResponse{Turn: protocolv2.Turn{
 			ID: "turn-third", Items: []protocolv2.ThreadItem{}, Status: protocolv2.TurnStatusInProgress,
@@ -424,7 +424,7 @@ func TestExactRunnerResumeUsesObservedThreadIdentityWhenItDiffersFromRequest(t *
 	}()
 
 	resumeID := waitForWrittenRequest(t, root.stdin.(*recordingWriteCloser), protocolv2.MethodThreadResume, 1)
-	root.routeResponse(map[string]any{
+	ingestTestJSONRPC(t, root, map[string]any{
 		"id":     resumeID,
 		"result": protocolResultMap(t, facadeThreadResumeResponse("thread-observed", "model-observed")),
 	})

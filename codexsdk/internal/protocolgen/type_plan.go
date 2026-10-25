@@ -233,7 +233,7 @@ func markReachableGeneratedDefinitions(plan *ProtocolTypePlan, manifest Manifest
 			return fmt.Errorf("schema ref %s resolves missing definition %s in %s", ref, name, document)
 		}
 		if isJSONRPCEnvelopeSchema(document) && isJSONRPCEnvelopeSchema(name) {
-			// Handwritten envelope validation owns these shapes. Other reachable
+			// Handwritten envelope decoding owns these shapes. Other reachable
 			// definitions, such as trace context, still need generated types.
 			return nil
 		}

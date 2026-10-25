@@ -266,8 +266,12 @@ the standalone oracle does not certify a lossless observation/relay API.
 
 The oracle derives current reachable contracts from exact source schemas and
 `common.rs`, including when only the generator or runtime implementation changed.
-Accepted old/new facts still protect removed public surface and handwritten
-transport envelopes; immutable accepted tests remain a separate regression lane.
+Accepted old/new facts still protect removed public surface. The six handwritten
+transport exemptions require unchanged own shapes and transitive reference
+closures, including dependency/envelope disappearance. A generated child probe
+cannot certify its handwritten consumer; changed closures require an explicit
+reviewed transport binding. Immutable accepted tests remain a separate regression
+lane, including when an intentional wire migration conflicts with their assertions.
 Inline aliases are exercised through selected owners. Explicit JSONValue overlays,
 including MCP elicitation properties and realtime items, end typed traversal.
 Missing, ambiguous or unsupported bindings fail closed.
@@ -315,7 +319,7 @@ Closed RPC error payloads and JSON-RPC request identity are independent roots
 when their consumers need them. Missing production method facts cannot promote
 every coverage type to a root; small fixtures declare their roots explicitly.
 
-Handwritten transport validation owns the six JSON-RPC envelope roles, not the
+The private ordered transport decoder owns the six JSON-RPC envelope roles, not the
 public generated surface. Other payloads are not excluded merely because their
 names begin with `JSONRPC`. Traversal follows only references represented by the
 accepted mapping; an intentional JSONValue overlay terminates typed traversal.
@@ -332,6 +336,40 @@ types. Missing prerequisites fail rather than silently deferring a public
 method. Historical `facade_status` cannot overrule current construction;
 `internal.*` targets remain intentionally non-public. Protocol manifests and
 coverage remain generator machinery, not a second live capability registry.
+
+## JSON-RPC runtime matching evidence
+
+The envelope decoder follows `JSONRPCMessage` in the baseline's
+[`rpc.rs`](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/app-server-protocol/src/rpc.rs)
+(Request, Notification, Response, Error). Runtime deserialization, rather than
+schema `anyOf`, owns this order. At `rust-v0.164.0`, both
+`app-server-client/src/remote.rs` and `app-server-transport/src/transport/mod.rs`
+call `serde_json::from_str::<JSONRPCMessage>`.
+
+A bounded temporary Rust probe used the exact baseline commit
+`6aaac694803004a63c6f393d153c96d22521a6b9`: extracted `rpc.rs` and
+`W3cTraceContext` from `protocol.rs`, removing only unrelated JsonSchema/TS
+imports, derives and attributes. It pinned serde `=1.0.228` with `derive,rc`
+and serde_json `=1.0.149` with default features, and ran 56 inputs on Rust 1.99.
+This was source-derived type execution, not an unmodified whole Codex runtime.
+
+The probe established canonical variants, ordered overlaps and fallback,
+required `result` versus explicit null, optional params, open trace objects,
+int64 bounds/exponents/negative zero, duplicate keys and positional struct
+sequences. In particular, missing `result` rejects; malformed request trace can fall back to
+Notification; Response ignores even malformed error fields. Rust rejects `-0`
+for int64 IDs/error codes because serde_json presents it as a float; the transport
+keeps this narrow runtime check alongside generated RequestId type decoding.
+Serde also accepts some sequences and duplicate-key inputs that the SDK continues to reject.
+The SDK README states the retained object-struct, duplicate-free and lossless
+JSON policies; exact Go tests exercise dispatch, original raw observations,
+identity, strict nested action admission and privacy within that domain.
+
+The generated-child/transport regression in `oracle_transport_test.go` uses the
+supported string/int64/string-array RequestId expansion with the real generator,
+compiled decoder and incremental checker, then exercises the actual SDK boundary.
+It proves that child success cannot bypass the transport closure guard. It does
+not automatically admit hypothetical array IDs or establish complete PR acceptance.
 
 ## Deterministic proof and build inputs
 

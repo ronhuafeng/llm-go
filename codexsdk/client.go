@@ -609,42 +609,41 @@ func readFrame(reader *bufio.Reader, maxBytes int) ([]byte, error) {
 }
 
 func (c *Client) ingestJSONRPCLine(line []byte) error {
-	if err := validateJSONRPCEnvelope(line); err != nil {
-		return err
-	}
-	var message map[string]any
-	if err := unmarshalJSONPreserveNumbers(line, &message); err != nil {
+	message, err := decodeJSONRPCEnvelope(line)
+	if err != nil {
 		return err
 	}
 	c.handleMessage(message)
 	return nil
 }
 
-func (c *Client) handleMessage(message map[string]any) {
-	_, hasID := message["id"]
-	method, hasMethod := message["method"].(string)
-	if hasID && hasMethod {
-		c.handleServerRequest(message)
-		return
-	}
-	if hasID {
+func (c *Client) handleMessage(message jsonRPCEnvelope) {
+	switch message.variant {
+	case jsonRPCRequest:
+		c.handleServerRequest(message.payload)
+	case jsonRPCNotification:
+		method, _ := message.payload["method"].(string)
+		params, _ := message.payload["params"].(map[string]any)
+		c.routeNotification(rpcNotification{method: method, params: params, envelope: message.observation})
+	case jsonRPCResponse, jsonRPCError:
 		c.routeResponse(message)
-		return
-	}
-	if hasMethod {
-		params, _ := message["params"].(map[string]any)
-		c.routeNotification(rpcNotification{method: method, params: params, envelope: message})
 	}
 }
 
-func (c *Client) routeResponse(message map[string]any) {
-	id := fmt.Sprint(message["id"])
+func (c *Client) routeResponse(envelope jsonRPCEnvelope) {
+	message := envelope.payload
+	// All SDK outbound requests use string IDs. A numeric token must never
+	// acquire a pending string identity through formatting/coercion.
+	id, valid := message["id"].(string)
+	if !valid {
+		return
+	}
 	pending, ok := c.takePending(id)
 	if !ok {
 		return
 	}
-	if rawError := message["error"]; rawError != nil {
-		pending.response <- rpcResponse{err: protocolError(message["id"], pending.method, rawError)}
+	if envelope.variant == jsonRPCError {
+		pending.response <- rpcResponse{err: protocolError(message["id"], pending.method, message["error"])}
 		return
 	}
 	result, _ := message["result"].(map[string]any)

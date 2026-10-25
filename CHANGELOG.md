@@ -61,6 +61,14 @@ changes may occur in minor releases.
 
 #### Fixed
 
+- Match inbound JSON-RPC object envelopes in pinned Rust order: Request,
+  Notification, Response, Error. Dispatch uses one selected variant; ignored
+  IDs/errors cannot become request or correlation authority. Preserve original
+  raw notification fields and exact numbers, reuse generated request-ID/trace
+  field types, and retain strict nested action admission, object structs,
+  duplicate-key rejection, limits and private diagnostics. Protect handwritten
+  transport exemptions against transitive referenced-schema drift and removal.
+
 - Stream source-derived protocol obligations through a separately compiled Go
   decoder and compare observations directly. Verify the current reachable graph
   for implementation changes too, retain attributable bounded failure evidence,

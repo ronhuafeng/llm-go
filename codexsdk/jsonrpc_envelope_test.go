@@ -1,149 +1,106 @@
 package codexsdk
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
 
-func TestValidateJSONRPCEnvelopeAcceptsCanonicalShapes(t *testing.T) {
+// Cases grounded in the bounded source-derived Rust probe described in
+// docs/protocol-sync.md. SDK JSON policies are tested separately below.
+func TestDecodeJSONRPCEnvelopeOrderedMatch(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		line string
-	}{
-		{
-			name: "request",
-			line: `{"id":"go-sdk-1","method":"turn/start","params":{"threadId":"thread-1"},"trace":null}`,
-		},
-		{
-			name: "notification",
-			line: `{"method":"initialized"}`,
-		},
-		{
-			name: "response",
-			line: `{"id":"go-sdk-1","result":{"ok":true}}`,
-		},
-		{
-			name: "error",
-			line: `{"id":42,"error":{"code":-32603,"data":null,"message":"boom"}}`,
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			if err := validateJSONRPCEnvelope([]byte(tc.line)); err != nil {
-				t.Fatalf("validateJSONRPCEnvelope rejected %s: %v", tc.name, err)
-			}
-		})
-	}
-}
-
-func TestValidateJSONRPCEnvelopeAcceptsExtraMetadata(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		line string
-	}{
-		{
-			name: "request",
-			line: `{"id":"go-sdk-1","method":"turn/start","params":{"threadId":"thread-1"},"trace":null,"meta":{"source":"test"}}`,
-		},
-		{
-			name: "notification",
-			line: `{"method":"initialized","meta":{"source":"test"}}`,
-		},
-		{
-			name: "response",
-			line: `{"id":"go-sdk-1","result":{"ok":true},"meta":{"source":"test"}}`,
-		},
-		{
-			name: "error",
-			line: `{"id":42,"error":{"code":-32603,"data":null,"message":"boom","meta":{"source":"test"}},"meta":{"source":"test"}}`,
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			if err := validateJSONRPCEnvelope([]byte(tc.line)); err != nil {
-				t.Fatalf("validateJSONRPCEnvelope rejected extra %s metadata: %v", tc.name, err)
-			}
-		})
-	}
-}
-
-func TestValidateJSONRPCEnvelopeRejectsMalformedProtocol(t *testing.T) {
-	for _, tc := range []struct {
-		name    string
 		line    string
-		wantErr string
+		variant jsonRPCVariant
 	}{
-		{
-			name:    "ambiguous request response",
-			line:    `{"id":"go-sdk-1","method":"turn/start","result":{}}`,
-			wantErr: "decode JSONRPCMessage: expected exactly one JSON-RPC envelope shape",
-		},
-		{
-			name:    "duplicate top-level key",
-			line:    `{"id":"go-sdk-1","id":"go-sdk-2","result":{"ok":true}}`,
-			wantErr: "decode JSONRPCMessage: duplicate object key",
-		},
-		{
-			name:    "error missing nested code",
-			line:    `{"id":1,"error":{"message":"boom"}}`,
-			wantErr: "decode JSONRPCMessage.error: decode JSONRPCErrorError.code: missing required field",
-		},
-		{
-			name:    "request trace wrong shape",
-			line:    `{"id":"go-sdk-1","method":"turn/start","trace":42}`,
-			wantErr: "decode JSONRPCMessage.request: decode JSONRPCRequest.trace",
-		},
-		{
-			name:    "request id null",
-			line:    `{"id":null,"method":"turn/start"}`,
-			wantErr: "decode JSONRPCMessage.request: decode JSONRPCRequest.id: null is not allowed",
-		},
-		{
-			name:    "response nested duplicate",
-			line:    `{"id":"go-sdk-1","result":{"ok":true,"ok":false}}`,
-			wantErr: "decode JSONRPCMessage.response: decode JSONRPCResponse.result: invalid JSON value",
-		},
+		{`{"id":1,"method":"m"}`, jsonRPCRequest},
+		{`{"method":"m"}`, jsonRPCNotification},
+		{`{"id":1,"result":null}`, jsonRPCResponse},
+		{`{"id":1,"error":{"code":-1,"message":"e"}}`, jsonRPCError},
+		{`{"id":1,"method":"m","result":2,"error":{}}`, jsonRPCRequest},
+		{`{"id":1,"result":2,"error":{"code":-1,"message":"e"}}`, jsonRPCResponse},
+		{`{"id":1,"result":null,"error":false}`, jsonRPCResponse},
+		{`{"id":null,"method":"m"}`, jsonRPCNotification},
+		{`{"id":{},"method":"m"}`, jsonRPCNotification},
+		{`{"id":1e0,"method":"m"}`, jsonRPCNotification},
+		{`{"id":-0,"method":"m"}`, jsonRPCNotification},
+		{`{"id":9223372036854775808,"method":"m"}`, jsonRPCNotification},
+		{`{"id":1,"method":"m","trace":{"traceparent":2}}`, jsonRPCNotification},
+		{`{"id":1,"method":"m","trace":42}`, jsonRPCNotification},
+		{`{"id":1,"method":null,"result":3}`, jsonRPCResponse},
+		{`{"id":1,"method":2,"error":{"code":-1,"message":"e"}}`, jsonRPCError},
+		{`{"method":"m","params":null}`, jsonRPCNotification},
+		{`{"method":"m","params":[1]}`, jsonRPCNotification},
+		{`{"id":1,"method":"m","trace":{"unknown":1,"Traceparent":42}}`, jsonRPCRequest},
+		{`{"id":1,"method":"m","trace":{"traceparent":null,"tracestate":"s","extra":false}}`, jsonRPCRequest},
+		{`{"id":9223372036854775807,"result":null}`, jsonRPCResponse},
+		{`{"id":-9223372036854775808,"result":null}`, jsonRPCResponse},
+		{`{"id":1,"result":1e100}`, jsonRPCResponse},
+		{`{"id":1,"error":{"code":-1,"message":"e","extra":true}}`, jsonRPCError},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			err := validateJSONRPCEnvelope([]byte(tc.line))
-			if err == nil {
-				t.Fatalf("validateJSONRPCEnvelope accepted malformed %s", tc.name)
+		t.Run(tc.line, func(t *testing.T) {
+			got, err := decodeJSONRPCEnvelope([]byte(tc.line))
+			if err != nil || got.variant != tc.variant {
+				t.Fatalf("variant=%v err=%v, want %v", got.variant, err, tc.variant)
 			}
-			if !strings.Contains(err.Error(), tc.wantErr) {
-				t.Fatalf("unexpected %s error: %v", tc.name, err)
+			if tc.variant == jsonRPCNotification {
+				if _, exists := got.payload["id"]; exists {
+					t.Fatal("ignored ID became semantic authority")
+				}
+			}
+			if tc.variant == jsonRPCResponse && got.payload["error"] != nil {
+				t.Fatal("ignored error became semantic authority")
 			}
 		})
 	}
 }
 
-func TestValidateJSONRPCEnvelopeErrorsDoNotReflectUntrustedObjectKeys(t *testing.T) {
-	const secret = "stdout_secret"
-	for _, tc := range []struct {
-		name string
-		line string
-	}{
-		{
-			name: "malformed top-level value",
-			line: `{"stdout_secret":`,
-		},
-		{
-			name: "duplicate top-level key",
-			line: `{"stdout_secret":null,"stdout_secret":null}`,
-		},
-		{
-			name: "duplicate nested result key",
-			line: `{"id":1,"result":{"stdout_secret":true,"stdout_secret":false}}`,
-		},
+func TestDecodeJSONRPCEnvelopeNoMatchingBranch(t *testing.T) {
+	for _, line := range []string{
+		`{}`, `{"id":1}`, `{"id":1,"method":null}`, `{"id":null,"result":null}`,
+		`{"id":9223372036854775808,"result":null}`, `{"id":-9223372036854775809,"result":null}`,
+		`{"id":1e0,"result":null}`, `{"id":-0,"result":null}`, `{"id":1.0,"result":null}`,
+		`{"id":1,"error":{"message":"e"}}`, `{"id":1,"error":{"CODE":1,"MESSAGE":"e"}}`, `{"id":1,"error":{"code":null,"message":"e"}}`,
+		`{"id":1,"error":{"code":1,"message":null}}`, `{"id":1,"error":{"code":1.0,"message":"e"}}`, `{"id":1,"error":{"code":-0,"message":"e"}}`,
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			err := validateJSONRPCEnvelope([]byte(tc.line))
-			if err == nil {
-				t.Fatalf("validateJSONRPCEnvelope accepted malformed %s", tc.name)
-			}
-			if !strings.Contains(err.Error(), "decode JSONRPCMessage") {
-				t.Fatalf("error lost stable JSON-RPC decode class: %v", err)
-			}
-			if strings.Contains(err.Error(), secret) {
-				t.Fatalf("error reflected untrusted object key: %v", err)
-			}
-		})
+		if _, err := decodeJSONRPCEnvelope([]byte(line)); err == nil {
+			t.Fatalf("accepted %s", line)
+		}
+	}
+}
+
+func TestDecodeJSONRPCEnvelopeRetainsSDKJSONPolicies(t *testing.T) {
+	// Serde accepts some struct sequences and duplicate keys. The SDK retains
+	// object structs and rejects duplicate keys even in ignored envelope fields.
+	for _, line := range []string{
+		`[1,"m",null,null]`, `["m",null]`, `[1,2]`, `[{"code":-1,"message":"e"},1]`,
+		`{"id":1,"error":[-1,null,"e"]}`,
+		`{"id":1,"id":2,"method":"m"}`,
+		`{"id":1,"result":{"stdout_secret":1,"stdout_secret":2}}`,
+		`{"method":"m","ignored":{"stdout_secret":1,"stdout_secret":2}}`,
+		`{"method":"m","trace":{"traceparent":"a","traceparent":"b"}}`,
+		`{"stdout_secret":`, `{"id":1,"result":{}} {}`,
+	} {
+		_, err := decodeJSONRPCEnvelope([]byte(line))
+		if err == nil || !strings.HasPrefix(err.Error(), "decode JSONRPCMessage:") || strings.Contains(err.Error(), "stdout_secret") {
+			t.Fatalf("unsafe acceptance/diagnostic: %v", err)
+		}
+	}
+	// Sequence trace structs stay outside the SDK's object-struct policy. They
+	// fail Request matching but may fall back to Notification.
+	envelope, err := decodeJSONRPCEnvelope([]byte(`{"id":1,"method":"m","trace":[null,null]}`))
+	if err != nil || envelope.variant != jsonRPCNotification {
+		t.Fatalf("trace sequence: %+v %v", envelope, err)
+	}
+}
+
+func ingestTestJSONRPC(t *testing.T, client *Client, value map[string]any) {
+	t.Helper()
+	raw, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := client.ingestJSONRPCLine(raw); err != nil {
+		t.Fatal(err)
 	}
 }
