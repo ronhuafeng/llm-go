@@ -220,11 +220,13 @@ func validateJSONRPCRequestID(raw json.RawMessage, path string) error {
 	if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
 		return fmt.Errorf("decode %s: null is not allowed", path)
 	}
-	var text string
-	if err := json.Unmarshal(raw, &text); err == nil {
-		return nil
+	// Let the generated upstream RequestId union own the accepted ID kinds.
+	// Error wording stays stable for the SDK's existing transport contract.
+	var id protocolv2.RequestId
+	if err := json.Unmarshal(raw, &id); err != nil || !id.IsValid() {
+		return fmt.Errorf("decode %s: expected integer", path)
 	}
-	return validateJSONInteger(raw, path)
+	return nil
 }
 
 func validateJSONInteger(raw json.RawMessage, path string) error {

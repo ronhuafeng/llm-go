@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -886,12 +887,15 @@ func goalRunCommand(cmd *exec.Cmd, gate string, log *goalDiagnostics, run goalCo
 		cmd.Stdout = writer
 		cmd.Stderr = writer
 	}
+	started := time.Now()
 	err := run(cmd)
+	elapsedMS := time.Since(started).Milliseconds()
 	output.flush(true)
 	if err == nil && goalNativeCommand(cmd) && (!native.run || !native.pass || native.skip || native.invalid || native.pending != "") {
 		err = errors.New("required native test did not produce a complete executed pass")
 	}
-	log.record("exit", gate, map[string]any{"passed": err == nil, "error": goalError(err)})
+	// Observe costs without caching acceptance or repeating a provider call.
+	log.record("exit", gate, map[string]any{"passed": err == nil, "error": goalError(err), "duration_ms": elapsedMS})
 	if log.err != nil {
 		return &GoalVerificationIncompleteError{Err: log.err}
 	}

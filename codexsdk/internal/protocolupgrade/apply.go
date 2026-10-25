@@ -127,6 +127,13 @@ func constructCandidate(req ApplyRequest) (ApplyResult, error) {
 	if err := copyCandidateSchema(req.Candidate, req.Baseline); err != nil {
 		return ApplyResult{}, err
 	}
+	// These are review outputs of an upgrade, not immutable source facts. An
+	// accepted baseline (including a legacy one) must never retain stale reports.
+	for _, name := range []string{"drift_report.json", MatrixSkeletonName} {
+		if err := os.Remove(filepath.Join(req.Baseline, name)); err != nil && !os.IsNotExist(err) {
+			return ApplyResult{}, err
+		}
+	}
 
 	generatedAt := now()
 	if oldCommit, _ := oldMetadata["source_commit"].(string); oldCommit == req.TargetSHA {
@@ -235,7 +242,7 @@ func writeAppliedReports(req ApplyRequest, generatedCompatibility map[string]any
 		Report
 		GeneratedCompatibility map[string]any `json:"generated_compatibility"`
 	}
-	if err := writeJSON(filepath.Join(req.Baseline, "drift_report.json"), appliedDrift{
+	if err := writeJSON(filepath.Join(reports, "drift_report.json"), appliedDrift{
 		Report:                 report,
 		GeneratedCompatibility: generatedCompatibility,
 	}); err != nil {
@@ -247,7 +254,7 @@ func writeAppliedReports(req ApplyRequest, generatedCompatibility map[string]any
 		"reclassified": generatedCompatibility["reclassified"],
 		"changed":      generatedCompatibility["changed"],
 	}
-	return writeJSON(filepath.Join(req.Baseline, MatrixSkeletonName), matrix)
+	return writeJSON(filepath.Join(reports, MatrixSkeletonName), matrix)
 }
 
 func requireModuleBaseline(moduleRoot, baseline string) error {

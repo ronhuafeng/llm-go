@@ -62,6 +62,11 @@ non-force fast-forward of main to the verified H. Synthetic merge revisions,
 merge-time rebases, squash commits, and merge-queue candidates are not the
 acceptance identity. See [`auto-forward.md`](auto-forward.md).
 
+The source gate records each owned command's elapsed milliseconds in bounded
+JSONL `exit.duration_ms` diagnostics. These measurements identify repeat work
+(e.g. an exact SHA validated both as a PR and after fast-forward) without
+reusing an earlier PASS or changing the same-head acceptance policy.
+
 ## Proof responsibilities
 
 ### Root source verification

@@ -155,6 +155,20 @@ func TestNativeCodexForeignGoalBroadcast(t *testing.T) {
 	if err != nil || current.Goal == nil || current.Goal.Value == nil || current.Goal.Value.ThreadID != parent || current.Goal.Value.Objective != observation.objective || current.Goal.Value.Status != protocolv2.ThreadGoalStatusComplete {
 		t.Fatal("owned native goal did not retain its identity and state")
 	}
+
+	// Positive wire producer/consumer control: the installed official App
+	// Server has already emitted an ordinary success response and a typed
+	// notification. Now require a real error response, then a subsequent
+	// successful response on the same live connection (no model calls).
+	_, err = client.Threads().Read(ctx, protocolv2.ThreadReadParams{ThreadID: "missing-native-envelope-thread"})
+	if err == nil {
+		t.Fatal("official App Server did not deliver an error response for an unknown thread")
+	}
+	read, err := client.Threads().Read(ctx, protocolv2.ThreadReadParams{ThreadID: parent})
+	if err != nil || read.Thread.ID != parent {
+		t.Fatalf("official error response corrupted subsequent response routing: %v", err)
+	}
+	t.Log("native_wire.response=observed notification=observed error=observed subsequent_response=observed")
 }
 
 func TestNativeCodexRecoveredExecRetry(t *testing.T) {

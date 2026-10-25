@@ -1104,3 +1104,35 @@ func runGitOutput(t *testing.T, dir string, args ...string) string {
 	}
 	return string(out)
 }
+
+// Derived drift summaries belong to each upgrade's reports, not to the
+// checked-in protocol baseline. A legacy baseline is cleaned on Apply.
+func TestApplyKeepsUpgradeReportsOutsideAcceptedBaseline(t *testing.T) {
+	fix := writeCompleteApplyFixture(t)
+	for _, name := range []string{"drift_report.json", MatrixSkeletonName} {
+		if err := os.WriteFile(filepath.Join(fix.baseline, name), []byte("stale"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, err := Apply(ApplyRequest{
+		Baseline: fix.baseline, Candidate: fix.candidate, StableCandidate: fix.stable,
+		CommonRS: fix.commonRS, CommonRSSourceSHA: fix.sha, Reports: fix.reports,
+		TargetRef: "rust-v1.2.3", TargetKind: "stable_rust_tag", TargetSHA: fix.sha,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"drift_report.json", MatrixSkeletonName} {
+		if _, err := os.Stat(filepath.Join(fix.baseline, name)); !os.IsNotExist(err) {
+			t.Fatalf("%s retained in the accepted schema baseline: %v", name, err)
+		}
+		if raw, err := os.ReadFile(filepath.Join(fix.reports, name)); err != nil || len(raw) == 0 {
+			t.Fatalf("%s not retained in the per-attempt reports: %v", name, err)
+		}
+	}
+	for _, name := range []string{"manifest.json", "coverage_matrix.json", "baseline_metadata.json"} {
+		if _, err := os.Stat(filepath.Join(fix.baseline, name)); err != nil {
+			t.Fatalf("required independently checked input %s disappeared: %v", name, err)
+		}
+	}
+}

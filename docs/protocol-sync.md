@@ -221,7 +221,10 @@ of falling back to the accepted manifest.
 
 Old manifest/coverage annotations may remain explanatory comparison input.
 They cannot suppress a method, preserve stale stability, select stale fields,
-or alter requiredness. Checked-in regeneration may use derived metadata as
+or alter requiredness. Drift summaries and matrix-update skeletons are per-attempt
+reports, not accepted protocol input. They are retained in the working report
+area rather than re-committed alongside schemas; the exact rebuilt source,
+manifest and coverage still participate in independent verification. Checked-in regeneration may use derived metadata as
 inputs for reproducibility; fresh reconstruction independently checks agreement
 with exact upstream. Only `baseline_metadata.generated_at` is excluded from
 exact semantic comparison.
@@ -341,9 +344,11 @@ The generated-child/transport regression in `oracle_transport_test.go` uses the
 supported string/int64/string-array RequestId expansion with the real generator,
 compiled decoder and incremental checker, then exercises the actual SDK boundary.
 It proves that child success cannot bypass the transport closure guard. The
-handwritten transport retains its accepted strict envelope and ID validation;
-this does not adopt Rust's ordered fallback matching or admit hypothetical array
-IDs.
+handwritten transport retains its accepted strict envelope classification,
+while the RequestId value is decoded with the generated upstream union. A changed
+transitive transport dependency still fails closed before publication, rather
+than automatically admitting a hypothetical array ID. This does not adopt
+Rust's ordered fallback matching.
 
 ## Deterministic proof and build inputs
 

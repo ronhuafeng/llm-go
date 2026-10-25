@@ -648,3 +648,34 @@ func TestGoalFreshCIFactsMatchRecordedCommit(t *testing.T) {
 		}
 	}
 }
+
+// Time cost is diagnostic only. A fast exit is never a cached gate result.
+func TestGoalCommandExitRecordsElapsedTimeWithoutChangingAcceptance(t *testing.T) {
+    for _, shouldFail := range []bool{false, true} {
+        d, err := newGoalDiagnostics(t.TempDir())
+        if err != nil { t.Fatal(err) }
+        cmd := exec.Command("go", "version")
+        failure := errors.New("simulated command failure")
+        got := goalRunCommand(cmd, "source", d, func(cmd *exec.Cmd) error {
+            if shouldFail { return failure }
+            _, _ = io.WriteString(cmd.Stdout, "native output")
+            return nil
+        })
+        if (got != nil) != shouldFail { t.Fatalf("failure=%t result=%v", shouldFail, got) }
+        if err := d.file.Close(); err != nil { t.Fatal(err) }
+        raw, err := os.ReadFile(d.file.Name())
+        if err != nil { t.Fatal(err) }
+        found := false
+        for _, line := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+            var row map[string]any
+            if err := json.Unmarshal([]byte(line), &row); err != nil { t.Fatal(err) }
+            if row["kind"] != "exit" { continue }
+            elapsed, valid := row["duration_ms"].(float64)
+            if !valid || elapsed < 0 || row["passed"] != !shouldFail {
+                t.Fatalf("invalid duration or acceptance: %#v", row)
+            }
+            found = true
+        }
+        if !found { t.Fatal("required exit timing missing") }
+    }
+}

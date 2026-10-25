@@ -13,6 +13,15 @@ changes may occur in minor releases.
 
 #### Added
 
+- Verify ordinary success, notification and error output from the installed
+  official App Server in the existing credential-free native scenario; retain
+  strict envelope routing while using the generated RequestId decoder.
+- Retain upstream drift summaries only as per-attempt reports rather than
+  committing duplicate report state with exact source-derived schema inputs.
+- Record per-command native verification duration without changing checks,
+  retries, test scenarios or exact-head acceptance decisions.
+
+
 - Synchronize the App Server protocol with Codex `rust-v0.164.0`
   (`6aaac694803004a63c6f393d153c96d22521a6b9`), adding feedback ZIP saves,
   thread sampling and cancellation, turn metadata patches, application storage
