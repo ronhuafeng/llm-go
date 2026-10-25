@@ -2030,7 +2030,7 @@ func canGenerateFirstPassField(field FieldPlan, generatedNamedTypes map[string]b
 
 func isJSONRPCEnvelopeSchema(path string) bool {
 	// These are the upstream JSON-RPC transport roles owned by handwritten
-	// envelope decoding. A payload merely sharing this prefix is not an envelope.
+	// envelope validation. A payload merely sharing this prefix is not an envelope.
 	switch strings.TrimSuffix(path, ".json") {
 	case "JSONRPCRequest", "JSONRPCResponse", "JSONRPCNotification", "JSONRPCMessage", "JSONRPCError", "JSONRPCErrorError":
 		return true

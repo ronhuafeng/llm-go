@@ -61,13 +61,10 @@ changes may occur in minor releases.
 
 #### Fixed
 
-- Match inbound JSON-RPC object envelopes in pinned Rust order: Request,
-  Notification, Response, Error. Dispatch uses one selected variant; ignored
-  IDs/errors cannot become request or correlation authority. Preserve original
-  raw notification fields and exact numbers, reuse generated request-ID/trace
-  field types, and retain strict nested action admission, object structs,
-  duplicate-key rejection, limits and private diagnostics. Protect handwritten
-  transport exemptions against transitive referenced-schema drift and removal.
+- Protect the six handwritten JSON-RPC envelope exemptions against transitive
+  referenced-schema drift and removal. Keep the existing strict transport
+  acceptance contract; generated child-decoder success cannot certify an
+  unchanged handwritten consumer.
 
 - Stream source-derived protocol obligations through a separately compiled Go
   decoder and compare observations directly. Verify the current reachable graph

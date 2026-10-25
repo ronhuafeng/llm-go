@@ -52,7 +52,7 @@ func FuzzReadInboundJSONRPCFrame(f *testing.F) {
 		if len(frame) > limit {
 			t.Fatalf("successful frame exceeded limit: %d", len(frame))
 		}
-		if _, envErr := decodeJSONRPCEnvelope(frame); envErr != nil {
+		if envErr := validateJSONRPCEnvelope(frame); envErr != nil {
 			if !strings.Contains(envErr.Error(), "decode JSONRPCMessage") {
 				t.Fatalf("envelope error missing stable class: %v", envErr)
 			}

@@ -36,7 +36,6 @@ func TestServerRequestRejectionClassifiesMethodWithoutGuessingRun(t *testing.T) 
 			}
 			line, err := json.Marshal(map[string]any{
 				"id": "rejected", "method": test.method,
-				"result": map[string]any{"ignored": true}, "error": false, "future": true,
 				// These unvalidated IDs must not become run ownership.
 				"params": map[string]any{"threadId": "thread-1", "turnId": "turn-1"},
 			})

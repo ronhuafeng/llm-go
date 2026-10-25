@@ -41,30 +41,6 @@ individual live test that asks for a response.
 Inbound newline-delimited JSON-RPC frames are limited to 16 MiB including the
 newline delimiter.
 
-Inbound object envelopes follow the selected Rust `rpc.rs` first successful
-match: Request, Notification, Response, then Error. Unknown envelope fields do
-not prevent matching. For example, a valid `id` plus `method` remains a request
-with extra `result`/`error` fields; `result` plus `error` selects Response. A null
-or invalid request ID, or malformed request trace, can fall back to Notification
-when `method` is a string. Missing `result` fails Response matching; explicit
-null matches, though typed SDK calls still require their object result.
-
-Only the selected variant supplies dispatch and correlation fields. Required raw
-notification subscriptions retain the original object, including fields ignored
-by matching, unknown fields, omitted/null members, and exact number tokens.
-Ignored IDs never authorize a server request or resolve a pending call. Trace
-objects ignore unknown fields while checking generated optional string fields.
-Rust int64 matching also rejects negative-zero (`-0`) IDs/error codes.
-Method/direction admission, strict nested action payloads, application decisions,
-and lifecycle/error ownership still apply after envelope decoding.
-
-SDK JSON policies remain explicit: envelope, trace, and error structs use object
-form; Serde's positional struct sequences are outside this domain. Duplicate keys
-are rejected at every depth, including ignored fields. Dynamic JSON numbers stay
-lossless (including tokens beyond serde_json's default numeric range), and the
-existing frame/retention limits and payload-free decode diagnostics apply.
-This is ordered object-envelope alignment, not arbitrary Serde value equality.
-
 ## Turn completion and partial snapshots
 
 At the selected Codex 0.163.0 source, [`turn/start`](https://github.com/openai/codex/blob/83086188ae0614bd882818ff1aa23f3194962012/codex-rs/app-server/src/request_processors/turn_processor.rs#L661-L734)

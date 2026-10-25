@@ -4,131 +4,231 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"strconv"
+	"strings"
 
 	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
 )
 
-type jsonRPCVariant uint8
-
-const (
-	jsonRPCRequest jsonRPCVariant = iota + 1
-	jsonRPCNotification
-	jsonRPCResponse
-	jsonRPCError
-)
-
-// payload contains only the selected variant's semantic fields. observation is
-// the original notification object, never request or response authority.
-type jsonRPCEnvelope struct {
-	variant     jsonRPCVariant
-	payload     map[string]any
-	observation map[string]any
-}
-
-// decodeJSONRPCEnvelope follows rpc.rs's untagged variant order within the
-// SDK's object-only, duplicate-free, lossless JSON domain. It does not admit a
-// method, a typed payload, or an application decision.
-func decodeJSONRPCEnvelope(data []byte) (jsonRPCEnvelope, error) {
-	invalid := errors.New("decode JSONRPCMessage: invalid envelope")
-	value, err := protocolv2.ParseJSONValue(data)
-	if err != nil || value.Kind() != protocolv2.JSONKindObject {
-		return jsonRPCEnvelope{}, invalid
-	}
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(data, &fields); err != nil {
-		return jsonRPCEnvelope{}, invalid
-	}
-	var id protocolv2.RequestId
-	validID := fields["id"] != nil && !jsonRPCNegativeZero(fields["id"]) && json.Unmarshal(fields["id"], &id) == nil
-	var method string
-	validMethod := fields["method"] != nil && !bytes.Equal(bytes.TrimSpace(fields["method"]), []byte("null")) && json.Unmarshal(fields["method"], &method) == nil
-	var variant jsonRPCVariant
-	var names []string
-	switch {
-	case validID && validMethod && validJSONRPCTrace(fields["trace"]):
-		variant, names = jsonRPCRequest, []string{"id", "method", "params"}
-	case validMethod:
-		variant, names = jsonRPCNotification, []string{"method", "params"}
-	case validID && fields["result"] != nil:
-		variant, names = jsonRPCResponse, []string{"id", "result"}
-	case validID && validJSONRPCError(fields["error"]):
-		variant, names = jsonRPCError, []string{"id", "error"}
-	default:
-		return jsonRPCEnvelope{}, invalid
-	}
-	var original map[string]any
-	if err := unmarshalJSONPreserveNumbers(data, &original); err != nil {
-		return jsonRPCEnvelope{}, invalid
-	}
-	payload := make(map[string]any, len(names))
-	for _, name := range names {
-		if v, present := original[name]; present {
-			payload[name] = v
-		}
-	}
-	if variant == jsonRPCError {
-		// Unknown error members are ignored by Rust too.
-		source := payload["error"].(map[string]any)
-		projected := map[string]any{"code": source["code"], "message": source["message"]}
-		if v, present := source["data"]; present {
-			projected["data"] = v
-		}
-		payload["error"] = projected
-	}
-	envelope := jsonRPCEnvelope{variant: variant, payload: payload}
-	if variant == jsonRPCNotification {
-		envelope.observation = original
-	}
-	return envelope, nil
-}
-
-func validJSONRPCTrace(raw json.RawMessage) bool {
-	if raw == nil || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
-		return true
-	}
-	var fields map[string]json.RawMessage
-	if json.Unmarshal(raw, &fields) != nil {
-		return false
-	}
-	// Select exact Rust field names before encoding/json's struct decoder,
-	// which otherwise also matches case-insensitive spellings.
-	for name := range fields {
-		if name != "traceparent" && name != "tracestate" {
-			delete(fields, name)
-		}
-	}
-	projected, err := json.Marshal(fields)
+func validateJSONRPCEnvelope(data []byte) error {
+	fields, err := decodeJSONRPCObjectFields(data, "JSONRPCMessage")
 	if err != nil {
-		return false
+		return err
 	}
-	// Bypass the standalone closed-record decoder only at this Rust envelope
-	// field. Generated field types own optional string/null decoding. Nested
-	// action payloads retain their generated strict decoder.
-	type traceFields protocolv2.W3cTraceContext
-	var trace traceFields
-	return json.Unmarshal(projected, &trace) == nil
+	hasID := fields["id"] != nil
+	hasMethod := fields["method"] != nil
+	hasResult := fields["result"] != nil
+	hasError := fields["error"] != nil
+
+	matches := 0
+	shape := ""
+	switch {
+	case hasID && hasMethod && !hasResult && !hasError:
+		matches = 1
+		shape = "request"
+	case !hasID && hasMethod && !hasResult && !hasError:
+		matches = 1
+		shape = "notification"
+	case hasID && !hasMethod && hasResult && !hasError:
+		matches = 1
+		shape = "response"
+	case hasID && !hasMethod && !hasResult && hasError:
+		matches = 1
+		shape = "error"
+	}
+	if matches != 1 {
+		return fmt.Errorf("decode JSONRPCMessage: expected exactly one JSON-RPC envelope shape")
+	}
+
+	switch shape {
+	case "request":
+		return validateJSONRPCRequest(fields)
+	case "notification":
+		return validateJSONRPCNotification(fields)
+	case "response":
+		return validateJSONRPCResponse(fields)
+	case "error":
+		return validateJSONRPCError(fields)
+	default:
+		return fmt.Errorf("decode JSONRPCMessage: expected exactly one JSON-RPC envelope shape")
+	}
 }
 
-func validJSONRPCError(raw json.RawMessage) bool {
-	// These two required fields have no generated public envelope type.
-	var fields map[string]json.RawMessage
-	if raw == nil || json.Unmarshal(raw, &fields) != nil {
-		return false
+func validateJSONRPCRequest(fields map[string]json.RawMessage) error {
+	if err := validateJSONRPCRequestID(fields["id"], "JSONRPCRequest.id"); err != nil {
+		return fmt.Errorf("decode JSONRPCMessage.request: %w", err)
 	}
-	code, message := fields["code"], fields["message"]
-	if code == nil || message == nil || bytes.Equal(bytes.TrimSpace(code), []byte("null")) || bytes.Equal(bytes.TrimSpace(message), []byte("null")) {
-		return false
+	if err := validateRequiredJSONString(fields["method"], "JSONRPCRequest.method"); err != nil {
+		return fmt.Errorf("decode JSONRPCMessage.request: %w", err)
 	}
-	var number int64
+	if err := validateOptionalJSONValue(fields, "params", "JSONRPCRequest.params"); err != nil {
+		return fmt.Errorf("decode JSONRPCMessage.request: %w", err)
+	}
+	if raw := fields["trace"]; raw != nil {
+		var trace protocolv2.Nullable[protocolv2.W3cTraceContext]
+		if err := json.Unmarshal(raw, &trace); err != nil {
+			return fmt.Errorf("decode JSONRPCMessage.request: decode JSONRPCRequest.trace: invalid value")
+		}
+	}
+	return nil
+}
+
+func validateJSONRPCNotification(fields map[string]json.RawMessage) error {
+	if err := validateRequiredJSONString(fields["method"], "JSONRPCNotification.method"); err != nil {
+		return fmt.Errorf("decode JSONRPCMessage.notification: %w", err)
+	}
+	if err := validateOptionalJSONValue(fields, "params", "JSONRPCNotification.params"); err != nil {
+		return fmt.Errorf("decode JSONRPCMessage.notification: %w", err)
+	}
+	return nil
+}
+
+func validateJSONRPCResponse(fields map[string]json.RawMessage) error {
+	if err := validateJSONRPCRequestID(fields["id"], "JSONRPCResponse.id"); err != nil {
+		return fmt.Errorf("decode JSONRPCMessage.response: %w", err)
+	}
+	if err := validateRequiredJSONValue(fields["result"], "JSONRPCResponse.result"); err != nil {
+		return fmt.Errorf("decode JSONRPCMessage.response: %w", err)
+	}
+	return nil
+}
+
+func validateJSONRPCError(fields map[string]json.RawMessage) error {
+	if err := validateJSONRPCRequestID(fields["id"], "JSONRPCError.id"); err != nil {
+		return fmt.Errorf("decode JSONRPCMessage.error: %w", err)
+	}
+	errorFields, err := decodeJSONRPCObjectFields(fields["error"], "JSONRPCErrorError")
+	if err != nil {
+		return fmt.Errorf("decode JSONRPCMessage.error: %w", err)
+	}
+	if err := validateRequiredJSONInteger(errorFields["code"], "JSONRPCErrorError.code"); err != nil {
+		return fmt.Errorf("decode JSONRPCMessage.error: %w", err)
+	}
+	if err := validateRequiredJSONString(errorFields["message"], "JSONRPCErrorError.message"); err != nil {
+		return fmt.Errorf("decode JSONRPCMessage.error: %w", err)
+	}
+	if err := validateOptionalJSONValue(errorFields, "data", "JSONRPCErrorError.data"); err != nil {
+		return fmt.Errorf("decode JSONRPCMessage.error: %w", err)
+	}
+	return nil
+}
+
+func decodeJSONRPCObjectFields(data []byte, path string) (map[string]json.RawMessage, error) {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	token, err := decoder.Token()
+	if err != nil {
+		return nil, fmt.Errorf("decode %s: %w", path, err)
+	}
+	if delimiter, ok := token.(json.Delim); !ok || delimiter != '{' {
+		return nil, fmt.Errorf("decode %s: expected object", path)
+	}
+	fields := map[string]json.RawMessage{}
+	for decoder.More() {
+		token, err := decoder.Token()
+		if err != nil {
+			return nil, fmt.Errorf("decode %s: %w", path, err)
+		}
+		key, ok := token.(string)
+		if !ok {
+			return nil, fmt.Errorf("decode %s: expected object key", path)
+		}
+		if _, exists := fields[key]; exists {
+			return nil, fmt.Errorf("decode %s: duplicate object key", path)
+		}
+		var raw json.RawMessage
+		if err := decoder.Decode(&raw); err != nil {
+			return nil, fmt.Errorf("decode %s: invalid object field: %w", path, err)
+		}
+		fields[key] = raw
+	}
+	token, err = decoder.Token()
+	if err != nil {
+		return nil, fmt.Errorf("decode %s: %w", path, err)
+	}
+	if delimiter, ok := token.(json.Delim); !ok || delimiter != '}' {
+		return nil, fmt.Errorf("decode %s: expected end object", path)
+	}
+	var trailing json.RawMessage
+	if err := decoder.Decode(&trailing); err == nil {
+		return nil, fmt.Errorf("decode %s: unexpected trailing data", path)
+	} else if !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("decode %s: %w", path, err)
+	}
+	return fields, nil
+}
+
+func validateRequiredJSONString(raw json.RawMessage, path string) error {
+	if raw == nil {
+		return fmt.Errorf("decode %s: missing required field", path)
+	}
+	var value string
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return fmt.Errorf("decode %s: expected string", path)
+	}
+	return nil
+}
+
+func validateRequiredJSONInteger(raw json.RawMessage, path string) error {
+	if raw == nil {
+		return fmt.Errorf("decode %s: missing required field", path)
+	}
+	return validateJSONInteger(raw, path)
+}
+
+func validateJSONRPCRequestID(raw json.RawMessage, path string) error {
+	if raw == nil {
+		return fmt.Errorf("decode %s: missing required field", path)
+	}
+	if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		return fmt.Errorf("decode %s: null is not allowed", path)
+	}
 	var text string
-	return !jsonRPCNegativeZero(code) && json.Unmarshal(code, &number) == nil && json.Unmarshal(message, &text) == nil
+	if err := json.Unmarshal(raw, &text); err == nil {
+		return nil
+	}
+	return validateJSONInteger(raw, path)
 }
 
-// serde_json presents -0 as a float to untagged matching. This token-level
-// runtime distinction is not expressible by the schema's int64 type. Keep the
-// generated RequestId decoder as the field-type authority.
-func jsonRPCNegativeZero(raw json.RawMessage) bool {
-	return bytes.Equal(bytes.TrimSpace(raw), []byte("-0"))
+func validateJSONInteger(raw json.RawMessage, path string) error {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	var number json.Number
+	if err := decoder.Decode(&number); err != nil {
+		return fmt.Errorf("decode %s: expected integer", path)
+	}
+	if strings.ContainsAny(number.String(), ".eE") {
+		return fmt.Errorf("decode %s: expected integer", path)
+	}
+	if _, err := strconv.ParseInt(number.String(), 10, 64); err != nil {
+		return fmt.Errorf("decode %s: expected integer", path)
+	}
+	return nil
+}
+
+func validateRequiredJSONValue(raw json.RawMessage, path string) error {
+	if raw == nil {
+		return fmt.Errorf("decode %s: missing required field", path)
+	}
+	var value protocolv2.JSONValue
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return fmt.Errorf("decode %s: invalid JSON value", path)
+	}
+	return nil
+}
+
+func validateOptionalJSONValue(fields map[string]json.RawMessage, name string, path string) error {
+	raw := fields[name]
+	if raw == nil {
+		return nil
+	}
+	var value protocolv2.JSONValue
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return fmt.Errorf("decode %s: invalid JSON value", path)
+	}
+	return nil
 }
 
 func unmarshalJSONPreserveNumbers(data []byte, dest any) error {

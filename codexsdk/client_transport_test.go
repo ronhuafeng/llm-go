@@ -37,8 +37,8 @@ func TestInternalJSONRPCRoutesConcurrentResponsesByID(t *testing.T) {
 	}()
 
 	waitForPendingCount(t, c, 2)
-	ingestTestJSONRPC(t, c, map[string]any{"id": "go-sdk-2", "result": map[string]any{"seen": "second"}})
-	ingestTestJSONRPC(t, c, map[string]any{"id": "go-sdk-1", "result": map[string]any{"seen": "first"}})
+	c.routeResponse(map[string]any{"id": "go-sdk-2", "result": map[string]any{"seen": "second"}})
+	c.routeResponse(map[string]any{"id": "go-sdk-1", "result": map[string]any{"seen": "first"}})
 
 	select {
 	case err := <-errs:
@@ -90,7 +90,7 @@ func TestInternalJSONRPCCancellationReleasesPendingWait(t *testing.T) {
 		t.Fatalf("pending count = %d, want 0", got)
 	}
 
-	ingestTestJSONRPC(t, c, map[string]any{"id": "go-sdk-1", "result": map[string]any{"late": true}})
+	c.routeResponse(map[string]any{"id": "go-sdk-1", "result": map[string]any{"late": true}})
 	if got := pendingCount(c); got != 0 {
 		t.Fatalf("late response recreated pending state; count = %d", got)
 	}
@@ -169,7 +169,7 @@ func TestInternalJSONRPCProtocolErrorIsPropagated(t *testing.T) {
 	}()
 
 	waitForPendingCount(t, c, 1)
-	ingestTestJSONRPC(t, c, map[string]any{
+	c.routeResponse(map[string]any{
 		"id": "go-sdk-1",
 		"error": map[string]any{
 			"code":    -32602,
@@ -236,7 +236,7 @@ func TestInternalJSONRPCRejectsMissingObjectResult(t *testing.T) {
 	}()
 
 	waitForPendingCount(t, c, 1)
-	ingestTestJSONRPC(t, c, map[string]any{"id": "go-sdk-1", "result": "not-an-object"})
+	c.routeResponse(map[string]any{"id": "go-sdk-1", "result": "not-an-object"})
 
 	select {
 	case err := <-errCh:
@@ -364,14 +364,14 @@ func TestInternalJSONRPCReadLoopInvalidEnvelopeFailsPendingWaits(t *testing.T) {
 		message string
 	}{
 		{
-			name:    "no branch with private values",
-			line:    `{"id":null,"method":42,"result":{"value":"stdout_secret"}}` + "\n",
-			message: "decode JSONRPCMessage: invalid envelope",
+			name:    "ambiguous request response",
+			line:    `{"id":"go-sdk-1","method":"secret/method","result":{"value":"stdout_secret"}}` + "\n",
+			message: "expected exactly one JSON-RPC envelope shape",
 		},
 		{
 			name:    "duplicate top-level key",
 			line:    `{"id":"go-sdk-1","id":"go-sdk-1","result":{"ok":true}}` + "\n",
-			message: "decode JSONRPCMessage: invalid envelope",
+			message: "duplicate object key",
 		},
 	}
 	for _, tc := range tests {
