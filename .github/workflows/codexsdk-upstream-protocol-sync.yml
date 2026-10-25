@@ -615,6 +615,11 @@ jobs:
             ${{ runner.temp }}/goal-handoff.json
             ${{ runner.temp }}/goal-ready.json
             ${{ runner.temp }}/goal-diagnostics/*.jsonl
+            ${{ github.workspace }}/codexsdk/.cache/codexsdk-upstream-*/reports/drift_summary.json
+            ${{ github.workspace }}/codexsdk/.cache/codexsdk-upstream-*/reports/drift_report.json
+            ${{ github.workspace }}/codexsdk/.cache/codexsdk-upstream-*/reports/matrix_update_skeleton.json
+            ${{ github.workspace }}/codexsdk/.cache/codexsdk-upstream-*/reports/SUMMARY.md
+          include-hidden-files: true
           if-no-files-found: warn
       - name: Summarize upstream goal outcome
         if: ${{ always() && steps.preflight.outputs.outcome != 'skip' && steps.preflight.outputs.outcome != 'needs_recovery' }}

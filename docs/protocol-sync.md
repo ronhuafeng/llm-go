@@ -223,7 +223,8 @@ Old manifest/coverage annotations may remain explanatory comparison input.
 They cannot suppress a method, preserve stale stability, select stale fields,
 or alter requiredness. Drift summaries and matrix-update skeletons are per-attempt
 reports, not accepted protocol input. They are retained in the working report
-area rather than re-committed alongside schemas; the exact rebuilt source,
+area, with the goal's existing bounded workflow evidence upload, rather than
+re-committed alongside schemas; the exact rebuilt source,
 manifest and coverage still participate in independent verification. Checked-in regeneration may use derived metadata as
 inputs for reproducibility; fresh reconstruction independently checks agreement
 with exact upstream. Only `baseline_metadata.generated_at` is excluded from
