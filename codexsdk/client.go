@@ -609,32 +609,23 @@ func readFrame(reader *bufio.Reader, maxBytes int) ([]byte, error) {
 }
 
 func (c *Client) ingestJSONRPCLine(line []byte) error {
-	if err := validateJSONRPCEnvelope(line); err != nil {
+	frame, err := decodeJSONRPCEnvelope(line)
+	if err != nil {
 		return err
 	}
-	var message map[string]any
-	if err := unmarshalJSONPreserveNumbers(line, &message); err != nil {
-		return err
+	switch frame.kind {
+	case jsonRPCRequest:
+		c.handleServerRequest(frame.message)
+	case jsonRPCNotification:
+		method, _ := frame.message["method"].(string)
+		params, _ := frame.message["params"].(map[string]any)
+		c.routeNotification(rpcNotification{method: method, params: params, envelope: frame.message})
+	case jsonRPCResponse, jsonRPCError:
+		c.routeResponse(frame.message)
+	default:
+		return fmt.Errorf("decode JSONRPCMessage: unhandled envelope kind")
 	}
-	c.handleMessage(message)
 	return nil
-}
-
-func (c *Client) handleMessage(message map[string]any) {
-	_, hasID := message["id"]
-	method, hasMethod := message["method"].(string)
-	if hasID && hasMethod {
-		c.handleServerRequest(message)
-		return
-	}
-	if hasID {
-		c.routeResponse(message)
-		return
-	}
-	if hasMethod {
-		params, _ := message["params"].(map[string]any)
-		c.routeNotification(rpcNotification{method: method, params: params, envelope: message})
-	}
 }
 
 func (c *Client) routeResponse(message map[string]any) {

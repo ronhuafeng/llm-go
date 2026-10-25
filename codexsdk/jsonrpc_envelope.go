@@ -12,48 +12,83 @@ import (
 	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
 )
 
-func validateJSONRPCEnvelope(data []byte) error {
+// jsonRPCEnvelope carries both the admitted strict wire shape and the values
+// that must be routed. Selecting the kind here prevents transport and routing
+// from independently interpreting a frame.
+type jsonRPCEnvelope struct {
+	kind    jsonRPCEnvelopeKind
+	message map[string]any
+}
+
+type jsonRPCEnvelopeKind uint8
+
+const (
+	jsonRPCRequest jsonRPCEnvelopeKind = iota + 1
+	jsonRPCNotification
+	jsonRPCResponse
+	jsonRPCError
+)
+
+// decodeJSONRPCEnvelope preserves the SDK's accepted strict envelope contract.
+// Existing field validators keep the accepted wire rules; unknown metadata
+// stays observable and exact JSON numbers survive.
+func decodeJSONRPCEnvelope(data []byte) (jsonRPCEnvelope, error) {
 	fields, err := decodeJSONRPCObjectFields(data, "JSONRPCMessage")
 	if err != nil {
-		return err
+		return jsonRPCEnvelope{}, err
 	}
 	hasID := fields["id"] != nil
 	hasMethod := fields["method"] != nil
 	hasResult := fields["result"] != nil
 	hasError := fields["error"] != nil
 
-	matches := 0
-	shape := ""
+	var kind jsonRPCEnvelopeKind
 	switch {
 	case hasID && hasMethod && !hasResult && !hasError:
-		matches = 1
-		shape = "request"
+		kind = jsonRPCRequest
 	case !hasID && hasMethod && !hasResult && !hasError:
-		matches = 1
-		shape = "notification"
+		kind = jsonRPCNotification
 	case hasID && !hasMethod && hasResult && !hasError:
-		matches = 1
-		shape = "response"
+		kind = jsonRPCResponse
 	case hasID && !hasMethod && !hasResult && hasError:
-		matches = 1
-		shape = "error"
-	}
-	if matches != 1 {
-		return fmt.Errorf("decode JSONRPCMessage: expected exactly one JSON-RPC envelope shape")
+		kind = jsonRPCError
+	default:
+		return jsonRPCEnvelope{}, fmt.Errorf("decode JSONRPCMessage: expected exactly one JSON-RPC envelope shape")
 	}
 
-	switch shape {
-	case "request":
-		return validateJSONRPCRequest(fields)
-	case "notification":
-		return validateJSONRPCNotification(fields)
-	case "response":
-		return validateJSONRPCResponse(fields)
-	case "error":
-		return validateJSONRPCError(fields)
-	default:
-		return fmt.Errorf("decode JSONRPCMessage: expected exactly one JSON-RPC envelope shape")
+	switch kind {
+	case jsonRPCRequest:
+		err = validateJSONRPCRequest(fields)
+	case jsonRPCNotification:
+		err = validateJSONRPCNotification(fields)
+	case jsonRPCResponse:
+		err = validateJSONRPCResponse(fields)
+	case jsonRPCError:
+		err = validateJSONRPCError(fields)
 	}
+	if err != nil {
+		return jsonRPCEnvelope{}, err
+	}
+
+	// Preserve the original object, including unknown fields, present-null,
+	// and json.Number. Decode its members instead of parsing the entire frame
+	// again; the preceding pass already checked unique top-level keys.
+	message := make(map[string]any, len(fields))
+	for name, raw := range fields {
+		var value any
+		if err := unmarshalJSONPreserveNumbers(raw, &value); err != nil {
+			return jsonRPCEnvelope{}, fmt.Errorf("decode JSONRPCMessage: invalid object field")
+		}
+		message[name] = value
+	}
+	return jsonRPCEnvelope{kind: kind, message: message}, nil
+}
+
+// Retain this validation entry point for existing accepted-base regressions.
+// Production dispatch uses the same decoder and its selected kind.
+func validateJSONRPCEnvelope(data []byte) error {
+	_, err := decodeJSONRPCEnvelope(data)
+	return err
 }
 
 func validateJSONRPCRequest(fields map[string]json.RawMessage) error {
