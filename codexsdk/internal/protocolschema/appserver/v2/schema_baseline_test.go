@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/ronhuafeng/llm-go/codexsdk/internal/protocolgen"
+	"github.com/ronhuafeng/llm-go/codexsdk/internal/protocolupgrade"
 )
 
 var metadataFiles = map[string]bool{
@@ -343,6 +344,22 @@ func TestCoverageMatrixClassifiesBaselineSurface(t *testing.T) {
 }
 
 func TestDriftReportAndMatrixUpdateSkeleton(t *testing.T) {
+	// The accepted baseline owns exact source facts, not reports about the
+	// previous upgrade. Recompute the same clean-drift proof in an isolated
+	// report directory instead of requiring retired checked-in copies.
+	for _, name := range []string{"drift_report.json", "matrix_update_skeleton.json"} {
+		if _, err := os.Stat(name); !os.IsNotExist(err) {
+			t.Fatalf("retired baseline report %s still present: %v", name, err)
+		}
+	}
+	report, err := protocolupgrade.Compare(protocolupgrade.CompareRequest{Baseline: ".", Candidate: "."})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reports := t.TempDir()
+	if _, err := protocolupgrade.WriteReports(reports, report, "."); err != nil {
+		t.Fatal(err)
+	}
 	var drift struct {
 		Status         string `json:"status"`
 		ComparisonMode string `json:"comparison_mode"`
@@ -357,7 +374,7 @@ func TestDriftReportAndMatrixUpdateSkeleton(t *testing.T) {
 		} `json:"method_diff"`
 		MatrixUpdateSkeleton string `json:"matrix_update_skeleton"`
 	}
-	readJSON(t, "drift_report.json", &drift)
+	readJSON(t, filepath.Join(reports, "drift_summary.json"), &drift)
 	if drift.Status != "clean" || drift.ComparisonMode != "canonical-json" || drift.MatrixUpdateSkeleton != "matrix_update_skeleton.json" {
 		t.Fatalf("unexpected drift report summary: %#v", drift)
 	}
@@ -377,7 +394,7 @@ func TestDriftReportAndMatrixUpdateSkeleton(t *testing.T) {
 		TypeUpdates   []any    `json:"type_updates"`
 		ValidStatuses []string `json:"valid_statuses"`
 	}
-	readJSON(t, "matrix_update_skeleton.json", &update)
+	readJSON(t, filepath.Join(reports, "matrix_update_skeleton.json"), &update)
 	if update.Status != "empty" {
 		t.Fatalf("matrix update skeleton status = %q, want empty", update.Status)
 	}
@@ -388,6 +405,39 @@ func TestDriftReportAndMatrixUpdateSkeleton(t *testing.T) {
 		if status == "passthrough" || status == "raw" {
 			t.Fatalf("matrix update skeleton exposes forbidden status %q", status)
 		}
+	}
+}
+
+// A changed source must still produce a review-required report and a
+// non-empty delta outside the accepted baseline; removal is not a skipped gate.
+func TestDriftReportsPreserveChangedSourceEvidence(t *testing.T) {
+	base, candidate := t.TempDir(), t.TempDir()
+	for dir, value := range map[string]string{
+		base:      `{"title":"Probe","type":"object"}`,
+		candidate: `{"title":"Probe","type":"array","items":{"type":"string"}}`,
+	} {
+		if err := os.WriteFile(filepath.Join(dir, "Probe.json"), []byte(value), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	report, err := protocolupgrade.Compare(protocolupgrade.CompareRequest{Baseline: base, Candidate: candidate})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Status != protocolupgrade.StatusReviewRequired || len(report.FileDiff.Changed) != 1 || report.FileDiff.Changed[0] != "Probe.json" {
+		t.Fatalf("source change was not classified for review: %#v", report)
+	}
+	reports := t.TempDir()
+	if _, err := protocolupgrade.WriteReports(reports, report, candidate); err != nil {
+		t.Fatal(err)
+	}
+	var matrix struct {
+		Status      string           `json:"status"`
+		TypeUpdates []map[string]any `json:"type_updates"`
+	}
+	readJSON(t, filepath.Join(reports, "matrix_update_skeleton.json"), &matrix)
+	if matrix.Status != protocolupgrade.StatusReviewRequired || len(matrix.TypeUpdates) != 1 || matrix.TypeUpdates[0]["schema"] != "Probe.json" {
+		t.Fatalf("changed-schema report lost source delta: %#v", matrix)
 	}
 }
 

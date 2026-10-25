@@ -1114,12 +1114,22 @@ func TestApplyKeepsUpgradeReportsOutsideAcceptedBaseline(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	_, err := Apply(ApplyRequest{
+	req := ApplyRequest{
 		Baseline: fix.baseline, Candidate: fix.candidate, StableCandidate: fix.stable,
 		CommonRS: fix.commonRS, CommonRSSourceSHA: fix.sha, Reports: fix.reports,
 		TargetRef: "rust-v1.2.3", TargetKind: "stable_rust_tag", TargetSHA: fix.sha,
-	})
+	}
+	planned, err := Plan(req)
 	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"drift_report.json", MatrixSkeletonName} {
+		data, err := os.ReadFile(filepath.Join(fix.baseline, name))
+		if err != nil || string(data) != "stale" {
+			t.Fatalf("Plan mutated legacy report %s: %q, %v", name, data, err)
+		}
+	}
+	if _, err := planned.Apply(); err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"drift_report.json", MatrixSkeletonName} {
@@ -1134,5 +1144,33 @@ func TestApplyKeepsUpgradeReportsOutsideAcceptedBaseline(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(fix.baseline, name)); err != nil {
 			t.Fatalf("required independently checked input %s disappeared: %v", name, err)
 		}
+	}
+}
+
+// A stale successful plan cannot use retirement of old reports to bypass
+// the accepted-baseline lease. The clean-up is an effect, not a planning step.
+func TestPreparedApplyRetiredReportsRejectsChangedBaseline(t *testing.T) {
+	fix := writeCompleteApplyFixture(t)
+	legacy := filepath.Join(fix.baseline, "drift_report.json")
+	if err := os.WriteFile(legacy, []byte("old-report"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := Plan(ApplyRequest{
+		Baseline: fix.baseline, Candidate: fix.candidate, StableCandidate: fix.stable,
+		CommonRS: fix.commonRS, CommonRSSourceSHA: fix.sha, Reports: fix.reports,
+		TargetRef: "rust-v1.2.3", TargetKind: "stable_rust_tag", TargetSHA: fix.sha,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(legacy, []byte("changed-after-plan"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := plan.Apply(); err == nil || !strings.Contains(err.Error(), "accepted baseline since Plan") {
+		t.Fatalf("stale plan mutated changed baseline: %v", err)
+	}
+	data, err := os.ReadFile(legacy)
+	if err != nil || string(data) != "changed-after-plan" {
+		t.Fatalf("stale plan removed changed report: %q, %v", data, err)
 	}
 }

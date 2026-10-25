@@ -222,7 +222,10 @@ of falling back to the accepted manifest.
 Old manifest/coverage annotations may remain explanatory comparison input.
 They cannot suppress a method, preserve stale stability, select stale fields,
 or alter requiredness. Drift summaries and matrix-update skeletons are per-attempt
-reports, not accepted protocol input. They are retained in the working report
+reports, not accepted protocol input. The successfully planned candidate also
+retires any legacy checked-in copies at Apply time, after the accepted-baseline
+snapshot check. The baseline package tests regenerate the clean report and
+verify that a changed schema still produces review-required output. They are retained in the working report
 area, with the goal's existing bounded workflow evidence upload, rather than
 re-committed alongside schemas; the exact rebuilt source,
 manifest and coverage still participate in independent verification. Checked-in regeneration may use derived metadata as

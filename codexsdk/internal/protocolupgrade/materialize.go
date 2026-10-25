@@ -92,6 +92,18 @@ func (p PlanResult) Apply() (ApplyResult, error) {
 			}
 		}
 	}
+	// The plan was built from the entire accepted snapshot, including legacy
+	// metadata. Carry its planned deletion into materialization: schemaFiles
+	// intentionally excludes these report artifacts, so its deletion loop
+	// above cannot retire them. No deletion is allowed on a stale Plan.
+	for _, name := range []string{"drift_report.json", MatrixSkeletonName} {
+		if _, exists := prepared.files[filepath.Join(defaultBaselineRel, name)]; exists {
+			return ApplyResult{}, fmt.Errorf("prepared baseline still contains retired report %s", name)
+		}
+		if err := os.Remove(filepath.Join(prepared.request.Baseline, name)); err != nil && !os.IsNotExist(err) {
+			return ApplyResult{}, err
+		}
+	}
 	if err := writeCandidateFiles(root, prepared.files); err != nil {
 		return ApplyResult{}, err
 	}
