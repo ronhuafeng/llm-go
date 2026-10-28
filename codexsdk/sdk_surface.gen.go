@@ -1370,6 +1370,14 @@ func (f Threads) MemoryModeSet(ctx context.Context, params protocolv2.ThreadMemo
 	return response, nil
 }
 
+func (f Threads) MemoryRead(ctx context.Context, params protocolv2.ThreadMemoryReadParams) (protocolv2.ThreadMemoryReadResponse, error) {
+	var response protocolv2.ThreadMemoryReadResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadMemoryRead, params, &response); err != nil {
+		return protocolv2.ThreadMemoryReadResponse{}, err
+	}
+	return response, nil
+}
+
 func (f Threads) MetadataUpdate(ctx context.Context, params protocolv2.ThreadMetadataUpdateParams) (protocolv2.ThreadMetadataUpdateResponse, error) {
 	var response protocolv2.ThreadMetadataUpdateResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadMetadataUpdate, params, &response); err != nil {

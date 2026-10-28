@@ -237,6 +237,7 @@ const (
 	MethodThreadItemsRead                         = "thread/items/read"
 	MethodThreadList                              = "thread/list"
 	MethodThreadLoadedList                        = "thread/loaded/list"
+	MethodThreadMemoryRead                        = "thread/memory/read"
 	MethodThreadMemoryModeSet                     = "thread/memoryMode/set"
 	MethodThreadMetadataUpdate                    = "thread/metadata/update"
 	MethodThreadNameSet                           = "thread/name/set"
@@ -2461,6 +2462,17 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "Threads().LoadedList",
 		Stability:             MethodStabilityStable,
+	},
+	MethodThreadMemoryRead: {
+		Method:                MethodThreadMemoryRead,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadMemoryReadParams",
+		ResponseSchema:        "v2/ThreadMemoryReadResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Threads().MemoryRead",
+		Stability:             MethodStabilityExperimental,
 	},
 	MethodThreadMemoryModeSet: {
 		Method:                MethodThreadMemoryModeSet,

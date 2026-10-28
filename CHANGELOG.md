@@ -13,6 +13,11 @@ changes may occur in minor releases.
 
 #### Added
 
+- Synchronize the App Server protocol with Codex `rust-v0.165.0`
+  (`360319d8dee62d87e2d59fc0c21805d79519cfed`), adding thread memory reads,
+  attached forks and thread filtering, sampling source metadata, network review
+  domains, GCP account identity, and the `modelNotFound` error variant.
+
 - Verify ordinary success, notification and error output from the installed
   official App Server in the existing credential-free native scenario; retain
   strict envelope routing while using the generated RequestId decoder.

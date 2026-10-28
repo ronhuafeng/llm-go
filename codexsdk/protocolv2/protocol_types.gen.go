@@ -323,6 +323,8 @@ func decodeWireProtocolValue(data []byte, target any, role wirejson.Role) error 
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *ThreadMemoryModeSetResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
+	case *ThreadMemoryReadResponse:
+		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *ThreadMetadataUpdateResponse:
 		return decodeWireMessageRoot(data, typed, role, wireMessageRoleServerObservation)
 	case *ThreadPredictionRequestResponse:
@@ -18952,6 +18954,7 @@ type NetworkRequirements struct {
 	Enabled                          *Nullable[bool]                                   `json:"enabled,omitempty"`
 	HTTPPort                         *Nullable[uint16]                                 `json:"httpPort,omitempty"`
 	ManagedAllowedDomainsOnly        *Nullable[bool]                                   `json:"managedAllowedDomainsOnly,omitempty"`
+	ReviewDomains                    *Nullable[[]string]                               `json:"reviewDomains,omitempty"`
 	SocksPort                        *Nullable[uint16]                                 `json:"socksPort,omitempty"`
 	UnixSockets                      *Nullable[map[string]NetworkUnixSocketPermission] `json:"unixSockets,omitempty"`
 }
@@ -19007,6 +19010,10 @@ func (value *NetworkRequirements) unmarshalJSON(data []byte, mode wireDecodeMode
 		return err
 	}
 	_, err = decodeNullableJSONField[bool](fields, "managedAllowedDomainsOnly", "NetworkRequirements.managedAllowedDomainsOnly", mode, decodeWireValue[bool], &decoded.ManagedAllowedDomainsOnly)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[[]string](fields, "reviewDomains", "NetworkRequirements.reviewDomains", mode, wireSliceDecoder(decodeWireValue[string]), &decoded.ReviewDomains)
 	if err != nil {
 		return err
 	}
@@ -26351,6 +26358,7 @@ func (value *ThreadExtra) unmarshalJSON(data []byte, mode wireDecodeMode) error 
 type ThreadForkParams struct {
 	ApprovalPolicy                   *Nullable[AskForApproval]       `json:"approvalPolicy,omitempty"`
 	ApprovalsReviewer                *Nullable[ApprovalsReviewer]    `json:"approvalsReviewer,omitempty"`
+	AttachToSource                   *bool                           `json:"attachToSource,omitempty"`
 	BaseInstructions                 *Nullable[string]               `json:"baseInstructions,omitempty"`
 	BeforeTurnID                     *Nullable[string]               `json:"beforeTurnId,omitempty"`
 	Config                           *Nullable[map[string]JSONValue] `json:"config,omitempty"`
@@ -26388,6 +26396,10 @@ func (value *ThreadForkParams) unmarshalJSON(data []byte, mode wireDecodeMode) e
 		return err
 	}
 	_, err = decodeNullableJSONField[ApprovalsReviewer](fields, "approvalsReviewer", "ThreadForkParams.approvalsReviewer", mode, decodeWireValue[ApprovalsReviewer], &decoded.ApprovalsReviewer)
+	if err != nil {
+		return err
+	}
+	_, err = decodeJSONField(fields, "attachToSource", "ThreadForkParams.attachToSource", false, mode, wirePointerDecoder(decodeWireValue[bool]), &decoded.AttachToSource)
 	if err != nil {
 		return err
 	}
@@ -27287,22 +27299,23 @@ func (value *ThreadItemsReadResponse) unmarshalJSON(data []byte, mode wireDecode
 }
 
 type ThreadListParams struct {
-	AncestorThreadID  *Nullable[string]              `json:"ancestorThreadId,omitempty"`
-	Archived          *Nullable[bool]                `json:"archived,omitempty"`
-	Cursor            *Nullable[string]              `json:"cursor,omitempty"`
-	CWD               *Nullable[ThreadListCwdFilter] `json:"cwd,omitempty"`
-	ExcludedThreadIDs *Nullable[[]string]            `json:"excludedThreadIds,omitempty"`
-	Limit             *Nullable[uint32]              `json:"limit,omitempty"`
-	ModelProviders    *Nullable[[]string]            `json:"modelProviders,omitempty"`
-	Originators       *Nullable[[]string]            `json:"originators,omitempty"`
-	ParentThreadID    *Nullable[string]              `json:"parentThreadId,omitempty"`
-	ProjectID         *Nullable[string]              `json:"projectId,omitempty"`
-	SearchTerm        *Nullable[string]              `json:"searchTerm,omitempty"`
-	SectionID         *Nullable[string]              `json:"sectionId,omitempty"`
-	SortDirection     *Nullable[SortDirection]       `json:"sortDirection,omitempty"`
-	SortKey           *Nullable[ThreadSortKey]       `json:"sortKey,omitempty"`
-	SourceKinds       *Nullable[[]ThreadSourceKind]  `json:"sourceKinds,omitempty"`
-	UseStateDbOnly    *bool                          `json:"useStateDbOnly,omitempty"`
+	AncestorThreadID   *Nullable[string]              `json:"ancestorThreadId,omitempty"`
+	Archived           *Nullable[bool]                `json:"archived,omitempty"`
+	AttachedToThreadID *Nullable[string]              `json:"attachedToThreadId,omitempty"`
+	Cursor             *Nullable[string]              `json:"cursor,omitempty"`
+	CWD                *Nullable[ThreadListCwdFilter] `json:"cwd,omitempty"`
+	ExcludedThreadIDs  *Nullable[[]string]            `json:"excludedThreadIds,omitempty"`
+	Limit              *Nullable[uint32]              `json:"limit,omitempty"`
+	ModelProviders     *Nullable[[]string]            `json:"modelProviders,omitempty"`
+	Originators        *Nullable[[]string]            `json:"originators,omitempty"`
+	ParentThreadID     *Nullable[string]              `json:"parentThreadId,omitempty"`
+	ProjectID          *Nullable[string]              `json:"projectId,omitempty"`
+	SearchTerm         *Nullable[string]              `json:"searchTerm,omitempty"`
+	SectionID          *Nullable[string]              `json:"sectionId,omitempty"`
+	SortDirection      *Nullable[SortDirection]       `json:"sortDirection,omitempty"`
+	SortKey            *Nullable[ThreadSortKey]       `json:"sortKey,omitempty"`
+	SourceKinds        *Nullable[[]ThreadSourceKind]  `json:"sourceKinds,omitempty"`
+	UseStateDbOnly     *bool                          `json:"useStateDbOnly,omitempty"`
 }
 
 func (value *ThreadListParams) UnmarshalJSON(data []byte) error {
@@ -27320,6 +27333,10 @@ func (value *ThreadListParams) unmarshalJSON(data []byte, mode wireDecodeMode) e
 		return err
 	}
 	_, err = decodeNullableJSONField[bool](fields, "archived", "ThreadListParams.archived", mode, decodeWireValue[bool], &decoded.Archived)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[string](fields, "attachedToThreadId", "ThreadListParams.attachedToThreadId", mode, decodeWireValue[string], &decoded.AttachedToThreadID)
 	if err != nil {
 		return err
 	}
@@ -27559,6 +27576,59 @@ func (value *ThreadMemoryModeSetResponse) unmarshalJSON(data []byte, mode wireDe
 		return err
 	}
 	*value = ThreadMemoryModeSetResponse{}
+	return nil
+}
+
+type ThreadMemoryReadParams struct {
+	ThreadID string `json:"threadId"`
+}
+
+func (value *ThreadMemoryReadParams) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ThreadMemoryReadParams) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ThreadMemoryReadParams")
+	if err != nil {
+		return err
+	}
+	var decoded ThreadMemoryReadParams
+	seenThreadID, err := decodeJSONField(fields, "threadId", "ThreadMemoryReadParams.threadId", false, mode, decodeWireValue[string], &decoded.ThreadID)
+	if err != nil {
+		return err
+	}
+	if !seenThreadID {
+		return missingRequiredField("ThreadMemoryReadParams.threadId")
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ThreadMemoryReadParams", mode); err != nil {
+		return err
+	}
+	*value = decoded
+	return nil
+}
+
+type ThreadMemoryReadResponse struct {
+	Summary *Nullable[string] `json:"summary,omitempty"`
+}
+
+func (value *ThreadMemoryReadResponse) UnmarshalJSON(data []byte) error {
+	return value.unmarshalJSON(data, wireDecodeClosed)
+}
+
+func (value *ThreadMemoryReadResponse) unmarshalJSON(data []byte, mode wireDecodeMode) error {
+	fields, err := decodeObjectFields(data, "ThreadMemoryReadResponse")
+	if err != nil {
+		return err
+	}
+	var decoded ThreadMemoryReadResponse
+	_, err = decodeNullableJSONField[string](fields, "summary", "ThreadMemoryReadResponse.summary", mode, decodeWireValue[string], &decoded.Summary)
+	if err != nil {
+		return err
+	}
+	if err := rejectUnexpectedFieldsForMode(fields, "ThreadMemoryReadResponse", mode); err != nil {
+		return err
+	}
+	*value = decoded
 	return nil
 }
 
@@ -29850,6 +29920,7 @@ type ThreadSampleParams struct {
 	Prompt                     string                       `json:"prompt"`
 	ResponsesapiClientMetadata *Nullable[map[string]string] `json:"responsesapiClientMetadata,omitempty"`
 	ThreadID                   string                       `json:"threadId"`
+	ThreadSource               *Nullable[ThreadSource]      `json:"threadSource,omitempty"`
 	TurnTrigger                *Nullable[string]            `json:"turnTrigger,omitempty"`
 }
 
@@ -29895,6 +29966,10 @@ func (value *ThreadSampleParams) unmarshalJSON(data []byte, mode wireDecodeMode)
 	}
 	if !seenThreadID {
 		return missingRequiredField("ThreadSampleParams.threadId")
+	}
+	_, err = decodeNullableJSONField[ThreadSource](fields, "threadSource", "ThreadSampleParams.threadSource", mode, decodeWireValue[ThreadSource], &decoded.ThreadSource)
+	if err != nil {
+		return err
 	}
 	_, err = decodeNullableJSONField[string](fields, "turnTrigger", "ThreadSampleParams.turnTrigger", mode, decodeWireValue[string], &decoded.TurnTrigger)
 	if err != nil {
@@ -34661,6 +34736,7 @@ const (
 	CodexErrorInfoKindRateLimitExceeded              CodexErrorInfoKind = "rateLimitExceeded"
 	CodexErrorInfoKindFlexUnavailable                CodexErrorInfoKind = "flexUnavailable"
 	CodexErrorInfoKindServerOverloaded               CodexErrorInfoKind = "serverOverloaded"
+	CodexErrorInfoKindModelNotFound                  CodexErrorInfoKind = "modelNotFound"
 	CodexErrorInfoKindCyberPolicy                    CodexErrorInfoKind = "cyberPolicy"
 	CodexErrorInfoKindMisalignmentPolicyViolation    CodexErrorInfoKind = "misalignmentPolicyViolation"
 	CodexErrorInfoKindTooManyDenials                 CodexErrorInfoKind = "tooManyDenials"
@@ -34686,6 +34762,7 @@ type CodexErrorInfo struct {
 	variantRateLimitExceeded              *CodexErrorInfoRateLimitExceeded
 	variantFlexUnavailable                *CodexErrorInfoFlexUnavailable
 	variantServerOverloaded               *CodexErrorInfoServerOverloaded
+	variantModelNotFound                  *CodexErrorInfoModelNotFound
 	variantCyberPolicy                    *CodexErrorInfoCyberPolicy
 	variantMisalignmentPolicyViolation    *CodexErrorInfoMisalignmentPolicyViolation
 	variantTooManyDenials                 *CodexErrorInfoTooManyDenials
@@ -34714,6 +34791,8 @@ type CodexErrorInfoRateLimitExceeded struct{}
 type CodexErrorInfoFlexUnavailable struct{}
 
 type CodexErrorInfoServerOverloaded struct{}
+
+type CodexErrorInfoModelNotFound struct{}
 
 type CodexErrorInfoCyberPolicy struct{}
 
@@ -34785,6 +34864,11 @@ func NewCodexErrorInfoFlexUnavailable() CodexErrorInfo {
 func NewCodexErrorInfoServerOverloaded() CodexErrorInfo {
 	payload := CodexErrorInfoServerOverloaded{}
 	return CodexErrorInfo{kind: CodexErrorInfoKindServerOverloaded, variantServerOverloaded: &payload}
+}
+
+func NewCodexErrorInfoModelNotFound() CodexErrorInfo {
+	payload := CodexErrorInfoModelNotFound{}
+	return CodexErrorInfo{kind: CodexErrorInfoKindModelNotFound, variantModelNotFound: &payload}
 }
 
 func NewCodexErrorInfoCyberPolicy() CodexErrorInfo {
@@ -34874,6 +34958,8 @@ func (value CodexErrorInfo) IsValid() bool {
 		return value.variantFlexUnavailable != nil
 	case CodexErrorInfoKindServerOverloaded:
 		return value.variantServerOverloaded != nil
+	case CodexErrorInfoKindModelNotFound:
+		return value.variantModelNotFound != nil
 	case CodexErrorInfoKindCyberPolicy:
 		return value.variantCyberPolicy != nil
 	case CodexErrorInfoKindMisalignmentPolicyViolation:
@@ -34949,6 +35035,13 @@ func (value CodexErrorInfo) AsServerOverloaded() (CodexErrorInfoServerOverloaded
 		return CodexErrorInfoServerOverloaded{}, false
 	}
 	return *value.variantServerOverloaded, true
+}
+
+func (value CodexErrorInfo) AsModelNotFound() (CodexErrorInfoModelNotFound, bool) {
+	if value.kind != CodexErrorInfoKindModelNotFound || value.variantModelNotFound == nil {
+		return CodexErrorInfoModelNotFound{}, false
+	}
+	return *value.variantModelNotFound, true
 }
 
 func (value CodexErrorInfo) AsCyberPolicy() (CodexErrorInfoCyberPolicy, bool) {
@@ -35088,6 +35181,11 @@ func (value CodexErrorInfo) MarshalJSON() ([]byte, error) {
 			return nil, invalidUnionVariant("CodexErrorInfo", "serverOverloaded")
 		}
 		return json.Marshal("serverOverloaded")
+	case CodexErrorInfoKindModelNotFound:
+		if value.variantModelNotFound == nil {
+			return nil, invalidUnionVariant("CodexErrorInfo", "modelNotFound")
+		}
+		return json.Marshal("modelNotFound")
 	case CodexErrorInfoKindCyberPolicy:
 		if value.variantCyberPolicy == nil {
 			return nil, invalidUnionVariant("CodexErrorInfo", "cyberPolicy")
@@ -35245,6 +35343,10 @@ func (value *CodexErrorInfo) unmarshalKnownJSON(data []byte, mode wireDecodeMode
 		case "serverOverloaded":
 			payload := CodexErrorInfoServerOverloaded{}
 			*value = CodexErrorInfo{kind: CodexErrorInfoKindServerOverloaded, variantServerOverloaded: &payload}
+			return nil
+		case "modelNotFound":
+			payload := CodexErrorInfoModelNotFound{}
+			*value = CodexErrorInfo{kind: CodexErrorInfoKindModelNotFound, variantModelNotFound: &payload}
 			return nil
 		case "cyberPolicy":
 			payload := CodexErrorInfoCyberPolicy{}
@@ -36902,6 +37004,7 @@ const (
 	AccountKindAPIKey        AccountKind = "apiKey"
 	AccountKindChatGPT       AccountKind = "chatgpt"
 	AccountKindAmazonBedrock AccountKind = "amazonBedrock"
+	AccountKindGcp           AccountKind = "gcp"
 )
 
 type Account struct {
@@ -36909,6 +37012,7 @@ type Account struct {
 	variantAPIKey        *AccountAPIKey
 	variantChatGPT       *AccountChatGPT
 	variantAmazonBedrock *AccountAmazonBedrock
+	variantGcp           *AccountGcp
 }
 
 type AccountAPIKey struct{}
@@ -36921,6 +37025,8 @@ type AccountChatGPT struct {
 type AccountAmazonBedrock struct {
 	UsesCodexManagedCredentials *bool `json:"usesCodexManagedCredentials,omitempty"`
 }
+
+type AccountGcp struct{}
 
 func NewAccountAPIKey() Account {
 	payload := AccountAPIKey{}
@@ -36935,6 +37041,11 @@ func NewAccountAmazonBedrock(payload AccountAmazonBedrock) Account {
 	return Account{kind: AccountKindAmazonBedrock, variantAmazonBedrock: &payload}
 }
 
+func NewAccountGcp() Account {
+	payload := AccountGcp{}
+	return Account{kind: AccountKindGcp, variantGcp: &payload}
+}
+
 func (value Account) Kind() AccountKind {
 	return value.kind
 }
@@ -36947,6 +37058,8 @@ func (value Account) IsValid() bool {
 		return value.variantChatGPT != nil
 	case AccountKindAmazonBedrock:
 		return value.variantAmazonBedrock != nil
+	case AccountKindGcp:
+		return value.variantGcp != nil
 	default:
 		return false
 	}
@@ -36971,6 +37084,13 @@ func (value Account) AsAmazonBedrock() (AccountAmazonBedrock, bool) {
 		return AccountAmazonBedrock{}, false
 	}
 	return *value.variantAmazonBedrock, true
+}
+
+func (value Account) AsGcp() (AccountGcp, bool) {
+	if value.kind != AccountKindGcp || value.variantGcp == nil {
+		return AccountGcp{}, false
+	}
+	return *value.variantGcp, true
 }
 
 func (value Account) MarshalJSON() ([]byte, error) {
@@ -37007,6 +37127,15 @@ func (value Account) MarshalJSON() ([]byte, error) {
 		}{
 			Type:                        "amazonBedrock",
 			UsesCodexManagedCredentials: value.variantAmazonBedrock.UsesCodexManagedCredentials,
+		})
+	case AccountKindGcp:
+		if value.variantGcp == nil {
+			return nil, invalidUnionVariant("Account", "gcp")
+		}
+		return json.Marshal(struct {
+			Type string `json:"type"`
+		}{
+			Type: "gcp",
 		})
 	default:
 		return nil, invalidUnionValue("Account")
@@ -37065,6 +37194,13 @@ func (value *Account) unmarshalJSON(data []byte, mode wireDecodeMode) error {
 			return err
 		}
 		*value = Account{kind: AccountKindAmazonBedrock, variantAmazonBedrock: &decoded}
+		return nil
+	case "gcp":
+		var decoded AccountGcp
+		if err := rejectUnexpectedFieldsForMode(fields, "Account.gcp", mode); err != nil {
+			return err
+		}
+		*value = Account{kind: AccountKindGcp, variantGcp: &decoded}
 		return nil
 	default:
 		return unknownUnionVariant("Account", "type", variant)
@@ -37568,6 +37704,7 @@ const (
 	ClientRequestKindThreadSectionMove                       ClientRequestKind = "thread/section/move"
 	ClientRequestKindThreadSettingsUpdate                    ClientRequestKind = "thread/settings/update"
 	ClientRequestKindThreadMemoryModeSet                     ClientRequestKind = "thread/memoryMode/set"
+	ClientRequestKindThreadMemoryRead                        ClientRequestKind = "thread/memory/read"
 	ClientRequestKindMemoryStatus                            ClientRequestKind = "memory/status"
 	ClientRequestKindMemoryReset                             ClientRequestKind = "memory/reset"
 	ClientRequestKindRolloutCompress                         ClientRequestKind = "rollout/compress"
@@ -37747,6 +37884,7 @@ type ClientRequest struct {
 	variantThreadSectionMove                       *ClientRequestThreadSectionMove
 	variantThreadSettingsUpdate                    *ClientRequestThreadSettingsUpdate
 	variantThreadMemoryModeSet                     *ClientRequestThreadMemoryModeSet
+	variantThreadMemoryRead                        *ClientRequestThreadMemoryRead
 	variantMemoryStatus                            *ClientRequestMemoryStatus
 	variantMemoryReset                             *ClientRequestMemoryReset
 	variantRolloutCompress                         *ClientRequestRolloutCompress
@@ -38066,6 +38204,11 @@ type ClientRequestThreadSettingsUpdate struct {
 type ClientRequestThreadMemoryModeSet struct {
 	ID     RequestId                 `json:"id"`
 	Params ThreadMemoryModeSetParams `json:"params"`
+}
+
+type ClientRequestThreadMemoryRead struct {
+	ID     RequestId              `json:"id"`
+	Params ThreadMemoryReadParams `json:"params"`
 }
 
 type ClientRequestMemoryStatus struct {
@@ -38895,6 +39038,10 @@ func NewClientRequestThreadMemoryModeSet(payload ClientRequestThreadMemoryModeSe
 	return ClientRequest{kind: ClientRequestKindThreadMemoryModeSet, variantThreadMemoryModeSet: &payload}
 }
 
+func NewClientRequestThreadMemoryRead(payload ClientRequestThreadMemoryRead) ClientRequest {
+	return ClientRequest{kind: ClientRequestKindThreadMemoryRead, variantThreadMemoryRead: &payload}
+}
+
 func NewClientRequestMemoryStatus(payload ClientRequestMemoryStatus) ClientRequest {
 	return ClientRequest{kind: ClientRequestKindMemoryStatus, variantMemoryStatus: &payload}
 }
@@ -39529,6 +39676,8 @@ func (value ClientRequest) IsValid() bool {
 		return value.variantThreadSettingsUpdate != nil
 	case ClientRequestKindThreadMemoryModeSet:
 		return value.variantThreadMemoryModeSet != nil
+	case ClientRequestKindThreadMemoryRead:
+		return value.variantThreadMemoryRead != nil
 	case ClientRequestKindMemoryStatus:
 		return value.variantMemoryStatus != nil
 	case ClientRequestKindMemoryReset:
@@ -40062,6 +40211,13 @@ func (value ClientRequest) AsThreadMemoryModeSet() (ClientRequestThreadMemoryMod
 		return ClientRequestThreadMemoryModeSet{}, false
 	}
 	return *value.variantThreadMemoryModeSet, true
+}
+
+func (value ClientRequest) AsThreadMemoryRead() (ClientRequestThreadMemoryRead, bool) {
+	if value.kind != ClientRequestKindThreadMemoryRead || value.variantThreadMemoryRead == nil {
+		return ClientRequestThreadMemoryRead{}, false
+	}
+	return *value.variantThreadMemoryRead, true
 }
 
 func (value ClientRequest) AsMemoryStatus() (ClientRequestMemoryStatus, bool) {
@@ -41506,6 +41662,19 @@ func (value ClientRequest) MarshalJSON() ([]byte, error) {
 			ID:     value.variantThreadMemoryModeSet.ID,
 			Method: "thread/memoryMode/set",
 			Params: value.variantThreadMemoryModeSet.Params,
+		})
+	case ClientRequestKindThreadMemoryRead:
+		if value.variantThreadMemoryRead == nil {
+			return nil, invalidUnionVariant("ClientRequest", "thread/memory/read")
+		}
+		return json.Marshal(struct {
+			ID     RequestId              `json:"id"`
+			Method string                 `json:"method"`
+			Params ThreadMemoryReadParams `json:"params"`
+		}{
+			ID:     value.variantThreadMemoryRead.ID,
+			Method: "thread/memory/read",
+			Params: value.variantThreadMemoryRead.Params,
 		})
 	case ClientRequestKindMemoryStatus:
 		if value.variantMemoryStatus == nil {
@@ -44064,6 +44233,27 @@ func (value *ClientRequest) unmarshalJSON(data []byte, mode wireDecodeMode) erro
 			return err
 		}
 		*value = ClientRequest{kind: ClientRequestKindThreadMemoryModeSet, variantThreadMemoryModeSet: &decoded}
+		return nil
+	case "thread/memory/read":
+		var decoded ClientRequestThreadMemoryRead
+		seenID, err := decodeJSONField(fields, "id", "ClientRequest.id", false, mode, decodeWireValue[RequestId], &decoded.ID)
+		if err != nil {
+			return err
+		}
+		if !seenID {
+			return missingRequiredField("ClientRequest.id")
+		}
+		seenParams, err := decodeJSONField(fields, "params", "ClientRequest.params", false, mode, decodeWireValue[ThreadMemoryReadParams], &decoded.Params)
+		if err != nil {
+			return err
+		}
+		if !seenParams {
+			return missingRequiredField("ClientRequest.params")
+		}
+		if err := rejectUnexpectedFieldsForMode(fields, "ClientRequest.thread/memory/read", mode); err != nil {
+			return err
+		}
+		*value = ClientRequest{kind: ClientRequestKindThreadMemoryRead, variantThreadMemoryRead: &decoded}
 		return nil
 	case "memory/status":
 		var decoded ClientRequestMemoryStatus

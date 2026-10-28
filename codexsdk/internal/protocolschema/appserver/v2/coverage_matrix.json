@@ -9245,6 +9245,19 @@
       "type": "ThreadForkParams"
     },
     {
+      "exit_condition": "Regenerate if upstream schema drift changes ThreadForkParams.attachToSource semantics.",
+      "field": "attachToSource",
+      "owner": "codex-go-sdk",
+      "path": "v2/ThreadForkParams.json#/properties/attachToSource",
+      "reason": "Generated as a strict typed ThreadForkParams field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadForkParams.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "ThreadForkParams"
+    },
+    {
       "exit_condition": "Regenerate if upstream schema drift changes this field shape or typed representation.",
       "field": "baseInstructions",
       "owner": "codex-go-sdk",
@@ -10129,6 +10142,19 @@
       "type": "ThreadListParams"
     },
     {
+      "exit_condition": "Regenerate if upstream schema drift changes ThreadListParams.attachedToThreadId semantics.",
+      "field": "attachedToThreadId",
+      "owner": "codex-go-sdk",
+      "path": "v2/ThreadListParams.json#/properties/attachedToThreadId",
+      "reason": "Generated as a strict typed ThreadListParams field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadListParams.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "ThreadListParams"
+    },
+    {
       "exit_condition": "Regenerate if upstream schema drift changes field names, requiredness, union shape, or omit/null/value semantics.",
       "field": "cursor",
       "owner": "codex-go-sdk",
@@ -10439,6 +10465,32 @@
       "stability": "experimental",
       "status": "supported-generated",
       "type": "ThreadMemoryModeSetParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes ThreadMemoryReadParams.threadId semantics.",
+      "field": "threadId",
+      "owner": "codex-go-sdk",
+      "path": "v2/ThreadMemoryReadParams.json#/properties/threadId",
+      "reason": "Generated as a strict typed ThreadMemoryReadParams field.",
+      "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadMemoryReadParams.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "ThreadMemoryReadParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes ThreadMemoryReadResponse.summary semantics.",
+      "field": "summary",
+      "owner": "codex-go-sdk",
+      "path": "v2/ThreadMemoryReadResponse.json#/properties/summary",
+      "reason": "Generated as a strict typed ThreadMemoryReadResponse field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadMemoryReadResponse.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "ThreadMemoryReadResponse"
     },
     {
       "exit_condition": "Regenerate if upstream schema drift changes ThreadMetadataUpdateParams.daybreakEnabled semantics.",
@@ -12397,6 +12449,19 @@
       "path": "v2/ThreadSampleParams.json#/properties/threadId",
       "reason": "Generated as a strict typed ThreadSampleParams field.",
       "required": true,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadSampleParams.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "ThreadSampleParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes ThreadSampleParams.threadSource semantics.",
+      "field": "threadSource",
+      "owner": "codex-go-sdk",
+      "path": "v2/ThreadSampleParams.json#/properties/threadSource",
+      "reason": "Generated as a strict typed ThreadSampleParams field.",
+      "required": false,
       "revisit_trigger": "protocolv2 generation or upstream schema drift",
       "schema": "v2/ThreadSampleParams.json",
       "stability": "experimental",
@@ -17505,6 +17570,18 @@
       "direction": "client_to_server",
       "exit_condition": "Regenerate method registry and add handwritten facade coverage only if this upstream method becomes part of the public SDK surface.",
       "kind": "request",
+      "method": "thread/memory/read",
+      "owner": "codex-go-sdk",
+      "reason": "Generated protocolv2 method registry coverage for client_to_server request method; no handwritten facade is claimed until explicitly added.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "source_schema": "ClientRequest.json",
+      "stability": "experimental",
+      "status": "supported-generated"
+    },
+    {
+      "direction": "client_to_server",
+      "exit_condition": "Regenerate method registry and add handwritten facade coverage only if this upstream method becomes part of the public SDK surface.",
+      "kind": "request",
       "method": "thread/memoryMode/set",
       "owner": "codex-go-sdk",
       "reason": "Generated protocolv2 method registry coverage for client_to_server request method; no handwritten facade is claimed until explicitly added.",
@@ -21788,6 +21865,26 @@
       "stability": "experimental",
       "status": "supported-generated",
       "type": "ThreadMemoryModeSetResponse"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes this generated protocol type.",
+      "owner": "codex-go-sdk",
+      "reason": "Generated from the checked-in upstream app-server schema baseline.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadMemoryReadParams.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "ThreadMemoryReadParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes this generated protocol type.",
+      "owner": "codex-go-sdk",
+      "reason": "Generated from the checked-in upstream app-server schema baseline.",
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadMemoryReadResponse.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "ThreadMemoryReadResponse"
     },
     {
       "exit_condition": "Regenerate if upstream schema drift changes field names, requiredness, union shape, or omit/null/value semantics.",

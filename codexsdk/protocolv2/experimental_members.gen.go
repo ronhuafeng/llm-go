@@ -234,6 +234,10 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"id":     {},
 		"params": {},
 	},
+	"ClientRequestThreadMemoryRead": {
+		"id":     {},
+		"params": {},
+	},
 	"ClientRequestThreadPredictionRequest": {
 		"id":     {},
 		"params": {},
@@ -540,6 +544,7 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"enabled":                          {},
 		"httpPort":                         {},
 		"managedAllowedDomainsOnly":        {},
+		"reviewDomains":                    {},
 		"socksPort":                        {},
 		"unixSockets":                      {},
 	},
@@ -932,6 +937,7 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"runtimeWorkspaceRoots": {},
 	},
 	"ThreadForkParams": {
+		"attachToSource":                   {},
 		"beforeTurnId":                     {},
 		"deferGoalContinuation":            {},
 		"experimentalDisablePredictionMcp": {},
@@ -961,9 +967,10 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"data": {},
 	},
 	"ThreadListParams": {
-		"ancestorThreadId": {},
-		"parentThreadId":   {},
-		"projectId":        {},
+		"ancestorThreadId":   {},
+		"attachedToThreadId": {},
+		"parentThreadId":     {},
+		"projectId":          {},
 	},
 	"ThreadListResponse": {
 		"readStates": {},
@@ -971,6 +978,12 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 	"ThreadMemoryModeSetParams": {
 		"mode":     {},
 		"threadId": {},
+	},
+	"ThreadMemoryReadParams": {
+		"threadId": {},
+	},
+	"ThreadMemoryReadResponse": {
+		"summary": {},
 	},
 	"ThreadMetadataUpdateParams": {
 		"daybreakEnabled": {},
@@ -1133,6 +1146,7 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"prompt":                     {},
 		"responsesapiClientMetadata": {},
 		"threadId":                   {},
+		"threadSource":               {},
 		"turnTrigger":                {},
 	},
 	"ThreadSampleResponse": {
@@ -1414,6 +1428,7 @@ var ExperimentalUnionValues = map[string]map[string]struct{}{
 		"thread/decrement_elicitation":              {},
 		"thread/increment_elicitation":              {},
 		"thread/items/read":                         {},
+		"thread/memory/read":                        {},
 		"thread/memoryMode/set":                     {},
 		"thread/prediction/request":                 {},
 		"thread/queue/add":                          {},
@@ -2274,6 +2289,10 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"ClientRequestThreadMemoryModeSet": {
 		"id":     "RequestId",
 		"params": "ThreadMemoryModeSetParams",
+	},
+	"ClientRequestThreadMemoryRead": {
+		"id":     "RequestId",
+		"params": "ThreadMemoryReadParams",
 	},
 	"ClientRequestThreadMetadataUpdate": {
 		"id":     "RequestId",
@@ -3799,7 +3818,8 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"requestId": "RequestId",
 	},
 	"ThreadSampleParams": {
-		"effort": "ReasoningEffort",
+		"effort":       "ReasoningEffort",
+		"threadSource": "ThreadSource",
 	},
 	"ThreadSearchOccurrence": {
 		"snippetMatchRange": "ThreadSearchTextRange",
