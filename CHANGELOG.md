@@ -75,6 +75,13 @@ changes may occur in minor releases.
 
 #### Fixed
 
+- On Linux, contain inherited App Server background processes during both
+  graceful and forced shutdown. Keep the direct child unreaped until its owned
+  process group has stopped, and report incomplete cleanup rather than allowing
+  a successful close while background work can still modify temporary state.
+  Live cleanup diagnostics now retain the filesystem operation and OS error
+  category without exposing paths or private output.
+
 - Protect the six handwritten JSON-RPC envelope exemptions against transitive
   referenced-schema drift and removal. Keep the existing strict transport
   acceptance contract; generated child-decoder success cannot certify an

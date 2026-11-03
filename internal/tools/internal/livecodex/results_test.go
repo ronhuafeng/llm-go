@@ -2,6 +2,7 @@ package livecodex
 
 import (
 	"bytes"
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -133,5 +134,71 @@ func TestHarnessCleanupDiagnosticNeverLeaksPath(t *testing.T) {
 	}
 	if strings.Contains(out.String(), "PRIVATE") || strings.Contains(out.String(), "secret.invalid") {
 		t.Fatal("cleanup payload leaked")
+	}
+}
+
+func TestHarnessCleanupRetainsOperationAndReason(t *testing.T) {
+	for _, test := range []struct {
+		payload, operation, reason string
+	}{
+		{"unlinkat /tmp/PRIVATE: directory not empty", "unlinkat", "directory_not_empty"},
+		{"openfdat /tmp/PRIVATE: permission denied", "openfdat", "permission_denied"},
+		{"unlinkat /tmp/PRIVATE: device or resource busy", "unlinkat", "resource_busy"},
+		{"remove /tmp/PRIVATE: read-only file system", "remove", "read_only_filesystem"},
+		{"unlinkat /tmp/PRIVATE: unexpected PRIVATE error", "unlinkat", "unknown"},
+		{"PRIVATE /tmp/PRIVATE: directory not empty", "unknown", "directory_not_empty"},
+		{"PRIVATE https://secret.invalid", "unknown", "unknown"},
+	} {
+		t.Run(test.reason+"/"+test.operation, func(t *testing.T) {
+			var events, output bytes.Buffer
+			enc := json.NewEncoder(&events)
+			for _, event := range []map[string]string{
+				{"Action": "run", "Test": "TestLiveCodexSmoke"},
+				{"Action": "output", "Test": "TestLiveCodexSmoke", "Output": "    testing.go:1464: TempDir RemoveAll cleanup: " + test.payload + "\n"},
+				{"Action": "fail", "Test": "TestLiveCodexSmoke"},
+			} {
+				if err := enc.Encode(event); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if CheckResults(&events, &output) == nil {
+				t.Fatal("cleanup failure accepted")
+			}
+			want := "live_harness.cleanup_signature=tempdir_removeall operation=" + test.operation + " reason=" + test.reason
+			if !strings.Contains(output.String(), want) {
+				t.Fatalf("missing %q in %q", want, output.String())
+			}
+			for _, private := range []string{"PRIVATE", "/tmp/", "secret.invalid", "unexpected"} {
+				if strings.Contains(output.String(), private) {
+					t.Fatalf("cleanup output leaked %q", private)
+				}
+			}
+		})
+	}
+}
+
+func TestHarnessCleanupDoesNotClassifyArbitraryTranscript(t *testing.T) {
+	for _, line := range []string{
+		"provider says TempDir RemoveAll cleanup: unlinkat PRIVATE: directory not empty",
+		"    live_codex_test.go:28: TempDir RemoveAll cleanup: unlinkat PRIVATE: directory not empty",
+		"quoted testing.go:1464: TempDir RemoveAll cleanup: unlinkat PRIVATE: directory not empty",
+	} {
+		var events, output bytes.Buffer
+		enc := json.NewEncoder(&events)
+		for _, event := range []map[string]string{
+			{"Action": "run", "Test": "TestLiveCodexSmoke"},
+			{"Action": "output", "Test": "TestLiveCodexSmoke", "Output": line},
+			{"Action": "pass", "Test": "TestLiveCodexSmoke"},
+		} {
+			if err := enc.Encode(event); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := CheckResults(&events, &output); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(output.String(), "cleanup_signature") {
+			t.Fatal("transcript misclassified as testing cleanup")
+		}
 	}
 }

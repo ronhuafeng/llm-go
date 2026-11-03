@@ -15,6 +15,9 @@ var safeStoryFact = regexp.MustCompile(`^live_story\.stage=(structured-call|pers
 
 var safeExecutorFact = regexp.MustCompile(`^live_executor\.stage=(configure|preflight|start|resume|readonly_review|readonly_probe) outcome=(started|completed|failed) diagnostic=(none|completed|positive_control_failed|write_denial_unverified|write_not_observed|read_assertion|write_denied_read_verified|configuration_failed|file_assertion|sandbox_write_unverified|sandbox_unavailable|command_failed|runtime_warning|command_succeeded_write_unverified|endpoint_not_found|authentication_failed|provider_failed|execution_failed|missing_session|session_mismatch|invalid_event_stream|event_too_large|event_decode_failed|event_sequence_invalid|event_read_failed|cancelled)$`)
 
+// testing.TempDir reports errors through testing.go, not the caller's t.Log.
+var tempDirCleanup = regexp.MustCompile(`^\s*testing\.go:[0-9]+: TempDir RemoveAll cleanup: (.*)$`)
+
 var safeScenario = regexp.MustCompile(`^TestLiveCodex[a-zA-Z0-9_./-]*$`)
 
 // CheckResults rejects successful process exits that did not prove live execution.
@@ -49,9 +52,9 @@ func CheckResults(input io.Reader, output io.Writer) error {
 			failed = true
 		case "output":
 			for _, line := range strings.Split(event.Output, "\n") {
-				// Go testing's owned cleanup signature, never the path/error payload or a provider claim.
-				if strings.Contains(line, "TempDir RemoveAll cleanup: ") {
-					fmt.Fprintln(output, "live_harness.cleanup_signature=tempdir_removeall")
+				if match := tempDirCleanup.FindStringSubmatch(line); match != nil {
+					operation, reason := cleanupErrorFacts(match[1])
+					fmt.Fprintf(output, "live_harness.cleanup_signature=tempdir_removeall operation=%s reason=%s\n", operation, reason)
 				}
 
 				// t.Log's file/line prefix may itself contain "live_".
@@ -80,4 +83,43 @@ func CheckResults(input io.Reader, output io.Writer) error {
 	}
 	fmt.Fprintf(output, "live_tests_completed=%d\n", len(started))
 	return nil
+}
+
+// cleanupErrorFacts retains the operation and OS error from os.PathError's
+// "op path: error" format. Paths and unknown error text can contain credentials
+// or transcript content, so neither is forwarded. These are diagnostic facts,
+// never an alternative source of scenario acceptance.
+func cleanupErrorFacts(payload string) (operation, reason string) {
+	operation, reason = "unknown", "unknown"
+	op, _, ok := strings.Cut(payload, " ")
+	if !ok {
+		return operation, reason
+	}
+	switch op {
+	case "RemoveAll", "remove", "unlinkat", "open", "openfdat", "readdirnames":
+		operation = op
+	}
+	separator := strings.LastIndex(payload, ": ")
+	if separator < 0 {
+		return operation, reason
+	}
+	switch payload[separator+2:] {
+	case "directory not empty":
+		reason = "directory_not_empty"
+	case "permission denied", "access is denied":
+		reason = "permission_denied"
+	case "operation not permitted":
+		reason = "operation_not_permitted"
+	case "device or resource busy":
+		reason = "resource_busy"
+	case "read-only file system":
+		reason = "read_only_filesystem"
+	case "no such file or directory":
+		reason = "not_found"
+	case "input/output error":
+		reason = "io_error"
+	case "invalid argument":
+		reason = "invalid_argument"
+	}
+	return operation, reason
 }

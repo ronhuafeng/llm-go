@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
+	"go/build"
 	"go/importer"
 	"go/parser"
 	"go/token"
@@ -118,6 +119,27 @@ type sdkSourceImporter struct {
 	compiled types.Importer
 }
 
+func TestSDKSourceImporterUsesActiveBuildConstraints(t *testing.T) {
+	dir := t.TempDir()
+	for name, source := range map[string]string{
+		"active.go": "//go:build " + build.Default.GOOS + "\n\npackage codexsdk\nconst selected = 1\n",
+		"other.go":  "//go:build !" + build.Default.GOOS + "\n\npackage codexsdk\nconst selected = 2\n",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(source), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	loader := &sdkSourceImporter{root: dir, fset: token.NewFileSet(), cache: map[string]*types.Package{}}
+	pkg, err := loader.Import("github.com/ronhuafeng/llm-go/codexsdk")
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected, ok := pkg.Scope().Lookup("selected").(*types.Const)
+	if !ok || selected.Val().ExactString() != "1" {
+		t.Fatal("source importer did not select the active Go build")
+	}
+}
+
 func (i *sdkSourceImporter) Import(path string) (*types.Package, error) {
 	if pkg := i.cache[path]; pkg != nil {
 		return pkg, nil
@@ -140,6 +162,13 @@ func (i *sdkSourceImporter) Import(path string) (*types.Package, error) {
 	var files []*ast.File
 	for _, entry := range entries {
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".go" || strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
+		}
+		match, err := build.Default.MatchFile(dir, entry.Name())
+		if err != nil {
+			return nil, err
+		}
+		if !match {
 			continue
 		}
 		file, err := parser.ParseFile(i.fset, filepath.Join(dir, entry.Name()), nil, parser.SkipObjectResolution)

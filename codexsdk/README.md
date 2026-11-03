@@ -12,7 +12,16 @@ go get github.com/ronhuafeng/llm-go@latest
 Install and configure the official `codex` executable before creating a client.
 The SDK launches the configured command, normally
 `codex app-server --listen stdio://`, and owns that child process and its stdio
-connection. It does not install Codex, compile its Rust source, embed Core, or
+connection. On Linux it also owns the command's inherited process group: graceful
+shutdown first signals the command, then terminates remaining group members
+and observes that its remaining members have stopped before a successful Close.
+This bounded observation requires Linux `/proc` group/task visibility; unavailable
+state or an expired containment bound produces a shutdown error. A caller's
+CloseContext deadline can return earlier while owned cleanup continues.
+`ShutdownResult.ProcessReaped` describes only the direct child;
+descendants are not reaped by the SDK. Processes that deliberately detach into
+another group are outside this ownership. Other platforms retain direct-child
+cleanup. It does not install Codex, compile its Rust source, embed Core, or
 reimplement the model/provider runtime.
 
 `ClientOptions` supplies the working directory, command, initialization, and

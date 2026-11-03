@@ -18,6 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ronhuafeng/llm-go/codexsdk/internal/ownedprocess"
 	"github.com/ronhuafeng/llm-go/codexsdk/internal/wirejson"
 	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
 )
@@ -59,6 +60,7 @@ type Client struct {
 	shutdownDone        chan struct{}
 	handlersDone        chan struct{}
 	processDone         chan struct{}
+	processCleanupErr   error // Published by closing processDone.
 	startupDone         chan struct{}
 	dispatchStop        chan struct{}
 	dispatcherDone      chan struct{}
@@ -423,6 +425,7 @@ func (c *Client) start() error {
 	// Interrupt and joins its native child. Cancellation still starts bounded
 	// cleanup, including when it races Start; cleanup waits for startupDone.
 	cmd.Cancel = nil
+	ownedprocess.Configure(cmd)
 	cmd.Dir = c.options.CWD
 	cmd.Env = c.options.Env
 	stdin, err := cmd.StdinPipe()

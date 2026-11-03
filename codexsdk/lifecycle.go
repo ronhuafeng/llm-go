@@ -5,6 +5,8 @@ import (
 	"errors"
 	"os"
 	"time"
+
+	"github.com/ronhuafeng/llm-go/codexsdk/internal/ownedprocess"
 )
 
 const (
@@ -20,7 +22,7 @@ var ErrCallbackWorkPending = errors.New("codexsdk: callback work remains unresol
 // CallbackWorkPending includes executing callbacks and queued callback entries.
 // Cause is the first client failure, or ErrClientClosed for normal closure.
 type ShutdownResult struct {
-	ProcessReaped       bool
+	ProcessReaped       bool // The directly launched child, not its descendants.
 	CallbackWorkPending int64
 	Cause               error
 }
@@ -67,6 +69,9 @@ func (c *Client) CloseContext(ctx context.Context) (ShutdownResult, error) {
 		c.closeMu.Lock()
 		failure, callbackFailure := c.failure, c.callbackFailure
 		c.closeMu.Unlock()
+		if c.processCleanupErr != nil {
+			return result, &ShutdownError{Result: result, Err: c.processCleanupErr}
+		}
 		if result.CallbackWorkPending > 0 {
 			return result, &ShutdownError{Result: result, Err: ErrCallbackWorkPending}
 		}
@@ -119,7 +124,7 @@ func (c *Client) shutdownSnapshot() ShutdownResult {
 	result := ShutdownResult{CallbackWorkPending: c.callbackWork.Load(), Cause: c.firstCloseReason(ErrClientClosed)}
 	select {
 	case <-c.processDone:
-		result.ProcessReaped = true
+		result.ProcessReaped = c.cmd == nil || c.cmd.Process == nil || c.cmd.ProcessState != nil
 	default:
 	}
 	return result
@@ -153,15 +158,6 @@ func (c *Client) cleanupProcess() {
 		_ = c.stdout.Close()
 	}
 	if c.cmd != nil && c.cmd.Process != nil {
-		done := make(chan struct{})
-		go func() { _ = c.cmd.Wait(); close(done) }()
-		timer := time.NewTimer(processShutdownGrace)
-		defer timer.Stop()
-		select {
-		case <-done:
-		case <-timer.C:
-			_ = c.cmd.Process.Kill()
-			<-done
-		}
+		c.processCleanupErr = ownedprocess.Reap(c.cmd, processShutdownGrace)
 	}
 }

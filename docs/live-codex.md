@@ -271,6 +271,13 @@ identity, configured model/reasoning, and typed failure facts. Keep requested
 and observed facts separate. `RuntimeCompatibilityUnknown` remains unchanged;
 a passing scenario does not certify every method or model combination.
 
+Temporary-directory cleanup failures remain failures even when the business
+stage completed. The shared runner retains Go testing's cleanup signature,
+filesystem operation and OS error category (or explicit `unknown`) without
+forwarding the temporary path or arbitrary error payload. This distinguishes
+an observed directory-not-empty error from permission or I/O failures without
+pretending that the category alone establishes the responsible process.
+
 Never print keys, authorization headers, auth files, full environment dumps, or
 raw private transcripts. Do not upload an entire `CODEX_HOME`. Basic hygiene
 and repository-write credential isolation remain necessary even though the
