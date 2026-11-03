@@ -117,3 +117,13 @@ func TestRetiredRepairCommandsHaveNoExecutionPath(t *testing.T) {
 		}
 	}
 }
+
+func TestPrepareSourceCLIRejectsPublicationAndSemanticModes(t *testing.T) {
+	for _, mode := range [][]string{{"-github-repository", "owner/repo"}, {"-force-compare"}, {"-validation-only"}, {"-repair-pending"}} {
+		var stdout, stderr bytes.Buffer
+		args := append([]string{"prepare-source", "-repo-root", t.TempDir(), "-json"}, mode...)
+		if code := run(args, &stdout, &stderr); code != 1 || !strings.Contains(stderr.String(), "source preparation cannot") {
+			t.Fatalf("mode %v: code=%d stdout=%s stderr=%s", mode, code, stdout.String(), stderr.String())
+		}
+	}
+}

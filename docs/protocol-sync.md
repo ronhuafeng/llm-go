@@ -26,8 +26,13 @@ returns actionable `needs_recovery` with its exact identity instead of silently
 skipping forever or allocating a second PR. Repository, base, publishing App identity,
 and branch identity must be valid; unknown API results fail closed.
 
-Each new goal retains that selected target. Preparation checks that generation
-resolved the same ref, kind, and commit before publication. Detection never
+Each new goal retains that selected target. Preparation checks that source generation
+resolved the same ref, kind, and commit before publication. `prepare-source`
+warms the exact upstream source, complete/stable schemas and comparison inputs
+without running the accepted Go generator against the new schema. Unsupported
+new protocol shapes belong to the candidate goal's generation and repair work,
+not to its startup prerequisites. Source acquisition, build and identity failures
+still stop preparation; this is not best-effort diagnosis or skipped acceptance. Detection never
 resumes an old goal, resets its deadline, marks a PR ready, or integrates it.
 A skipped or blocked detection is not an upstream acceptance result.
 
@@ -35,9 +40,13 @@ A skipped or blocked detection is not an upstream acceptance result.
 
 The trusted launcher fixes the accepted base, exact upstream ref/peeled SHA,
 credential-free candidate workspace, dedicated Draft PR/branch, model and runtime.
-It uses `gpt-6.1-sol/high`; official latest CLI is resolved, installed, checked
-and recorded once per run. The selected schema source is independent of that
-CLI version. Live retains its own existing `gpt-6-sol/high` fixture.
+It uses `gpt-6.1-sol/high`. The official CLI release comes from the accepted
+controller commit's checked-in baseline, not the target or candidate workspace.
+That exact release is installed, checked and recorded once per run, so the
+accepted SDK drives its supported executor while adapting the newer target.
+Recovery uses the current accepted controller's baseline. Live retains its own
+existing latest-runtime `gpt-6-sol/high` fixture and target acceptance remains
+separate from executor setup.
 
 The goal chooses how to generate, adapt, correct justified verifier assumptions,
 verify and repair. Codex owns continuation through its native GoalSet API; there

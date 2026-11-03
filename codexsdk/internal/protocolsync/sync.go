@@ -17,6 +17,7 @@ const (
 	OutcomeFailed             = "failed"
 	OutcomeApplied            = "applied"
 	OutcomePlanReady          = "plan_ready"
+	OutcomeSourceReady        = "source_ready"
 	OutcomePRPending          = "pr_pending"
 	OutcomeRepairReady        = "repair_ready"
 	OutcomeSemanticUnresolved = "semantic_unresolved"
@@ -59,9 +60,23 @@ type SyncResult struct {
 
 // Sync resolves, generates, plans, and applies only a fully planned candidate.
 // Semantic/generator incompatibility returns a read-only escalation outcome.
-func Sync(req SyncRequest) (result SyncResult, err error) {
+func Sync(req SyncRequest) (SyncResult, error) {
+	return syncCandidate(req, false)
+}
+
+// PrepareSource warms exact upstream source/schema inputs without requiring the
+// accepted Go generator to understand the upgrade target. Planning and repair
+// belong to the candidate goal, not to its trusted launch prerequisites.
+func PrepareSource(req SyncRequest) (SyncResult, error) {
+	return syncCandidate(req, true)
+}
+
+func syncCandidate(req SyncRequest, prepareOnly bool) (result SyncResult, err error) {
 	stage := "configuration"
 	defer func() { finishSync(&result, err, stage) }()
+	if prepareOnly && (req.Publication != nil || req.RepairPending || req.ValidationOnly || req.ForceCompare || req.Diagnostic) {
+		return result, &Failure{Category: FailurePolicy, Err: fmt.Errorf("source preparation cannot plan, verify, apply, or publish a candidate")}
+	}
 	if req.ValidationOnly && req.Diagnostic {
 		return result, &Failure{Category: FailurePolicy, Err: fmt.Errorf("validation-only cannot be combined with diagnostic mode")}
 	}
@@ -132,7 +147,7 @@ func Sync(req SyncRequest) (result SyncResult, err error) {
 		Mode:           mode,
 		AllowDowngrade: req.AllowDowngrade,
 	})
-	afterPolicy := decideAfterPolicy(policy.Decision, req.ForceCompare || req.Diagnostic || req.ValidationOnly)
+	afterPolicy := decideAfterPolicy(policy.Decision, req.ForceCompare || req.Diagnostic || req.ValidationOnly || prepareOnly)
 	result.Reason = policy.Reason
 	stage = "policy"
 	if afterPolicy == "blocked" {
@@ -203,6 +218,14 @@ func Sync(req SyncRequest) (result SyncResult, err error) {
 	}
 	result.Candidate = candidate.SchemaDir
 	result.CandidateDir = candidate.Dir
+	if prepareOnly {
+		if err := AssertClean(req.RepoRoot); err != nil {
+			return result, fmt.Errorf("source preparation changed the accepted worktree: %w", err)
+		}
+		result.Outcome = OutcomeSourceReady
+		result.Reason = "exact upstream source and schemas prepared; candidate planning belongs to the native goal"
+		return result, nil
+	}
 	if req.ValidationOnly {
 		stage = "exact_verification"
 		verify := req.VerifyExact

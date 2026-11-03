@@ -676,14 +676,19 @@ func TestNativeGoalUsesFixedModelAndReasoning(t *testing.T) {
 
 func TestGoalUsesRunSelectedNativeCodex(t *testing.T) {
 	root, _ := filepath.Abs("../../../..")
-	workflow := readWorkflow(t, root, "codexsdk-upstream-protocol-sync.yml")
-	job, _ := workflowJobByID(workflow, "sync")
-	if strings.Count(job, "uses: ./.github/actions/setup-codex") != 1 || !strings.Contains(job, "CODEX_CLI_VERSION: ${{ steps.runtime.outputs.version }}") {
-		t.Fatal("goal must inherit one official run-selected Codex runtime")
+	for filename, jobID := range map[string]string{"codexsdk-upstream-protocol-sync.yml": "sync", "auto-forward.yml": "integrate"} {
+		workflow := readWorkflow(t, root, filename)
+		job, _ := workflowJobByID(workflow, jobID)
+		if strings.Count(job, "uses: ./.github/actions/setup-codex") != 1 || !strings.Contains(job, "CODEX_CLI_VERSION: ${{ steps.runtime.outputs.version }}") {
+			t.Fatalf("%s: goal must inherit one official run-selected Codex runtime", filename)
+		}
+		if !strings.Contains(job, "ref: ${{ github.sha }}") || !strings.Contains(job, "accepted-base: ${{ github.sha }}") {
+			t.Fatalf("%s: executor must use the same accepted commit as its controller", filename)
+		}
 	}
 	action := repositorySource(t, root, ".github/actions/setup-codex/action.yml")
 	if !strings.Contains(action, "go run ./internal/tools/cmd/livecodex version") || !strings.Contains(action, "@openai/codex@${version}") || !strings.Contains(action, `test "${observed}" = "codex-cli ${version}"`) {
-		t.Fatal("official latest runtime setup lost")
+		t.Fatal("shared runtime installation or Live latest selection lost")
 	}
 }
 

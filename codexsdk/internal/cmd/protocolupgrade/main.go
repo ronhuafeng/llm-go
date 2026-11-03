@@ -19,7 +19,7 @@ func main() {
 
 func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "protocolupgrade: command is required: goal-preflight, goal-prepare, goal, goal-summary, sync, diagnose, verify, verify-ci-gate, verify-provenance-offline, verify-candidate, compare, apply, check, scope, stage, or publish\n")
+		fmt.Fprintf(stderr, "protocolupgrade: command is required: goal-preflight, goal-prepare, goal, goal-summary, prepare-source, sync, diagnose, verify, verify-ci-gate, verify-provenance-offline, verify-candidate, compare, apply, check, scope, stage, or publish\n")
 		return 2
 	}
 	switch args[0] {
@@ -45,10 +45,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runGoalVerify(args[1:], stdout, stderr)
 	case "verify-provenance-offline":
 		return runGoalOfflineProvenance(args[1:], stdout, stderr)
-	case "sync":
-		return runSync(args[1:], stdout, stderr, false)
-	case "diagnose":
-		return runSync(args[1:], stdout, stderr, true)
+	case "sync", "diagnose", "prepare-source":
+		return runSync(args[1:], stdout, stderr, args[0])
 	case "verify-candidate":
 		return runVerifyCandidate(args[1:], stderr)
 	case "compare":
@@ -233,11 +231,7 @@ func runCheck(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-func runSync(args []string, stdout, stderr io.Writer, diagnostic bool) int {
-	command := "sync"
-	if diagnostic {
-		command = "diagnose"
-	}
+func runSync(args []string, stdout, stderr io.Writer, command string) int {
 	fs := flag.NewFlagSet(command, flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	repoRoot := fs.String("repo-root", "", "repository root")
@@ -292,7 +286,11 @@ func runSync(args []string, stdout, stderr io.Writer, diagnostic bool) int {
 			return protocolsync.GenerateCandidate(req)
 		}
 	}
-	result, err := protocolsync.Sync(protocolsync.SyncRequest{
+	sync := protocolsync.Sync
+	if command == "prepare-source" {
+		sync = protocolsync.PrepareSource
+	}
+	result, err := sync(protocolsync.SyncRequest{
 		Lookuper: lookup, Generate: generate,
 		Publication:    publication,
 		RepoRoot:       *repoRoot,
@@ -303,7 +301,7 @@ func runSync(args []string, stdout, stderr io.Writer, diagnostic bool) int {
 		ForceCompare:   *forceCompare,
 		RepairPending:  *repairPending,
 		ValidationOnly: *validationOnly,
-		Diagnostic:     diagnostic,
+		Diagnostic:     command == "diagnose",
 		EventName:      *eventName,
 	})
 	if *jsonOut {

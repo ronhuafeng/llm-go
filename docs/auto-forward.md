@@ -68,7 +68,9 @@ lease-bound and read back. Duplicate completion does not repeat integration.
 ## Credential boundary
 
 Prewarming upstream inputs and installing the official runtime happen before
-App/provider credentials enter the trusted controller. Existing GoalSandbox
+App/provider credentials enter the trusted controller. The repair runtime is
+selected from the checked-in baseline at the exact accepted controller commit,
+not the candidate or latest upstream target. Existing GoalSandbox
 uses an explicit environment allowlist, private PID/proc/root and bounded mounts;
 only provider credentials enter the fresh model runtime. Oracle verification
 uses the existing credential-free sandbox. No App key/token, host environment,

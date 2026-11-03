@@ -1,5 +1,9 @@
-name: Set up official Codex latest
-description: Resolve official latest once, then install and verify that exact stable CLI release.
+name: Set up official Codex
+description: Select an accepted-base or latest release, then install and verify that exact stable CLI.
+inputs:
+  accepted-base:
+    description: Exact trusted controller commit whose accepted baseline selects the upgrade executor. Empty selects latest for Live.
+    default: ""
 outputs:
   version:
     description: Exact official CLI version selected and installed for this run.
@@ -13,9 +17,18 @@ runs:
     - name: Resolve and install official Codex
       id: runtime
       shell: bash
+      env:
+        ACCEPTED_BASE: ${{ inputs.accepted-base }}
       run: |
         set -euo pipefail
-        version="$(go run ./internal/tools/cmd/livecodex version)"
+        if [[ -n "${ACCEPTED_BASE}" ]]; then
+          [[ "${ACCEPTED_BASE}" =~ ^[0-9a-f]{40}$ ]]
+          version="$(git show "${ACCEPTED_BASE}:codexsdk/internal/protocolschema/appserver/v2/baseline_metadata.json" |
+            jq -er '.codex_version | capture("^codex-cli (?<version>(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*))$").version')"
+          echo "codex_runtime_accepted_base=${ACCEPTED_BASE}"
+        else
+          version="$(go run ./internal/tools/cmd/livecodex version)"
+        fi
         npm install --global --registry=https://registry.npmjs.org "@openai/codex@${version}"
         observed="$(codex --version)"
         test "${observed}" = "codex-cli ${version}"

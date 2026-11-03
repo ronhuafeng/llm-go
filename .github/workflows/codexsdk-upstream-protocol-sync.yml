@@ -422,10 +422,12 @@ jobs:
           sudo apt-get install -y bubblewrap clang cmake libasound2-dev libssl-dev pkg-config protobuf-compiler
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           rustup default stable
-      - name: Set up official Codex latest once
+      - name: Set up accepted-base Codex executor
         if: ${{ steps.preflight.outputs.outcome == 'run' || steps.recovery.outputs.outcome == 'admitted' }}
         id: runtime
         uses: ./.github/actions/setup-codex
+        with:
+          accepted-base: ${{ github.sha }}
       - name: Build trusted launcher and warm exact source inputs
         if: ${{ steps.preflight.outputs.outcome == 'run' || steps.recovery.outputs.outcome == 'admitted' }}
         id: prepare
@@ -440,7 +442,7 @@ jobs:
             selected="${RUNNER_TEMP}/goal-selected.json"
             jq '{Target: .target}' "${RUNNER_TEMP}/goal-recovery.json" > "${selected}"
           fi
-          args=(diagnose -repo-root "${GITHUB_WORKSPACE}" -module-root "${GITHUB_WORKSPACE}/codexsdk"
+          args=(prepare-source -repo-root "${GITHUB_WORKSPACE}" -module-root "${GITHUB_WORKSPACE}/codexsdk"
             -event-name "${GITHUB_EVENT_NAME}" -upstream-ref "$(jq -er .Target.RefName "${selected}")" -json)
           "${control}" "${args[@]}" > "${RUNNER_TEMP}/goal-source.json"
           # A moved tag/ref must not silently change this run's selected target.
