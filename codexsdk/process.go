@@ -1,6 +1,4 @@
-//go:build !linux
-
-package ownedprocess
+package codexsdk
 
 import (
 	"errors"
@@ -10,8 +8,10 @@ import (
 )
 
 // Other platforms retain direct-child cleanup; no process-tree guarantee.
-func Configure(cmd *exec.Cmd) {}
-func Reap(cmd *exec.Cmd, grace time.Duration) error {
+var configureOwnedProcess = func(cmd *exec.Cmd) {}
+var reapOwnedProcess = reapDirectProcess
+
+func reapDirectProcess(cmd *exec.Cmd, grace time.Duration) error {
 	done := make(chan struct{})
 	go func() { _ = cmd.Wait(); close(done) }()
 	timer := time.NewTimer(grace)

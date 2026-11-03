@@ -1,4 +1,4 @@
-package ownedprocess
+package codexsdk
 
 import (
 	"errors"
@@ -13,9 +13,16 @@ import (
 	"unsafe"
 )
 
+// Platform selection is fixed during package initialization. Portable defaults
+// remain in the common file; callers do not select or mutate lifecycle policy.
+func init() {
+	configureOwnedProcess = configureLinuxProcess
+	reapOwnedProcess = reapLinuxProcess
+}
+
 // A dedicated group bounds termination to the command and children that remain
 // in its group. Descendants that deliberately detach are outside this ownership.
-func Configure(cmd *exec.Cmd) {
+func configureLinuxProcess(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 }
 
@@ -43,7 +50,7 @@ func waitOwnedExit(cmd *exec.Cmd) error {
 	}
 }
 
-func Reap(cmd *exec.Cmd, grace time.Duration) error {
+func reapLinuxProcess(cmd *exec.Cmd, grace time.Duration) error {
 	exited := make(chan error, 1)
 	go func() { exited <- waitOwnedExit(cmd) }()
 	timer := time.NewTimer(grace)

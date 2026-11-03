@@ -18,7 +18,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ronhuafeng/llm-go/codexsdk/internal/ownedprocess"
 	"github.com/ronhuafeng/llm-go/codexsdk/internal/wirejson"
 	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
 )
@@ -425,7 +424,7 @@ func (c *Client) start() error {
 	// Interrupt and joins its native child. Cancellation still starts bounded
 	// cleanup, including when it races Start; cleanup waits for startupDone.
 	cmd.Cancel = nil
-	ownedprocess.Configure(cmd)
+	configureOwnedProcess(cmd)
 	cmd.Dir = c.options.CWD
 	cmd.Env = c.options.Env
 	stdin, err := cmd.StdinPipe()

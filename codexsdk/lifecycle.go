@@ -5,8 +5,6 @@ import (
 	"errors"
 	"os"
 	"time"
-
-	"github.com/ronhuafeng/llm-go/codexsdk/internal/ownedprocess"
 )
 
 const (
@@ -158,6 +156,6 @@ func (c *Client) cleanupProcess() {
 		_ = c.stdout.Close()
 	}
 	if c.cmd != nil && c.cmd.Process != nil {
-		c.processCleanupErr = ownedprocess.Reap(c.cmd, processShutdownGrace)
+		c.processCleanupErr = reapOwnedProcess(c.cmd, processShutdownGrace)
 	}
 }
