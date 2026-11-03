@@ -39,9 +39,9 @@ The URL branch accepts that value because the other branch's field is open.
 Check single-branch, both-branch and mixed-type examples against the unmodified
 source schema, then apply only the accepted public overlays. Preserve accepted
 values on round trip; retain rejection when no branch holds and for undeclared
-record fields. Exercise the independent oracle too: closing each branch before
-considering the whole union can repeat the same defect and hide it behind green
-checks. The goal owns the representation, oracle and regression repairs.
+record fields. Use direct native tests against the official source examples: closing each
+branch before considering the whole union can repeat the same defect. The goal
+owns the representation and corresponding regression repairs in one candidate.
 
 ## One acceptance entrypoint
 
@@ -66,8 +66,8 @@ Live. These are the four existing standards in `docs/verify.md`:
 - Source correctness, including applicable syntax/isolation checks,
   tidy-without-diff, vet and race tests.
 - Generated reproducibility and isolated compilation of freshly generated code.
-- Provenance rebuilt from the exact recorded upstream source, with accepted-base
-  behavior and target-schema contracts checked against that same candidate.
+- Provenance rebuilt from the exact recorded upstream source, without mixing old schema or test files with new implementation. Native
+  candidate tests own the corresponding mapping and SDK behavior assertions.
 - Existing real Codex Live scenarios, with their own model/provider fixture.
 
 Local checks and CI share the check implementations; local success alone is

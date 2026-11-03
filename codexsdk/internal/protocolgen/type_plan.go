@@ -1499,6 +1499,12 @@ func mapValueType(path string, schemaPath string, schema *Schema) (string, strin
 		return goType, "", err
 	case schema.Type.Only("array") && plainStringArraySchema(schema):
 		return "[]string", "", nil
+	case schema.Type.Only("object") && plainTypedMapSchema(schema):
+		valueType, refPath, err := mapValueType(path+"/additionalProperties", schemaPath, schema.AdditionalProperties.Schema)
+		if err != nil {
+			return "", "", err
+		}
+		return "map[string]" + valueType, refPath, nil
 	case schema.Type.Has("null"):
 		nonNull, ok := schema.Type.NullableSingle()
 		if !ok {
@@ -1519,6 +1525,16 @@ func mapValueType(path string, schemaPath string, schema *Schema) (string, strin
 	default:
 		return "", "", fmt.Errorf("field %s has unsupported additionalProperties schema", path)
 	}
+}
+
+// A nested map has no record fields or independent constraints to lose. Its
+// values are planned recursively using the same typed-map rules.
+func plainTypedMapSchema(schema *Schema) bool {
+	return schema.AdditionalProperties.Schema != nil &&
+		len(schema.Properties) == 0 && len(schema.Required) == 0 &&
+		len(schema.OneOf) == 0 && len(schema.AnyOf) == 0 && len(schema.AllOf) == 0 &&
+		len(schema.Enum) == 0 && schema.Items == nil &&
+		len(unmodeledKeywords(schema)) == 0 && !schema.Default.Present
 }
 
 func plainStringArraySchema(schema *Schema) bool {

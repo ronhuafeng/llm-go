@@ -86,7 +86,7 @@ Java 21.0.12.1. These are finite scoped results, not parameterized proofs.
 
 - `ModelReply → VerifyBad → ModelReply → VerifyGood` maps to
   `TestRepairSequentialUnknownShapesAndValidationFeedback`. Model completion
-  supplies a proposal; the independent oracle supplies readiness.
+  supplies a proposal; the candidate verification and exact-head checks supply readiness.
 - `CancelRepair/AuthorizeRecovery/ResumeRepair`, retained identity, and `RejectStale` map to
   `TestRepairBlocksAndRetainsCheckpoint` and
   `TestRepairCheckpointRecoveryRejectsStaleAndTamperedState`.

@@ -71,14 +71,13 @@ func CheckScope(repoRoot, phase string) error {
 }
 
 func validatePaths(paths []string, phase string) error {
-	if phase != "mechanical" && phase != "agent" && phase != "final" && phase != "verifier" {
+	if phase != "mechanical" && phase != "agent" && phase != "final" {
 		return &Failure{Category: FailurePolicy, Err: fmt.Errorf("needs-maintainer: unknown sync scope %q", phase)}
 	}
 	var invalid []string
 	for _, p := range paths {
 		allowed := (phase == "mechanical" || phase == "final") && isMechanicalPath(p)
 		allowed = allowed || (phase == "agent" || phase == "final") && isAgentProposalPath(p)
-		allowed = allowed || phase == "verifier" && isVerifierProposalPath(p)
 		if !allowed {
 			invalid = append(invalid, p)
 		}
@@ -111,21 +110,6 @@ func isAgentProposalPath(p string) bool {
 	default:
 		return false
 	}
-}
-
-// Contract-grounded verifier source may evolve in the same goal proposal.
-// Its host runner, source identity and publication controls remain excluded.
-func isVerifierProposalPath(p string) bool {
-	switch p {
-	case "codexsdk/internal/protocolsync/oracle_schema.go", "codexsdk/internal/protocolsync/oracle_schema_test.go", "codexsdk/internal/protocolupgrade/oracle_roots.go", "codexsdk/internal/protocolupgrade/oracle_roots_test.go":
-		return true
-	}
-	const root = "codexsdk/internal/schemaoracle/"
-	if !strings.HasPrefix(p, root) || path.Clean(p) != p || !strings.HasSuffix(p, ".go") || strings.HasSuffix(p, ".gen.go") {
-		return false
-	}
-	rel := strings.TrimPrefix(p, root)
-	return !strings.Contains(rel, "/")
 }
 
 func isMechanicalPath(p string) bool {

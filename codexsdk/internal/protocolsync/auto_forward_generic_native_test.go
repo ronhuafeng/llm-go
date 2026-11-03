@@ -113,8 +113,13 @@ func TestForwardGenericRebaseProvesExactNewCandidateWithoutModelRepair(t *testin
 			if scenario == "conflict" && (!errors.Is(err, ErrForwardConflict) || calls != 0) {
 				t.Fatal("ordinary conflict did not stop before verification or model execution")
 			}
-			if scenario == "unsupported" && (calls != 0 || !strings.Contains(err.Error(), "outside existing immutable runtime proof")) {
-				t.Fatal("unsupported tools/custom.go change reached automatic executable verification")
+			if scenario == "unsupported" {
+				if calls != 0 {
+					t.Fatalf("unsupported tools/custom.go change reached automatic executable verification: calls=%d", calls)
+				}
+				if err == nil || !strings.Contains(err.Error(), "outside native runtime scope") {
+					t.Fatalf("unsupported scope lost its explicit blocker: %v", err)
+				}
 			}
 			if scenario == "semantic" && !errors.Is(err, ErrForwardSemanticProof) {
 				t.Fatal("ordinary semantic failure lost its explicit blocker")

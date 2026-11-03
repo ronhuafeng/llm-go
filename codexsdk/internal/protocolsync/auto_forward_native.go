@@ -525,7 +525,7 @@ func (n *NativeForward) RebasedHead(head string) bool {
 }
 
 // Verify binds every newly observed M/H pair to the original and current
-// accepted contract lanes before publication or integration. CI remains a
+// consistent candidate before publication or integration. CI remains a
 // separate mandatory exact-head proof; this cache cannot cross M or H.
 func (n *NativeForward) Verify(ctx context.Context, main, head string) error {
 	key := main + ":" + head

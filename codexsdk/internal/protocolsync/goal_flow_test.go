@@ -57,7 +57,7 @@ func TestNativeGoalFlowRequiresActualAcceptance(t *testing.T) {
 			fixture := newGoalPublicationFixture(t)
 			if scenario == "new_paths" {
 				goalTestWrite(t, fixture.request.RepoRoot, "codexsdk/internal/protocolgen/testdata/union.json", `{"type":"string"}`)
-				goalTestWrite(t, fixture.request.RepoRoot, "codexsdk/internal/protocolsync/oracle_schema_helpers.go", "package protocolsync\n")
+				goalTestWrite(t, fixture.request.RepoRoot, "codexsdk/internal/protocolsync/untrusted_source_helpers.go", "package protocolsync\n")
 				goalTestWrite(t, fixture.request.RepoRoot, "codexsdk/internal/protocolsync/goal_publication.go", "package protocolsync\n")
 				goalTestWrite(t, fixture.request.RepoRoot, ".github/workflows/pr-verification.yml", "name: proposed workflow\n")
 				fixture.request.CandidateDir = filepath.Join(t.TempDir(), "candidate")
@@ -140,7 +140,7 @@ func TestNativeGoalFlowRequiresActualAcceptance(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				for _, name := range []string{"codexsdk/internal/protocolgen/testdata/union.json", "codexsdk/internal/protocolsync/oracle_schema_helpers.go", "codexsdk/internal/protocolsync/goal_publication.go", ".github/workflows/pr-verification.yml"} {
+				for _, name := range []string{"codexsdk/internal/protocolgen/testdata/union.json", "codexsdk/internal/protocolsync/untrusted_source_helpers.go", "codexsdk/internal/protocolsync/goal_publication.go", ".github/workflows/pr-verification.yml"} {
 					if !strings.Contains(strings.Join(result.ChangedPaths, "\n"), name) || !bytes.Contains(data, []byte(name)) {
 						t.Fatalf("published path missing from review evidence: %s", name)
 					}

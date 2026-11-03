@@ -63,7 +63,7 @@ type goalCommandRunner func(*exec.Cmd) error
 func VerifyGoal(ctx context.Context, req GoalVerifyRequest) (GoalVerifyResult, error) {
 	return verifyGoal(ctx, req, nil)
 }
-func verifyGoal(ctx context.Context, req GoalVerifyRequest, run goalCommandRunner, contract ...goalContractRunner) (result GoalVerifyResult, retErr error) {
+func verifyGoal(ctx context.Context, req GoalVerifyRequest, run goalCommandRunner, source ...goalSourceRunner) (result GoalVerifyResult, retErr error) {
 	result.Scope = "local"
 	defer func() {
 		if retErr != nil {
@@ -180,7 +180,7 @@ func verifyGoal(ctx context.Context, req GoalVerifyRequest, run goalCommandRunne
 		if err = os.MkdirAll(filepath.Join(snapshot, "codexsdk/.cache/openai-codex"), 0700); err != nil {
 			return result, err
 		}
-		sandbox, e := newOracleSandbox(ctx, snapshot, retained)
+		sandbox, e := newNativeSandbox(ctx, snapshot, retained)
 		if e != nil {
 			return result, e
 		}
@@ -255,7 +255,7 @@ func verifyGoal(ctx context.Context, req GoalVerifyRequest, run goalCommandRunne
 		}
 		cleanup()
 		if gate == "provenance" {
-			if err = goalRunContracts(ctx, req, snapshot, work, log, contract...); err != nil {
+			if err = goalVerifyOfficialSource(ctx, req, snapshot, work, log, source...); err != nil {
 				return result, err
 			}
 			digest, e := goalSnapshot(ctx, snapshot, "")
@@ -272,7 +272,7 @@ func verifyGoal(ctx context.Context, req GoalVerifyRequest, run goalCommandRunne
 // Public native runtime files may resolve into paths hidden by the outer
 // sandbox (for example /etc/resolv.conf into /run). Re-admit only those exact
 // targets, read-only; their containing directories and sockets remain hidden.
-func goalNativeRuntimeInputs(sandbox *oracleSandbox, binary string) error {
+func goalNativeRuntimeInputs(sandbox *nativeSandbox, binary string) error {
 	dirs, err := codexexec.NativeGoalRuntimePaths(binary)
 	if err != nil {
 		return err
@@ -296,7 +296,7 @@ func goalNativeRuntimeInputs(sandbox *oracleSandbox, binary string) error {
 	return nil
 }
 
-func goalSandboxCommand(ctx context.Context, sandbox oracleSandbox, cmd *exec.Cmd, binary, version string) *exec.Cmd {
+func goalSandboxCommand(ctx context.Context, sandbox nativeSandbox, cmd *exec.Cmd, binary, version string) *exec.Cmd {
 	dir := cmd.Dir
 	if goalNativeTest(cmd) != "" {
 		dir = sandbox.root
@@ -305,7 +305,7 @@ func goalSandboxCommand(ctx context.Context, sandbox oracleSandbox, cmd *exec.Cm
 	switch goalNativeTest(cmd) {
 	case "TestNativeGoalSandboxBoundary":
 		isolated.Env = append(isolated.Env, "LLMGO_NATIVE_GOAL_SANDBOX=1", "CODEX_BINARY="+binary, "CODEX_CLI_VERSION="+version)
-	case "TestLiveRepairSandboxGoalContractsUseCandidateChecker":
+	case "TestLiveRepairSandboxCandidateVersionConsistency":
 		isolated.Env = append(isolated.Env, "LLMGO_REPAIR_SANDBOX_TEST=1")
 	}
 	isolated.Stdout, isolated.Stderr = cmd.Stdout, cmd.Stderr
@@ -435,9 +435,9 @@ func goalGateCommands(ctx context.Context, gate, root, work string) ([]*exec.Cmd
 	case "source":
 		native := command(root, "test", "./codexsdk/internal/codexexec", "-run", "^TestNativeGoalSandboxBoundary$", "-count=1", "-json")
 		native.Env = append(native.Env, "LLMGO_NATIVE_GOAL_SANDBOX=1")
-		contracts := command(root, "test", "./codexsdk/internal/protocolsync", "-run", "^TestLiveRepairSandboxGoalContractsUseCandidateChecker$", "-count=1", "-json")
-		contracts.Env = append(contracts.Env, "LLMGO_REPAIR_SANDBOX_TEST=1")
-		return []*exec.Cmd{command(root, "run", "github.com/rhysd/actionlint/cmd/actionlint@v1.7.12"), command(root, "mod", "tidy", "-diff"), native, contracts, command(root, "vet", "./..."), command(root, "test", "-race", "./...")}, cleanup, nil
+		candidateProof := command(root, "test", "./codexsdk/internal/protocolsync", "-run", "^TestLiveRepairSandboxCandidateVersionConsistency$", "-count=1", "-json")
+		candidateProof.Env = append(candidateProof.Env, "LLMGO_REPAIR_SANDBOX_TEST=1")
+		return []*exec.Cmd{command(root, "run", "github.com/rhysd/actionlint/cmd/actionlint@v1.7.12"), command(root, "mod", "tidy", "-diff"), native, candidateProof, command(root, "vet", "./..."), command(root, "test", "-race", "./...")}, cleanup, nil
 	case "generated":
 		isolated := filepath.Join(work, "regenerated")
 		if err := goalGeneratedInputs(root, isolated); err != nil {
@@ -832,8 +832,8 @@ func goalNativeTest(cmd *exec.Cmd) string {
 		switch arg {
 		case "^TestNativeGoalSandboxBoundary$":
 			return "TestNativeGoalSandboxBoundary"
-		case "^TestLiveRepairSandboxGoalContractsUseCandidateChecker$":
-			return "TestLiveRepairSandboxGoalContractsUseCandidateChecker"
+		case "^TestLiveRepairSandboxCandidateVersionConsistency$":
+			return "TestLiveRepairSandboxCandidateVersionConsistency"
 		}
 	}
 	return ""
@@ -912,7 +912,7 @@ func goalRunCommand(cmd *exec.Cmd, gate string, log *goalDiagnostics, run goalCo
 func VerifyCIGate(ctx context.Context, req GoalVerifyRequest) (GoalVerifyResult, error) {
 	return verifyCIGate(ctx, req, nil)
 }
-func verifyCIGate(ctx context.Context, req GoalVerifyRequest, run goalCommandRunner, contract ...goalContractRunner) (result GoalVerifyResult, retErr error) {
+func verifyCIGate(ctx context.Context, req GoalVerifyRequest, run goalCommandRunner, source ...goalSourceRunner) (result GoalVerifyResult, retErr error) {
 	nativeExecution := run == nil
 	if run == nil {
 		run = func(cmd *exec.Cmd) error { return cmd.Run() }
@@ -1004,7 +1004,7 @@ func verifyCIGate(ctx context.Context, req GoalVerifyRequest, run goalCommandRun
 		if err = os.MkdirAll(filepath.Join(snapshot, "codexsdk/.cache/openai-codex"), 0700); err != nil {
 			return result, err
 		}
-		sandbox, err := newOracleSandbox(ctx, snapshot, retained)
+		sandbox, err := newNativeSandbox(ctx, snapshot, retained)
 		if err != nil {
 			return result, err
 		}
@@ -1049,12 +1049,12 @@ func verifyCIGate(ctx context.Context, req GoalVerifyRequest, run goalCommandRun
 	}
 	if req.Gate == "provenance" {
 		if nativeExecution {
-			req.CandidateDir, err = goalFreshCIContractFacts(ctx, root, work)
+			req.CandidateDir, err = goalFreshCISourceFacts(ctx, root, work)
 			if err != nil {
 				return result, err
 			}
 		}
-		if err = goalRunContracts(ctx, req, root, work, log, contract...); err != nil {
+		if err = goalVerifyOfficialSource(ctx, req, root, work, log, source...); err != nil {
 			return result, err
 		}
 	}
@@ -1062,28 +1062,17 @@ func verifyCIGate(ctx context.Context, req GoalVerifyRequest, run goalCommandRun
 	return result, nil
 }
 
-type goalContractRunner func(context.Context, GoalContractRequest) error
+// goalSourceRequest contains one candidate and its rebuilt target source, never
+// executable code or semantic expectations from another SDK version.
+type goalSourceRequest struct {
+	RepoRoot, CandidateDir string
+	Output                 io.Writer
+}
+type goalSourceRunner func(context.Context, goalSourceRequest) error
 
-// The host chooses the accepted baseline and rebuilt official upstream facts.
-// Only sanitized disposable copies cross into candidate execution.
-func goalRunContracts(ctx context.Context, req GoalVerifyRequest, candidate, work string, log *goalDiagnostics, injected ...goalContractRunner) error {
-	if req.OriginalBaseRoot != "" && req.OriginalBaseRoot != req.BaseRoot {
-		original := req.OriginalBaseRoot
-		req.OriginalBaseRoot = ""
-		var failures []error
-		for i, base := range []string{req.BaseRoot, original} {
-			lane := filepath.Join(work, fmt.Sprintf("baseline-%d", i))
-			if err := os.MkdirAll(lane, 0700); err != nil {
-				return err
-			}
-			req.BaseRoot = base
-			if err := goalRunContracts(ctx, req, candidate, lane, log, injected...); err != nil {
-				failures = append(failures, fmt.Errorf("accepted baseline lane %d: %w", i, err))
-			}
-		}
-		return errors.Join(failures...)
-	}
-
+// The host supplies official upstream facts. Behavior is checked separately by
+// the candidate's own native source gate, with the same version of code and tests.
+func goalVerifyOfficialSource(ctx context.Context, req GoalVerifyRequest, candidate, work string, log *goalDiagnostics, injected ...goalSourceRunner) error {
 	root, err := filepath.Abs(req.RepoRoot)
 	if err != nil {
 		return err
@@ -1092,45 +1081,36 @@ func goalRunContracts(ctx context.Context, req GoalVerifyRequest, candidate, wor
 	if err != nil {
 		return err
 	}
-	for _, path := range []string{req.BaseRoot, req.CandidateDir} {
-		if path == "" || !filepath.IsAbs(path) {
-			return errors.New("provenance contract blocked: accepted base and rebuilt upstream directories are required")
-		}
-		real, err := filepath.EvalSymlinks(path)
-		if err != nil || real != filepath.Clean(path) || goalWithin(root, path) || goalWithin(path, root) {
-			return errors.New("provenance contract inputs must be external trusted paths without symlink indirection")
-		}
+	path := req.CandidateDir
+	if path == "" || !filepath.IsAbs(path) {
+		return errors.New("provenance blocked: rebuilt upstream directory is required")
 	}
-	if err := AssertClean(req.BaseRoot); err != nil {
-		return fmt.Errorf("accepted baseline is not clean: %w", err)
+	real, err := filepath.EvalSymlinks(path)
+	if err != nil || real != filepath.Clean(path) || goalWithin(root, path) || goalWithin(path, root) {
+		return errors.New("provenance input must be an external path without symlink indirection")
 	}
-	base := filepath.Join(work, "accepted-contract-base")
-	baseDigest, err := goalSnapshot(ctx, req.BaseRoot, base)
-	if err != nil {
+	facts := filepath.Join(work, "rebuilt-source-inputs")
+	if err := goalCopySourceFacts(ctx, path, facts); err != nil {
 		return err
 	}
-	// Retain only the new synthetic Git metadata needed by baseline cloning;
-	// the original checkout configuration, remotes and credentials are not copied.
-	facts := filepath.Join(work, "rebuilt-contract-inputs")
-	if err := goalCopyContractFacts(ctx, req.CandidateDir, facts); err != nil {
-		return err
-	}
-	run := goalContractRunner(VerifyGoalContracts)
+	run := goalSourceRunner(func(_ context.Context, r goalSourceRequest) error {
+		return verifyOfficialSchema(r.RepoRoot, r.CandidateDir)
+	})
 	if len(injected) != 0 {
 		run = injected[0]
 	}
-	log.record("contract", "provenance", map[string]any{"trust": "controller_command", "base": "accepted snapshot", "base_sha256": baseDigest, "upstream": "rebuilt official facts"})
+	log.record("source_compare", "provenance", map[string]any{"trust": "controller_command", "upstream": "rebuilt target facts"})
 	output := &goalOutput{log: log, gate: "provenance"}
-	err = run(ctx, GoalContractRequest{RepoRoot: candidate, BaseRoot: base, CandidateDir: facts, Output: output})
+	err = run(ctx, goalSourceRequest{RepoRoot: candidate, CandidateDir: facts, Output: output})
 	output.flush(true)
-	log.record("contract_exit", "provenance", map[string]any{"passed": err == nil, "error": goalError(err)})
+	log.record("source_compare_exit", "provenance", map[string]any{"passed": err == nil, "error": goalError(err)})
 	if log.err != nil {
 		return &GoalVerificationIncompleteError{Err: log.err}
 	}
 	return err
 }
 
-func goalCopyContractFacts(ctx context.Context, source, destination string) error {
+func goalCopySourceFacts(ctx context.Context, source, destination string) error {
 	if err := goalCopyCache(ctx, filepath.Join(source, "schema"), filepath.Join(destination, "schema")); err != nil {
 		return err
 	}
@@ -1139,19 +1119,27 @@ func goalCopyContractFacts(ctx context.Context, source, destination string) erro
 		return err
 	}
 	defer input.Close()
-	info, err := input.Lstat("common.rs")
-	if err != nil || !info.Mode().IsRegular() {
-		return errors.New("rebuilt upstream common.rs must be a regular file")
+	for _, name := range []string{"common.rs", "common.rs.source_sha"} {
+		info, err := input.Lstat(name)
+		if err != nil || !info.Mode().IsRegular() {
+			return fmt.Errorf("rebuilt upstream %s must be a regular file", name)
+		}
+		data, err := input.ReadFile(name)
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(destination, name), data, 0600); err != nil {
+			return err
+		}
 	}
-	data, err := input.ReadFile("common.rs")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(filepath.Join(destination, "common.rs"), data, 0600)
+	return nil
 }
 
 // Called only after this CI gate's native force-compare build has succeeded.
-func goalFreshCIContractFacts(ctx context.Context, root, work string) (string, error) {
+// These are candidate-produced reconstruction facts, not an independent trust
+// anchor. Automatic publication additionally uses the trusted controller and
+// protected control paths; changes to those paths require review.
+func goalFreshCISourceFacts(ctx context.Context, root, work string) (string, error) {
 	baseline, err := loadBaselineIdentity(filepath.Join(root, "codexsdk", defaultBaselineRel, "baseline_metadata.json"))
 	if err != nil {
 		return "", err
@@ -1173,7 +1161,7 @@ func goalFreshCIContractFacts(ctx context.Context, root, work string) (string, e
 		return "", errors.New("rebuilt upstream facts commit mismatch")
 	}
 	destination := filepath.Join(work, "fresh-ci-upstream")
-	if err := goalCopyContractFacts(ctx, source, destination); err != nil {
+	if err := goalCopySourceFacts(ctx, source, destination); err != nil {
 		return "", err
 	}
 	return destination, nil

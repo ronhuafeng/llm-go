@@ -13,31 +13,31 @@ import (
 	"strings"
 )
 
-// oracleSandbox is disposable execution, not a second acceptance service.
+// nativeSandbox is disposable execution, not a second acceptance service.
 // Untrusted generator/tests see only the writable validation clone and private
 // build/temp state; the Git identity, retained candidate and module inputs are
 // read-only. A host without this boundary is blocked, never silently degraded.
-type oracleSandbox struct {
+type nativeSandbox struct {
 	root, candidate, work, goroot, modules string
 	readonly                               []string
 	writableUpstream                       bool
 	extraPath                              string
 }
 
-func newOracleSandbox(ctx context.Context, root, candidate string) (oracleSandbox, error) {
+func newNativeSandbox(ctx context.Context, root, candidate string) (nativeSandbox, error) {
 	if runtime.GOOS != "linux" {
-		return oracleSandbox{}, errors.New("repair oracle requires the Linux sandbox")
+		return nativeSandbox{}, errors.New("native verification requires the Linux sandbox")
 	}
 	if _, err := exec.LookPath("bwrap"); err != nil {
-		return oracleSandbox{}, errors.New("repair oracle requires bubblewrap")
+		return nativeSandbox{}, errors.New("native verification requires bubblewrap")
 	}
 	cmd := exec.CommandContext(ctx, "go", "env", "GOMODCACHE")
 	cmd.Env = repairEnvironment()
 	out, err := cmd.Output()
 	if err != nil {
-		return oracleSandbox{}, err
+		return nativeSandbox{}, err
 	}
-	s := oracleSandbox{root: root, candidate: candidate, work: filepath.Join(filepath.Dir(root), "sandbox"), goroot: runtime.GOROOT(), modules: strings.TrimSpace(string(out))}
+	s := nativeSandbox{root: root, candidate: candidate, work: filepath.Join(filepath.Dir(root), "sandbox"), goroot: runtime.GOROOT(), modules: strings.TrimSpace(string(out))}
 	for _, p := range []string{s.work, filepath.Join(s.work, "cache"), filepath.Join(s.work, "home")} {
 		if err = os.MkdirAll(p, 0700); err != nil {
 			return s, err
@@ -51,7 +51,7 @@ func newOracleSandbox(ctx context.Context, root, candidate string) (oracleSandbo
 	}
 	return s, nil
 }
-func (s oracleSandbox) command(ctx context.Context, program string, args ...string) *exec.Cmd {
+func (s nativeSandbox) command(ctx context.Context, program string, args ...string) *exec.Cmd {
 	flags := []string{"--unshare-all", "--die-with-parent", "--new-session", "--ro-bind", "/", "/", "--proc", "/proc", "--dev", "/dev"}
 	for _, p := range []string{"/tmp", "/home", "/root", "/workspace", "/run"} {
 		if _, e := os.Stat(p); e == nil {
@@ -80,7 +80,7 @@ func (s oracleSandbox) command(ctx context.Context, program string, args ...stri
 	return cmd
 }
 
-func (s oracleSandbox) proveBoundary(ctx context.Context) error {
+func (s nativeSandbox) proveBoundary(ctx context.Context) error {
 	hidden, err := os.MkdirTemp(filepath.Dir(s.root), "sandbox-hidden-")
 	if err != nil {
 		return err

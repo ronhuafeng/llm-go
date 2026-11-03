@@ -96,12 +96,12 @@ source reconstruction.
 `Codex protocol provenance` reads U from H, freshly reconstructs complete/stable
 schema and derived artifacts from that exact source, and compares with H in
 isolated state. It is read-only and has no Agent/publication authority.
-The same gate also checks accepted-base behavior and target-schema contracts
-against the frozen candidate. Contract-grounded checker changes belong to the
-same reviewed proposal; source identity and publication controls stay fixed.
-Current reachable contracts run even when source schemas are unchanged. An
-empty selection or incomplete decoder observations cannot certify implementation
-changes. Unrelated PRs complete the context successfully as not applicable.
+Protocol semantics belong to the candidate's native generator, public API and
+transport tests in the source gate. Provenance does not execute new implementation
+against old schemas/tests or stream candidate expectations into an older checker.
+Tests and implementation may evolve together in the same reviewed proposal;
+source identity and publication controls stay fixed. Unrelated PRs complete the
+context successfully as not applicable.
 
 See [`protocol-sync.md`](protocol-sync.md) for source, generation, and publication
 boundaries. A source build for this proof is not the installed runtime fixture

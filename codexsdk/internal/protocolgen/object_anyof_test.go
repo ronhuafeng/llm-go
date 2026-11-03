@@ -1,106 +1,88 @@
 package protocolgen
 
 import (
-	"bufio"
-	"bytes"
-	"context"
-	"io"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
-
-	"github.com/ronhuafeng/llm-go/codexsdk/internal/schemaoracle"
 )
 
-func TestGeneratedObjectAnyOfAgainstIndependentOracle(t *testing.T) {
+func TestGeneratedObjectAnyOfContracts(t *testing.T) {
 	const schema = `{"oneOf":[{"type":"object","properties":{"type":{"type":"string","enum":["image"]},"detail":{"type":"string"}},"required":["type"],"anyOf":[{"type":"object","properties":{"url":{"type":"string"}},"required":["url"]},{"type":"object","properties":{"fileId":{"type":"string"}},"required":["fileId"]}]},{"type":"object","properties":{"type":{"type":"string","enum":["bounded"]}},"required":["type"],"anyOf":[{"type":"object","properties":{"count":{"type":"integer","format":"int64","minimum":2}},"required":["count"]},{"type":"object","properties":{"items":{"type":"array","items":{"type":"string"}}},"required":["items"]}]}]}`
 	plan := ProtocolTypePlan{Types: []TypePlan{{Kind: TypePlanTaggedUnionCandidate, GeneratedRoot: true, TypeName: "Input", SchemaPath: "Input.json", Schema: mustParseSchema(t, schema)}}}
-	runGeneratedUnionOracle(t, schema, "Input", plan)
+	runGeneratedContracts(t, "Input", plan, []string{
+		`{"type":"image","url":"https://example.test","detail":"small"}`,
+		`{"type":"image","fileId":"f"}`,
+		`{"type":"image","fileId":"f","url":"u"}`,
+		`{"type":"image","fileId":"f","url":null}`,
+		`{"type":"bounded","count":2}`,
+		`{"type":"bounded","items":[]}`,
+		`{"type":"bounded","items":["x"],"count":0}`,
+	}, []string{
+		`{"type":"image"}`, `{"type":"image","fileId":4}`, `{"type":"image","url":"u","unknown":1}`,
+		`{"type":"bounded","count":1}`, `{"type":"bounded","items":[1]}`, `{"type":"other"}`,
+	})
 }
 
-func runGeneratedUnionOracle(t *testing.T, schema, name string, plan ProtocolTypePlan) {
+// Compile the generator output and exercise native public JSON entrypoints.
+// Expectations are explicit behavior contracts, not another schema interpreter.
+func runGeneratedContracts(t *testing.T, name string, plan ProtocolTypePlan, accepted, rejected []string) {
 	t.Helper()
-	if err := ApplyWireMessageRoles(&plan, Manifest{Entries: []ManifestEntry{{Kind: "request", Direction: "client_to_server", Method: "input/read", SourceSchema: name + ".json"}}}); err != nil {
+	if err := ApplyWireMessageRoles(&plan, Manifest{Entries: []ManifestEntry{{Kind: "request", Direction: "client_to_server", Method: "fixture/read", SourceSchema: name + ".json"}}}); err != nil {
 		t.Fatal(err)
 	}
 	generated, err := GenerateProtocolTypes(plan)
 	if err != nil {
 		t.Fatal(err)
 	}
-	spec := schemaoracle.Request{Schemas: map[string][]byte{name + ".json": []byte(schema)}, Bindings: map[string]string{name + ".json": name}, CloseObjects: true}
 	repo, err := filepath.Abs("../../..")
 	if err != nil {
 		t.Fatal(err)
 	}
-	pkg, err := os.MkdirTemp(filepath.Join(repo, "codexsdk"), "protocol-anyof-")
+	pkg, err := os.MkdirTemp(filepath.Join(repo, "codexsdk"), "protocol-contract-")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { os.RemoveAll(pkg) })
-	files := map[string][]byte{"protocol_types.gen.go": generated}
-	for _, name := range []string{"nullable.go", "json_value.go"} {
-		raw, err := os.ReadFile(filepath.Join(repo, "codexsdk", "protocolv2", name))
+	source := fmt.Sprintf(`package protocolv2
+import("encoding/json";"reflect";"strings";"testing")
+func TestContract(t *testing.T) {
+ for _, wire := range %#v {
+  var value %s
+  if err := json.Unmarshal([]byte(wire), &value); err != nil {t.Fatalf("accept %%s: %%v",wire,err)}
+  encoded, err := json.Marshal(value); if err != nil {t.Fatal(err)}
+  var original, roundtrip any
+  decode := json.NewDecoder(strings.NewReader(wire)); decode.UseNumber()
+  if err := decode.Decode(&original); err != nil {t.Fatal(err)}
+  decode = json.NewDecoder(strings.NewReader(string(encoded))); decode.UseNumber()
+  if err := decode.Decode(&roundtrip); err != nil {t.Fatal(err)}
+  if !reflect.DeepEqual(original,roundtrip) {t.Fatalf("wire value lost: %%s became %%s",wire,encoded)}
+ }
+ for _, wire := range %#v {
+  var value %s
+  if err := json.Unmarshal([]byte(wire), &value); err == nil {t.Fatalf("invalid value accepted: %%s",wire)}
+ }
+}
+`, accepted, name, rejected, name)
+	files := map[string][]byte{"protocol_types.gen.go": generated, "contract_test.go": []byte(source)}
+	for _, file := range []string{"nullable.go", "json_value.go"} {
+		data, err := os.ReadFile(filepath.Join(repo, "codexsdk/protocolv2", file))
 		if err != nil {
 			t.Fatal(err)
 		}
-		files[name] = raw
+		files[file] = data
 	}
-	for name, raw := range files {
-		if err := os.WriteFile(filepath.Join(pkg, name), raw, 0600); err != nil {
+	for file, data := range files {
+		if err := os.WriteFile(filepath.Join(pkg, file), data, 0600); err != nil {
 			t.Fatal(err)
 		}
 	}
-	spec.ImportPath = "github.com/ronhuafeng/llm-go/codexsdk/" + filepath.Base(pkg)
-	source, err := schemaoracle.Harness(spec)
-	if err != nil {
-		t.Fatal(err)
-	}
-	probe := filepath.Join(pkg, "probe")
-	if err = os.Mkdir(probe, 0700); err != nil {
-		t.Fatal(err)
-	}
-	if err = os.WriteFile(filepath.Join(probe, "main.go"), source, 0600); err != nil {
-		t.Fatal(err)
-	}
-	binary := filepath.Join(pkg, "decoder")
-	cmd := exec.Command("go", "build", "-o", binary, "./codexsdk/"+filepath.Base(pkg)+"/probe")
+	cmd := exec.Command("go", "test", "./codexsdk/"+filepath.Base(pkg))
 	cmd.Dir = repo
 	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("compile generated decoder: %v %s", err, out)
+		t.Fatalf("generated contracts: %v\n%s", err, out)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	cmd = exec.CommandContext(ctx, binary)
-	input, _ := cmd.StdinPipe()
-	output, _ := cmd.StdoutPipe()
-	var diagnostics, stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	if err = cmd.Start(); err != nil {
-		t.Fatal(err)
-	}
-	reader, writer := io.Pipe()
-	done := make(chan error, 1)
-	go func() { err := schemaoracle.Write(spec, writer); writer.CloseWithError(err); done <- err }()
-	stream := bufio.NewReader(reader)
-	var header schemaoracle.Header
-	err = schemaoracle.ReadFrame(stream, &header)
-	if err == nil {
-		err = schemaoracle.Check(ctx, header, stream, input, output, &diagnostics)
-	}
-	input.Close()
-	output.Close()
-	reader.Close()
-	if err != nil {
-		cancel()
-	}
-	runErr := cmd.Wait()
-	diagnostics.Write(stderr.Bytes())
-	generationErr := <-done
-	if err != nil || runErr != nil || generationErr != nil {
-		t.Fatalf("generated contracts: check=%v process=%v expectations=%v\n%s", err, runErr, generationErr, diagnostics.Bytes())
-	}
-
 }
 
 func TestObjectAnyOfRejectsUnrepresentedConstraints(t *testing.T) {

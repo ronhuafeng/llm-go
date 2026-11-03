@@ -10,7 +10,7 @@ import (
 )
 
 func TestAutoForwardPreservesCurrentGateAuthorityIncludingQuotedPaths(t *testing.T) {
-	for _, name := range []string{".github/workflows/verify.yml", "codexsdk/internal/protocolsync/injected_test.go", "codexsdk/internal/checkacceptance/injected\t_test.go", "codexsdk/internal/schemaoracle/新增.go", "codexsdk/internal/generatedcheck/helper.go", "codexsdk/internal/protocolgen/new.go", "codexsdk/internal/protocolschema/appserver/v2/embed.go", "nested/go.mod"} {
+	for _, name := range []string{".github/workflows/verify.yml", "codexsdk/internal/protocolsync/injected_test.go", "codexsdk/internal/checkacceptance/injected\t_test.go", "codexsdk/internal/generatedcheck/helper.go", "codexsdk/internal/protocolgen/new.go", "codexsdk/internal/protocolschema/appserver/v2/embed.go", "nested/go.mod"} {
 		t.Run(name, func(t *testing.T) {
 			dir := t.TempDir()
 			git := func(args ...string) string {

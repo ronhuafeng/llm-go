@@ -75,7 +75,7 @@ jobs:
             pkg-config \
             protobuf-compiler
 
-      - name: Enable contract sandbox namespaces on ephemeral hosted VM
+      - name: Enable native verification sandbox namespaces on ephemeral hosted VM
         if: ${{ steps.classify.outputs.required == 'true' }}
         env:
           HOSTED_ENVIRONMENT: ${{ runner.environment }}
@@ -83,18 +83,6 @@ jobs:
           set -euo pipefail
           test "${HOSTED_ENVIRONMENT}" = github-hosted
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-
-      - name: Prepare exact accepted contract baseline
-        if: ${{ steps.classify.outputs.required == 'true' }}
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          set -euo pipefail
-          base="${RUNNER_TEMP}/accepted-contract-base"
-          git clone --no-hardlinks --no-local "${GITHUB_WORKSPACE}" "${base}"
-          git -C "${base}" checkout --detach "${BASE_SHA}"
-          test "$(git -C "${base}" rev-parse HEAD)" = "${BASE_SHA}"
-          echo "LLMGO_GOAL_BASE_ROOT=${base}" >> "${GITHUB_ENV}"
 
       - name: Verify provenance through shared gate
         id: goal_gate
@@ -159,7 +147,7 @@ jobs:
           go-version-file: go.mod
           cache: false
 
-      - name: Install repair oracle sandbox
+      - name: Install native verification sandbox
         run: sudo apt-get update && sudo apt-get install -y bubblewrap
 
       - name: Enable sandbox namespaces on ephemeral hosted VM

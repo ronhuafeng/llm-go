@@ -2,14 +2,25 @@ package protocolgen
 
 import "testing"
 
-func TestGeneratedOpenMixedUnionAgainstIndependentOracle(t *testing.T) {
+func TestGeneratedOpenMixedUnionContracts(t *testing.T) {
 	const schema = `{"type":"object","properties":{"error":{"$ref":"#/definitions/Info"}},"required":["error"],"definitions":{"Info":{"anyOf":[{"type":"string","enum":["known"]},{"type":"object","additionalProperties":false,"properties":{"http":{"type":"object","properties":{"code":{"type":["integer","null"],"format":"uint16","minimum":0}}}},"required":["http"]},{"type":["string","object"]}]}}}`
 	plan := ProtocolTypePlan{Types: []TypePlan{{
 		Kind: TypePlanObjectStructCandidate, GeneratedRoot: true, TypeName: "Container", SchemaPath: "Container.json", Schema: mustParseSchema(t, schema),
 		GeneratedDefinitions: map[string]bool{"Info": true},
 		Fields:               []FieldPlan{{FieldName: "error", GoType: "Info", Kind: FieldPlanRef, Required: true, RefPath: "Container.json#/definitions/Info", Path: "Container.json#/properties/error"}},
 	}}}
-	runGeneratedUnionOracle(t, schema, "Container", plan)
+	runGeneratedContracts(t, "Container", plan, []string{
+		`{"error":"known"}`,
+		`{"error":"future"}`,
+		`{"error":{"http":{"code":200}}}`,
+		`{"error":{"http":{"code":null}}}`,
+		`{"error":{"future":[1,null]}}`,
+	}, []string{
+		`{"error":false}`,
+		`{"error":null}`,
+		`{"error":[]}`,
+		`{}`,
+	})
 }
 
 func TestOpenMixedUnionFallbackRequiresUnconstrainedDeclaredKinds(t *testing.T) {

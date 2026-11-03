@@ -2,7 +2,6 @@ package protocolsync
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -73,50 +72,26 @@ func TestResolveGoalRebindingUsesExactCommitMetadata(t *testing.T) {
 	}
 }
 
-func TestGoalRebindingChecksBothAcceptedBaselines(t *testing.T) {
-	for _, broken := range []string{"", "original", "current"} {
-		t.Run(broken, func(t *testing.T) {
-			req := goalContractFixtureRequest(t, goalFixture(t), "provenance")
-			req.OriginalBaseRoot = goalFixture(t)
-			for label, root := range map[string]string{"original": req.OriginalBaseRoot, "current": req.BaseRoot} {
-				writeFile(t, filepath.Join(root, "baseline-label"), label)
-				if err := runGit(root, "add", "baseline-label"); err != nil {
-					t.Fatal(err)
-				}
-				if err := runGit(root, "-c", "user.name=Protocol test", "-c", "user.email=protocol-test@example.invalid", "commit", "-m", label); err != nil {
-					t.Fatal(err)
-				}
-			}
-			seen := map[string]bool{}
-			result, err := verifyGoal(context.Background(), req, goalTestSuccess, func(_ context.Context, r GoalContractRequest) error {
-				data, e := os.ReadFile(filepath.Join(r.BaseRoot, "baseline-label"))
-				if e != nil {
-					return e
-				}
-				label := string(data)
-				seen[label] = true
-				if label == broken {
-					return errors.New("accepted public regression")
-				}
-				return nil
-			})
-			defer result.Close()
-			if (err != nil) != (broken != "") {
-				t.Fatalf("broken %q: %v", broken, err)
-			}
-			if !seen["original"] || !seen["current"] {
-				t.Fatalf("lost baseline obligation: %v", seen)
-			}
-		})
+// Rebinding changes identity policy, not the version of semantic tests used.
+func TestGoalRebindingVerifiesOneConsistentCandidate(t *testing.T) {
+	req := goalSourceFixtureRequest(t, goalFixture(t), "provenance")
+	req.OriginalBaseRoot = goalFixture(t)
+	for _, root := range []string{req.BaseRoot, req.OriginalBaseRoot} {
+		writeFile(t, filepath.Join(root, "obsolete_test.go"), "package obsolete\nfunc incompatibleVersion() {}\n")
 	}
-}
-
-func TestGoalRebindingMissingOriginalContractBlocks(t *testing.T) {
-	req := goalContractFixtureRequest(t, goalFixture(t), "provenance")
-	req.OriginalBaseRoot = filepath.Join(t.TempDir(), "missing")
-	result, err := verifyGoal(context.Background(), req, goalTestSuccess, goalTestContract)
+	calls := 0
+	result, err := verifyGoal(context.Background(), req, goalTestSuccess, func(_ context.Context, r goalSourceRequest) error {
+		calls++
+		if _, err := os.Stat(filepath.Join(r.RepoRoot, "obsolete_test.go")); !os.IsNotExist(err) {
+			t.Fatal("another version's tests were mixed into candidate", err)
+		}
+		if r.CandidateDir == req.CandidateDir {
+			t.Fatal("original source facts exposed")
+		}
+		return nil
+	})
 	defer result.Close()
-	if err == nil || len(result.Gates) != 0 {
-		t.Fatal("missing original contract accepted", result, err)
+	if err != nil || calls != 1 {
+		t.Fatalf("source comparisons=%d, error=%v", calls, err)
 	}
 }

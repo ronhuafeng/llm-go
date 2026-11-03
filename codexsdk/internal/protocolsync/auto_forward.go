@@ -232,4 +232,4 @@ func AutoForward(ctx context.Context, expected string, poll time.Duration, op Fo
 }
 
 // ErrForwardSemanticProof denotes a complete local assertion failure eligible for isolated repair.
-var ErrForwardSemanticProof = errors.New("local immutable contract assertion failed")
+var ErrForwardSemanticProof = errors.New("local candidate verification failed")

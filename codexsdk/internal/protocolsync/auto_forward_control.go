@@ -17,7 +17,7 @@ func protectedForwardControl(p string) bool {
 	case "go.mod", "go.sum", "go.work", "go.work.sum":
 		return true
 	}
-	for _, prefix := range []string{".github/", "internal/tools/", "codexsdk/internal/cmd/", "codexsdk/internal/checkacceptance/", "codexsdk/internal/codexexec/", "codexsdk/internal/protocolsync/", "codexsdk/internal/protocolupgrade/", "codexsdk/internal/generatedcheck/", "codexsdk/internal/schemaoracle/", "codexsdk/internal/protocolgen/"} {
+	for _, prefix := range []string{".github/", "internal/tools/", "codexsdk/internal/cmd/", "codexsdk/internal/checkacceptance/", "codexsdk/internal/codexexec/", "codexsdk/internal/protocolsync/", "codexsdk/internal/protocolupgrade/", "codexsdk/internal/generatedcheck/", "codexsdk/internal/protocolgen/"} {
 		if strings.HasPrefix(p, prefix) {
 			return true
 		}
@@ -37,9 +37,9 @@ func validateForwardControls(ctx context.Context, root, main, head string) error
 	return nil
 }
 
-// Generic mechanical reconciliation has no target-schema lane. Its immutable
-// runtime oracle covers these SDK roots and accepted llmkit/llmcaller packages. Other engineering changes
-// retain the reviewed same-H FF route until broader accepted-test proof exists.
+// Generic mechanical reconciliation retains its bounded SDK/runtime scope.
+// The exact candidate owns both implementation and native behavior tests;
+// control-changing proposals still require the reviewed manual route.
 func validateGenericForwardScope(ctx context.Context, root, main, head string) error {
 	names, err := forwardLocalGitCommand(ctx, root, "diff", "--name-only", "--no-renames", "-z", main, head, "--").Output()
 	if err != nil {
@@ -49,7 +49,7 @@ func validateGenericForwardScope(ctx context.Context, root, main, head string) e
 		if name == "" {
 			continue
 		}
-		if ForwardBaselineImplementationPath(name) || (strings.HasSuffix(name, "_test.go") && !strings.Contains(name, "/testdata/") && (strings.HasPrefix(name, "llmkit/") || strings.HasPrefix(name, "llmcaller/"))) {
+		if ForwardRuntimeImplementationPath(name) || (strings.HasSuffix(name, "_test.go") && !strings.Contains(name, "/testdata/") && (strings.HasPrefix(name, "llmkit/") || strings.HasPrefix(name, "llmcaller/"))) {
 			continue
 		}
 		dir := path.Dir(name)
@@ -59,7 +59,7 @@ func validateGenericForwardScope(ctx context.Context, root, main, head string) e
 		if name == "README.md" || (strings.HasPrefix(name, "docs/") && strings.HasSuffix(name, ".md")) {
 			continue
 		}
-		return errors.New("generic reconciliation changes paths outside existing immutable runtime proof; reviewed manual reconciliation required")
+		return errors.New("generic reconciliation changes paths outside native runtime scope; reviewed manual reconciliation required")
 	}
 	return nil
 }

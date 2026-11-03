@@ -57,6 +57,7 @@ func (v *forwardVerifier) local(ctx context.Context, work, candidate, main strin
 			return protocolsync.GoalVerifyRequest{}, e
 		}
 	}
+
 	diagnosticRoot := os.Getenv("AUTO_FORWARD_DIAGNOSTICS")
 	if diagnosticRoot == "" {
 		diagnosticRoot = os.TempDir()
@@ -86,16 +87,17 @@ func (v *forwardVerifier) verify(ctx context.Context, main, head string) error {
 		return e
 	}
 	if v.f.sha == "" {
-		return protocolsync.VerifyForwardBaselines(ctx, candidate, local.OriginalBaseRoot, local.BaseRoot, local.DiagnosticDir)
+		return protocolsync.VerifyForwardCandidate(ctx, candidate, local.OriginalBaseRoot, local.BaseRoot, local.DiagnosticDir)
 	}
+
 	result, e := protocolsync.VerifyGoal(ctx, local)
 	defer result.Close()
 	if e != nil {
-		fmt.Fprintf(v.stderr, "Current-main/original-base proof failed; diagnostics: %s\n", result.DiagnosticPath)
+		fmt.Fprintf(v.stderr, "Candidate verification failed; diagnostics: %s\n", result.DiagnosticPath)
 		if semanticForwardFailure(ctx, result.DiagnosticPath, e) {
 			return protocolsync.ErrForwardSemanticProof
 		}
-		return errors.New("immutable original/current baseline proof failed")
+		return errors.New("candidate verification failed")
 	}
 	return nil
 }

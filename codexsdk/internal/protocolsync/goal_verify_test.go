@@ -56,7 +56,7 @@ func TestGoalVerifyAllMapsNativeGatesAndPreservesDirtySource(t *testing.T) {
 	os.WriteFile(filepath.Join(root, "new.go"), []byte("package fixture // intended untracked\n"), 0600)
 	before := goalState(t, root)
 	var commands []string
-	result, err := verifyGoal(context.Background(), goalContractFixtureRequest(t, root, ""), func(cmd *exec.Cmd) error {
+	result, err := verifyGoal(context.Background(), goalSourceFixtureRequest(t, root, ""), func(cmd *exec.Cmd) error {
 		commands = append(commands, strings.Join(cmd.Args[1:], " "))
 		if strings.Contains(strings.Join(cmd.Args, " "), "vet") {
 			if b, e := os.ReadFile(filepath.Join(cmd.Dir, "new.go")); e != nil || !strings.Contains(string(b), "untracked") {
@@ -74,7 +74,7 @@ func TestGoalVerifyAllMapsNativeGatesAndPreservesDirtySource(t *testing.T) {
 		native.Stdout = cmd.Stdout
 		native.Stderr = cmd.Stderr
 		return native.Run()
-	}, goalTestContract)
+	}, goalTestSource)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +185,7 @@ func TestGoalGateSelectorsRejectUnknown(t *testing.T) {
 	}
 	for _, gate := range goalVerificationGates {
 		root := goalFixture(t)
-		r, e := verifyGoal(context.Background(), goalContractFixtureRequest(t, root, gate), goalTestSuccess, goalTestContract)
+		r, e := verifyGoal(context.Background(), goalSourceFixtureRequest(t, root, gate), goalTestSuccess, goalTestSource)
 		defer r.Close()
 		if e != nil || !reflect.DeepEqual(r.Gates, []string{gate}) {
 			t.Fatal(gate, r, e)
@@ -320,7 +320,7 @@ func TestGoalPrewarmedCachesAreDisposableAndConfined(t *testing.T) {
 }
 func TestGoalLocalScopeAndSnapshotOwnership(t *testing.T) {
 	root := goalFixture(t)
-	r, err := verifyGoal(context.Background(), goalContractFixtureRequest(t, root, "local"), goalTestSuccess, goalTestContract)
+	r, err := verifyGoal(context.Background(), goalSourceFixtureRequest(t, root, "local"), goalTestSuccess, goalTestSource)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -376,10 +376,10 @@ func TestGoalCIIdentityAndSeparateLivePrimitive(t *testing.T) {
 	for _, gate := range []string{"source", "generated", "provenance", "live"} {
 		root := goalFixture(t)
 		var calls []string
-		r, err := verifyCIGate(context.Background(), goalContractFixtureRequest(t, root, gate), func(cmd *exec.Cmd) error {
+		r, err := verifyCIGate(context.Background(), goalSourceFixtureRequest(t, root, gate), func(cmd *exec.Cmd) error {
 			calls = append(calls, strings.Join(cmd.Args, " "))
 			return goalTestSuccess(cmd)
-		}, goalTestContract)
+		}, goalTestSource)
 		if err != nil {
 			t.Fatal(gate, err)
 		}
@@ -497,7 +497,7 @@ func TestGoalSourceRequiresBothNativeProofs(t *testing.T) {
 		}
 		seen[name] = true
 		flag := "LLMGO_NATIVE_GOAL_SANDBOX=1"
-		if name == "TestLiveRepairSandboxGoalContractsUseCandidateChecker" {
+		if name == "TestLiveRepairSandboxCandidateVersionConsistency" {
 			flag = "LLMGO_REPAIR_SANDBOX_TEST=1"
 		}
 		if !strings.Contains(strings.Join(cmd.Env, "\n"), flag) {
@@ -532,7 +532,7 @@ func TestGoalSourceRequiresBothNativeProofs(t *testing.T) {
 }
 
 func TestGoalSandboxCommandKeepsGateWorkingDirectories(t *testing.T) {
-	sandbox := oracleSandbox{root: "/tmp/frozen-candidate", candidate: "/tmp/retained", work: "/tmp/sandbox-work", goroot: "/opt/go", modules: "/tmp/modules"}
+	sandbox := nativeSandbox{root: "/tmp/frozen-candidate", candidate: "/tmp/retained", work: "/tmp/sandbox-work", goroot: "/opt/go", modules: "/tmp/modules"}
 	for _, tc := range []struct {
 		name, dir, want string
 		args            []string
@@ -540,7 +540,7 @@ func TestGoalSandboxCommandKeepsGateWorkingDirectories(t *testing.T) {
 		{"generated", "/tmp/regenerated", "/tmp/regenerated", []string{"build", "./codexsdk/protocolv2"}},
 		{"module", "/tmp/frozen-candidate/codexsdk", "/tmp/frozen-candidate/codexsdk", []string{"run", "./internal/cmd/generatedcheck"}},
 		{"native-ci", "/tmp/accepted-checkout", sandbox.root, []string{"test", "./codexsdk/internal/codexexec", "-run", "^TestNativeGoalSandboxBoundary$", "-count=1", "-json"}},
-		{"contracts-ci", "/tmp/accepted-checkout", sandbox.root, []string{"test", "./codexsdk/internal/protocolsync", "-run", "^TestLiveRepairSandboxGoalContractsUseCandidateChecker$", "-count=1", "-json"}},
+		{"contracts-ci", "/tmp/accepted-checkout", sandbox.root, []string{"test", "./codexsdk/internal/protocolsync", "-run", "^TestLiveRepairSandboxCandidateVersionConsistency$", "-count=1", "-json"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cmd := exec.Command("go", tc.args...)
@@ -559,7 +559,7 @@ func TestGoalSandboxCommandKeepsGateWorkingDirectories(t *testing.T) {
 	}
 }
 
-func goalContractFixtureRequest(t *testing.T, root, gate string) GoalVerifyRequest {
+func goalSourceFixtureRequest(t *testing.T, root, gate string) GoalVerifyRequest {
 	t.Helper()
 	facts := t.TempDir()
 	if err := os.Mkdir(filepath.Join(facts, "schema"), 0700); err != nil {
@@ -568,39 +568,35 @@ func goalContractFixtureRequest(t *testing.T, root, gate string) GoalVerifyReque
 	if err := os.WriteFile(filepath.Join(facts, "common.rs"), []byte("fixture"), 0600); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(facts, "common.rs.source_sha"), []byte(strings.Repeat("a", 40)), 0600); err != nil {
+		t.Fatal(err)
+	}
 	return GoalVerifyRequest{RepoRoot: root, Gate: gate, DiagnosticDir: t.TempDir(), BaseRoot: goalFixture(t), CandidateDir: facts}
 }
-func goalTestContract(_ context.Context, req GoalContractRequest) error {
-	_, err := io.WriteString(req.Output, "native contract test fixture\n")
+func goalTestSource(_ context.Context, req goalSourceRequest) error {
+	_, err := io.WriteString(req.Output, "native source test fixture\n")
 	return err
 }
 
-func TestGoalProvenanceContractFailureIsRequiredAndComplete(t *testing.T) {
+func TestGoalProvenanceSourceFailureIsRequiredAndComplete(t *testing.T) {
 	root := goalFixture(t)
-	req := goalContractFixtureRequest(t, root, "provenance")
-	config := filepath.Join(req.BaseRoot, ".git/config")
-	before, _ := os.ReadFile(config)
-	os.WriteFile(config, append(before, []byte("\n[credential]\n helper = secret-helper\n")...), 0600)
+	req := goalSourceFixtureRequest(t, root, "provenance")
 	for _, ci := range []bool{false, true} {
 		called := false
 		verify := verifyGoal
 		if ci {
 			verify = verifyCIGate
 		}
-		result, err := verify(context.Background(), req, goalTestSuccess, func(_ context.Context, r GoalContractRequest) error {
+		result, err := verify(context.Background(), req, goalTestSuccess, func(_ context.Context, r goalSourceRequest) error {
 			called = true
-			if r.BaseRoot == req.BaseRoot || r.CandidateDir == req.CandidateDir {
+			if r.CandidateDir == req.CandidateDir {
 				t.Fatal("trusted original exposed")
 			}
-			b, e := os.ReadFile(filepath.Join(r.BaseRoot, ".git/config"))
-			if e != nil || strings.Contains(string(b), "secret-helper") {
-				t.Fatal("original Git config exposed", e)
-			}
-			io.WriteString(r.Output, strings.Repeat("full failure\n", 9000)+"late-contract-evidence\n")
-			return errors.New("contract rejected")
+			io.WriteString(r.Output, strings.Repeat("full failure\n", 9000)+"late-source-evidence\n")
+			return errors.New("source rejected")
 		})
 		if err == nil || !called || len(result.Gates) != 0 {
-			t.Fatal("contract failure accepted", result, err)
+			t.Fatal("source failure accepted", result, err)
 		}
 		b, _ := os.ReadFile(result.DiagnosticPath)
 		var joined strings.Builder
@@ -612,14 +608,14 @@ func TestGoalProvenanceContractFailureIsRequiredAndComplete(t *testing.T) {
 				}
 			}
 		}
-		if !strings.Contains(joined.String(), "late-contract-evidence") || !strings.Contains(string(b), "contract rejected") {
-			t.Fatal("contract failure lost", err)
+		if !strings.Contains(joined.String(), "late-source-evidence") || !strings.Contains(string(b), "source rejected") {
+			t.Fatal("source failure lost", err)
 		}
 	}
-	req.BaseRoot = ""
-	_, err := verifyGoal(context.Background(), req, goalTestSuccess, goalTestContract)
+	req.CandidateDir = ""
+	_, err := verifyGoal(context.Background(), req, goalTestSuccess, goalTestSource)
 	if err == nil {
-		t.Fatal("missing accepted base accepted")
+		t.Fatal("missing rebuilt source accepted")
 	}
 }
 
@@ -632,7 +628,7 @@ func TestGoalFreshCIFactsMatchRecordedCommit(t *testing.T) {
 	os.WriteFile(filepath.Join(source, "common.rs"), []byte("official-source"), 0600)
 	for _, marker := range []string{"", strings.Repeat("b", 40), sha} {
 		os.WriteFile(filepath.Join(source, "common.rs.source_sha"), []byte(marker), 0600)
-		facts, err := goalFreshCIContractFacts(context.Background(), root, t.TempDir())
+		facts, err := goalFreshCISourceFacts(context.Background(), root, t.TempDir())
 		if marker != sha {
 			if err == nil {
 				t.Fatal("wrong upstream marker accepted")

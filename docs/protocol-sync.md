@@ -266,60 +266,27 @@ still validating known fields, requiredness, nullability, and union variants.
 The same nested type can appear in both roles; its name does not choose policy.
 These existing roles remain unchanged by protocol synchronization.
 
-The source-derived oracle invokes standalone public `json.Unmarshal`, so its
-record overlay is strict: named object records at schema roots or definitions
-reject undeclared fields, including empty records with no `properties`, when
-`additionalProperties` is absent. This applies uniformly to existing and new
-records in that entry point, not to `ServerObservation`. It is a local Go API
-contract, not a claim that upstream Rust empty structs reject unknown fields. Explicit
-`additionalProperties: true` or schema-valued maps retain their declared open
-behavior. Anonymous open union alternatives remain open and are evaluated as
-part of the whole union; unconstrained `true`, `{}`, and annotation-only schemas
-remain unconstrained. Neither silently ignoring nor retaining unknown fields
-satisfies the standalone strict record's rejection contract. Role-specific
-regressions separately prove observation tolerance and action-bearing rejection;
-the standalone oracle does not certify a lossless observation/relay API.
+Protocol semantics are verified by native Go tests in the same candidate as the
+implementation and generated baseline. Generator capability tests cover mapping
+rules (including optional/null presence, maps, unions and flattened records).
+Public API and transport tests exercise their actual entry points and role
+policies. Upgrade-specific examples come from the selected upstream source, not
+from expectations inferred from the generated implementation.
 
-The oracle derives current reachable contracts from exact source schemas and
-`common.rs`, including when only the generator or runtime implementation changed.
-Accepted old/new facts still protect removed public surface. The six handwritten
-transport exemptions require unchanged own shapes and transitive reference
-closures, including dependency/envelope disappearance. A generated child probe
-cannot certify its handwritten consumer; changed closures require an explicit
-reviewed transport binding. Immutable accepted tests remain a separate regression
-lane.
-Inline aliases are exercised through selected owners. Explicit JSONValue overlays,
-including MCP elicitation properties and realtime items, end typed traversal.
-Missing, ambiguous or unsupported bindings fail closed.
+A schema change may require its tests to evolve in the same reviewed proposal.
+Keep positive evolution examples and concrete defect counterexamples. Removing
+or narrowing a documented public behavior remains an explicit compatibility
+decision. Do not rewrite upstream schemas into a universal strict-object dialect
+or treat an exhaustive-looking synthetic sample stream as proof of runtime
+compatibility. A finite test suite proves its assertions, not all possible JSON.
 
-The candidate source selector and schema interpreter run inside the existing
-no-network sandbox. They stream independently classified obligations with exact
-source digests; the controller never imports candidate code. A separate sandbox
-compiles one decoder containing only selected Go type factories. It receives fresh
-input bytes and returns decode/marshal observations. The verifier compares those
-observations directly, retaining each failure's full input, output and source
-location within the existing diagnostic file limit. Passing probes emit no status
-stream. Open records use wire evidence rather than assuming custom marshaler
-storage fields equal their declared schema properties.
-
-Construction and decoding have separate writable process state; source and
-accepted expectations remain read-only. Value framing, schema/witness recursion,
-mutation traversal, total work and the inherited deadline are bounded. These are
-work and framing bounds, not RSS protection. Incomplete, duplicate, trailing or
-missing observations, zero execution, compiler errors, panics, cancellation and
-process failures cannot certify a contract. Every owned process is reaped.
-
-Round trips preserve JSON member presence except the accepted parameterless
-`ClientRequest` canonical encoding. At that source document's top-level envelope,
-a simple singleton-method branch with required `id` and `method` and optional
-null-only `params` permits decoding explicit null and encoding without params.
-Eligibility comes from the exact raw source branch, not a method name or Go
-binding. The comparison permits only that direction of omission with the same
-method; other members still compare exactly. Required params, nullable non-null
-params, nested or ordinary fields, and other envelope roles receive no exception.
-Additional envelope constraints or ambiguous discriminators retain exact
-comparison until separately reviewed. This rule changes neither source validity
-classification nor action/observation decoding policy.
+The trusted controller fixes source identity, frozen candidate identity,
+credential-free execution, required CI results and publication authority. It does
+not splice a candidate sample producer into an older protocol-semantic checker,
+or overlay new implementation onto old schema and test files. Native checks run
+against one internally consistent candidate with its own tests and dependencies.
+The source gate owns behavior; provenance reconstructs and compares the exact
+recorded upstream source. Real Live scenarios retain their separate guarantee.
 
 A small facade-name map may preserve public acronyms/names. It has no authority
 over method presence, stability, parameters, responses, or type generation.
@@ -353,15 +320,9 @@ method. Historical `facade_status` cannot overrule current construction;
 `internal.*` targets remain intentionally non-public. Protocol manifests and
 coverage remain generator machinery, not a second live capability registry.
 
-The generated-child/transport regression in `oracle_transport_test.go` uses the
-supported string/int64/string-array RequestId expansion with the real generator,
-compiled decoder and incremental checker, then exercises the actual SDK boundary.
-It proves that child success cannot bypass the transport closure guard. The
-handwritten transport retains its accepted strict envelope classification,
-while the RequestId value is decoded with the generated upstream union. A changed
-transitive transport dependency still fails closed before publication, rather
-than automatically admitting a hypothetical array ID. This does not adopt
-Rust's ordered fallback matching.
+Focused transport tests verify the real JSON-RPC boundary, including request-ID
+handling and role-specific decoding. A generated child decoding successfully is
+not itself proof that an SDK transport operation is valid.
 
 ## Deterministic proof and build inputs
 
@@ -443,19 +404,17 @@ and reuses the existing stable-target policy. Exact U already accepted is a no-o
 a newer stable main supersedes U. Missing metadata, manual-track ambiguity,
 same-tag/different-SHA movement and downgrades fail closed.
 
-A controller constructing H′ must preserve U and pass both accepted checkouts:
-`BaseRoot=M` plus `OriginalBaseRoot=B` (`verify`/`verify-ci-gate` expose
-`-original-base-root`). The same provenance contract checker then executes both
-sets of immutable accepted regression obligations. Dropping tests from M cannot
-remove obligations promised at B, and B cannot hide new M regressions. This is
-additional input to the existing provenance gate, not another check context.
-Old H's results never certify H′; all four current exact-head CI contexts remain
-required after every candidate change. Classification alone never grants
-integration or claims either baseline's tests executed.
+A controller constructing H′ preserves U and both accepted identities B and M
+for target policy and publication rebinding; it does not combine either baseline's old tests or schema with H′'s
+implementation. The complete reconciled candidate owns one matching implementation,
+generated baseline and native test suite. All four current exact-head CI contexts
+must pass again after every candidate change; old H's results never certify H′.
+Compatibility obligations from either baseline must be retained or explicitly
+changed through review in that candidate, not enforced by mixing versions.
 
 During an active goal, each `verify_upstream` call refreshes an immutable accepted
 M checkout and evaluates its baseline against fixed U. If M advanced legitimately,
-local provenance checks both M and original B. The publication binding records M
+target policy checks both M and original B; verification executes the consistent candidate. The publication binding records M
 separately; moving main again invalidates that attempt and returns diagnostics to
 the same native goal. Neither the proposal nor B is silently rewritten. If main
 moves after native termination, final observation may hand off the unchanged
@@ -469,6 +428,6 @@ The FF-only reusable foundation validates the inherited deadline, exact U at H,
 B/verified-M/current-M ancestry, and requires current main to equal the last
 actually verified baseline before writing main. A later M can still receive a
 legitimate completion/Ready handoff, but integration reports reconciliation
-required until the richer convergence implementation executes both immutable
-contract obligations and all four H′ checks. Branch cleanup also retains the
+required until convergence verifies the consistent H′ candidate, preserves
+reviewed compatibility obligations and obtains all four fresh H′ checks. Branch cleanup also retains the
 same inherited deadline.

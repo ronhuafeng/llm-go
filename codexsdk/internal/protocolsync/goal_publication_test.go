@@ -222,7 +222,7 @@ func TestGoalDraftAppendsFrozenTreeAndReusesIdenticalHead(t *testing.T) {
 	if err != nil || repeat.Head != result.Head {
 		t.Fatalf("repeat=%+v err=%v", repeat, err)
 	}
-	goalTestWrite(t, f.request.CandidateDir, "codexsdk/internal/schemaoracle/fix_test.go", "package schemaoracle\n")
+	goalTestWrite(t, f.request.CandidateDir, "codexsdk/internal/protocolgen/fix_test.go", "package protocolgen\n")
 	goalTestGit(t, f.request.CandidateDir, "add", "-A")
 	goalTestGit(t, f.request.CandidateDir, "-c", "user.name=Fixture", "-c", "user.email=fixture@localhost", "commit", "-m", "next candidate")
 	f.request.SnapshotDigest, _ = goalSnapshot(context.Background(), f.request.CandidateDir, "")

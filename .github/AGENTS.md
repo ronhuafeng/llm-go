@@ -18,8 +18,8 @@ of exact H after all four current checks and existing review policy. Native
 fixed-target handoffs and explicitly bound manual ordinary-code proposals may reconcile an out-of-date proposal through a
 mechanical linear rebase. Only a fixed-target handoff may invoke a fresh isolated
 repair goal; generic semantic conflicts remain blocked. A replacement H must
-preserve immutable original/current baseline obligations and current-main gate
-control sources, publish only with an exact-old-H lease, then obtain fresh CI.
+preserve original/current baseline identities, reviewed compatibility obligations
+and current-main gate control sources; test one internally consistent candidate, publish only with an exact-old-H lease, then obtain fresh CI.
 Never force-update main, merge histories, choose ours/theirs automatically, reset
 the inherited deadline, or reuse old-H checks. Model processes receive provider
 access only through the existing sandbox, never repository credentials or an

@@ -16,8 +16,8 @@ reusable integration interface alone does not make an incomplete goal eligible. 
 excludes native `-goal-` branches. Manual PR-number dispatch remains the reviewed
 route. It binds exact H and entry main B. Ordinary-code proposals may undergo
 conflict-free mechanical reconciliation for SDK root/protocolv2/wirejson and llmkit/llmcaller Go
-changes and inert Markdown docs, with immutable B/current-M runtime
-proof and fresh four-check CI, without a provider or inferred U. Other runtime/control paths and generic semantic
+changes and inert Markdown docs, with frozen B/current-M identities, consistent
+candidate-native tests and fresh four-check CI, without a provider or inferred U. Other runtime/control paths and generic semantic
 conflicts remain blocked because no fixed repair objective was authorized.
 Same-H reviewed manual FF retains its existing behavior; reconstructed generic
 candidates that alter protected gate/control authority are conservatively blocked.
@@ -32,7 +32,8 @@ causing a downgrade. Stable-baseline policy is shared with native goals.
 ## Repeated bounded reconciliation
 
 All work shares the original finite deadline, including queue/setup time. Each
-new M/H pair needs immutable original-B and current-M contract verification.
+new M/H pair needs original-B/current-M identity checks and native verification
+of the consistent candidate.
 This also applies when M is already an ancestor of unchanged H: stale proof is
 not renewed by ordinary CI alone, and no new commit is needed in that case.
 
@@ -72,7 +73,7 @@ App/provider credentials enter the trusted controller. The repair runtime is
 selected from the checked-in baseline at the exact accepted controller commit,
 not the candidate or latest upstream target. Existing GoalSandbox
 uses an explicit environment allowlist, private PID/proc/root and bounded mounts;
-only provider credentials enter the fresh model runtime. Oracle verification
+only provider credentials enter the fresh model runtime. Native candidate verification
 uses the existing credential-free sandbox. No App key/token, host environment,
 private file, extra descriptor or filesystem socket is mounted into either.
 Initial identity discovery uses only a repository-read token; write tokens exist
