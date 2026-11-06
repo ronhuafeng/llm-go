@@ -19,7 +19,10 @@ changes may occur in minor releases.
   OpenTelemetry requirements, and item timing metadata. Preserve all matching
   alternatives of the account session switch response's open `anyOf`.
   Upstream removes `ReviewDeliveryDetached`: create a separate thread and pass
-  its ID to an inline review instead. See the SDK README for migration.
+  its ID to an inline review instead. `UserInputAudio.URL` and
+  `ContentItemInputAudio.AudioURL` change from `string` to `*JSONValue`, alongside
+  new `FileID` fields, to preserve the upstream open `anyOf` alternatives.
+  See the SDK README for migration.
 
 - Synchronize the App Server protocol with Codex `rust-v0.165.0`
   (`360319d8dee62d87e2d59fc0c21805d79519cfed`), adding thread memory reads,

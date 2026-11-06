@@ -315,6 +315,23 @@ separate thread, create that thread first and pass its ID to `Reviews.Start`;
 omit `Delivery`, pass null, or use `Value(ReviewDeliveryInline)`. The SDK rejects
 the removed `"detached"` wire value on both encoding and decoding.
 
+The same baseline changes `UserInputAudio.URL` and
+`ContentItemInputAudio.AudioURL` from `string` to `*protocolv2.JSONValue`;
+both audio payloads also gain `FileID`. To construct URL input:
+
+```go
+url := protocolv2.JSONString("...")
+input := protocolv2.NewUserInputAudio(protocolv2.UserInputAudio{URL: &url})
+content := protocolv2.NewContentItemInputAudio(protocolv2.ContentItemInputAudio{AudioURL: &url})
+```
+
+For file input, set `FileID` to a pointer to `protocolv2.JSONString("...")`
+stored in a variable instead. On reads, nil means absent; check `AsString()`
+before treating a present value as text. Encoding and decoding require at least
+one string URL or file-ID branch. The other field can be null or another JSON
+kind when that branch matches and is preserved. This representation follows
+the upstream open `anyOf`; it does not expand the live scenario guarantee.
+
 `AccountSessionsSwitchResponse` is an open `anyOf`: a response can contain
 sessions, browser-login fields (`auth_url` and `login_id`), or both. The generated
 union validates each complete alternative and preserves fields left open by a
