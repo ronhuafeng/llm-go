@@ -519,16 +519,16 @@ func TestGeneratedReviewStartParamsProtocolMarshalAndUnmarshal(t *testing.T) {
 			wantKind: ReviewTargetKindBaseBranch,
 		},
 		{
-			name: "commit target with detached delivery",
+			name: "commit target with inline delivery",
 			value: ReviewStartParams{
-				Delivery: Value(ReviewDeliveryDetached),
+				Delivery: Value(ReviewDeliveryInline),
 				Target: NewReviewTargetCommit(ReviewTargetCommit{
 					SHA:   "abc123",
 					Title: Null[string](),
 				}),
 				ThreadID: "thread-1",
 			},
-			want:     `{"delivery":"detached","target":{"sha":"abc123","title":null,"type":"commit"},"threadId":"thread-1"}`,
+			want:     `{"delivery":"inline","target":{"sha":"abc123","title":null,"type":"commit"},"threadId":"thread-1"}`,
 			wantKind: ReviewTargetKindCommit,
 		},
 		{

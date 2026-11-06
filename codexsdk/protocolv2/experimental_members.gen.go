@@ -2,8 +2,46 @@
 package protocolv2
 
 var ExperimentalJSONFields = map[string]map[string]struct{}{
+	"AccountSession": {
+		"displayName":                {},
+		"email":                      {},
+		"imageUrl":                   {},
+		"isActive":                   {},
+		"lastUsedAt":                 {},
+		"selectedWorkspaceAccountId": {},
+		"sessionId":                  {},
+		"userId":                     {},
+		"workspaces":                 {},
+	},
+	"AccountSessionWorkspace": {
+		"accountId": {},
+		"imageUrl":  {},
+		"kind":      {},
+		"name":      {},
+	},
+	"AccountSessionsListParams": {
+		"refreshWorkspaceMetadata": {},
+	},
+	"AccountSessionsResponse": {
+		"activeSessionId": {},
+		"sessions":        {},
+	},
+	"AccountSessionsSwitchParams": {
+		"accountId":         {},
+		"allowBrowserLogin": {},
+		"sessionId":         {},
+	},
+	"AccountSessionsSwitchResponseAuthURL": {
+		"auth_url": {},
+		"login_id": {},
+	},
+	"AccountSessionsSwitchResponseSessions": {
+		"activeSessionId": {},
+		"sessions":        {},
+	},
 	"AdditionalContextEntry": {
 		"kind":  {},
+		"name":  {},
 		"value": {},
 	},
 	"AdditionalPermissionProfile": {
@@ -74,6 +112,18 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"params": {},
 	},
 	"ClientRequestAccountBedrockSetup": {
+		"id":     {},
+		"params": {},
+	},
+	"ClientRequestAccountGcpSetup": {
+		"id":     {},
+		"params": {},
+	},
+	"ClientRequestAccountSessionList": {
+		"id":     {},
+		"params": {},
+	},
+	"ClientRequestAccountSessionSwitch": {
 		"id":     {},
 		"params": {},
 	},
@@ -219,6 +269,10 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"params": {},
 	},
 	"ClientRequestThreadDecrementElicitation": {
+		"id":     {},
+		"params": {},
+	},
+	"ClientRequestThreadGuardianReview": {
 		"id":     {},
 		"params": {},
 	},
@@ -391,6 +445,7 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 	},
 	"ContentItemInputAudio": {
 		"audio_url": {},
+		"file_id":   {},
 	},
 	"ContentItemInputImage": {
 		"detail":    {},
@@ -467,6 +522,11 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 	"FuzzyFileSearchSessionUpdateParams": {
 		"query":     {},
 		"sessionId": {},
+	},
+	"GcpSetupParams": {
+		"credentialFile": {},
+		"location":       {},
+		"projectId":      {},
 	},
 	"GetAccountResponse": {
 		"workspaceRouting": {},
@@ -951,6 +1011,19 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"multiAgentMode":          {},
 		"runtimeWorkspaceRoots":   {},
 	},
+	"ThreadGuardianAssessment": {
+		"outcome":           {},
+		"rationale":         {},
+		"riskLevel":         {},
+		"userAuthorization": {},
+	},
+	"ThreadGuardianReviewParams": {
+		"threadId": {},
+	},
+	"ThreadGuardianReviewResponse": {
+		"assessment": {},
+		"callId":     {},
+	},
 	"ThreadIncrementElicitationParams": {
 		"threadId": {},
 	},
@@ -1143,6 +1216,7 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"disableMcp":                 {},
 		"effort":                     {},
 		"expectedTurnId":             {},
+		"interruptOnCancel":          {},
 		"prompt":                     {},
 		"responsesapiClientMetadata": {},
 		"threadId":                   {},
@@ -1360,6 +1434,14 @@ var ExperimentalUnionValues = map[string]map[string]struct{}{
 		"us":            {},
 		"us_cr":         {},
 	},
+	"AccountSessionWorkspace": {
+		"personal":  {},
+		"workspace": {},
+	},
+	"AccountSessionsSwitchResponse": {
+		"auth_url": {},
+		"sessions": {},
+	},
 	"AdditionalContext": {
 		"application": {},
 		"untrusted":   {},
@@ -1389,6 +1471,9 @@ var ExperimentalUnionValues = map[string]map[string]struct{}{
 		"account/bedrock/checkGovCloudRequirements": {},
 		"account/bedrock/discover":                  {},
 		"account/bedrock/setup":                     {},
+		"account/gcp/setup":                         {},
+		"accountSession/list":                       {},
+		"accountSession/switch":                     {},
 		"collaborationMode/list":                    {},
 		"environment/add":                           {},
 		"environment/info":                          {},
@@ -1426,6 +1511,7 @@ var ExperimentalUnionValues = map[string]map[string]struct{}{
 		"thread/backgroundTerminals/list":           {},
 		"thread/backgroundTerminals/terminate":      {},
 		"thread/decrement_elicitation":              {},
+		"thread/guardianReview":                     {},
 		"thread/increment_elicitation":              {},
 		"thread/items/read":                         {},
 		"thread/memory/read":                        {},
@@ -1491,6 +1577,10 @@ var ExperimentalUnionValues = map[string]map[string]struct{}{
 		"pending":      {},
 		"ready":        {},
 		"unknown":      {},
+	},
+	"GuardianAssessmentOutcome": {
+		"allow": {},
+		"deny":  {},
 	},
 	"LocalShellAction": {
 		"exec": {},
@@ -1689,6 +1779,18 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"AccountRateLimitsUpdatedNotification": {
 		"rateLimits": "RateLimitSnapshot",
 	},
+	"AccountSession": {
+		"workspaces": "AccountSessionWorkspace",
+	},
+	"AccountSessionWorkspace": {
+		"kind": "AccountSessionWorkspaceKind",
+	},
+	"AccountSessionsResponse": {
+		"sessions": "AccountSession",
+	},
+	"AccountSessionsSwitchResponseSessions": {
+		"sessions": "AccountSession",
+	},
 	"AccountUpdatedNotification": {
 		"authMode": "AuthMode",
 		"planType": "PlanType",
@@ -1806,6 +1908,10 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"ClientRequestAccountGatewayOAuthRead": {
 		"id": "RequestId",
 	},
+	"ClientRequestAccountGcpSetup": {
+		"id":     "RequestId",
+		"params": "GcpSetupParams",
+	},
 	"ClientRequestAccountLoginCancel": {
 		"id":     "RequestId",
 		"params": "CancelLoginAccountParams",
@@ -1832,6 +1938,14 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"ClientRequestAccountSendAddCreditsNudgeEmail": {
 		"id":     "RequestId",
 		"params": "SendAddCreditsNudgeEmailParams",
+	},
+	"ClientRequestAccountSessionList": {
+		"id":     "RequestId",
+		"params": "AccountSessionsListParams",
+	},
+	"ClientRequestAccountSessionSwitch": {
+		"id":     "RequestId",
+		"params": "AccountSessionsSwitchParams",
 	},
 	"ClientRequestAccountUsageRead": {
 		"id":     "RequestId",
@@ -2262,6 +2376,10 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"id":     "RequestId",
 		"params": "ThreadGoalSetParams",
 	},
+	"ClientRequestThreadGuardianReview": {
+		"id":     "RequestId",
+		"params": "ThreadGuardianReviewParams",
+	},
 	"ClientRequestThreadIncrementElicitation": {
 		"id":     "RequestId",
 		"params": "ThreadIncrementElicitationParams",
@@ -2601,6 +2719,7 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"inAppBrowser":                         "InAppBrowserRequirements",
 		"models":                               "ModelsRequirements",
 		"network":                              "NetworkRequirements",
+		"otel":                                 "OtelRequirements",
 	},
 	"ConfigRequirementsReadResponse": {
 		"requirements": "ConfigRequirements",
@@ -2954,6 +3073,19 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	},
 	"NewThreadModelDefaults": {
 		"modelReasoningEffort": "ReasoningEffort",
+	},
+	"OtelExporterOtlpGrpc": {
+		"tls": "OtelTlsConfig",
+	},
+	"OtelExporterOtlpHTTP": {
+		"protocol": "OtelHttpProtocol",
+		"tls":      "OtelTlsConfig",
+	},
+	"OtelRequirements": {
+		"exporter":         "OtelExporter",
+		"metrics_exporter": "OtelExporter",
+		"tool_result":      "OtelToolResultLogConfig",
+		"trace_exporter":   "OtelExporter",
 	},
 	"OverriddenMetadata": {
 		"overridingLayer": "ConfigLayerMetadata",
@@ -3453,6 +3585,9 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"ServerNotificationThreadReverted": {
 		"params": "ThreadRevertedNotification",
 	},
+	"ServerNotificationThreadSectionChanged": {
+		"params": "ThreadSectionChangedNotification",
+	},
 	"ServerNotificationThreadSettingsUpdated": {
 		"params": "ThreadSettingsUpdatedNotification",
 	},
@@ -3631,6 +3766,14 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	},
 	"ThreadGoalUpdatedNotification": {
 		"goal": "ThreadGoal",
+	},
+	"ThreadGuardianAssessment": {
+		"outcome":           "GuardianAssessmentOutcome",
+		"riskLevel":         "GuardianRiskLevel",
+		"userAuthorization": "GuardianUserAuthorization",
+	},
+	"ThreadGuardianReviewResponse": {
+		"assessment": "ThreadGuardianAssessment",
 	},
 	"ThreadItemAgentMessage": {
 		"delivery":       "AgentMessageDelivery",

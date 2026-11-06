@@ -8,6 +8,15 @@ import (
 	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
 )
 
+// AccountSession is an opaque generated facade for exact Codex operations.
+type AccountSession struct {
+	client *Client
+}
+
+func (c *Client) AccountSession() AccountSession {
+	return AccountSession{client: c}
+}
+
 // Accounts is an opaque generated facade for exact Codex operations.
 type Accounts struct {
 	client *Client
@@ -314,6 +323,22 @@ func (c *Client) WindowsSandbox() WindowsSandbox {
 	return WindowsSandbox{client: c}
 }
 
+func (f AccountSession) List(ctx context.Context, params protocolv2.AccountSessionsListParams) (protocolv2.AccountSessionsResponse, error) {
+	var response protocolv2.AccountSessionsResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodAccountSessionList, params, &response); err != nil {
+		return protocolv2.AccountSessionsResponse{}, err
+	}
+	return response, nil
+}
+
+func (f AccountSession) Switch(ctx context.Context, params protocolv2.AccountSessionsSwitchParams) (protocolv2.AccountSessionsSwitchResponse, error) {
+	var response protocolv2.AccountSessionsSwitchResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodAccountSessionSwitch, params, &response); err != nil {
+		return protocolv2.AccountSessionsSwitchResponse{}, err
+	}
+	return response, nil
+}
+
 func (f Accounts) BedrockCheckGovCloudRequirements(ctx context.Context, params protocolv2.BedrockCheckGovCloudRequirementsParams) (protocolv2.BedrockCheckGovCloudRequirementsResponse, error) {
 	var response protocolv2.BedrockCheckGovCloudRequirementsResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodAccountBedrockCheckGovCloudRequirements, params, &response); err != nil {
@@ -358,6 +383,14 @@ func (f Accounts) GatewayOAuthRead(ctx context.Context) (protocolv2.GatewayOAuth
 	var response protocolv2.GatewayOAuthReadResponse
 	if err := f.client.callProtocolNoParams(ctx, protocolv2.MethodAccountGatewayOAuthRead, &response); err != nil {
 		return protocolv2.GatewayOAuthReadResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Accounts) GcpSetup(ctx context.Context, params protocolv2.GcpSetupParams) (protocolv2.GcpSetupResponse, error) {
+	var response protocolv2.GcpSetupResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodAccountGcpSetup, params, &response); err != nil {
+		return protocolv2.GcpSetupResponse{}, err
 	}
 	return response, nil
 }
@@ -1310,6 +1343,14 @@ func (f Threads) GoalSet(ctx context.Context, params protocolv2.ThreadGoalSetPar
 	var response protocolv2.ThreadGoalSetResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadGoalSet, params, &response); err != nil {
 		return protocolv2.ThreadGoalSetResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Threads) GuardianReview(ctx context.Context, params protocolv2.ThreadGuardianReviewParams) (protocolv2.ThreadGuardianReviewResponse, error) {
+	var response protocolv2.ThreadGuardianReviewResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadGuardianReview, params, &response); err != nil {
+		return protocolv2.ThreadGuardianReviewResponse{}, err
 	}
 	return response, nil
 }

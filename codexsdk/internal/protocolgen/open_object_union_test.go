@@ -21,3 +21,20 @@ func TestGeneratedOpenObjectUnionContracts(t *testing.T) {
 		`{}`,
 	})
 }
+
+// Reduced from rust-v0.167.0 AccountSessionsSwitchResponse: the login
+// alternative requires two fields. Its name must not replace branch validation.
+func TestGeneratedObjectAnyOfMultipleRequiredFields(t *testing.T) {
+	const schema = `{"anyOf":[{"type":"object","properties":{"sessions":{"type":"array","items":{"type":"string"}}},"required":["sessions"]},{"type":"object","properties":{"auth_url":{"type":"string"},"login_id":{"type":"string"}},"required":["auth_url","login_id"]}]}`
+	plan := ProtocolTypePlan{Types: []TypePlan{{Kind: TypePlanAnyOfDeferred, GeneratedRoot: true, TypeName: "SwitchResponse", SchemaPath: "SwitchResponse.json", Schema: mustParseSchema(t, schema)}}}
+	runGeneratedContracts(t, "SwitchResponse", plan, []string{
+		`{"sessions":[]}`,
+		`{"auth_url":"url","login_id":"id"}`,
+		`{"sessions":[],"auth_url":"url","login_id":"id"}`,
+		`{"sessions":[],"auth_url":3,"login_id":null}`,
+		`{"sessions":false,"auth_url":"url","login_id":"id"}`,
+	}, []string{
+		`{}`, `{"auth_url":"url"}`, `{"login_id":"id"}`,
+		`{"auth_url":"url","login_id":3}`, `{"sessions":false,"auth_url":3,"login_id":"id"}`,
+	})
+}

@@ -309,6 +309,18 @@ recorder and changes no application acceptance or server-request authority.
 
 ## Compatibility and evidence
 
+At the `rust-v0.167.0` protocol baseline, upstream removes detached review
+delivery and the generated `ReviewDeliveryDetached` constant. To review on a
+separate thread, create that thread first and pass its ID to `Reviews.Start`;
+omit `Delivery`, pass null, or use `Value(ReviewDeliveryInline)`. The SDK rejects
+the removed `"detached"` wire value on both encoding and decoding.
+
+`AccountSessionsSwitchResponse` is an open `anyOf`: a response can contain
+sessions, browser-login fields (`auth_url` and `login_id`), or both. The generated
+union validates each complete alternative and preserves fields left open by a
+matching alternative, including mixed types in the other branch. Typed accessors
+expose the selected matching branch; encoding retains the full accepted value.
+
 At the `rust-v0.164.0` protocol baseline, `ThreadItemImageGeneration` accepts
 either a string `result` or a string `fileId`. Each alternative leaves the other
 field open, so `Result` is now `*protocolv2.JSONValue` instead of `string`, and

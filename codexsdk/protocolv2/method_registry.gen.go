@@ -50,6 +50,7 @@ const (
 	MethodAccountGatewayOAuthChanged              = "account/gatewayOAuth/changed"
 	MethodAccountGatewayOAuthLogin                = "account/gatewayOAuth/login"
 	MethodAccountGatewayOAuthRead                 = "account/gatewayOAuth/read"
+	MethodAccountGcpSetup                         = "account/gcp/setup"
 	MethodAccountLoginCancel                      = "account/login/cancel"
 	MethodAccountLoginCompleted                   = "account/login/completed"
 	MethodAccountLoginStart                       = "account/login/start"
@@ -62,6 +63,8 @@ const (
 	MethodAccountUpdated                          = "account/updated"
 	MethodAccountUsageRead                        = "account/usage/read"
 	MethodAccountWorkspaceMessagesRead            = "account/workspaceMessages/read"
+	MethodAccountSessionList                      = "accountSession/list"
+	MethodAccountSessionSwitch                    = "accountSession/switch"
 	MethodAppInstalled                            = "app/installed"
 	MethodAppList                                 = "app/list"
 	MethodAppListUpdated                          = "app/list/updated"
@@ -231,6 +234,7 @@ const (
 	MethodThreadGoalGet                           = "thread/goal/get"
 	MethodThreadGoalSet                           = "thread/goal/set"
 	MethodThreadGoalUpdated                       = "thread/goal/updated"
+	MethodThreadGuardianReview                    = "thread/guardianReview"
 	MethodThreadIncrementElicitation              = "thread/increment_elicitation"
 	MethodThreadInjectItems                       = "thread/inject_items"
 	MethodThreadItemsList                         = "thread/items/list"
@@ -279,6 +283,7 @@ const (
 	MethodThreadSampleCancel                      = "thread/sample/cancel"
 	MethodThreadSearch                            = "thread/search"
 	MethodThreadSearchOccurrences                 = "thread/searchOccurrences"
+	MethodThreadSectionChanged                    = "thread/section/changed"
 	MethodThreadSectionMove                       = "thread/section/move"
 	MethodThreadSettingsUpdate                    = "thread/settings/update"
 	MethodThreadSettingsUpdated                   = "thread/settings/updated"
@@ -405,6 +410,17 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "Accounts().GatewayOAuthRead",
 		Stability:             MethodStabilityStable,
+	},
+	MethodAccountGcpSetup: {
+		Method:                MethodAccountGcpSetup,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "account",
+		ParamsOrPayloadSchema: "GcpSetupParams",
+		ResponseSchema:        "v2/GcpSetupResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Accounts().GcpSetup",
+		Stability:             MethodStabilityExperimental,
 	},
 	MethodAccountLoginCancel: {
 		Method:                MethodAccountLoginCancel,
@@ -537,6 +553,28 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "Accounts().WorkspaceMessagesRead",
 		Stability:             MethodStabilityStable,
+	},
+	MethodAccountSessionList: {
+		Method:                MethodAccountSessionList,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "accountSession",
+		ParamsOrPayloadSchema: "AccountSessionsListParams",
+		ResponseSchema:        "v2/AccountSessionsResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "AccountSession().List",
+		Stability:             MethodStabilityExperimental,
+	},
+	MethodAccountSessionSwitch: {
+		Method:                MethodAccountSessionSwitch,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "accountSession",
+		ParamsOrPayloadSchema: "AccountSessionsSwitchParams",
+		ResponseSchema:        "v2/AccountSessionsSwitchResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "AccountSession().Switch",
+		Stability:             MethodStabilityExperimental,
 	},
 	MethodAppInstalled: {
 		Method:                MethodAppInstalled,
@@ -2397,6 +2435,17 @@ var methodRegistry = map[string]MethodInfo{
 		FacadeTarget:          "ServerNotifications().ThreadGoalUpdated",
 		Stability:             MethodStabilityStable,
 	},
+	MethodThreadGuardianReview: {
+		Method:                MethodThreadGuardianReview,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadGuardianReviewParams",
+		ResponseSchema:        "v2/ThreadGuardianReviewResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Threads().GuardianReview",
+		Stability:             MethodStabilityExperimental,
+	},
 	MethodThreadIncrementElicitation: {
 		Method:                MethodThreadIncrementElicitation,
 		Direction:             MethodDirectionClientToServer,
@@ -2924,6 +2973,17 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "Threads().SearchOccurrences",
 		Stability:             MethodStabilityExperimental,
+	},
+	MethodThreadSectionChanged: {
+		Method:                MethodThreadSectionChanged,
+		Direction:             MethodDirectionServerToClient,
+		Kind:                  MethodKindNotification,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadSectionChangedNotification",
+		ResponseSchema:        "",
+		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
+		FacadeTarget:          "ServerNotifications().ThreadSectionChanged",
+		Stability:             MethodStabilityStable,
 	},
 	MethodThreadSectionMove: {
 		Method:                MethodThreadSectionMove,

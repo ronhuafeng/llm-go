@@ -1264,9 +1264,12 @@ func untaggedObjectUnionDiscriminator(variants []*Schema, targetIndex int) (stri
 		}
 	}
 	sort.Strings(candidates)
-	if len(candidates) != 1 {
-		return "", fmt.Errorf("expected exactly one unique required discriminator field, got %d", len(candidates))
+	if len(candidates) == 0 {
+		return "", fmt.Errorf("expected at least one unique required discriminator field")
 	}
+	// This field names the Go variant; decoding checks the complete branch,
+	// including every required field. Multiple unique required fields do not
+	// make an anyOf ambiguous. Choose deterministically without narrowing it.
 	return candidates[0], nil
 }
 
