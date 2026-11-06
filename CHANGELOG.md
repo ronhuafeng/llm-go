@@ -75,6 +75,11 @@ changes may occur in minor releases.
 
 #### Fixed
 
+- Allow fixed-target native upstream upgrades to evolve the protocol generator
+  and its tests in the same automatically forwarded candidate. Preserve trusted
+  controller, exact-source, credential, required-check and non-force integration
+  boundaries; generator changes no longer imply manual integration.
+
 - On Linux, contain inherited App Server background processes during both
   graceful and forced shutdown. Keep the direct child unreaped until its owned
   process group has stopped, and report incomplete cleanup rather than allowing

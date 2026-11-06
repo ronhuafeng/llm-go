@@ -7,17 +7,19 @@ import (
 	"strings"
 )
 
-// Automated native integration cannot let the candidate replace its own gate
-// authority. This is an integration eligibility rule, not a publication path
-// allowlist: control-changing proposals remain reviewable and may use the
-// explicit manual FF route after review. Full package trees include new init,
-// TestMain and helper files, not only today's known entrypoints.
+// Automated native integration preserves the accepted controller and gate
+// decisions. protocolgen is candidate implementation, like the generated SDK:
+// it may evolve with its native tests under the unchanged source, generated,
+// provenance and Live gates. It does not replace the trusted controller binary
+// or its independent exact-source comparison. Control package trees remain
+// protected in full, including new init, TestMain and helper files. This is an
+// integration eligibility rule, not a publication path allowlist.
 func protectedForwardControl(p string) bool {
 	switch path.Base(p) {
 	case "go.mod", "go.sum", "go.work", "go.work.sum":
 		return true
 	}
-	for _, prefix := range []string{".github/", "internal/tools/", "codexsdk/internal/cmd/", "codexsdk/internal/checkacceptance/", "codexsdk/internal/codexexec/", "codexsdk/internal/protocolsync/", "codexsdk/internal/protocolupgrade/", "codexsdk/internal/generatedcheck/", "codexsdk/internal/protocolgen/"} {
+	for _, prefix := range []string{".github/", "internal/tools/", "codexsdk/internal/cmd/", "codexsdk/internal/checkacceptance/", "codexsdk/internal/codexexec/", "codexsdk/internal/protocolsync/", "codexsdk/internal/protocolupgrade/", "codexsdk/internal/generatedcheck/"} {
 		if strings.HasPrefix(p, prefix) {
 			return true
 		}

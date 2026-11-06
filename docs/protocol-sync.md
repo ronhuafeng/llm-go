@@ -103,6 +103,10 @@ result and publication diagnostics retain all changed paths for independent
 review; the goal's final report explains risks from changes beyond protocol
 generation and adaptation. Review checks that the acceptance contract was not
 weakened, including when the proposal changes verification or control code.
+Generator implementation and its candidate-native behavior tests remain eligible
+for the native Ready and Auto-forward handoff. Acceptance-check/controller changes
+remain distinct: publication may retain them for review, but native integration
+preserves the control authority defined in [auto-forward.md](auto-forward.md).
 
 ## Runtime and effect boundaries
 

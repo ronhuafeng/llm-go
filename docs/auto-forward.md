@@ -46,11 +46,20 @@ The existing verification tool supplies diagnostics and accepts only an unchange
 verified snapshot. An unchanged failing repair stops. No automatic ours/theirs,
 merge commits, dropped assertions, or verifier weakening is permitted.
 
-Native integration and reconstructed generic candidates additionally preserve current-M gate authority: complete CI,
-controller, security, verifier/generator package trees and all Go module/workspace
-metadata cannot be changed by the proposed H. This includes newly added files.
-Proposals requiring such changes need explicit reviewed manual integration.
-Production SDK/schema adaptations remain eligible.
+Native integration and reconstructed generic candidates additionally preserve
+current-M gate authority: complete CI, controller, security and acceptance-check
+package trees and all Go module/workspace metadata cannot be changed by the
+proposed H. This includes newly added files. Proposals changing those controls
+need explicit reviewed manual integration.
+
+`protocolgen` is candidate implementation, not an acceptance decision owner.
+A fixed-target native upgrade may adapt the generator, its tests and fixtures,
+and the generated SDK together. The trusted controller still compares the exact
+upstream schema independently; unchanged gates require reproducibility, native
+behavior assertions and real Live for that same H. The candidate generator never
+replaces the accepted controller binary or receives repository-write authority.
+Generator changes alone therefore do not require a separate prerequisite PR or
+manual integration. Generic reconciliation retains its narrower runtime scope.
 
 A changed H is published only with `--force-with-lease=refs/heads/branch:oldH`.
 The branch writer is the scoped integration App. Its four fresh exact-head CI
