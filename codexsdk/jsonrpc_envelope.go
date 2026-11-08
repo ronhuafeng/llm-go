@@ -199,6 +199,9 @@ func validateRequiredJSONString(raw json.RawMessage, path string) error {
 	if raw == nil {
 		return fmt.Errorf("decode %s: missing required field", path)
 	}
+	if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		return fmt.Errorf("decode %s: expected string", path)
+	}
 	var value string
 	if err := json.Unmarshal(raw, &value); err != nil {
 		return fmt.Errorf("decode %s: expected string", path)

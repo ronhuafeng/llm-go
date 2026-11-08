@@ -86,6 +86,8 @@ changes may occur in minor releases.
 
 #### Fixed
 
+- Reject JSON `null` for required JSON-RPC `method` and error `message` strings, matching the selected upstream Codex schema while preserving optional nulls and unknown fields.
+
 - Allow fixed-target native upstream upgrades to evolve the protocol generator
   and its tests in the same automatically forwarded candidate. Preserve trusted
   controller, exact-source, credential, required-check and non-force integration

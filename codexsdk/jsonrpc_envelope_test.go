@@ -15,6 +15,10 @@ func TestValidateJSONRPCEnvelopeAcceptsCanonicalShapes(t *testing.T) {
 			line: `{"id":"go-sdk-1","method":"turn/start","params":{"threadId":"thread-1"},"trace":null}`,
 		},
 		{
+			name: "request with empty method and null params",
+			line: `{"id":"go-sdk-1","method":"","params":null}`,
+		},
+		{
 			name: "notification",
 			line: `{"method":"initialized"}`,
 		},
@@ -25,6 +29,10 @@ func TestValidateJSONRPCEnvelopeAcceptsCanonicalShapes(t *testing.T) {
 		{
 			name: "error",
 			line: `{"id":42,"error":{"code":-32603,"data":null,"message":"boom"}}`,
+		},
+		{
+			name: "error with empty message",
+			line: `{"id":42,"error":{"code":-32603,"message":""}}`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -43,6 +51,10 @@ func TestValidateJSONRPCEnvelopeAcceptsExtraMetadata(t *testing.T) {
 		{
 			name: "request",
 			line: `{"id":"go-sdk-1","method":"turn/start","params":{"threadId":"thread-1"},"trace":null,"meta":{"source":"test"}}`,
+		},
+		{
+			name: "request with null extension",
+			line: `{"id":"go-sdk-1","method":"turn/start","future":null}`,
 		},
 		{
 			name: "notification",
@@ -95,6 +107,21 @@ func TestValidateJSONRPCEnvelopeRejectsMalformedProtocol(t *testing.T) {
 			name:    "request id null",
 			line:    `{"id":null,"method":"turn/start"}`,
 			wantErr: "decode JSONRPCMessage.request: decode JSONRPCRequest.id: null is not allowed",
+		},
+		{
+			name:    "request method null",
+			line:    `{"id":"go-sdk-1","method":null}`,
+			wantErr: "decode JSONRPCMessage.request: decode JSONRPCRequest.method: expected string",
+		},
+		{
+			name:    "notification method null",
+			line:    `{"method":null}`,
+			wantErr: "decode JSONRPCMessage.notification: decode JSONRPCNotification.method: expected string",
+		},
+		{
+			name:    "error message null",
+			line:    `{"id":"go-sdk-1","error":{"code":-32603,"message":null}}`,
+			wantErr: "decode JSONRPCMessage.error: decode JSONRPCErrorError.message: expected string",
 		},
 		{
 			name:    "response nested duplicate",
