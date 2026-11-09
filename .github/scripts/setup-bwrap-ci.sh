@@ -28,6 +28,12 @@ if [[ "$userns_restrict" != 0 ]]; then
   echo "::error::native sandbox setup requires the existing userns sysctl prerequisite"
   exit 1
 fi
+# Ubuntu 26.04 also restricts unprivileged unconfined descendants, including
+# nested user namespaces after the distro bwrap profile is unloaded. On this
+# disposable CI runner only, enable that path before verifying BOTH boundaries.
+if [[ -r /proc/sys/kernel/apparmor_restrict_unprivileged_unconfined ]]; then
+  sudo sysctl -w kernel.apparmor_restrict_unprivileged_unconfined=0
+fi
 
 echo "::group::Native sandbox host diagnostics (public fixed facts)"
 echo "runner_os=ubuntu-26.04"

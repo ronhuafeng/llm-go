@@ -2,6 +2,7 @@ package codexexec
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"github.com/pelletier/go-toml/v2"
 	"net"
@@ -186,7 +187,7 @@ func main(){ var value map[string]any; if toml.Unmarshal([]byte("probe=1"), &val
 		t.Fatal("native probe modified controller feedback")
 	}
 	if runErr != nil || string(out) != "native-goal-boundary-verified\n" {
-		t.Fatalf("native goal boundary unverified: %v (stage=%s)", runErr, nativeGoalSandboxFailureClass(runErr))
+		t.Fatalf("native goal boundary unverified: %s", nativeGoalSandboxFailureEvidence(runErr))
 	}
 	if b, err := os.ReadFile(filepath.Join(workspace, "inner-positive")); err != nil || string(b) != "inner-write" {
 		t.Fatal("nested workspace positive control missing")
@@ -287,6 +288,64 @@ func nativeGoalSandboxFailureClass(err error) string {
 	}
 }
 
+// Native subprocess diagnostics must never include raw stdout/stderr: fixtures
+// and Codex can emit host paths, prompts, or credentials. Report only fixed
+// categories, explicit fixture exit codes, lengths and a content digest.
+func nativeGoalSandboxFailureEvidence(err error) string {
+	if err == nil {
+		return "exit=0 stage=unexpected_output"
+	}
+	exit, ok := err.(*exec.ExitError)
+	if !ok {
+		return "exit=unknown stage=non_exit_error"
+	}
+	code := -1
+	if exit.ProcessState != nil {
+		code = exit.ExitCode()
+	}
+	stderr := string(exit.Stderr)
+	nestedCause := "none"
+	for _, name := range []string{
+		"bubblewrap_userns_denied", "bubblewrap_uid_map", "bubblewrap_network_capability",
+		"bubblewrap_bind_mount", "bubblewrap_mkdir", "operation_not_permitted",
+		"permission_denied", "bubblewrap_other", "other_stderr", "no_stderr", "non_exit_error",
+	} {
+		if strings.Contains(stderr, "native-goal-probe: nested "+name+"\n") {
+			nestedCause = name
+			break
+		}
+	}
+	fixtureCode := "none"
+	for n := 90; n <= 110; n++ {
+		if strings.Contains(stderr, fmt.Sprintf("native-goal-probe: failure_code=%d\n", n)) {
+			fixtureCode = strconv.Itoa(n)
+			break
+		}
+	}
+	digest := sha256.Sum256(exit.Stderr)
+	return fmt.Sprintf(
+		"exit=%d stage=%s nested_cause=%s fixture_code=%s stderr_bytes=%d stderr_sha256=%x",
+		code, nativeGoalSandboxFailureClass(err), nestedCause, fixtureCode, len(exit.Stderr), digest,
+	)
+}
+
+func TestNativeGoalSandboxFailureEvidenceDoesNotDiscloseStderr(t *testing.T) {
+	for _, tc := range []struct {
+		name, stderr, want string
+	}{
+		{"outer userns denial", "bwrap: No permissions to create a new namespace\nprivate-token", "stage=bubblewrap_userns_denied"},
+		{"nested uid map", "native-goal-probe: child\nnative-goal-probe: nested bubblewrap_uid_map\nprivate-token", "nested_cause=bubblewrap_uid_map"},
+		{"fixture failure", "native-goal-probe: child\nnative-goal-probe: failure_code=96\nprivate-token", "fixture_code=96"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			facts := nativeGoalSandboxFailureEvidence(&exec.ExitError{Stderr: []byte(tc.stderr)})
+			if !strings.Contains(facts, tc.want) || strings.Contains(facts, "private-token") || !strings.Contains(facts, "stderr_sha256=") {
+				t.Fatal("sandbox failure evidence lacks expected safe classification")
+			}
+		})
+	}
+}
+
 const goalParentCanary = "goal-parent-credential-canary"
 
 func TestNativeGoalSandboxChild(t *testing.T) {
@@ -303,7 +362,10 @@ func TestNativeGoalSandboxChild(t *testing.T) {
 	a := os.Args[index+1:]
 	mode, workspace, feedback, secret, socket, parentPID, binary, url := a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]
 	fmt.Fprintln(os.Stderr, "native-goal-probe: child")
-	fail := func(code int) { os.Exit(code) }
+	fail := func(code int) {
+		fmt.Fprintf(os.Stderr, "native-goal-probe: failure_code=%d\n", code)
+		os.Exit(code)
+	}
 	if mode == "block" {
 		descendant := exec.Command("/bin/sh", "-c", "while :; do printf alive > native-heartbeat; sleep 0.02; done")
 		descendant.Dir = workspace

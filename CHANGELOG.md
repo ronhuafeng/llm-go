@@ -86,6 +86,8 @@ changes may occur in minor releases.
 
 #### Fixed
 
+- Verify native GoalSandbox boundaries on Ubuntu 26.04 GitHub-hosted runners with explicit host AppArmor compatibility and bounded failure diagnostics. CI-only host profile changes do not alter SDK runtime policy or relax native isolation assertions.
+
 - Reject JSON `null` for required JSON-RPC `method` and error `message` strings, matching the selected upstream Codex schema while preserving optional nulls and unknown fields.
 
 - Allow fixed-target native upstream upgrades to evolve the protocol generator
