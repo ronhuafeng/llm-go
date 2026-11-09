@@ -1,0 +1,5 @@
+# GitHub supports ubuntu-26.04, but pinned actionlint v1.7.12 predates it.
+# Remove this compatibility entry when actionlint recognizes the hosted label.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04
