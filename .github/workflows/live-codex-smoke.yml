@@ -30,7 +30,7 @@ permissions:
 jobs:
   integration:
     name: Live scenarios
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -72,8 +72,8 @@ jobs:
         run: |
           set -euo pipefail
           test "${HOSTED_ENVIRONMENT}" = github-hosted
-          # Ubuntu 24 AppArmor otherwise denies namespace-local loopback setup.
-          # This VM-only prerequisite does not change the child sandbox policy.
+          # Direct Codex live scenarios require userns; the nested GoalSandbox
+          # AppArmor compatibility setup is not needed on this path.
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
       - name: Verify live through shared gate

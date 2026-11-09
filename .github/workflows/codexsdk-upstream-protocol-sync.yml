@@ -55,7 +55,7 @@ jobs:
   diagnose:
     if: ${{ github.event_name == 'workflow_dispatch' && (inputs.diagnostic_only == true || inputs.validation_only == true) }}
     name: Read-only upstream protocol
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 360
     permissions:
       contents: read
@@ -121,6 +121,8 @@ jobs:
           cache: false
 
       - name: Provision Codex schema build dependencies
+        env:
+          HOSTED_ENVIRONMENT: ${{ runner.environment }}
         run: |
           set -euo pipefail
           rustup default stable
@@ -133,6 +135,9 @@ jobs:
             libssl-dev \
             pkg-config \
             protobuf-compiler
+          test "${HOSTED_ENVIRONMENT}" = github-hosted
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          bash .github/scripts/setup-bwrap-ci.sh
 
       - name: Generate and plan candidate
         id: diagnostic
@@ -279,7 +284,7 @@ jobs:
       target_kind: ${{ steps.ready.outputs.target_kind }}
       target_sha: ${{ steps.ready.outputs.target_sha }}
       deadline: ${{ steps.ready.outputs.deadline }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 360
     permissions:
       contents: read
@@ -421,6 +426,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y bubblewrap clang cmake libasound2-dev libssl-dev pkg-config protobuf-compiler
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          bash .github/scripts/setup-bwrap-ci.sh
           rustup default stable
       - name: Set up accepted-base Codex executor
         if: ${{ steps.preflight.outputs.outcome == 'run' || steps.recovery.outputs.outcome == 'admitted' }}

@@ -55,7 +55,7 @@ concurrency:
 jobs:
   integrate:
     name: Bounded exact-head convergence
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 360
     steps:
       - name: Require trusted main and complete native handoff
@@ -124,6 +124,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y bubblewrap
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          bash .github/scripts/setup-bwrap-ci.sh
           go mod download
       - name: Provision existing credential-free verification and repair sandbox
         if: inputs.target_sha != ''
@@ -137,6 +138,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y bubblewrap clang cmake libasound2-dev libssl-dev pkg-config protobuf-compiler
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          bash .github/scripts/setup-bwrap-ci.sh
           rustup default stable
           mkdir -p "${RUNNER_TEMP}/repair-rust-tools"
           cp "$(command -v rustup)" "${RUNNER_TEMP}/repair-rust-tools/rustup"
