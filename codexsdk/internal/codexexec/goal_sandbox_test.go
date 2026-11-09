@@ -186,7 +186,7 @@ func main(){ var value map[string]any; if toml.Unmarshal([]byte("probe=1"), &val
 		t.Fatal("native probe modified controller feedback")
 	}
 	if runErr != nil || string(out) != "native-goal-boundary-verified\n" {
-		t.Fatalf("native goal boundary unverified: %v", runErr)
+		t.Fatalf("native goal boundary unverified: %v (stage=%s)", runErr, nativeGoalSandboxFailureClass(runErr))
 	}
 	if b, err := os.ReadFile(filepath.Join(workspace, "inner-positive")); err != nil || string(b) != "inner-write" {
 		t.Fatal("nested workspace positive control missing")
@@ -247,6 +247,46 @@ func main(){ var value map[string]any; if toml.Unmarshal([]byte("probe=1"), &val
 	t.Run("recovered-exec-error", TestNativeCodexRecoveredExecRetry)
 }
 
+// Classify only fixed error categories. Native subprocess stderr can contain
+// host paths or credentials and must never be copied into CI diagnostics.
+func nativeGoalSandboxFailureClass(err error) string {
+	if err == nil {
+		return "unexpected_output"
+	}
+	exit, ok := err.(*exec.ExitError)
+	if !ok {
+		return "non_exit_error"
+	}
+	stderr := string(exit.Stderr)
+	switch {
+	case strings.Contains(stderr, "native-goal-probe: nested"):
+		return "nested_codex_sandbox"
+	case strings.Contains(stderr, "native-goal-probe: child"):
+		return "outer_sandbox_child"
+	case strings.Contains(stderr, "Can't bind mount"):
+		return "bubblewrap_bind_mount"
+	case strings.Contains(stderr, "setting up uid map"):
+		return "bubblewrap_uid_map"
+	case strings.Contains(stderr, "No permissions to create a new namespace"),
+		strings.Contains(stderr, "No permissions to create new namespace"):
+		return "bubblewrap_userns_denied"
+	case strings.Contains(stderr, "Failed RTM_NEWADDR"):
+		return "bubblewrap_network_capability"
+	case strings.Contains(stderr, "Can't mkdir"):
+		return "bubblewrap_mkdir"
+	case strings.Contains(stderr, "Operation not permitted"):
+		return "operation_not_permitted"
+	case strings.Contains(stderr, "Permission denied"):
+		return "permission_denied"
+	case strings.Contains(stderr, "bwrap:"):
+		return "bubblewrap_other"
+	case stderr != "":
+		return "other_stderr"
+	default:
+		return "no_stderr"
+	}
+}
+
 const goalParentCanary = "goal-parent-credential-canary"
 
 func TestNativeGoalSandboxChild(t *testing.T) {
@@ -262,6 +302,7 @@ func TestNativeGoalSandboxChild(t *testing.T) {
 	}
 	a := os.Args[index+1:]
 	mode, workspace, feedback, secret, socket, parentPID, binary, url := a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]
+	fmt.Fprintln(os.Stderr, "native-goal-probe: child")
 	fail := func(code int) { os.Exit(code) }
 	if mode == "block" {
 		descendant := exec.Command("/bin/sh", "-c", "while :; do printf alive > native-heartbeat; sleep 0.02; done")
@@ -365,6 +406,7 @@ func TestNativeGoalSandboxChild(t *testing.T) {
 	native.Env = os.Environ()
 	out, err := native.Output()
 	if err != nil || string(out) != "nested-native-verified\n" {
+		fmt.Fprintln(os.Stderr, "native-goal-probe: nested", nativeGoalSandboxFailureClass(err))
 		fail(106)
 	}
 	fmt.Println("native-goal-boundary-verified")

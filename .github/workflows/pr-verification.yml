@@ -132,9 +132,8 @@ jobs:
 
   source:
     name: Root source verification
-    # Native bubblewrap/Codex sandbox boundary is verified on Ubuntu 24.04.
-    # Do not inherit unvalidated OS changes via ubuntu-latest.
-    runs-on: ubuntu-24.04
+    # Exercise the required nested native sandbox on the current Ubuntu 26 image.
+    runs-on: ubuntu-26.04
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
