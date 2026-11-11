@@ -13,6 +13,10 @@ changes may occur in minor releases.
 
 #### Added
 
+- Synchronize the App Server protocol provenance with Codex `rust-v0.167.1`
+  (`0a94398fa60c4fac0e7659e4213a0a36e613dd46`). The checked-in schemas
+  and generated Go surface are unchanged from `rust-v0.167.0`.
+
 - Synchronize the App Server protocol with Codex `rust-v0.167.0`
   (`086ccc833bc9cf01024ad2dd6af7dbd421b6bf9a`), adding account session
   listing/switching, GCP setup, guardian review, thread section notifications,
