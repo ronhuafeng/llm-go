@@ -13,6 +13,10 @@ changes may occur in minor releases.
 
 #### Added
 
+- Synchronize the App Server protocol provenance with Codex `rust-v0.167.2`
+  (`ce21072c90d32c40af7a55b60b2fb35c84a43a6a`). The checked-in schemas
+  and generated Go surface are unchanged from `rust-v0.167.1`.
+
 - Synchronize the App Server protocol provenance with Codex `rust-v0.167.1`
   (`0a94398fa60c4fac0e7659e4213a0a36e613dd46`). The checked-in schemas
   and generated Go surface are unchanged from `rust-v0.167.0`.
