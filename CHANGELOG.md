@@ -13,6 +13,16 @@ changes may occur in minor releases.
 
 #### Added
 
+- Synchronize the App Server protocol with Codex `rust-v0.169.0`
+  (`d32063f96c2dff1dc96af839b3952abb6acfeda4`), adding provider configuration
+  and listing, account security setup, approved plan preparation, device OAuth,
+  moderation metadata, deferred item outputs, and thread environment settings.
+  Optional nullable request parameters now reach the generated facades while
+  preserving existing calls with no arguments. Audio tool outputs accept URL
+  and file-ID alternatives without narrowing either open `anyOf` branch.
+  `FunctionCallOutputContentItemInputAudio.AudioURL` changes from `string` to
+  `*JSONValue`; see the SDK README for migration and optional-parameter calls.
+
 - Synchronize the App Server protocol provenance with Codex `rust-v0.167.2`
   (`ce21072c90d32c40af7a55b60b2fb35c84a43a6a`). The checked-in schemas
   and generated Go surface are unchanged from `rust-v0.167.1`.

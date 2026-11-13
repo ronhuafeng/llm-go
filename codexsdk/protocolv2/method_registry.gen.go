@@ -35,6 +35,8 @@ type MethodInfo struct {
 	Kind                  MethodKind
 	Family                string
 	ParamsOrPayloadSchema string
+	ParamsOptional        bool
+	ParamsNullable        bool
 	ResponseSchema        string
 	ResponseSchemaStatus  ResponseSchemaStatus
 	FacadeTarget          string
@@ -59,6 +61,7 @@ const (
 	MethodAccountRateLimitsRead                   = "account/rateLimits/read"
 	MethodAccountRateLimitsUpdated                = "account/rateLimits/updated"
 	MethodAccountRead                             = "account/read"
+	MethodAccountSecuritySetupRead                = "account/securitySetup/read"
 	MethodAccountSendAddCreditsNudgeEmail         = "account/sendAddCreditsNudgeEmail"
 	MethodAccountUpdated                          = "account/updated"
 	MethodAccountUsageRead                        = "account/usage/read"
@@ -165,6 +168,8 @@ const (
 	MethodModelProviderAuthRecoveryCompleted      = "modelProvider/authRecoveryCompleted"
 	MethodModelProviderAuthRecoveryStarted        = "modelProvider/authRecoveryStarted"
 	MethodModelProviderCapabilitiesRead           = "modelProvider/capabilities/read"
+	MethodModelProviderConfigWrite                = "modelProvider/config/write"
+	MethodModelProviderList                       = "modelProvider/list"
 	MethodPermissionProfileList                   = "permissionProfile/list"
 	MethodPluginInstall                           = "plugin/install"
 	MethodPluginInstalled                         = "plugin/installed"
@@ -248,6 +253,7 @@ const (
 	MethodThreadNameUpdated                       = "thread/name/updated"
 	MethodThreadPredictionRequest                 = "thread/prediction/request"
 	MethodThreadPredictionUpdated                 = "thread/prediction/updated"
+	MethodThreadPrepareApprovedPlan               = "thread/prepareApprovedPlan"
 	MethodThreadProjectUpdated                    = "thread/project/updated"
 	MethodThreadQueueAdd                          = "thread/queue/add"
 	MethodThreadQueueChanged                      = "thread/queue/changed"
@@ -394,7 +400,9 @@ var methodRegistry = map[string]MethodInfo{
 		Direction:             MethodDirectionClientToServer,
 		Kind:                  MethodKindRequest,
 		Family:                "account",
-		ParamsOrPayloadSchema: "",
+		ParamsOrPayloadSchema: "GatewayOAuthLoginParams",
+		ParamsOptional:        true,
+		ParamsNullable:        true,
 		ResponseSchema:        "v2/GatewayOAuthLoginResponse.json",
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "Accounts().GatewayOAuthLogin",
@@ -405,7 +413,9 @@ var methodRegistry = map[string]MethodInfo{
 		Direction:             MethodDirectionClientToServer,
 		Kind:                  MethodKindRequest,
 		Family:                "account",
-		ParamsOrPayloadSchema: "",
+		ParamsOrPayloadSchema: "GatewayOAuthReadParams",
+		ParamsOptional:        true,
+		ParamsNullable:        true,
 		ResponseSchema:        "v2/GatewayOAuthReadResponse.json",
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "Accounts().GatewayOAuthRead",
@@ -482,7 +492,9 @@ var methodRegistry = map[string]MethodInfo{
 		Direction:             MethodDirectionClientToServer,
 		Kind:                  MethodKindRequest,
 		Family:                "account",
-		ParamsOrPayloadSchema: "",
+		ParamsOrPayloadSchema: "GetAccountRateLimitsParams",
+		ParamsOptional:        true,
+		ParamsNullable:        true,
 		ResponseSchema:        "v2/GetAccountRateLimitsResponse.json",
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "Accounts().RateLimitsRead",
@@ -508,6 +520,17 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchema:        "v2/GetAccountResponse.json",
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "Accounts().Read",
+		Stability:             MethodStabilityStable,
+	},
+	MethodAccountSecuritySetupRead: {
+		Method:                MethodAccountSecuritySetupRead,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "account",
+		ParamsOrPayloadSchema: "",
+		ResponseSchema:        "v2/GetAccountSecuritySetupResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Accounts().SecuritySetupRead",
 		Stability:             MethodStabilityStable,
 	},
 	MethodAccountSendAddCreditsNudgeEmail: {
@@ -537,7 +560,9 @@ var methodRegistry = map[string]MethodInfo{
 		Direction:             MethodDirectionClientToServer,
 		Kind:                  MethodKindRequest,
 		Family:                "account",
-		ParamsOrPayloadSchema: "",
+		ParamsOrPayloadSchema: "GetAccountTokenUsageParams",
+		ParamsOptional:        true,
+		ParamsNullable:        true,
 		ResponseSchema:        "v2/GetAccountTokenUsageResponse.json",
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "Accounts().UsageRead",
@@ -1676,6 +1701,28 @@ var methodRegistry = map[string]MethodInfo{
 		FacadeTarget:          "ModelProviders().CapabilitiesRead",
 		Stability:             MethodStabilityStable,
 	},
+	MethodModelProviderConfigWrite: {
+		Method:                MethodModelProviderConfigWrite,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "modelProvider",
+		ParamsOrPayloadSchema: "ModelProviderConfigWriteParams",
+		ResponseSchema:        "v2/ModelProviderConfigWriteResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "ModelProviders().ConfigWrite",
+		Stability:             MethodStabilityStable,
+	},
+	MethodModelProviderList: {
+		Method:                MethodModelProviderList,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "modelProvider",
+		ParamsOrPayloadSchema: "ModelProviderListParams",
+		ResponseSchema:        "v2/ModelProviderListResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "ModelProviders().List",
+		Stability:             MethodStabilityStable,
+	},
 	MethodPermissionProfileList: {
 		Method:                MethodPermissionProfileList,
 		Direction:             MethodDirectionClientToServer,
@@ -2011,7 +2058,9 @@ var methodRegistry = map[string]MethodInfo{
 		Direction:             MethodDirectionClientToServer,
 		Kind:                  MethodKindRequest,
 		Family:                "remoteControl",
-		ParamsOrPayloadSchema: "",
+		ParamsOrPayloadSchema: "RemoteControlDisableParams",
+		ParamsOptional:        true,
+		ParamsNullable:        true,
 		ResponseSchema:        "v2/RemoteControlDisableResponse.json",
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "RemoteControl().Disable",
@@ -2022,7 +2071,9 @@ var methodRegistry = map[string]MethodInfo{
 		Direction:             MethodDirectionClientToServer,
 		Kind:                  MethodKindRequest,
 		Family:                "remoteControl",
-		ParamsOrPayloadSchema: "",
+		ParamsOrPayloadSchema: "RemoteControlEnableParams",
+		ParamsOptional:        true,
+		ParamsNullable:        true,
 		ResponseSchema:        "v2/RemoteControlEnableResponse.json",
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "RemoteControl().Enable",
@@ -2588,6 +2639,17 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
 		FacadeTarget:          "ServerNotifications().ThreadPredictionUpdated",
 		Stability:             MethodStabilityStable,
+	},
+	MethodThreadPrepareApprovedPlan: {
+		Method:                MethodThreadPrepareApprovedPlan,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadPrepareApprovedPlanParams",
+		ResponseSchema:        "v2/ThreadPrepareApprovedPlanResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Threads().PrepareApprovedPlan",
+		Stability:             MethodStabilityExperimental,
 	},
 	MethodThreadProjectUpdated: {
 		Method:                MethodThreadProjectUpdated,

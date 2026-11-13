@@ -34,6 +34,7 @@ func methodFacts(manifest manifestFile) protocolgen.Manifest {
 		result.Entries = append(result.Entries, protocolgen.ManifestEntry{
 			Direction: entry.Direction, FacadeStatus: entry.FacadeStatus, FacadeTarget: entry.FacadeTarget,
 			Family: entry.Family, Kind: entry.Kind, Method: entry.Method, ParamsOrPayloadSchema: entry.ParamsOrPayloadSchema,
+			ParamsOptional: entry.ParamsOptional, ParamsNullable: entry.ParamsNullable,
 			ResponseSchema: entry.ResponseSchema, ResponseSchemaStatus: entry.ResponseSchemaStatus, ResponseType: entry.ResponseType,
 			SourceSchema: entry.SourceSchema, Stability: entry.Stability,
 		})

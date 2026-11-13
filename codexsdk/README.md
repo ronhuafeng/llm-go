@@ -309,6 +309,25 @@ recorder and changes no application acceptance or server-request authority.
 
 ## Compatibility and evidence
 
+At the `rust-v0.169.0` baseline,
+`FunctionCallOutputContentItemInputAudio.AudioURL` becomes `*protocolv2.JSONValue`,
+alongside a new `FileID` field of the same type. Construct a URL with
+`url := protocolv2.JSONString("data:audio/...")` and set `AudioURL: &url`.
+At least one field must be a
+string; the other branch's field may retain any JSON value. Decoding and encoding
+preserve that value, including explicit null.
+
+Facades with optional nullable parameters accept zero or one
+`*protocolv2.Nullable[T]` argument. For example,
+`client.Accounts().GatewayOAuthLogin(ctx)` preserves omission;
+`client.Accounts().GatewayOAuthLogin(ctx, protocolv2.Null[protocolv2.GatewayOAuthLoginParams]())`
+sends explicit null; and
+`client.Accounts().GatewayOAuthLogin(ctx, protocolv2.Value(protocolv2.GatewayOAuthLoginParams{}))`
+sends an object. The same rule applies to gateway OAuth reads, account usage and
+rate-limit reads, and remote-control enable/disable. Existing calls without
+parameters still compile. Code storing one of these methods in an explicitly
+typed function variable must include its new variadic parameter type.
+
 At the `rust-v0.167.0` protocol baseline, upstream removes detached review
 delivery and the generated `ReviewDeliveryDetached` constant. To review on a
 separate thread, create that thread first and pass its ID to `Reviews.Start`;

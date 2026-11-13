@@ -455,6 +455,15 @@ func (c *Client) call(ctx context.Context, method string, params map[string]any)
 }
 
 func (c *Client) callValidated(ctx context.Context, method string, params map[string]any, validate func(map[string]any) error, exact exactCallIntent) (map[string]any, error) {
+	var wireParams any
+	if params != nil {
+		wireParams = params
+	}
+	return c.callValidatedParams(ctx, method, wireParams, validate, exact)
+}
+
+// A nil interface omits params; a typed nil map encodes explicit JSON null.
+func (c *Client) callValidatedParams(ctx context.Context, method string, params any, validate func(map[string]any) error, exact exactCallIntent) (map[string]any, error) {
 	if c == nil || c.ctx == nil {
 		return nil, ErrClientClosed
 	}

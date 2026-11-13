@@ -126,6 +126,8 @@ type manifestEntry struct {
 	Kind                  string            `json:"kind"`
 	Method                string            `json:"method"`
 	ParamsOrPayloadSchema string            `json:"params_or_payload_schema"`
+	ParamsOptional        bool              `json:"params_optional,omitempty"`
+	ParamsNullable        bool              `json:"params_nullable,omitempty"`
 	ResponseSchema        string            `json:"response_schema"`
 	ResponseSchemaStatus  string            `json:"response_schema_status"`
 	ResponseType          string            `json:"response_type"`
@@ -139,11 +141,13 @@ type manifestEntry struct {
 }
 
 type aggregateEntry struct {
-	aggregate   string
-	index       int
-	method      string
-	paramsRef   string
-	schemaTitle string
+	aggregate      string
+	index          int
+	method         string
+	paramsRef      string
+	paramsOptional bool
+	paramsNullable bool
+	schemaTitle    string
 }
 
 type coverageFile struct {
@@ -262,10 +266,9 @@ func loadAggregateEntries(root, aggregate string) ([]aggregateEntry, error) {
 				Method struct {
 					Enum []string `json:"enum"`
 				} `json:"method"`
-				Params struct {
-					Ref string `json:"$ref"`
-				} `json:"params"`
+				Params json.RawMessage `json:"params"`
 			} `json:"properties"`
+			Required []string `json:"required"`
 		} `json:"oneOf"`
 	}
 	if err := loadJSON(filepath.Join(root, aggregate), &schema); err != nil {
@@ -276,15 +279,83 @@ func loadAggregateEntries(root, aggregate string) ([]aggregateEntry, error) {
 		if len(variant.Properties.Method.Enum) == 0 {
 			continue
 		}
+		paramsRef, nullable, err := aggregateParamsShape(variant.Properties.Params)
+		if err != nil {
+			return nil, manifestIssue(fmt.Sprintf("%s#/oneOf/%d/properties/params", aggregate, index), "%v", err)
+		}
+		optional := paramsRef != ""
+		for _, name := range variant.Required {
+			if name == "params" {
+				optional = false
+			}
+		}
 		entries = append(entries, aggregateEntry{
-			aggregate:   aggregate,
-			index:       index,
-			method:      variant.Properties.Method.Enum[0],
-			paramsRef:   variant.Properties.Params.Ref,
-			schemaTitle: variant.Title,
+			aggregate:      aggregate,
+			index:          index,
+			method:         variant.Properties.Method.Enum[0],
+			paramsRef:      paramsRef,
+			paramsOptional: optional,
+			paramsNullable: nullable,
+			schemaTitle:    variant.Title,
 		})
 	}
 	return entries, nil
+}
+
+// Aggregate parameters may be a reference, null-only, or a nullable reference.
+// Reject other shapes instead of silently constructing a no-parameter facade.
+func aggregateParamsShape(raw json.RawMessage) (string, bool, error) {
+	if len(raw) == 0 {
+		return "", false, nil
+	}
+	var shape map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &shape); err != nil {
+		return "", false, err
+	}
+	for key := range shape {
+		switch key {
+		case "$ref", "type", "anyOf", "description", "title", "default":
+		default:
+			return "", false, fmt.Errorf("unsupported params constraint %q", key)
+		}
+	}
+	if ref, ok := shape["$ref"]; ok && len(shape["type"]) == 0 && len(shape["anyOf"]) == 0 {
+		var name string
+		if err := json.Unmarshal(ref, &name); err != nil {
+			return "", false, err
+		}
+		if !strings.HasPrefix(name, "#/definitions/") || refName(name) == "" {
+			return "", false, fmt.Errorf("unsupported params reference %q", name)
+		}
+		return name, false, nil
+	}
+	if string(shape["type"]) == `"null"` && len(shape["$ref"]) == 0 && len(shape["anyOf"]) == 0 {
+		return "", true, nil
+	}
+	if len(shape["$ref"]) == 0 && len(shape["type"]) == 0 {
+		var branches []json.RawMessage
+		if err := json.Unmarshal(shape["anyOf"], &branches); err == nil && len(branches) == 2 {
+			var ref string
+			nulls := 0
+			for _, branch := range branches {
+				r, nullable, err := aggregateParamsShape(branch)
+				if err != nil {
+					return "", false, err
+				}
+				if r != "" && !nullable && ref == "" {
+					ref = r
+				} else if r == "" && nullable {
+					nulls++
+				} else {
+					return "", false, fmt.Errorf("unsupported params union branch")
+				}
+			}
+			if ref != "" && nulls == 1 {
+				return ref, true, nil
+			}
+		}
+	}
+	return "", false, fmt.Errorf("unsupported aggregate params shape")
 }
 
 func facadeTarget(entry aggregateEntry, direction, kind string, mapping *requestMapping) string {
@@ -364,6 +435,18 @@ func buildManifest(root, stableRoot string, old manifestFile, mappings map[strin
 			}
 			paramsName := refName(aggregateEntry.paramsRef)
 			paramsSchema := typePaths[paramsName]
+			if paramsName != "" && paramsSchema == "" {
+				var schema struct {
+					Definitions map[string]json.RawMessage `json:"definitions"`
+				}
+				if err := loadJSON(filepath.Join(root, aggregate), &schema); err != nil {
+					return manifestFile{}, err
+				}
+				if len(schema.Definitions[paramsName]) == 0 {
+					return manifestFile{}, manifestIssue(aggregate, "unable to resolve params schema %q", paramsName)
+				}
+				paramsSchema = aggregate + aggregateEntry.paramsRef
+			}
 			stability := "stable"
 			stabilitySource := "present_in_stable_schema"
 			if !stableMethods[aggregateEntry.method] {
@@ -405,6 +488,8 @@ func buildManifest(root, stableRoot string, old manifestFile, mappings map[strin
 				Kind:                  kind,
 				Method:                aggregateEntry.method,
 				ParamsOrPayloadSchema: paramsName,
+				ParamsOptional:        aggregateEntry.paramsOptional,
+				ParamsNullable:        paramsName != "" && aggregateEntry.paramsNullable,
 				ResponseSchema:        responseSchema,
 				ResponseSchemaStatus:  responseStatus,
 				ResponseType:          responseType,

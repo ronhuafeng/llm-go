@@ -37,6 +37,8 @@ type ManifestEntry struct {
 	Kind                  string `json:"kind"`
 	Method                string `json:"method"`
 	ParamsOrPayloadSchema string `json:"params_or_payload_schema"`
+	ParamsOptional        bool   `json:"params_optional,omitempty"`
+	ParamsNullable        bool   `json:"params_nullable,omitempty"`
 	ResponseSchema        string `json:"response_schema"`
 	ResponseSchemaStatus  string `json:"response_schema_status"`
 	ResponseType          string `json:"response_type"`

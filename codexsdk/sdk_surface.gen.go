@@ -4,6 +4,7 @@ package codexsdk
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ronhuafeng/llm-go/codexsdk/protocolv2"
 )
@@ -371,17 +372,31 @@ func (f Accounts) GatewayOAuthCancel(ctx context.Context) (protocolv2.GatewayOAu
 	return response, nil
 }
 
-func (f Accounts) GatewayOAuthLogin(ctx context.Context) (protocolv2.GatewayOAuthLoginResponse, error) {
+func (f Accounts) GatewayOAuthLogin(ctx context.Context, params ...*protocolv2.Nullable[protocolv2.GatewayOAuthLoginParams]) (protocolv2.GatewayOAuthLoginResponse, error) {
 	var response protocolv2.GatewayOAuthLoginResponse
-	if err := f.client.callProtocolNoParams(ctx, protocolv2.MethodAccountGatewayOAuthLogin, &response); err != nil {
+	if len(params) > 1 {
+		return response, fmt.Errorf("codexsdk: account/gatewayOAuth/login accepts at most one params value")
+	}
+	var supplied any
+	if len(params) == 1 {
+		supplied = params[0]
+	}
+	if err := f.client.callProtocol(ctx, protocolv2.MethodAccountGatewayOAuthLogin, supplied, &response); err != nil {
 		return protocolv2.GatewayOAuthLoginResponse{}, err
 	}
 	return response, nil
 }
 
-func (f Accounts) GatewayOAuthRead(ctx context.Context) (protocolv2.GatewayOAuthReadResponse, error) {
+func (f Accounts) GatewayOAuthRead(ctx context.Context, params ...*protocolv2.Nullable[protocolv2.GatewayOAuthReadParams]) (protocolv2.GatewayOAuthReadResponse, error) {
 	var response protocolv2.GatewayOAuthReadResponse
-	if err := f.client.callProtocolNoParams(ctx, protocolv2.MethodAccountGatewayOAuthRead, &response); err != nil {
+	if len(params) > 1 {
+		return response, fmt.Errorf("codexsdk: account/gatewayOAuth/read accepts at most one params value")
+	}
+	var supplied any
+	if len(params) == 1 {
+		supplied = params[0]
+	}
+	if err := f.client.callProtocol(ctx, protocolv2.MethodAccountGatewayOAuthRead, supplied, &response); err != nil {
 		return protocolv2.GatewayOAuthReadResponse{}, err
 	}
 	return response, nil
@@ -427,9 +442,16 @@ func (f Accounts) RateLimitResetCreditConsume(ctx context.Context, params protoc
 	return response, nil
 }
 
-func (f Accounts) RateLimitsRead(ctx context.Context) (protocolv2.GetAccountRateLimitsResponse, error) {
+func (f Accounts) RateLimitsRead(ctx context.Context, params ...*protocolv2.Nullable[protocolv2.GetAccountRateLimitsParams]) (protocolv2.GetAccountRateLimitsResponse, error) {
 	var response protocolv2.GetAccountRateLimitsResponse
-	if err := f.client.callProtocolNoParams(ctx, protocolv2.MethodAccountRateLimitsRead, &response); err != nil {
+	if len(params) > 1 {
+		return response, fmt.Errorf("codexsdk: account/rateLimits/read accepts at most one params value")
+	}
+	var supplied any
+	if len(params) == 1 {
+		supplied = params[0]
+	}
+	if err := f.client.callProtocol(ctx, protocolv2.MethodAccountRateLimitsRead, supplied, &response); err != nil {
 		return protocolv2.GetAccountRateLimitsResponse{}, err
 	}
 	return response, nil
@@ -443,6 +465,14 @@ func (f Accounts) Read(ctx context.Context, params protocolv2.GetAccountParams) 
 	return response, nil
 }
 
+func (f Accounts) SecuritySetupRead(ctx context.Context) (protocolv2.GetAccountSecuritySetupResponse, error) {
+	var response protocolv2.GetAccountSecuritySetupResponse
+	if err := f.client.callProtocolNoParams(ctx, protocolv2.MethodAccountSecuritySetupRead, &response); err != nil {
+		return protocolv2.GetAccountSecuritySetupResponse{}, err
+	}
+	return response, nil
+}
+
 func (f Accounts) SendAddCreditsNudgeEmail(ctx context.Context, params protocolv2.SendAddCreditsNudgeEmailParams) (protocolv2.SendAddCreditsNudgeEmailResponse, error) {
 	var response protocolv2.SendAddCreditsNudgeEmailResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodAccountSendAddCreditsNudgeEmail, params, &response); err != nil {
@@ -451,9 +481,16 @@ func (f Accounts) SendAddCreditsNudgeEmail(ctx context.Context, params protocolv
 	return response, nil
 }
 
-func (f Accounts) UsageRead(ctx context.Context) (protocolv2.GetAccountTokenUsageResponse, error) {
+func (f Accounts) UsageRead(ctx context.Context, params ...*protocolv2.Nullable[protocolv2.GetAccountTokenUsageParams]) (protocolv2.GetAccountTokenUsageResponse, error) {
 	var response protocolv2.GetAccountTokenUsageResponse
-	if err := f.client.callProtocolNoParams(ctx, protocolv2.MethodAccountUsageRead, &response); err != nil {
+	if len(params) > 1 {
+		return response, fmt.Errorf("codexsdk: account/usage/read accepts at most one params value")
+	}
+	var supplied any
+	if len(params) == 1 {
+		supplied = params[0]
+	}
+	if err := f.client.callProtocol(ctx, protocolv2.MethodAccountUsageRead, supplied, &response); err != nil {
 		return protocolv2.GetAccountTokenUsageResponse{}, err
 	}
 	return response, nil
@@ -875,6 +912,22 @@ func (f ModelProviders) CapabilitiesRead(ctx context.Context, params protocolv2.
 	return response, nil
 }
 
+func (f ModelProviders) ConfigWrite(ctx context.Context, params protocolv2.ModelProviderConfigWriteParams) (protocolv2.ModelProviderConfigWriteResponse, error) {
+	var response protocolv2.ModelProviderConfigWriteResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodModelProviderConfigWrite, params, &response); err != nil {
+		return protocolv2.ModelProviderConfigWriteResponse{}, err
+	}
+	return response, nil
+}
+
+func (f ModelProviders) List(ctx context.Context, params protocolv2.ModelProviderListParams) (protocolv2.ModelProviderListResponse, error) {
+	var response protocolv2.ModelProviderListResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodModelProviderList, params, &response); err != nil {
+		return protocolv2.ModelProviderListResponse{}, err
+	}
+	return response, nil
+}
+
 func (f Models) List(ctx context.Context, params protocolv2.ModelListParams) (protocolv2.ModelListResponse, error) {
 	var response protocolv2.ModelListResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodModelList, params, &response); err != nil {
@@ -1099,17 +1152,31 @@ func (f RemoteControl) ClientRevoke(ctx context.Context, params protocolv2.Remot
 	return response, nil
 }
 
-func (f RemoteControl) Disable(ctx context.Context) (protocolv2.RemoteControlDisableResponse, error) {
+func (f RemoteControl) Disable(ctx context.Context, params ...*protocolv2.Nullable[protocolv2.RemoteControlDisableParams]) (protocolv2.RemoteControlDisableResponse, error) {
 	var response protocolv2.RemoteControlDisableResponse
-	if err := f.client.callProtocolNoParams(ctx, protocolv2.MethodRemoteControlDisable, &response); err != nil {
+	if len(params) > 1 {
+		return response, fmt.Errorf("codexsdk: remoteControl/disable accepts at most one params value")
+	}
+	var supplied any
+	if len(params) == 1 {
+		supplied = params[0]
+	}
+	if err := f.client.callProtocol(ctx, protocolv2.MethodRemoteControlDisable, supplied, &response); err != nil {
 		return protocolv2.RemoteControlDisableResponse{}, err
 	}
 	return response, nil
 }
 
-func (f RemoteControl) Enable(ctx context.Context) (protocolv2.RemoteControlEnableResponse, error) {
+func (f RemoteControl) Enable(ctx context.Context, params ...*protocolv2.Nullable[protocolv2.RemoteControlEnableParams]) (protocolv2.RemoteControlEnableResponse, error) {
 	var response protocolv2.RemoteControlEnableResponse
-	if err := f.client.callProtocolNoParams(ctx, protocolv2.MethodRemoteControlEnable, &response); err != nil {
+	if len(params) > 1 {
+		return response, fmt.Errorf("codexsdk: remoteControl/enable accepts at most one params value")
+	}
+	var supplied any
+	if len(params) == 1 {
+		supplied = params[0]
+	}
+	if err := f.client.callProtocol(ctx, protocolv2.MethodRemoteControlEnable, supplied, &response); err != nil {
 		return protocolv2.RemoteControlEnableResponse{}, err
 	}
 	return response, nil
@@ -1439,6 +1506,14 @@ func (f Threads) PredictionRequest(ctx context.Context, params protocolv2.Thread
 	var response protocolv2.ThreadPredictionRequestResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadPredictionRequest, params, &response); err != nil {
 		return protocolv2.ThreadPredictionRequestResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Threads) PrepareApprovedPlan(ctx context.Context, params protocolv2.ThreadPrepareApprovedPlanParams) (protocolv2.ThreadPrepareApprovedPlanResponse, error) {
+	var response protocolv2.ThreadPrepareApprovedPlanResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadPrepareApprovedPlan, params, &response); err != nil {
+		return protocolv2.ThreadPrepareApprovedPlanResponse{}, err
 	}
 	return response, nil
 }

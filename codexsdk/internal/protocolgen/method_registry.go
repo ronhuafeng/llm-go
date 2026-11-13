@@ -56,6 +56,8 @@ func GenerateMethodRegistry(manifest Manifest) ([]byte, error) {
 	out.WriteString("\tKind MethodKind\n")
 	out.WriteString("\tFamily string\n")
 	out.WriteString("\tParamsOrPayloadSchema string\n")
+	out.WriteString("\tParamsOptional bool\n")
+	out.WriteString("\tParamsNullable bool\n")
 	out.WriteString("\tResponseSchema string\n")
 	out.WriteString("\tResponseSchemaStatus ResponseSchemaStatus\n")
 	out.WriteString("\tFacadeTarget string\n")
@@ -74,6 +76,12 @@ func GenerateMethodRegistry(manifest Manifest) ([]byte, error) {
 		fmt.Fprintf(&out, "\t\tKind: %s,\n", kindConst(entry.Kind))
 		fmt.Fprintf(&out, "\t\tFamily: %q,\n", entry.Family)
 		fmt.Fprintf(&out, "\t\tParamsOrPayloadSchema: %q,\n", entry.ParamsOrPayloadSchema)
+		if entry.ParamsOptional {
+			out.WriteString("\t\tParamsOptional: true,\n")
+		}
+		if entry.ParamsNullable {
+			out.WriteString("\t\tParamsNullable: true,\n")
+		}
 		fmt.Fprintf(&out, "\t\tResponseSchema: %q,\n", entry.ResponseSchema)
 		fmt.Fprintf(&out, "\t\tResponseSchemaStatus: %s,\n", responseSchemaStatusConst(entry.ResponseSchemaStatus))
 		fmt.Fprintf(&out, "\t\tFacadeTarget: %q,\n", entry.FacadeTarget)
