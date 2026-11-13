@@ -125,7 +125,14 @@ func facadeCompatibilitySurface(manifest manifestFile) []map[string]any {
 		accessor, operation := match[1], match[2]
 		signature := "func(context.Context"
 		if entry.ParamsOrPayloadSchema != "" {
-			signature += ", protocolv2." + entry.ParamsOrPayloadSchema
+			paramsType := "protocolv2." + entry.ParamsOrPayloadSchema
+			if entry.ParamsNullable {
+				paramsType = "*protocolv2.Nullable[" + paramsType + "]"
+			}
+			if entry.ParamsOptional {
+				paramsType = "..." + paramsType
+			}
+			signature += ", " + paramsType
 		}
 		signature += ") (protocolv2." + entry.ResponseType + ", error)"
 		byAccessor[accessor] = append(byAccessor[accessor], map[string]any{

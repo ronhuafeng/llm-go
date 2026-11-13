@@ -100,10 +100,25 @@ func TestGeneratedFacadeZeroValuesFailClosed(t *testing.T) {
 				t.Errorf("%s.%s has unexpected generated signature %s", facadeType.Name(), operation.Name, operation.Type)
 				continue
 			}
-			results := operation.Func.Call(arguments)
-			err, ok := results[1].Interface().(error)
-			if !ok || !errors.Is(err, ErrClientClosed) {
-				t.Errorf("zero %s.%s error = %v, want ErrClientClosed", facadeType.Name(), operation.Name, results[1].Interface())
+			calls := [][]reflect.Value{arguments}
+			if operation.Type.IsVariadic() {
+				// Both omission and one zero-valued optional parameter must
+				// preserve the closed-client boundary.
+				one := append([]reflect.Value(nil), arguments...)
+				one[2] = reflect.MakeSlice(operation.Type.In(2), 1, 1)
+				calls = append(calls, one)
+			}
+			for _, arguments := range calls {
+				var results []reflect.Value
+				if operation.Type.IsVariadic() {
+					results = operation.Func.CallSlice(arguments)
+				} else {
+					results = operation.Func.Call(arguments)
+				}
+				err, ok := results[1].Interface().(error)
+				if !ok || !errors.Is(err, ErrClientClosed) {
+					t.Errorf("zero %s.%s error = %v, want ErrClientClosed", facadeType.Name(), operation.Name, results[1].Interface())
+				}
 			}
 		}
 	}

@@ -296,6 +296,10 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"id":     {},
 		"params": {},
 	},
+	"ClientRequestThreadPrepareApprovedPlan": {
+		"id":     {},
+		"params": {},
+	},
 	"ClientRequestThreadQueueAdd": {
 		"id":     {},
 		"params": {},
@@ -717,9 +721,10 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"project": {},
 	},
 	"QueuedSubmission": {
-		"clientUserMessageId": {},
-		"id":                  {},
-		"input":               {},
+		"clientUserMessageId":        {},
+		"id":                         {},
+		"input":                      {},
+		"responsesapiClientMetadata": {},
 	},
 	"RealtimeVoicesList": {
 		"defaultV1": {},
@@ -951,6 +956,7 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"params": {},
 	},
 	"Thread": {
+		"attachedToThreadId":   {},
 		"canAcceptDirectInput": {},
 		"daybreakEnabled":      {},
 		"environments":         {},
@@ -1031,6 +1037,13 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"count":  {},
 		"paused": {},
 	},
+	"ThreadItemEntry": {
+		"outputDeferred": {},
+	},
+	"ThreadItemOutputDeferral": {
+		"commandExecution": {},
+		"mcpToolCall":      {},
+	},
 	"ThreadItemsReadParams": {
 		"itemIds":  {},
 		"threadId": {},
@@ -1040,10 +1053,11 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"data": {},
 	},
 	"ThreadListParams": {
-		"ancestorThreadId":   {},
-		"attachedToThreadId": {},
-		"parentThreadId":     {},
-		"projectId":          {},
+		"ancestorThreadId":       {},
+		"attachedToThreadId":     {},
+		"includeAttachedThreads": {},
+		"parentThreadId":         {},
+		"projectId":              {},
 	},
 	"ThreadListResponse": {
 		"readStates": {},
@@ -1066,10 +1080,19 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"sourceTurnId": {},
 		"threadId":     {},
 	},
+	"ThreadPrepareApprovedPlanParams": {
+		"attachmentPath": {},
+		"markdown":       {},
+		"threadId":       {},
+	},
+	"ThreadPrepareApprovedPlanResponse": {
+		"prompt": {},
+	},
 	"ThreadQueueAddParams": {
-		"clientUserMessageId": {},
-		"input":               {},
-		"threadId":            {},
+		"clientUserMessageId":        {},
+		"input":                      {},
+		"responsesapiClientMetadata": {},
+		"threadId":                   {},
 	},
 	"ThreadQueueAddResponse": {
 		"queuedSubmission": {},
@@ -1102,9 +1125,10 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"turn": {},
 	},
 	"ThreadQueueUpdateParams": {
-		"input":              {},
-		"queuedSubmissionId": {},
-		"threadId":           {},
+		"input":                      {},
+		"queuedSubmissionId":         {},
+		"responsesapiClientMetadata": {},
+		"threadId":                   {},
 	},
 	"ThreadQueueUpdateResponse": {
 		"queuedSubmission": {},
@@ -1213,6 +1237,7 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"requestId": {},
 	},
 	"ThreadSampleParams": {
+		"allowInProgressTurn":        {},
 		"disableMcp":                 {},
 		"effort":                     {},
 		"expectedTurnId":             {},
@@ -1249,13 +1274,15 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"nextCursor": {},
 	},
 	"ThreadSearchParams": {
-		"archived":      {},
-		"cursor":        {},
-		"limit":         {},
-		"searchTerm":    {},
-		"sortDirection": {},
-		"sortKey":       {},
-		"sourceKinds":   {},
+		"archived":               {},
+		"currentAccountOnly":     {},
+		"cursor":                 {},
+		"includeAttachedThreads": {},
+		"limit":                  {},
+		"searchTerm":             {},
+		"sortDirection":          {},
+		"sortKey":                {},
+		"sourceKinds":            {},
 	},
 	"ThreadSearchResponse": {
 		"backwardsCursor": {},
@@ -1271,6 +1298,7 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"start": {},
 	},
 	"ThreadSettings": {
+		"environments":   {},
 		"multiAgentMode": {},
 	},
 	"ThreadSettingsUpdateParams": {
@@ -1280,6 +1308,7 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"cwd":               {},
 		"disabledPluginIds": {},
 		"effort":            {},
+		"environments":      {},
 		"model":             {},
 		"multiAgentMode":    {},
 		"permissions":       {},
@@ -1349,6 +1378,7 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 	"TurnSettingsUpdateParams": {
 		"approvalsReviewer": {},
 		"effort":            {},
+		"environments":      {},
 		"model":             {},
 		"serviceTier":       {},
 		"summary":           {},
@@ -1517,6 +1547,7 @@ var ExperimentalUnionValues = map[string]map[string]struct{}{
 		"thread/memory/read":                        {},
 		"thread/memoryMode/set":                     {},
 		"thread/prediction/request":                 {},
+		"thread/prepareApprovedPlan":                {},
 		"thread/queue/add":                          {},
 		"thread/queue/delete":                       {},
 		"thread/queue/list":                         {},
@@ -1779,6 +1810,9 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"AccountRateLimitsUpdatedNotification": {
 		"rateLimits": "RateLimitSnapshot",
 	},
+	"AccountSecuritySetupNotice": {
+		"action": "AccountSecuritySetupAction",
+	},
 	"AccountSession": {
 		"workspaces": "AccountSessionWorkspace",
 	},
@@ -1804,6 +1838,9 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"AdditionalPermissionProfile": {
 		"fileSystem": "AdditionalFileSystemPermissions",
 		"network":    "AdditionalNetworkPermissions",
+	},
+	"AgentMessageModeration": {
+		"display": "AgentMessageDisplay",
 	},
 	"AppInfo": {
 		"appMetadata": "AppMetadata",
@@ -1903,10 +1940,12 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"id": "RequestId",
 	},
 	"ClientRequestAccountGatewayOAuthLogin": {
-		"id": "RequestId",
+		"id":     "RequestId",
+		"params": "GatewayOAuthLoginParams",
 	},
 	"ClientRequestAccountGatewayOAuthRead": {
-		"id": "RequestId",
+		"id":     "RequestId",
+		"params": "GatewayOAuthReadParams",
 	},
 	"ClientRequestAccountGcpSetup": {
 		"id":     "RequestId",
@@ -1934,6 +1973,9 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"ClientRequestAccountRead": {
 		"id":     "RequestId",
 		"params": "GetAccountParams",
+	},
+	"ClientRequestAccountSecuritySetupRead": {
+		"id": "RequestId",
 	},
 	"ClientRequestAccountSendAddCreditsNudgeEmail": {
 		"id":     "RequestId",
@@ -2161,6 +2203,14 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"ClientRequestModelProviderCapabilitiesRead": {
 		"id":     "RequestId",
 		"params": "ModelProviderCapabilitiesReadParams",
+	},
+	"ClientRequestModelProviderConfigWrite": {
+		"id":     "RequestId",
+		"params": "ModelProviderConfigWriteParams",
+	},
+	"ClientRequestModelProviderList": {
+		"id":     "RequestId",
+		"params": "ModelProviderListParams",
 	},
 	"ClientRequestPermissionProfileList": {
 		"id":     "RequestId",
@@ -2424,6 +2474,10 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"id":     "RequestId",
 		"params": "ThreadPredictionRequestParams",
 	},
+	"ClientRequestThreadPrepareApprovedPlan": {
+		"id":     "RequestId",
+		"params": "ThreadPrepareApprovedPlanParams",
+	},
 	"ClientRequestThreadQueueAdd": {
 		"id":     "RequestId",
 		"params": "ThreadQueueAddParams",
@@ -2672,6 +2726,7 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"approvals_reviewer":                   "ApprovalsReviewer",
 		"apps":                                 "AppsConfig",
 		"browser_use":                          "BrowserUseConfig",
+		"client_search_provider":               "WebSearchProvider",
 		"computer_use":                         "ComputerUseConfig",
 		"forced_chatgpt_workspace_id":          "ForcedChatgptWorkspaceIds",
 		"forced_login_method":                  "ForcedLoginMethod",
@@ -2867,6 +2922,9 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"GatewayOAuthChangedNotification": {
 		"status": "GatewayOAuthStatus",
 	},
+	"GatewayOAuthLoginResponse": {
+		"prompt": "GatewayOAuthPrompt",
+	},
 	"GatewayOAuthReadResponse": {
 		"status": "GatewayOAuthStatus",
 	},
@@ -2878,6 +2936,9 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"GetAccountResponse": {
 		"account":          "Account",
 		"workspaceRouting": "WorkspaceRouting",
+	},
+	"GetAccountSecuritySetupResponse": {
+		"notice": "AccountSecuritySetupNotice",
 	},
 	"GetAccountTokenUsageResponse": {
 		"dailyUsageBuckets": "AccountTokenUsageDailyBucket",
@@ -3051,6 +3112,18 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	},
 	"ModelListResponse": {
 		"data": "Model",
+	},
+	"ModelProviderConfigWriteParams": {
+		"settings": "ProviderSettingsPatch",
+	},
+	"ModelProviderConfigWriteResponse": {
+		"provider": "ModelProviderSummary",
+	},
+	"ModelProviderListResponse": {
+		"data": "ModelProviderSummary",
+	},
+	"ModelProviderSummary": {
+		"settings": "ProviderSettings",
 	},
 	"ModelReroutedNotification": {
 		"reason": "ModelRerouteReason",
@@ -3228,6 +3301,15 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	},
 	"ProjectUpdateResponse": {
 		"project": "Project",
+	},
+	"ProviderSettingsCustomGateway": {
+		"auth": "GatewayAuth",
+	},
+	"ProviderSettingsPatchBedrock": {
+		"providerId": "BedrockProviderId",
+	},
+	"ProviderSettingsPatchGcp": {
+		"providerId": "GcpProviderId",
 	},
 	"QueuedSubmission": {
 		"input": "UserInput",
@@ -3778,6 +3860,7 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"ThreadItemAgentMessage": {
 		"delivery":       "AgentMessageDelivery",
 		"memoryCitation": "MemoryCitation",
+		"moderation":     "AgentMessageModeration",
 		"phase":          "MessagePhase",
 		"questions":      "AsyncUserInputQuestion",
 	},
@@ -3832,6 +3915,7 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	},
 	"ThreadItemsListParams": {
 		"cursor":        "ThreadItemsListCursor",
+		"deferOutput":   "ThreadItemOutputDeferral",
 		"sortDirection": "SortDirection",
 	},
 	"ThreadItemsListResponse": {
@@ -4005,6 +4089,7 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"approvalsReviewer":       "ApprovalsReviewer",
 		"collaborationMode":       "CollaborationMode",
 		"effort":                  "ReasoningEffort",
+		"environments":            "ThreadEnvironment",
 		"multiAgentMode":          "MultiAgentMode",
 		"personality":             "Personality",
 		"sandboxPolicy":           "SandboxPolicy",
@@ -4015,6 +4100,7 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"approvalsReviewer": "ApprovalsReviewer",
 		"collaborationMode": "CollaborationMode",
 		"effort":            "ReasoningEffort",
+		"environments":      "TurnEnvironmentParams",
 		"multiAgentMode":    "MultiAgentMode",
 		"personality":       "Personality",
 		"sandboxPolicy":     "SandboxPolicy",
@@ -4124,6 +4210,7 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"TurnSettingsUpdateParams": {
 		"approvalsReviewer": "ApprovalsReviewer",
 		"effort":            "ReasoningEffort",
+		"environments":      "TurnEnvironmentParams",
 		"summary":           "ReasoningSummary",
 	},
 	"TurnSettingsUpdateResponse": {

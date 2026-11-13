@@ -11,6 +11,11 @@ import (
 )
 
 func (c *Client) callProtocol(ctx context.Context, method string, params any, response any) error {
+	if params == nil {
+		if info, ok := protocolv2.LookupMethod(method); ok && info.ParamsOptional {
+			return c.callProtocolNoParams(ctx, method, response)
+		}
+	}
 	return c.callProtocolWithExactIntent(ctx, method, params, response, exactCallIntent{})
 }
 
@@ -31,7 +36,7 @@ func (c *Client) callProtocolWithExactIntent(ctx context.Context, method string,
 	if err != nil {
 		return err
 	}
-	if _, err := c.callValidated(ctx, method, paramsMap, func(result map[string]any) error {
+	if _, err := c.callValidatedParams(ctx, method, paramsMap, func(result map[string]any) error {
 		return decodeProtocolResponse(method, result, response)
 	}, exact); err != nil {
 		return err
@@ -144,7 +149,10 @@ func encodeProtocolParams(method string, params any) (map[string]any, error) {
 		return nil, fmt.Errorf("codexsdk: encode %s params object: %w", method, err)
 	}
 	if paramsMap == nil {
-		return nil, fmt.Errorf("codexsdk: encode %s params: protocol params must encode to object", method)
+		info, ok := protocolv2.LookupMethod(method)
+		if !ok || !info.ParamsNullable {
+			return nil, fmt.Errorf("codexsdk: encode %s params: protocol params must encode to object", method)
+		}
 	}
 	return paramsMap, nil
 }

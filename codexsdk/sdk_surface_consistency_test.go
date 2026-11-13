@@ -23,6 +23,8 @@ type generatedFacadeEntry struct {
 	Kind                  string `json:"kind"`
 	Method                string `json:"method"`
 	ParamsOrPayloadSchema string `json:"params_or_payload_schema"`
+	ParamsOptional        bool   `json:"params_optional,omitempty"`
+	ParamsNullable        bool   `json:"params_nullable,omitempty"`
 	ResponseType          string `json:"response_type"`
 }
 
@@ -122,8 +124,8 @@ func assertGeneratedFacadeSignature(t *testing.T, key string, signature *types.S
 	if !isNamedType(signature.Params().At(0).Type(), "context", "Context") {
 		t.Errorf("%s first param = %s, want context.Context", key, signature.Params().At(0).Type())
 	}
-	if entry.ParamsOrPayloadSchema != "" && !isNamedType(signature.Params().At(1).Type(), "github.com/ronhuafeng/llm-go/codexsdk/protocolv2", entry.ParamsOrPayloadSchema) {
-		t.Errorf("%s params type = %s, want protocolv2.%s", key, signature.Params().At(1).Type(), entry.ParamsOrPayloadSchema)
+	if !generatedFacadeParamsMatch(signature, entry) {
+		t.Errorf("%s params = %s (variadic=%v), want protocolv2.%s optional=%v nullable=%v", key, signature.Params(), signature.Variadic(), entry.ParamsOrPayloadSchema, entry.ParamsOptional, entry.ParamsNullable)
 	}
 	if signature.Results().Len() != 2 {
 		t.Errorf("%s results = %s, want protocol response and error", key, signature.Results())
@@ -134,6 +136,74 @@ func assertGeneratedFacadeSignature(t *testing.T, key string, signature *types.S
 	}
 	if !types.Identical(signature.Results().At(1).Type(), types.Universe.Lookup("error").Type()) {
 		t.Errorf("%s second result = %s, want error", key, signature.Results().At(1).Type())
+	}
+}
+
+func generatedFacadeParamsMatch(signature *types.Signature, entry generatedFacadeEntry) bool {
+	if signature.Variadic() != entry.ParamsOptional {
+		return false
+	}
+	if entry.ParamsOrPayloadSchema == "" {
+		return signature.Params().Len() == 1 && !entry.ParamsNullable
+	}
+	if signature.Params().Len() != 2 {
+		return false
+	}
+	param := signature.Params().At(1).Type()
+	if entry.ParamsOptional {
+		slice, ok := param.(*types.Slice)
+		if !ok {
+			return false
+		}
+		param = slice.Elem()
+	}
+	if entry.ParamsNullable {
+		pointer, ok := param.(*types.Pointer)
+		if !ok {
+			return false
+		}
+		if !isNamedType(pointer.Elem(), "github.com/ronhuafeng/llm-go/codexsdk/protocolv2", "Nullable") {
+			return false
+		}
+		named := pointer.Elem().(*types.Named)
+		if named.TypeArgs().Len() != 1 {
+			return false
+		}
+		param = named.TypeArgs().At(0)
+	}
+	return isNamedType(param, "github.com/ronhuafeng/llm-go/codexsdk/protocolv2", entry.ParamsOrPayloadSchema)
+}
+
+// The expected signature follows the optional nullable reference in the exact
+// upstream ClientRequest schema, not the generated method under inspection.
+func TestGeneratedFacadeParamsSignatureEvolution(t *testing.T) {
+	root, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	loader := &sdkSourceImporter{root: root, fset: token.NewFileSet(), cache: map[string]*types.Package{}}
+	file, err := parser.ParseFile(loader.fset, "contract.go", `package contract
+import("context"; p "github.com/ronhuafeng/llm-go/codexsdk/protocolv2")
+func Valid(context.Context, ...*p.Nullable[p.GatewayOAuthLoginParams])
+func MissingNullable(context.Context, ...p.GatewayOAuthLoginParams)
+func Required(context.Context, *p.Nullable[p.GatewayOAuthLoginParams])
+func WrongPayload(context.Context, ...*p.Nullable[p.ThreadStartParams])
+func Untyped(context.Context, ...any)
+`, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := types.Config{Importer: loader}
+	pkg, err := config.Check("contract", loader.fset, []*ast.File{file}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry := generatedFacadeEntry{ParamsOrPayloadSchema: "GatewayOAuthLoginParams", ParamsOptional: true, ParamsNullable: true}
+	for _, name := range []string{"Valid", "MissingNullable", "Required", "WrongPayload", "Untyped"} {
+		signature := pkg.Scope().Lookup(name).Type().(*types.Signature)
+		if got := generatedFacadeParamsMatch(signature, entry); got != (name == "Valid") {
+			t.Errorf("%s matches=%v", name, got)
+		}
 	}
 }
 
