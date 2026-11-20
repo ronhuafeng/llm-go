@@ -140,11 +140,12 @@ func assertGeneratedFacadeSignature(t *testing.T, key string, signature *types.S
 }
 
 func generatedFacadeParamsMatch(signature *types.Signature, entry generatedFacadeEntry) bool {
+	if entry.ParamsOrPayloadSchema == "" {
+		// A null-only wire property has no typed Go argument.
+		return signature.Params().Len() == 1 && !signature.Variadic()
+	}
 	if signature.Variadic() != entry.ParamsOptional {
 		return false
-	}
-	if entry.ParamsOrPayloadSchema == "" {
-		return signature.Params().Len() == 1 && !entry.ParamsNullable
 	}
 	if signature.Params().Len() != 2 {
 		return false

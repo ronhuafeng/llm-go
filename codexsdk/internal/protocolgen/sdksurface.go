@@ -85,7 +85,7 @@ func GenerateSDKSurface(handwrittenDir string, manifest Manifest, methodConsts m
 			method:         entry.Method,
 			methodConst:    methodConst,
 			paramsType:     entry.ParamsOrPayloadSchema,
-			paramsOptional: entry.ParamsOptional,
+			paramsOptional: entry.ParamsOrPayloadSchema != "" && entry.ParamsOptional,
 			paramsNullable: entry.ParamsNullable,
 			responseType:   entry.ResponseType,
 		})

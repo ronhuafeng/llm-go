@@ -283,7 +283,7 @@ func loadAggregateEntries(root, aggregate string) ([]aggregateEntry, error) {
 		if err != nil {
 			return nil, manifestIssue(fmt.Sprintf("%s#/oneOf/%d/properties/params", aggregate, index), "%v", err)
 		}
-		optional := paramsRef != ""
+		optional := len(variant.Properties.Params) != 0
 		for _, name := range variant.Required {
 			if name == "params" {
 				optional = false
@@ -489,7 +489,7 @@ func buildManifest(root, stableRoot string, old manifestFile, mappings map[strin
 				Method:                aggregateEntry.method,
 				ParamsOrPayloadSchema: paramsName,
 				ParamsOptional:        aggregateEntry.paramsOptional,
-				ParamsNullable:        paramsName != "" && aggregateEntry.paramsNullable,
+				ParamsNullable:        aggregateEntry.paramsNullable,
 				ResponseSchema:        responseSchema,
 				ResponseSchemaStatus:  responseStatus,
 				ResponseType:          responseType,

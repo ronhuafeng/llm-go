@@ -123,6 +123,26 @@ func TestOAuth0169SourceContract(t *testing.T) {
 	}
 }
 
+// Compare the public registry with the pinned wire schema, not with the
+// manifest used to generate both the registry and the no-argument facade.
+func TestNullOnlyMethodRegistryMatchesSource(t *testing.T) {
+	source := compile0169Definition(t, "../ClientRequest.json", "")
+	for _, method := range []string{MethodAccountSecuritySetupRead, MethodAccountLogout} {
+		request := map[string]any{"id": 1, "method": method}
+		optional := source.Validate(request) == nil
+		request["params"] = nil
+		nullable := source.Validate(request) == nil
+		request["params"] = map[string]any{}
+		if !optional || !nullable || source.Validate(request) == nil {
+			t.Fatalf("%s: expected an optional, null-only source parameter", method)
+		}
+		info, ok := LookupMethod(method)
+		if !ok || info.ParamsOptional != optional || info.ParamsNullable != nullable || info.ParamsOrPayloadSchema != "" {
+			t.Errorf("%s: registry disagrees with the null-only source parameter: %+v", method, info)
+		}
+	}
+}
+
 func compile0169Definition(t *testing.T, file, definition string) *validator.Schema {
 	t.Helper()
 	raw, err := os.ReadFile("../internal/protocolschema/appserver/v2/v2/" + file)
