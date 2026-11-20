@@ -7,6 +7,7 @@ import (
 	"go/token"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -59,6 +60,7 @@ type FieldPlan struct {
 	Kind            FieldPlanKind
 	MinItems        *uint64
 	Minimum         *float64
+	IntegerEnum     []string
 	Path            string
 	RefPath         string
 	Reason          string
@@ -1166,6 +1168,9 @@ func planConstrainedField(plan FieldPlan, schema *Schema, constraints []string) 
 	plan.Kind = FieldPlanScalar
 	plan.GoType = optionalGoType(plan.Required, goType)
 	plan.Minimum = nonZeroMinimum(schema.Minimum)
+	if schema.EnumIsInteger {
+		plan.IntegerEnum = append([]string(nil), schema.Enum...)
+	}
 	plan.Reason = "constrained integer represented with generated numeric type validation"
 	return plan, true, nil
 }
@@ -1190,6 +1195,33 @@ func supportedIntegerConstraints(schema *Schema, constraints []string) bool {
 	}
 	for _, constraint := range constraints {
 		switch constraint {
+		case "enum":
+			if !schema.Type.Only("integer") || !schema.EnumIsInteger || len(schema.Enum) == 0 {
+				return false
+			}
+			goType, err := integerGoType(schema)
+			if err != nil {
+				return false
+			}
+			bits := 64
+			switch goType {
+			case "uint8":
+				bits = 8
+			case "uint16":
+				bits = 16
+			case "int32", "uint32":
+				bits = 32
+			}
+			for _, value := range schema.Enum {
+				if strings.HasPrefix(goType, "uint") {
+					_, err = strconv.ParseUint(value, 10, bits)
+				} else {
+					_, err = strconv.ParseInt(value, 10, bits)
+				}
+				if err != nil {
+					return false
+				}
+			}
 		case "format":
 		case "minimum":
 			if schema.Minimum == nil || *schema.Minimum != float64(int64(*schema.Minimum)) {
@@ -1656,7 +1688,7 @@ func partitionUnmodeledKeywords(keywords []string) (constraints []string, unknow
 
 func isRecognizedConstraintKeyword(keyword string) bool {
 	switch keyword {
-	case "const", "enumNames", "format", "maximum", "maxItems", "maxLength", "minimum", "minItems", "minLength", "pattern", "writeOnly":
+	case "enum", "const", "enumNames", "format", "maximum", "maxItems", "maxLength", "minimum", "minItems", "minLength", "pattern", "writeOnly":
 		return true
 	default:
 		return false
@@ -1712,6 +1744,8 @@ func integerGoType(schema *Schema) (string, error) {
 		return "int32", nil
 	case "uint", "uint64":
 		return "uint64", nil
+	case "uint8":
+		return "uint8", nil
 	case "uint16":
 		return "uint16", nil
 	case "uint32":
@@ -1723,7 +1757,7 @@ func integerGoType(schema *Schema) (string, error) {
 
 func integerFormatIsUnsigned(format string) bool {
 	switch format {
-	case "uint", "uint16", "uint32", "uint64":
+	case "uint", "uint8", "uint16", "uint32", "uint64":
 		return true
 	default:
 		return false

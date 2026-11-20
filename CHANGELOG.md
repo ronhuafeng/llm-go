@@ -13,6 +13,15 @@ changes may occur in minor releases.
 
 #### Added
 
+- Synchronize the App Server protocol with Codex `rust-v0.171.0`
+  (`ccf9be8cc458bd6b8336fe84d68d8893f2691a5e`), adding streamed thread
+  search and cancellation, realtime history listing, default provider selection,
+  MCP environment scopes, and expanded realtime and moderation payloads.
+  Generate and validate integer enums without rounding. `AgentMessageDisplay`
+  becomes a versioned `mode` union; `Project.Position`, the `currentTime/read`
+  request/types, and `CurrentTimeResponse` are removed with upstream.
+  See the SDK README for migration. Existing live scenarios remain required.
+
 - Synchronize the App Server protocol with Codex `rust-v0.169.0`
   (`d32063f96c2dff1dc96af839b3952abb6acfeda4`), adding provider configuration
   and listing, account security setup, approved plan preparation, device OAuth,

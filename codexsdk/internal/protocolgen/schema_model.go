@@ -3,6 +3,7 @@ package protocolgen
 import (
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"os"
 	"path/filepath"
 	"sort"
@@ -117,7 +118,8 @@ type Schema struct {
 	Default              SchemaKeywordPresence
 	Definitions          map[string]*Schema
 	Description          string
-	Enum                 []string
+	Enum                 []string // String values, or exact integer literals when EnumIsInteger.
+	EnumIsInteger        bool
 	Format               string
 	Items                *Schema
 	Minimum              *float64
@@ -170,7 +172,7 @@ func (s *Schema) UnmarshalJSON(data []byte) error {
 		Default              SchemaKeywordPresence `json:"default"`
 		Definitions          map[string]*Schema    `json:"definitions"`
 		Description          string                `json:"description"`
-		Enum                 []string              `json:"enum"`
+		Enum                 []json.RawMessage     `json:"enum"`
 		Format               string                `json:"format"`
 		Items                *Schema               `json:"items"`
 		Minimum              *float64              `json:"minimum"`
@@ -194,7 +196,34 @@ func (s *Schema) UnmarshalJSON(data []byte) error {
 	s.Default = object.Default
 	s.Definitions = object.Definitions
 	s.Description = object.Description
-	s.Enum = object.Enum
+	s.Enum = nil
+	s.EnumIsInteger = false
+	if object.Enum != nil {
+		s.Enum = make([]string, 0, len(object.Enum))
+		var kind string
+		for _, rawValue := range object.Enum {
+			var value string
+			currentKind := "string"
+			if strings.HasPrefix(strings.TrimSpace(string(rawValue)), "\"") {
+				if err := json.Unmarshal(rawValue, &value); err != nil {
+					return err
+				}
+			} else {
+				currentKind = "integer"
+				number, ok := new(big.Rat).SetString(string(rawValue))
+				if !ok || !number.IsInt() {
+					return fmt.Errorf("unsupported enum value %s: expected string or integer", rawValue)
+				}
+				value = number.Num().String()
+			}
+			if kind != "" && kind != currentKind {
+				return fmt.Errorf("unsupported mixed enum value kinds")
+			}
+			kind = currentKind
+			s.Enum = append(s.Enum, value)
+		}
+		s.EnumIsInteger = kind == "integer" || (len(object.Enum) == 0 && object.Type.Only("integer"))
+	}
 	s.Format = object.Format
 	s.Items = object.Items
 	s.Minimum = object.Minimum
@@ -207,6 +236,9 @@ func (s *Schema) UnmarshalJSON(data []byte) error {
 	s.Title = object.Title
 	s.Type = object.Type
 	s.UnknownKeywords = unknownSchemaKeywords(raw)
+	if s.EnumIsInteger {
+		s.UnknownKeywords = append(s.UnknownKeywords, "enum")
+	}
 	return nil
 }
 

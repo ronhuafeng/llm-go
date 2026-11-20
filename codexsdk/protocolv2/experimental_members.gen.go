@@ -340,6 +340,10 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"id":     {},
 		"params": {},
 	},
+	"ClientRequestThreadRealtimeList": {
+		"id":     {},
+		"params": {},
+	},
 	"ClientRequestThreadRealtimeListVoices": {
 		"id":     {},
 		"params": {},
@@ -364,7 +368,19 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"id":     {},
 		"params": {},
 	},
+	"ClientRequestThreadSearchCancel": {
+		"id":     {},
+		"params": {},
+	},
 	"ClientRequestThreadSearchOccurrences": {
+		"id":     {},
+		"params": {},
+	},
+	"ClientRequestThreadSearchStream": {
+		"id":     {},
+		"params": {},
+	},
+	"ClientRequestThreadSearchStreamCancel": {
 		"id":     {},
 		"params": {},
 	},
@@ -463,12 +479,6 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"annotations": {},
 		"logprobs":    {},
 		"text":        {},
-	},
-	"CurrentTimeReadParams": {
-		"threadId": {},
-	},
-	"CurrentTimeReadResponse": {
-		"currentTimeAt": {},
 	},
 	"DynamicToolNamespaceToolFunction": {
 		"deferLoading": {},
@@ -661,7 +671,6 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"id":        {},
 		"metadata":  {},
 		"name":      {},
-		"position":  {},
 		"recencyAt": {},
 		"roots":     {},
 		"updatedAt": {},
@@ -951,10 +960,6 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"gauges":  {},
 		"process": {},
 	},
-	"ServerRequestCurrentTimeRead": {
-		"id":     {},
-		"params": {},
-	},
 	"Thread": {
 		"attachedToThreadId":   {},
 		"canAcceptDirectInput": {},
@@ -1160,12 +1165,20 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 	"ThreadRealtimeBemItemPresentationInlineVisualization": {
 		"index": {},
 	},
+	"ThreadRealtimeEntry": {
+		"item":     {},
+		"position": {},
+	},
+	"ThreadRealtimeFrameChannels": {
+		"voice_transcript": {},
+	},
 	"ThreadRealtimeInitialItem": {
 		"role": {},
 		"text": {},
 	},
 	"ThreadRealtimeItem": {
 		"id":                {},
+		"observedAtMs":      {},
 		"realtimeSessionId": {},
 	},
 	"ThreadRealtimeItemBemItemPromoted": {
@@ -1173,12 +1186,48 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"presentation": {},
 		"turn_id":      {},
 	},
+	"ThreadRealtimeItemFrame": {
+		"channels": {},
+	},
 	"ThreadRealtimeItemRealtimeSessionClosed": {
 		"outcome": {},
+	},
+	"ThreadRealtimeItemSessionEndInputSaved": {
+		"input":            {},
+		"input_item_id":    {},
+		"source_event_ids": {},
 	},
 	"ThreadRealtimeItemTranscriptSegment": {
 		"role": {},
 		"text": {},
+	},
+	"ThreadRealtimeItemTurnInputAccepted": {
+		"handoff_id":       {},
+		"input":            {},
+		"input_item_id":    {},
+		"mode":             {},
+		"source_event_ids": {},
+		"turn_id":          {},
+	},
+	"ThreadRealtimeListParams": {
+		"afterPosition":           {},
+		"cursor":                  {},
+		"eventId":                 {},
+		"fromObservedAtMs":        {},
+		"limit":                   {},
+		"order":                   {},
+		"requiredThroughPosition": {},
+		"sessionId":               {},
+		"snapshotEnd":             {},
+		"threadId":                {},
+		"toObservedAtMs":          {},
+	},
+	"ThreadRealtimeListResponse": {
+		"coverage":                  {},
+		"data":                      {},
+		"nextCursor":                {},
+		"projectedThroughItemIndex": {},
+		"snapshotEnd":               {},
 	},
 	"ThreadRealtimeListVoicesResponse": {
 		"voices": {},
@@ -1214,6 +1263,10 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 	},
 	"ThreadRealtimeStopParams": {
 		"threadId": {},
+	},
+	"ThreadRealtimeVoiceTranscript": {
+		"role": {},
+		"text": {},
 	},
 	"ThreadResumeInitialTurnsPageParams": {
 		"itemsView":     {},
@@ -1256,6 +1309,9 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"sourceTurnId":      {},
 		"text":              {},
 	},
+	"ThreadSearchCancelParams": {
+		"requestId": {},
+	},
 	"ThreadSearchOccurrence": {
 		"itemId":            {},
 		"snippet":           {},
@@ -1288,10 +1344,6 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"backwardsCursor": {},
 		"data":            {},
 		"nextCursor":      {},
-	},
-	"ThreadSearchResult": {
-		"snippet": {},
-		"thread":  {},
 	},
 	"ThreadSearchTextRange": {
 		"end":   {},
@@ -1449,7 +1501,8 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"title":       {},
 	},
 	"UserVerificationVerifyResponse": {
-		"proof": {},
+		"biometricType": {},
+		"proof":         {},
 	},
 	"WorkspaceRouting": {
 		"accountRoutingOverride": {},
@@ -1558,12 +1611,16 @@ var ExperimentalUnionValues = map[string]map[string]struct{}{
 		"thread/realtime/appendAudio":               {},
 		"thread/realtime/appendSpeech":              {},
 		"thread/realtime/appendText":                {},
+		"thread/realtime/list":                      {},
 		"thread/realtime/listVoices":                {},
 		"thread/realtime/start":                     {},
 		"thread/realtime/stop":                      {},
 		"thread/sample":                             {},
 		"thread/sample/cancel":                      {},
 		"thread/search":                             {},
+		"thread/search/cancel":                      {},
+		"thread/search/stream":                      {},
+		"thread/search/stream/cancel":               {},
 		"thread/searchOccurrences":                  {},
 		"thread/settings/update":                    {},
 		"thread/timeline/list":                      {},
@@ -1724,9 +1781,6 @@ var ExperimentalUnionValues = map[string]map[string]struct{}{
 		"other":        {},
 		"search":       {},
 	},
-	"ServerRequest": {
-		"currentTime/read": {},
-	},
 	"ThreadMemoryMode": {
 		"disabled": {},
 		"enabled":  {},
@@ -1740,11 +1794,27 @@ var ExperimentalUnionValues = map[string]map[string]struct{}{
 		"inlineVisualization": {},
 		"wholeItem":           {},
 	},
+	"ThreadRealtimeCoverage": {
+		"pending":     {},
+		"ready":       {},
+		"unsupported": {},
+	},
+	"ThreadRealtimeHandoffMode": {
+		"start": {},
+		"steer": {},
+	},
 	"ThreadRealtimeItem": {
 		"bemItemPromoted":        {},
+		"frame":                  {},
 		"realtimeSessionClosed":  {},
 		"realtimeSessionStarted": {},
+		"sessionEndInputSaved":   {},
 		"transcriptSegment":      {},
+		"turnInputAccepted":      {},
+	},
+	"ThreadRealtimeOrder": {
+		"observedAt": {},
+		"position":   {},
 	},
 	"ThreadRealtimeSessionOutcome": {
 		"ended":  {},
@@ -1773,6 +1843,9 @@ var ExperimentalUnionValues = map[string]map[string]struct{}{
 	"TurnSettingsUpdateStatus": {
 		"applied":           {},
 		"targetUnavailable": {},
+	},
+	"UserVerificationBiometricType": {
+		"fingerprint": {},
 	},
 	"UserVerificationCancellationReason": {
 		"interrupted":   {},
@@ -1828,6 +1901,7 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"AccountUpdatedNotification": {
 		"authMode": "AuthMode",
 		"planType": "PlanType",
+		"reason":   "AccountUpdateReason",
 	},
 	"AdditionalContextEntry": {
 		"kind": "AdditionalContextKind",
@@ -1839,8 +1913,21 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"fileSystem": "AdditionalFileSystemPermissions",
 		"network":    "AdditionalNetworkPermissions",
 	},
+	"AgentMessageDisplayBlock": {
+		"reason": "BlockReason",
+	},
+	"AgentMessageDisplayHide": {
+		"replacement": "AnswerReplacement",
+	},
+	"AgentMessageDisplayShow": {
+		"annotation":      "AnswerAnnotation",
+		"trustedContacts": "TrustedContacts",
+	},
 	"AgentMessageModeration": {
 		"display": "AgentMessageDisplay",
+	},
+	"AnswerAnnotationWellbeingHelpline": {
+		"subject": "HelplineSubject",
 	},
 	"AppInfo": {
 		"appMetadata": "AppMetadata",
@@ -2208,6 +2295,10 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"id":     "RequestId",
 		"params": "ModelProviderConfigWriteParams",
 	},
+	"ClientRequestModelProviderDefaultSet": {
+		"id":     "RequestId",
+		"params": "ModelProviderDefaultSetParams",
+	},
 	"ClientRequestModelProviderList": {
 		"id":     "RequestId",
 		"params": "ModelProviderListParams",
@@ -2522,6 +2613,10 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"id":     "RequestId",
 		"params": "ThreadRealtimeAppendTextParams",
 	},
+	"ClientRequestThreadRealtimeList": {
+		"id":     "RequestId",
+		"params": "ThreadRealtimeListParams",
+	},
 	"ClientRequestThreadRealtimeListVoices": {
 		"id":     "RequestId",
 		"params": "ThreadRealtimeListVoicesParams",
@@ -2554,9 +2649,21 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"id":     "RequestId",
 		"params": "ThreadSearchParams",
 	},
+	"ClientRequestThreadSearchCancel": {
+		"id":     "RequestId",
+		"params": "ThreadSearchCancelParams",
+	},
 	"ClientRequestThreadSearchOccurrences": {
 		"id":     "RequestId",
 		"params": "ThreadSearchOccurrencesParams",
+	},
+	"ClientRequestThreadSearchStream": {
+		"id":     "RequestId",
+		"params": "ThreadSearchParams",
+	},
+	"ClientRequestThreadSearchStreamCancel": {
+		"id":     "RequestId",
+		"params": "ThreadSearchCancelParams",
 	},
 	"ClientRequestThreadSectionCreate": {
 		"id":     "RequestId",
@@ -3667,6 +3774,9 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"ServerNotificationThreadReverted": {
 		"params": "ThreadRevertedNotification",
 	},
+	"ServerNotificationThreadSearchPartial": {
+		"params": "ThreadSearchPartialNotification",
+	},
 	"ServerNotificationThreadSectionChanged": {
 		"params": "ThreadSectionChangedNotification",
 	},
@@ -3720,10 +3830,6 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"ServerRequestAttestationGenerate": {
 		"id":     "RequestId",
 		"params": "AttestationGenerateParams",
-	},
-	"ServerRequestCurrentTimeRead": {
-		"id":     "RequestId",
-		"params": "CurrentTimeReadParams",
 	},
 	"ServerRequestExecCommandApproval": {
 		"id":     "RequestId",
@@ -3986,17 +4092,36 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"ThreadRealtimeAppendTextParams": {
 		"role": "ConversationTextRole",
 	},
+	"ThreadRealtimeEntry": {
+		"item": "ThreadRealtimeItem",
+	},
+	"ThreadRealtimeFrameChannels": {
+		"voice_transcript": "ThreadRealtimeVoiceTranscript",
+	},
 	"ThreadRealtimeInitialItem": {
 		"role": "ConversationTextRole",
 	},
 	"ThreadRealtimeItemBemItemPromoted": {
 		"presentation": "ThreadRealtimeBemItemPresentation",
 	},
+	"ThreadRealtimeItemFrame": {
+		"channels": "ThreadRealtimeFrameChannels",
+	},
 	"ThreadRealtimeItemRealtimeSessionClosed": {
 		"outcome": "ThreadRealtimeSessionOutcome",
 	},
 	"ThreadRealtimeItemTranscriptSegment": {
 		"role": "ThreadRealtimeTranscriptRole",
+	},
+	"ThreadRealtimeItemTurnInputAccepted": {
+		"mode": "ThreadRealtimeHandoffMode",
+	},
+	"ThreadRealtimeListParams": {
+		"order": "ThreadRealtimeOrder",
+	},
+	"ThreadRealtimeListResponse": {
+		"coverage": "ThreadRealtimeCoverage",
+		"data":     "ThreadRealtimeEntry",
 	},
 	"ThreadRealtimeListVoicesResponse": {
 		"voices": "RealtimeVoicesList",
@@ -4014,6 +4139,9 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	},
 	"ThreadRealtimeStartedNotification": {
 		"version": "RealtimeConversationVersion",
+	},
+	"ThreadRealtimeVoiceTranscript": {
+		"role": "ThreadRealtimeTranscriptRole",
 	},
 	"ThreadResumeInitialTurnsPageParams": {
 		"itemsView":     "TurnItemsView",
@@ -4048,6 +4176,9 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"effort":       "ReasoningEffort",
 		"threadSource": "ThreadSource",
 	},
+	"ThreadSearchCancelParams": {
+		"requestId": "RequestId",
+	},
 	"ThreadSearchOccurrence": {
 		"snippetMatchRange": "ThreadSearchTextRange",
 	},
@@ -4058,6 +4189,10 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"sortDirection": "SortDirection",
 		"sortKey":       "ThreadSearchSortKey",
 		"sourceKinds":   "ThreadSourceKind",
+	},
+	"ThreadSearchPartialNotification": {
+		"data":      "ThreadSearchResult",
+		"requestId": "RequestId",
 	},
 	"ThreadSearchResponse": {
 		"data": "ThreadSearchResult",
@@ -4279,7 +4414,8 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"unavailableReason": "UserVerificationUnavailableReason",
 	},
 	"UserVerificationVerifyResponse": {
-		"proof": "UserVerificationProof",
+		"biometricType": "UserVerificationBiometricType",
+		"proof":         "UserVerificationProof",
 	},
 	"WebSearchToolConfig": {
 		"context_size": "WebSearchContextSize",

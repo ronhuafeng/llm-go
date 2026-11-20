@@ -230,7 +230,7 @@ func needsCustomStructMarshal(typ TypePlan) bool {
 		return true
 	}
 	for _, field := range typ.Fields {
-		if fieldNeedsMarshalNilCheck(field) || field.MinItems != nil || field.Minimum != nil {
+		if fieldNeedsMarshalNilCheck(field) || field.MinItems != nil || field.Minimum != nil || len(field.IntegerEnum) > 0 {
 			return true
 		}
 	}
@@ -2048,7 +2048,7 @@ func firstPassGoTypeSafe(goType string) bool {
 		return firstPassGoTypeSafe(inner)
 	}
 	switch leaf {
-	case "bool", "float64", "int32", "int64", "uint16", "uint32", "uint64", "string", "JSONValue", "OutputSchema", "Nullable[string]":
+	case "bool", "float64", "int32", "int64", "uint8", "uint16", "uint32", "uint64", "string", "JSONValue", "OutputSchema", "Nullable[string]":
 		return true
 	default:
 		return false
@@ -2344,6 +2344,9 @@ func writeStructMarshal(out *bytes.Buffer, typ TypePlan, fields []FieldPlan) {
 	}
 	out.WriteString("\n")
 	fmt.Fprintf(out, "func (value %s) MarshalJSON() ([]byte, error) {\n", typ.TypeName)
+	for _, field := range fields {
+		writeIntegerEnumValidation(out, field, "value."+fieldGoName(field.FieldName), "encode "+typ.TypeName+"."+field.FieldName, "nil, ")
+	}
 	for _, field := range guardedFields {
 		fmt.Fprintf(out, "\tif value.%s == nil {\n", fieldGoName(field.FieldName))
 		fmt.Fprintf(out, "\t\treturn nil, fmt.Errorf(\"encode %s.%s: nil is not allowed\")\n", typ.TypeName, field.FieldName)
@@ -3165,6 +3168,7 @@ func writeTaggedUnionVariantMarshal(out *bytes.Buffer, union TaggedUnionPlan, va
 	wireFields = sortedFields(wireFields)
 	for _, field := range sortedFields(union.SharedFields) {
 		fieldName := fieldGoName(field.FieldName)
+		writeIntegerEnumValidation(out, field, "value."+fieldName, "encode "+union.TypeName+"."+field.FieldName, "nil, ")
 		if fieldNeedsMarshalNilCheck(field) {
 			fmt.Fprintf(out, "\t\tif value.%s == nil {\n", fieldName)
 			fmt.Fprintf(out, "\t\t\treturn nil, fmt.Errorf(\"encode %s.%s: nil is not allowed\")\n", union.TypeName, field.FieldName)
@@ -3173,6 +3177,7 @@ func writeTaggedUnionVariantMarshal(out *bytes.Buffer, union TaggedUnionPlan, va
 	}
 	for _, field := range sortedFields(variant.Fields) {
 		fieldName := fieldGoName(field.FieldName)
+		writeIntegerEnumValidation(out, field, "value."+variant.PrivateFieldName+"."+fieldName, "encode "+union.TypeName+"."+variant.DiscriminatorValue+"."+field.FieldName, "nil, ")
 		if fieldNeedsMarshalNilCheck(field) {
 			fmt.Fprintf(out, "\t\tif value.%s.%s == nil {\n", variant.PrivateFieldName, fieldName)
 			fmt.Fprintf(out, "\t\t\treturn nil, fmt.Errorf(\"encode %s.%s.%s: nil is not allowed\")\n", union.TypeName, variant.DiscriminatorValue, field.FieldName)
@@ -3359,7 +3364,7 @@ func writeDecodeHelpers(out *bytes.Buffer, messageRoots []TypePlan) {
 	out.WriteString("\tif decoder, ok := any(target).(wireDecodeUnmarshaler); ok {\n")
 	out.WriteString("\t\treturn decoder.unmarshalJSON(data, mode)\n")
 	out.WriteString("\t}\n")
-	out.WriteString("\tswitch any(target).(type) {\n\tcase *string, *bool, *int, *int32, *int64, *uint, *uint32, *uint64, *float32, *float64:\n")
+	out.WriteString("\tswitch any(target).(type) {\n\tcase *string, *bool, *int, *int32, *int64, *uint, *uint8, *uint16, *uint32, *uint64, *float32, *float64:\n")
 	out.WriteString("\t\traw, err := ParseJSONValue(data)\n\t\tif err != nil { return err }\n\t\tif raw.Kind() == JSONKindNull { return fmt.Errorf(\"null is not allowed\") }\n\t}\n")
 	out.WriteString("\treturn json.Unmarshal(data, target)\n")
 	out.WriteString("}\n\n")
@@ -3644,6 +3649,7 @@ func writeNamedFieldDecoder(out *bytes.Buffer, typ TypePlan, field FieldPlan, ta
 		fmt.Fprintf(out, "\t\treturn fmt.Errorf(\"decode %s: must contain at least %s item\")\n", fieldPath, minItemsLiteral(field))
 		out.WriteString("\t}\n")
 	}
+	writeIntegerEnumValidation(out, field, target+"."+fieldGoName(field.FieldName), "decode "+fieldPath, "")
 	if field.Minimum != nil {
 		condition := minimumViolationCondition(target+"."+fieldGoName(field.FieldName), field.GoType, minimumLiteral(field))
 		fmt.Fprintf(out, "\tif %s {\n", condition)
@@ -3714,4 +3720,33 @@ func jsonTagOmitEmpty(field FieldPlan) string {
 		return ""
 	}
 	return ",omitempty"
+}
+
+// Validate the exact allowed integer literals without a floating-point conversion.
+func writeIntegerEnumValidation(out *bytes.Buffer, field FieldPlan, target, path, errorPrefix string) {
+	if len(field.IntegerEnum) == 0 {
+		return
+	}
+	goType := generatedGoType(field.GoType)
+	var guard string
+	switch {
+	case strings.HasPrefix(goType, "*Nullable["):
+		guard = target + " != nil && " + target + ".Value != nil"
+		target = "*" + target + ".Value"
+	case strings.HasPrefix(goType, "Nullable["):
+		guard = target + ".Value != nil"
+		target = "*" + target + ".Value"
+	case strings.HasPrefix(goType, "*"):
+		guard = target + " != nil"
+		target = "*" + target
+	}
+	var conditions []string
+	for _, value := range field.IntegerEnum {
+		conditions = append(conditions, target+" != "+value)
+	}
+	condition := strings.Join(conditions, " && ")
+	if guard != "" {
+		condition = guard + " && (" + condition + ")"
+	}
+	fmt.Fprintf(out, "\tif %s {\n\t\treturn %sfmt.Errorf(%q)\n\t}\n", condition, errorPrefix, path+": invalid integer enum value")
 }

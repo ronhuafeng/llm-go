@@ -920,6 +920,14 @@ func (f ModelProviders) ConfigWrite(ctx context.Context, params protocolv2.Model
 	return response, nil
 }
 
+func (f ModelProviders) DefaultSet(ctx context.Context, params protocolv2.ModelProviderDefaultSetParams) (protocolv2.ConfigWriteResponse, error) {
+	var response protocolv2.ConfigWriteResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodModelProviderDefaultSet, params, &response); err != nil {
+		return protocolv2.ConfigWriteResponse{}, err
+	}
+	return response, nil
+}
+
 func (f ModelProviders) List(ctx context.Context, params protocolv2.ModelProviderListParams) (protocolv2.ModelProviderListResponse, error) {
 	var response protocolv2.ModelProviderListResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodModelProviderList, params, &response); err != nil {
@@ -1606,6 +1614,14 @@ func (f Threads) RealtimeAppendText(ctx context.Context, params protocolv2.Threa
 	return response, nil
 }
 
+func (f Threads) RealtimeList(ctx context.Context, params protocolv2.ThreadRealtimeListParams) (protocolv2.ThreadRealtimeListResponse, error) {
+	var response protocolv2.ThreadRealtimeListResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadRealtimeList, params, &response); err != nil {
+		return protocolv2.ThreadRealtimeListResponse{}, err
+	}
+	return response, nil
+}
+
 func (f Threads) RealtimeListVoices(ctx context.Context, params protocolv2.ThreadRealtimeListVoicesParams) (protocolv2.ThreadRealtimeListVoicesResponse, error) {
 	var response protocolv2.ThreadRealtimeListVoicesResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadRealtimeListVoices, params, &response); err != nil {
@@ -1670,10 +1686,34 @@ func (f Threads) Search(ctx context.Context, params protocolv2.ThreadSearchParam
 	return response, nil
 }
 
+func (f Threads) SearchCancel(ctx context.Context, params protocolv2.ThreadSearchCancelParams) (protocolv2.ThreadSearchCancelResponse, error) {
+	var response protocolv2.ThreadSearchCancelResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadSearchCancel, params, &response); err != nil {
+		return protocolv2.ThreadSearchCancelResponse{}, err
+	}
+	return response, nil
+}
+
 func (f Threads) SearchOccurrences(ctx context.Context, params protocolv2.ThreadSearchOccurrencesParams) (protocolv2.ThreadSearchOccurrencesResponse, error) {
 	var response protocolv2.ThreadSearchOccurrencesResponse
 	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadSearchOccurrences, params, &response); err != nil {
 		return protocolv2.ThreadSearchOccurrencesResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Threads) SearchStream(ctx context.Context, params protocolv2.ThreadSearchParams) (protocolv2.ThreadSearchResponse, error) {
+	var response protocolv2.ThreadSearchResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadSearchStream, params, &response); err != nil {
+		return protocolv2.ThreadSearchResponse{}, err
+	}
+	return response, nil
+}
+
+func (f Threads) SearchStreamCancel(ctx context.Context, params protocolv2.ThreadSearchCancelParams) (protocolv2.ThreadSearchCancelResponse, error) {
+	var response protocolv2.ThreadSearchCancelResponse
+	if err := f.client.callProtocol(ctx, protocolv2.MethodThreadSearchStreamCancel, params, &response); err != nil {
+		return protocolv2.ThreadSearchCancelResponse{}, err
 	}
 	return response, nil
 }

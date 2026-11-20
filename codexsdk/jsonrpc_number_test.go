@@ -194,12 +194,16 @@ func TestProtocolErrorDataPreservesNumberToken(t *testing.T) {
 
 func TestOutboundGeneratedIntegerIsNotRounded(t *testing.T) {
 	client := newTransportHarness()
-	response := CurrentTimeResponse(protocolv2.CurrentTimeReadResponse{CurrentTimeAt: 9007199254740993})
-	if err := client.writeExactServerRequestResponse("time-1", protocolv2.ServerRequest{}, response); err != nil {
+	params := protocolv2.ThreadRealtimeListParams{ThreadID: "thread-1", FromObservedAtMS: protocolv2.Value(int64(9007199254740993))}
+	encoded, err := encodeProtocolParams(protocolv2.MethodThreadRealtimeList, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := client.write(map[string]any{"id": "realtime-1", "method": protocolv2.MethodThreadRealtimeList, "params": encoded}); err != nil {
 		t.Fatal(err)
 	}
 	written := writtenJSONRPC(client)
-	if !strings.Contains(written, `"currentTimeAt":`+largeJSONInteger) {
+	if !strings.Contains(written, `"fromObservedAtMs":`+largeJSONInteger) {
 		t.Fatalf("outbound generated integer was rounded: %s", written)
 	}
 	if strings.Contains(written, "9007199254740992") {

@@ -87,7 +87,6 @@ const (
 	MethodConfigValueWrite                        = "config/value/write"
 	MethodConfigRequirementsRead                  = "configRequirements/read"
 	MethodConfigWarning                           = "configWarning"
-	MethodCurrentTimeRead                         = "currentTime/read"
 	MethodDeprecationNotice                       = "deprecationNotice"
 	MethodEnvironmentAdd                          = "environment/add"
 	MethodEnvironmentInfo                         = "environment/info"
@@ -169,6 +168,7 @@ const (
 	MethodModelProviderAuthRecoveryStarted        = "modelProvider/authRecoveryStarted"
 	MethodModelProviderCapabilitiesRead           = "modelProvider/capabilities/read"
 	MethodModelProviderConfigWrite                = "modelProvider/config/write"
+	MethodModelProviderDefaultSet                 = "modelProvider/default/set"
 	MethodModelProviderList                       = "modelProvider/list"
 	MethodPermissionProfileList                   = "permissionProfile/list"
 	MethodPluginInstall                           = "plugin/install"
@@ -274,6 +274,7 @@ const (
 	MethodThreadRealtimeItemStarted               = "thread/realtime/item/started"
 	MethodThreadRealtimeItemTranscriptDelta       = "thread/realtime/item/transcript/delta"
 	MethodThreadRealtimeItemAdded                 = "thread/realtime/itemAdded"
+	MethodThreadRealtimeList                      = "thread/realtime/list"
 	MethodThreadRealtimeListVoices                = "thread/realtime/listVoices"
 	MethodThreadRealtimeOutputAudioDelta          = "thread/realtime/outputAudio/delta"
 	MethodThreadRealtimeSDP                       = "thread/realtime/sdp"
@@ -288,6 +289,10 @@ const (
 	MethodThreadSample                            = "thread/sample"
 	MethodThreadSampleCancel                      = "thread/sample/cancel"
 	MethodThreadSearch                            = "thread/search"
+	MethodThreadSearchCancel                      = "thread/search/cancel"
+	MethodThreadSearchPartial                     = "thread/search/partial"
+	MethodThreadSearchStream                      = "thread/search/stream"
+	MethodThreadSearchStreamCancel                = "thread/search/stream/cancel"
 	MethodThreadSearchOccurrences                 = "thread/searchOccurrences"
 	MethodThreadSectionChanged                    = "thread/section/changed"
 	MethodThreadSectionMove                       = "thread/section/move"
@@ -821,17 +826,6 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
 		FacadeTarget:          "ServerNotifications().ConfigWarning",
 		Stability:             MethodStabilityStable,
-	},
-	MethodCurrentTimeRead: {
-		Method:                MethodCurrentTimeRead,
-		Direction:             MethodDirectionServerToClient,
-		Kind:                  MethodKindRequest,
-		Family:                "currentTime",
-		ParamsOrPayloadSchema: "CurrentTimeReadParams",
-		ResponseSchema:        "CurrentTimeReadResponse.json",
-		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
-		FacadeTarget:          "ServerRequests().CurrentTimeRead",
-		Stability:             MethodStabilityExperimental,
 	},
 	MethodDeprecationNotice: {
 		Method:                MethodDeprecationNotice,
@@ -1726,6 +1720,17 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchema:        "v2/ModelProviderConfigWriteResponse.json",
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "ModelProviders().ConfigWrite",
+		Stability:             MethodStabilityStable,
+	},
+	MethodModelProviderDefaultSet: {
+		Method:                MethodModelProviderDefaultSet,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "modelProvider",
+		ParamsOrPayloadSchema: "ModelProviderDefaultSetParams",
+		ResponseSchema:        "v2/ConfigWriteResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "ModelProviders().DefaultSet",
 		Stability:             MethodStabilityStable,
 	},
 	MethodModelProviderList: {
@@ -2891,6 +2896,17 @@ var methodRegistry = map[string]MethodInfo{
 		FacadeTarget:          "ServerNotifications().ThreadRealtimeItemAdded",
 		Stability:             MethodStabilityStable,
 	},
+	MethodThreadRealtimeList: {
+		Method:                MethodThreadRealtimeList,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadRealtimeListParams",
+		ResponseSchema:        "v2/ThreadRealtimeListResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Threads().RealtimeList",
+		Stability:             MethodStabilityExperimental,
+	},
 	MethodThreadRealtimeListVoices: {
 		Method:                MethodThreadRealtimeListVoices,
 		Direction:             MethodDirectionClientToServer,
@@ -3043,6 +3059,50 @@ var methodRegistry = map[string]MethodInfo{
 		ResponseSchema:        "v2/ThreadSearchResponse.json",
 		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
 		FacadeTarget:          "Threads().Search",
+		Stability:             MethodStabilityExperimental,
+	},
+	MethodThreadSearchCancel: {
+		Method:                MethodThreadSearchCancel,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadSearchCancelParams",
+		ResponseSchema:        "v2/ThreadSearchCancelResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Threads().SearchCancel",
+		Stability:             MethodStabilityExperimental,
+	},
+	MethodThreadSearchPartial: {
+		Method:                MethodThreadSearchPartial,
+		Direction:             MethodDirectionServerToClient,
+		Kind:                  MethodKindNotification,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadSearchPartialNotification",
+		ResponseSchema:        "",
+		ResponseSchemaStatus:  ResponseSchemaStatusNotApplicable,
+		FacadeTarget:          "ServerNotifications().ThreadSearchPartial",
+		Stability:             MethodStabilityStable,
+	},
+	MethodThreadSearchStream: {
+		Method:                MethodThreadSearchStream,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadSearchParams",
+		ResponseSchema:        "v2/ThreadSearchResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Threads().SearchStream",
+		Stability:             MethodStabilityExperimental,
+	},
+	MethodThreadSearchStreamCancel: {
+		Method:                MethodThreadSearchStreamCancel,
+		Direction:             MethodDirectionClientToServer,
+		Kind:                  MethodKindRequest,
+		Family:                "thread",
+		ParamsOrPayloadSchema: "ThreadSearchCancelParams",
+		ResponseSchema:        "v2/ThreadSearchCancelResponse.json",
+		ResponseSchemaStatus:  ResponseSchemaStatusDeclared,
+		FacadeTarget:          "Threads().SearchStreamCancel",
 		Stability:             MethodStabilityExperimental,
 	},
 	MethodThreadSearchOccurrences: {

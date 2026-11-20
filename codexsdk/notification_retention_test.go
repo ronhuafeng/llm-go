@@ -584,7 +584,7 @@ func TestNotificationRetentionProcessAttachmentWithRequiredRawEvents(t *testing.
 			defer cancel()
 			result, err := c.ThreadRunner().Start(ctx, StartThreadRunRequest{Turn: protocolv2.TurnStartParams{Input: []protocolv2.UserInput{}}})
 			if err != nil || len(result.Run.Notifications) != 3 || result.Run.Turn.Status != protocolv2.TurnStatusCompleted {
-				t.Fatal("bounded process attachment changed normal results")
+				t.Fatalf("bounded process attachment: err=%v notifications=%d status=%s", err, len(result.Run.Notifications), result.Run.Turn.Status)
 			}
 			count, bytes := retentionFacts(c.retention)
 			if count > 128 || bytes > 64<<10 {

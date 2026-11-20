@@ -369,6 +369,30 @@ null and mixed types. Optional `InputImages` records the local inputs observed
 for that image-generation request. This public type migration follows the
 source schema and does not expand the live scenario guarantee.
 
+At the `rust-v0.171.0` protocol baseline, `AgentMessageDisplay` becomes a
+`mode` union. Replace the former `Action`, `BlockType`, `CheckTrustedContacts`,
+and `CyberTrustedAccess` fields with `NewAgentMessageDisplayShow`,
+`NewAgentMessageDisplayHide`, or `NewAgentMessageDisplayBlock`, and use
+`AsShow`, `AsHide`, or `AsBlock` on reads. Every alternative requires
+`Version: 1`; encoding and decoding reject other versions. For example:
+
+```go
+display := protocolv2.NewAgentMessageDisplayShow(protocolv2.AgentMessageDisplayShow{
+    Version: 1,
+    TrustedContacts: protocolv2.TrustedContactsSkip,
+})
+```
+
+The same source removes `Project.Position`; consume the server's project order
+and use `Projects.Move` with `BeforeProjectID` to reorder projects. It also
+removes the `currentTime/read` server request, its generated types/constants and
+the `CurrentTimeResponse` helper. Remove that case from application handlers;
+an incoming removed method receives the normal method-not-found response.
+New facades include `Threads.SearchStream`, `SearchCancel`, `SearchStreamCancel`,
+`RealtimeList`, and `ModelProviders.DefaultSet`. Search partial notifications
+carry the initiating request ID; the final search response owns the final page.
+These additions do not expand the live scenario guarantee.
+
 The generated surface follows the selected source in
 [`baseline_metadata.json`](internal/protocolschema/appserver/v2/baseline_metadata.json).
 Live verification resolves the official latest Codex CLI once per execution and

@@ -91,7 +91,6 @@ func TestUnhandledExactServerRequestCauseCoversApplicationOwnedFamilies(t *testi
 		protocolv2.ServerRequestKindItemToolRequestUserInput,
 		protocolv2.ServerRequestKindMCPServerElicitationRequest,
 		protocolv2.ServerRequestKindItemPermissionsRequestApproval,
-		protocolv2.ServerRequestKindCurrentTimeRead,
 		protocolv2.ServerRequestKindApplyPatchApproval,
 		protocolv2.ServerRequestKindExecCommandApproval,
 	} {
@@ -113,10 +112,10 @@ func TestNilServerRequestHandlerReturnsProtocolErrorForDecodedApplicationOwnedFa
 		kind   protocolv2.ServerRequestKind
 	}{
 		{
-			name:   "current time",
-			method: protocolv2.MethodCurrentTimeRead,
-			params: map[string]any{"threadId": "thread-1"},
-			kind:   protocolv2.ServerRequestKindCurrentTimeRead,
+			name:   "MCP elicitation",
+			method: protocolv2.MethodMCPServerElicitationRequest,
+			params: threadScopedElicitationParams("thread-1"),
+			kind:   protocolv2.ServerRequestKindMCPServerElicitationRequest,
 		},
 		{
 			name:   "permissions",
@@ -179,8 +178,8 @@ func TestNilServerRequestHandlerReturnsProtocolErrorForDecodedApplicationOwnedFa
 func TestAdmissionClosedServerRequestReturnsProtocolErrorWithoutSemanticResult(t *testing.T) {
 	message := map[string]any{
 		"id":     "request-closed",
-		"method": protocolv2.MethodCurrentTimeRead,
-		"params": map[string]any{"threadId": "thread-1"},
+		"method": protocolv2.MethodMCPServerElicitationRequest,
+		"params": threadScopedElicitationParams("thread-1"),
 	}
 	request, err := decodeProtocolServerRequest(message)
 	if err != nil {
@@ -281,9 +280,9 @@ func TestThreadScopedServerRequestFailureMatchesExactRunByThreadID(t *testing.T)
 	matched := liveExactRun(client, "thread-1", "turn-1")
 	unrelated := liveExactRun(client, "thread-2", "turn-2")
 	message := map[string]any{
-		"id":     "time-1",
-		"method": protocolv2.MethodCurrentTimeRead,
-		"params": map[string]any{"threadId": "thread-1"},
+		"id":     "elicit-1",
+		"method": protocolv2.MethodMCPServerElicitationRequest,
+		"params": threadScopedElicitationParams("thread-1"),
 	}
 	request, err := decodeProtocolServerRequest(message)
 	if err != nil {
@@ -556,3 +555,7 @@ type failingWriteCloser struct{ err error }
 func (w failingWriteCloser) Write([]byte) (int, error) { return 0, w.err }
 
 func (w failingWriteCloser) Close() error { return nil }
+
+func threadScopedElicitationParams(threadID string) map[string]any {
+	return map[string]any{"threadId": threadID, "serverName": "fixture", "mode": "url", "url": "https://example.test/elicit", "message": "approve", "elicitationId": "elicit-1"}
+}

@@ -34,10 +34,6 @@ func AttestationResponse(value protocolv2.AttestationGenerateResponse) ServerReq
 	return serverResponse(protocolv2.ServerRequestKindAttestationGenerate, value)
 }
 
-func CurrentTimeResponse(value protocolv2.CurrentTimeReadResponse) ServerRequestResponse {
-	return serverResponse(protocolv2.ServerRequestKindCurrentTimeRead, value)
-}
-
 func ApplyPatchApprovalResponse(value protocolv2.ApplyPatchApprovalResponse) ServerRequestResponse {
 	return serverResponse(protocolv2.ServerRequestKindApplyPatchApproval, value)
 }

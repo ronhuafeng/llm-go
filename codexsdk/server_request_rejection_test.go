@@ -18,6 +18,7 @@ func TestServerRequestRejectionClassifiesMethodWithoutGuessingRun(t *testing.T) 
 		code   float64
 	}{
 		{"unknown method", "fixture/unsupported", -32601},
+		{"removed current time request", "currentTime/read", -32601},
 		{"client request method", protocolv2.MethodTurnStart, -32601},
 		{"notification as request", protocolv2.MethodTurnCompleted, -32601},
 		{"known request invalid params", protocolv2.MethodItemToolCall, -32602},

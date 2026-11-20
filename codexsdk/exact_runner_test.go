@@ -1502,7 +1502,6 @@ func TestServerRequestResponseConstructorsCoverGeneratedRequestKinds(t *testing.
 		DynamicToolResponse(protocolv2.DynamicToolCallResponse{}),
 		ChatGPTAuthRefreshResponse(protocolv2.ChatgptAuthTokensRefreshResponse{}),
 		AttestationResponse(protocolv2.AttestationGenerateResponse{}),
-		CurrentTimeResponse(protocolv2.CurrentTimeReadResponse{}),
 		ApplyPatchApprovalResponse(protocolv2.ApplyPatchApprovalResponse{}),
 		ExecCommandApprovalResponse(protocolv2.ExecCommandApprovalResponse{}),
 	}
@@ -1515,7 +1514,6 @@ func TestServerRequestResponseConstructorsCoverGeneratedRequestKinds(t *testing.
 		protocolv2.ServerRequestKindItemToolCall,
 		protocolv2.ServerRequestKindAccountChatGPTAuthTokensRefresh,
 		protocolv2.ServerRequestKindAttestationGenerate,
-		protocolv2.ServerRequestKindCurrentTimeRead,
 		protocolv2.ServerRequestKindApplyPatchApproval,
 		protocolv2.ServerRequestKindExecCommandApproval,
 	}
