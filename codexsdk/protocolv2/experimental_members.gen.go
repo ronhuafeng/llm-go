@@ -93,11 +93,13 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"type":   {},
 	},
 	"BedrockSetupParamsEnvironment": {
-		"region": {},
+		"providerId": {},
+		"region":     {},
 	},
 	"BedrockSetupParamsProfile": {
-		"profile": {},
-		"region":  {},
+		"profile":    {},
+		"providerId": {},
+		"region":     {},
 	},
 	"CapabilityRootLocationEnvironment": {
 		"environmentId": {},
@@ -961,11 +963,12 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"process": {},
 	},
 	"Thread": {
-		"attachedToThreadId":   {},
-		"canAcceptDirectInput": {},
-		"daybreakEnabled":      {},
-		"environments":         {},
-		"extra":                {},
+		"attachedToThreadId":                 {},
+		"canAcceptDirectInput":               {},
+		"daybreakEnabled":                    {},
+		"daybreakProgramPropagationEnrolled": {},
+		"environments":                       {},
+		"extra":                              {},
 	},
 	"ThreadBackgroundTerminal": {
 		"command":    {},
@@ -1192,9 +1195,10 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 	"ThreadRealtimeItemRealtimeSessionClosed": {
 		"outcome": {},
 	},
-	"ThreadRealtimeItemSessionEndInputSaved": {
+	"ThreadRealtimeItemSessionInputSaved": {
 		"input":            {},
 		"input_item_id":    {},
+		"reason":           {},
 		"source_event_ids": {},
 	},
 	"ThreadRealtimeItemTranscriptSegment": {
@@ -1295,6 +1299,7 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"effort":                     {},
 		"expectedTurnId":             {},
 		"interruptOnCancel":          {},
+		"model":                      {},
 		"prompt":                     {},
 		"responsesapiClientMetadata": {},
 		"threadId":                   {},
@@ -1371,18 +1376,19 @@ var ExperimentalJSONFields = map[string]map[string]struct{}{
 		"threadId":          {},
 	},
 	"ThreadStartParams": {
-		"allowProviderModelFallback": {},
-		"daybreakEnabled":            {},
-		"dynamicTools":               {},
-		"environments":               {},
-		"experimentalRawEvents":      {},
-		"historyMode":                {},
-		"mockExperimentalField":      {},
-		"multiAgentMode":             {},
-		"permissions":                {},
-		"projectId":                  {},
-		"runtimeWorkspaceRoots":      {},
-		"selectedCapabilityRoots":    {},
+		"allowProviderModelFallback":         {},
+		"daybreakEnabled":                    {},
+		"daybreakProgramPropagationEnrolled": {},
+		"dynamicTools":                       {},
+		"environments":                       {},
+		"experimentalRawEvents":              {},
+		"historyMode":                        {},
+		"mockExperimentalField":              {},
+		"multiAgentMode":                     {},
+		"permissions":                        {},
+		"projectId":                          {},
+		"runtimeWorkspaceRoots":              {},
+		"selectedCapabilityRoots":            {},
 	},
 	"ThreadStartResponse": {
 		"activePermissionProfile": {},
@@ -1808,13 +1814,17 @@ var ExperimentalUnionValues = map[string]map[string]struct{}{
 		"frame":                  {},
 		"realtimeSessionClosed":  {},
 		"realtimeSessionStarted": {},
-		"sessionEndInputSaved":   {},
+		"sessionInputSaved":      {},
 		"transcriptSegment":      {},
 		"turnInputAccepted":      {},
 	},
 	"ThreadRealtimeOrder": {
 		"observedAt": {},
 		"position":   {},
+	},
+	"ThreadRealtimeSessionInputReason": {
+		"chunk":      {},
+		"sessionEnd": {},
 	},
 	"ThreadRealtimeSessionOutcome": {
 		"ended":  {},
@@ -1978,6 +1988,12 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	},
 	"BedrockEnvironmentCredential": {
 		"type": "AwsCredentialType",
+	},
+	"BedrockSetupParamsEnvironment": {
+		"providerId": "BedrockProviderId",
+	},
+	"BedrockSetupParamsProfile": {
+		"providerId": "BedrockProviderId",
 	},
 	"BrowserUseConfig": {
 		"default_origin_policy": "BrowserUseOriginPolicyConfig",
@@ -3131,6 +3147,12 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	"ListMcpServerStatusResponse": {
 		"data": "McpServerStatus",
 	},
+	"LoginAccountParamsAmazonBedrock": {
+		"providerId": "BedrockProviderId",
+	},
+	"LoginAccountParamsAmazonBedrockAccessKeys": {
+		"providerId": "BedrockProviderId",
+	},
 	"LoginAccountParamsChatGPT": {
 		"appBrand": "LoginAppBrand",
 	},
@@ -3215,7 +3237,8 @@ var ExperimentalChildTypes = map[string]map[string]string{
 		"upgradeInfo":               "ModelUpgradeInfo",
 	},
 	"ModelAccessPrograms": {
-		"cyber": "CyberAccessProgram",
+		"cyber":                "CyberAccessProgram",
+		"daybreakAvailability": "DaybreakAvailability",
 	},
 	"ModelListResponse": {
 		"data": "Model",
@@ -4109,6 +4132,9 @@ var ExperimentalChildTypes = map[string]map[string]string{
 	},
 	"ThreadRealtimeItemRealtimeSessionClosed": {
 		"outcome": "ThreadRealtimeSessionOutcome",
+	},
+	"ThreadRealtimeItemSessionInputSaved": {
+		"reason": "ThreadRealtimeSessionInputReason",
 	},
 	"ThreadRealtimeItemTranscriptSegment": {
 		"role": "ThreadRealtimeTranscriptRole",

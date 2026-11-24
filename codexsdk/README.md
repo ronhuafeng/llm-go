@@ -309,6 +309,15 @@ recorder and changes no application acceptance or server-request authority.
 
 ## Compatibility and evidence
 
+At the `rust-v0.172.0` baseline, realtime history replaces
+`ThreadRealtimeItemSessionEndInputSaved` with `ThreadRealtimeItemSessionInputSaved`.
+Use `NewThreadRealtimeItemSessionInputSaved` / `AsSessionInputSaved` and supply
+`Reason: ThreadRealtimeSessionInputReasonChunk` or
+`ThreadRealtimeSessionInputReasonSessionEnd`. The former wire discriminator
+`sessionEndInputSaved` is replaced by `sessionInputSaved`; the new `reason` field
+is required. The existing opaque JSONValue representation for realtime lifecycle
+notification items remains unchanged.
+
 At the `rust-v0.169.0` baseline,
 `FunctionCallOutputContentItemInputAudio.AudioURL` becomes `*protocolv2.JSONValue`,
 alongside a new `FileID` field of the same type. Construct a URL with

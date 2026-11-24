@@ -13,6 +13,13 @@ changes may occur in minor releases.
 
 #### Added
 
+- Synchronize the App Server protocol with Codex `rust-v0.172.0`
+  (`3d86e43b075adeba2193ec5c22ac92f55afd82e6`), adding Daybreak enrollment
+  and availability, Bedrock setup provider selection, sample model selection,
+  app-default approval reviewer configuration, and spend-limit errors.
+  Realtime `sessionEndInputSaved` becomes `sessionInputSaved` with a required
+  reason; see the SDK README for migration. Existing live scenarios remain required.
+
 - Synchronize the App Server protocol with Codex `rust-v0.171.0`
   (`ccf9be8cc458bd6b8336fe84d68d8893f2691a5e`), adding streamed thread
   search and cancellation, realtime history listing, default provider selection,
