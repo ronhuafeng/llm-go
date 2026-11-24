@@ -13210,6 +13210,19 @@
       "type": "ThreadSampleParams"
     },
     {
+      "exit_condition": "Regenerate if upstream schema drift changes ThreadSampleParams.model semantics.",
+      "field": "model",
+      "owner": "codex-go-sdk",
+      "path": "v2/ThreadSampleParams.json#/properties/model",
+      "reason": "Generated as a strict typed ThreadSampleParams field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadSampleParams.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "ThreadSampleParams"
+    },
+    {
       "exit_condition": "Regenerate if upstream schema drift changes ThreadSampleParams.prompt semantics.",
       "field": "prompt",
       "owner": "codex-go-sdk",
@@ -14215,6 +14228,19 @@
       "field": "daybreakEnabled",
       "owner": "codex-go-sdk",
       "path": "v2/ThreadStartParams.json#/properties/daybreakEnabled",
+      "reason": "Generated as a strict typed ThreadStartParams field.",
+      "required": false,
+      "revisit_trigger": "protocolv2 generation or upstream schema drift",
+      "schema": "v2/ThreadStartParams.json",
+      "stability": "experimental",
+      "status": "supported-generated",
+      "type": "ThreadStartParams"
+    },
+    {
+      "exit_condition": "Regenerate if upstream schema drift changes ThreadStartParams.daybreakProgramPropagationEnrolled semantics.",
+      "field": "daybreakProgramPropagationEnrolled",
+      "owner": "codex-go-sdk",
+      "path": "v2/ThreadStartParams.json#/properties/daybreakProgramPropagationEnrolled",
       "reason": "Generated as a strict typed ThreadStartParams field.",
       "required": false,
       "revisit_trigger": "protocolv2 generation or upstream schema drift",

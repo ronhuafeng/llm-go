@@ -1995,6 +1995,50 @@ func (value *CyberAccessProgram) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+type DaybreakAvailability string
+
+const (
+	DaybreakAvailabilityAvailable           DaybreakAvailability = "available"
+	DaybreakAvailabilityEnrollmentRequired  DaybreakAvailability = "enrollmentRequired"
+	DaybreakAvailabilityUnavailableForModel DaybreakAvailability = "unavailableForModel"
+	DaybreakAvailabilityDefault             DaybreakAvailability = "default"
+)
+
+func (value DaybreakAvailability) IsValid() bool {
+	switch value {
+	case DaybreakAvailabilityAvailable:
+		return true
+	case DaybreakAvailabilityEnrollmentRequired:
+		return true
+	case DaybreakAvailabilityUnavailableForModel:
+		return true
+	case DaybreakAvailabilityDefault:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value DaybreakAvailability) MarshalJSON() ([]byte, error) {
+	if !value.IsValid() {
+		return nil, invalidEnumValue("DaybreakAvailability", string(value))
+	}
+	return json.Marshal(string(value))
+}
+
+func (value *DaybreakAvailability) UnmarshalJSON(data []byte) error {
+	var raw string
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	parsed := DaybreakAvailability(raw)
+	if !parsed.IsValid() {
+		return invalidEnumValue("DaybreakAvailability", raw)
+	}
+	*value = parsed
+	return nil
+}
+
 type DesktopOnboardingEntrypoint string
 
 const (
@@ -6232,6 +6276,44 @@ func (value *ThreadRealtimeOrder) UnmarshalJSON(data []byte) error {
 	parsed := ThreadRealtimeOrder(raw)
 	if !parsed.IsValid() {
 		return invalidEnumValue("ThreadRealtimeOrder", raw)
+	}
+	*value = parsed
+	return nil
+}
+
+type ThreadRealtimeSessionInputReason string
+
+const (
+	ThreadRealtimeSessionInputReasonChunk      ThreadRealtimeSessionInputReason = "chunk"
+	ThreadRealtimeSessionInputReasonSessionEnd ThreadRealtimeSessionInputReason = "sessionEnd"
+)
+
+func (value ThreadRealtimeSessionInputReason) IsValid() bool {
+	switch value {
+	case ThreadRealtimeSessionInputReasonChunk:
+		return true
+	case ThreadRealtimeSessionInputReasonSessionEnd:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value ThreadRealtimeSessionInputReason) MarshalJSON() ([]byte, error) {
+	if !value.IsValid() {
+		return nil, invalidEnumValue("ThreadRealtimeSessionInputReason", string(value))
+	}
+	return json.Marshal(string(value))
+}
+
+func (value *ThreadRealtimeSessionInputReason) UnmarshalJSON(data []byte) error {
+	var raw string
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	parsed := ThreadRealtimeSessionInputReason(raw)
+	if !parsed.IsValid() {
+		return invalidEnumValue("ThreadRealtimeSessionInputReason", raw)
 	}
 	*value = parsed
 	return nil
@@ -19457,7 +19539,8 @@ func (value *Model) unmarshalJSON(data []byte, mode wireDecodeMode) error {
 }
 
 type ModelAccessPrograms struct {
-	Cyber []CyberAccessProgram `json:"cyber"`
+	Cyber                []CyberAccessProgram  `json:"cyber"`
+	DaybreakAvailability *DaybreakAvailability `json:"daybreakAvailability,omitempty"`
 }
 
 func (value ModelAccessPrograms) MarshalJSON() ([]byte, error) {
@@ -19484,6 +19567,10 @@ func (value *ModelAccessPrograms) unmarshalJSON(data []byte, mode wireDecodeMode
 	}
 	if !seenCyber {
 		return missingRequiredField("ModelAccessPrograms.cyber")
+	}
+	_, err = decodeJSONField(fields, "daybreakAvailability", "ModelAccessPrograms.daybreakAvailability", false, mode, wirePointerDecoder(decodeWireValue[DaybreakAvailability]), &decoded.DaybreakAvailability)
+	if err != nil {
+		return err
 	}
 	if err := rejectUnexpectedFieldsForMode(fields, "ModelAccessPrograms", mode); err != nil {
 		return err
@@ -26456,39 +26543,40 @@ func (value *TextRange) unmarshalJSON(data []byte, mode wireDecodeMode) error {
 }
 
 type Thread struct {
-	AgentNickname        *Nullable[string]              `json:"agentNickname,omitempty"`
-	AgentRole            *Nullable[string]              `json:"agentRole,omitempty"`
-	AttachedToThreadID   *Nullable[string]              `json:"attachedToThreadId,omitempty"`
-	CanAcceptDirectInput *Nullable[bool]                `json:"canAcceptDirectInput,omitempty"`
-	CliVersion           string                         `json:"cliVersion"`
-	CreatedAt            int64                          `json:"createdAt"`
-	CWD                  string                         `json:"cwd"`
-	DaybreakEnabled      *Nullable[bool]                `json:"daybreakEnabled,omitempty"`
-	Environments         *Nullable[[]ThreadEnvironment] `json:"environments,omitempty"`
-	Ephemeral            bool                           `json:"ephemeral"`
-	Extra                *Nullable[ThreadExtra]         `json:"extra,omitempty"`
-	ForkedFromID         *Nullable[string]              `json:"forkedFromId,omitempty"`
-	GitInfo              *Nullable[GitInfo]             `json:"gitInfo,omitempty"`
-	HistoryMode          *ThreadHistoryMode             `json:"historyMode,omitempty"`
-	ID                   string                         `json:"id"`
-	Model                *Nullable[string]              `json:"model,omitempty"`
-	ModelProvider        string                         `json:"modelProvider"`
-	Name                 *Nullable[string]              `json:"name,omitempty"`
-	Originator           *Nullable[string]              `json:"originator,omitempty"`
-	ParentThreadID       *Nullable[string]              `json:"parentThreadId,omitempty"`
-	Path                 *Nullable[string]              `json:"path,omitempty"`
-	Preview              string                         `json:"preview"`
-	ProjectID            Nullable[string]               `json:"projectId"`
-	ReasoningEffort      *Nullable[ReasoningEffort]     `json:"reasoningEffort,omitempty"`
-	RecencyAt            *Nullable[int64]               `json:"recencyAt,omitempty"`
-	Section              *Nullable[ThreadSection]       `json:"section,omitempty"`
-	SectionEnteredAt     *Nullable[int64]               `json:"sectionEnteredAt,omitempty"`
-	SessionID            string                         `json:"sessionId"`
-	Source               SessionSource                  `json:"source"`
-	Status               ThreadStatus                   `json:"status"`
-	ThreadSource         *Nullable[ThreadSource]        `json:"threadSource,omitempty"`
-	Turns                []Turn                         `json:"turns"`
-	UpdatedAt            int64                          `json:"updatedAt"`
+	AgentNickname                      *Nullable[string]              `json:"agentNickname,omitempty"`
+	AgentRole                          *Nullable[string]              `json:"agentRole,omitempty"`
+	AttachedToThreadID                 *Nullable[string]              `json:"attachedToThreadId,omitempty"`
+	CanAcceptDirectInput               *Nullable[bool]                `json:"canAcceptDirectInput,omitempty"`
+	CliVersion                         string                         `json:"cliVersion"`
+	CreatedAt                          int64                          `json:"createdAt"`
+	CWD                                string                         `json:"cwd"`
+	DaybreakEnabled                    *Nullable[bool]                `json:"daybreakEnabled,omitempty"`
+	DaybreakProgramPropagationEnrolled *Nullable[bool]                `json:"daybreakProgramPropagationEnrolled,omitempty"`
+	Environments                       *Nullable[[]ThreadEnvironment] `json:"environments,omitempty"`
+	Ephemeral                          bool                           `json:"ephemeral"`
+	Extra                              *Nullable[ThreadExtra]         `json:"extra,omitempty"`
+	ForkedFromID                       *Nullable[string]              `json:"forkedFromId,omitempty"`
+	GitInfo                            *Nullable[GitInfo]             `json:"gitInfo,omitempty"`
+	HistoryMode                        *ThreadHistoryMode             `json:"historyMode,omitempty"`
+	ID                                 string                         `json:"id"`
+	Model                              *Nullable[string]              `json:"model,omitempty"`
+	ModelProvider                      string                         `json:"modelProvider"`
+	Name                               *Nullable[string]              `json:"name,omitempty"`
+	Originator                         *Nullable[string]              `json:"originator,omitempty"`
+	ParentThreadID                     *Nullable[string]              `json:"parentThreadId,omitempty"`
+	Path                               *Nullable[string]              `json:"path,omitempty"`
+	Preview                            string                         `json:"preview"`
+	ProjectID                          Nullable[string]               `json:"projectId"`
+	ReasoningEffort                    *Nullable[ReasoningEffort]     `json:"reasoningEffort,omitempty"`
+	RecencyAt                          *Nullable[int64]               `json:"recencyAt,omitempty"`
+	Section                            *Nullable[ThreadSection]       `json:"section,omitempty"`
+	SectionEnteredAt                   *Nullable[int64]               `json:"sectionEnteredAt,omitempty"`
+	SessionID                          string                         `json:"sessionId"`
+	Source                             SessionSource                  `json:"source"`
+	Status                             ThreadStatus                   `json:"status"`
+	ThreadSource                       *Nullable[ThreadSource]        `json:"threadSource,omitempty"`
+	Turns                              []Turn                         `json:"turns"`
+	UpdatedAt                          int64                          `json:"updatedAt"`
 }
 
 func (value Thread) MarshalJSON() ([]byte, error) {
@@ -26547,6 +26635,10 @@ func (value *Thread) unmarshalJSON(data []byte, mode wireDecodeMode) error {
 		return missingRequiredField("Thread.cwd")
 	}
 	_, err = decodeNullableJSONField[bool](fields, "daybreakEnabled", "Thread.daybreakEnabled", mode, decodeWireValue[bool], &decoded.DaybreakEnabled)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[bool](fields, "daybreakProgramPropagationEnrolled", "Thread.daybreakProgramPropagationEnrolled", mode, decodeWireValue[bool], &decoded.DaybreakProgramPropagationEnrolled)
 	if err != nil {
 		return err
 	}
@@ -31884,6 +31976,7 @@ type ThreadSampleParams struct {
 	Effort                     *Nullable[ReasoningEffort]   `json:"effort,omitempty"`
 	ExpectedTurnID             string                       `json:"expectedTurnId"`
 	InterruptOnCancel          *Nullable[bool]              `json:"interruptOnCancel,omitempty"`
+	Model                      *Nullable[string]            `json:"model,omitempty"`
 	Prompt                     string                       `json:"prompt"`
 	ResponsesapiClientMetadata *Nullable[map[string]string] `json:"responsesapiClientMetadata,omitempty"`
 	ThreadID                   string                       `json:"threadId"`
@@ -31921,6 +32014,10 @@ func (value *ThreadSampleParams) unmarshalJSON(data []byte, mode wireDecodeMode)
 		return missingRequiredField("ThreadSampleParams.expectedTurnId")
 	}
 	_, err = decodeNullableJSONField[bool](fields, "interruptOnCancel", "ThreadSampleParams.interruptOnCancel", mode, decodeWireValue[bool], &decoded.InterruptOnCancel)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[string](fields, "model", "ThreadSampleParams.model", mode, decodeWireValue[string], &decoded.Model)
 	if err != nil {
 		return err
 	}
@@ -33231,33 +33328,34 @@ func (value *ThreadShellCommandResponse) unmarshalJSON(data []byte, mode wireDec
 }
 
 type ThreadStartParams struct {
-	AllowProviderModelFallback *bool                               `json:"allowProviderModelFallback,omitempty"`
-	ApprovalPolicy             *Nullable[AskForApproval]           `json:"approvalPolicy,omitempty"`
-	ApprovalsReviewer          *Nullable[ApprovalsReviewer]        `json:"approvalsReviewer,omitempty"`
-	BaseInstructions           *Nullable[string]                   `json:"baseInstructions,omitempty"`
-	Config                     *Nullable[map[string]JSONValue]     `json:"config,omitempty"`
-	CWD                        *Nullable[string]                   `json:"cwd,omitempty"`
-	DaybreakEnabled            *Nullable[bool]                     `json:"daybreakEnabled,omitempty"`
-	DeveloperInstructions      *Nullable[string]                   `json:"developerInstructions,omitempty"`
-	DynamicTools               *Nullable[[]DynamicToolSpec]        `json:"dynamicTools,omitempty"`
-	Environments               *Nullable[[]TurnEnvironmentParams]  `json:"environments,omitempty"`
-	Ephemeral                  *Nullable[bool]                     `json:"ephemeral,omitempty"`
-	ExperimentalRawEvents      *bool                               `json:"experimentalRawEvents,omitempty"`
-	HistoryMode                *Nullable[ThreadHistoryMode]        `json:"historyMode,omitempty"`
-	MockExperimentalField      *Nullable[string]                   `json:"mockExperimentalField,omitempty"`
-	Model                      *Nullable[string]                   `json:"model,omitempty"`
-	ModelProvider              *Nullable[string]                   `json:"modelProvider,omitempty"`
-	MultiAgentMode             *Nullable[MultiAgentMode]           `json:"multiAgentMode,omitempty"`
-	Permissions                *Nullable[string]                   `json:"permissions,omitempty"`
-	Personality                *Nullable[Personality]              `json:"personality,omitempty"`
-	ProjectID                  *Nullable[string]                   `json:"projectId,omitempty"`
-	RuntimeWorkspaceRoots      *Nullable[[]string]                 `json:"runtimeWorkspaceRoots,omitempty"`
-	Sandbox                    *Nullable[SandboxMode]              `json:"sandbox,omitempty"`
-	SelectedCapabilityRoots    *Nullable[[]SelectedCapabilityRoot] `json:"selectedCapabilityRoots,omitempty"`
-	ServiceName                *Nullable[string]                   `json:"serviceName,omitempty"`
-	ServiceTier                *Nullable[string]                   `json:"serviceTier,omitempty"`
-	SessionStartSource         *Nullable[ThreadStartSource]        `json:"sessionStartSource,omitempty"`
-	ThreadSource               *Nullable[ThreadSource]             `json:"threadSource,omitempty"`
+	AllowProviderModelFallback         *bool                               `json:"allowProviderModelFallback,omitempty"`
+	ApprovalPolicy                     *Nullable[AskForApproval]           `json:"approvalPolicy,omitempty"`
+	ApprovalsReviewer                  *Nullable[ApprovalsReviewer]        `json:"approvalsReviewer,omitempty"`
+	BaseInstructions                   *Nullable[string]                   `json:"baseInstructions,omitempty"`
+	Config                             *Nullable[map[string]JSONValue]     `json:"config,omitempty"`
+	CWD                                *Nullable[string]                   `json:"cwd,omitempty"`
+	DaybreakEnabled                    *Nullable[bool]                     `json:"daybreakEnabled,omitempty"`
+	DaybreakProgramPropagationEnrolled *Nullable[bool]                     `json:"daybreakProgramPropagationEnrolled,omitempty"`
+	DeveloperInstructions              *Nullable[string]                   `json:"developerInstructions,omitempty"`
+	DynamicTools                       *Nullable[[]DynamicToolSpec]        `json:"dynamicTools,omitempty"`
+	Environments                       *Nullable[[]TurnEnvironmentParams]  `json:"environments,omitempty"`
+	Ephemeral                          *Nullable[bool]                     `json:"ephemeral,omitempty"`
+	ExperimentalRawEvents              *bool                               `json:"experimentalRawEvents,omitempty"`
+	HistoryMode                        *Nullable[ThreadHistoryMode]        `json:"historyMode,omitempty"`
+	MockExperimentalField              *Nullable[string]                   `json:"mockExperimentalField,omitempty"`
+	Model                              *Nullable[string]                   `json:"model,omitempty"`
+	ModelProvider                      *Nullable[string]                   `json:"modelProvider,omitempty"`
+	MultiAgentMode                     *Nullable[MultiAgentMode]           `json:"multiAgentMode,omitempty"`
+	Permissions                        *Nullable[string]                   `json:"permissions,omitempty"`
+	Personality                        *Nullable[Personality]              `json:"personality,omitempty"`
+	ProjectID                          *Nullable[string]                   `json:"projectId,omitempty"`
+	RuntimeWorkspaceRoots              *Nullable[[]string]                 `json:"runtimeWorkspaceRoots,omitempty"`
+	Sandbox                            *Nullable[SandboxMode]              `json:"sandbox,omitempty"`
+	SelectedCapabilityRoots            *Nullable[[]SelectedCapabilityRoot] `json:"selectedCapabilityRoots,omitempty"`
+	ServiceName                        *Nullable[string]                   `json:"serviceName,omitempty"`
+	ServiceTier                        *Nullable[string]                   `json:"serviceTier,omitempty"`
+	SessionStartSource                 *Nullable[ThreadStartSource]        `json:"sessionStartSource,omitempty"`
+	ThreadSource                       *Nullable[ThreadSource]             `json:"threadSource,omitempty"`
 }
 
 func (value *ThreadStartParams) UnmarshalJSON(data []byte) error {
@@ -33295,6 +33393,10 @@ func (value *ThreadStartParams) unmarshalJSON(data []byte, mode wireDecodeMode) 
 		return err
 	}
 	_, err = decodeNullableJSONField[bool](fields, "daybreakEnabled", "ThreadStartParams.daybreakEnabled", mode, decodeWireValue[bool], &decoded.DaybreakEnabled)
+	if err != nil {
+		return err
+	}
+	_, err = decodeNullableJSONField[bool](fields, "daybreakProgramPropagationEnrolled", "ThreadStartParams.daybreakProgramPropagationEnrolled", mode, decodeWireValue[bool], &decoded.DaybreakProgramPropagationEnrolled)
 	if err != nil {
 		return err
 	}
@@ -36869,6 +36971,9 @@ const (
 	CodexErrorInfoKindContextWindowExceeded          CodexErrorInfoKind = "contextWindowExceeded"
 	CodexErrorInfoKindSessionBudgetExceeded          CodexErrorInfoKind = "sessionBudgetExceeded"
 	CodexErrorInfoKindUsageLimitExceeded             CodexErrorInfoKind = "usageLimitExceeded"
+	CodexErrorInfoKindAPIKeySpendLimitExceeded       CodexErrorInfoKind = "apiKeySpendLimitExceeded"
+	CodexErrorInfoKindProjectSpendLimitExceeded      CodexErrorInfoKind = "projectSpendLimitExceeded"
+	CodexErrorInfoKindOrganizationSpendLimitExceeded CodexErrorInfoKind = "organizationSpendLimitExceeded"
 	CodexErrorInfoKindRateLimitExceeded              CodexErrorInfoKind = "rateLimitExceeded"
 	CodexErrorInfoKindFlexUnavailable                CodexErrorInfoKind = "flexUnavailable"
 	CodexErrorInfoKindServerOverloaded               CodexErrorInfoKind = "serverOverloaded"
@@ -36898,6 +37003,9 @@ type CodexErrorInfo struct {
 	variantContextWindowExceeded          *CodexErrorInfoContextWindowExceeded
 	variantSessionBudgetExceeded          *CodexErrorInfoSessionBudgetExceeded
 	variantUsageLimitExceeded             *CodexErrorInfoUsageLimitExceeded
+	variantAPIKeySpendLimitExceeded       *CodexErrorInfoAPIKeySpendLimitExceeded
+	variantProjectSpendLimitExceeded      *CodexErrorInfoProjectSpendLimitExceeded
+	variantOrganizationSpendLimitExceeded *CodexErrorInfoOrganizationSpendLimitExceeded
 	variantRateLimitExceeded              *CodexErrorInfoRateLimitExceeded
 	variantFlexUnavailable                *CodexErrorInfoFlexUnavailable
 	variantServerOverloaded               *CodexErrorInfoServerOverloaded
@@ -36927,6 +37035,12 @@ type CodexErrorInfoContextWindowExceeded struct{}
 type CodexErrorInfoSessionBudgetExceeded struct{}
 
 type CodexErrorInfoUsageLimitExceeded struct{}
+
+type CodexErrorInfoAPIKeySpendLimitExceeded struct{}
+
+type CodexErrorInfoProjectSpendLimitExceeded struct{}
+
+type CodexErrorInfoOrganizationSpendLimitExceeded struct{}
 
 type CodexErrorInfoRateLimitExceeded struct{}
 
@@ -36997,6 +37111,21 @@ func NewCodexErrorInfoSessionBudgetExceeded() CodexErrorInfo {
 func NewCodexErrorInfoUsageLimitExceeded() CodexErrorInfo {
 	payload := CodexErrorInfoUsageLimitExceeded{}
 	return CodexErrorInfo{kind: CodexErrorInfoKindUsageLimitExceeded, variantUsageLimitExceeded: &payload}
+}
+
+func NewCodexErrorInfoAPIKeySpendLimitExceeded() CodexErrorInfo {
+	payload := CodexErrorInfoAPIKeySpendLimitExceeded{}
+	return CodexErrorInfo{kind: CodexErrorInfoKindAPIKeySpendLimitExceeded, variantAPIKeySpendLimitExceeded: &payload}
+}
+
+func NewCodexErrorInfoProjectSpendLimitExceeded() CodexErrorInfo {
+	payload := CodexErrorInfoProjectSpendLimitExceeded{}
+	return CodexErrorInfo{kind: CodexErrorInfoKindProjectSpendLimitExceeded, variantProjectSpendLimitExceeded: &payload}
+}
+
+func NewCodexErrorInfoOrganizationSpendLimitExceeded() CodexErrorInfo {
+	payload := CodexErrorInfoOrganizationSpendLimitExceeded{}
+	return CodexErrorInfo{kind: CodexErrorInfoKindOrganizationSpendLimitExceeded, variantOrganizationSpendLimitExceeded: &payload}
 }
 
 func NewCodexErrorInfoRateLimitExceeded() CodexErrorInfo {
@@ -37115,6 +37244,12 @@ func (value CodexErrorInfo) IsValid() bool {
 		return value.variantSessionBudgetExceeded != nil
 	case CodexErrorInfoKindUsageLimitExceeded:
 		return value.variantUsageLimitExceeded != nil
+	case CodexErrorInfoKindAPIKeySpendLimitExceeded:
+		return value.variantAPIKeySpendLimitExceeded != nil
+	case CodexErrorInfoKindProjectSpendLimitExceeded:
+		return value.variantProjectSpendLimitExceeded != nil
+	case CodexErrorInfoKindOrganizationSpendLimitExceeded:
+		return value.variantOrganizationSpendLimitExceeded != nil
 	case CodexErrorInfoKindRateLimitExceeded:
 		return value.variantRateLimitExceeded != nil
 	case CodexErrorInfoKindFlexUnavailable:
@@ -37183,6 +37318,27 @@ func (value CodexErrorInfo) AsUsageLimitExceeded() (CodexErrorInfoUsageLimitExce
 		return CodexErrorInfoUsageLimitExceeded{}, false
 	}
 	return *value.variantUsageLimitExceeded, true
+}
+
+func (value CodexErrorInfo) AsAPIKeySpendLimitExceeded() (CodexErrorInfoAPIKeySpendLimitExceeded, bool) {
+	if value.kind != CodexErrorInfoKindAPIKeySpendLimitExceeded || value.variantAPIKeySpendLimitExceeded == nil {
+		return CodexErrorInfoAPIKeySpendLimitExceeded{}, false
+	}
+	return *value.variantAPIKeySpendLimitExceeded, true
+}
+
+func (value CodexErrorInfo) AsProjectSpendLimitExceeded() (CodexErrorInfoProjectSpendLimitExceeded, bool) {
+	if value.kind != CodexErrorInfoKindProjectSpendLimitExceeded || value.variantProjectSpendLimitExceeded == nil {
+		return CodexErrorInfoProjectSpendLimitExceeded{}, false
+	}
+	return *value.variantProjectSpendLimitExceeded, true
+}
+
+func (value CodexErrorInfo) AsOrganizationSpendLimitExceeded() (CodexErrorInfoOrganizationSpendLimitExceeded, bool) {
+	if value.kind != CodexErrorInfoKindOrganizationSpendLimitExceeded || value.variantOrganizationSpendLimitExceeded == nil {
+		return CodexErrorInfoOrganizationSpendLimitExceeded{}, false
+	}
+	return *value.variantOrganizationSpendLimitExceeded, true
 }
 
 func (value CodexErrorInfo) AsRateLimitExceeded() (CodexErrorInfoRateLimitExceeded, bool) {
@@ -37356,6 +37512,21 @@ func (value CodexErrorInfo) MarshalJSON() ([]byte, error) {
 			return nil, invalidUnionVariant("CodexErrorInfo", "usageLimitExceeded")
 		}
 		return json.Marshal("usageLimitExceeded")
+	case CodexErrorInfoKindAPIKeySpendLimitExceeded:
+		if value.variantAPIKeySpendLimitExceeded == nil {
+			return nil, invalidUnionVariant("CodexErrorInfo", "apiKeySpendLimitExceeded")
+		}
+		return json.Marshal("apiKeySpendLimitExceeded")
+	case CodexErrorInfoKindProjectSpendLimitExceeded:
+		if value.variantProjectSpendLimitExceeded == nil {
+			return nil, invalidUnionVariant("CodexErrorInfo", "projectSpendLimitExceeded")
+		}
+		return json.Marshal("projectSpendLimitExceeded")
+	case CodexErrorInfoKindOrganizationSpendLimitExceeded:
+		if value.variantOrganizationSpendLimitExceeded == nil {
+			return nil, invalidUnionVariant("CodexErrorInfo", "organizationSpendLimitExceeded")
+		}
+		return json.Marshal("organizationSpendLimitExceeded")
 	case CodexErrorInfoKindRateLimitExceeded:
 		if value.variantRateLimitExceeded == nil {
 			return nil, invalidUnionVariant("CodexErrorInfo", "rateLimitExceeded")
@@ -37536,6 +37707,18 @@ func (value *CodexErrorInfo) unmarshalKnownJSON(data []byte, mode wireDecodeMode
 		case "usageLimitExceeded":
 			payload := CodexErrorInfoUsageLimitExceeded{}
 			*value = CodexErrorInfo{kind: CodexErrorInfoKindUsageLimitExceeded, variantUsageLimitExceeded: &payload}
+			return nil
+		case "apiKeySpendLimitExceeded":
+			payload := CodexErrorInfoAPIKeySpendLimitExceeded{}
+			*value = CodexErrorInfo{kind: CodexErrorInfoKindAPIKeySpendLimitExceeded, variantAPIKeySpendLimitExceeded: &payload}
+			return nil
+		case "projectSpendLimitExceeded":
+			payload := CodexErrorInfoProjectSpendLimitExceeded{}
+			*value = CodexErrorInfo{kind: CodexErrorInfoKindProjectSpendLimitExceeded, variantProjectSpendLimitExceeded: &payload}
+			return nil
+		case "organizationSpendLimitExceeded":
+			payload := CodexErrorInfoOrganizationSpendLimitExceeded{}
+			*value = CodexErrorInfo{kind: CodexErrorInfoKindOrganizationSpendLimitExceeded, variantOrganizationSpendLimitExceeded: &payload}
 			return nil
 		case "rateLimitExceeded":
 			payload := CodexErrorInfoRateLimitExceeded{}
@@ -40410,12 +40593,14 @@ type BedrockSetupParams struct {
 }
 
 type BedrockSetupParamsProfile struct {
-	Profile string `json:"profile"`
-	Region  string `json:"region"`
+	Profile    string                       `json:"profile"`
+	ProviderID *Nullable[BedrockProviderId] `json:"providerId,omitempty"`
+	Region     string                       `json:"region"`
 }
 
 type BedrockSetupParamsEnvironment struct {
-	Region string `json:"region"`
+	ProviderID *Nullable[BedrockProviderId] `json:"providerId,omitempty"`
+	Region     string                       `json:"region"`
 }
 
 func NewBedrockSetupParamsProfile(payload BedrockSetupParamsProfile) BedrockSetupParams {
@@ -40462,24 +40647,28 @@ func (value BedrockSetupParams) MarshalJSON() ([]byte, error) {
 			return nil, invalidUnionVariant("BedrockSetupParams", "profile")
 		}
 		return json.Marshal(struct {
-			Profile string `json:"profile"`
-			Region  string `json:"region"`
-			Type    string `json:"type"`
+			Profile    string                       `json:"profile"`
+			ProviderID *Nullable[BedrockProviderId] `json:"providerId,omitempty"`
+			Region     string                       `json:"region"`
+			Type       string                       `json:"type"`
 		}{
-			Profile: value.variantProfile.Profile,
-			Region:  value.variantProfile.Region,
-			Type:    "profile",
+			Profile:    value.variantProfile.Profile,
+			ProviderID: value.variantProfile.ProviderID,
+			Region:     value.variantProfile.Region,
+			Type:       "profile",
 		})
 	case BedrockSetupParamsKindEnvironment:
 		if value.variantEnvironment == nil {
 			return nil, invalidUnionVariant("BedrockSetupParams", "environment")
 		}
 		return json.Marshal(struct {
-			Region string `json:"region"`
-			Type   string `json:"type"`
+			ProviderID *Nullable[BedrockProviderId] `json:"providerId,omitempty"`
+			Region     string                       `json:"region"`
+			Type       string                       `json:"type"`
 		}{
-			Region: value.variantEnvironment.Region,
-			Type:   "environment",
+			ProviderID: value.variantEnvironment.ProviderID,
+			Region:     value.variantEnvironment.Region,
+			Type:       "environment",
 		})
 	default:
 		return nil, invalidUnionValue("BedrockSetupParams")
@@ -40509,6 +40698,10 @@ func (value *BedrockSetupParams) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if !seenProfile {
 			return missingRequiredField("BedrockSetupParams.profile")
 		}
+		_, err = decodeNullableJSONField[BedrockProviderId](fields, "providerId", "BedrockSetupParams.providerId", mode, decodeWireValue[BedrockProviderId], &decoded.ProviderID)
+		if err != nil {
+			return err
+		}
 		seenRegion, err := decodeJSONField(fields, "region", "BedrockSetupParams.region", false, mode, decodeWireValue[string], &decoded.Region)
 		if err != nil {
 			return err
@@ -40523,6 +40716,10 @@ func (value *BedrockSetupParams) unmarshalJSON(data []byte, mode wireDecodeMode)
 		return nil
 	case "environment":
 		var decoded BedrockSetupParamsEnvironment
+		_, err = decodeNullableJSONField[BedrockProviderId](fields, "providerId", "BedrockSetupParams.providerId", mode, decodeWireValue[BedrockProviderId], &decoded.ProviderID)
+		if err != nil {
+			return err
+		}
 		seenRegion, err := decodeJSONField(fields, "region", "BedrockSetupParams.region", false, mode, decodeWireValue[string], &decoded.Region)
 		if err != nil {
 			return err
@@ -55239,15 +55436,17 @@ type LoginAccountParamsChatGPTAuthTokens struct {
 }
 
 type LoginAccountParamsAmazonBedrock struct {
-	APIKey string `json:"apiKey"`
-	Region string `json:"region"`
+	APIKey     string                       `json:"apiKey"`
+	ProviderID *Nullable[BedrockProviderId] `json:"providerId,omitempty"`
+	Region     string                       `json:"region"`
 }
 
 type LoginAccountParamsAmazonBedrockAccessKeys struct {
-	AccessKeyID     string            `json:"accessKeyId"`
-	Region          string            `json:"region"`
-	SecretAccessKey string            `json:"secretAccessKey"`
-	SessionToken    *Nullable[string] `json:"sessionToken,omitempty"`
+	AccessKeyID     string                       `json:"accessKeyId"`
+	ProviderID      *Nullable[BedrockProviderId] `json:"providerId,omitempty"`
+	Region          string                       `json:"region"`
+	SecretAccessKey string                       `json:"secretAccessKey"`
+	SessionToken    *Nullable[string]            `json:"sessionToken,omitempty"`
 }
 
 func NewLoginAccountParamsAPIKey(payload LoginAccountParamsAPIKey) LoginAccountParams {
@@ -55397,26 +55596,30 @@ func (value LoginAccountParams) MarshalJSON() ([]byte, error) {
 			return nil, invalidUnionVariant("LoginAccountParams", "amazonBedrock")
 		}
 		return json.Marshal(struct {
-			APIKey string `json:"apiKey"`
-			Region string `json:"region"`
-			Type   string `json:"type"`
+			APIKey     string                       `json:"apiKey"`
+			ProviderID *Nullable[BedrockProviderId] `json:"providerId,omitempty"`
+			Region     string                       `json:"region"`
+			Type       string                       `json:"type"`
 		}{
-			APIKey: value.variantAmazonBedrock.APIKey,
-			Region: value.variantAmazonBedrock.Region,
-			Type:   "amazonBedrock",
+			APIKey:     value.variantAmazonBedrock.APIKey,
+			ProviderID: value.variantAmazonBedrock.ProviderID,
+			Region:     value.variantAmazonBedrock.Region,
+			Type:       "amazonBedrock",
 		})
 	case LoginAccountParamsKindAmazonBedrockAccessKeys:
 		if value.variantAmazonBedrockAccessKeys == nil {
 			return nil, invalidUnionVariant("LoginAccountParams", "amazonBedrockAccessKeys")
 		}
 		return json.Marshal(struct {
-			AccessKeyID     string            `json:"accessKeyId"`
-			Region          string            `json:"region"`
-			SecretAccessKey string            `json:"secretAccessKey"`
-			SessionToken    *Nullable[string] `json:"sessionToken,omitempty"`
-			Type            string            `json:"type"`
+			AccessKeyID     string                       `json:"accessKeyId"`
+			ProviderID      *Nullable[BedrockProviderId] `json:"providerId,omitempty"`
+			Region          string                       `json:"region"`
+			SecretAccessKey string                       `json:"secretAccessKey"`
+			SessionToken    *Nullable[string]            `json:"sessionToken,omitempty"`
+			Type            string                       `json:"type"`
 		}{
 			AccessKeyID:     value.variantAmazonBedrockAccessKeys.AccessKeyID,
+			ProviderID:      value.variantAmazonBedrockAccessKeys.ProviderID,
 			Region:          value.variantAmazonBedrockAccessKeys.Region,
 			SecretAccessKey: value.variantAmazonBedrockAccessKeys.SecretAccessKey,
 			SessionToken:    value.variantAmazonBedrockAccessKeys.SessionToken,
@@ -55515,6 +55718,10 @@ func (value *LoginAccountParams) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if !seenAPIKey {
 			return missingRequiredField("LoginAccountParams.apiKey")
 		}
+		_, err = decodeNullableJSONField[BedrockProviderId](fields, "providerId", "LoginAccountParams.providerId", mode, decodeWireValue[BedrockProviderId], &decoded.ProviderID)
+		if err != nil {
+			return err
+		}
 		seenRegion, err := decodeJSONField(fields, "region", "LoginAccountParams.region", false, mode, decodeWireValue[string], &decoded.Region)
 		if err != nil {
 			return err
@@ -55535,6 +55742,10 @@ func (value *LoginAccountParams) unmarshalJSON(data []byte, mode wireDecodeMode)
 		}
 		if !seenAccessKeyID {
 			return missingRequiredField("LoginAccountParams.accessKeyId")
+		}
+		_, err = decodeNullableJSONField[BedrockProviderId](fields, "providerId", "LoginAccountParams.providerId", mode, decodeWireValue[BedrockProviderId], &decoded.ProviderID)
+		if err != nil {
+			return err
 		}
 		seenRegion, err := decodeJSONField(fields, "region", "LoginAccountParams.region", false, mode, decodeWireValue[string], &decoded.Region)
 		if err != nil {
@@ -66678,7 +66889,7 @@ const (
 	ThreadRealtimeItemKindBemItemPromoted        ThreadRealtimeItemKind = "bemItemPromoted"
 	ThreadRealtimeItemKindRealtimeSessionClosed  ThreadRealtimeItemKind = "realtimeSessionClosed"
 	ThreadRealtimeItemKindTurnInputAccepted      ThreadRealtimeItemKind = "turnInputAccepted"
-	ThreadRealtimeItemKindSessionEndInputSaved   ThreadRealtimeItemKind = "sessionEndInputSaved"
+	ThreadRealtimeItemKindSessionInputSaved      ThreadRealtimeItemKind = "sessionInputSaved"
 )
 
 type ThreadRealtimeItem struct {
@@ -66692,7 +66903,7 @@ type ThreadRealtimeItem struct {
 	variantBemItemPromoted        *ThreadRealtimeItemBemItemPromoted
 	variantRealtimeSessionClosed  *ThreadRealtimeItemRealtimeSessionClosed
 	variantTurnInputAccepted      *ThreadRealtimeItemTurnInputAccepted
-	variantSessionEndInputSaved   *ThreadRealtimeItemSessionEndInputSaved
+	variantSessionInputSaved      *ThreadRealtimeItemSessionInputSaved
 }
 
 type ThreadRealtimeItemRealtimeSessionStarted struct{}
@@ -66725,10 +66936,11 @@ type ThreadRealtimeItemTurnInputAccepted struct {
 	TurnID         string                    `json:"turn_id"`
 }
 
-type ThreadRealtimeItemSessionEndInputSaved struct {
-	Input          string   `json:"input"`
-	InputItemID    string   `json:"input_item_id"`
-	SourceEventIDs []string `json:"source_event_ids"`
+type ThreadRealtimeItemSessionInputSaved struct {
+	Input          string                           `json:"input"`
+	InputItemID    string                           `json:"input_item_id"`
+	Reason         ThreadRealtimeSessionInputReason `json:"reason"`
+	SourceEventIDs []string                         `json:"source_event_ids"`
 }
 
 func NewThreadRealtimeItemRealtimeSessionStarted() ThreadRealtimeItem {
@@ -66756,8 +66968,8 @@ func NewThreadRealtimeItemTurnInputAccepted(payload ThreadRealtimeItemTurnInputA
 	return ThreadRealtimeItem{kind: ThreadRealtimeItemKindTurnInputAccepted, variantTurnInputAccepted: &payload}
 }
 
-func NewThreadRealtimeItemSessionEndInputSaved(payload ThreadRealtimeItemSessionEndInputSaved) ThreadRealtimeItem {
-	return ThreadRealtimeItem{kind: ThreadRealtimeItemKindSessionEndInputSaved, variantSessionEndInputSaved: &payload}
+func NewThreadRealtimeItemSessionInputSaved(payload ThreadRealtimeItemSessionInputSaved) ThreadRealtimeItem {
+	return ThreadRealtimeItem{kind: ThreadRealtimeItemKindSessionInputSaved, variantSessionInputSaved: &payload}
 }
 
 func (value ThreadRealtimeItem) Kind() ThreadRealtimeItemKind {
@@ -66778,8 +66990,8 @@ func (value ThreadRealtimeItem) IsValid() bool {
 		return value.variantRealtimeSessionClosed != nil
 	case ThreadRealtimeItemKindTurnInputAccepted:
 		return value.variantTurnInputAccepted != nil
-	case ThreadRealtimeItemKindSessionEndInputSaved:
-		return value.variantSessionEndInputSaved != nil
+	case ThreadRealtimeItemKindSessionInputSaved:
+		return value.variantSessionInputSaved != nil
 	default:
 		return false
 	}
@@ -66827,11 +67039,11 @@ func (value ThreadRealtimeItem) AsTurnInputAccepted() (ThreadRealtimeItemTurnInp
 	return *value.variantTurnInputAccepted, true
 }
 
-func (value ThreadRealtimeItem) AsSessionEndInputSaved() (ThreadRealtimeItemSessionEndInputSaved, bool) {
-	if value.kind != ThreadRealtimeItemKindSessionEndInputSaved || value.variantSessionEndInputSaved == nil {
-		return ThreadRealtimeItemSessionEndInputSaved{}, false
+func (value ThreadRealtimeItem) AsSessionInputSaved() (ThreadRealtimeItemSessionInputSaved, bool) {
+	if value.kind != ThreadRealtimeItemKindSessionInputSaved || value.variantSessionInputSaved == nil {
+		return ThreadRealtimeItemSessionInputSaved{}, false
 	}
-	return *value.variantSessionEndInputSaved, true
+	return *value.variantSessionInputSaved, true
 }
 
 func (value ThreadRealtimeItem) MarshalJSON() ([]byte, error) {
@@ -66955,29 +67167,31 @@ func (value ThreadRealtimeItem) MarshalJSON() ([]byte, error) {
 			TurnID:            value.variantTurnInputAccepted.TurnID,
 			Type:              "turnInputAccepted",
 		})
-	case ThreadRealtimeItemKindSessionEndInputSaved:
-		if value.variantSessionEndInputSaved == nil {
-			return nil, invalidUnionVariant("ThreadRealtimeItem", "sessionEndInputSaved")
+	case ThreadRealtimeItemKindSessionInputSaved:
+		if value.variantSessionInputSaved == nil {
+			return nil, invalidUnionVariant("ThreadRealtimeItem", "sessionInputSaved")
 		}
-		if value.variantSessionEndInputSaved.SourceEventIDs == nil {
-			return nil, fmt.Errorf("encode ThreadRealtimeItem.sessionEndInputSaved.source_event_ids: nil is not allowed")
+		if value.variantSessionInputSaved.SourceEventIDs == nil {
+			return nil, fmt.Errorf("encode ThreadRealtimeItem.sessionInputSaved.source_event_ids: nil is not allowed")
 		}
 		return json.Marshal(struct {
-			ID                string           `json:"id"`
-			Input             string           `json:"input"`
-			InputItemID       string           `json:"input_item_id"`
-			ObservedAtMS      *Nullable[int64] `json:"observedAtMs,omitempty"`
-			RealtimeSessionID string           `json:"realtimeSessionId"`
-			SourceEventIDs    []string         `json:"source_event_ids"`
-			Type              string           `json:"type"`
+			ID                string                           `json:"id"`
+			Input             string                           `json:"input"`
+			InputItemID       string                           `json:"input_item_id"`
+			ObservedAtMS      *Nullable[int64]                 `json:"observedAtMs,omitempty"`
+			RealtimeSessionID string                           `json:"realtimeSessionId"`
+			Reason            ThreadRealtimeSessionInputReason `json:"reason"`
+			SourceEventIDs    []string                         `json:"source_event_ids"`
+			Type              string                           `json:"type"`
 		}{
 			ID:                value.ID,
-			Input:             value.variantSessionEndInputSaved.Input,
-			InputItemID:       value.variantSessionEndInputSaved.InputItemID,
+			Input:             value.variantSessionInputSaved.Input,
+			InputItemID:       value.variantSessionInputSaved.InputItemID,
 			ObservedAtMS:      value.ObservedAtMS,
 			RealtimeSessionID: value.RealtimeSessionID,
-			SourceEventIDs:    value.variantSessionEndInputSaved.SourceEventIDs,
-			Type:              "sessionEndInputSaved",
+			Reason:            value.variantSessionInputSaved.Reason,
+			SourceEventIDs:    value.variantSessionInputSaved.SourceEventIDs,
+			Type:              "sessionInputSaved",
 		})
 	default:
 		return nil, invalidUnionValue("ThreadRealtimeItem")
@@ -67150,8 +67364,8 @@ func (value *ThreadRealtimeItem) unmarshalJSON(data []byte, mode wireDecodeMode)
 		}
 		*value = ThreadRealtimeItem{ID: shared.ID, ObservedAtMS: shared.ObservedAtMS, RealtimeSessionID: shared.RealtimeSessionID, kind: ThreadRealtimeItemKindTurnInputAccepted, variantTurnInputAccepted: &decoded}
 		return nil
-	case "sessionEndInputSaved":
-		var decoded ThreadRealtimeItemSessionEndInputSaved
+	case "sessionInputSaved":
+		var decoded ThreadRealtimeItemSessionInputSaved
 		seenInput, err := decodeJSONField(fields, "input", "ThreadRealtimeItem.input", false, mode, decodeWireValue[string], &decoded.Input)
 		if err != nil {
 			return err
@@ -67166,6 +67380,13 @@ func (value *ThreadRealtimeItem) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if !seenInputItemID {
 			return missingRequiredField("ThreadRealtimeItem.input_item_id")
 		}
+		seenReason, err := decodeJSONField(fields, "reason", "ThreadRealtimeItem.reason", false, mode, decodeWireValue[ThreadRealtimeSessionInputReason], &decoded.Reason)
+		if err != nil {
+			return err
+		}
+		if !seenReason {
+			return missingRequiredField("ThreadRealtimeItem.reason")
+		}
 		seenSourceEventIDs, err := decodeJSONField(fields, "source_event_ids", "ThreadRealtimeItem.source_event_ids", false, mode, wireSliceDecoder(decodeWireValue[string]), &decoded.SourceEventIDs)
 		if err != nil {
 			return err
@@ -67173,10 +67394,10 @@ func (value *ThreadRealtimeItem) unmarshalJSON(data []byte, mode wireDecodeMode)
 		if !seenSourceEventIDs {
 			return missingRequiredField("ThreadRealtimeItem.source_event_ids")
 		}
-		if err := rejectUnexpectedFieldsForMode(fields, "ThreadRealtimeItem.sessionEndInputSaved", mode); err != nil {
+		if err := rejectUnexpectedFieldsForMode(fields, "ThreadRealtimeItem.sessionInputSaved", mode); err != nil {
 			return err
 		}
-		*value = ThreadRealtimeItem{ID: shared.ID, ObservedAtMS: shared.ObservedAtMS, RealtimeSessionID: shared.RealtimeSessionID, kind: ThreadRealtimeItemKindSessionEndInputSaved, variantSessionEndInputSaved: &decoded}
+		*value = ThreadRealtimeItem{ID: shared.ID, ObservedAtMS: shared.ObservedAtMS, RealtimeSessionID: shared.RealtimeSessionID, kind: ThreadRealtimeItemKindSessionInputSaved, variantSessionInputSaved: &decoded}
 		return nil
 	default:
 		return unknownUnionVariant("ThreadRealtimeItem", "type", variant)
